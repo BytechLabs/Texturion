@@ -82,6 +82,53 @@ export const PORT_STATE_COPY = {
     `Your temporary number ${bridge} is ready so you can text today. Once your real number finishes transferring, you can release the temporary one.`,
 } as const;
 
+/**
+ * What the customer should DO while the transfer is in flight (#319). All four
+ * lines existed already, in a marketing blog post — which is the one place a
+ * customer who is *already mid-port* will never look. Two of them are why this
+ * is worth the space:
+ *
+ *   - cancelling the old service before the port finishes can release the
+ *     number back into the carrier pool, and that is the one way to genuinely
+ *     lose it. It is one of the two mistakes behind almost every port horror
+ *     story, and it is the only one the customer can make by accident while
+ *     doing what feels tidy.
+ *   - the number moves; the conversations do not. Export is only possible
+ *     BEFORE the cutover, so saying it afterwards costs them the history.
+ *
+ * Ordered by what it costs to get wrong rather than by chronology — the item
+ * that can lose them the number goes first, because a skim reads the bold leads
+ * top-down and stops early.
+ *
+ * Exported as data (not inlined in the card) so the same four strings can be
+ * asserted across web/Android/iOS: this is guidance a customer may read on one
+ * client and act on from another, and it drifts silently if hand-kept.
+ */
+export const PORT_PRE_CUTOVER_CHECKLIST = {
+  heading: "Before your number switches",
+  items: [
+    {
+      lead: "Keep your old service active.",
+      detail:
+        "Cancelling before the transfer finishes can release the number back to the carrier, and that is the one way to genuinely lose it.",
+    },
+    {
+      lead: "Export your message history.",
+      detail: "The number moves, your old conversations do not.",
+    },
+    {
+      lead: "Tell the crew the switch date.",
+      detail:
+        "From that morning, calls and texts arrive in this inbox instead of the old one.",
+    },
+    {
+      lead: "Expect texting to trail calls.",
+      detail:
+        "Voice and texting can finish on different clocks, so texts may take an extra day. We will tell you when both are live.",
+    },
+  ],
+} as const;
+
 /** Plain one-liners explaining the two required documents (labels, not jargon). */
 export const PORT_DOCUMENT_HINTS = {
   loa: "A signed letter authorizing the transfer. Sign it within the last 90 days, and make sure it lists this number and your service address.",

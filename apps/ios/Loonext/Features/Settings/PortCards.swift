@@ -185,52 +185,85 @@ private struct PortCard: View {
     private var canManage: Bool { SettingsRoleGate.canManageNumbers(scope.role) }
     private var canCancel: Bool { SettingsRoleGate.canCancelPort(scope.role) }
 
+    /// #319: the request is with the carriers and the number has not moved yet
+    /// — the only stretch where the checklist can still change the outcome.
+    ///
+    /// Excluded on purpose: `draft` (nothing is in flight), `exception` (the
+    /// rejection notice owns that card and a checklist under it buries the
+    /// fix), and `ported`/`cancel-pending`/`cancelled` (too late to export, or
+    /// moot). `in-process` is included even though #319 names only the other
+    /// three, because it is where a submitted transfer actually sits — `submit`
+    /// and `resubmit` below both land the order there (routes/porting.ts) — so
+    /// leaving it out would blank the guidance for most of the wait. The
+    /// tracker already folds it in with the other two at "In progress"
+    /// (`portStepIndex`), and web/Android gate on the same four.
+    private var isPreCutover: Bool {
+        port.status == PortStatus.submitted
+            || port.status == PortStatus.inProcess
+            || port.status == PortStatus.focDateConfirmed
+            || port.status == PortStatus.activationInProgress
+    }
+
     var body: some View {
         SettingsCard(title: "Transfer: \(formatPhone(port.phone_e164))") {
             statusPill
             Spacer().frame(height: 8)
             PortStepper(status: port.status)
 
-            if let foc = port.foc_date {
-                Text("The carriers agreed on a switch date: \(foc).")
+            // Grouped for one mechanical reason: a ViewBuilder block takes ten
+            // children and this card was already at ten, so #319's checklist
+            // below had nowhere to go. These four are the card's context lines
+            // — what the carriers have said about THIS transfer — so they group
+            // without inventing a relationship. Group flattens into the
+            // enclosing stack, so nothing about the layout changes.
+            Group {
+                if let foc = port.foc_date {
+                    Text("The carriers agreed on a switch date: \(foc).")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 6)
+                }
+                if port.status == PortStatus.exception {
+                    // #319: the carrier's own token translated into what happened
+                    // and the one thing to change, with a jump into the fix sheet
+                    // at the field it concerns. The raw reason is not lost — the
+                    // notice keeps it on screen, demoted, and it is all the
+                    // customer has when the catalogue does not recognise it.
+                    RejectionNotice(
+                        domain: .port,
+                        reason: port.rejection_reason,
+                        submissionCount: port.submission_count,
+                        onGoToField: { field in
+                            // Viewers read the rejection but cannot act on it, the
+                            // same way "Fix and resubmit" below is owner/admin only.
+                            guard canManage else { return }
+                            focusField = field
+                            fixing = true
+                        }
+                    )
+                    .padding(.top, 8)
+                }
+                if let bridge = port.bridge_number_e164 {
+                    Text("Temporary number while you wait: \(formatPhone(bridge)).")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 6)
+                }
+                if port.assignment_blocked {
+                    Text(
+                        "Your number arrived, but its texting registration is still held by "
+                            + "your previous texting provider. Ask them to release it, and "
+                            + "texting switches on automatically."
+                    )
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
                     .padding(.top, 6)
+                }
             }
-            if port.status == PortStatus.exception {
-                // #319: the carrier's own token translated into what happened
-                // and the one thing to change, with a jump into the fix sheet
-                // at the field it concerns. The raw reason is not lost — the
-                // notice keeps it on screen, demoted, and it is all the
-                // customer has when the catalogue does not recognise it.
-                RejectionNotice(
-                    domain: .port,
-                    reason: port.rejection_reason,
-                    submissionCount: port.submission_count,
-                    onGoToField: { field in
-                        // Viewers read the rejection but cannot act on it, the
-                        // same way "Fix and resubmit" below is owner/admin only.
-                        guard canManage else { return }
-                        focusField = field
-                        fixing = true
-                    }
-                )
-                .padding(.top, 8)
-            }
-            if let bridge = port.bridge_number_e164 {
-                Text("Temporary number while you wait: \(formatPhone(bridge)).")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 6)
-            }
-            if port.assignment_blocked {
-                Text(
-                    "Your number arrived, but its texting registration is still held by "
-                        + "your previous texting provider. Ask them to release it, and "
-                        + "texting switches on automatically."
-                )
-                .font(.footnote)
-                .padding(.top, 6)
+            if isPreCutover {
+                // Last of the informational block, above the actions: where the
+                // transfer is, then the facts about it, then what to do about
+                // them while there is still time.
+                PreCutoverChecklist()
             }
 
             // Documents: needed while draft (first submit) or exception (resubmit).
@@ -366,6 +399,82 @@ private struct PortStepper: View {
                 }
             }
         }
+    }
+}
+
+/// #319 — the four things to do BEFORE the switch, shown only while a transfer
+/// is in flight (`PortCard.isPreCutover`).
+///
+/// All four lines already existed, in a marketing blog post, which is the one
+/// place a customer who is already mid-port never looks: until now this card
+/// told somebody who had just handed over the line their business runs on that
+/// a transfer was in progress, and nothing else. Two of them are why it earns
+/// the space — cancelling the old service early can release the number back
+/// into the carrier pool, and that is the one way to genuinely lose it; and the
+/// number moves but the conversations do not, so exporting is only possible
+/// before the cutover, which makes saying it afterwards worthless.
+///
+/// The order is by what it costs to get wrong, not by chronology: the item that
+/// can lose them the number goes first, because a skim reads the bold leads
+/// top-down and stops early. Fixed copy, fixed order, byte-identical on web and
+/// Android, and nothing is added after the fourth.
+///
+/// Deliberately quieter than the status pill above it. Nothing has gone wrong
+/// here, so it borrows ``ReachNote``'s neutral shell — the same inset well and
+/// radius — rather than the amber or destructive containers: a
+/// warning panel under a healthy transfer reads as a transfer that is not
+/// healthy, and it would out-shout the one line that reports where the transfer
+/// actually is. Hierarchy is carried by size and weight alone, no tint and no
+/// icons.
+private struct PreCutoverChecklist: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Before your number switches")
+                .font(.footnote.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+            item(
+                "Keep your old service active.",
+                "Cancelling before the transfer finishes can release the number back "
+                    + "to the carrier, and that is the one way to genuinely lose it."
+            )
+            item(
+                "Export your message history.",
+                "The number moves, your old conversations do not."
+            )
+            item(
+                "Tell the crew the switch date.",
+                "From that morning, calls and texts arrive in this inbox instead of "
+                    + "the old one."
+            )
+            item(
+                "Expect texting to trail calls.",
+                "Voice and texting can finish on different clocks, so texts may take "
+                    + "an extra day. We will tell you when both are live."
+            )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(BrandColor.inset, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(.top, 8)
+    }
+
+    /// The lead, then the sentence it owns. The pair is tighter (2) than the gap
+    /// between items (10) so the sentence reads as belonging to the lead above
+    /// it; at even spacing four pairs collapse into one paragraph and the order
+    /// stops meaning anything. `fixedSize` on both is this app's standing fix
+    /// for multi-line text truncating to one line inside a stack.
+    private func item(_ lead: String, _ detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(lead)
+                .font(.caption.weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

@@ -5,7 +5,11 @@ import { AlertTriangle, Check, CircleDashed, Loader2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { PORT_STATE_COPY, PORT_STEP_COPY } from "@/components/porting/copy";
+import {
+  PORT_PRE_CUTOVER_CHECKLIST,
+  PORT_STATE_COPY,
+  PORT_STEP_COPY,
+} from "@/components/porting/copy";
 import {
   derivePortUiState,
   type PortStep,
@@ -98,6 +102,41 @@ function StepRow({
   );
 }
 
+/**
+ * #319 — the short "do this before the switch" list, shown only while the
+ * transfer is in flight.
+ *
+ * Until now this card told a customer who had just handed over the line their
+ * business runs on that a transfer was in progress, and nothing else. The two
+ * things that decide whether a port goes badly (don't cancel the old service,
+ * export the history first) were written down only in a marketing post, which
+ * is not a place anybody looks from inside the product.
+ *
+ * Deliberately quieter than the state banner above it: no tint, no icon, no
+ * amber. Nothing has gone wrong here — an alert under a "locked in" banner
+ * would read as a contradiction of it, and would out-shout the one line that
+ * actually reports where the transfer is. What it borrows instead is the
+ * tracker's own label/meaning pairing, so a skim catches the four bold leads
+ * and can stop there.
+ */
+function PreCutoverChecklist() {
+  return (
+    <div className="border-t border-border-subtle pt-4">
+      <h3 className="text-sm font-medium">
+        {PORT_PRE_CUTOVER_CHECKLIST.heading}
+      </h3>
+      <ul className="mt-2 space-y-3">
+        {PORT_PRE_CUTOVER_CHECKLIST.items.map((item) => (
+          <li key={item.lead}>
+            <p className="text-[13px] font-medium">{item.lead}</p>
+            <p className="text-[13px] text-muted-foreground">{item.detail}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** Owner-only cancel (PORTING.md §3.8) — abandon a pre-completion transfer. */
 function CancelPortDialog({ port }: { port: PortRequest }) {
   const cancel = useCancelPortRequest(port.id);
@@ -182,6 +221,20 @@ export function PortCard({
   // Null when the shared catalogue doesn't recognise the carrier's wording —
   // the raw banner below stays the honest answer for that case.
   const rejection = explainRejection("port", port.rejection_reason);
+  // #319: the pre-cutover window — the request is with the carrier and the
+  // number has not moved yet, which is the only stretch where the checklist is
+  // still actionable. `in-process` belongs here too: it is the same "we've sent
+  // it, the carrier is looking" state the banner below already folds into
+  // `submitted`, so leaving it out would blank the guidance for the customers
+  // most likely to be waiting. Excluded on purpose: `draft` (nothing is in
+  // flight yet), `exception` (the rejection notice owns that screen and a
+  // checklist under it would bury the fix), and everything from `ported`
+  // onwards (too late to export, and moot once the switch has happened).
+  const beforeCutover =
+    port.status === "submitted" ||
+    port.status === "in-process" ||
+    port.status === "foc-date-confirmed" ||
+    port.status === "activation-in-progress";
 
   // A cancelled/abandoned transfer collapses to a quiet released-style note.
   if (ui.cancelled && port.status === "cancelled") {
@@ -330,6 +383,10 @@ export function PortCard({
             </span>
           </div>
         ) : null}
+
+        {/* #319: what to do before the switch — under the state banner (which
+            reports where the transfer *is*), above the cancel row. */}
+        {beforeCutover ? <PreCutoverChecklist /> : null}
 
         {/* Draft: upload documents, then submit (documents-gated, §8.2). */}
         {port.status === "draft" && canEdit ? (

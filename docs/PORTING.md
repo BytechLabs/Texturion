@@ -890,3 +890,49 @@ free for US + CA; the campaign-approved-before-port and losing-carrier-campaign-
 5. **(minor) Telnyx event catalog is intentionally non-exhaustive.** `porting_order.sharing_token_expired`
    exists in Telnyx's catalog but never fires for API-created single-number ports (no share-token flow), so it
    falls through to the acked no-op; the §5.1 handled set is deliberately not the full catalog.
+
+## 13. When the transfer does not happen (#319)
+
+§4 and §9 describe the happy path and the fixable one. This is the third case:
+the transfer ends without the number ever arriving, either because the customer
+cancelled it or because it was abandoned after a rejection nobody resolved.
+
+### The number slot
+
+`applyStatusTransition` releases it on entry to `cancelled`. The
+`phone_numbers` row linked by `port_requests.phone_number_id` was a placeholder
+for a number that never went live, so it is released (§3.8) rather than left
+occupying a slot on the plan. Best-effort: a release failure is reported to
+Sentry and does not block the cancellation, because the port is already over.
+
+### The bridge number is NOT released, and that is deliberate
+
+A customer who opted into the tide-me-over number has, by the time a transfer is
+cancelled, likely given it out. Releasing it because the port failed would turn
+one disappointment into a second and larger one: they would lose a number their
+customers are already calling.
+
+So it is kept, and they are TOLD — `portBridgeAfterCancelCopy`, sent from the
+same `cancelled` branch. The email names both numbers, says out loud that the
+bridge still counts against their plan, and links to the screen where they can
+either release it or start the transfer again.
+
+**This was a silent cost before #319.** Cancelling released the placeholder and
+said nothing about the bridge, so the number stayed active and billed for a
+transfer that was not happening, with nothing on any screen connecting the two.
+The success path already nudged (P6e); only the failure path was mute, which is
+the path where the customer is least likely to go auditing their numbers.
+
+### The subscription
+
+Unchanged by a cancelled port. Porting is not a plan tier and cancelling one
+does not cancel a subscription; the workspace keeps whatever numbers it has,
+which after a cancelled port is the bridge if they took one and nothing if they
+did not. A workspace left with no numbers at all is the ordinary
+no-numbers state the Settings surface already handles, not a porting state.
+
+### What the customer sees
+
+Nothing about the checklist in §8.2 (it gates on the in-flight statuses only,
+so it disappears the moment the transfer stops), the cancelled port card's own
+released-style note, and the bridge email above when one applies.

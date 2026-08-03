@@ -18,6 +18,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.model.CompanyView
@@ -312,6 +314,12 @@ private fun PortCard(scope: SettingsScope, port: PortRequest, onChanged: () -> U
                 modifier = Modifier.padding(top = 6.dp),
             )
         }
+        if (port.status in PRE_CUTOVER_STATUSES) {
+            // Last of the informational block, above the actions: status, then
+            // the facts about this transfer, then what to do about them.
+            Spacer(Modifier.height(8.dp))
+            PreCutoverChecklist()
+        }
 
         // Documents: needed while draft (first submit) or exception (resubmit).
         if (canManage && (port.status == PortStatus.DRAFT || port.status == PortStatus.EXCEPTION)) {
@@ -442,6 +450,91 @@ private fun PortStepper(status: String) {
                             if (index > i) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.outlineVariant,
                         ),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * In flight, and the switch hasn't happened yet — the only window where this
+ * advice can still be acted on. Not `draft` (nothing is in flight), not
+ * `exception` (the rejection notice owns that card and a checklist under it
+ * buries the fix), not `ported`/`cancelled`/`cancel-pending` (too late, or moot).
+ *
+ * `in-process` is here even though it is not one of the three statuses #319
+ * names, because it is where a submitted transfer actually sits: routes/
+ * porting.ts moves draft → in-process on submit, and exception → in-process on
+ * resubmit. Leaving it out would hide the checklist for most of the wait. Our
+ * own tracker already groups it with the other two at "In progress"
+ * (portStepIndex).
+ */
+private val PRE_CUTOVER_STATUSES = setOf(
+    PortStatus.SUBMITTED,
+    PortStatus.IN_PROCESS,
+    PortStatus.FOC_DATE_CONFIRMED,
+    PortStatus.ACTIVATION_IN_PROGRESS,
+)
+
+/**
+ * #319 — fixed copy, fixed order, identical on every client. The order is the
+ * point: cancelling the old service early is the one mistake that can genuinely
+ * lose the number, so it goes first and nothing gets added after the fourth.
+ *
+ * This existed only in the marketing blog post (port-business-number-without-
+ * going-dark), which is exactly where a customer already inside the product
+ * never looks — they see "transfer in progress" and no instructions.
+ */
+private val PRE_CUTOVER_STEPS = listOf(
+    "Keep your old service active." to
+        "Cancelling before the transfer finishes can release the number back to " +
+            "the carrier, and that is the one way to genuinely lose it.",
+    "Export your message history." to
+        "The number moves, your old conversations do not.",
+    "Tell the crew the switch date." to
+        "From that morning, calls and texts arrive in this inbox instead of the " +
+            "old one.",
+    "Expect texting to trail calls." to
+        "Voice and texting can finish on different clocks, so texts may take an " +
+            "extra day. We will tell you when both are live.",
+)
+
+/**
+ * Quiet guidance, not an alarm. It sits under the status pill and must not
+ * out-shout it, so this borrows RejectionNotice's nested-block shape (same
+ * radius, same insets) with the neutral container instead of the error one —
+ * nothing here has gone wrong, and a red panel on a healthy transfer reads as
+ * one that hasn't.
+ */
+@Composable
+private fun PreCutoverChecklist() {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Text(
+                "Before your number switches",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+            )
+            PRE_CUTOVER_STEPS.forEachIndexed { index, (lead, detail) ->
+                // 3dp inside an item, 10dp between them: the sentence belongs
+                // to the lead above it, not to the item below. Without the gap
+                // four pairs read as one paragraph and the order stops meaning
+                // anything.
+                Spacer(Modifier.height(if (index == 0) 8.dp else 10.dp))
+                Text(
+                    lead,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
