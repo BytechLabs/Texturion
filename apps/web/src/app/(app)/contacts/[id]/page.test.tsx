@@ -53,6 +53,15 @@ vi.mock("@/lib/api/contacts", () => ({
   useRevokeOptOut: () => ({ isPending: false, mutate: vi.fn() }),
   useDeleteContact: () => ({ isPending: false, mutate: vi.fn() }),
 }));
+// #291: the page mounts ContactCustomFields, whose hook reaches
+// CompanyProvider — which this static-render harness does not set up. An empty
+// definition list is the state for every workspace that has not defined any,
+// and it makes the component render nothing, which is what these assertions
+// about the record above it assume.
+vi.mock("@/lib/api/contact-fields", () => ({
+  useContactFields: () => ({ isPending: false, data: { data: [], cap: 10 } }),
+  useSaveContactFields: () => ({ isPending: false, mutateAsync: vi.fn() }),
+}));
 vi.mock("@/lib/api/team", () => ({
   useMembers: () => ({ data: { data: [] } }),
 }));
