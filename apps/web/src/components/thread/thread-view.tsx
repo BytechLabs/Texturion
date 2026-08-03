@@ -42,6 +42,7 @@ import {
 } from "./composer-banner";
 import { ComposerBannerCard } from "./composer-banners";
 import { Composer } from "./composer";
+import { ScheduledStrip } from "./scheduled-strip";
 import { TheirTime } from "./their-time";
 import { MessageList } from "./message-list";
 import {
@@ -344,6 +345,10 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
                 because the composer and the message list are siblings: React
                 requires keys to be unique among siblings, and matching two
                 different components on one key is undefined behaviour. */}
+            {/* #233: shown even here. A banner means something is wrong with
+                sending, which is exactly when a queued text is HELD and most
+                needs saying out loud. */}
+            <ScheduledStrip conversationId={conversationId} />
             <PresenceStrip viewers={presence.viewers} />
             <Composer
               key={`composer-${conversationId}`}
@@ -361,6 +366,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             {conversation.viewer_level === "text" && (
               <TheirTime clock={conversation.destination_clock} />
             )}
+            <ScheduledStrip conversationId={conversationId} />
             <PresenceStrip viewers={presence.viewers} />
             <Composer
               key={`composer-${conversationId}`}
