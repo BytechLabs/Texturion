@@ -102,6 +102,19 @@ struct ContactsTab: View {
     @State private var loadingMore = false
     @State private var refreshKey = 0
     @State private var resolvedMe: Me?
+    /// #291: the active field filter, and the definitions the chips come from.
+    /// An empty list is the honest state both for a workspace that defined none
+    /// and for a read that failed: the chips simply do not appear.
+    @State private var fieldFilter: ContactFieldFilter?
+    @State private var fieldDefs: [ContactFieldDef] = []
+
+    /// The filter, flattened for the `.task(id:)` key. Two nils and two empty
+    /// strings all have to be distinguishable, or changing an answer would not
+    /// re-run the load.
+    private var filterKey: String {
+        guard let filter = fieldFilter else { return "-" }
+        return "\(filter.key)=\(filter.value)"
+    }
 
     @State private var createOpen = false
     @State private var exporting = false
@@ -142,6 +155,15 @@ struct ContactsTab: View {
         VStack(spacing: 0) {
             headerBar
             searchField
+            // #291: under the search box, because both answer "show me less".
+            // Absent entirely unless the workspace defined a field with a
+            // closed set of answers.
+            ContactFilter(
+                defs: fieldDefs,
+                active: fieldFilter,
+                onChange: { fieldFilter = $0 }
+            )
+            .padding(.horizontal, 18)
             if let notice {
                 Text(notice)
                     .font(.golos(11.5))
@@ -165,7 +187,19 @@ struct ContactsTab: View {
             }
             debouncedQ = query.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        .task(id: "\(companyId)|\(debouncedQ)|\(refreshKey)") { await reload() }
+        .task(id: "\(companyId)|\(debouncedQ)|\(filterKey)|\(refreshKey)") {
+            await reload()
+        }
+        .task(id: "fields|\(companyId)") {
+            // `mutations`, not `contactsApi`: the definitions live on the
+            // contacts repository beside the writes that use them, and this
+            // view already holds it.
+            if let response = try? await mutations.contactFields(
+                companyId: companyId
+            ) {
+                fieldDefs = response.data
+            }
+        }
         .task(id: companyId) {
             if me == nil {
                 resolvedMe = try? await graph.meApi.me()
@@ -340,6 +374,20 @@ struct ContactsTab: View {
         .padding(.vertical, 10)
     }
 
+    /// What an empty list says, which depends on WHY it is empty.
+    ///
+    /// #291: under an active filter those customers are excluded, not missing.
+    /// "They're added automatically when someone texts you" reads as having
+    /// none at all, which is alarming and wrong.
+    private var emptyMessage: String {
+        if !debouncedQ.isEmpty { return "No matches for \"\(debouncedQ)\"." }
+        if fieldFilter != nil {
+            return "\(contactFilterEmptyTitle). \(contactFilterEmptyBody)"
+        }
+        return "No contacts yet. They're added automatically when "
+            + "someone texts you, or add one yourself."
+    }
+
     @ViewBuilder
     private var content: some View {
         switch state {
@@ -353,12 +401,7 @@ struct ContactsTab: View {
                 // render below — and an empty shared book is exactly when
                 // somebody needs them most.
                 ScrollView {
-                    Text(
-                        debouncedQ.isEmpty
-                            ? "No contacts yet. They're added automatically when "
-                                + "someone texts you, or add one yourself."
-                            : "No matches for \"\(debouncedQ)\"."
-                    )
+                    Text(emptyMessage)
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted500)
                     .multilineTextAlignment(.center)
@@ -568,7 +611,9 @@ struct ContactsTab: View {
             let page = try await graph.contactsApi.contacts(
                 companyId: companyId,
                 q: debouncedQ.isEmpty ? nil : debouncedQ,
-                limit: 50
+                limit: 50,
+                field: fieldFilter?.key,
+                value: fieldFilter?.value
             )
             rows = page.data
             nextCursor = page.next_cursor
@@ -579,7 +624,10 @@ struct ContactsTab: View {
             // matched the query, with only a toast that clears itself to say
             // otherwise. Holding the previous rows while a search is merely in
             // flight is still right — that is the typing behaviour.
-            if rows.isEmpty || !debouncedQ.isEmpty {
+            // #291: a FILTERED list never keeps the rows already on screen
+            // either — under a new filter those rows are precisely what was
+            // excluded, which is the same failure as a fallen-through search.
+            if rows.isEmpty || !debouncedQ.isEmpty || fieldFilter != nil {
                 rows = []
                 nextCursor = nil
                 state = .failed(error.userMessage)

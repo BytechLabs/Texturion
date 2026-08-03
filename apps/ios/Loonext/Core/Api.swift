@@ -305,7 +305,14 @@ struct ContactsApi: Sendable {
         /// #459: read the digits in `q` as keypad letters too, so 2-6-2 finds
         /// "Bob". Opt-in, because in a search box "416" means an area code and
         /// quietly returning names as well would answer a question nobody asked.
-        t9: Bool = false
+        t9: Bool = false,
+        /// #291: narrow to ONE answer in one of the workspace's own fields.
+        /// Both halves or neither — the server refuses a field with no value,
+        /// because "has any answer" and "has none" are different questions and
+        /// guessing either would filter somebody's list by a rule they did not
+        /// choose.
+        field: String? = nil,
+        value: String? = nil
     ) async throws -> Page<Contact> {
         try await api.get(
             "/v1/contacts",
@@ -313,7 +320,12 @@ struct ContactsApi: Sendable {
                 "q": q,
                 "cursor": cursor,
                 "limit": String(limit),
-                "t9": (t9 && !(q ?? "").isEmpty) ? "1" : nil
+                "t9": (t9 && !(q ?? "").isEmpty) ? "1" : nil,
+                "field": field,
+                // Sent even when empty: "" is a real answer on a custom field,
+                // and dropping it would silently widen the list back to
+                // everybody.
+                "value": field != nil ? (value ?? "") : nil
             ],
             companyId: companyId
         )
