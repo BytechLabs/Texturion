@@ -18,14 +18,27 @@ enum SatisfactionFormat {
 
     /// One decimal, or an em dash.
     ///
+    /// TWO THINGS HERE DISAGREE WITH THE OTHER CLIENTS BY DEFAULT, and both
+    /// were caught by the parity tests rather than by reading the code.
+    ///
     /// `Locale(identifier: "en_US_POSIX")` is load-bearing, not boilerplate.
     /// `String(format:)` follows the current locale, which renders 4.6 as "4,6"
-    /// across most of Europe — making this number disagree with the same number
-    /// on the laptop, on a customer's phone only, which is exactly the failure
-    /// the parity guards exist to stop.
+    /// across most of Europe — the same number disagreeing with the laptop, on
+    /// a customer's phone only.
+    ///
+    /// The explicit rounding is the second. `String(format: "%.1f")` is C
+    /// printf, which rounds half to EVEN: 4.25 prints as "4.2" here while
+    /// JavaScript's `toFixed` and Kotlin's `String.format` both give "4.3".
+    /// A tie is not exotic — an average of exactly 4.25 is four answers of 4
+    /// and four of 5 — and one screen reading 4.2 while another reads 4.3 is
+    /// precisely the kind of small disagreement that makes a crew stop trusting
+    /// the panel. `.toNearestOrAwayFromZero` is half-up, which is what the
+    /// other two do, and scores are always positive so the two are the same
+    /// rule here.
     static func format(_ average: Double?) -> String {
         guard let average, average.isFinite else { return "—" }
-        return String(format: "%.1f", locale: Locale(identifier: "en_US_POSIX"), average)
+        let halfUp = (average * 10).rounded(.toNearestOrAwayFromZero) / 10
+        return String(format: "%.1f", locale: Locale(identifier: "en_US_POSIX"), halfUp)
     }
 
     /// "better", "worse", or nil when the honest answer is "not enough to say".
