@@ -83,6 +83,24 @@ improve its median by ignoring more leads** — the exact behaviour the metric
 exists to expose. So the unanswered count sits next to the median everywhere the
 median appears, and no client shows one without the other.
 
+### And the count is a door (#508)
+
+Naming a leak without offering a way to act on it is where the panel stopped for
+a while: web linked the row to `/inbox?status=new` and both phones rendered the
+same sentence inert.
+
+`status` was the wrong set. Nothing moves a conversation off `new` when the crew
+replies — only a human re-filing it, or an inbound flipping `waiting`→`open` —
+so that filter meant "nobody tidied this up". A crew that answered every lead and
+never touched the status dropdown saw all of them under it; a tidy crew saw none.
+
+The destination is `?awaiting=only`, which filters on `awaiting_reply_since`: the
+#388 lead clock, set on the first inbound of a new or reopened thread and cleared
+by a human outbound. It is the LIVE twin of this count — the card reads leads
+with no response historically, the filter reads the ones still waiting now. All
+three clients send the same parameter and none defines a predicate of its own,
+which is what stops them disagreeing about a word the crew says out loud.
+
 ## Snoozing a thread does not change the number
 
 #293 lets a member defer a conversation until a chosen time, and asks that

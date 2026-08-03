@@ -117,6 +117,17 @@ const FILTERS: Record<
     unread: isBool,
     pinned: oneOf("only", "exclude"),
     snoozed: oneOf("only", "exclude", "all"),
+    /**
+     * #508: threads still waiting on a first reply (the #388 lead clock), which
+     * is a filter somebody can arrange the inbox by and therefore one a view
+     * must be able to hold. Without it, "Unanswered" saved as a view would
+     * reopen as the unfiltered list — the silent-drop failure this allow-list
+     * causes when it is the one thing that has not been told about a filter.
+     *
+     * No 'all': unset already means no filter here, unlike `snoozed`, whose
+     * default hides a population.
+     */
+    awaiting: oneOf("only", "exclude"),
   },
   tasks: {
     status: oneOf("open", "done"),

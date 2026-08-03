@@ -49,9 +49,10 @@ class SavedViewsPortTest {
                 "is_spam" to true,
                 "snoozed" to "only",
                 "pinned" to "exclude",
+                "awaiting" to "only",
             ),
         )
-        assertEquals(7, clean.size)
+        assertEquals(8, clean.size)
         assertEquals("open", (clean["status"] as JsonPrimitive).content)
         assertEquals(id, (clean["assigned_user_id"] as JsonPrimitive).content)
     }
@@ -119,8 +120,20 @@ class SavedViewsPortTest {
             unreadOnly = true,
             spamOnly = false,
             snoozedOnly = true,
+            awaitingOnly = true,
         )
         assertEquals(selection, viewToSelection(selectionToView(selection)))
+    }
+
+    @Test
+    fun `#508 keeps the unanswered filter, and only its two values`() {
+        // Unset already means no filter here, unlike snoozed — so "all" is a
+        // third way of saying the same thing and is dropped.
+        assertEquals(1, sanitizeConversationFilters(obj("awaiting" to "only")).size)
+        assertEquals(1, sanitizeConversationFilters(obj("awaiting" to "exclude")).size)
+        assertEquals(0, sanitizeConversationFilters(obj("awaiting" to "all")).size)
+        assertTrue(viewToSelection(obj("awaiting" to "only")).awaitingOnly)
+        assertFalse(viewToSelection(obj("status" to "open")).awaitingOnly)
     }
 
     @Test
@@ -159,6 +172,7 @@ class SavedViewsPortTest {
             unreadOnly = true,
             spamOnly = false,
             snoozedOnly = false,
+            awaitingOnly = false,
         )
         assertEquals("Open · Unread", suggestViewName(filtered))
         // Law 6: no em or en dash in rendered copy.

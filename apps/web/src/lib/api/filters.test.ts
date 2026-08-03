@@ -88,3 +88,49 @@ describe("conversationMatchesFilters + #293", () => {
     ).toBe(false);
   });
 });
+
+describe("conversationMatchesFilters + #508", () => {
+  const waiting = item({ awaiting_reply_since: "2026-08-05T09:00:00.000Z" });
+  const answered = item({ awaiting_reply_since: null });
+
+  it("keeps the Unanswered list to threads with the clock still running", () => {
+    expect(conversationMatchesFilters(waiting, { awaiting: "only" })).toBe(true);
+    expect(conversationMatchesFilters(answered, { awaiting: "only" })).toBe(
+      false,
+    );
+  });
+
+  it("drops a row from that list the moment somebody answers it", () => {
+    // The point of the local copy: a reply patches the cached row, and the
+    // thread leaves the Unanswered list without waiting for a refetch.
+    expect(conversationMatchesFilters(answered, { awaiting: "only" })).toBe(
+      false,
+    );
+    expect(conversationMatchesFilters(waiting, { awaiting: "exclude" })).toBe(
+      false,
+    );
+  });
+
+  it("does not filter at all when nothing was asked", () => {
+    // Unlike `snoozed`, absent means the ordinary inbox — answered and
+    // unanswered alike.
+    expect(conversationMatchesFilters(waiting, {})).toBe(true);
+    expect(conversationMatchesFilters(answered, {})).toBe(true);
+  });
+
+  it("says UNKNOWN rather than 'answered' for a row that predates the field", () => {
+    // An older cached payload carries no lead clock. Reading missing as
+    // answered would drop a waiting lead off the one screen that names it, so
+    // null hands the decision back to staleness instead.
+    expect(conversationMatchesFilters(item(), { awaiting: "only" })).toBe(null);
+  });
+
+  it("is one gate among several, not a short circuit", () => {
+    expect(
+      conversationMatchesFilters(waiting, {
+        awaiting: "only",
+        status: "closed",
+      }),
+    ).toBe(false);
+  });
+});

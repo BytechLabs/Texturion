@@ -133,6 +133,12 @@ class MessagingRepository(private val api: ApiClient) {
          * (opting out of the filter entirely) ever travel.
          */
         snoozed: String? = null,
+        /**
+         * #508: "only" narrows to threads nobody has replied to yet — the #388
+         * lead clock, not `status`. Null is no filter at all (not "exclude"):
+         * the ordinary inbox shows answered and unanswered alike.
+         */
+        awaiting: String? = null,
         q: String? = null,
         cursor: String? = null,
         limit: Int = 25,
@@ -146,6 +152,7 @@ class MessagingRepository(private val api: ApiClient) {
             "unread" to unread?.toString(),
             "pinned" to pinned,
             "snoozed" to snoozed,
+            "awaiting" to awaiting,
             "q" to q,
             "cursor" to cursor,
             "limit" to limit.toString(),

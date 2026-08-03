@@ -65,6 +65,9 @@ export function fetchConversationPage(
       // what this member deferred. Only "show me what I deferred" and "show
       // everything" travel.
       snoozed: filters.snoozed,
+      // #508: omitted means no filter — the ordinary inbox shows answered and
+      // unanswered alike.
+      awaiting: filters.awaiting,
       cursor,
     },
   });
@@ -94,6 +97,10 @@ export function fetchPinnedConversations(
       // thread, it stays deferred — otherwise the one place it is guaranteed
       // to appear is the top of the list I deferred it out of.
       snoozed: filters.snoozed,
+      // #508: nor does a pin outrank the question "who is still waiting". A
+      // pinned thread that has been answered does not belong in the Unanswered
+      // list, at the top or anywhere else.
+      awaiting: filters.awaiting,
       pinned: "only",
       limit: "100",
     },

@@ -40,6 +40,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -74,6 +75,7 @@ import com.loonext.android.features.contacts.sync.ContactsActionKind
 import com.loonext.android.features.contacts.sync.contactsActionKind
 import com.loonext.android.features.diagnostics.DiagnosticsScreen
 import com.loonext.android.features.inbox.InboundMessageToastHost
+import com.loonext.android.features.inbox.InboxDestination
 import com.loonext.android.features.notifications.NotificationsScreen
 import com.loonext.android.features.settings.SettingsHome
 import com.loonext.android.features.settings.SettingsSection
@@ -456,6 +458,15 @@ private fun ReadyShell(
     fun pop() { routeStack.removeLastOrNull() }
     var counts by remember { mutableStateOf(ShellCounts()) }
     var countsKey by remember { mutableIntStateOf(0) }
+    // #508: the filter another surface has asked the inbox to land on, held
+    // HERE rather than inside the inbox because the request outlives the tab
+    // switch that carries it — For You sets it, the Inbox tab consumes it on
+    // its first composition afterwards, whether or not it was ever composed
+    // before. Not saveable: it is a command in flight, and a process death
+    // mid-tap should restore the inbox somebody last had, not re-run a
+    // navigation they no longer remember making.
+    var inboxDestination by remember { mutableStateOf<InboxDestination?>(null) }
+    var destinationSeq by remember { mutableLongStateOf(0L) }
     var hydratedMe by remember(companyId) { mutableStateOf(me) }
 
     // #201: the avatar dot and the account sheet badge collect the SAME
@@ -662,6 +673,20 @@ private fun ReadyShell(
                     // the Calls tab (the pager animates) instead of pushing a
                     // duplicate route.
                     onOpenCalls = { tab = ShellTab.Calls },
+                    // #508: the response-time card's unanswered row. Arms the
+                    // destination BEFORE the tab switch so the inbox reads it
+                    // on the composition that switch causes, and bumps the
+                    // token so a second tap re-applies the filter.
+                    onOpenUnanswered = {
+                        destinationSeq += 1
+                        inboxDestination = InboxDestination(
+                            InboxDestination.Filter.Awaiting,
+                            destinationSeq,
+                        )
+                        tab = ShellTab.Inbox
+                    },
+                    inboxDestination = inboxDestination,
+                    onInboxDestinationConsumed = { inboxDestination = null },
                     onViewedConversationChanged = { tabViewedConversation = it },
                 )
             }

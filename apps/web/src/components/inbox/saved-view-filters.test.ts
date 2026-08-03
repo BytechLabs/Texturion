@@ -39,6 +39,12 @@ describe("#280 urlFiltersToView", () => {
     expect(urlFiltersToView({ snoozed: true })).toEqual({ snoozed: "only" });
   });
 
+  it("#508: keeps the unanswered filter instead of silently dropping it", () => {
+    // A view saved off Unanswered that reopened as the unfiltered list would be
+    // the allow-list quietly discarding the one thing the person arranged.
+    expect(urlFiltersToView({ awaiting: true })).toEqual({ awaiting: "only" });
+  });
+
   it("never stores the search box", () => {
     // A search is a question asked once. Saving it would turn a shared "my open
     // threads" into "my open threads mentioning boiler" for everybody.
@@ -73,6 +79,7 @@ describe("#280 viewFiltersToUrl", () => {
       tag: TAG,
       unread: true,
       snoozed: true,
+      awaiting: true,
     };
     expect(viewFiltersToUrl(urlFiltersToView(url))).toEqual(url);
   });

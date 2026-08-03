@@ -154,6 +154,22 @@ internal enum class InboxStatusTab(val label: String) {
 }
 
 /**
+ * #508: an arrangement the inbox should land on, asked for by another surface.
+ *
+ * The response-time card's "N leads nobody answered" row is a DESTINATION, not
+ * a chip: tapping it switches shell tab and the inbox has to arrive already
+ * filtered. A plain enum would be consumed once and then be unable to re-fire —
+ * a second tap on the same row, after the reader had wandered off the filter,
+ * would do nothing — so each request carries a [token] the consumer keys off.
+ */
+data class InboxDestination(val filter: Filter, val token: Long) {
+    enum class Filter {
+        /** Threads nobody has replied to yet (the #388 lead clock). */
+        Awaiting,
+    }
+}
+
+/**
  * One filter pane's paint-ready state (#176): the ACCUMULATED rows (first
  * page plus every load-more append), the pinned section, and the resume
  * cursor — cached under [CacheKeys.inbox] per filterKey so a return visit
@@ -201,10 +217,23 @@ fun InboxTab(
     graph: AppGraph,
     companyId: String,
     me: Me,
+    /**
+     * #508: a filter another surface asked this inbox to land on, or null.
+     * Consumed once per [InboxDestination.token]; the consumer reports back
+     * through [onDestinationConsumed] so a later request can re-fire.
+     */
+    destination: InboxDestination?,
+    onDestinationConsumed: () -> Unit,
+    /**
+     * #503: REQUIRED, all three. Each was nullable-with-a-default, which is
+     * exactly how a navigation callback comes to ship unwired — the compiler
+     * cannot tell "nobody passed this" from "deliberately inert", so the dead
+     * tap only surfaces on somebody's phone.
+     */
+    onOpenThread: (conversationId: String, highlightMessageId: String?) -> Unit,
+    onOpenTask: (taskId: String) -> Unit,
+    onComposeNew: (prefillContactId: String?) -> Unit,
     modifier: Modifier = Modifier,
-    onOpenThread: ((conversationId: String, highlightMessageId: String?) -> Unit)? = null,
-    onOpenTask: ((taskId: String) -> Unit)? = null,
-    onComposeNew: ((prefillContactId: String?) -> Unit)? = null,
 ) {
     // Threads and compose are ROUTES above the shell now (founder mandate:
     // nothing pushed shows the pill nav) — this tab is only ever the list, so
@@ -213,13 +242,15 @@ fun InboxTab(
         graph = graph,
         companyId = companyId,
         me = me,
-        onOpen = { onOpenThread?.invoke(it, null) },
+        destination = destination,
+        onDestinationConsumed = onDestinationConsumed,
+        onOpen = { onOpenThread(it, null) },
         onOpenMessage = { conversationId, messageId ->
-            onOpenThread?.invoke(conversationId, messageId)
+            onOpenThread(conversationId, messageId)
         },
-        onOpenTask = { onOpenTask?.invoke(it) },
-        onCompose = { onComposeNew?.invoke(null) },
-        onTextContact = { contactId -> onComposeNew?.invoke(contactId) },
+        onOpenTask = onOpenTask,
+        onCompose = { onComposeNew(null) },
+        onTextContact = { contactId -> onComposeNew(contactId) },
         modifier = modifier,
     )
 }
@@ -264,6 +295,13 @@ private class InboxController(
      * populations end up behaving differently.
      */
     var snoozedOnly by mutableStateOf(false)
+        private set
+    /**
+     * #508: threads nobody has replied to yet — the #388 lead clock, not
+     * `status`. This is the live set behind the response-time card's "N leads
+     * nobody answered", and the destination that row links to.
+     */
+    var awaitingOnly by mutableStateOf(false)
         private set
 
     /**
@@ -338,7 +376,8 @@ private class InboxController(
         get() {
             val assigneeId = if (tab == InboxStatusTab.Mine) null else assignee?.user_id
             val isDefault = tab == InboxStatusTab.Open && assigneeId == null &&
-                tag == null && !unreadOnly && !spamOnly && !snoozedOnly
+                tag == null && !unreadOnly && !spamOnly && !snoozedOnly &&
+                !awaitingOnly
             if (isDefault) return "default"
             return buildString {
                 append(tab.name.lowercase())
@@ -347,6 +386,7 @@ private class InboxController(
                 if (unreadOnly) append("/unread")
                 if (spamOnly) append("/spam")
                 if (snoozedOnly) append("/snoozed")
+                if (awaitingOnly) append("/awaiting")
             }
         }
 
@@ -373,7 +413,7 @@ private class InboxController(
 
     val hasFilterChips: Boolean
         get() = assignee != null || tag != null || unreadOnly || spamOnly ||
-            snoozedOnly
+            snoozedOnly || awaitingOnly
 
     fun selectTab(next: InboxStatusTab) {
         if (tab == next) return
@@ -406,6 +446,39 @@ private class InboxController(
         showPane()
     }
 
+    fun toggleAwaiting() {
+        awaitingOnly = !awaitingOnly
+        showPane()
+    }
+
+    /**
+     * #508: land on the Unanswered set, from the response-time card.
+     *
+     * The whole arrangement at once, then ONE reload — an arrival is not four
+     * taps. It clears the OTHER chips deliberately: the row above says "5 leads
+     * nobody answered", and landing on that filter intersected with whatever
+     * was left selected would show a smaller number under the same sentence.
+     * The tab goes to All for the same reason — the lead clock is the question,
+     * and Open would quietly drop the ones somebody had already closed without
+     * replying.
+     *
+     * Idempotent: arriving twice is arriving once.
+     */
+    fun landOnAwaiting() {
+        val alreadyThere = awaitingOnly && tab == InboxStatusTab.All &&
+            assignee == null && tag == null && !unreadOnly && !spamOnly &&
+            !snoozedOnly
+        if (alreadyThere) return
+        tab = InboxStatusTab.All
+        assignee = null
+        tag = null
+        unreadOnly = false
+        spamOnly = false
+        snoozedOnly = false
+        awaitingOnly = true
+        showPane()
+    }
+
     /** One reload for the sheet's Reset (not four chained ones). */
     fun resetFilters() {
         if (!hasFilterChips) return
@@ -414,6 +487,7 @@ private class InboxController(
         unreadOnly = false
         spamOnly = false
         snoozedOnly = false
+        awaitingOnly = false
         showPane()
     }
 
@@ -429,6 +503,7 @@ private class InboxController(
             unreadOnly = unreadOnly,
             spamOnly = spamOnly,
             snoozedOnly = snoozedOnly,
+            awaitingOnly = awaitingOnly,
         )
 
     /**
@@ -445,6 +520,7 @@ private class InboxController(
         unreadOnly = selection.unreadOnly
         spamOnly = selection.spamOnly
         snoozedOnly = selection.snoozedOnly
+        awaitingOnly = selection.awaitingOnly
         showPane()
     }
 
@@ -550,6 +626,9 @@ private class InboxController(
             // which IS the server's hide-them default — sending "exclude"
             // would say the same thing twice.
             snoozed = if (snoozedOnly) "only" else null,
+            // #508: and the same again for the lead clock. Null is no filter,
+            // which is what the ordinary inbox wants.
+            awaiting = if (awaitingOnly) "only" else null,
             unread = if (unreadOnly) true else null,
             pinned = pinned,
             cursor = cursor,
@@ -964,6 +1043,8 @@ private fun InboxList(
     graph: AppGraph,
     companyId: String,
     me: Me,
+    destination: InboxDestination?,
+    onDestinationConsumed: () -> Unit,
     onOpen: (String) -> Unit,
     onOpenMessage: (conversationId: String, messageId: String) -> Unit,
     onOpenTask: (taskId: String) -> Unit,
@@ -976,6 +1057,16 @@ private fun InboxList(
         InboxController(repo, graph.storeCache, companyId, me.user_id, graph.appScope)
     }
     LaunchedEffect(controller) { controller.start() }
+    // #508: land on the filter another surface asked for. Keyed on the token so
+    // a repeat request re-fires, and reported as consumed so it cannot re-apply
+    // on the next recomposition and undo a filter the reader changed by hand.
+    LaunchedEffect(controller, destination?.token) {
+        val pending = destination ?: return@LaunchedEffect
+        when (pending.filter) {
+            InboxDestination.Filter.Awaiting -> controller.landOnAwaiting()
+        }
+        onDestinationConsumed()
+    }
     LaunchedEffect(controller) {
         graph.realtime.events.collect { event ->
             if (event.event == "message.created" || event.event == "conversation.updated") {
@@ -1383,6 +1474,10 @@ private fun ConversationListPane(
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
                 when {
+                    // #508: an empty Unanswered list is the best news this
+                    // screen can give, and "nothing matches these filters"
+                    // reports it as an absence. Said as the result it is.
+                    controller.awaitingOnly -> "Everyone has been answered."
                     controller.hasFilterChips -> "Nothing matches these filters."
                     controller.tab == InboxStatusTab.Open -> "Nothing waiting on you."
                     controller.tab == InboxStatusTab.Mine -> "Nothing assigned to you."
@@ -1947,6 +2042,16 @@ private fun FiltersSheet(
                 }
             }
 
+            // #508: first of the toggles, because it is the only one here that
+            // names money leaving. Reachable as a control in its own right and
+            // not only by arriving from the response-time card — a filter you
+            // can reach from exactly one card is one most of the crew never
+            // learns exists.
+            ToggleCard(
+                label = "Unanswered only",
+                checked = controller.awaitingOnly,
+                onToggle = { controller.toggleAwaiting() },
+            )
             ToggleCard(
                 label = "Unread only",
                 checked = controller.unreadOnly,

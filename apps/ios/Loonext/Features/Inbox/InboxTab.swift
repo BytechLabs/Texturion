@@ -147,6 +147,10 @@ private final class InboxController {
     /// already exists here and a second invention of it is how two hidden
     /// populations end up behaving differently.
     private(set) var snoozedOnly = false
+    /// #508: threads nobody has replied to yet — the #388 lead clock, not
+    /// `status`. This is the live set behind the response-time card's "N leads
+    /// nobody answered", and the destination that row links to.
+    private(set) var awaitingOnly = false
 
     private(set) var state: LoadState<Void> = .loading
     private(set) var rows: [ConversationListItem] = []
@@ -190,6 +194,7 @@ private final class InboxController {
 
     var hasFilterChips: Bool {
         assignee != nil || tag != nil || unreadOnly || spamOnly || snoozedOnly
+            || awaitingOnly
     }
 
     func selectTab(_ next: InboxStatusTab) {
@@ -223,6 +228,35 @@ private final class InboxController {
         reload(showLoading: true)
     }
 
+    func toggleAwaiting() {
+        awaitingOnly.toggle()
+        reload(showLoading: true)
+    }
+
+    /// #508: land on the Unanswered set, from the response-time card.
+    ///
+    /// The whole arrangement at once, then ONE reload — an arrival is not four
+    /// taps. It clears the OTHER chips deliberately: the row above says "5 leads
+    /// nobody answered", and landing on that filter intersected with whatever
+    /// was still selected would show a smaller number under the same sentence.
+    /// The tab goes to All for the same reason — the lead clock is the question,
+    /// and Open would quietly drop the ones somebody closed without replying.
+    ///
+    /// Idempotent: arriving twice is arriving once.
+    func landOnAwaiting() {
+        let alreadyThere = awaitingOnly && tab == .all && assignee == nil
+            && tag == nil && !unreadOnly && !spamOnly && !snoozedOnly
+        if alreadyThere { return }
+        tab = .all
+        assignee = nil
+        tag = nil
+        unreadOnly = false
+        spamOnly = false
+        snoozedOnly = false
+        awaitingOnly = true
+        reload(showLoading: true)
+    }
+
     // MARK: - #280 saved views
 
     /// The arrangement currently on screen, in the shape a view stores.
@@ -240,7 +274,8 @@ private final class InboxController {
             tagId: tag?.id,
             unreadOnly: unreadOnly,
             spamOnly: spamOnly,
-            snoozedOnly: snoozedOnly
+            snoozedOnly: snoozedOnly,
+            awaitingOnly: awaitingOnly
         )
     }
 
@@ -261,6 +296,7 @@ private final class InboxController {
         unreadOnly = selection.unreadOnly
         spamOnly = selection.spamOnly
         snoozedOnly = selection.snoozedOnly
+        awaitingOnly = selection.awaitingOnly
         reload(showLoading: true)
     }
 
@@ -365,6 +401,9 @@ private final class InboxController {
             // which IS the server's hide-them default — sending "exclude"
             // would say the same thing twice.
             snoozed: snoozedOnly ? "only" : nil,
+            // #508: and the same again for the lead clock. Nil is no filter,
+            // which is what the ordinary inbox wants.
+            awaiting: awaitingOnly ? "only" : nil,
             cursor: cursor,
             limit: pinned == "only" ? 100 : 25
         )
@@ -832,6 +871,10 @@ private struct InboxList: View {
     @State private var savedViewSheetOpen = false
     @State private var renamingView: SavedView?
     @State private var deletingSharedView: SavedView?
+    /// #508: the last destination token this list has landed on, so a command
+    /// republished to a fresh subscriber cannot re-apply a filter the reader has
+    /// since changed by hand.
+    @State private var appliedDestinationToken: Int?
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -914,7 +957,18 @@ private struct InboxList: View {
                 controller = created
                 created.start()
             }
+            // #508: the command may have arrived before this list had a
+            // controller to apply it to — the response-time card's tap creates
+            // this view and publishes in the same beat. Both paths call the
+            // same function, and whichever runs second is the one that lands.
+            applyDestination(AppRouter.shared.inboxDestination)
         }
+        // #508: the inbox owns its own filters, so it consumes the destination
+        // half of the command itself; the shell only switched the tab. The
+        // published VALUE is what gets read — a @Published emits in `willSet`,
+        // so `AppRouter.shared.inboxDestination` still holds the previous one
+        // inside this closure.
+        .onReceive(AppRouter.shared.$inboxDestination) { applyDestination($0) }
         .task(id: companyId) {
             for await event in await graph.realtime.events()
                 where event.event == "message.created" || event.event == "conversation.updated" {
@@ -929,6 +983,23 @@ private struct InboxList: View {
         // #215 Part A: re-sort/refetch page 1 on foreground so a row that moved
         // (or an unread that landed) while backgrounded is never stale.
         .resyncOnForeground { controller?.refreshAfterReconnect() }
+    }
+
+    /// #508: land on a filter another surface asked for, once per token.
+    ///
+    /// Clearing the command afterwards is what stops a stale one landing on a
+    /// list rebuilt later — the dedupe token lives in `@State` and dies with the
+    /// view, so an uncleared command would re-apply on the next one. Deferred to
+    /// the next tick because a `@Published` is mid-`willSet` when this runs.
+    @MainActor
+    private func applyDestination(_ destination: InboxDestination?) {
+        guard let controller, let destination,
+              destination.token != appliedDestinationToken else { return }
+        appliedDestinationToken = destination.token
+        switch destination.filter {
+        case .awaiting: controller.landOnAwaiting()
+        }
+        Task { @MainActor in AppRouter.shared.inboxDestination = nil }
     }
 
     @ViewBuilder
@@ -1197,6 +1268,17 @@ private struct FilterChipRow: View {
                     onTap: onPickTag,
                     onClear: tagClear
                 )
+                // #508: ahead of the others, because it is the only chip here
+                // that names money leaving. Reachable as a control in its own
+                // right and not only by arriving from the response-time card —
+                // a filter you can reach from exactly one card is one most of
+                // the crew never learns exists.
+                FilterChip(
+                    label: "Unanswered",
+                    selected: controller.awaitingOnly,
+                    onTap: { controller.toggleAwaiting() },
+                    onClear: nil
+                )
                 FilterChip(
                     label: "Unread",
                     selected: controller.unreadOnly,
@@ -1412,6 +1494,10 @@ private struct ConversationListPane: View {
     }
 
     private var emptyLabel: String {
+        // #508: an empty Unanswered list is the best news this screen can give,
+        // and "nothing matches these filters" reports it as an absence. Said as
+        // the result it is.
+        if controller.awaitingOnly { return "Everyone has been answered." }
         if controller.hasFilterChips { return "Nothing matches these filters." }
         switch controller.tab {
         case .open: return "Nothing waiting on you."

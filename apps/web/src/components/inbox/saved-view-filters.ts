@@ -38,6 +38,9 @@ export function urlFiltersToView(filters: InboxUrlFilters): SavedViewFilters {
   // The URL's boolean becomes the API's tri-state. `only` is what the chip
   // means: show me what I deferred, rather than everything including it.
   if (filters.snoozed) raw.snoozed = "only";
+  // #508: same boolean-to-tri-state translation. A view saved off the
+  // Unanswered filter has to reopen as the Unanswered filter.
+  if (filters.awaiting) raw.awaiting = "only";
   // Sanitised here rather than trusted: this is the value that gets stored, and
   // the allow-list is the one place that decides what a view may hold.
   return sanitizeFilters("conversations", raw);
@@ -67,6 +70,7 @@ export function viewFiltersToUrl(
   if (clean.unread === true) out.unread = true;
   if (clean.is_spam === true) out.spam = true;
   if (clean.snoozed === "only") out.snoozed = true;
+  if (clean.awaiting === "only") out.awaiting = true;
   if (current.q !== undefined && current.q.trim() !== "") out.q = current.q;
   return out;
 }
@@ -115,6 +119,7 @@ export function suggestViewName(
   if (filters.unread) parts.push("Unread");
   if (filters.spam) parts.push("Spam");
   if (filters.snoozed) parts.push("Snoozed");
+  if (filters.awaiting) parts.push("Unanswered");
   // A middot rather than a dash: Law 6 bans em and en dashes in rendered copy,
   // and a hyphen reads as part of a word.
   return parts.join(" · ");

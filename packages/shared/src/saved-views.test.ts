@@ -52,6 +52,18 @@ describe("#280 sanitizeFilters", () => {
     expect(sanitizeFilters("conversations", { unread: "true" })).toEqual({});
   });
 
+  it("#508: holds the unanswered filter, with no 'all'", () => {
+    // Unset already means no filter here, unlike `snoozed`, whose default hides
+    // a population — so an 'all' would be a third way of saying "unset".
+    expect(sanitizeFilters("conversations", { awaiting: "only" })).toEqual({
+      awaiting: "only",
+    });
+    expect(sanitizeFilters("conversations", { awaiting: "exclude" })).toEqual({
+      awaiting: "exclude",
+    });
+    expect(sanitizeFilters("conversations", { awaiting: "all" })).toEqual({});
+  });
+
   it("refuses cursors and search text on both surfaces", () => {
     // A cursor is a position in one result set. Search text is a question asked
     // once, and saving it would turn a shared "my open threads" into "my open

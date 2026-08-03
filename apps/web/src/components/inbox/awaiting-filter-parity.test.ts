@@ -1,0 +1,127 @@
+/**
+ * #508 — "unanswered" means one thing on all three clients.
+ *
+ * The card counts leads with no response; the inbox filter has to open exactly
+ * that set. The way three clients are kept from disagreeing is that none of
+ * them decides: `awaiting_reply_since` (the #388 lead clock) is a column the
+ * server filters on, and every client does the same one thing with it — sends
+ * `awaiting=only`. A client that grew its own "needs a reply" rule would be
+ * back to the `?status=new` failure this issue exists to fix, where the web and
+ * the phone showed different threads under the same sentence.
+ *
+ * A source-text guard rather than a behavioural one, for the same reason
+ * `response-time-parity.test.ts` is: Kotlin and Swift are not runnable from
+ * this suite, and the drift being guarded against is somebody editing one of
+ * the three and not the other two.
+ */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { describe, expect, it } from "vitest";
+
+const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
+
+/** Where each client turns its own filter state into the request parameter. */
+const REQUESTS: Record<string, string> = {
+  web: join(REPO_ROOT, "apps/web/src/lib/api/conversations.ts"),
+  android: join(
+    REPO_ROOT,
+    "apps/android/app/src/main/kotlin/com/loonext/android/features/thread/MessagingData.kt",
+  ),
+  ios: join(REPO_ROOT, "apps/ios/Loonext/Core/Api.swift"),
+};
+
+/** Where each client offers the filter as a control somebody can pick. */
+const CONTROLS: Record<string, string> = {
+  web: join(REPO_ROOT, "apps/web/src/components/inbox/filter-bar.tsx"),
+  android: join(
+    REPO_ROOT,
+    "apps/android/app/src/main/kotlin/com/loonext/android/features/inbox/InboxTab.kt",
+  ),
+  ios: join(REPO_ROOT, "apps/ios/Loonext/Features/Inbox/InboxTab.swift"),
+};
+
+describe("#508 the unanswered filter is one predicate, three clients", () => {
+  it("reads every source, so a passing run means something", () => {
+    for (const path of [
+      ...Object.values(REQUESTS),
+      ...Object.values(CONTROLS),
+    ]) {
+      expect(readFileSync(path, "utf8").length).toBeGreaterThan(1000);
+    }
+  });
+
+  it("sends the same `awaiting` parameter from every client", () => {
+    for (const [platform, path] of Object.entries(REQUESTS)) {
+      const text = readFileSync(path, "utf8");
+      expect(text, platform).toMatch(/["']?awaiting["']?\s*[:=]/);
+    }
+  });
+
+  it("asks for 'only' — the narrower question, never a second rule", () => {
+    // The literal each client sends. `only` is the whole vocabulary: unset
+    // means no filter, because the ordinary inbox shows answered and
+    // unanswered alike. The phones read their own controller state into the
+    // request; web's control is the URL, so its translation lives beside the
+    // other filters rather than in the component.
+    const android = readFileSync(CONTROLS.android, "utf8");
+    expect(android).toMatch(/awaiting = if \(awaitingOnly\) "only" else null/);
+    const ios = readFileSync(CONTROLS.ios, "utf8");
+    expect(ios).toMatch(/awaiting: awaitingOnly \? "only" : nil/);
+    const filterUrl = readFileSync(
+      join(REPO_ROOT, "apps/web/src/components/inbox/filter-url.ts"),
+      "utf8",
+    );
+    expect(filterUrl).toContain('out.awaiting = "only"');
+  });
+
+  it("calls it the same thing on every client", () => {
+    // "Unanswered", not "Needs reply" on one and "No reply" on another. The
+    // word travels between a crew's phone and the office laptop out loud.
+    for (const [platform, path] of Object.entries(CONTROLS)) {
+      const text = readFileSync(path, "utf8");
+      expect(text, platform).toContain("Unanswered");
+    }
+  });
+
+  it("is reachable as a filter in its own right, not only by arriving", () => {
+    // A destination you can reach from exactly one card is one most of the crew
+    // never learns exists. Each client offers it where its other filters live:
+    // web's `+ Filter` popover, Android's filter sheet, iOS's chip row.
+    const web = readFileSync(CONTROLS.web, "utf8");
+    expect(web).toMatch(/value="awaiting"/);
+    const android = readFileSync(CONTROLS.android, "utf8");
+    expect(android).toMatch(/toggleAwaiting\(\)/);
+    const ios = readFileSync(CONTROLS.ios, "utf8");
+    expect(ios).toMatch(/toggleAwaiting\(\)/);
+  });
+
+  it("says the same thing when the list is empty", () => {
+    // "Nothing matches these filters" reports the best news this screen can
+    // give as an absence. Three clients saying it three ways is the #273
+    // failure in miniature.
+    const EMPTY_STATES: Record<string, string> = {
+      web: join(REPO_ROOT, "apps/web/src/components/inbox/empty-states.tsx"),
+      android: CONTROLS.android,
+      ios: CONTROLS.ios,
+    };
+    for (const [platform, path] of Object.entries(EMPTY_STATES)) {
+      const text = readFileSync(path, "utf8");
+      expect(text, platform).toContain("Everyone has been answered.");
+    }
+  });
+
+  it("survives as a destination, so the card's row can land on it", () => {
+    // The router flag, not a chip tap: the tab switch happens between the tap
+    // and the inbox reading it, so the request has to outlive it.
+    const web = readFileSync(
+      join(REPO_ROOT, "apps/web/src/components/inbox/filter-url.ts"),
+      "utf8",
+    );
+    expect(web).toContain('params.set("awaiting", "true")');
+    const android = readFileSync(CONTROLS.android, "utf8");
+    expect(android).toMatch(/landOnAwaiting\(\)/);
+    const ios = readFileSync(CONTROLS.ios, "utf8");
+    expect(ios).toMatch(/landOnAwaiting\(\)/);
+  });
+});

@@ -68,6 +68,7 @@ import com.loonext.android.core.model.Me
 import com.loonext.android.features.calls.CallsScreen
 import com.loonext.android.features.contacts.ContactsTab
 import com.loonext.android.features.foryou.ForYouTab
+import com.loonext.android.features.inbox.InboxDestination
 import com.loonext.android.features.inbox.InboxTab
 import com.loonext.android.features.settings.SettingsSection
 import com.loonext.android.features.tasks.TasksTab
@@ -490,6 +491,15 @@ fun ShellContent(
     /** #503: the waiting-room card's route into a settings section. */
     onOpenSettings: (SettingsSection) -> Unit,
     onOpenCalls: () -> Unit,
+    /**
+     * #508: the response-time card's unanswered row. Switches to the Inbox tab
+     * landed on the matching filter, rather than pushing a route — one inbox,
+     * arrived at differently.
+     */
+    onOpenUnanswered: () -> Unit,
+    /** #508: the filter the inbox should land on, and the way to report it applied. */
+    inboxDestination: InboxDestination?,
+    onInboxDestinationConsumed: () -> Unit,
     onViewedConversationChanged: (conversationId: String?) -> Unit,
 ) {
     when (tab) {
@@ -498,6 +508,7 @@ fun ShellContent(
             onOpenCalls = onOpenCalls,
             onOpenThread = { onOpenThread(it, null) },
             onOpenNotifications = onOpenNotifications,
+            onOpenUnanswered = onOpenUnanswered,
             // #503: the waiting-room card's three setup buttons. Contacts is a
             // TAB and the other two are settings sections, which is why this is
             // two callbacks rather than one.
@@ -506,10 +517,13 @@ fun ShellContent(
         )
 
         ShellTab.Inbox -> InboxTab(
-            graph, companyId, me, modifier,
+            graph, companyId, me,
+            destination = inboxDestination,
+            onDestinationConsumed = onInboxDestinationConsumed,
             onOpenThread = onOpenThread,
             onOpenTask = onOpenTask,
             onComposeNew = onComposeNew,
+            modifier = modifier,
         )
 
         ShellTab.Calls -> CallsScreen(

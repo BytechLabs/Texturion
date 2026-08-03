@@ -81,7 +81,16 @@ fun ResponseTimeCard(
     report: ResponseTimeReport?,
     days: Int,
     onWindow: (Int) -> Unit,
-    onOpenUnanswered: (() -> Unit)? = null,
+    /**
+     * #508: into the inbox, filtered to the leads this row is counting.
+     *
+     * REQUIRED. It was nullable-with-a-default and `ForYouTab` never passed it,
+     * so the row named the leak and offered no way to act on it while web
+     * linked the same sentence — the parity gap the issue is about. A default of
+     * null on a navigation callback turns "nobody wired this" into a silently
+     * inert row instead of a compile error (#503).
+     */
+    onOpenUnanswered: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.padding(top = 14.dp)) {
@@ -154,7 +163,7 @@ fun ResponseTimeCard(
 @Composable
 private fun ResponseTimeBody(
     report: ResponseTimeReport,
-    onOpenUnanswered: (() -> Unit)?,
+    onOpenUnanswered: () -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
 
@@ -234,13 +243,7 @@ private fun ResponseTimeBody(
         Row(
             Modifier
                 .fillMaxWidth()
-                .then(
-                    if (onOpenUnanswered != null) {
-                        Modifier.clickable(onClick = onOpenUnanswered)
-                    } else {
-                        Modifier
-                    },
-                )
+                .clickable(onClick = onOpenUnanswered)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -249,14 +252,12 @@ private fun ResponseTimeBody(
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.weight(1f),
             )
-            if (onOpenUnanswered != null) {
-                Icon(
-                    Icons.AutoMirrored.Outlined.ArrowForward,
-                    contentDescription = null,
-                    modifier = Modifier.size(15.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Icon(
+                Icons.AutoMirrored.Outlined.ArrowForward,
+                contentDescription = null,
+                modifier = Modifier.size(15.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 

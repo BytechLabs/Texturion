@@ -266,7 +266,10 @@ export function ConversationList({
 
   if (rows.length === 0) {
     return hasUrlFilters ? (
-      <FilteredEmptyState snoozed={filters.snoozed === "only"} />
+      <FilteredEmptyState
+        snoozed={filters.snoozed === "only"}
+        awaiting={filters.awaiting === "only"}
+      />
     ) : (
       <ActivationEmptyState />
     );

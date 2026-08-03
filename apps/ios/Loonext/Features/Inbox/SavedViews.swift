@@ -78,6 +78,8 @@ func formatViewCount(_ count: Int) -> String {
 private let conversationStatuses: Set<String> = ["new", "open", "waiting", "closed"]
 private let pinnedValues: Set<String> = ["only", "exclude"]
 private let snoozedValues: Set<String> = ["only", "exclude", "all"]
+/// #508: no "all" — unset already means no filter, unlike `snoozed`.
+private let awaitingValues: Set<String> = ["only", "exclude"]
 
 /// Is this a UUID?
 ///
@@ -118,6 +120,7 @@ func sanitizeConversationFilters(_ raw: [String: JSONValue]) -> [String: JSONVal
         case "assigned_to_me", "is_spam", "unread": keep = flag != nil
         case "pinned": keep = text.map { pinnedValues.contains($0) } ?? false
         case "snoozed": keep = text.map { snoozedValues.contains($0) } ?? false
+        case "awaiting": keep = text.map { awaitingValues.contains($0) } ?? false
         default: keep = false
         }
         if keep { out[key] = value }
@@ -167,6 +170,8 @@ struct ViewSelection: Sendable, Equatable {
     var unreadOnly: Bool
     var spamOnly: Bool
     var snoozedOnly: Bool
+    /// #508: threads nobody has replied to yet (the #388 lead clock).
+    var awaitingOnly: Bool
 }
 
 /// A view's stored filters as the inbox's own controls.
@@ -194,7 +199,8 @@ func viewToSelection(_ filters: [String: JSONValue]) -> ViewSelection {
         tagId: filterString(clean, "tag_id"),
         unreadOnly: filterBool(clean, "unread"),
         spamOnly: filterBool(clean, "is_spam"),
-        snoozedOnly: filterString(clean, "snoozed") == "only"
+        snoozedOnly: filterString(clean, "snoozed") == "only",
+        awaitingOnly: filterString(clean, "awaiting") == "only"
     )
 }
 
@@ -212,6 +218,7 @@ func selectionToView(_ selection: ViewSelection) -> [String: JSONValue] {
     if selection.unreadOnly { raw["unread"] = .bool(true) }
     if selection.spamOnly { raw["is_spam"] = .bool(true) }
     if selection.snoozedOnly { raw["snoozed"] = .string("only") }
+    if selection.awaitingOnly { raw["awaiting"] = .string("only") }
     return sanitizeConversationFilters(raw)
 }
 
@@ -247,6 +254,7 @@ func suggestViewName(
     if selection.unreadOnly { parts.append("Unread") }
     if selection.spamOnly { parts.append("Spam") }
     if selection.snoozedOnly { parts.append("Snoozed") }
+    if selection.awaitingOnly { parts.append("Unanswered") }
     // A middot, not a dash: Law 6 bans em and en dashes in rendered copy and a
     // hyphen reads as part of a word.
     return parts.joined(separator: " · ")

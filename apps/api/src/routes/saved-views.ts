@@ -492,6 +492,10 @@ savedViewsRoutes.get(
           p_cursor_id: null,
           p_pinned: filters.pinned ?? null,
           p_snoozed: filters.snoozed ?? null,
+          // #508: a view saved from the Unanswered filter counts the set it
+          // opens. Omitting it here is how a badge comes to be larger than the
+          // list it labels.
+          p_awaiting: filters.awaiting ?? null,
           p_hidden_number_ids: access.hiddenNumberIds,
         }),
         "saved view count",

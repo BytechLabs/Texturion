@@ -133,6 +133,12 @@ fun ForYouTab(
      */
     onOpenContacts: () -> Unit,
     onOpenSettings: (SettingsSection) -> Unit,
+    /**
+     * #508: the response-time card's "N leads nobody answered" row, into the
+     * inbox filtered to exactly those. Required for the same reason as the two
+     * above — this row shipped inert on both phones while web linked it.
+     */
+    onOpenUnanswered: () -> Unit,
 ) {
     // Threads and notifications are ROUTES above the shell now (founder
     // mandate: nothing pushed shows the pill nav) — this tab is only ever the
@@ -282,6 +288,7 @@ fun ForYouTab(
                 onOpenNotifications = { onOpenNotifications?.invoke() },
                 onOpenContacts = onOpenContacts,
                 onOpenSettings = onOpenSettings,
+                onOpenUnanswered = onOpenUnanswered,
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -308,6 +315,8 @@ private fun ForYouList(
     /** #310/#503: the waiting-room card's doors. Required — see ForYouTab. */
     onOpenContacts: () -> Unit,
     onOpenSettings: (SettingsSection) -> Unit,
+    /** #508: the response-time card's unanswered row. Required — see ForYouTab. */
+    onOpenUnanswered: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // #306: what each section HOLDS, not how many rows came back. Counting the
@@ -366,6 +375,7 @@ private fun ForYouList(
                 report = responseTime,
                 days = responseDays,
                 onWindow = onResponseWindow,
+                onOpenUnanswered = onOpenUnanswered,
             )
         }
 

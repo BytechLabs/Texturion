@@ -151,6 +151,52 @@ describe("#293 snoozed chip", () => {
   });
 });
 
+describe("#508 unanswered chip", () => {
+  it("round-trips through the URL, because it is a DESTINATION", () => {
+    // The response-time card links here. A filter that only existed as a chip
+    // somebody tapped could not be linked to at all, and a pasted URL is the
+    // same journey a week later.
+    expect(
+      parseInboxSearchParams(new URLSearchParams("awaiting=true")),
+    ).toEqual({ awaiting: true });
+    expect(parseInboxSearchParams(new URLSearchParams("awaiting=1"))).toEqual({
+      awaiting: true,
+    });
+    expect(
+      parseInboxSearchParams(new URLSearchParams("awaiting=false")),
+    ).toEqual({});
+    expect(serializeInboxFilters({ awaiting: true })).toBe("?awaiting=true");
+  });
+
+  it("asks the server the narrower question, and only when asked", () => {
+    expect(toConversationFilters({ awaiting: true }, "me-id")).toEqual({
+      awaiting: "only",
+    });
+    // Absent means NO filter here, unlike `snoozed` — the ordinary inbox shows
+    // answered and unanswered alike.
+    expect(toConversationFilters({}, "me-id")).toEqual({});
+  });
+
+  it("is a removable chip and counts as an active filter", () => {
+    expect(activeChips({ awaiting: true })).toEqual([{ key: "awaiting" }]);
+    expect(
+      clearSecondary({ awaiting: true, unread: true }, "awaiting"),
+    ).toEqual({ unread: true });
+    // Otherwise an inbox where everybody has been answered would render the
+    // brand-new-company activation screen.
+    expect(hasActiveFilters({ awaiting: true })).toBe(true);
+  });
+
+  it("survives a segment switch, so the destination is not one-shot", () => {
+    // Segments own `status` + the "me" assignee and nothing else. Arriving on
+    // Unanswered and then tapping Open must narrow, not clear.
+    expect(applySegment({ awaiting: true }, "open")).toEqual({
+      awaiting: true,
+      status: "open",
+    });
+  });
+});
+
 describe("hasActiveFilters", () => {
   it("is false only for the bare All view", () => {
     expect(hasActiveFilters({})).toBe(false);

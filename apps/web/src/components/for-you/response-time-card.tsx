@@ -225,7 +225,7 @@ export function ResponseTimeCard() {
             {/* The leak, named, and a way to act on it. */}
             {report.data.unanswered > 0 && (
               <Link
-                href="/inbox?status=new"
+                href="/inbox?awaiting=true"
                 className="flex items-center gap-2 border-t border-app-line-soft px-4 py-2.5 text-[13px] transition-colors duration-150 ease-out hover:bg-app-hover"
               >
                 <span className="flex-1 text-app-ink">

@@ -256,6 +256,8 @@ function ChipRow({
         return "Spam";
       case "snoozed":
         return "Snoozed";
+      case "awaiting":
+        return "Unanswered";
     }
   };
 
@@ -403,6 +405,32 @@ function FilterPopover({
               </CommandGroup>
             )}
             <CommandGroup heading="More">
+              {/* #508: first in the group, because it is the one filter here
+                  that names money leaving. It is also the destination the
+                  response-time card links to, and a destination reachable only
+                  by arriving from one card is a filter half the crew never
+                  learns exists. */}
+              <CommandItem
+                value="awaiting"
+                keywords={[
+                  "unanswered",
+                  "awaiting",
+                  "needs reply",
+                  "waiting",
+                  "no reply",
+                ]}
+                onSelect={() =>
+                  set("awaiting", filters.awaiting ? undefined : true)
+                }
+              >
+                <span>Unanswered</span>
+                {filters.awaiting && (
+                  <Check
+                    className="ml-auto size-4 text-primary"
+                    strokeWidth={1.75}
+                  />
+                )}
+              </CommandItem>
               <CommandItem
                 value="unread"
                 keywords={["unread"]}

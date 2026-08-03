@@ -37,6 +37,11 @@ struct ForYouTab: View {
     /// #354: the pipeline report. Fixed at 30 days — the pipeline question is
     /// "how did this month's quotes do", not a window somebody tunes.
     @State private var pipeline: PipelineReportResponse?
+    /// #508: how many times the unanswered row has been tapped this session.
+    /// It is the destination's token — a repeat tap has to re-apply the filter
+    /// after the reader has wandered off it, and an unchanged command says
+    /// nothing new to the inbox.
+    @State private var unansweredTaps = 0
 
     var body: some View {
         Group {
@@ -78,7 +83,19 @@ struct ForYouTab: View {
                     },
                     company: me.company,
                     onOpenContacts: { AppRouter.shared.openContacts = true },
-                    onOpenSettings: { AppRouter.shared.openSettingsSection = $0 }
+                    onOpenSettings: { AppRouter.shared.openSettingsSection = $0 },
+                    // #508: arm the destination BEFORE the tab switch, so the
+                    // inbox reads it whether it is already on screen or gets
+                    // composed by the switch. The token makes a second tap
+                    // re-apply the filter.
+                    onOpenUnanswered: {
+                        unansweredTaps += 1
+                        AppRouter.shared.inboxDestination = InboxDestination(
+                            filter: .awaiting,
+                            token: unansweredTaps
+                        )
+                        AppRouter.shared.openInbox = true
+                    }
                 )
             }
         }
@@ -200,6 +217,8 @@ private struct ForYouList: View {
     /// #310/#503: the waiting-room card's doors. Required — see WhileYouWait.
     let onOpenContacts: @MainActor () -> Void
     let onOpenSettings: @MainActor (SettingsSection) -> Void
+    /// #508: the response-time card's unanswered row. Required — see the card.
+    let onOpenUnanswered: @MainActor () -> Void
 
     /// #306: the work, not the page. Counting the rows meant a member 60
     /// conversations behind read "20 things need you", and the queue looked
@@ -248,7 +267,8 @@ private struct ForYouList: View {
                 ResponseTimeCard(
                     report: responseTime,
                     days: responseDays,
-                    onWindow: onResponseWindow
+                    onWindow: onResponseWindow,
+                    onOpenUnanswered: onOpenUnanswered
                 )
                 // #354: beside its neighbour, and absent entirely until there
                 // is something true to say.

@@ -526,6 +526,17 @@ export interface Conversation {
   spam_suspected_at?: string | null;
   /** #250: the reasons behind it, so the badge can say WHY. */
   spam_signals?: SpamSignal[] | null;
+  /**
+   * #388 lead clock: when the first inbound of a new or reopened thread landed,
+   * cleared by a human outbound. Non-null therefore means "nobody has answered
+   * this yet" — the predicate behind #508's Unanswered filter and the live twin
+   * of the response-time card's unanswered count.
+   *
+   * Optional because a payload assembled before this was read (an older cached
+   * page) simply does not carry it; readers must treat missing as UNKNOWN, not
+   * as answered.
+   */
+  awaiting_reply_since?: string | null;
   created_at: string;
   updated_at: string;
 }

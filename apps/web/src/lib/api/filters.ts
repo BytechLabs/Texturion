@@ -14,6 +14,13 @@ export interface ConversationFilters {
    * what I deferred" ('only') or "show everything" ('all').
    */
   snoozed?: "only" | "all";
+  /**
+   * #508: threads nobody has replied to yet — the #388 lead clock
+   * (`awaiting_reply_since`), not `status`. Absent means no filter at all: the
+   * ordinary inbox shows answered and unanswered alike, and only a reader who
+   * arrived from the response-time card is asking the narrower question.
+   */
+  awaiting?: "only" | "exclude";
 }
 
 /**
@@ -35,6 +42,7 @@ export function normalizeFilters(
     out.q = filters.q.trim();
   }
   if (filters.snoozed !== undefined) out.snoozed = filters.snoozed;
+  if (filters.awaiting !== undefined) out.awaiting = filters.awaiting;
   return out;
 }
 
@@ -93,6 +101,16 @@ export function conversationMatchesFilters(
     return false;
   }
   if (filters.unread === true && !item.unread) return false;
+  // #508: the same rule the server applies, so answering a thread takes it out
+  // of the Unanswered list without a refetch. A row that does not carry the
+  // field cannot be judged — an older cached payload predates it — and
+  // "unknown" must not read as "answered", which would drop a waiting lead off
+  // the one screen that exists to name it.
+  if (filters.awaiting !== undefined) {
+    if (item.awaiting_reply_since === undefined) return null;
+    const waiting = item.awaiting_reply_since !== null;
+    if (waiting !== (filters.awaiting === "only")) return false;
+  }
   if (filters.q !== undefined) return null; // server-side trigram match
   return true;
 }

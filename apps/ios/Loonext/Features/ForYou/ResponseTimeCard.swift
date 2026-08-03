@@ -53,6 +53,12 @@ struct ResponseTimeCard: View {
     let report: ResponseTimeReport?
     let days: Int
     let onWindow: (Int) -> Void
+    /// #508: into the inbox, filtered to the leads this card is counting.
+    ///
+    /// A `let` with no default, like every other navigation callback here: the
+    /// row named the leak and offered no way to act on it while web linked the
+    /// same sentence, and a default is what lets that ship (#503).
+    let onOpenUnanswered: () -> Void
 
     @State private var open = false
 
@@ -153,13 +159,26 @@ struct ResponseTimeCard: View {
         .padding(.top, 13)
         .padding(.bottom, 10)
 
+        // #508: the leak, named, and a way to act on it. The chevron is the
+        // promise that the row goes somewhere, so it appears only because the
+        // destination now exists.
         if report.unanswered > 0 {
             Divider().overlay(BrandColor.muted250)
-            Text(responseUnansweredLine(report.unanswered))
-                .font(.golos(13))
-                .frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: onOpenUnanswered) {
+                HStack(spacing: 8) {
+                    Text(responseUnansweredLine(report.unanswered))
+                        .font(.golos(13))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(BrandColor.muted500)
+                }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens the inbox filtered to conversations nobody has answered")
         }
 
         Divider().overlay(BrandColor.muted250)

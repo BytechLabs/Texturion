@@ -79,6 +79,9 @@ private val CONVERSATION_STATUSES = setOf("new", "open", "waiting", "closed")
 private val PINNED_VALUES = setOf("only", "exclude")
 private val SNOOZED_VALUES = setOf("only", "exclude", "all")
 
+/** #508: no "all" — unset already means no filter, unlike `snoozed`. */
+private val AWAITING_VALUES = setOf("only", "exclude")
+
 /**
  * Keep only the conversation filters the list endpoint understands.
  *
@@ -99,6 +102,7 @@ fun sanitizeConversationFilters(raw: JsonObject): JsonObject {
             "assigned_to_me", "is_spam", "unread" -> bool != null
             "pinned" -> text != null && text in PINNED_VALUES
             "snoozed" -> text != null && text in SNOOZED_VALUES
+            "awaiting" -> text != null && text in AWAITING_VALUES
             else -> false
         }
         if (keep) out[key] = value
@@ -139,6 +143,8 @@ internal data class ViewSelection(
     val unreadOnly: Boolean,
     val spamOnly: Boolean,
     val snoozedOnly: Boolean,
+    /** #508: threads nobody has replied to yet (the #388 lead clock). */
+    val awaitingOnly: Boolean,
 )
 
 /**
@@ -166,6 +172,7 @@ internal fun viewToSelection(filters: JsonObject): ViewSelection {
         unreadOnly = clean.bool("unread"),
         spamOnly = clean.bool("is_spam"),
         snoozedOnly = clean.str("snoozed") == "only",
+        awaitingOnly = clean.str("awaiting") == "only",
     )
 }
 
@@ -183,6 +190,7 @@ internal fun selectionToView(selection: ViewSelection): JsonObject {
         if (selection.unreadOnly) put("unread", JsonPrimitive(true))
         if (selection.spamOnly) put("is_spam", JsonPrimitive(true))
         if (selection.snoozedOnly) put("snoozed", JsonPrimitive("only"))
+        if (selection.awaitingOnly) put("awaiting", JsonPrimitive("only"))
     }
     return sanitizeConversationFilters(raw)
 }
@@ -216,6 +224,7 @@ internal fun suggestViewName(
     if (selection.unreadOnly) parts.add("Unread")
     if (selection.spamOnly) parts.add("Spam")
     if (selection.snoozedOnly) parts.add("Snoozed")
+    if (selection.awaitingOnly) parts.add("Unanswered")
     // A middot, not a dash: Law 6 bans em and en dashes in rendered copy and a
     // hyphen reads as part of a word.
     return parts.joinToString(" · ")

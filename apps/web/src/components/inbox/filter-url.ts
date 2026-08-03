@@ -28,6 +28,13 @@ export interface InboxUrlFilters {
    * how two hidden populations end up behaving differently.
    */
   snoozed?: boolean;
+  /**
+   * #508: threads nobody has replied to yet. Same removable-chip shape as the
+   * two above, and the DESTINATION the response-time card's "N leads nobody
+   * answered" row links to — which is why it has to survive a paste of the URL
+   * rather than only existing as a chip somebody taps.
+   */
+  awaiting?: boolean;
   q?: string;
 }
 
@@ -59,6 +66,7 @@ export function parseInboxSearchParams(
   if (isTruthy(params.get("unread"))) filters.unread = true;
   if (isTruthy(params.get("spam"))) filters.spam = true;
   if (isTruthy(params.get("snoozed"))) filters.snoozed = true;
+  if (isTruthy(params.get("awaiting"))) filters.awaiting = true;
   const q = params.get("q");
   if (q !== null && q.trim() !== "") filters.q = q;
   return filters;
@@ -76,6 +84,7 @@ export function serializeInboxFilters(filters: InboxUrlFilters): string {
   if (filters.unread) params.set("unread", "true");
   if (filters.spam) params.set("spam", "true");
   if (filters.snoozed) params.set("snoozed", "true");
+  if (filters.awaiting) params.set("awaiting", "true");
   if (filters.q !== undefined && filters.q.trim() !== "") {
     params.set("q", filters.q);
   }
@@ -167,6 +176,10 @@ export function toConversationFilters(
   // not as well — "what did I defer" is a view, not a widening. Absent leaves
   // the field off entirely, which is the server's hide-them default.
   if (filters.snoozed) out.snoozed = "only";
+  // #508: the URL boolean becomes the API's tri-state, same as `snoozed` above.
+  // "only" is what the chip means — show me the ones still waiting, rather than
+  // everything including them.
+  if (filters.awaiting) out.awaiting = "only";
   return out;
 }
 
@@ -179,6 +192,7 @@ export function hasActiveFilters(filters: InboxUrlFilters): boolean {
       filters.unread ||
       filters.spam ||
       filters.snoozed ||
+      filters.awaiting ||
       (filters.q !== undefined && filters.q.trim() !== ""),
   );
 }
@@ -216,7 +230,8 @@ export type SecondaryFilterKey =
   | "tag"
   | "unread"
   | "spam"
-  | "snoozed";
+  | "snoozed"
+  | "awaiting";
 
 /**
  * The secondary filters that are currently active, in a stable render order,
@@ -243,6 +258,7 @@ export function activeChips(filters: InboxUrlFilters): ActiveChip[] {
   if (filters.unread) chips.push({ key: "unread" });
   if (filters.spam) chips.push({ key: "spam" });
   if (filters.snoozed) chips.push({ key: "snoozed" });
+  if (filters.awaiting) chips.push({ key: "awaiting" });
   return chips;
 }
 

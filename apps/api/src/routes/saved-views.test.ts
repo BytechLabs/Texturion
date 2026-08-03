@@ -399,6 +399,32 @@ describe("GET /v1/saved-views/counts", () => {
     expect(params.p_hidden_number_ids).toEqual([HIDDEN_NUMBER]);
   });
 
+  it("#508: counts the unanswered set a view was saved from", async () => {
+    // A view saved off the Unanswered filter has to be counted with that
+    // filter. Dropping it here is how a badge comes to be larger than the list
+    // it labels — the same class of wrongness as the deny list above, minus the
+    // leak.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/saved_views", () => [
+      viewRow({ filters: { awaiting: "only" } }),
+    ]);
+    sb.on("POST", "/rest/v1/rpc/api_list_conversations", () => [{ id: "1" }]);
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await token(),
+      `/v1/saved-views/counts?surface=conversations&ids=${VIEW_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const params = sb.find("POST", "/rest/v1/rpc/api_list_conversations")[0]
+      .body as Record<string, unknown>;
+    expect(params.p_awaiting).toBe("only");
+  });
+
   it("prices at most twelve views however many ids are asked for", async () => {
     const many = Array.from(
       { length: 30 },

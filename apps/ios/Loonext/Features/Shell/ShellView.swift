@@ -201,6 +201,16 @@ struct ShellView: View {
             path.removeAll()
             tab = .contacts
         }
+        // #508: the response-time card's unanswered row. The SHELL switches the
+        // tab; the inbox applies `router.inboxDestination` itself, so neither
+        // one clears the other's half.
+        .onReceive(router.$openInbox) { open in
+            guard open else { return }
+            router.openInbox = false
+            activeSheet = nil
+            path.removeAll()
+            tab = .inbox
+        }
         // The viewed thread (#165) is always the TOP route when it is a thread —
         // the Android `routeStack.lastOrNull() as Thread` twin. Global surfaces
         // (inbound toast, foreground push banners) stay quiet for it.

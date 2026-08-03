@@ -86,6 +86,33 @@ describe("#239 response-time copy is the same on every client", () => {
     }
   });
 
+  it("#508: the unanswered row goes somewhere on every platform", () => {
+    // The gap this closes: web linked the row and both phones rendered the same
+    // sentence inert, so the laptop offered a way to act on the leak and the
+    // phone in the van did not.
+    const DESTINATION: Record<string, RegExp> = {
+      web: /\/inbox\?awaiting=true/,
+      android: /onOpenUnanswered/,
+      ios: /onOpenUnanswered/,
+    };
+    for (const [platform, path] of Object.entries(SOURCES)) {
+      const text = readFileSync(path, "utf8");
+      expect(text, platform).toMatch(DESTINATION[platform]);
+    }
+  });
+
+  it("#508/#503: that callback is required on the phones, never defaulted", () => {
+    // An optional navigation callback is how BOTH clients came to ship this row
+    // unwired: the compiler cannot tell "nobody passed it" from "deliberately
+    // inert", so the dead affordance only surfaces on somebody's phone.
+    const android = readFileSync(SOURCES.android, "utf8");
+    expect(android).not.toMatch(/onOpenUnanswered[^\n]*=\s*null/);
+    expect(android).toMatch(/onOpenUnanswered:\s*\(\)\s*->\s*Unit\s*,/);
+    const ios = readFileSync(SOURCES.ios, "utf8");
+    expect(ios).not.toMatch(/onOpenUnanswered[^\n]*=\s*nil/);
+    expect(ios).toMatch(/let onOpenUnanswered:\s*\(\)\s*->\s*Void/);
+  });
+
   it("asks the shared arc helper on every platform, so the wrong direction is reportable", () => {
     // The check that keeps the good news credible. A client that decides the
     // direction itself is a client that can quietly stop reporting the bad one —

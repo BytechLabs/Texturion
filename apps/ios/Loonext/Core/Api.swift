@@ -89,6 +89,10 @@ struct InboxApi: Sendable {
         // this member deferred. Only "only" (the Snoozed view) and "all"
         // (opting out of the filter entirely) ever travel.
         snoozed: String? = nil,
+        // #508: "only" narrows to threads nobody has replied to yet — the #388
+        // lead clock, not `status`. nil is no filter at all (not "exclude"): the
+        // ordinary inbox shows answered and unanswered alike.
+        awaiting: String? = nil,
         q: String? = nil,
         cursor: String? = nil,
         limit: Int = 25
@@ -103,6 +107,7 @@ struct InboxApi: Sendable {
                 "unread": unread.map { $0 ? "true" : "false" },
                 "pinned": pinned,
                 "snoozed": snoozed,
+                "awaiting": awaiting,
                 "q": q,
                 "cursor": cursor,
                 "limit": String(limit),
