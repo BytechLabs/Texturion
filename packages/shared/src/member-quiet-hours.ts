@@ -85,3 +85,34 @@ export function isMemberQuietNow(
   // Overnight windows wrap: 22:00–07:00 is quiet at 23:00 AND at 02:00.
   return from < to ? now >= from && now < to : now >= from || now < to;
 }
+
+/**
+ * What the crew reads on the setting.
+ *
+ * THE REASSURANCE IS THE LOAD-BEARING SENTENCE. The reason people do not set
+ * quiet hours is the fear of missing the emergency, so a control that offers
+ * silence without saying what still gets through does not get switched on —
+ * and the member goes back to turning notifications off entirely, which is the
+ * failure this whole thing exists to prevent.
+ */
+export const QUIET_HOURS_COPY = {
+  heading: "Quiet hours",
+  /** Said before they choose, not after. */
+  reassurance:
+    "Your phone stays quiet for ordinary messages. If you are on call, or an " +
+    "alert nobody picked up widens to the crew, it still comes through.",
+  /** Off, which is every existing member. */
+  off: "Off — every notification reaches you at any hour.",
+  /** On, with the window filled in by the caller. */
+  on: "Quiet from",
+  /** Per workspace, because the preference is. */
+  scope: "This applies to this workspace only.",
+} as const;
+
+/** The window most people want, offered rather than imposed. */
+export const QUIET_HOURS_DEFAULT = { from: "22:00", to: "07:00" } as const;
+
+/** "Quiet from 10:00 PM to 7:00 AM" — assembled once, not three times. */
+export function quietHoursLine(from: string, to: string): string {
+  return `${QUIET_HOURS_COPY.on} ${from} to ${to}`;
+}

@@ -43,7 +43,33 @@ const FRAGMENTS: readonly string[] = [
   "has this",
   "You have this. The rest of the crew has been told.",
   "was told first",
+  // #244's quiet hours. The reassurance is the load-bearing one: without it
+  // nobody switches the window on, because the fear is missing the emergency.
+  "Quiet hours",
+  "Your phone stays quiet for ordinary messages. If you are on call, or ",
+  "an alert nobody picked up widens to the crew, it still comes through.",
+  "Off — every notification reaches you at any hour.",
+  "Quiet from",
+  "This applies to this workspace only.",
 ];
+
+/**
+ * Rejoin string literals split across lines.
+ *
+ * FOUND ON THE FIRST RUN, and it looked exactly like real drift. All three
+ * clients carry the identical sentence; TypeScript breaks the line after "or
+ * an " while Kotlin and Swift break before "an". Matching the raw source
+ * therefore reported the shared module as missing a fragment that is plainly
+ * there once the concatenation is resolved.
+ *
+ * A guard that fires on where somebody put a line break is worse than no
+ * guard: the first person to hit it learns the failure is noise, and the next
+ * real one gets the same treatment. So the comparison happens on the assembled
+ * sentence, which is the thing a customer actually reads.
+ */
+function joinLiterals(text: string): string {
+  return text.replace(/"\s*\+?\s*[\r\n]+\s*\+?\s*"/g, "");
+}
 
 /** The file with its comments removed — see satisfaction-parity for why. */
 function codeOnly(path: string): string {
@@ -53,6 +79,17 @@ function codeOnly(path: string): string {
     .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
     .join("\n");
 }
+
+/**
+ * The quiet-hours vocabulary, which lives beside the rota's rather than in it.
+ *
+ * On the phones both sets are in one `OnCall` object, so only the shared side
+ * needs a second file. Keyed to match SOURCES for the same reason BANNERS is —
+ * a key nothing looks up is a guard covering fewer clients than it appears to.
+ */
+const EXTRA_VOCABULARY: Record<string, string> = {
+  shared: join(REPO_ROOT, "packages/shared/src/member-quiet-hours.ts"),
+};
 
 /**
  * The banner's own file per client.
@@ -85,9 +122,13 @@ describe("#244 on-call copy is the same on every client", () => {
     // "was told first" fragment is assembled at the call site on every client,
     // because each language interpolates the name differently.
     for (const [platform, path] of Object.entries(SOURCES)) {
-      const text =
+      const text = joinLiterals(
         readFileSync(path, "utf8") +
-        (BANNERS[platform] ? readFileSync(BANNERS[platform], "utf8") : "");
+        (BANNERS[platform] ? readFileSync(BANNERS[platform], "utf8") : "") +
+          (EXTRA_VOCABULARY[platform]
+            ? readFileSync(EXTRA_VOCABULARY[platform], "utf8")
+            : ""),
+      );
       for (const fragment of FRAGMENTS) {
         if (!text.includes(fragment)) missing.push(`${platform}: ${fragment}`);
       }
@@ -140,6 +181,23 @@ describe("#244 on-call copy is the same on every client", () => {
         );
       }
     }
+  });
+
+  it("offers the same default window on every client", () => {
+    // 22:00-07:00 is what almost everybody wants, and an empty pair of time
+    // fields is a decision nobody in a van stops to make. Three clients
+    // offering three different defaults would mean the same crew reporting
+    // different quiet hours depending on which screen they used.
+    const shared = codeOnly(EXTRA_VOCABULARY.shared);
+    expect(shared).toContain('from: "22:00", to: "07:00"');
+
+    const kotlin = codeOnly(SOURCES.android);
+    expect(kotlin).toContain('QUIET_DEFAULT_FROM = "22:00"');
+    expect(kotlin).toContain('QUIET_DEFAULT_TO = "07:00"');
+
+    const swift = codeOnly(SOURCES.ios);
+    expect(swift).toContain('quietDefaultFrom = "22:00"');
+    expect(swift).toContain('quietDefaultTo = "07:00"');
   });
 
   it("resolves the offset with daylight saving on both phones", () => {

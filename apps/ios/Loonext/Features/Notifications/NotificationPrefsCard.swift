@@ -65,21 +65,53 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
                         + "texts back after a quiet spell. Never one per message.",
                     isOn: prefs.email_enabled
                 ) { checked in
-                    save(
-                        NotificationPrefs(email_enabled: checked, push_enabled: prefs.push_enabled),
-                        previous: prefs
-                    )
+                    // #244: `prefs` copied and MUTATED rather than rebuilt from
+                    // two fields. Constructing a fresh NotificationPrefs here
+                    // would silently clear this member's quiet-hours window
+                    // every time they touched the email switch — the new fields
+                    // default to nil, so the compiler would never mention it.
+                    var next = prefs
+                    next.email_enabled = checked
+                    save(next, previous: prefs)
                 }
                 PrefToggleRow(
                     title: "Push",
                     supporting: "Notifications on your devices for new texts and missed calls.",
                     isOn: prefs.push_enabled
                 ) { checked in
-                    save(
-                        NotificationPrefs(email_enabled: prefs.email_enabled, push_enabled: checked),
-                        previous: prefs
-                    )
+                    var next = prefs
+                    next.push_enabled = checked
+                    save(next, previous: prefs)
                 }
+                // #244: with the other per-member switches, because it IS one.
+                // The difference from turning Push off is that this one ends by
+                // itself at 7am, and a page still comes through — which is the
+                // sentence that decides whether anybody switches it on.
+                PrefToggleRow(
+                    title: OnCall.quietHeading,
+                    supporting: OnCall.quietReassurance,
+                    isOn: prefs.quiet_from != nil && prefs.quiet_to != nil
+                ) { checked in
+                    var next = prefs
+                    if checked {
+                        next.quiet_from = OnCall.quietDefaultFrom
+                        next.quiet_to = OnCall.quietDefaultTo
+                        // This device's zone, captured now. Guessing the
+                        // workspace's would silence the wrong hours for
+                        // anybody who does not live there.
+                        next.quiet_timezone = TimeZone.current.identifier
+                    } else {
+                        next.quiet_from = nil
+                        next.quiet_to = nil
+                        next.quiet_timezone = nil
+                    }
+                    save(next, previous: prefs)
+                }
+                Text(quietSummary(prefs))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 4)
+
                 if let saveError {
                     Text(saveError)
                         .font(.caption)
@@ -109,6 +141,13 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
             if Task.isCancelled { return }
             state = .failed(error.userMessage)
         }
+    }
+
+    private func quietSummary(_ prefs: NotificationPrefs) -> String {
+        guard let from = prefs.quiet_from, let to = prefs.quiet_to else {
+            return OnCall.quietOff
+        }
+        return OnCall.quietHoursLine(from: from, to: to) + " · " + OnCall.quietScope
     }
 
     private func save(_ next: NotificationPrefs, previous: NotificationPrefs) {

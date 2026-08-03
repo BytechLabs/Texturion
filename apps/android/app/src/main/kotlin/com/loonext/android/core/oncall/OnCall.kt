@@ -61,6 +61,32 @@ object OnCall {
 
     fun alertTakenLine(name: String): String = "$name $BANNER_TAKEN"
 
+    // -- #244 a member's own quiet hours -----------------------------------
+
+    const val QUIET_HEADING = "Quiet hours"
+
+    /**
+     * THE LOAD-BEARING SENTENCE. The reason people do not set quiet hours is
+     * the fear of missing the emergency, so a control that offers silence
+     * without saying what still gets through does not get switched on — and
+     * the member goes back to turning notifications off entirely.
+     */
+    const val QUIET_REASSURANCE =
+        "Your phone stays quiet for ordinary messages. If you are on call, or " +
+            "an alert nobody picked up widens to the crew, it still comes through."
+
+    const val QUIET_OFF = "Off — every notification reaches you at any hour."
+
+    const val QUIET_ON = "Quiet from"
+
+    const val QUIET_SCOPE = "This applies to this workspace only."
+
+    /** The window most people want, offered rather than imposed. */
+    const val QUIET_DEFAULT_FROM = "22:00"
+    const val QUIET_DEFAULT_TO = "07:00"
+
+    fun quietHoursLine(from: String, to: String): String = "$QUIET_ON $from to $to"
+
     /**
      * Turn a preset into a real window.
      *

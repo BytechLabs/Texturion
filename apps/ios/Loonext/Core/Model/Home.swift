@@ -375,6 +375,17 @@ struct MarkReadResult: Codable, Sendable {
 
 /// GET /v1/notification-prefs (+ vapid_public_key for web; unused natively).
 struct NotificationPrefs: Codable, Sendable {
-    let email_enabled: Bool
-    let push_enabled: Bool
+    // `var`, so a caller changing one switch can copy-and-mutate rather than
+    // rebuilding the struct from two fields — which would silently drop the
+    // quiet-hours window below every time somebody touched Email or Push.
+    var email_enabled: Bool
+    var push_enabled: Bool
+    /// #244: this member's own do-not-disturb window, "22:00"/"07:00". Both or
+    /// neither — half a window is not a window. `var … = nil` so it does not
+    /// become a required memberwise-init parameter at every existing
+    /// construction site.
+    var quiet_from: String? = nil
+    var quiet_to: String? = nil
+    /// Their own zone; nil falls back to the workspace's.
+    var quiet_timezone: String? = nil
 }

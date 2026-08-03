@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { LeadChaseRow } from "@/components/settings/lead-chase-row";
 import { PushContentRow } from "@/components/settings/push-content-row";
+import { QuietHoursRow } from "@/components/settings/quiet-hours-row";
 import { PermissionCard } from "@/components/notifications/permission-card";
 import { EmailReachabilityCard } from "@/components/settings/email-reachability-card";
 import {
@@ -58,6 +59,14 @@ export default function NotificationsSettingsPage() {
         <LoadError onRetry={() => prefs.refetch()} />
       ) : (
         <div className="space-y-6">
+          {/* #244: with the other per-member switches, because it IS one —
+              the difference from "notifications off" is that this one ends by
+              itself at 7am. */}
+          <QuietHoursRow
+            prefs={prefs.data}
+            saving={update.isPending}
+            onSave={(next) => update.mutateAsync(next)}
+          />
           {/* #386. ABOVE the toggles, because it contradicts the one directly
               below it: an Email switch reading ON while every message bounces
               is the screen telling a comfortable lie. Renders nothing when

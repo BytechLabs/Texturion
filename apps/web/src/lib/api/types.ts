@@ -1968,6 +1968,15 @@ export interface TextEnablement {
 export interface NotificationPrefs {
   email_enabled: boolean;
   push_enabled: boolean;
+  /**
+   * #244: this member's own do-not-disturb window, "22:00"/"07:00". Both or
+   * neither — half a window is not a window. Null on every member who has not
+   * set one, which is all of them until they do.
+   */
+  quiet_from?: string | null;
+  quiet_to?: string | null;
+  /** Their own zone; null falls back to the workspace's. */
+  quiet_timezone?: string | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -69,6 +69,32 @@ enum OnCall {
         "\(name) \(bannerTaken)"
     }
 
+    // MARK: - #244 a member's own quiet hours
+
+    static let quietHeading = "Quiet hours"
+
+    /// THE LOAD-BEARING SENTENCE. The reason people do not set quiet hours is
+    /// the fear of missing the emergency, so a control that offers silence
+    /// without saying what still gets through does not get switched on — and
+    /// the member goes back to turning notifications off entirely.
+    static let quietReassurance =
+        "Your phone stays quiet for ordinary messages. If you are on call, or "
+        + "an alert nobody picked up widens to the crew, it still comes through."
+
+    static let quietOff = "Off — every notification reaches you at any hour."
+
+    static let quietOn = "Quiet from"
+
+    static let quietScope = "This applies to this workspace only."
+
+    /// The window most people want, offered rather than imposed.
+    static let quietDefaultFrom = "22:00"
+    static let quietDefaultTo = "07:00"
+
+    static func quietHoursLine(from: String, to: String) -> String {
+        "\(quietOn) \(from) to \(to)"
+    }
+
     /// Turn a preset into a real window.
     ///
     /// `offsetMinutes` is the crew's offset from UTC, passed in rather than

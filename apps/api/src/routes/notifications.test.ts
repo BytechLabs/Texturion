@@ -132,6 +132,12 @@ describe("GET /v1/notification-prefs", () => {
     expect(await res.json()).toEqual({
       email_enabled: true,
       push_enabled: true,
+      // #244: no quiet-hours window, which is every existing member. Named
+      // explicitly rather than omitted — a client that cannot tell "no window"
+      // from "the server did not say" would have to guess.
+      quiet_from: null,
+      quiet_to: null,
+      quiet_timezone: null,
       vapid_public_key: env.VAPID_PUBLIC_KEY,
     });
   });
@@ -798,5 +804,87 @@ describe("GET /v1/notifications/unread-count — the pause a member can see (#34
 
     expect(sb.find("POST", "/rest/v1/rpc/api_notifications_unread_count")).toHaveLength(1);
     expect(sb.find("POST", "/rest/v1/rpc/api_notification_pause")).toHaveLength(1);
+  });
+});
+
+/**
+ * #244 — a member's own quiet hours, over the wire.
+ *
+ * The pairing rule is the one worth guarding: half a window is not a window,
+ * and a row with a start and no end would silence a phone until somebody
+ * noticed it had gone quiet — which is not a thing people notice.
+ */
+describe("#244 quiet hours on the prefs route", () => {
+  const WINDOW = {
+    email_enabled: true,
+    push_enabled: true,
+    quiet_from: "22:00",
+    quiet_to: "07:00",
+    quiet_timezone: "America/Toronto",
+  };
+
+  async function put(body: Record<string, unknown>): Promise<Response> {
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/notification_prefs", () => []);
+    sb.on("POST", "/rest/v1/notification_prefs", () => [
+      { email_enabled: true, push_enabled: true },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+    return apiRequest(app, env, await auth.token(), "/v1/notification-prefs", {
+      companyId: COMPANY_ID,
+      method: "PUT",
+      body,
+    });
+  }
+
+  it("QP-1: saves a window", async () => {
+    expect((await put(WINDOW)).status).toBe(200);
+  });
+
+  it("QP-2: refuses half a window", async () => {
+    // Both directions: a start with no end would silence the phone forever,
+    // and an end with no start is a window nothing can compute.
+    expect((await put({ ...WINDOW, quiet_to: null })).status).toBe(422);
+    expect((await put({ ...WINDOW, quiet_from: null })).status).toBe(422);
+  });
+
+  it("QP-3: accepts no window at all, which clears it", async () => {
+    expect(
+      (await put({ ...WINDOW, quiet_from: null, quiet_to: null })).status,
+    ).toBe(200);
+  });
+
+  it("QP-4: refuses anything that is not a wall clock", async () => {
+    // "10pm" and "25:00" both reach the DB as a time cast failure, i.e. a 500
+    // on a form somebody is filling in.
+    expect((await put({ ...WINDOW, quiet_from: "10pm" })).status).toBe(422);
+    expect((await put({ ...WINDOW, quiet_from: "25:00" })).status).toBe(422);
+  });
+
+  it("QP-5: writes all three, so saving can CLEAR a window", async () => {
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/notification_prefs", () => []);
+    sb.on("POST", "/rest/v1/notification_prefs", () => [
+      { email_enabled: true, push_enabled: true },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(app, env, await auth.token(), "/v1/notification-prefs", {
+      companyId: COMPANY_ID,
+      method: "PUT",
+      body: { email_enabled: true, push_enabled: true },
+    });
+
+    // Omitting the fields means "no window", not "leave whatever is there" —
+    // otherwise turning quiet hours off would be impossible.
+    const write = sb.calls.find(
+      (call) =>
+        call.method === "POST" && call.path === "/rest/v1/notification_prefs",
+    );
+    expect(write?.body).toMatchObject({
+      quiet_from: null,
+      quiet_to: null,
+      quiet_timezone: null,
+    });
   });
 });

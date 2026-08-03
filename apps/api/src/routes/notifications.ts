@@ -66,10 +66,27 @@ import {
   unwrap,
 } from "./core/http";
 
+/** "22:00" or "07:00" — a wall clock, not an instant. */
+const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+
 const prefsSchema = z.object({
   email_enabled: z.boolean(),
   push_enabled: z.boolean(),
-});
+  /**
+   * #244: both or neither. One half of a window is not a window, and a row
+   * with a start and no end would silence a phone until somebody noticed —
+   * which is why the DB carries the same constraint.
+   */
+  quiet_from: clockTime.nullable().optional(),
+  quiet_to: clockTime.nullable().optional(),
+  /** The member's own zone. Null falls back to the workspace's. */
+  quiet_timezone: z.string().max(64).nullable().optional(),
+}).refine(
+  (value) =>
+    (value.quiet_from ?? null) === null ? (value.quiet_to ?? null) === null
+      : (value.quiet_to ?? null) !== null,
+  { message: "Quiet hours need both a start and an end" },
+);
 
 /**
  * #30 cap-and-drop: at most this many live push subscriptions per user. Each
@@ -104,6 +121,10 @@ const subscriptionSchema = z.object({
 interface PrefsRow {
   email_enabled: boolean;
   push_enabled: boolean;
+  /** #244: null on every member who has not set a window. */
+  quiet_from?: string | null;
+  quiet_to?: string | null;
+  quiet_timezone?: string | null;
 }
 
 /**
@@ -129,14 +150,21 @@ notificationsRoutes.get(
     const rows = unwrap<PrefsRow[]>(
       await db
         .from("notification_prefs")
-        .select("email_enabled,push_enabled")
+        .select("email_enabled,push_enabled,quiet_from,quiet_to,quiet_timezone")
         .eq("user_id", c.get("userId"))
         .eq("company_id", c.get("companyId"))
         .limit(1),
       "notification prefs lookup",
     );
     // §6 schema defaults — the shape the row would have been created with.
-    const prefs = rows[0] ?? { email_enabled: true, push_enabled: true };
+    const prefs = rows[0] ?? {
+      email_enabled: true,
+      push_enabled: true,
+      // #244: no window, which is every existing member.
+      quiet_from: null,
+      quiet_to: null,
+      quiet_timezone: null,
+    };
     return c.json({ ...prefs, vapid_public_key: env.VAPID_PUBLIC_KEY });
   },
 );
@@ -157,6 +185,12 @@ notificationsRoutes.put(
             company_id: c.get("companyId"),
             email_enabled: body.email_enabled,
             push_enabled: body.push_enabled,
+            // Omitted means "leave it alone" would be ambiguous with "clear
+            // it", so the client always sends all three: this is the whole
+            // preference, replaced.
+            quiet_from: body.quiet_from ?? null,
+            quiet_to: body.quiet_to ?? null,
+            quiet_timezone: body.quiet_timezone ?? null,
             updated_at: new Date().toISOString(),
           },
           { onConflict: "user_id,company_id" },

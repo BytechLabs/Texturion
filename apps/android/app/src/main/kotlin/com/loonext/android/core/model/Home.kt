@@ -366,6 +366,15 @@ data class NewlyRead(val newly_read: Boolean)
 data class NotificationPrefs(
     val email_enabled: Boolean,
     val push_enabled: Boolean,
+    /**
+     * #244: this member's own do-not-disturb window, "22:00"/"07:00". Both or
+     * neither — half a window is not a window. Null on every member who has
+     * not set one.
+     */
+    val quiet_from: String? = null,
+    val quiet_to: String? = null,
+    /** Their own zone; null falls back to the workspace's. */
+    val quiet_timezone: String? = null,
 )
 
 /**

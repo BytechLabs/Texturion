@@ -38,6 +38,8 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.loonext.android.AppGraph
+import com.loonext.android.core.oncall.OnCall
+import java.util.TimeZone
 import com.loonext.android.core.model.NotificationPrefs
 import com.loonext.android.push.PushPrefs
 import com.loonext.android.push.PushRegistrar
@@ -146,6 +148,51 @@ fun NotificationPrefsCard(
                         save(prefs.copy(push_enabled = checked), prefs)
                     },
                 )
+                // #244: with the other per-member switches, because it IS one.
+                // The difference from turning Push off is that this one ends by
+                // itself at 7am, and a page still comes through — which is the
+                // sentence that decides whether anybody switches it on.
+                val quietOn = prefs.quiet_from != null && prefs.quiet_to != null
+                PrefToggleRow(
+                    title = OnCall.QUIET_HEADING,
+                    supporting = OnCall.QUIET_REASSURANCE,
+                    checked = quietOn,
+                    onCheckedChange = { checked ->
+                        save(
+                            if (checked) {
+                                prefs.copy(
+                                    quiet_from = OnCall.QUIET_DEFAULT_FROM,
+                                    quiet_to = OnCall.QUIET_DEFAULT_TO,
+                                    // This device's zone, captured now. Guessing
+                                    // the workspace's would silence the wrong
+                                    // hours for anybody who does not live there.
+                                    quiet_timezone = TimeZone.getDefault().id,
+                                )
+                            } else {
+                                prefs.copy(
+                                    quiet_from = null,
+                                    quiet_to = null,
+                                    quiet_timezone = null,
+                                )
+                            },
+                            prefs,
+                        )
+                    },
+                )
+                Text(
+                    if (quietOn) {
+                        OnCall.quietHoursLine(
+                            prefs.quiet_from.orEmpty(),
+                            prefs.quiet_to.orEmpty(),
+                        ) + " · " + OnCall.QUIET_SCOPE
+                    } else {
+                        OnCall.QUIET_OFF
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+
                 saveError?.let { message ->
                     Text(
                         message,
