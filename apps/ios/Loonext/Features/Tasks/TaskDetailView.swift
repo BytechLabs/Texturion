@@ -487,7 +487,7 @@ struct TaskDetailView: View {
                 RowDivider()
                 HStack(spacing: 11) {
                     metaRowLabel("Remind")
-                    Text(reminderStateLine)
+                    Text(reminderStateLine(detail))
                         .font(.golos(13))
                         .foregroundStyle(BrandColor.muted500)
                         .lineLimit(2)
@@ -523,7 +523,11 @@ struct TaskDetailView: View {
     /// a crew member marking it is a note to ourselves. A dispatcher deciding
     /// whether to send a van reads them differently, so the line does too. Same
     /// wording as the web panel and the Android row.
-    private var reminderStateLine: String {
+    /// Takes the detail rather than reading the view's own, which is OPTIONAL —
+    /// every other row on this card is rendered inside `metaChips(_ detail:)`,
+    /// which has already unwrapped it, and a computed property reaching for
+    /// `self.detail` would be a second source for the same fact.
+    private func reminderStateLine(_ detail: TaskDetail) -> String {
         if detail.confirmed_at != nil {
             return detail.confirmed_by == "customer"
                 ? "They confirmed they'll be there."
