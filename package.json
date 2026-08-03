@@ -101,7 +101,7 @@
     "check:guards": "node scripts/check-guards.mjs"
   },
   "devDependencies": {
-    "playwright": "^1.61.1"
+    "playwright": "^1.62.1"
   },
   "pnpm": {
     "overrides": {
