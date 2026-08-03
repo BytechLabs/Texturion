@@ -2763,3 +2763,248 @@ describe("contact field definitions", () => {
     expect(sb.find("POST", "/rest/v1/contact_field_defs")).toHaveLength(0);
   });
 });
+
+/**
+ * #291 — a contact's other numbers.
+ *
+ * CPR-3 is the one that matters. A number recorded here is matched against
+ * every inbound text and call, so adding one changes who a message is FROM.
+ * Letting a crew claim a number another customer already has would silently
+ * redirect that customer's conversations onto the wrong record — and nothing
+ * about it would look like an error.
+ */
+describe("contact phone numbers", () => {
+  const CONTACT_PHONE_ID = "eeeeeeee-1111-4222-8333-444444444444";
+
+  /**
+   * The route reads `contacts` TWICE for different reasons: once by id, to
+   * find the contact being edited, and once by `phone_e164`, to ask whether
+   * anybody already owns the number. Discriminated on the FILTER rather than
+   * on call order — a counter breaks the moment a read is added or reordered,
+   * and it breaks by returning the wrong shape rather than by failing.
+   */
+  function contactReads(
+    sb: SupabaseStub,
+    owner: Record<string, unknown>[] = [],
+  ) {
+    sb.on("GET", "/rest/v1/contacts", (call) =>
+      call.url.searchParams.has("phone_e164") ? owner : [contactRow()],
+    );
+  }
+
+  /**
+   * `contact_phones` is read twice too — once asking "does anybody already
+   * have this number", once counting what this contact holds. One stub serving
+   * both made the cap test pass for the wrong reason: eight rows returned to
+   * the FIRST probe read as "the number is taken", so the request was refused
+   * before the cap was ever consulted. Found by removing the cap check and
+   * watching the test stay green.
+   */
+  function phoneReads(
+    sb: SupabaseStub,
+    options: {
+      taken?: Record<string, unknown>[];
+      existing?: Record<string, unknown>[];
+    } = {},
+  ) {
+    sb.on("GET", "/rest/v1/contact_phones", (call) =>
+      call.url.searchParams.has("phone_e164")
+        ? options.taken ?? []
+        : options.existing ?? [],
+    );
+  }
+
+  it("CPR-1: records a second number, normalised", async () => {
+    // Normalised BEFORE storage, because this column is compared against a
+    // webhook's `from`. A raw "(416) 555-0177" would look recorded and never
+    // resolve.
+    const sb = stubWithRole("member");
+    contactReads(sb);
+    phoneReads(sb);
+    sb.on("POST", "/rest/v1/contact_phones", () => [
+      { id: CONTACT_PHONE_ID, phone_e164: "+14165550177", label: "Landline" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/phones`,
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { phone_e164: "(416) 555-0177", label: "Landline" },
+      },
+    );
+    expect(res.status).toBe(201);
+    const insert = sb.find("POST", "/rest/v1/contact_phones")[0];
+    const row = (insert.body as Record<string, unknown>[])[0] ??
+      (insert.body as Record<string, unknown>);
+    expect(row.phone_e164).toBe("+14165550177");
+    expect(row.company_id).toBe(COMPANY_ID);
+    expect(row.contact_id).toBe(CONTACT_ID);
+  });
+
+  it("CPR-2: refuses the customer's own main number", async () => {
+    // Not an error worth a stack trace, but storing it would create a second
+    // route to the same place and an inbound would resolve twice.
+    const sb = stubWithRole("member");
+    contactReads(sb);
+    sb.on("POST", "/rest/v1/contact_phones", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/phones`,
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { phone_e164: "+14165550199" },
+      },
+    );
+    expect(res.status).toBe(422);
+    expect(sb.find("POST", "/rest/v1/contact_phones")).toHaveLength(0);
+  });
+
+  it("CPR-3: refuses a number another customer already has", async () => {
+    // THE SILENT ONE. Taking it would redirect that customer's inbound texts
+    // and calls onto this record, and nothing would look wrong until somebody
+    // noticed a conversation on the wrong name.
+    const sb = stubWithRole("member");
+    contactReads(sb, [{ id: OTHER_ID, name: "Sam Rivera" }]);
+    sb.on("POST", "/rest/v1/contact_phones", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/phones`,
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { phone_e164: "+14165550188" },
+      },
+    );
+    expect(res.status).toBe(422);
+    // Names them, and says what to do instead — "already taken" on its own
+    // leaves somebody guessing which record has it.
+    const text = await res.text();
+    expect(text).toContain("Sam Rivera");
+    expect(text).toContain("Merge");
+    expect(sb.find("POST", "/rest/v1/contact_phones")).toHaveLength(0);
+  });
+
+  it("CPR-4: refuses a number already claimed as another contact's second line", async () => {
+    // The other half of CPR-3: a number can be somebody's SECOND number too,
+    // and checking only the primaries would miss half the collisions.
+    const sb = stubWithRole("member");
+    contactReads(sb);
+    phoneReads(sb, { taken: [{ contact_id: OTHER_ID }] });
+    sb.on("POST", "/rest/v1/contact_phones", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/phones`,
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { phone_e164: "+14165550166" },
+      },
+    );
+    expect(res.status).toBe(422);
+    expect(sb.find("POST", "/rest/v1/contact_phones")).toHaveLength(0);
+  });
+
+  it("CPR-5: stops at the cap", async () => {
+    const sb = stubWithRole("member");
+    contactReads(sb);
+    phoneReads(sb, {
+      // Nobody else has the number; this contact simply already has eight.
+      existing: Array.from({ length: 8 }, (_unused, index) => ({
+        id: `p${index}`,
+      })),
+    });
+    sb.on("POST", "/rest/v1/contact_phones", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/phones`,
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { phone_e164: "+14165550155" },
+      },
+    );
+    expect(res.status).toBe(422);
+    expect(sb.find("POST", "/rest/v1/contact_phones")).toHaveLength(0);
+  });
+
+  it("CPR-6: deleting is scoped to the contact as well as the company", async () => {
+    // A phone id from another customer's record has to be a 404, not a delete.
+    // Company scope alone would let one crew member remove a number off a
+    // record they were not even looking at.
+    const sb = stubWithRole("member");
+    sb.on("DELETE", "/rest/v1/contact_phones", () => [{ id: CONTACT_PHONE_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/phones/${CONTACT_PHONE_ID}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const call = sb.find("DELETE", "/rest/v1/contact_phones")[0];
+    expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(call.url.searchParams.get("contact_id")).toBe(`eq.${CONTACT_ID}`);
+    expect(call.url.searchParams.get("id")).toBe(`eq.${CONTACT_PHONE_ID}`);
+  });
+
+  it("CPR-7: deleting a number nobody has is a 404, not a success", async () => {
+    const sb = stubWithRole("member");
+    sb.on("DELETE", "/rest/v1/contact_phones", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/phones/${CONTACT_PHONE_ID}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("CPR-8: removing a number leaves its conversations alone", async () => {
+    // A thread held with that number is a real history. Deleting the number is
+    // a correction to the contact record, not a request to erase what was
+    // said — and a crew that lost a conversation this way would have no way to
+    // get it back.
+    const sb = stubWithRole("member");
+    sb.on("DELETE", "/rest/v1/contact_phones", () => [{ id: CONTACT_PHONE_ID }]);
+    sb.on("DELETE", "/rest/v1/conversations", () => []);
+    sb.on("PATCH", "/rest/v1/conversations", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}/phones/${CONTACT_PHONE_ID}`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+    expect(sb.find("DELETE", "/rest/v1/conversations")).toHaveLength(0);
+    expect(sb.find("PATCH", "/rest/v1/conversations")).toHaveLength(0);
+  });
+});

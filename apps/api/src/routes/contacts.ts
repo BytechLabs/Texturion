@@ -285,6 +285,15 @@ const addressSchema = z.object({
 
 const ADDRESS_CAP = 50;
 
+/**
+ * #291 — how many OTHER numbers one contact may hold.
+ *
+ * Lower than the address cap on purpose. A property manager plausibly has
+ * forty buildings; nobody has forty phone numbers, and a contact that did
+ * would be a merge that went wrong (#246) rather than a customer.
+ */
+const CONTACT_PHONE_CAP = 8;
+
 export const contactsRoutes = new Hono<AppEnv>();
 
 /**
@@ -1963,6 +1972,156 @@ contactsRoutes.post(
     });
 
     return c.json({ unmerged: true });
+  },
+);
+
+/**
+ * #291 — a contact's OTHER numbers.
+ *
+ * "Customers have a mobile and a landline; households have two people; a
+ * business has a main line and a cell."
+ *
+ * One row per request, like the addresses below and for the same reason. And
+ * `conversations.note` to write, matching the rest of the contact record: a
+ * second number is operational knowledge the crew keeps.
+ *
+ * THE PART THAT IS NOT BOOKKEEPING: a number recorded here is matched against
+ * every inbound text and call, so adding one changes who a message is FROM.
+ * That is why a number already in use is refused rather than moved — taking
+ * somebody else's number would silently redirect their conversations.
+ */
+const contactPhoneSchema = z.object({
+  phone_e164: z.string().trim().min(1).max(32),
+  label: z.string().trim().min(1).max(80).nullable().optional(),
+});
+
+contactsRoutes.post(
+  "/contacts/:id/phones",
+  requireCapability("conversations.note"),
+  async (c) => {
+    const contactId = pathUuid(c, "id");
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+    const body = await parseJsonBody(c, contactPhoneSchema);
+
+    const contact = await findContact(db, companyId, contactId);
+    if (!contact) return errorResponse(c, "not_found", "No such contact.");
+
+    // Normalised before anything is compared. A raw "(416) 555-0199" stored
+    // here would never equal a webhook's `from`, so the number would look
+    // recorded and quietly never resolve.
+    const phone = normalizeNanpPhone(body.phone_e164);
+    if (!phone) {
+      throw new ApiError(
+        "validation_failed",
+        "That does not look like a phone number.",
+      );
+    }
+    if (phone === contact.phone_e164) {
+      throw new ApiError(
+        "validation_failed",
+        "That is already this customer's main number.",
+      );
+    }
+
+    // Is it somebody else's? Checked against BOTH the primaries and the other
+    // numbers, because a number can only belong to one customer — and the two
+    // tables each hold half the answer.
+    const owner = unwrap<{ id: string; name: string | null }[]>(
+      await db
+        .from("contacts")
+        .select("id,name")
+        .eq("company_id", companyId)
+        .eq("phone_e164", phone)
+        .limit(1),
+      "number owner lookup",
+    );
+    if (owner.length > 0) {
+      throw new ApiError(
+        "validation_failed",
+        `${owner[0].name?.trim() || "Another customer"} already has that number. ` +
+          "Merge the two records instead.",
+      );
+    }
+    const taken = unwrap<{ contact_id: string }[]>(
+      await db
+        .from("contact_phones")
+        .select("contact_id")
+        .eq("company_id", companyId)
+        .eq("phone_e164", phone)
+        .limit(1),
+      "number claim lookup",
+    );
+    if (taken.length > 0) {
+      throw new ApiError(
+        "validation_failed",
+        taken[0].contact_id === contactId
+          ? "That number is already on this customer."
+          : "Another customer already has that number.",
+      );
+    }
+
+    const existing = unwrap<{ id: string }[]>(
+      await db
+        .from("contact_phones")
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("contact_id", contactId),
+      "number count",
+    );
+    if (existing.length >= CONTACT_PHONE_CAP) {
+      throw new ApiError(
+        "validation_failed",
+        `A contact can hold ${CONTACT_PHONE_CAP} extra numbers.`,
+      );
+    }
+
+    const rows = unwrap<Record<string, unknown>[]>(
+      await db
+        .from("contact_phones")
+        .insert({
+          company_id: companyId,
+          contact_id: contactId,
+          phone_e164: phone,
+          label: body.label ?? null,
+        })
+        .select("id,phone_e164,label,created_at"),
+      "create contact phone",
+    );
+
+    return c.json({ data: rows[0] }, 201);
+  },
+);
+
+contactsRoutes.delete(
+  "/contacts/:id/phones/:phoneId",
+  requireCapability("conversations.note"),
+  async (c) => {
+    const contactId = pathUuid(c, "id");
+    const phoneId = pathUuid(c, "phoneId");
+    const companyId = c.get("companyId");
+    const db = getDb(getEnv(c.env));
+
+    // Scoped to the CONTACT as well as the company: a phone id from another
+    // customer's record must be a 404, not a delete.
+    const removed = unwrap<{ id: string }[]>(
+      await db
+        .from("contact_phones")
+        .delete()
+        .eq("company_id", companyId)
+        .eq("contact_id", contactId)
+        .eq("id", phoneId)
+        .select("id"),
+      "delete contact phone",
+    );
+    if (removed.length === 0) {
+      return errorResponse(c, "not_found", "No such number.");
+    }
+
+    // The THREADS stay. A conversation held with that number is a real
+    // history, and deleting the number is a correction to the contact record,
+    // not a request to erase what was said.
+    return c.json({ deleted: true });
   },
 );
 
