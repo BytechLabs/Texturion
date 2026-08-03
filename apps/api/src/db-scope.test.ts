@@ -191,8 +191,12 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
       "a stranger",
   },
   "telnyx/provisioning.ts::phone_numbers": {
-    count: 2,
-    why: "provisioning reconcile: finds numbers wedged mid-order, all tenants",
+    count: 3,
+    why:
+      "provisioning reconcile: finds numbers wedged mid-order, all tenants. " +
+      "The third was hidden until the predicate required a real filter — it " +
+      "sweeps `.neq(\"status\", \"released\")` platform-wide and merely SELECTS " +
+      "company_id, which is the reconcile's output, not its scope",
   },
   "telnyx/provisioning.ts::port_requests": {
     count: 1,
@@ -219,10 +223,13 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
     why: "hosted-order poller: in-flight orders across all tenants",
   },
   "workspace/export.ts::data_exports": {
-    count: 1,
+    count: 2,
     why:
-      "#378 reaper: deletes exports past their seven-day promise, platform-" +
-      "wide. Each is a full copy of a workspace, so this must NOT be scoped",
+      "#378, both halves of the same platform-wide queue. `pruneExpiredExports` " +
+      "deletes exports past their seven-day promise; `buildDataExports` drains " +
+      "the pending queue. Each row is a full copy of a workspace, so neither " +
+      "may be scoped — a scoped reaper would leave every OTHER tenant's export " +
+      "sitting in storage past the promise we made about it",
   },
   "routes/team.ts::invites": {
     count: 1,
@@ -253,6 +260,94 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
     count: 1,
     why: "keyed on conversation_id, resolved from the ringing number's company",
   },
+
+  // ---- The twelve below were invisible until the predicate above began
+  // requiring a real filter. Every one of them passed on `.select("…,
+  // company_id,…")` — the column being READ, which is the opposite of a filter:
+  // it means the query is asking which company a row belongs to, across all of
+  // them. Each was checked against its caller rather than judged by its shape.
+
+  // ---- More platform-wide sweeps, same family as the block at the top.
+  "billing/grace.ts::phone_numbers": {
+    count: 1,
+    why:
+      "`companiesWithUnreleasedResources`: which CANCELED workspaces still " +
+      "hold a number we are being billed for. The question is only meaningful " +
+      "across all of them",
+  },
+  "billing/grace.ts::messaging_registrations": {
+    count: 1,
+    why: "the same sweep, for live 10DLC campaigns still costing us money",
+  },
+  "billing/overage-warning.ts::usage_alerts": {
+    count: 1,
+    why:
+      "`runOverageDigestJob`: which workspaces crossed a cost projection in " +
+      "the window, for one digest to us. Per-tenant it would not be a digest",
+  },
+  "tasks/due-notice.ts::tasks": {
+    count: 1,
+    why:
+      "the due-task notifier, batched across all tenants. It selects " +
+      "company_id precisely so it can fan the notices back out per workspace",
+  },
+  "telnyx/registration-stalls.ts::messaging_registrations": {
+    count: 1,
+    why: "stall detector: registrations stuck at the carrier, every tenant",
+  },
+
+  // ---- "Which company owns this number?" — the scope is the ANSWER, so the
+  // query cannot carry one. In all four the number arrives in a TELNYX WEBHOOK
+  // PAYLOAD (the leg a call came in on, the `to` of an inbound message, the
+  // numbers named in a port-out notice), never from a request we serve.
+  //
+  // DELIBERATELY NOT A RULE, though it looks like one. A rule would exempt
+  // every future `.eq("number_e164", …)`, and a phone number is ENUMERABLE in a
+  // way the ids behind `pk-keyed` and `opaque-provider-key` are not: a route
+  // that looked one up from user input would let anybody ask which workspace
+  // owns any number in North America, and would inherit the exemption silently.
+  // The judgement that matters here is where the number came from, which is a
+  // per-site fact — so each site says it.
+  "messaging/inbound.ts::phone_numbers": {
+    count: 1,
+    why: "inbound SMS: resolves the receiving number (webhook `to`) → company",
+  },
+  "messaging/voice-webhook.ts::phone_numbers": {
+    count: 1,
+    why: "inbound call: resolves the dialed number (webhook `to`) → company",
+  },
+  "calls/runtime.ts::phone_numbers": {
+    count: 1,
+    why: "`loadInitiatedContext`: same lookup on `payload.to` from the call event",
+  },
+  "telnyx/portout.ts::phone_numbers": {
+    count: 1,
+    why:
+      "a port-out notice names numbers leaving us; this finds whose they were " +
+      "so the right workspace is told its number is being taken",
+  },
+
+  // ---- "Which workspaces is this user in?" — again the set of tenants is the
+  // answer. Not a rule, for the same reason: `.eq("user_id", …)` on a user id
+  // taken from a request would tell you every workspace a person belongs to.
+  "routes/me.ts::company_members": {
+    count: 1,
+    why: "the caller's own memberships, keyed on the verified `userId` from the JWT",
+  },
+  "routes/account.ts::company_members": {
+    count: 1,
+    why:
+      "`listMemberships` under DELETE /account — the same verified caller, " +
+      "used to work out what closing the account has to unwind",
+  },
+  "routes/workspace-closure.ts::company_members": {
+    count: 1,
+    why:
+      "deliberately cross-tenant, and the feature breaks if it is not. For a " +
+      "member of the workspace being closed it asks whether any OTHER live " +
+      "workspace remains, because push rows are per person: scoping this would " +
+      "silence a plumber's other crew's customer messages on the same phone",
+  },
 };
 
 /**
@@ -264,27 +359,90 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
 const sources = readProductionSources;
 
 /**
- * Comments out, before anything reads the statement for scoping.
+ * Comments blanked out, LENGTH-PRESERVINGLY, before anything else reads the
+ * file. Two separate things depend on this running FIRST.
  *
- * The scope test below is a substring check for `company_id`, which a comment
- * satisfies just as well as a filter does. That is the difference between
- * "this query is scoped" and "somebody wrote the words near it".
+ * A comment must not COUNT as scoping — a sentence mentioning `company_id`
+ * satisfies a substring check as well as a filter does. That is the difference
+ * between "this query is scoped" and "somebody wrote the words near it".
+ *
+ * And a comment must not TRUNCATE a statement, which is the half that was
+ * still wrong. The window below ends at a delimiter and prose is full of them:
+ * `// the company row rides along on this lookup, so it costs no round trip`
+ * ends the statement at that comma. Stripping afterwards — as this did — means
+ * the window was cut by a docstring before anyone looked for a scope. That
+ * produces false ALARMS rather than holes, which is why it had never been
+ * noticed, and it made the sibling fix below appear to find a hole in
+ * `messaging/inbound.ts` that did not exist.
+ *
+ * Blanking rather than deleting keeps every offset and line number exact, so
+ * a failure still points at the line it means.
  */
-function stripComments(sql: string): string {
-  return sql.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
+const blankOut = (comment: string): string => comment.replace(/[^\n]/g, " ");
+
+function stripComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, blankOut)
+    .replace(/\/\/[^\n]*/g, blankOut);
 }
 
-/** The statement a `.from(` starts, up to the `;` that closes it at depth 0. */
+/**
+ * The statement a `.from(` starts.
+ *
+ * Ends at the `;` that closes it — and ALSO at the two delimiters that mean
+ * this chain is over without one, because a `;` is not the only way a query
+ * ends:
+ *
+ *   await Promise.all([
+ *     db.from("messages").select("id").eq("company_id", a),
+ *     db.from("tasks").select("id"),          <- no scope, and no `;` after it
+ *   ]);
+ *
+ * Scanning to the first depth-0 `;` gives the SECOND entry a window running to
+ * the end of the whole `Promise.all`, which contains the FIRST entry's
+ * `.eq("company_id", …)`. One sibling's scope would exempt every other query in
+ * the array. So the window also ends on a depth-0 comma (the next element) and
+ * on a bracket closing something opened before the statement began (leaving the
+ * array or argument list entirely).
+ *
+ * Measured: this changes no verdict on today's code — the hole is real and
+ * nothing currently sits in it. Worth closing anyway, because the shape it
+ * admits (a batch of queries in one `Promise.all`) is ordinary, and the cost of
+ * being wrong is a cross-tenant read that CI called scoped.
+ */
 function statementAt(src: string, index: number): string {
   let depth = 0;
   for (let i = index; i < src.length; i += 1) {
     const ch = src[i];
     if (ch === "(" || ch === "[" || ch === "{") depth += 1;
-    else if (ch === ")" || ch === "]" || ch === "}") depth -= 1;
-    else if (ch === ";" && depth <= 0) return src.slice(index, i);
+    else if (ch === ")" || ch === "]" || ch === "}") {
+      depth -= 1;
+      if (depth < 0) return src.slice(index, i);
+    } else if ((ch === ";" || ch === ",") && depth <= 0) {
+      return src.slice(index, i);
+    }
   }
   return src.slice(index, index + 800);
 }
+
+/**
+ * Does this statement FILTER on the tenant column, or merely contain its name?
+ *
+ * The predicate used to be `statement.includes("company_id")`, and the gap
+ * between those two questions was the largest hole in this guard: thirteen
+ * sites passed on the strength of `.select("id,company_id,status")`. A selected
+ * COLUMN is the opposite of a filter — it means the query is asking which
+ * company a row belongs to, across all of them.
+ *
+ * `.eq` and `.in` are the only two forms in the codebase; verified rather than
+ * assumed, and deliberately not widened to the ten other PostgREST operators
+ * that could theoretically appear. Two of those would be actively wrong:
+ * `.neq("company_id", x)` is every OTHER tenant, and `.is("company_id", null)`
+ * is the unscoped rows themselves. A guard that accepted them would bless the
+ * two worst queries in the product. If a third legitimate form ever appears,
+ * the guard fails loudly and somebody adds it on purpose.
+ */
+const SCOPING_CALL = /\.(eq|in)\(\s*["'`]company_id["'`]/;
 
 interface Site {
   key: string;
@@ -297,25 +455,15 @@ interface Site {
 function unscopedSites(): Site[] {
   const found: Site[] = [];
   for (const file of sources(SRC)) {
-    const src = readFileSync(file, "utf8");
+    // Stripped on the way in, so the window below is measured over code only.
+    const src = stripComments(readFileSync(file, "utf8"));
     const re = /\.from\(\s*["'`]([a-z_]+)["'`]\s*\)/g;
     let match: RegExpExecArray | null;
     while ((match = re.exec(src)) !== null) {
       const table = match[1];
       if (!TENANT_TABLES.has(table)) continue;
-      // Comments are stripped BEFORE the scope test. The predicate below is a
-      // substring check, so without this a comment that merely mentions
-      // company_id counts as scoping: delete a real `.eq("company_id", …)`,
-      // leave `// company_id is applied by the caller` behind, and the site
-      // stays green while the query returns every tenant's rows.
-      //
-      // No site relies on that today (measured: zero), so this changes no
-      // verdict now and closes the door on the one edit that would.
-      const statement = stripComments(statementAt(src, match.index)).replace(
-        /\s+/g,
-        " ",
-      );
-      if (statement.includes("company_id")) continue;
+      const statement = statementAt(src, match.index).replace(/\s+/g, " ");
+      if (SCOPING_CALL.test(statement)) continue;
       const applicable = NULLABLE_SCOPE.has(table)
         ? RULES.filter((rule) => rule.name !== "insert-under-a-not-null-scope")
         : RULES;
@@ -373,6 +521,66 @@ describe("#347 — a query against a tenant table carries its company scope", ()
     const stale = Object.keys(ALLOWED).filter((key) => !live.has(key));
     expect(stale, `allow-listed but no longer unscoped: ${stale.join(", ")}`)
       .toEqual([]);
+  });
+
+  /**
+   * The guard's own machinery, tested directly.
+   *
+   * #519's finding about this file was that it asserted a name was MENTIONED
+   * rather than that a filter was APPLIED — and the reason that survived so
+   * long is that the three helpers doing the deciding were only ever exercised
+   * through a whole-tree scan that passes. A scan cannot tell you it looked at
+   * the wrong window; it can only tell you it found nothing.
+   */
+  describe("the helpers that decide, on fixtures that would otherwise be silent", () => {
+    it("does not let one query in a batch scope its siblings", () => {
+      // The failure the window fix exists for. Read to the first depth-0 `;`
+      // and the second entry's window contains the first entry's scope.
+      const batch = `await Promise.all([
+        db.from("messages").select("id").eq("company_id", a),
+        db.from("tasks").select("id"),
+      ]);`;
+      const second = statementAt(batch, batch.indexOf('.from("tasks")'));
+      expect(second).not.toContain("company_id");
+      expect(SCOPING_CALL.test(second)).toBe(false);
+
+      // ...while the genuinely scoped sibling still reads as scoped.
+      const first = statementAt(batch, batch.indexOf('.from("messages")'));
+      expect(SCOPING_CALL.test(first)).toBe(true);
+    });
+
+    it("does not let a comma in a comment cut a statement short", () => {
+      // Prose is full of delimiters. Stripping after windowing meant a comment
+      // ended the statement before anyone looked for the scope below it.
+      const source = `db.from("messages")
+        // the company row rides along here, so it costs no extra round trip
+        .eq("company_id", id);`;
+      expect(SCOPING_CALL.test(statementAt(stripComments(source), 0))).toBe(true);
+    });
+
+    it("keeps every offset exact, so a failure names the right line", () => {
+      const source = 'a\n// comment, with a comma\nb\n/* block\nspans */\nc';
+      const stripped = stripComments(source);
+      expect(stripped).toHaveLength(source.length);
+      expect(stripped.split("\n")).toHaveLength(source.split("\n").length);
+      expect(stripped).not.toContain("comment");
+    });
+
+    it("reads a SELECTED company_id as what it is — not a filter", () => {
+      // The thirteen sites this uncovered all looked like this one.
+      expect(
+        SCOPING_CALL.test('.from("tasks").select("id,company_id,title")'),
+      ).toBe(false);
+    });
+
+    it("refuses the two operators that would bless the worst queries", () => {
+      // `.neq` is every OTHER tenant; `.is(…, null)` is the unscoped rows.
+      // A predicate widened to "any operator naming the column" accepts both.
+      expect(SCOPING_CALL.test('.neq("company_id", id)')).toBe(false);
+      expect(SCOPING_CALL.test('.is("company_id", null)')).toBe(false);
+      expect(SCOPING_CALL.test('.eq("company_id", id)')).toBe(true);
+      expect(SCOPING_CALL.test('.in("company_id", ids)')).toBe(true);
+    });
   });
 
   it("still finds the query sites at all", () => {
