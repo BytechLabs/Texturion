@@ -381,6 +381,22 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1,
     graceMinutes: 20,
   },
+  "job:scheduled-send": {
+    what: "Scheduled texts (#233) are not going out — every send somebody queued for a specific moment is silently sitting still.",
+    doThis:
+      "Workers Logs, search `cron job job:scheduled-send failed` for the " +
+      "stack; the run also reaches Sentry as an AggregateError naming this " +
+      "key. Nothing is lost while it is down — the rows stay claimable and " +
+      "go out on the first successful run — but what IS lost is the timing, " +
+      "which is the entire feature: a follow-up written for Monday 8am that " +
+      "lands Monday afternoon has missed the moment it was written for. " +
+      "Check the horizon before celebrating a fix: anything past its " +
+      "`expires_at` will expire rather than send late, which is deliberate " +
+      "(docs/DECISIONS.md, rule 3), so a long outage means telling those " +
+      "workspaces rather than assuming the backlog drained.",
+    everyMinutes: 1,
+    graceMinutes: 20,
+  },
   "job:sweep-webhooks": {
     what: "Failed provider webhooks are not being replayed — the backstop for the entire inbound path has stopped backstopping.",
     doThis:

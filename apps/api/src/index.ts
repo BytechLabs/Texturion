@@ -24,6 +24,7 @@ import { getEnv, type Bindings, type Env } from "./env";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { runLeadChaseJob } from "./notifications/lead-chase";
+import { runScheduledSendJob } from "./messaging/scheduled-send";
 import { runNumberHealthJob } from "./messaging/number-health";
 import { runRegistrationStallJob } from "./telnyx/registration-stalls";
 import { runActivationStallJob } from "./analytics/activation-stall";
@@ -84,6 +85,7 @@ import { messageRoutes } from "./routes/messages";
 import { notificationsRoutes } from "./routes/notifications";
 import { referralRoutes } from "./routes/referrals";
 import { savedViewsRoutes } from "./routes/saved-views";
+import { scheduledMessageRoutes } from "./routes/scheduled-messages";
 import { numbersRoutes } from "./routes/numbers";
 import { ownershipRoutes } from "./routes/ownership";
 import { portingRoutes } from "./routes/porting";
@@ -207,6 +209,7 @@ app.route("/v1", composeRoutes); // POST /v1/conversations — before conversati
 // #280: before conversationsRoutes only for tidiness — the paths do not
 // overlap. Saved views are query parameters, never conversation rows.
 app.route("/v1", savedViewsRoutes);
+app.route("/v1", scheduledMessageRoutes);
 app.route("/v1", conversationsRoutes);
 app.route("/v1", tasksRoutes); // D17 tasks + GET /v1/conversations/:id/tasks
 app.route("/v1", messageRoutes);
@@ -336,7 +339,14 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   // schedule would move the reminder to the deadline it exists to beat.
   // The scan is a partial index over live clocks only, so a quiet minute costs
   // one indexed lookup returning nothing.
-  "* * * * *": [job("job:lead-chase", runLeadChaseJob)],
+  "* * * * *": [
+    job("job:lead-chase", runLeadChaseJob),
+    // #233: send later. Every minute for the same reason as the ladder above —
+    // a coarser cadence would make "8:00am" mean "some time between 8:00 and
+    // 8:05", and the scan is a partial index over due rows only, so a quiet
+    // minute costs one indexed lookup returning nothing.
+    job("job:scheduled-send", runScheduledSendJob),
+  ],
   // Webhook sweeper: replay unprocessed webhook_events (both providers).
   // Piggybacked on the same cadence (#20): fail out outbound rows stuck
   // 'queued' with no telnyx_message_id (a send that crashed before the

@@ -65,6 +65,24 @@ const SEND_SITES: Record<string, { shape: string; why: string }> = {
       "solicitation the rule is about, and #225 concedes a trade owner texting " +
       "their own customer back at 9:15pm is their call",
   },
+  "messaging/scheduled-send.ts": {
+    shape: "human-scheduled",
+    why:
+      "#233 send later. A person wrote it and chose the instant, so it is " +
+      "human-initiating — but the confirmation cannot happen where the other " +
+      "human-initiating send's does. At 8am on Monday there is nobody to " +
+      "answer a prompt, and holding the message because of a window the " +
+      "sender already thought about would be the silent disappearance " +
+      "docs/DECISIONS.md rules out. So the 409 runs in " +
+      "routes/scheduled-messages.ts at SCHEDULE time, evaluated against " +
+      "`send_at` rather than now — resolveDestinationClock takes the instant " +
+      "for exactly this reason ('callers pass the FIRE instant, never the " +
+      "queue one'). Editing the time re-asks, so moving a send from 8am to " +
+      "11pm meets the same gate rather than going around it. " +
+      "This is why send later is the ESCAPE HATCH #225 needs rather than a " +
+      "hole in it: a tech blocked at 9:40pm schedules for 8am and meets no " +
+      "gate at all, because 8am is not a quiet hour",
+  },
   "messaging/missed-call.ts": {
     shape: "reply-exempt",
     why:

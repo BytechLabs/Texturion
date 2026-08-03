@@ -28,6 +28,7 @@ import { runDoSentryCanaryJob } from "./observability/do-sentry-canary";
 import { pruneExpiredExports } from "./workspace/export";
 import { runGraceJob } from "./billing/grace";
 import { runLeadChaseJob } from "./notifications/lead-chase";
+import { runScheduledSendJob } from "./messaging/scheduled-send";
 import { runLivenessCheckJob } from "./observability/liveness-check";
 import { LIVENESS_EXPECTATIONS } from "./observability/liveness";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
@@ -470,7 +471,17 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
     // cannot express the first one — rounding the reminder up to the deadline
     // it exists to beat would leave the feature named after a promise it no
     // longer keeps.
-    expect(runs("* * * * *")).toEqual([runLeadChaseJob]);
+    // #233 joins it for the same reason: the feature sells a send at a named
+    // wall-clock time, and on a five-minute scan "8:00am" would quietly mean
+    // "some time before 8:05".
+    //
+    // ORDER: the ladder first. Both are cheap indexed lookups that usually
+    // return nothing, so this is not the correctness constraint the
+    // five-minute pair below is — but a scheduled send fans out to the CARRIER
+    // while a chase only pushes to the crew's own phones, and putting the
+    // slower, outward-facing job second keeps a Telnyx stall from eating into
+    // the five-minute promise this schedule exists for.
+    expect(runs("* * * * *")).toEqual([runLeadChaseJob, runScheduledSendJob]);
     // #411: the auto-retry runs BEFORE the fail-out, and the order is the
     // assertion — a row this declines must be failed out in the SAME tick
     // rather than waiting five minutes for the next one.

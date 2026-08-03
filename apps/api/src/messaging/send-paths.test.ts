@@ -105,6 +105,12 @@ describe("the outbound gate cannot be bypassed (#331)", () => {
       // other path, because the world may have changed since the row was
       // queued.
       "messaging/retry-interrupted.ts",
+      // #233: the send-later firing job. The path this roster exists for —
+      // written long after the gate, by the shape of author the gate's own
+      // header warns about. It mints its clearance at FIRE time rather than
+      // schedule time, which is what makes a STOP arriving in between fatal to
+      // the message rather than ignored.
+      "messaging/scheduled-send.ts",
       // The dispatch tail itself.
       "messaging/send.ts",
       // Compose: the first text to a new number.
