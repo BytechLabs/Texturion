@@ -263,6 +263,17 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
  */
 const sources = readProductionSources;
 
+/**
+ * Comments out, before anything reads the statement for scoping.
+ *
+ * The scope test below is a substring check for `company_id`, which a comment
+ * satisfies just as well as a filter does. That is the difference between
+ * "this query is scoped" and "somebody wrote the words near it".
+ */
+function stripComments(sql: string): string {
+  return sql.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
+}
+
 /** The statement a `.from(` starts, up to the `;` that closes it at depth 0. */
 function statementAt(src: string, index: number): string {
   let depth = 0;
@@ -292,7 +303,18 @@ function unscopedSites(): Site[] {
     while ((match = re.exec(src)) !== null) {
       const table = match[1];
       if (!TENANT_TABLES.has(table)) continue;
-      const statement = statementAt(src, match.index).replace(/\s+/g, " ");
+      // Comments are stripped BEFORE the scope test. The predicate below is a
+      // substring check, so without this a comment that merely mentions
+      // company_id counts as scoping: delete a real `.eq("company_id", …)`,
+      // leave `// company_id is applied by the caller` behind, and the site
+      // stays green while the query returns every tenant's rows.
+      //
+      // No site relies on that today (measured: zero), so this changes no
+      // verdict now and closes the door on the one edit that would.
+      const statement = stripComments(statementAt(src, match.index)).replace(
+        /\s+/g,
+        " ",
+      );
       if (statement.includes("company_id")) continue;
       const applicable = NULLABLE_SCOPE.has(table)
         ? RULES.filter((rule) => rule.name !== "insert-under-a-not-null-scope")
