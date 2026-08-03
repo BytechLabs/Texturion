@@ -141,7 +141,13 @@ struct SchedulePreset: Equatable {
 /// calendar, and this one takes the destination's. Sharing the function would
 /// mean one of the two features silently changing zone the day somebody
 /// "simplified" the other.
-private func daysUntilNextMonday(_ date: Date, calendar: Calendar) -> Int {
+///
+/// PREFIXED, not just `private`. A top-level `private` func still occupies the
+/// module's namespace, so this and SnoozeLogic's identical signature were an
+/// "invalid redeclaration" — a break only CI's iOS job could see, because
+/// nothing on this side of the repo compiles Swift. The name now says which
+/// feature's calendar it is, which is what the doc above was already for.
+private func sendLaterDaysUntilNextMonday(_ date: Date, calendar: Calendar) -> Int {
     // Calendar's weekday is 1 = Sunday … 7 = Saturday, which is NOT the same
     // numbering as java.time's DayOfWeek or JavaScript's getDay(). Converting
     // to a Monday-is-1 index first keeps this identical to the other two
@@ -180,7 +186,7 @@ func schedulePresets(
         SchedulePreset(
             id: "monday",
             label: "Monday, 8:00am",
-            at: at(addDays: daysUntilNextMonday(now, calendar: calendar))
+            at: at(addDays: sendLaterDaysUntilNextMonday(now, calendar: calendar))
         ),
         SchedulePreset(id: "custom", label: "Pick a time", at: nil),
     ]
