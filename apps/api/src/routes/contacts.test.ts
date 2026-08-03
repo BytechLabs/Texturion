@@ -124,7 +124,7 @@ describe("GET /v1/contacts", () => {
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(call.url.searchParams.get("deleted_at")).toBe("is.null");
     expect(call.url.searchParams.get("or")).toBe(
-      "(name.ilike.*smi*,phone_e164.ilike.*smi*,business_name.ilike.*smi*,email.ilike.*smi*)",
+      "(name.ilike.*smi*,phone_e164.ilike.*smi*,business_name.ilike.*smi*,email.ilike.*smi*,custom_values.ilike.*smi*)",
     );
     expect(call.url.searchParams.get("limit")).toBe("11");
     // The list never fetches the (up-to-5000-char) notes column — it's detail-only.
@@ -261,7 +261,7 @@ describe("GET /v1/contacts", () => {
     );
     const call = sb.find("GET", "/rest/v1/contacts")[0];
     expect(call.url.searchParams.get("or")).toBe(
-      "(name.ilike.*abcd*,phone_e164.ilike.*abcd*,business_name.ilike.*abcd*,email.ilike.*abcd*)",
+      "(name.ilike.*abcd*,phone_e164.ilike.*abcd*,business_name.ilike.*abcd*,email.ilike.*abcd*,custom_values.ilike.*abcd*)",
     );
   });
 
@@ -286,7 +286,7 @@ describe("GET /v1/contacts", () => {
     expect(
       sb.find("GET", "/rest/v1/contacts")[0].url.searchParams.get("or"),
     ).toBe(
-      "(name.ilike.*647 892-3862*,phone_e164.ilike.*647 892-3862*,business_name.ilike.*647 892-3862*,email.ilike.*647 892-3862*," +
+      "(name.ilike.*647 892-3862*,phone_e164.ilike.*647 892-3862*,business_name.ilike.*647 892-3862*,email.ilike.*647 892-3862*,custom_values.ilike.*647 892-3862*," +
         "phone_e164.ilike.*6478923862*)",
     );
   });
@@ -307,11 +307,11 @@ describe("GET /v1/contacts", () => {
 
     const calls = sb.find("GET", "/rest/v1/contacts");
     expect(calls[0].url.searchParams.get("or")).toBe(
-      "(name.ilike.*smith*,phone_e164.ilike.*smith*,business_name.ilike.*smith*,email.ilike.*smith*)",
+      "(name.ilike.*smith*,phone_e164.ilike.*smith*,business_name.ilike.*smith*,email.ilike.*smith*,custom_values.ilike.*smith*)",
     );
     // Already bare digits: the same term twice would only cost a scan.
     expect(calls[1].url.searchParams.get("or")).toBe(
-      "(name.ilike.*6478923862*,phone_e164.ilike.*6478923862*,business_name.ilike.*6478923862*,email.ilike.*6478923862*)",
+      "(name.ilike.*6478923862*,phone_e164.ilike.*6478923862*,business_name.ilike.*6478923862*,email.ilike.*6478923862*,custom_values.ilike.*6478923862*)",
     );
   });
 });
@@ -1746,7 +1746,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     // The literal /export route ran (not /:id, which would 404 on a non-uuid).
     const call = sb.find("GET", "/rest/v1/contacts")[0];
     expect(call.url.searchParams.get("or")).toBe(
-      "(name.ilike.*smi*,phone_e164.ilike.*smi*,business_name.ilike.*smi*,email.ilike.*smi*)",
+      "(name.ilike.*smi*,phone_e164.ilike.*smi*,business_name.ilike.*smi*,email.ilike.*smi*,custom_values.ilike.*smi*)",
     );
   });
 });

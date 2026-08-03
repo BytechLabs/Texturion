@@ -319,6 +319,11 @@ export function contactSearchOr(rawQ: string, t9 = false): string {
     `phone_e164.ilike.*${q}*`,
     `business_name.ilike.*${q}*`,
     `email.ilike.*${q}*`,
+    // #291: what is IN the workspace's own fields — the boiler serial, the
+    // gate code, the lot number. `custom_values` is a derived column holding
+    // the VALUES only; searching the raw JSON would match every contact that
+    // merely HAS a field, blank ones included.
+    `custom_values.ilike.*${q}*`,
   ];
   const digits = rawQ.replace(/\D/g, "");
   if (digits.length >= 3 && digits !== q) {

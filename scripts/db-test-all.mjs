@@ -131,6 +131,7 @@ const SUITES = [
   "contact_fields",
   "contact_custom_fields",
   "contact_phones",
+  "contact_custom_values",
 
 ];
 
