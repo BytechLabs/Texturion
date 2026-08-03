@@ -61,9 +61,30 @@ function mirrored(): Record<string, unknown> {
 describe("#255 the pricing report mirrors this package exactly", () => {
   const m = mirrored();
 
-  it("finds the block at all, so a rename cannot make this vacuous", () => {
-    // A guard that silently matches nothing reports success forever.
-    expect(Object.keys(m).length).toBeGreaterThanOrEqual(5);
+  it("finds the block, and checks EVERY key it mirrors", () => {
+    // A guard that silently matches nothing reports success forever, which is
+    // why the block has to be found at all.
+    //
+    // #519: the count used to be `>= 5`, and there are exactly five. A SIXTH
+    // mirrored value — an overage rate, a second fee — would satisfy that
+    // floor while nothing on earth checked it against the package, which is
+    // the whole failure this file exists to prevent, reintroduced one key at a
+    // time. Asserting the SET forces the next person to add an assertion or
+    // explain why the value needs none.
+    expect(
+      Object.keys(m).sort(),
+      "pricing-report.mjs mirrors a value this guard does not check. Add an " +
+        "assertion for it below — an unguarded mirror is the thing #255 was " +
+        "filed about.",
+    ).toEqual(
+      [
+        "planMonthlyCents",
+        "stripeFees",
+        "moduleMonthlyCents",
+        "includedSegments",
+        "limits",
+      ].sort(),
+    );
   });
 
   it("mirrors the plan monthly price", () => {
