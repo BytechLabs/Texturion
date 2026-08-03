@@ -75,6 +75,29 @@ struct SettingsRepository: Sendable {
         )
     }
 
+    /// #291: the fields this workspace defined for its own trade.
+    ///
+    /// Here as well as on the contacts repository, because the two screens
+    /// that need them are on opposite sides of the app: the settings card
+    /// defines them, the contact panel fills them in. One method on the wrong
+    /// repository compiles on Android and fails only in CI here.
+    func contactFields(_ companyId: String) async throws -> ContactFieldsResponse {
+        try await api.get("/v1/contact-fields", companyId: companyId)
+    }
+
+    /// Replace the whole set. Not per-field saves — there are at most ten, and
+    /// the order in the list IS the order they appear on every contact.
+    func saveContactFields(
+        companyId: String,
+        fields: [ContactFieldDef]
+    ) async throws -> ContactFieldsResponse {
+        try await api.put(
+            "/v1/contact-fields",
+            body: ContactFieldsBody(fields: fields),
+            companyId: companyId
+        )
+    }
+
     /// #386: re-open your own bounced address after fixing it. Company-exempt
     /// server-side — an address belongs to a person, not to a workspace.
     func retryOwnEmail() async throws -> JSONValue {
