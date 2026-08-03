@@ -34,6 +34,10 @@ declare
     -- where somebody lives, which is the most sensitive thing in the
     -- record after the phone number itself.
     'contact_addresses',
+    -- #291: a customer's OTHER numbers. Personal data of the same class
+    -- as the primary on `contacts`, and reached by the same erasure and
+    -- export because it cascades from the contact.
+    'contact_phones',
     -- #291: the DEFINITIONS carry no customer data — they are a
     -- workspace's field names. Classified as business configuration
     -- rather than left out, because "no personal data" is a real

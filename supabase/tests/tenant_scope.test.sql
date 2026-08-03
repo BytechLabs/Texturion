@@ -43,7 +43,7 @@ declare
     'notification_reads', 'number_access', 'number_port_outs', 'opt_outs',
     'outbound_call_authorizations', 'outbound_dial_leases',
     'activation_stall_state', 'alert_escalations',
-    'contact_addresses', 'contact_field_defs',
+    'contact_addresses', 'contact_field_defs', 'contact_phones',
     'pending_notifications',
     'appointment_reminder_rules', 'on_call_shifts',
     'call_silence_state', 'feature_flag_overrides', 'number_health',

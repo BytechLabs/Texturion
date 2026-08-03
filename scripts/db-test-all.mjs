@@ -130,6 +130,7 @@ const SUITES = [
   "notification_delivery",
   "contact_fields",
   "contact_custom_fields",
+  "contact_phones",
 
 ];
 
