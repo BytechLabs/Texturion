@@ -79,6 +79,8 @@ The most sensitive category, because the person never chose us.
 | `mfa_recovery_codes` | hashed codes only | Life of the account |
 | `mfa_recovery_attempts` | attempt counts for the brute-force floor | Rolling window |
 | `audit_log` | actor, **actor IP**, action | **12 months** (#231), then pruned |
+| `on_call_shifts` | **which member was holding the phone, and when** (#244) — a record of one person's working hours, which is employment data rather than a preference | Life of the workspace; deleted with the member |
+| `alert_escalations` | **which member was paged and which one claimed it** (#244). No customer content: the conversation is referenced, never copied | Life of the workspace; the user columns null out with the member |
 
 ## 3. Business data — the workspace itself
 

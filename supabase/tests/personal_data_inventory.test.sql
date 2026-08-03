@@ -57,6 +57,11 @@ declare
     -- name is free text on a member's row, so it is classified here rather
     -- than waved through as configuration.
     'saved_views',
+    -- #244: which member was holding the phone and when — a record of one
+    -- person's working hours, which is employment data rather than a
+    -- preference; and which member a page went to and who claimed it. Both
+    -- classified here rather than as operational data for that reason.
+    'on_call_shifts', 'alert_escalations',
     -- §3 business data
     'companies', 'messaging_registrations', 'port_requests', 'phone_numbers',
     'number_access', 'number_health', 'company_ai_settings', 'templates', 'tags',
