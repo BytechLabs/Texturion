@@ -59,6 +59,8 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -91,6 +93,7 @@ import com.loonext.android.features.thread.MentionLogic
 import com.loonext.android.features.thread.MentionableMember
 import com.loonext.android.features.thread.PickedMention
 import com.loonext.android.core.model.DestinationClock
+import com.loonext.android.core.compose.OnMyWay
 import com.loonext.android.core.model.Message
 import com.loonext.android.features.thread.theirTimeLine
 import com.loonext.android.core.model.ReplySuggestions
@@ -331,6 +334,18 @@ fun ThreadComposer(
         /** #274: whether the words changed after it was inserted. */
         templateEdited: Boolean,
     ) -> Unit,
+    /**
+     * #520: does this thread have a job due TODAY? Decided by the screen, not
+     * here — this composable stays presentational, and "today" is a question
+     * about the device's clock and the task list rather than about a draft.
+     *
+     * False hides the affordance entirely rather than disabling it: a control
+     * that is present and inert still costs a reader the moment it takes to
+     * work out why it does nothing, on a toolbar that already carries five.
+     */
+    hasJobToday: Boolean = false,
+    /** #520: send "on my way — about N minutes", where N is the tap. */
+    onSendOnMyWay: ((Int) -> Unit)? = null,
     /**
      * #408: the newest outbound in this thread, so the send boundary can ask
      * before landing on top of a colleague's answer. Null means "nothing to
@@ -839,6 +854,45 @@ fun ThreadComposer(
                 onCallInstead = onCallInstead,
                 onReport = onReportBanner?.let { report -> { report(banner) } },
             )
+        }
+
+        // #520: above the box, and only when there is a job today. Not on a
+        // note — a note goes to the crew, and "on my way" is for the customer.
+        val sendOnMyWay = onSendOnMyWay
+        if (!noteOnly && hasJobToday && sendOnMyWay != null) {
+            var choosing by remember { mutableStateOf(false) }
+            if (choosing) {
+                Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            OnMyWay.Copy.PROMPT,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        for (minutes in OnMyWay.PRESETS) {
+                            OutlinedButton(onClick = {
+                                choosing = false
+                                sendOnMyWay(minutes)
+                            }) { Text(OnMyWay.presetLabel(minutes)) }
+                        }
+                        TextButton(onClick = { choosing = false }) { Text("Cancel") }
+                    }
+                    // What the next tap does, said before it is tapped.
+                    Text(
+                        OnMyWay.Copy.GATED_NOTE,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                TextButton(
+                    onClick = { choosing = true },
+                    modifier = Modifier.padding(start = 8.dp, top = 2.dp),
+                ) { Text(OnMyWay.Copy.ACTION) }
+            }
         }
 
         // #225: above the box, below any banner. Never shown for a notes-only

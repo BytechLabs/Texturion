@@ -150,6 +150,8 @@ class TasksRepository(private val api: ApiClient) {
         dueBefore: String? = null,
         dueAfter: String? = null,
         overdue: Boolean? = null,
+        /** #520: the jobs on ONE thread, which is how a composer asks. */
+        conversationId: String? = null,
         cursor: String? = null,
         limit: Int = 25,
     ): Page<Task> = api.get(
@@ -162,6 +164,7 @@ class TasksRepository(private val api: ApiClient) {
             "due_before" to dueBefore,
             "due_after" to dueAfter,
             "overdue" to overdue?.toString(),
+            "conversation_id" to conversationId,
             "cursor" to cursor,
             "limit" to limit.toString(),
         ),

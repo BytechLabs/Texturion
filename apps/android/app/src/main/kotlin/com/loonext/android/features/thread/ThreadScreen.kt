@@ -115,6 +115,7 @@ import com.loonext.android.core.model.ConversationStatus
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberRole
+import com.loonext.android.core.compose.OnMyWay
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.isCarrierEnforcedOptOut
@@ -544,6 +545,30 @@ private fun ThreadLoaded(
     var actionsFor by remember { mutableStateOf<Message?>(null) }
     var makeTaskFor by remember { mutableStateOf<Message?>(null) }
 
+    // #520: is there a job on this thread due TODAY? Asked here rather than in
+    // the composer, which stays presentational — and "today" is the DEVICE's
+    // day, because the person tapping is standing somewhere and means their
+    // today, not the workspace's.
+    //
+    // A failed read leaves it false, so the affordance simply does not appear.
+    // Offering it and having the send find no job would be worse than not
+    // offering it at all.
+    var hasJobToday by remember(controller.conversationId) { mutableStateOf(false) }
+    LaunchedEffect(controller.conversationId) {
+        val startOfDay = java.time.LocalDate.now()
+            .atStartOfDay(java.time.ZoneId.systemDefault())
+        runCatching {
+            graph.tasksRepo.tasks(
+                companyId = companyId,
+                status = "open",
+                conversationId = controller.conversationId,
+                dueAfter = startOfDay.toInstant().toString(),
+                dueBefore = startOfDay.plusDays(1).toInstant().toString(),
+                limit = 1,
+            )
+        }.onSuccess { hasJobToday = it.data.isNotEmpty() }
+    }
+
     Column(Modifier.fillMaxSize()) {
         ThreadHeader(
             controller = controller,
@@ -972,6 +997,23 @@ private fun ThreadLoaded(
             state = composer,
             noteOnly = detail.viewer_level == "note",
             readOnly = viewerReadOnly,
+            hasJobToday = hasJobToday,
+            onSendOnMyWay = { minutes ->
+                // The ORDINARY send path: the opt-out gate, quiet hours and
+                // number access all apply. Being fast is not a reason for an
+                // exemption, and the server's refusal is what gets shown.
+                controller.sendText(
+                    OnMyWay.text(minutes),
+                    emptyList(),
+                    null,
+                    false,
+                ) {
+                    // The restore hook every other send uses. There is no draft
+                    // to put back here — the words were never in the box — so
+                    // it deliberately does nothing, which is stated rather
+                    // than left as an empty lambda somebody wonders about.
+                }
+            },
             onTyping = {
                 // #302: throttled, because the keystroke rate is not the
                 // broadcast rate. The window is extended on every keystroke; the
