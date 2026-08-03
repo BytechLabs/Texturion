@@ -77,7 +77,7 @@ class RealtimeClientTest {
         try {
             // Both collectors must be registered before any emit — a replay=0
             // SharedFlow only delivers to live subscribers.
-            withTimeout(5_000) {
+            withTimeout(LIVENESS_TIMEOUT_MS) {
                 fastReady.await()
                 slowReady.await()
             }
@@ -112,6 +112,23 @@ class RealtimeClientTest {
      * busy, and the busy one must get the newest rather than the stale one it
      * missed.
      */
+    /**
+     * How long to wait for an edge that SHOULD arrive.
+     *
+     * These are liveness budgets, not latency assertions — every assertion in
+     * this test is on a COUNT, and none of them says anything about speed. The
+     * timeout exists so a genuinely dropped edge fails the run instead of
+     * hanging it forever.
+     *
+     * Raised from 5s after this test turned main red on a change that touches
+     * nothing near realtime. Two collectors on `Dispatchers.Default`, a cold
+     * JIT and a shared CI runner is exactly the combination where five seconds
+     * stops being generous, and a test that fails for being slow teaches
+     * everyone to re-run CI rather than to read it. A real regression still
+     * fails here — it just takes thirty seconds to say so.
+     */
+    private val LIVENESS_TIMEOUT_MS = 30_000L
+
     @Test
     fun `a reconnect edge is not dropped while another collector is busy`() = runBlocking {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -149,7 +166,7 @@ class RealtimeClientTest {
 
         try {
             // replay=0: an edge published before both are registered is nobody's.
-            withTimeout(5_000) {
+            withTimeout(LIVENESS_TIMEOUT_MS) {
                 fastReady.await()
                 slowReady.await()
             }
@@ -158,27 +175,30 @@ class RealtimeClientTest {
             // The slow collector has TAKEN the first edge (a SharedFlow advances
             // its index before invoking the callback) and is now stuck in it, so
             // the buffer is empty and the next edge has a slot.
-            withTimeout(5_000) { busy.await() }
+            withTimeout(LIVENESS_TIMEOUT_MS) { busy.await() }
 
             client.signalReconnectForTest()
             // Waiting for the fast collector proves the second edge is buffered
             // AND that the slow one has not taken it — which is the only way to
             // know the single slot is now occupied, i.e. that the third edge below
             // is the one the old code dropped.
-            withTimeout(5_000) { while (fast.get() < 2) delay(5) }
+            withTimeout(LIVENESS_TIMEOUT_MS) { while (fast.get() < 2) delay(5) }
 
             client.signalReconnectForTest()
 
             // The edge that used to vanish. Under SUSPEND overflow this wait times
             // out and the assertion never runs.
-            withTimeout(5_000) { while (fast.get() < 3) delay(5) }
+            withTimeout(LIVENESS_TIMEOUT_MS) { while (fast.get() < 3) delay(5) }
             assertEquals(3, fast.get())
 
             release.complete(Unit)
-            withTimeout(5_000) { while (slow.get() < 2) delay(5) }
+            withTimeout(LIVENESS_TIMEOUT_MS) { while (slow.get() < 2) delay(5) }
             // Give any further delivery time to arrive before claiming there is
-            // none.
-            delay(250)
+            // none. Longer than it needs to be on a fast machine, deliberately:
+            // this wait's failure mode is the opposite of the ones above — too
+            // SHORT and a late third delivery is simply missed, and the test
+            // passes when it should not.
+            delay(1_000)
             // TWO, not three: the busy collector's two pending edges collapsed
             // into one, which is correct — this signal means "your cached pages
             // may be wrong, ask again", and the later ask subsumes the earlier.
