@@ -62,6 +62,9 @@ declare
     -- preference; and which member a page went to and who claimed it. Both
     -- classified here rather than as operational data for that reason.
     'on_call_shifts', 'alert_escalations',
+    -- #297: which member was told about which conversation, and when. A
+    -- queue of pending notifications, so it names a person and a thread.
+    'pending_notifications',
     -- §3 business data
     'companies', 'messaging_registrations', 'port_requests', 'phone_numbers',
     'number_access', 'number_health', 'company_ai_settings', 'templates', 'tags',

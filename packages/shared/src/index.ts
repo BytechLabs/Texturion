@@ -420,6 +420,23 @@ export {
 } from "./saved-views";
 export type { SavedViewFilters, SavedViewSurface } from "./saved-views";
 export {
+  BATCH_WINDOW_CHOICES,
+  CATEGORY_LABELS,
+  DEFAULT_BATCH_WINDOW,
+  DEFAULT_DELIVERY,
+  DELIVERY_COPY,
+  DELIVERY_MODES,
+  NOTIFICATION_CATEGORIES,
+  decideDelivery,
+  digestLine,
+} from "./notification-delivery";
+export type {
+  BatchWindowMinutes,
+  DeliveryDecision,
+  DeliveryMode,
+  NotificationCategory,
+} from "./notification-delivery";
+export {
   QUIET_HOURS_COPY,
   QUIET_HOURS_DEFAULT,
   isMemberQuietNow,

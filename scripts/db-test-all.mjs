@@ -127,6 +127,7 @@ const SUITES = [
   "appointment_reminders",
   "job_ratings",
   "on_call",
+  "notification_delivery",
 
 ];
 
