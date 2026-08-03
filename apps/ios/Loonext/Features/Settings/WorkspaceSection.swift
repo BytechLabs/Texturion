@@ -22,6 +22,10 @@ struct WorkspaceSectionView: View {
         // we on", and the pair reads as one idea — yours above, the customer's
         // here.
         QuietHoursCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
+        // #291: below the two clock cards because it is a different question —
+        // those are about when we contact people, this is about what we know
+        // about them.
+        ContactFieldsCard(scope: scope)
         // #406: everyone except the owner can end their own access. An owner
         // leaving would strand a workspace nobody can administer (#332), which
         // is why they are the one person this is not offered to.

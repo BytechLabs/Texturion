@@ -118,6 +118,49 @@ struct ContactMutations: Sendable {
         )
     }
 
+    /// #291: the fields this workspace defined for its own trade.
+    ///
+    /// Read by anyone who can read conversations, not just owners: a member
+    /// cannot DEFINE a field, but they have to see the definitions to fill one
+    /// in on a contact.
+    func contactFields(companyId: String) async throws -> ContactFieldsResponse {
+        try await api.get("/v1/contact-fields", companyId: companyId)
+    }
+
+    /// Replace the whole set.
+    ///
+    /// Not per-field saves: there are at most ten, they are ordered relative to
+    /// each other, and the order in the list IS the order they appear on every
+    /// contact.
+    func saveContactFields(
+        companyId: String,
+        fields: [ContactFieldDef]
+    ) async throws -> ContactFieldsResponse {
+        try await api.put(
+            "/v1/contact-fields",
+            body: ContactFieldsBody(fields: fields),
+            companyId: companyId
+        )
+    }
+
+    /// #291: the WHOLE values object, every time.
+    ///
+    /// The API stores what it is given, so sending only the field that changed
+    /// would empty every other one — and that failure is invisible at the
+    /// moment it happens: the edited field saves, the rest go blank on the
+    /// next load.
+    func updateCustomFields(
+        companyId: String,
+        contactId: String,
+        values: [String: String]
+    ) async throws -> Contact {
+        try await api.patch(
+            "/v1/contacts/\(contactId)",
+            body: ContactCustomFieldsBody(custom_fields: values),
+            companyId: companyId
+        )
+    }
+
     /// Soft delete — hidden from lists only; resurrects on next text.
     func delete(companyId: String, contactId: String) async throws {
         try await api.delete("/v1/contacts/\(contactId)", companyId: companyId)

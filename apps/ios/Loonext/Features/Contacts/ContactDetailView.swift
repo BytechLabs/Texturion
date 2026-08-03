@@ -37,6 +37,12 @@ struct ContactDetailView: View {
     @State private var conversationId: String?
     @State private var refreshKey = 0
     @State private var actionError: String?
+    /// #291: the workspace's own field DEFINITIONS. Read once per workspace
+    /// rather than per contact — they are the same for every record. An empty
+    /// list is the honest state for a workspace that has defined none, and it
+    /// is also what a failed read leaves behind: the fields simply do not
+    /// appear, rather than the screen refusing to open over them.
+    @State private var customFieldDefs: [ContactFieldDef] = []
     @State private var confirmOptOut = false
     @State private var confirmDelete = false
     @State private var working = false
@@ -86,6 +92,12 @@ struct ContactDetailView: View {
         .task(id: companyId) {
             if let page = try? await mutations.members(companyId: companyId) {
                 members = page.data
+            }
+        }
+        // #291: the workspace's own field definitions, once per workspace.
+        .task(id: "fields|\(companyId)") {
+            if let response = try? await mutations.contactFields(companyId: companyId) {
+                customFieldDefs = response.data
             }
         }
         // #82: the primary button is contextual — find this contact's
@@ -553,6 +565,28 @@ struct ContactDetailView: View {
                 )
             }
             .id("\(contact.id)|notes")
+            RowDivider()
+            // #291: the fields this workspace defined for itself. Renders
+            // nothing at all until somebody defines one, so a crew that never
+            // opens the settings screen never sees an empty heading.
+            CustomFields(
+                defs: customFieldDefs,
+                values: contact.custom_fields ?? [:],
+                onCommit: { values in
+                    Task {
+                        do {
+                            _ = try await mutations.updateCustomFields(
+                                companyId: companyId,
+                                contactId: contact.id,
+                                values: values
+                            )
+                            refreshKey += 1
+                        } catch {
+                            actionError = error.userMessage
+                        }
+                    }
+                }
+            )
             RowDivider()
             // #292/D49: what time it is where they are, and a way to fix it
             // when the area code lies.

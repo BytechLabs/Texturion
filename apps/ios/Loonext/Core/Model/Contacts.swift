@@ -31,6 +31,42 @@ struct ContactAddress: Codable, Sendable, Identifiable {
     var created_at: String = ""
 }
 
+/// #291: one field a workspace defined for itself.
+///
+/// `key` is the stable identity — values are stored under it, so relabelling a
+/// field keeps every value attached.
+struct ContactFieldDef: Codable, Sendable, Identifiable, Equatable {
+    var key: String = ""
+    var label: String = ""
+    var kind: String = "text"
+    var options: [String]? = nil
+    var position: Int = 0
+
+    /// Keyed on `key` rather than on an index: a ForEach over a non-Identifiable
+    /// row, or one identified by position, reuses the wrong text field when the
+    /// list is reordered.
+    var id: String { key }
+}
+
+/// GET /v1/contact-fields.
+struct ContactFieldsResponse: Codable, Sendable {
+    var data: [ContactFieldDef] = []
+    /// The ceiling, sent with the list rather than hardcoded on the phone — a
+    /// client keeping its own copy would eventually disagree with the server
+    /// about when the Add button disappears.
+    var cap: Int = 10
+}
+
+/// PATCH /v1/contacts/:id — the whole values object.
+struct ContactCustomFieldsBody: Codable, Sendable {
+    var custom_fields: [String: String]
+}
+
+/// PUT /v1/contact-fields — the whole set at once.
+struct ContactFieldsBody: Codable, Sendable {
+    var fields: [ContactFieldDef]
+}
+
 struct ContactAddressBody: Codable, Sendable {
     var address: String? = nil
     var label: String? = nil
@@ -58,6 +94,12 @@ struct Contact: Codable, Sendable {
     /// contact that predates the feature — `address` above still holds their
     /// one address and still works.
     var addresses: [ContactAddress]? = nil
+    /// #291: values for the fields this workspace defined, keyed on the field's
+    /// key. Absent on every contact nobody has filled one in for — which is
+    /// most of them — and on the LIST projection, which does not carry them.
+    /// `var … = nil` so it does not become a required memberwise-init
+    /// parameter at every existing construction site.
+    var custom_fields: [String: String]? = nil
     let notes: String?
     let consent_source: String?
     let consent_at: String?
