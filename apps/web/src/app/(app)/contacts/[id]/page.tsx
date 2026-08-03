@@ -10,6 +10,7 @@ import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 
 import { CallButton } from "@/components/calls/call-button";
 import { AddressList } from "@/components/contacts/address-list";
+import { PhoneList } from "@/components/contacts/phone-list";
 import { ContactCustomFields } from "@/components/contacts/custom-fields";
 import { ContactTimeline } from "@/components/contacts/contact-timeline";
 import { ContactCallHistory } from "@/components/contacts/contact-call-history";
@@ -416,6 +417,13 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
 
       <SettingsCard title="Details">
         <div className="space-y-4">
+          {/* #291: FIRST, and above the name, because it belongs to the number
+              in the header rather than to the record below it — the same
+              question, answered twice over. Absent entirely until a crew adds
+              one, so most records read exactly as they did before.
+              *Applying: Relationship Strength — the closest semantic pair on
+              the page gets the tightest grouping.* */}
+          <PhoneList contact={contact} />
           <div className="space-y-1.5">
             <Label htmlFor="contact-name">Name</Label>
             <Input

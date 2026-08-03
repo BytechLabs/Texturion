@@ -1104,6 +1104,18 @@ export interface ContactDetail extends Contact {
     is_primary: boolean;
     created_at: string;
   }[];
+  /**
+   * #291: the OTHER numbers this customer answers, oldest first. There is no
+   * primary among them — `phone_e164` on the record above IS the primary.
+   * Empty for nearly every contact, which is the honest answer rather than a
+   * gap: most customers have one line.
+   */
+  phones?: {
+    id: string;
+    phone_e164: string;
+    label: string | null;
+    created_at: string;
+  }[];
   opted_out: boolean;
   /**
    * Which kind of opt-out this is, because only some of them can be undone

@@ -368,6 +368,19 @@ export interface ContactAddress {
   created_at: string;
 }
 
+/**
+ * #291 — one of a customer's other numbers.
+ *
+ * No `is_primary`: the contact's own `phone_e164` is the primary, and a second
+ * flag for the same idea would let the two disagree.
+ */
+export interface ContactPhone {
+  id: string;
+  phone_e164: string;
+  label: string | null;
+  created_at: string;
+}
+
 export function useAddContactAddress(contactId: string) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
@@ -380,6 +393,46 @@ export function useAddContactAddress(contactId: string) {
       apiFetch<{ data: ContactAddress }>(
         `/v1/contacts/${contactId}/addresses`,
         { method: "POST", companyId, body },
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: keys.contacts.detail(companyId, contactId),
+      }),
+  });
+}
+
+/**
+ * #291 — a customer's other numbers.
+ *
+ * One row per request, like the addresses. The server refuses a number
+ * somebody else already has, and its message names them: taking it would
+ * silently redirect that customer's texts and calls onto this record.
+ */
+export function useAddContactPhone(contactId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { phone_e164: string; label?: string | null }) =>
+      apiFetch<{ data: ContactPhone }>(`/v1/contacts/${contactId}/phones`, {
+        method: "POST",
+        companyId,
+        body,
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: keys.contacts.detail(companyId, contactId),
+      }),
+  });
+}
+
+export function useRemoveContactPhone(contactId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (phoneId: string) =>
+      apiFetch<{ deleted: true }>(
+        `/v1/contacts/${contactId}/phones/${phoneId}`,
+        { method: "DELETE", companyId },
       ),
     onSuccess: () =>
       queryClient.invalidateQueries({

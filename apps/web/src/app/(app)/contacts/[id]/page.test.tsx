@@ -49,6 +49,15 @@ vi.mock("@/lib/api/contacts", () => ({
   }),
   useUpdateContactAddress: () => ({ isPending: false, mutate: vi.fn() }),
   useRemoveContactAddress: () => ({ isPending: false, mutate: vi.fn() }),
+  // #291: the phone list mounts at the top of the record. No rows and no
+  // pending writes, so it renders its "Add another number" affordance and
+  // these assertions stay about the record below it.
+  useAddContactPhone: () => ({
+    isPending: false,
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+  }),
+  useRemoveContactPhone: () => ({ isPending: false, mutate: vi.fn() }),
   useOptOutContact: () => ({ isPending: false, mutate: vi.fn() }),
   useRevokeOptOut: () => ({ isPending: false, mutate: vi.fn() }),
   useDeleteContact: () => ({ isPending: false, mutate: vi.fn() }),
