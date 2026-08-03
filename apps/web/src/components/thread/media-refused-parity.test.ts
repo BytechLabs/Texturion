@@ -45,6 +45,13 @@ const SENTENCES: readonly string[] = [
   "A file this customer sent wasn't the kind of file it claimed to be, so it wasn't saved",
   "This message came with more files than we can save",
   "A file this customer sent can't be shown here — ask them to send a photo or a PDF",
+  // Added by 08fb5697 ("look inside the files we hand between strangers") to
+  // all three clients, and never to this roster. For however long that has
+  // been true, two of the seven refusal reasons had no parity cover at all:
+  // one client could have reworded either of these and nothing would have
+  // said so. That silence is the reason for the completeness check below.
+  "A file this customer sent had something unsafe inside it, so it wasn't saved — ask them for a photo or a plain PDF",
+  "A file this customer sent couldn't be checked, so it wasn't saved — ask them to send it again",
 ];
 
 describe("#317 refused-attachment copy is the same on every client", () => {
@@ -56,6 +63,39 @@ describe("#317 refused-attachment copy is the same on every client", () => {
       expect(text.length, platform).toBeGreaterThan(1000);
       expect(text, platform).toContain("media_refused");
     }
+  });
+
+  it("the roster covers every refusal the clients can actually show", () => {
+    // The check the roster did not have, and the reason it fell two behind.
+    //
+    // A hand-maintained list only ever proves that the sentences ON it match
+    // across clients. It says nothing about a sentence that exists in the
+    // product and is not on it — so 08fb5697 added `unsafe_content` and
+    // `unreadable` arms to all three clients, this file stayed green, and two
+    // of the seven refusal reasons quietly had no parity cover.
+    //
+    // Derived from Android's `mediaRefusedLine`, which is one `when` block with
+    // its sentences inline: every literal long enough to be prose has to be on
+    // the roster. Adding an arm now fails here until somebody adds the sentence,
+    // which is the moment they ask whether the other two clients say it too.
+    const kotlin = readFileSync(SOURCES.android, "utf8");
+    const fn = kotlin.slice(
+      kotlin.indexOf("fun mediaRefusedLine"),
+      kotlin.indexOf("\n}", kotlin.indexOf("fun mediaRefusedLine")),
+    );
+    expect(fn.length, "could not find mediaRefusedLine").toBeGreaterThan(200);
+
+    const uncovered = [...fn.matchAll(/"([A-Z][^"]{24,})"/g)]
+      .map((m) => m[1])
+      // Interpolated variants ("… the first $kept were kept") cannot be matched
+      // whole, so they are covered by their stem being on the roster.
+      .filter((line) => !SENTENCES.some((s) => line.startsWith(s.slice(0, 40))));
+
+    expect(
+      uncovered,
+      `These refusal sentences exist in the product and are on no roster, so ` +
+        `nothing checks the other clients say them:\n  ` + uncovered.join("\n  "),
+    ).toEqual([]);
   });
 
   it("carries every sentence on every platform, verbatim", () => {
