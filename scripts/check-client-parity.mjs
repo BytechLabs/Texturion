@@ -199,6 +199,26 @@ const SURFACES = [
     iosReason: "no side panel on a phone — it is the contact screen",
   },
   {
+    key: "scheduled",
+    // #233's workspace-level view: every text queued to go out, across the
+    // whole crew. The CAPABILITY is on all three; only web makes it a surface.
+    //
+    // Web has an address bar and a rail, so it is a page — /scheduled, reached
+    // from the sidebar, the palette, and the mobile account sheet. Both phones
+    // reach the same list from the inbox header, as a sheet that appears only
+    // when something IS queued: the tab bars are a shipped four links + avatar
+    // (#100 on web, the pager on Android), and a fifth destination for a screen
+    // opened a few times a month would cost every other trip through the app.
+    //
+    // The per-thread half is not here at all on any client — it is the strip
+    // above the composer, which is thread/ by definition.
+    web: "scheduled",
+    android: null,
+    androidReason: "the workspace list is inbox/ScheduledSheet.kt off the inbox header; the per-thread strip is thread/ScheduledStrip.kt",
+    ios: null,
+    iosReason: "the workspace list is Inbox/ScheduledSheet.swift off the inbox header; the per-thread strip is Thread/ScheduledStrip.swift",
+  },
+  {
     key: "marketing",
     // The public site. There is no mobile equivalent and there should not be.
     web: "marketing",

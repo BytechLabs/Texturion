@@ -35,9 +35,16 @@ pnpm --filter @loonext/api dev      # wrangler dev (needs apps/api/.dev.vars —
 pnpm typecheck                      # tsc across all packages
 pnpm lint                           # eslint across all packages
 pnpm test                           # vitest across all packages
+pnpm check:guards                   # the repo guards CI runs BEFORE the three above
 pnpm --filter @loonext/web build    # next build
 pnpm --filter @loonext/web preview  # OpenNext build + local Workers preview
 ```
+
+`pnpm check:guards` is the one worth knowing about. The CI gate runs seven
+`scripts/check-*.mjs` steps *before* typecheck, none of them a vitest file — so a
+fully green `pnpm test` says nothing about them, and the first sign of trouble is
+a red main. It scrapes its step list out of `.github/workflows/checks.yml`, so a
+guard added to CI is picked up without editing the runner.
 
 Environment:
 
