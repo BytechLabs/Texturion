@@ -158,6 +158,17 @@ struct ThreadComposerView: View {
     /// and whether the words changed after it was inserted (#274).
     let onSendText: @MainActor (String, [StagedPhoto], String?, Bool) -> Void
     let onSaveNote: @MainActor (String, [StagedFile], [String]) -> Void
+    /// #520: does this thread have a job due TODAY? Decided by the screen, not
+    /// here — this view stays presentational, and "today" is a question about
+    /// the device's clock and the task list rather than about a draft.
+    ///
+    /// False hides the affordance entirely rather than disabling it: a control
+    /// that is present and inert still costs a reader the moment it takes to
+    /// work out why it does nothing, on a toolbar that already carries five.
+    /// Defaulted so every existing construction site is unchanged.
+    var hasJobToday: Bool = false
+    /// #520: send "on my way — about N minutes", where N is the tap.
+    var onSendOnMyWay: (@MainActor (Int) -> Void)?
     /// Who may be named on a note here. Nil withholds mentions entirely rather
     /// than opening a picker with nothing behind it.
     var loadMentionableMembers: (@MainActor () async -> [MentionableMember])?
@@ -263,6 +274,11 @@ struct ThreadComposerView: View {
     @State private var wrapUpTicker: Task<Void, Never>?
 
     private var textBlocked: Bool { noteOnly || banner != nil }
+
+    /// #520: whether the ETA choices are showing. One tap opens them, the next
+    /// sends — so the prompt asks a question and the note says what answering
+    /// does.
+    @State private var choosingEta = false
     private var isNote: Bool { textBlocked || state.mode == .note }
 
     private var canSend: Bool {
@@ -304,6 +320,46 @@ struct ThreadComposerView: View {
     @ViewBuilder
     private var composerBody: some View {
         VStack(spacing: 0) {
+
+            // #520: above the box, and only when there is a job today. Not on
+            // a note — a note goes to the crew, and "on my way" is for the
+            // customer.
+            if !noteOnly, hasJobToday, let sendOnMyWay = onSendOnMyWay {
+                if choosingEta {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Text(OnMyWay.Copy.prompt)
+                                .font(.golos(13))
+                                .foregroundStyle(BrandColor.muted600)
+                            ForEach(OnMyWay.presets, id: \.self) { minutes in
+                                Button(OnMyWay.presetLabel(minutes)) {
+                                    choosingEta = false
+                                    sendOnMyWay(minutes)
+                                }
+                                .font(.golos(13))
+                                .buttonStyle(.bordered)
+                            }
+                            Button("Cancel") { choosingEta = false }
+                                .font(.golos(13))
+                                .foregroundStyle(BrandColor.muted600)
+                        }
+                        // What the next tap does, said before it is tapped.
+                        Text(OnMyWay.Copy.gatedNote)
+                            .font(.golos(11))
+                            .foregroundStyle(BrandColor.muted600)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 6)
+                } else {
+                    Button(OnMyWay.Copy.action) { choosingEta = true }
+                        .font(.golos(13))
+                        .foregroundStyle(BrandColor.muted600)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 6)
+                }
+            }
 
             // #225: above the box, below any banner. Never for a notes-only
             // member — an internal note has no recipient to wake up.

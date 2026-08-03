@@ -62,6 +62,28 @@ struct ThreadView: View {
                 controller?.onRealtime(event)
             }
         }
+        // #520: is there a job on this thread due today? The composer's
+        // affordance hangs on this, and a failed read leaves it hidden.
+        .task(id: conversationId) {
+            let startOfDay = Calendar.current.startOfDay(for: Date())
+            guard
+                let endOfDay = Calendar.current.date(
+                    byAdding: .day, value: 1, to: startOfDay
+                )
+            else { return }
+            let iso = ISO8601DateFormatter()
+            let page = try? await graph.tasksApi.list(
+                companyId: companyId,
+                filters: TaskListFilters(
+                    status: "open",
+                    conversationId: conversationId,
+                    dueBefore: iso.string(from: endOfDay),
+                    dueAfter: iso.string(from: startOfDay)
+                ),
+                limit: 1
+            )
+            hasJobToday = !(page?.data.isEmpty ?? true)
+        }
         .task(id: conversationId) {
             for await _ in await graph.realtime.reconnected() {
                 controller?.refreshAfterReconnect()
@@ -114,6 +136,16 @@ private struct ThreadBody: View {
     let highlightMessageId: String?
     let onBack: @MainActor () -> Void
 
+    /// #520: is there a job on this thread due TODAY?
+    ///
+    /// Asked here rather than in the composer, which stays presentational —
+    /// and "today" is the DEVICE's day, because the person tapping is standing
+    /// somewhere and means their today, not the workspace's.
+    ///
+    /// A failed read leaves it false, so the affordance simply does not
+    /// appear. Offering it and having the send find no job would be worse than
+    /// not offering it at all.
+    @State private var hasJobToday = false
     @State private var makeTaskFor: Message?
     @State private var detailSheet: ThreadDetailSheet?
     @State private var confirmOptOut = false
@@ -1015,6 +1047,23 @@ private struct ThreadBody: View {
                     // Put the picks back with the words: a restored draft that
                     // still reads "@Sam" must still be able to tell Sam.
                     composer.restore(body: body, photos: [], files: files, picked: picked)
+                }
+            },
+            hasJobToday: hasJobToday,
+            onSendOnMyWay: { minutes in
+                // The ORDINARY send path: the opt-out gate, quiet hours and
+                // number access all apply. Being fast is not a reason for an
+                // exemption, and the server's refusal is what gets shown.
+                controller.sendText(
+                    body: OnMyWay.text(minutes),
+                    photos: [],
+                    templateId: nil,
+                    templateEdited: false
+                ) {
+                    // The restore hook every other send takes. Nothing to put
+                    // back here — the words were never in the box — which is
+                    // said rather than left as an empty closure somebody
+                    // wonders about.
                 }
             },
             loadMentionableMembers: { await controller.mentionableMembers() },
