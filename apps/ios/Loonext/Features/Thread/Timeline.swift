@@ -337,6 +337,10 @@ func eventLine(
     // and nobody confirmed anything, so "confirmed" would be a lie — and web has
     // always said it this way, so this is parity too.
     case "quiet_hours_confirmed": return "\(actor) sent during this customer's quiet hours"
+    // #237: the actor is the CUSTOMER, who has no user row, so this line
+    // carries no name. "Sam confirmed the appointment" would credit the crew
+    // with the customer's answer.
+    case "appointment_confirmed": return "They confirmed the appointment"
     case "spam_marked": return "\(actor) marked this as spam"
     case "spam_unmarked": return "\(actor) marked this as not spam"
     case "message_done": return "\(actor) marked a message done"

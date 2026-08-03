@@ -294,6 +294,10 @@ fun eventLine(
         // written and nobody confirmed anything, so "confirmed" would be a lie —
         // and web has always said it this way, so this is parity too.
         "quiet_hours_confirmed" -> "$actor sent during this customer's quiet hours"
+        // #237: the actor is the CUSTOMER, who has no user row, so this line
+        // carries no name. "Sam confirmed the appointment" would credit the
+        // crew with the customer's answer.
+        "appointment_confirmed" -> "They confirmed the appointment"
         "spam_marked" -> "$actor marked this as spam"
         "spam_unmarked" -> "$actor marked this as not spam"
         "message_done" -> "$actor marked a message done"

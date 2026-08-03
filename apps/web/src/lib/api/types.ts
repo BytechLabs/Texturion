@@ -93,6 +93,9 @@ export type ConversationEventType =
   | "opt_out_revoked"
   | "consent_attested"
   | "quiet_hours_confirmed"
+  // #237: the customer answered a reminder. Actor is null — they have no
+  // user row — which is why its system line carries no name.
+  | "appointment_confirmed"
   | "spam_marked"
   | "spam_unmarked"
   // D22 / APP-LAYOUT-V2 §4.2 — done audit. Written by the D14 PATCH

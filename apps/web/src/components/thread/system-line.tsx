@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  APPOINTMENT_CONFIRMED_EVENT,
+  APPOINTMENT_CONFIRMED_LINE,
+} from "@loonext/shared";
+
 import type { ConversationEvent } from "@/lib/api/types";
 
 import { VoicemailPlayer } from "@/components/calls/voicemail-player";
@@ -87,6 +92,12 @@ export function eventSentence(
       return `${by} recorded that this customer asked to be texted`;
     case "quiet_hours_confirmed":
       return `${by} sent during this customer's quiet hours`;
+    // #237: the actor is the CUSTOMER, who has no user row — so this is the
+    // one system line that must not be prefixed with a member's name. "Sam
+    // confirmed the appointment" would credit the crew with the customer's
+    // answer, which is the whole value of the reply.
+    case APPOINTMENT_CONFIRMED_EVENT:
+      return APPOINTMENT_CONFIRMED_LINE;
     case "spam_marked":
       return `${by} marked this conversation as spam`;
     case "spam_unmarked":
