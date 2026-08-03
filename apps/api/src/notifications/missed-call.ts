@@ -26,6 +26,7 @@ import { listConversationViewers } from "../auth/conversation-audience";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { deliverPush } from "./deliver";
+import { routeAfterHoursAlert } from "./on-call";
 
 export interface MissedCallNotificationInput {
   companyId: string;
@@ -93,12 +94,29 @@ export async function notifyMissedCall(
     phoneNumberId: conversation.phone_number_id,
   });
   const members = viewers.map((row) => row.user_id);
-  const audience =
+  const assigned =
     conversation.assigned_user_id !== null &&
     members.includes(conversation.assigned_user_id)
       ? [conversation.assigned_user_id]
       : members;
-  if (audience.length === 0) return;
+  if (assigned.length === 0) return;
+
+  // #244: after hours, this goes to whoever is holding the phone rather than
+  // to everyone who can see the number. AFTER the assignee rule, not instead of
+  // it — a job with a name on it stays that person's at any hour, and taking it
+  // off them at 11pm to give to the on-call member is a handover nobody asked
+  // for. The narrowing only bites when the audience was still the whole crew.
+  //
+  // Never throws: every uncertainty inside returns the audience unchanged, so
+  // a broken lookup makes this alert loud rather than absent.
+  const routing = await routeAfterHoursAlert(db, {
+    companyId: input.companyId,
+    conversationId: input.conversationId,
+    phoneNumberId: conversation.phone_number_id,
+    kind: "missed_call",
+    audience: assigned,
+  });
+  const audience = routing.userIds;
 
   const prefRows = unwrapRows<PrefsRow>(
     await db
@@ -139,6 +157,12 @@ export async function notifyMissedCall(
         ? "Their text-back failed. Call them back."
         : "No text-back went out. Call them back.";
   const alert = { title: `Missed call from ${contactName}`, body, url: link };
+  // The alert id rides on the NATIVE payload only: it is what turns the
+  // notification into something answerable, and the Web Push service worker
+  // renders unmarked pushes as ordinary notices and must not change shape.
+  const acknowledgeable = routing.alertId
+    ? { alert_id: routing.alertId }
+    : {};
   await deliverPush(env, db, {
     userIds: pushUsers,
     // #430: every word here is ours. The contact's NAME is in the title, and
@@ -147,7 +171,7 @@ export async function notifyMissedCall(
     // preserves. There is no message content in a missed call to withhold.
     content: { written: "us" },
     web: alert,
-    native: { kind: "missed_call", ...alert },
+    native: { kind: "missed_call", ...alert, ...acknowledgeable },
     collapseKey: `conversation:${input.conversationId}`,
     failures,
   });

@@ -332,3 +332,87 @@ describe("notifyMissedCall — native device push (#151)", () => {
     ]);
   });
 });
+
+/**
+ * #244 — the issue's first acceptance criterion, end to end.
+ *
+ * "An after-hours missed call notifies the on-call member, not the whole crew."
+ * The resolver has its own tests; what these two prove is that this fan-out is
+ * actually WIRED to it, and that the wiring is inert during the working day.
+ */
+describe("notifyMissedCall — after-hours routing (#244)", () => {
+  const TECH = "20000000-aaaa-4000-8000-000000000002";
+  const THIRD = "30000000-aaaa-4000-8000-000000000003";
+  const CREW = [
+    { user_id: OWNER, role: "owner" },
+    { user_id: TECH, role: "member" },
+    { user_id: THIRD, role: "member" },
+  ];
+  const NINE_TO_FIVE = {
+    mon: { open: "09:00", close: "17:00" },
+    tue: { open: "09:00", close: "17:00" },
+    wed: { open: "09:00", close: "17:00" },
+    thu: { open: "09:00", close: "17:00" },
+    fri: { open: "09:00", close: "17:00" },
+  };
+
+  function nightWorld(onCall: string | null) {
+    const world = buildWorld({ members: CREW });
+    world.sb.on("GET", "/rest/v1/companies", () => [
+      {
+        timezone: "America/Toronto",
+        business_hours: NINE_TO_FIVE,
+        business_hours_exceptions: null,
+        on_call_escalate_after_minutes: 10,
+      },
+    ]);
+    world.sb.on("POST", "/rest/v1/rpc/api_on_call_now", () => onCall);
+    world.sb.on("POST", "/rest/v1/alert_escalations", () => [{ id: "alert-1" }]);
+    world.sb.on("GET", "/rest/v1/device_push_tokens", () => []);
+    return world;
+  }
+
+  it("wakes only the member holding the phone, and opens an escalation", async () => {
+    const world = nightWorld(TECH);
+    // 03:40Z on a Sunday = 23:40 Saturday in Toronto, which is the issue's own
+    // example of the call that currently wakes four people.
+    vi.setSystemTime(new Date("2026-08-02T03:40:00Z"));
+    stubFetch(...world.routes);
+
+    await notifyMissedCall(env, INPUT);
+
+    const lookup = world.sb.calls.find(
+      (call) => call.path === "/rest/v1/push_subscriptions",
+    );
+    expect(lookup?.url.searchParams.get("user_id")).toBe(`in.(${TECH})`);
+
+    // And the responsibility is recorded, because narrowing is only safe when
+    // something can widen it back.
+    const opened = world.sb.calls.find(
+      (call) => call.path === "/rest/v1/alert_escalations",
+    );
+    expect((opened?.body as { on_call_user_id: string }).on_call_user_id).toBe(TECH);
+
+    vi.useRealTimers();
+  });
+
+  it("leaves a Wednesday-morning miss reaching the whole crew", async () => {
+    const world = nightWorld(TECH);
+    vi.setSystemTime(new Date("2026-08-05T15:00:00Z"));
+    stubFetch(...world.routes);
+
+    await notifyMissedCall(env, INPUT);
+
+    const lookup = world.sb.calls.find(
+      (call) => call.path === "/rest/v1/push_subscriptions",
+    );
+    const targeted = lookup?.url.searchParams.get("user_id") ?? "";
+    expect(targeted).toContain(OWNER);
+    expect(targeted).toContain(THIRD);
+    expect(
+      world.sb.calls.some((call) => call.path === "/rest/v1/alert_escalations"),
+    ).toBe(false);
+
+    vi.useRealTimers();
+  });
+});
