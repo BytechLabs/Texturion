@@ -22,7 +22,22 @@ const REPO_ROOT = join(fileURLToPath(new URL("../../../..", import.meta.url)));
 
 describe("#283 — the ops script and the registry agree", () => {
   it("lists exactly the kill switches the code declares", () => {
-    const script = readFileSync(join(REPO_ROOT, "scripts/ops/set-flag.mjs"), "utf8");
+    const scriptSource = readFileSync(
+      join(REPO_ROOT, "scripts/ops/set-flag.mjs"),
+      "utf8",
+    );
+
+    // Comments out FIRST. The scrape below pulls every quoted string out of the
+    // array text, and it cannot tell an element from a key sitting inside a
+    // `//` comment — so commenting a switch out leaves it scraped, the rosters
+    // match, and the ops script silently loses the ability to disable that
+    // subsystem. `kill:realtime` is the one that makes the cost concrete: a
+    // lever nobody can pull at 2am, guarded by a test that says it is there.
+    //
+    // Importing the array instead would be better and is not available: the
+    // script ends in a top-level `await runScript(...)`, so importing it runs
+    // the CLI.
+    const script = scriptSource.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
 
     const match = /const KILL_SWITCHES = \[([^\]]*)\]/.exec(script);
     expect(
