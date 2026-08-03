@@ -45,6 +45,7 @@ import {
   START_KEYWORDS,
   STOP_KEYWORDS,
 } from "./keywords";
+import { confirmAppointmentFromReply } from "./appointment-reminders";
 import {
   INBOUND_MEDIA_TYPES,
   MAX_INBOUND_MEDIA_BYTES,
@@ -280,13 +281,37 @@ export async function handleInboundMessage(
   // timeline insert is gated on the first delivery so a replay can't double-log.
   // Genuine duplicate webhooks never reach here — they're deduped at the
   // webhook_events ledger — so `created` is false only on a failure replay.
-  await handleOptOutKeywords(db, {
+  const carrierOwnedIt = await handleOptOutKeywords(db, {
     companyId: number.company_id,
     conversationId: threaded.conversation_id,
     fromE164,
     body: payload.text ?? "",
     recordEvent: threaded.created,
   });
+
+  // #237: "Reply C to confirm" invites a short answer, and short answers are
+  // what the carrier layer above already owns. "YES" is a START keyword: from
+  // an opted-out contact it is a request to be texted again, and consuming it
+  // here would leave somebody silenced who had just asked to be un-silenced —
+  // with no way back, because only they can lift their own opt-out.
+  //
+  // So this runs SECOND and only on a message the carrier layer did not claim.
+  // That ordering is a data dependency rather than a comment: `carrierOwnedIt`
+  // has to be read for this line to compile at all.
+  //
+  // Best-effort: the inbound message is already durable, and a job that could
+  // not be marked confirmed must never wedge a delivery in a retry loop.
+  if (!carrierOwnedIt && threaded.created) {
+    try {
+      await confirmAppointmentFromReply(db, {
+        companyId: number.company_id,
+        conversationId: threaded.conversation_id,
+        body: payload.text ?? "",
+      });
+    } catch (cause) {
+      console.error("appointment confirmation failed:", cause);
+    }
+  }
 
   // #414: the reply we asked for. The default away message — on by default,
   // kept by most owners — invites an emergency reply, and until now that reply
@@ -607,7 +632,7 @@ async function handleOptOutKeywords(
      */
     recordEvent: boolean;
   },
-): Promise<void> {
+): Promise<boolean> {
   const keyword = args.body.trim().toUpperCase();
 
   if (STOP_KEYWORDS.has(keyword)) {
@@ -623,7 +648,7 @@ async function handleOptOutKeywords(
     );
     if (error) throw new Error(`opt_outs upsert failed: ${error.message}`);
 
-    if (!args.recordEvent) return;
+    if (!args.recordEvent) return true;
     const { error: eventError } = await db.from("conversation_events").insert({
       company_id: args.companyId,
       conversation_id: args.conversationId,
@@ -634,7 +659,7 @@ async function handleOptOutKeywords(
     if (eventError) {
       throw new Error(`opted_out event insert failed: ${eventError.message}`);
     }
-    return;
+    return true;
   }
 
   if (START_KEYWORDS.has(keyword)) {
@@ -648,9 +673,13 @@ async function handleOptOutKeywords(
       .is("revoked_at", null)
       .select("id");
     if (error) throw new Error(`opt_outs revoke failed: ${error.message}`);
-    if ((data ?? []).length === 0) return;
+    // #237: a bare "YES" with no opt-out on file did NOT act as a START, so it
+    // is still available to mean something else — an appointment confirmation,
+    // for instance. Returning false here is what makes that safe: the carrier
+    // meaning is claimed only when it actually happened.
+    if ((data ?? []).length === 0) return false;
 
-    if (!args.recordEvent) return;
+    if (!args.recordEvent) return true;
     const { error: eventError } = await db.from("conversation_events").insert({
       company_id: args.companyId,
       conversation_id: args.conversationId,
@@ -663,7 +692,10 @@ async function handleOptOutKeywords(
         `opt_out_revoked event insert failed: ${eventError.message}`,
       );
     }
+    return true;
   }
+
+  return false;
 }
 
 /**

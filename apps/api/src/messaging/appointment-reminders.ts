@@ -16,8 +16,10 @@
  * is asked which clock to DESCRIBE it in, never to compute it.
  */
 import {
+  APPOINTMENT_CONFIRMED_EVENT,
   REMINDER_OFFSET_MAX_MINUTES,
   REMINDER_OFFSET_MIN_MINUTES,
+  isAppointmentConfirmation,
 } from "@loonext/shared";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -204,4 +206,75 @@ export async function syncTaskReminders(
     "sync task reminders",
   );
   return result;
+}
+
+/**
+ * #237 — "Reply C to confirm", answered.
+ *
+ * ONLY CONFIRMS A JOB THE CUSTOMER WAS ACTUALLY ASKED ABOUT. The obvious
+ * version marks the conversation's next due-dated task confirmed on any
+ * matching reply, and it is wrong in the direction that matters: a customer
+ * saying "ok" in an unrelated exchange would silently mark a job confirmed, and
+ * a dispatcher would then trust it. So this requires a reminder for that job to
+ * have been SENT — the question has to have been asked before an answer can
+ * mean anything.
+ *
+ * The caller runs this only on a message the carrier keyword layer did not
+ * claim; see `inbound.ts` for why that ordering is load-bearing rather than
+ * tidy.
+ *
+ * Returns the task id when something was confirmed, so a caller can decide
+ * whether to say anything. Nothing is texted back either way: "thanks for
+ * confirming" is a second message the customer did not ask for, on a thread
+ * they have already dealt with, and it costs a segment every time. The crew
+ * needs to know; the customer already does.
+ */
+export async function confirmAppointmentFromReply(
+  db: SupabaseClient,
+  input: { companyId: string; conversationId: string; body: string },
+): Promise<string | null> {
+  if (!isAppointmentConfirmation(input.body)) return null;
+
+  // The jobs this thread has been reminded about, soonest first. Ordered by
+  // the reminder's send_at rather than the job's due_at because the question
+  // was asked at that moment — if two jobs are queued on one thread, the reply
+  // answers the one they were most recently asked about.
+  const sent = unwrap<{ task_id: string | null }[]>(
+    await db
+      .from("scheduled_messages")
+      .select("task_id")
+      .eq("company_id", input.companyId)
+      .eq("conversation_id", input.conversationId)
+      .eq("origin", "reminder")
+      .eq("status", "sent")
+      .not("task_id", "is", null)
+      .order("send_at", { ascending: false })
+      .limit(1),
+    "reminded jobs lookup",
+  );
+  const taskId = sent[0]?.task_id ?? null;
+  if (!taskId) return null;
+
+  const result = unwrap<{ outcome: string }>(
+    await db.rpc("api_confirm_task", {
+      p_company_id: input.companyId,
+      p_task_id: taskId,
+      p_by: "customer",
+    }),
+    "confirm task",
+  );
+  // 'already' is a customer replying twice, or replying to both reminders.
+  // They confirmed once; saying so twice in the timeline would be noise.
+  if (result.outcome !== "confirmed") return null;
+
+  const { error } = await db.from("conversation_events").insert({
+    company_id: input.companyId,
+    conversation_id: input.conversationId,
+    actor_user_id: null, // the customer, who has no user row
+    type: APPOINTMENT_CONFIRMED_EVENT,
+    payload: { task_id: taskId },
+  });
+  if (error) throw new Error(`appointment_confirmed event: ${error.message}`);
+
+  return taskId;
 }
