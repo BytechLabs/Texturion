@@ -123,6 +123,7 @@ const SUITES = [
   "storage_fleet",
   "aup_signals",
   "list_conversations_awaiting",
+  "scheduled_messages",
 
 ];
 

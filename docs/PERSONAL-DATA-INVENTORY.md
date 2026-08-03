@@ -53,6 +53,7 @@ The most sensitive category, because the person never chose us.
 | `conversation_events` | who did what to a thread | Same |
 | `conversation_snoozes` | which member deferred which thread, until when, and a short note THEY wrote (#293). No customer data — the note is a crew member's own words about their own work | Same |
 | `saved_views` | a member's own list filters under a name THEY wrote (#280). The filters can name a teammate (assignee) or a tag; no customer data | Same |
+| `scheduled_messages` | **an unsent message body** addressed to a contact (#233), plus who wrote it and whose clock it was timed against | Same as `messages`, and it must be purged with the workspace for a second reason: a row that outlives closure would fire a text into a number that has since been released, from a business that no longer exists |
 | `attachments`, `message_attachments` | file names, and the objects in R2 | Same; soft-deleted objects reclaimed by sweep |
 | `calls` | **caller name (CNAM)**, voicemail audio path, **voicemail transcript** | Same |
 | `call_member_legs` | which member took which leg | Same |

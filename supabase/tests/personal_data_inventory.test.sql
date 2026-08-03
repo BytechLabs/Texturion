@@ -31,6 +31,11 @@ declare
     'opt_outs', 'blocked_senders', 'contact_consent_events', 'tasks',
     'number_port_outs',
     'text_enablement_orders',
+    -- #233: an unsent message body addressed to a contact. Classified with
+    -- `messages` rather than as configuration, because it IS a message — it
+    -- has simply not gone yet, and a workspace's export and erasure have to
+    -- treat it as one.
+    'scheduled_messages',
     -- §2 user data (our own customers)
     'profiles', 'company_members', 'invites', 'user_sessions',
     'push_subscriptions', 'device_push_tokens', 'member_telephony_credentials',
