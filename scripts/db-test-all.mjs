@@ -132,6 +132,7 @@ const SUITES = [
   "contact_custom_fields",
   "contact_phones",
   "contact_custom_values",
+  "scoped_exports",
 
 ];
 
