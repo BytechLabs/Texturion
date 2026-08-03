@@ -1087,6 +1087,17 @@ export interface Contact {
  * opt-out state (the G6 opted-out badge).
  */
 export interface ContactDetail extends Contact {
+  /**
+   * #291: primary first, then oldest. Empty for every contact that predates
+   * the feature — `address` still holds their one address and still works.
+   */
+  addresses?: {
+    id: string;
+    label: string | null;
+    address: string;
+    is_primary: boolean;
+    created_at: string;
+  }[];
   opted_out: boolean;
   /**
    * Which kind of opt-out this is, because only some of them can be undone

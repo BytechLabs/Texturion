@@ -39,6 +39,16 @@ vi.mock("@/lib/api/contacts", () => ({
     refetch: vi.fn(),
   }),
   useUpdateContact: () => ({ isPending: false, mutate: vi.fn() }),
+  // #291: the address list mounts under the address field. No rows and no
+  // pending writes, so it renders its "Add another address" affordance and
+  // these assertions stay about the record above it.
+  useAddContactAddress: () => ({
+    isPending: false,
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+  }),
+  useUpdateContactAddress: () => ({ isPending: false, mutate: vi.fn() }),
+  useRemoveContactAddress: () => ({ isPending: false, mutate: vi.fn() }),
   useOptOutContact: () => ({ isPending: false, mutate: vi.fn() }),
   useRevokeOptOut: () => ({ isPending: false, mutate: vi.fn() }),
   useDeleteContact: () => ({ isPending: false, mutate: vi.fn() }),

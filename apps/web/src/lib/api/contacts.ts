@@ -346,3 +346,77 @@ export function useMergeContacts() {
     },
   });
 }
+
+/**
+ * #291 — a contact's addresses.
+ *
+ * Each hook invalidates the contact DETAIL, because that is where the list
+ * lives: they ride the contact rather than having their own read, so a panel
+ * never paints the record and then the addresses a moment later.
+ */
+export interface ContactAddress {
+  id: string;
+  label: string | null;
+  address: string;
+  is_primary: boolean;
+  created_at: string;
+}
+
+export function useAddContactAddress(contactId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      address: string;
+      label?: string | null;
+      is_primary?: boolean;
+    }) =>
+      apiFetch<{ data: ContactAddress }>(
+        `/v1/contacts/${contactId}/addresses`,
+        { method: "POST", companyId, body },
+      ),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: keys.contacts.detail(companyId, contactId),
+      }),
+  });
+}
+
+export function useUpdateContactAddress(contactId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      addressId: string;
+      label?: string | null;
+      address?: string;
+      is_primary?: boolean;
+    }) => {
+      const { addressId, ...body } = input;
+      return apiFetch<{ data: ContactAddress }>(
+        `/v1/contacts/${contactId}/addresses/${addressId}`,
+        { method: "PATCH", companyId, body },
+      );
+    },
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: keys.contacts.detail(companyId, contactId),
+      }),
+  });
+}
+
+export function useRemoveContactAddress(contactId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (addressId: string) =>
+      apiFetch<null>(`/v1/contacts/${contactId}/addresses/${addressId}`, {
+        method: "DELETE",
+        companyId,
+      }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: keys.contacts.detail(companyId, contactId),
+      }),
+  });
+}

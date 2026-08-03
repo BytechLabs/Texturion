@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 
 import { CallButton } from "@/components/calls/call-button";
+import { AddressList } from "@/components/contacts/address-list";
 import { ContactTimeline } from "@/components/contacts/contact-timeline";
 import { ContactCallHistory } from "@/components/contacts/contact-call-history";
 import { LoadError, SettingsCard } from "@/components/settings/section";
@@ -453,6 +454,11 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
               onChange={(event) => address.onChange(event.target.value)}
             />
             <SaveStatus state={address.state} />
+            {/* #291: the OTHER addresses, absent until there are any. The
+                field above stays the one-address case, which is most of them —
+                a property manager with forty is the reason this exists, not
+                the reason every record should carry an empty list. */}
+            <AddressList contact={contact} />
           </div>
           {/* #291: beside the address rather than beside the phone, because
               it answers the same question — how do we reach them when a text
