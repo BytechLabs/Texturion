@@ -1,5 +1,11 @@
 # AUP enforcement runbook (#303)
 
+**Status: CURRENT DIRECTION (#323).** Describes how enforcement works today,
+including the parts that are policy rather than code — the "Not yet built"
+section at the end is the boundary. The published policy at `/legal/aup` §8 is
+the customer-facing commitment; where this file disagrees with it, §8 wins and
+this file is the bug.
+
 The published policy is `/legal/aup` §8. This is the operational side of it:
 what to do when the watch job raises a workspace, and what each step of the
 ladder means in the system.
