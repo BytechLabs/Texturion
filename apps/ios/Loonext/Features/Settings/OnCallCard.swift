@@ -99,7 +99,9 @@ struct OnCallCard: View {
                         set: { chosen = $0 }
                     )
                 ) {
-                    ForEach(roster) { member in
+                    // `id:` explicitly — `Member` is not Identifiable, and
+                    // ForEach over it does not compile without one.
+                    ForEach(roster, id: \.user_id) { member in
                         Text(member.display_name).tag(member.user_id)
                     }
                 }
