@@ -17,6 +17,11 @@ describe("contactFieldKey", () => {
     expect(contactFieldKey("Warranty expiry, if any")).toBe(
       "warranty_expiry_if_any",
     );
+    // A label that STARTS with punctuation. The leading trim is the only thing
+    // standing between "#Serial" and a null — without it the key is "_serial",
+    // which fails the must-start-with-a-letter check and the field cannot be
+    // created at all.
+    expect(contactFieldKey("#Serial")).toBe("serial");
   });
 
   it("CF-2: refuses rather than inventing a name", () => {

@@ -18,6 +18,9 @@ import com.loonext.android.core.net.ApiException
 import com.loonext.android.core.model.OnCallShiftBody
 import com.loonext.android.core.model.OnCallShiftCreated
 import com.loonext.android.core.model.OnCallShiftsResponse
+import com.loonext.android.core.model.ContactFieldDef
+import com.loonext.android.core.model.ContactFieldsBody
+import com.loonext.android.core.model.ContactFieldsResponse
 import com.loonext.android.core.model.ReminderRule
 import com.loonext.android.core.model.ReminderRulesBody
 import com.loonext.android.core.model.ReminderRulesResponse
@@ -109,6 +112,24 @@ class SettingsRepository(
     ): ReminderRulesSaved = api.put(
         "/v1/appointment-reminders",
         body = ReminderRulesBody(rules),
+        companyId = companyId,
+    )
+
+    /** #291: the fields this workspace defined for its own trade. */
+    suspend fun contactFields(companyId: String): ContactFieldsResponse =
+        api.get("/v1/contact-fields", companyId = companyId)
+
+    /**
+     * Replace the whole set. Not per-field saves — there are at most ten, they
+     * are ordered relative to each other, and the order in the list IS the
+     * order they appear on every contact.
+     */
+    suspend fun saveContactFields(
+        companyId: String,
+        fields: List<ContactFieldDef>,
+    ): ContactFieldsResponse = api.put(
+        "/v1/contact-fields",
+        body = ContactFieldsBody(fields),
         companyId = companyId,
     )
 

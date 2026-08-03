@@ -4,6 +4,9 @@ import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ContactAddressBody
 import com.loonext.android.core.model.ContactAddressCreated
+import com.loonext.android.core.model.ContactFieldDef
+import com.loonext.android.core.model.ContactFieldsBody
+import com.loonext.android.core.model.ContactFieldsResponse
 import com.loonext.android.core.model.ContactMergeResult
 import com.loonext.android.core.model.DuplicatePair
 import com.loonext.android.core.model.ConversationListItem
@@ -14,6 +17,8 @@ import com.loonext.android.core.model.Page
 import com.loonext.android.core.net.ApiClient
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.time.Clock
@@ -93,6 +98,55 @@ class ContactMutations(private val api: ApiClient, baseUrl: String) {
         "/v1/contacts/$contactId",
         buildJsonObject {
             if (value == null) put(field, JsonNull) else put(field, value)
+        },
+        companyId = companyId,
+    )
+
+    /**
+     * #291: the fields this workspace defined for itself.
+     *
+     * Read by anyone who can read conversations, not just owners: a member
+     * cannot DEFINE a field, but they have to see the definitions to fill one
+     * in on a contact.
+     */
+    suspend fun contactFields(companyId: String): ContactFieldsResponse =
+        api.get("/v1/contact-fields", companyId = companyId)
+
+    /**
+     * Replace the whole set.
+     *
+     * Not per-field saves: there are at most ten, they are ordered relative to
+     * each other, and the order in the list IS the order they appear on every
+     * contact.
+     */
+    suspend fun saveContactFields(
+        companyId: String,
+        fields: List<ContactFieldDef>,
+    ): ContactFieldsResponse = api.put(
+        "/v1/contact-fields",
+        body = ContactFieldsBody(fields),
+        companyId = companyId,
+    )
+
+    /**
+     * #291: the WHOLE values object, every time.
+     *
+     * The API stores what it is given, so sending only the field that changed
+     * would empty every other one — and that failure is invisible at the
+     * moment it happens: the edited field saves, the rest go blank on the next
+     * load.
+     */
+    suspend fun updateCustomFields(
+        companyId: String,
+        contactId: String,
+        values: Map<String, String>,
+    ): Contact = api.patch(
+        "/v1/contacts/$contactId",
+        buildJsonObject {
+            put(
+                "custom_fields",
+                JsonObject(values.mapValues { (_, value) -> JsonPrimitive(value) }),
+            )
         },
         companyId = companyId,
     )

@@ -75,6 +75,12 @@ data class Contact(
      * one address and still works.
      */
     val addresses: List<ContactAddress> = emptyList(),
+    /**
+     * #291: values for the fields this workspace defined, keyed on the field's
+     * key. Empty on every contact nobody has filled one in for — which is most
+     * of them — and on the LIST projection, which does not carry them.
+     */
+    val custom_fields: Map<String, String> = emptyMap(),
     val notes: String? = null,
     val consent_source: String? = null,
     val consent_at: String? = null,
@@ -192,6 +198,37 @@ data class ContactMergeResult(
     val closed: Int = 0,
     val opted_out: Boolean = false,
 )
+
+/**
+ * #291: one field a workspace defined for itself.
+ *
+ * `key` is the stable identity — values are stored under it, so relabelling a
+ * field keeps every value attached.
+ */
+@Serializable
+data class ContactFieldDef(
+    val key: String = "",
+    val label: String = "",
+    val kind: String = "text",
+    val options: List<String>? = null,
+    val position: Int = 0,
+)
+
+/** GET /v1/contact-fields. */
+@Serializable
+data class ContactFieldsResponse(
+    val data: List<ContactFieldDef> = emptyList(),
+    /**
+     * The ceiling, sent with the list rather than hardcoded on the phone — a
+     * client keeping its own copy would eventually disagree with the server
+     * about when the Add button disappears.
+     */
+    val cap: Int = 10,
+)
+
+/** PUT /v1/contact-fields — the whole set at once. */
+@Serializable
+data class ContactFieldsBody(val fields: List<ContactFieldDef>)
 
 @Serializable
 data class ContactAddressBody(

@@ -71,6 +71,7 @@ import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ContactAddressBody
+import com.loonext.android.core.model.ContactFieldDef
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.net.ApiErrorCode
@@ -245,6 +246,20 @@ private fun ContactDetailBody(
     val haptics = rememberHaptics()
 
     var actionError by remember(contact.id) { mutableStateOf<String?>(null) }
+
+    // #291: the workspace's own field DEFINITIONS. Read once per workspace
+    // rather than per contact — they are the same for every record, and a
+    // fetch per contact open would be a request nobody's answer changes.
+    // An empty list is the honest state for a workspace that has defined none,
+    // and it is also what a failed read leaves behind: the fields simply do
+    // not appear, rather than the screen refusing to open over them.
+    var customFieldDefs by remember(companyId) {
+        mutableStateOf<List<ContactFieldDef>>(emptyList())
+    }
+    LaunchedEffect(companyId) {
+        runCatching { mutations.contactFields(companyId) }
+            .onSuccess { customFieldDefs = it.data }
+    }
 
     // #291: re-read the contact and put it back in the cache. The address
     // writes change state the SERVER decides — which one is primary — so the
@@ -622,6 +637,29 @@ private fun ContactDetailBody(
                 save = { value ->
                     val updated = mutations.updateField(companyId, contact.id, "notes", value)
                     graph.storeCache.put(CacheKeys.contact(companyId, contact.id), updated)
+                },
+            )
+            RowDivider()
+            // #291: the fields this workspace defined for itself. Renders
+            // nothing at all until somebody defines one, so a crew that never
+            // opens the settings screen never sees an empty heading.
+            CustomFields(
+                defs = customFieldDefs,
+                values = contact.custom_fields,
+                onCommit = { values ->
+                    scope.launch {
+                        runCatching {
+                            val updated = mutations.updateCustomFields(
+                                companyId,
+                                contact.id,
+                                values,
+                            )
+                            graph.storeCache.put(
+                                CacheKeys.contact(companyId, contact.id),
+                                updated,
+                            )
+                        }.onFailure { actionError = it.userMessage() }
+                    }
                 },
             )
             RowDivider()
