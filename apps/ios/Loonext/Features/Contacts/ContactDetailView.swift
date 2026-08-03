@@ -488,6 +488,42 @@ struct ContactDetailView: View {
             // — adding the first promotes it, deleting the primary promotes a
             // survivor — so echoing a guess locally would show the wrong answer
             // until the next open.
+            // #291: the OTHER numbers this customer answers. Absent until a
+            // crew adds one, so most records read exactly as they did before.
+            PhoneList(
+                phones: contact.phones ?? [],
+                onAdd: { label, phone in
+                    Task {
+                        do {
+                            _ = try await mutations.addPhone(
+                                companyId: companyId,
+                                contactId: contact.id,
+                                body: ContactPhoneBody(phone_e164: phone, label: label)
+                            )
+                            refreshKey += 1
+                        } catch {
+                            // The server's words: only it knows WHOSE number a
+                            // rejected one already is.
+                            actionError = error.userMessage
+                        }
+                    }
+                },
+                onRemove: { phoneId in
+                    Task {
+                        do {
+                            try await mutations.removePhone(
+                                companyId: companyId,
+                                contactId: contact.id,
+                                phoneId: phoneId
+                            )
+                            refreshKey += 1
+                        } catch {
+                            actionError = error.userMessage
+                        }
+                    }
+                }
+            )
+            RowDivider()
             AddressList(
                 addresses: contact.addresses ?? [],
                 onAdd: { label, address in

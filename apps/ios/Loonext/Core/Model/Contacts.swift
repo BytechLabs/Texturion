@@ -31,6 +31,26 @@ struct ContactAddress: Codable, Sendable, Identifiable {
     var created_at: String = ""
 }
 
+/// #291: one of a customer's other numbers.
+///
+/// A number recorded here is matched against every inbound text and call, so
+/// it decides which customer a message is FROM.
+struct ContactPhone: Codable, Sendable, Identifiable {
+    var id: String = ""
+    var phone_e164: String = ""
+    var label: String? = nil
+    var created_at: String = ""
+}
+
+struct ContactPhoneBody: Codable, Sendable {
+    var phone_e164: String
+    var label: String? = nil
+}
+
+struct ContactPhoneCreated: Codable, Sendable {
+    var data: ContactPhone = ContactPhone()
+}
+
 /// #291: one field a workspace defined for itself.
 ///
 /// `key` is the stable identity — values are stored under it, so relabelling a
@@ -100,6 +120,11 @@ struct Contact: Codable, Sendable {
     /// `var … = nil` so it does not become a required memberwise-init
     /// parameter at every existing construction site.
     var custom_fields: [String: String]? = nil
+    /// #291: the OTHER numbers this customer answers, oldest first. No primary
+    /// among them — `phone_e164` above IS the primary. `var … = nil` so it does
+    /// not become a required memberwise-init parameter at every existing
+    /// construction site.
+    var phones: [ContactPhone]? = nil
     let notes: String?
     let consent_source: String?
     let consent_at: String?

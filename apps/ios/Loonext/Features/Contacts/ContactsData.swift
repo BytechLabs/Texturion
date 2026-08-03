@@ -118,6 +118,34 @@ struct ContactMutations: Sendable {
         )
     }
 
+    /// #291: record another number this customer answers.
+    ///
+    /// One row per request, like the addresses. The server refuses a number
+    /// somebody else already has and its message names them — taking it would
+    /// silently redirect that customer's texts and calls onto this record.
+    func addPhone(
+        companyId: String,
+        contactId: String,
+        body: ContactPhoneBody
+    ) async throws -> ContactPhoneCreated {
+        try await api.post(
+            "/v1/contacts/\(contactId)/phones",
+            body: body,
+            companyId: companyId
+        )
+    }
+
+    func removePhone(
+        companyId: String,
+        contactId: String,
+        phoneId: String
+    ) async throws {
+        try await api.delete(
+            "/v1/contacts/\(contactId)/phones/\(phoneId)",
+            companyId: companyId
+        )
+    }
+
     /// #291: the fields this workspace defined for its own trade.
     ///
     /// Read by anyone who can read conversations, not just owners: a member
