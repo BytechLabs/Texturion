@@ -98,6 +98,7 @@ The most sensitive category, because the person never chose us.
 | `phone_numbers`, `number_access`, `number_health` | the numbers and who may use them | Life of the workspace |
 | `company_ai_settings` | business description | Life of the workspace |
 | `templates`, `tags` | copy the business wrote | Life of the workspace |
+| `voicemail_greetings` | an **audio recording of a crew member's voice** (#309), plus the `created_by` user id. The speaker is one of OUR users, never a contact — a greeting is the business introducing itself, which is why it carries none of the consent weight a customer's voicemail does. It is still someone's voice: a recording identifies a person more directly than their name does, so it is listed here rather than under "no personal data" | Life of the workspace; the row cascades on closure and the audio object is purged with the bucket |
 
 ## 4. Prospect data — neither user nor contact
 

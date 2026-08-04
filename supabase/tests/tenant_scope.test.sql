@@ -53,7 +53,8 @@ declare
     'public_links',
     'port_requests', 'provider_costs', 'tags', 'task_map_rows', 'tasks',
     'template_uses',
-    'templates', 'text_enablement_orders', 'usage_alerts', 'usage_events'
+    'templates', 'text_enablement_orders', 'usage_alerts', 'usage_events',
+    'voicemail_greetings'
   ];
   actual text[];
   missing text;

@@ -138,6 +138,7 @@ const SUITES = [
   "abuse_intake",
   "per_number_identity",
   "per_number_mctb",
+  "voicemail_greetings",
 
 ];
 
