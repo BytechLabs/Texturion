@@ -257,6 +257,29 @@ export default function SecurityPage() {
         </div>
       </FrSection>
 
+      {/* #285/D119: a buyer's questionnaire asks this early, and the answer
+          has to be a POSITION rather than a silence — an answer improvised
+          twice is improvised differently twice, and a buyer who has to ask
+          again has learned something worse than the answer. */}
+      <FrSection ground="white">
+        <FrCard well className="max-w-3xl p-6 sm:p-8">
+          <h2 className="fr-h3 text-[color:var(--fr-ink)]">
+            Certifications: we hold none
+          </h2>
+          <p className="fr-body mt-3 text-[color:var(--fr-ink-70)]">
+            No SOC 2, no ISO 27001, and none in progress. A Type II report is an
+            observation window plus an auditor, and buying one now would
+            describe controls around a product that still changes weekly. We
+            would rather spend that on the things above, which are true today
+            and which you can check.
+          </p>
+          <p className="fr-body mt-3 text-[color:var(--fr-ink-70)]">
+            If your procurement needs one, tell us. That is the signal we watch
+            for, and it is a better one than a date we picked ourselves.
+          </p>
+        </FrCard>
+      </FrSection>
+
       <FrSection ground="white">
         <FrCard well className="max-w-3xl p-6 sm:p-8">
           <h2 className="fr-h3 text-[color:var(--fr-ink)]">

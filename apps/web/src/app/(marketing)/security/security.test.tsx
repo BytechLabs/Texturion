@@ -40,7 +40,25 @@ describe("/security — the checked-claims page", () => {
   it("ticks are Answered Green; no padlock imagery, no invented certifications", () => {
     expect(html).toContain("var(--fr-green)");
     expect(html).not.toMatch(/padlock|lucide-lock|shield/i);
-    expect(html).not.toMatch(/SOC ?2|ISO ?27001|HIPAA/i);
+    // #285/D119: the rule is no INVENTED certification, not no mention of
+    // one. The page now states plainly that we hold none, and a buyer's
+    // questionnaire asks by name — so a reader searching for "SOC 2" should
+    // find the answer rather than nothing.
+    //
+    // What stays forbidden is a CLAIM: the acronym next to a word that would
+    // assert we have it. Written as the claim rather than the word, because
+    // the previous form could only be satisfied by silence, and silence is
+    // what sends a buyer to email us for something already decided.
+    expect(html).not.toMatch(
+      /(SOC ?2|ISO ?27001|HIPAA)[^.]{0,40}(certified|compliant|attested|audited|accredited)/i,
+    );
+    expect(html).not.toMatch(
+      /(certified|compliant|attested|audited|accredited)[^.]{0,40}(SOC ?2|ISO ?27001|HIPAA)/i,
+    );
+    // And the position itself is on the page, so this cannot be satisfied by
+    // deleting the section instead.
+    expect(html).toMatch(/we hold none/i);
+    expect(html).toMatch(/No SOC 2/i);
   });
 
   it("links resolve to the real trust routes", () => {

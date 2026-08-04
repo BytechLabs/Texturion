@@ -7125,3 +7125,46 @@ gesture you can make by accident, a web undo follows a deliberate click, and
 A web client that is regularly closed mid-outage: a PWA installed on a laptop
 that sleeps, or the tab-close rate during a drop turning out to be high. Both
 are measurable. Neither is assumed.
+
+## D119 — we hold no security certification, and the trigger to seek one is a lost deal rather than a revenue number (#285, 2026-08-03)
+
+A buyer's security questionnaire asks "are you SOC 2?" early, and the answer
+today is no. That answer needs to be a POSITION rather than a silence — a
+founder who improvises it improvises it differently each time, and a buyer who
+has to ask twice has learned something about us that is worse than the answer.
+
+**The position.** Loonext holds no SOC 2, ISO 27001 or equivalent attestation,
+and is not pursuing one. `/security` lists what the product does today and says
+plainly that it lists nothing else; the accessibility statement
+(`docs/ACCESSIBILITY.md`) takes the same shape for the same reason.
+
+**Why not, at this stage.** A Type II attestation is an observation window plus
+an auditor, and both cost money this product does not yet have and attention it
+needs elsewhere. Buying one now would mean a certificate describing controls
+around a product still changing weekly — which is how an attestation becomes
+something a company defends rather than something it uses.
+
+The customers this product is for do not ask for it. A two-person plumbing
+outfit buys on whether their number keeps working. The question comes from the
+larger accounts we do not yet serve, and it arrives with the deal, not before.
+
+**What honesty requires in the meantime.** Not a certificate, but the artifacts
+a careful buyer actually reads: a vulnerability disclosure route
+(`/.well-known/security.txt`), a stated breach-notification timeline, a
+subprocessor list (#318), and a DPA. Those are commitments we can keep and
+check; a certification we do not hold is neither.
+
+### The trigger
+
+**A deal lost, or materially delayed, with the absence named as the reason.**
+One is a data point and starts a conversation; two is the trigger. Deliberately
+not a revenue threshold — revenue does not tell you who is asking, and this is
+a question about which market we are in rather than how big we are.
+
+Two secondary triggers, either alone sufficient: a carrier, payment processor
+or platform partner requiring it to keep an integration we depend on; or a
+regulatory change that makes it mandatory for messaging providers in the US or
+Canada.
+
+Until one fires, the honest answer to the questionnaire is the one above, given
+the same way every time.
