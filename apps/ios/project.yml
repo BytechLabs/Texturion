@@ -65,7 +65,7 @@ targets:
         # Two uses now, and the sheet is raised by whichever comes first — a
         # string naming only calls is wrong at the moment somebody holds the mic
         # to dictate a wrap-up (#507).
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Loonext uses the microphone for phone calls, and to write down the wrap-up you speak after one."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Loonext uses the microphone for phone calls, to write down the wrap-up you speak after one, and to record your voicemail greeting in your own voice."
         # Only asked for when the task map's My location button is tapped.
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Loonext shows where you are on the job map so you can see which jobs are nearby."
         # #459. Only asked for from the Contacts tab, where the section that

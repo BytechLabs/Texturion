@@ -50,6 +50,10 @@ struct CallingSectionView: View {
         }
         TextBackCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
         VoicemailCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
+        // #309: directly under the written greeting, because it answers
+        // the same question in a better way. The written one stays as the
+        // zero-setup default and the runtime fallback.
+        VoiceGreetingCard(scope: scope, canEdit: SettingsRoleGate.canEditWorkspace(scope.role))
         ScreeningCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
         CallerIdCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
         MinutesFooter(scope: scope)

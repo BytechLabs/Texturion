@@ -452,6 +452,22 @@ struct SettingsRepository: Sendable {
         try await api.get("/v1/numbers/\(numberId)/identity", companyId: companyId)
     }
 
+    // MARK: - #309 recorded voicemail greetings
+
+    /// What this workspace has recorded.
+    func voicemailGreetings(_ companyId: String) async throws -> [VoicemailGreeting] {
+        let page: Page<VoicemailGreeting> = try await api.get(
+            "/v1/voicemail-greetings",
+            companyId: companyId
+        )
+        return page.data
+    }
+
+    /// Delete one. Every line using it goes back to the written words.
+    func deleteGreeting(_ companyId: String, id: String) async throws {
+        try await api.delete("/v1/voicemail-greetings/\(id)", companyId: companyId)
+    }
+
     /// #307: set or CLEAR this line's overrides.
     ///
     /// A field carrying `.null` means INHERIT, so the body must SEND null
