@@ -26,6 +26,11 @@ const company: CompanyIdentity = {
   mctbEnabled: true,
   mctbMessage: "Sorry we missed your call.",
   voicemailGreetingId: null,
+  // #278: the workspace's after-hours routing, which every line inherits.
+  // 'ring_everyone' is the column default and is the product exactly as it
+  // behaved before #278 existed.
+  afterHoursCalls: "ring_everyone",
+  afterHoursGreetingId: null,
 };
 
 describe("#307 resolving a number's identity", () => {
