@@ -90,6 +90,14 @@ export async function guardedAutoSend(
      * still absolute: a contact who sent STOP hears nothing, ever.
      */
     answersEmergency?: boolean;
+    /**
+     * #228: this send IS the answer to a French request for help, so the
+     * suppression below must not silence it. `suppressesAutoReply` refuses AIDE
+     * precisely so the away message does not answer it; this is the message it
+     * was cleared out of the way FOR. Exactly one caller may set it
+     * (help-reply.ts). A STOP still silences everything.
+     */
+    answersHelp?: boolean;
     /** #414: per-company rolling-24h ceiling, emergency acknowledgment only. */
     dailyCap?: number;
   },
@@ -100,9 +108,10 @@ export async function guardedAutoSend(
   // back — "reply URGENT and we'll call you" — in answer to having replied
   // URGENT. A robot telling a person with a gas smell to wait until morning is
   // worse than saying nothing.
-  const suppressed = args.answersEmergency
-    ? isCarrierKeyword(args.triggerBody)
-    : suppressesAutoReply(args.triggerBody);
+  const suppressed =
+    args.answersEmergency || args.answersHelp
+      ? isCarrierKeyword(args.triggerBody)
+      : suppressesAutoReply(args.triggerBody);
   if (suppressed) {
     return { sent: false, reason: "carrier_keyword" };
   }

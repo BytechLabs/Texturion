@@ -18,6 +18,7 @@ import {
   START_KEYWORDS,
   STOP_KEYWORDS,
   isCarrierKeyword,
+  isFrenchHelpKeyword,
   isEmergencyKeyword,
   suppressesAutoReply,
 } from "./keywords";
@@ -110,14 +111,24 @@ describe("#228 — a French opt-out is honoured, and nothing behind us catches i
     expect(suppressesAutoReply("on se voit a l'arret de bus")).toBe(false);
   });
 
-  it("leaves AIDE out of the help set on purpose", () => {
-    // Adding it would look like the matching fix and would be worse. This set
-    // means "the carrier is answering, so we must not", and Telnyx answers AIDE
-    // no more than it answers ARRET - so a French speaker asking for help would
-    // get silence instead of the away message they get today. The fix is a
-    // French help reply, which is #228's copy work.
+  it("leaves AIDE out of the CARRIER help set, and answers it ourselves", () => {
+    // The two sets carry opposite instructions and AIDE is why they are
+    // separate. HELP_KEYWORDS means "the carrier is answering, so we must not";
+    // Telnyx answers AIDE no more than it answers ARRET, so membership there
+    // would suppress our reply to a message nothing else replies to.
     expect(HELP_KEYWORDS.has("AIDE")).toBe(false);
-    expect(suppressesAutoReply("AIDE")).toBe(false);
+    expect(isFrenchHelpKeyword("AIDE")).toBe(true);
+    expect(isFrenchHelpKeyword("  aide ")).toBe(true);
+
+    // It DOES suppress the ordinary auto-replies. Somebody asking how this
+    // works must not be answered with the after-hours message, and must not
+    // receive both that and the help reply.
+    expect(suppressesAutoReply("AIDE")).toBe(true);
+
+    // Exact match on the trimmed body, like every other keyword here. A
+    // customer writing "j'ai besoin d'aide avec la porte" is describing a job.
+    expect(isFrenchHelpKeyword("j'ai besoin d'aide")).toBe(false);
+    expect(suppressesAutoReply("j'ai besoin d'aide avec la porte")).toBe(false);
   });
 });
 

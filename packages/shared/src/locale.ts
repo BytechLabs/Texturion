@@ -113,6 +113,15 @@ export interface AutomatedCopy {
   emergencySafetyLine: string;
   /** Sent after a job is marked done. `{business_name}` is substituted. */
   ratingAsk: string;
+  /**
+   * Answer to a request for help. `{business_name}` is substituted.
+   *
+   * The English one is never sent by us - Telnyx answers HELP and INFO at the
+   * network before we see them. It exists so the two languages can be compared
+   * side by side, and so the French one is not the only definition of what this
+   * message says.
+   */
+  helpReply: string;
   /** Appended once per contact when sender identification is on. */
   identificationSuffix: string;
   /** The default reminder ladder. Offsets are the language-independent half. */
@@ -144,6 +153,13 @@ export const FR_CA_COPY: AutomatedCopy = {
   ratingAsk:
     "Merci d'avoir fait appel a {business_name}. Comment cela s'est-il passe? " +
     "Repondez avec un chiffre de 1 a 5 - 5 est excellent.",
+  // Names the business, says who is texting, and gives the way out. STOP
+  // rather than ARRET, for the reason in the header: STOP is what the
+  // network matches, and ARRET only works because we match it ourselves.
+  helpReply:
+    "Ici {business_name}. Repondez a ce message pour nous joindre. " +
+    "Des frais de messagerie peuvent s'appliquer. " +
+    "Repondez STOP pour ne plus rien recevoir.",
   // STOP stays English: it is the word the carrier listens for. See the header.
   identificationSuffix: " - {business_name}. Repondez STOP pour vous desabonner",
   appointmentReminders: [
@@ -177,6 +193,9 @@ export const EN_COPY: AutomatedCopy = {
   emergencyAck: DEFAULT_EMERGENCY_MESSAGE,
   emergencySafetyLine: EMERGENCY_SAFETY_LINE,
   ratingAsk: RATING_ASK_BODY,
+  helpReply:
+    "This is {business_name}. Reply to this message to reach us. " +
+    "Message and data rates may apply. Reply STOP to opt out.",
   identificationSuffix: IDENTIFICATION_SUFFIX_TEMPLATE,
   appointmentReminders: DEFAULT_REMINDER_RULES.map((rule) => ({
     offset_minutes: rule.offset_minutes,

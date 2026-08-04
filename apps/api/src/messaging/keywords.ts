@@ -51,19 +51,35 @@ export const START_KEYWORDS = new Set(["START", "UNSTOP", "YES"]);
 /**
  * AIDE IS DELIBERATELY ABSENT, and that is the interesting half.
  *
- * Adding it here would look like the matching fix and would make things worse.
- * Membership of this set means "the carrier is answering, so we must not", and
- * Telnyx does not answer AIDE any more than it answers ARRET. Adding it would
- * suppress our reply to a message the carrier also ignores, and a French
- * speaker asking for help would get silence instead of the away message they
- * get today.
+ * Membership of this set means "the carrier is answering, so we must not".
+ * Telnyx does not answer AIDE any more than it answers ARRET, so adding it here
+ * would suppress our reply to a message the carrier also ignores, and a French
+ * speaker asking for help would get silence.
  *
- * The real fix is a French help response, which belongs with the rest of #228's
- * fr-CA copy rather than as a one-line addition here. Opt-out is separable
- * because suppressing a send is the whole remedy; help is not, because the
- * remedy is a sentence nobody has written yet.
+ * It lives in {@link FRENCH_HELP_KEYWORDS} instead, which carries the opposite
+ * instruction: nobody else is answering, so we do.
  */
 export const HELP_KEYWORDS = new Set(["HELP", "INFO"]);
+
+/**
+ * #228 - the French request for help, which WE answer because nobody else does.
+ *
+ * Kept out of {@link HELP_KEYWORDS} deliberately, and the distinction is the
+ * whole reason this set exists. Membership of that one means "the carrier is
+ * answering, so we must not"; Telnyx answers AIDE no more than it answers
+ * ARRET, so putting it there would suppress our reply to a message nothing else
+ * replies to and leave a French speaker asking for help in silence.
+ *
+ * It DOES suppress the ordinary auto-replies (see {@link suppressesAutoReply}),
+ * because somebody asking how this works should not receive the after-hours
+ * message instead, and should certainly not receive both.
+ */
+export const FRENCH_HELP_KEYWORDS = new Set(["AIDE"]);
+
+/** True when the inbound body is exactly a French request for help. */
+export function isFrenchHelpKeyword(body: string): boolean {
+  return FRENCH_HELP_KEYWORDS.has(body.trim().toUpperCase());
+}
 
 /**
  * #414 — the emergency keywords live in `shared`, not here, because the
@@ -103,5 +119,8 @@ export function isCarrierKeyword(body: string): boolean {
  * to wait until morning is worse than saying nothing.
  */
 export function suppressesAutoReply(body: string): boolean {
-  return isCarrierKeyword(body) || isEmergencyKeyword(body);
+  // #228: AIDE is answered by `help-reply.ts` rather than by the carrier, so it
+  // belongs here even though it is not a carrier keyword. Without it a French
+  // speaker asking for help would get the help reply AND the away message.
+  return isCarrierKeyword(body) || isEmergencyKeyword(body) || isFrenchHelpKeyword(body);
 }

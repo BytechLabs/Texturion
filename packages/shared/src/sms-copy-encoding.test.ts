@@ -93,6 +93,7 @@ const AUTOMATED_BODIES: readonly [string, string][] = [
       [`${locale}.emergencyAck`, copy.emergencyAck],
       [`${locale}.ratingAsk`, copy.ratingAsk],
       [`${locale}.identificationSuffix`, copy.identificationSuffix],
+      [`${locale}.helpReply`, copy.helpReply],
       ...copy.appointmentReminders.map((rule) => [
         `${locale}.appointmentReminders[${rule.offset_minutes}m]`,
         rule.body,

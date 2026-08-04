@@ -34,6 +34,7 @@ import { insertConversationEvents } from "../routes/core/events";
 import { maybeSendAwayReply } from "./away-reply";
 import { maybeSendOffRamp } from "./off-ramp";
 import { sendEmergencyAcknowledgment } from "./emergency-ack";
+import { sendHelpReply } from "./help-reply";
 import {
   budgetAlertCopy,
   budgetCrossings,
@@ -42,6 +43,7 @@ import {
 import {
   effectiveEmergencyKeywords,
   isEmergencyKeyword,
+  isFrenchHelpKeyword,
   START_KEYWORDS,
   STOP_KEYWORDS,
 } from "./keywords";
@@ -194,7 +196,7 @@ export async function handleInboundMessage(
         // structurally different time-to-value). All three ride the lookup this
         // path already makes, so activation costs no extra round trip either.
         "emergency_keyword_enabled,emergency_keywords,emergency_message," +
-        "first_inbound_reply_at,country,us_texting_enabled,locale," +
+        "first_inbound_reply_at,country,us_texting_enabled,locale,name," +
         // #481: the off-ramp only ever applies to a workspace on its way
         // out, and this is the hottest path in the product. Riding the
         // lookup that already runs means a PAYING workspace costs nothing
@@ -225,6 +227,8 @@ export async function handleInboundMessage(
           us_texting_enabled?: boolean | null;
           /** #228: the language the business works in. */
           locale?: string | null;
+          /** #228: named in the French help reply, so it is not from a stranger. */
+          name?: string | null;
           subscription_status?: string | null;
         } | null;
       }
@@ -486,6 +490,27 @@ export async function handleInboundMessage(
     } catch (cause) {
       console.error(
         `emergency acknowledgment for conversation ${threaded.conversation_id} failed:`,
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    }
+  }
+
+  // #228: a French request for help, which the carrier does not answer. Beside
+  // the emergency acknowledgment because it is the same shape - a keyword the
+  // product must answer itself - and gated on `threaded.created` for the same
+  // reason: a webhook redelivery must not answer twice.
+  if (threaded.created && isFrenchHelpKeyword(payload.text ?? "")) {
+    try {
+      await sendHelpReply(env, db, {
+        companyId: number.company_id,
+        conversationId: threaded.conversation_id,
+        fromE164,
+        triggerBody: payload.text ?? "",
+        businessName: number.companies?.name ?? null,
+      });
+    } catch (cause) {
+      console.error(
+        `help reply for conversation ${threaded.conversation_id} failed:`,
         cause instanceof Error ? cause.message : String(cause),
       );
     }
