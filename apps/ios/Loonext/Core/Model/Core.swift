@@ -451,6 +451,8 @@ struct NumberIdentity: Codable, Sendable {
     var mctb_message = ResolvedField()
     var timezone = ResolvedField()
     var business_hours = ResolvedHours()
+    /// #309: which RECORDING plays. Null is the written words, read aloud.
+    var voicemail_greeting_id = ResolvedField()
 }
 
 /// The week, resolved.

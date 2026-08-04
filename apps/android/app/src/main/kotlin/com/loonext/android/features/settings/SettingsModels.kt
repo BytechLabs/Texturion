@@ -389,6 +389,8 @@ data class NumberIdentity(
     val mctb_message: ResolvedField = ResolvedField(),
     val timezone: ResolvedField = ResolvedField(),
     val business_hours: ResolvedHours = ResolvedHours(),
+    /** #309: which RECORDING plays. Null is the written words, read aloud. */
+    val voicemail_greeting_id: ResolvedField = ResolvedField(),
 )
 
 /**

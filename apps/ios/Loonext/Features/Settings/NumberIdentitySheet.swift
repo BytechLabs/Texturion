@@ -34,6 +34,10 @@ struct NumberIdentitySheet: View {
     @State private var mctbMessage = ""
     @State private var mctbEnabled = false
     @State private var pending = false
+    /// #309: only to put NAMES on the id the identity already carries. An empty
+    /// list is every workspace until somebody records something, and it hides
+    /// the picker entirely.
+    @State private var greetings: [VoicemailGreeting] = []
     @State private var error: String?
 
     var body: some View {
@@ -61,6 +65,9 @@ struct NumberIdentitySheet: View {
                             .buttonStyle(.bordered)
                             .padding(.top, 8)
                     case .ready(let identity):
+                        if !greetings.isEmpty {
+                            greetingPicker(identity)
+                        }
                         field(
                             title: "Name for this line",
                             hint: "Used in the greeting, on missed-call texts, and "
@@ -123,6 +130,12 @@ struct NumberIdentitySheet: View {
         }
         .presentationDetents([.large])
         .interactiveDismissDisabled(pending)
+        .task(id: scope.companyId) {
+            // A greeting list that will not load hides the picker rather than
+            // failing the sheet: the other five fields are still editable, and
+            // this one has a safe default already in force.
+            greetings = (try? await scope.repo.voicemailGreetings(scope.companyId)) ?? []
+        }
         .task(id: "\(number.id)|\(retryKey)") {
             loaded = .loading
             do {
@@ -213,6 +226,75 @@ struct NumberIdentitySheet: View {
         .padding(.top, 14)
     }
 
+    /// #309 — which voice, before which words.
+    ///
+    /// The written-words row is FIRST and is what shows when nothing is
+    /// chosen: it is the only option guaranteed to exist, it is what every
+    /// line does until somebody chooses otherwise, and it is what the runtime
+    /// falls back to anyway when a recording will not play.
+    @ViewBuilder
+    private func greetingPicker(_ identity: NumberIdentity) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Voicemail voice").font(.subheadline.weight(.medium))
+                Spacer()
+                if identity.voicemail_greeting_id.inherited {
+                    Text("Same as your workspace")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button("Use the workspace's") { restore("voicemail_greeting_id") }
+                        .font(.caption)
+                        .disabled(pending)
+                }
+            }
+            Picker(
+                "Voicemail voice",
+                selection: Binding(
+                    get: { identity.voicemail_greeting_id.value ?? writtenGreetingId },
+                    set: { selectGreeting($0 == writtenGreetingId ? nil : $0) }
+                )
+            ) {
+                Text("The written greeting, read aloud").tag(writtenGreetingId)
+                ForEach(greetings) { row in
+                    Text(row.name).tag(row.id)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .disabled(pending)
+            Text(
+                "A recording that will not play falls back to the words below, "
+                    + "so a caller never hears silence."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.top, 14)
+    }
+
+    /// Choose a recording, or null for the written words.
+    private func selectGreeting(_ id: String?) {
+        Task { @MainActor in
+            pending = true
+            error = nil
+            defer { pending = false }
+            do {
+                let next = try await scope.repo.setNumberIdentity(
+                    scope.companyId,
+                    numberId: number.id,
+                    body: .object([
+                        "voicemail_greeting_id": id.map { JSONValue.string($0) } ?? .null
+                    ])
+                )
+                seed(next)
+                loaded = .ready(next)
+            } catch {
+                self.error = error.userMessage
+            }
+        }
+    }
+
     private var isReady: Bool {
         if case .ready = loaded { return true }
         return false
@@ -297,3 +379,13 @@ struct NumberIdentitySheet: View {
         }
     }
 }
+
+/**
+ The picker's stand-in for "no recording".
+
+ A SwiftUI `Picker` selects a non-optional tag, so the written-words row needs
+ an id of its own. It is translated back to null on the way out, which is what
+ the column means — and it is worded as the outcome rather than "None", because
+ a caller still hears a greeting either way.
+ */
+private let writtenGreetingId = "__written__"

@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -68,6 +70,11 @@ internal fun NumberIdentityDialog(
     var mctbMessage by remember { mutableStateOf("") }
     var mctbEnabled by remember { mutableStateOf(false) }
     var pending by remember { mutableStateOf(false) }
+    // #309: only to put NAMES on the id the identity already carries. An empty
+    // list is every workspace until somebody records something, and it hides
+    // the picker entirely.
+    var greetings by remember { mutableStateOf(emptyList<VoicemailGreeting>()) }
+    var greetingMenuOpen by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
 
@@ -82,6 +89,17 @@ internal fun NumberIdentityDialog(
         mctbEnabled = identity.mctb_enabled.value
     }
 
+    LaunchedEffect(scope.companyId) {
+        greetings = try {
+            scope.repo.voicemailGreetings(scope.companyId)
+        } catch (_: Exception) {
+            // A greeting list that will not load hides the picker rather than
+            // failing the dialog: the other five fields are still editable, and
+            // this one has a safe default already in force.
+            emptyList()
+        }
+    }
+
     LaunchedEffect(number.id) {
         loaded = LoadState.Loading
         loaded = try {
@@ -90,6 +108,34 @@ internal fun NumberIdentityDialog(
             LoadState.Ready(identity)
         } catch (cause: Exception) {
             LoadState.Failed(cause.userMessage())
+        }
+    }
+
+    /** #309: choose a recording, or null for the written words. */
+    fun selectGreeting(id: String?) {
+        coroutines.launch {
+            pending = true
+            error = null
+            try {
+                val next = scope.repo.setNumberIdentity(
+                    scope.companyId,
+                    number.id,
+                    buildJsonObject {
+                        if (id == null) {
+                            put("voicemail_greeting_id", JsonNull)
+                        } else {
+                            put("voicemail_greeting_id", id)
+                        }
+                    },
+                )
+                seed(next)
+                loaded = LoadState.Ready(next)
+                onChanged()
+            } catch (cause: Exception) {
+                error = cause.userMessage()
+            } finally {
+                pending = false
+            }
         }
     }
 
@@ -164,6 +210,75 @@ internal fun NumberIdentityDialog(
                     )
 
                     is LoadState.Ready -> {
+                        if (greetings.isNotEmpty()) {
+                            val selectedId = state.value.voicemail_greeting_id.value
+                            val selectedName = greetings
+                                .firstOrNull { it.id == selectedId }?.name
+                                ?: WRITTEN_GREETING_LABEL
+                            Row(
+                                Modifier.fillMaxWidth().padding(top = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    "Voicemail voice",
+                                    style = MaterialTheme.typography.labelLarge,
+                                )
+                                Spacer(Modifier.weight(1f))
+                                if (state.value.voicemail_greeting_id.inherited) {
+                                    Text(
+                                        "Same as your workspace",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                } else {
+                                    TextButton(
+                                        enabled = !pending,
+                                        onClick = { clear("voicemail_greeting_id") },
+                                    ) {
+                                        Text(
+                                            "Use the workspace's",
+                                            style = MaterialTheme.typography.bodySmall,
+                                        )
+                                    }
+                                }
+                            }
+                            TextButton(
+                                enabled = !pending,
+                                onClick = { greetingMenuOpen = true },
+                            ) { Text(selectedName) }
+                            DropdownMenu(
+                                expanded = greetingMenuOpen,
+                                onDismissRequest = { greetingMenuOpen = false },
+                            ) {
+                                // The written words FIRST: the only option
+                                // guaranteed to exist, what every line does
+                                // until somebody chooses otherwise, and what
+                                // the runtime falls back to anyway.
+                                DropdownMenuItem(
+                                    text = { Text(WRITTEN_GREETING_LABEL) },
+                                    onClick = {
+                                        greetingMenuOpen = false
+                                        selectGreeting(null)
+                                    },
+                                )
+                                greetings.forEach { row ->
+                                    DropdownMenuItem(
+                                        text = { Text(row.name) },
+                                        onClick = {
+                                            greetingMenuOpen = false
+                                            selectGreeting(row.id)
+                                        },
+                                    )
+                                }
+                            }
+                            Text(
+                                "A recording that will not play falls back to the " +
+                                    "words below, so a caller never hears silence.",
+                                modifier = Modifier.padding(top = 4.dp),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                         IdentityField(
                             title = "Name for this line",
                             hint = "Used in the greeting, on missed-call texts, and " +
@@ -348,3 +463,11 @@ private fun IdentityToggle(
         )
     }
 }
+
+/**
+ * What a line plays when no recording is chosen.
+ *
+ * Worded as the outcome rather than as "None": a caller still hears a greeting,
+ * spoken aloud from the written words, and "None" would suggest silence.
+ */
+private const val WRITTEN_GREETING_LABEL = "The written greeting, read aloud"
