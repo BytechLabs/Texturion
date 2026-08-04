@@ -30,7 +30,10 @@ const COMPANY_GREETING = "You have reached Reed Roofing.";
  * The reads `loadInitiatedContext` makes, with the number row's overrides
  * under test. Everything else is the minimum that lets it reach the return.
  */
-function world(overrides: { label: string | null; voicemail_greeting: string | null }) {
+function world(
+  overrides: { label: string | null; voicemail_greeting: string | null },
+  companyGreeting: string | null = COMPANY_GREETING,
+) {
   return stubRoute(
     () => true,
     // `respond` receives the recorded StubCall, not a URL — reading
@@ -48,7 +51,7 @@ function world(overrides: { label: string | null; voicemail_greeting: string | n
           {
             id: COMPANY_ID,
             name: "Reed Roofing",
-            voicemail_greeting: COMPANY_GREETING,
+            voicemail_greeting: companyGreeting,
             call_screening: "off",
             subscription_status: "active",
           },
@@ -60,11 +63,11 @@ function world(overrides: { label: string | null; voicemail_greeting: string | n
   );
 }
 
-async function identityFor(overrides: {
-  label: string | null;
-  voicemail_greeting: string | null;
-}) {
-  const routes = world(overrides);
+async function identityFor(
+  overrides: { label: string | null; voicemail_greeting: string | null },
+  companyGreeting: string | null = COMPANY_GREETING,
+) {
+  const routes = world(overrides, companyGreeting);
   stubFetch(routes.route);
   const rt = createSessionRuntime(env);
   return rt.loadInitiatedContext({
@@ -147,5 +150,22 @@ describe("#307 the caller meets the LINE's identity", () => {
     const select = numberRead!.url.searchParams.get("select") ?? "";
     expect(select).toContain("label");
     expect(select).toContain("voicemail_greeting");
+  });
+
+  it("RI-6: with no greeting anywhere, the SPOKEN default names the line", async () => {
+    // `sanitizeGreeting` falls back to `defaultGreeting(companyName)`, and
+    // companyName is the resolved label — so a workspace that never wrote a
+    // greeting still answers its sales line as the sales line. This is the
+    // path most workspaces are actually on, and it was the one case the other
+    // five did not cover: every one of them had a company greeting to inherit.
+    const ctx = await identityFor(
+      { label: "Reed Roofing Sales", voicemail_greeting: null },
+      null,
+    );
+    if (typeof ctx === "string") throw new Error(`expected a context, got ${ctx}`);
+
+    expect(ctx.greeting).toBeNull();
+    // The name the runtime will speak, since the greeting itself is absent.
+    expect(ctx.companyName).toBe("Reed Roofing Sales");
   });
 });
