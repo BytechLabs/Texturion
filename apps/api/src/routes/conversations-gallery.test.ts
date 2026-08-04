@@ -395,3 +395,122 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
     expect(sb.find("POST", /^\/storage\//)).toHaveLength(0);
   });
 });
+
+/**
+ * #240 — a gallery is a wall of thumbnails, and fetching a 25 MB original for
+ * each one was the single worst egress shape in the product.
+ */
+describe("the gallery serves derivatives", () => {
+  it("signs the preview, charges for the preview, and keeps size_bytes honest", async () => {
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/message_attachments", () => []);
+    sb.on("GET", "/rest/v1/attachments", () => [
+      {
+        id: "40000000-0000-4000-8000-000000000004",
+        owner_type: "note",
+        storage_path: `${COMPANY_ID}/note/n1/uuid-roof.jpg`,
+        preview_path: `${COMPANY_ID}/note/n1/preview-uuid-roof.jpg`,
+        preview_bytes: 184320,
+        file_name: "roof.jpg",
+        content_type: "image/jpeg",
+        size_bytes: 20971520,
+        created_at: "2026-07-02T11:00:00+00:00",
+      },
+    ]);
+    stubSigning(sb);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/attachments`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { url: string; variant: string; size_bytes: number }[];
+    };
+    expect(body.data[0].variant).toBe("preview");
+    expect(body.data[0].url).toContain("preview-uuid-roof.jpg");
+    // `size_bytes` stays the ORIGINAL's. It is what a "20 MB" label means and
+    // what a download will cost — a grid that reported 180 KB would be lying
+    // about the file, not about the thumbnail.
+    expect(body.data[0].size_bytes).toBe(20971520);
+
+    // And the page claimed what it served, not what the row weighs.
+    const claim = sb.find(
+      "POST",
+      "/rest/v1/rpc/claim_signed_url_egress_objects",
+    )[0];
+    expect(claim.body).toMatchObject({
+      p_objects: [
+        {
+          key: `attachments/${COMPANY_ID}/note/n1/preview-uuid-roof.jpg`,
+          bytes: 184320,
+        },
+      ],
+    });
+  });
+
+  it("falls back to the original for a row with no preview", async () => {
+    // Everything uploaded before this shipped, plus every PDF and document —
+    // which never get one, because a file row is not a picture.
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/message_attachments", () => []);
+    sb.on("GET", "/rest/v1/attachments", () => [
+      {
+        id: "50000000-0000-4000-8000-000000000005",
+        owner_type: "task",
+        storage_path: `${COMPANY_ID}/task/t1/uuid-quote.pdf`,
+        file_name: "quote.pdf",
+        content_type: "application/pdf",
+        size_bytes: 8192,
+        created_at: "2026-07-02T11:00:00+00:00",
+      },
+    ]);
+    stubSigning(sb);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/attachments`,
+      { companyId: COMPANY_ID },
+    );
+    const body = (await res.json()) as {
+      data: { url: string; variant: string }[];
+    };
+    expect(body.data[0].variant).toBe("original");
+    expect(body.data[0].url).toContain("uuid-quote.pdf");
+  });
+
+  it("says `original` for MMS media, which has no derivative", async () => {
+    // Every inbound item is ≤1 MB by carrier limit (D28): the original IS the
+    // bounded preview, and a second object would save a fraction of a fraction.
+    const sb = memberStub();
+    sb.on("GET", "/rest/v1/message_attachments", () => [
+      {
+        id: "60000000-0000-4000-8000-000000000006",
+        storage_path: `mms-media/${COMPANY_ID}/msg-1/0`,
+        content_type: "image/jpeg",
+        size_bytes: 900000,
+        created_at: "2026-07-02T09:00:00+00:00",
+      },
+    ]);
+    sb.on("GET", "/rest/v1/attachments", () => []);
+    stubSigning(sb);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/conversations/${CONV_ID}/attachments`,
+      { companyId: COMPANY_ID },
+    );
+    const body = (await res.json()) as { data: { variant: string }[] };
+    expect(body.data[0].variant).toBe("original");
+  });
+});

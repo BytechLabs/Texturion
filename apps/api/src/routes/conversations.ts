@@ -2048,6 +2048,16 @@ interface GalleryRow {
   /** Storage bucket + object key so the API mints the signed URL (never leaked). */
   bucket: string;
   objectPath: string;
+  /**
+   * #240: the object this grid actually renders, and its size.
+   *
+   * A gallery is a wall of thumbnails; fetching a 25 MB original for each one
+   * was the single worst egress shape in the product. `objectPath` stays the
+   * ORIGINAL — it is what `size_bytes` describes and what a download wants —
+   * and these two carry what gets signed.
+   */
+  renderPath: string;
+  renderBytes: number | null;
 }
 
 /** `kind` drives the Images | Files client-side tabs (T7.3). */
@@ -2150,6 +2160,8 @@ conversationsRoutes.get(
       id: string;
       owner_type: "note" | "task";
       storage_path: string;
+      preview_path: string | null;
+      preview_bytes: number | null;
       file_name: string | null;
       content_type: string | null;
       size_bytes: number | null;
@@ -2158,7 +2170,7 @@ conversationsRoutes.get(
     let genericQuery = db
       .from("attachments")
       .select(
-        "id,owner_type,storage_path,file_name,content_type,size_bytes,created_at",
+        "id,owner_type,storage_path,preview_path,preview_bytes,file_name,content_type,size_bytes,created_at",
       )
       .eq("company_id", companyId)
       .eq("conversation_id", id)
@@ -2185,6 +2197,11 @@ conversationsRoutes.get(
         created_at: row.created_at,
         bucket: MMS_BUCKET,
         objectPath: row.storage_path.replace(/^mms-media\//, ""),
+        // #240: MMS media has no derivative and does not need one — every
+        // inbound item is ≤1 MB by carrier limit (D28). The original IS the
+        // bounded preview here.
+        renderPath: row.storage_path.replace(/^mms-media\//, ""),
+        renderBytes: row.size_bytes,
       })),
       ...genericRows.map((row) => ({
         id: row.id,
@@ -2195,6 +2212,10 @@ conversationsRoutes.get(
         created_at: row.created_at,
         bucket: ATTACHMENTS_BUCKET,
         objectPath: row.storage_path,
+        // #240: the preview when there is one; the original otherwise, which
+        // is what every row did before this shipped.
+        renderPath: row.preview_path ?? row.storage_path,
+        renderBytes: row.preview_path ? row.preview_bytes : row.size_bytes,
       })),
     ];
 
@@ -2222,10 +2243,13 @@ conversationsRoutes.get(
     await assertEgressWithinAllowance(
       db,
       companyId,
+      // #240: claim what is actually SERVED. Charging the original's size for
+      // a 200 KB preview would spend a workspace's allowance on bytes that
+      // never left — the opposite of what serving derivatives is for.
       pageRows.map((row) => ({
         bucket: row.bucket,
-        path: row.objectPath,
-        sizeBytes: row.size_bytes,
+        path: row.renderPath,
+        sizeBytes: row.renderBytes,
       })),
       MMS_SIGNED_URL_TTL_SECONDS,
     );
@@ -2243,10 +2267,10 @@ conversationsRoutes.get(
         // like it does on the single-attachment route.
         const { data: signed, error } = await db.storage
           .from(row.bucket)
-          .createSignedUrl(row.objectPath, ttl, dispositionOptions(row.content_type));
+          .createSignedUrl(row.renderPath, ttl, dispositionOptions(row.content_type));
         if (error || !signed?.signedUrl) {
           throw new Error(
-            `gallery signed URL failed (${row.bucket}/${row.objectPath}): ${error?.message ?? "no URL"}`,
+            `gallery signed URL failed (${row.bucket}/${row.renderPath}): ${error?.message ?? "no URL"}`,
           );
         }
         return {
@@ -2258,6 +2282,11 @@ conversationsRoutes.get(
           size_bytes: row.size_bytes,
           created_at: row.created_at,
           url: signed.signedUrl,
+          // #240: which object this URL points at. `size_bytes` stays the
+          // ORIGINAL's — it is what a "12.4 MB" label means and what a download
+          // will cost — so a client opening a lightbox needs this to know the
+          // grid's URL is not the full-size bytes.
+          variant: row.renderPath === row.objectPath ? "original" : "preview",
         };
       }),
     );

@@ -143,6 +143,7 @@ const SUITES = [
   "ring_strategy",
   "lead_sources",
   "member_orientation",
+  "attachment_previews",
 
 ];
 

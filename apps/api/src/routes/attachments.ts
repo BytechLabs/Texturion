@@ -45,6 +45,11 @@ import {
   assertEgressWithinAllowance,
   assertMintRateWithinLimit,
 } from "../attachments/egress";
+import {
+  MAX_PREVIEW_BYTES,
+  assertUsablePreview,
+  previewStoragePath,
+} from "../attachments/preview";
 import { scanAttachment } from "../attachments/scan";
 import { requireCapability } from "../auth/company";
 import {
@@ -83,7 +88,10 @@ const MMS_TTL_SECONDS = 3600;
 // multipart overhead. Checked from Content-Length BEFORE formData() buffers
 // the body (SPEC §10 DoS posture); the per-file byte check below remains the
 // authoritative gate.
-const MAX_UPLOAD_BODY_BYTES = MAX_ATTACHMENT_BYTES + 1024 * 1024;
+// #240: the preview rides the same multipart body, so the envelope has to
+// have room for it on top of the original and the form's own overhead.
+const MAX_UPLOAD_BODY_BYTES =
+  MAX_ATTACHMENT_BYTES + MAX_PREVIEW_BYTES + 1024 * 1024;
 
 /** Columns the generic attachment row API returns (never storage_path). */
 const ATTACHMENT_COLUMNS =
@@ -478,6 +486,26 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
     throw new ApiError("validation_failed", `file: ${scan.message}`);
   }
 
+  // #240: the bounded preview the uploader generated, if it sent one.
+  //
+  // Validated BEFORE the CLAIM, not merely before the upload: the claim
+  // inserts the row, so a 422 raised after it would leave a ghost — a row
+  // holding accounting for bytes that never landed, waiting on the #15 sweep.
+  // A bad preview costs a 422 and nothing else. It is a
+  // client-supplied file and gets every gate the original got — see
+  // attachments/preview.ts for why "it is just the same image, smaller" is not
+  // something this Worker can know.
+  const previewField = form.get("preview");
+  let preview: { bytes: Uint8Array; contentType: string } | null = null;
+  if (previewField !== null && typeof previewField !== "string") {
+    const previewBlob = previewField as File;
+    preview = {
+      bytes: new Uint8Array(await previewBlob.arrayBuffer()),
+      contentType: previewBlob.type || "application/octet-stream",
+    };
+    assertUsablePreview(preview, { sizeBytes: bytes.byteLength });
+  }
+
   const objectPath = attachmentStoragePath({
     companyId,
     ownerType,
@@ -542,6 +570,45 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
     }
     throw new Error(`attachment upload failed (${objectPath}): ${upload.error.message}`);
   }
+  // #240: the preview lands second and is allowed to fail.
+  //
+  // The original is the file; the preview is a way of serving it cheaply. A
+  // storage hiccup on the derivative must not cost somebody the upload they
+  // actually made, so a failure here leaves `preview_path` null and the row
+  // serves its original — which is exactly what every row did before this
+  // shipped. The object is swept as an orphan if it half-landed.
+  let previewPath: string | null = null;
+  if (preview) {
+    const target = previewStoragePath(objectPath);
+    const previewUpload = await db.storage
+      .from(ATTACHMENTS_BUCKET)
+      .upload(target, preview.bytes.slice().buffer, {
+        contentType: preview.contentType,
+        upsert: false,
+      });
+    if (previewUpload.error) {
+      console.error(
+        `attachment preview upload failed (${target}): ${previewUpload.error.message}`,
+      );
+    } else {
+      const stamp = await db
+        .from("attachments")
+        .update({
+          preview_path: target,
+          preview_bytes: preview.bytes.byteLength,
+        })
+        .eq("company_id", companyId)
+        .eq("id", claim.attachment.id as string);
+      if (stamp.error) {
+        console.error(
+          `attachment preview stamp failed (${target}): ${stamp.error.message}`,
+        );
+      } else {
+        previewPath = target;
+      }
+    }
+  }
+
   // The RPC returns the FULL row (to_jsonb) — project to the API shape so
   // storage_path (and other internal columns) never leak in the response.
   const full = claim.attachment;
@@ -554,6 +621,10 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
     content_type: full.content_type,
     size_bytes: full.size_bytes,
     created_at: full.created_at,
+    // #240: whether a preview exists, never where it lives — the path is an
+    // internal column like storage_path, and the client's only question is
+    // which variant to ask the /url route for.
+    has_preview: previewPath !== null,
   } as Record<string, unknown>;
 
   // D22: attachment lifecycle audited on the owner's conversation. Upload is
@@ -718,11 +789,26 @@ attachmentsRoutes.get(
     // #261: bound the mint RATE before doing any work for it.
     await assertMintRateWithinLimit(env, companyId, c.get("userId"));
 
+    // #240: which of a row's two objects to sign.
+    //
+    // The DEFAULT is the preview, and that is the whole point — a thread and a
+    // gallery are the callers that render a hundred of these and neither needs
+    // the original. `?variant=original` is what a full-size view or a download
+    // asks for, so serving the expensive one is a deliberate act by a caller
+    // that knows it wants the file rather than a picture of it.
+    //
+    // Defaulting the other way would have been the safer-looking choice and the
+    // wrong one: every existing client would have kept fetching originals and
+    // the feature would have shipped inert.
+    const wantsOriginal = c.req.query("variant") === "original";
+
     // Generic (note/task) arm first — the D19 table. Only live rows.
     const generic = unwrap<
       {
         storage_path: string;
         size_bytes: number | null;
+        preview_path: string | null;
+        preview_bytes: number | null;
         conversation_id: string | null;
         content_type: string | null;
         quarantined_at: string | null;
@@ -730,7 +816,9 @@ attachmentsRoutes.get(
     >(
       await db
         .from("attachments")
-        .select("storage_path,size_bytes,conversation_id,content_type,quarantined_at")
+        .select(
+          "storage_path,size_bytes,preview_path,preview_bytes,conversation_id,content_type,quarantined_at",
+        )
         .eq("company_id", companyId)
         .eq("id", id)
         .is("deleted_at", null)
@@ -746,6 +834,23 @@ attachmentsRoutes.get(
       // #106: gate the mint on access to the owning conversation's number —
       // a signed URL is the whole payload, so a hidden number must 404 here.
       await assertConversationVisible(db, c, generic[0].conversation_id);
+      // #240: a row with no preview serves its original, which is what every
+      // row did before this shipped — nothing uploaded earlier, and nothing
+      // uploaded by a client that does not make one, stops working.
+      //
+      // `?? null` rather than a bare `!== null`: PostgREST omits a column
+      // entirely when it has nothing to say about it, so the row arrives with
+      // `preview_path` UNDEFINED rather than null — and `undefined !== null` is
+      // true, which would sign the string "undefined" as an object key.
+      const previewPath = generic[0].preview_path ?? null;
+      const servePreview = !wantsOriginal && previewPath !== null;
+      const servedPath = servePreview ? previewPath : generic[0].storage_path;
+      // The egress claim charges what is actually SERVED. Claiming the
+      // original's size for a 200 KB preview would spend a workspace's
+      // allowance on bytes that never left, which is the opposite of the point.
+      const servedBytes = servePreview
+        ? (generic[0].preview_bytes ?? null)
+        : generic[0].size_bytes;
       // #16: claim the egress BEFORE signing — over the allowance, no URL.
       await assertEgressWithinAllowance(
         db,
@@ -753,21 +858,24 @@ attachmentsRoutes.get(
         [
           {
             bucket: ATTACHMENTS_BUCKET,
-            path: generic[0].storage_path,
-            sizeBytes: generic[0].size_bytes,
+            path: servedPath,
+            sizeBytes: servedBytes,
           },
         ],
         ATTACHMENT_SIGNED_URL_TTL_SECONDS,
       );
-      return c.json(
-        await signObject(
+      return c.json({
+        ...(await signObject(
           db,
           ATTACHMENTS_BUCKET,
-          generic[0].storage_path,
+          servedPath,
           ATTACHMENT_SIGNED_URL_TTL_SECONDS,
           generic[0].content_type,
-        ),
-      );
+        )),
+        // Said out loud so a client rendering a lightbox knows whether it is
+        // already holding the full-size bytes or needs a second mint.
+        variant: servePreview ? "preview" : "original",
+      });
     }
 
     // Fall back to the MMS arm (message_attachments / mms-media) — kept intact.
@@ -807,15 +915,21 @@ attachmentsRoutes.get(
         [{ bucket: MMS_BUCKET, path: objectPath, sizeBytes: mms[0].size_bytes }],
         MMS_TTL_SECONDS,
       );
-      return c.json(
-        await signObject(
+      // #240: MMS media has no derivative and does not need one. Every
+      // inbound item is already ≤1 MB by carrier limit (D28), which is the
+      // founder's own re-derivation on the issue: at that size a second object
+      // saves a fraction of a fraction and costs a column, an upload and a
+      // sweep rule. The original IS the bounded preview here.
+      return c.json({
+        ...(await signObject(
           db,
           MMS_BUCKET,
           objectPath,
           MMS_TTL_SECONDS,
           mms[0].content_type,
-        ),
-      );
+        )),
+        variant: "original",
+      });
     }
 
     return errorResponse(c, "not_found", "No such attachment.");

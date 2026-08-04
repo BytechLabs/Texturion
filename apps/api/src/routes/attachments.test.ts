@@ -197,6 +197,161 @@ describe("GET /v1/attachments/:id/url", () => {
   });
 
   /**
+   * #240 — a thread renders a picture of the file, not the file.
+   *
+   * A note attachment is 25 MB and ten per note (D19 §2.4). Serving those to
+   * every member on every scroll is the single worst egress shape in the
+   * product, and it is the tech's own mobile data too (#289).
+   */
+  describe("which of a row's two objects gets signed", () => {
+    const ORIGINAL = `${COMPANY_ID}/note/${TASK_ID}/uuid-roof.jpg`;
+    const PREVIEW = `${COMPANY_ID}/note/${TASK_ID}/preview-uuid-roof.jpg`;
+
+    function rowWithPreview(sb: SupabaseStub) {
+      sb.on("GET", "/rest/v1/attachments", () => [
+        {
+          storage_path: ORIGINAL,
+          size_bytes: 20971520,
+          preview_path: PREVIEW,
+          preview_bytes: 184320,
+          content_type: "image/jpeg",
+        },
+      ]);
+      egressStubs(sb);
+      sb.on("POST", /^\/storage\/v1\/object\/sign\//, () => ({
+        signedURL: "/object/sign/attachments/x?token=sig",
+      }));
+    }
+
+    async function mint(sb: SupabaseStub, query = "") {
+      stubFetch(jwksRoute(auth), sb.route);
+      return apiRequest(
+        app,
+        env,
+        await auth.token(),
+        `/v1/attachments/${ATTACHMENT_ID}/url${query}`,
+        { companyId: COMPANY_ID },
+      );
+    }
+
+    it("serves the preview by DEFAULT", async () => {
+      // The default is the whole feature. Defaulting the other way would have
+      // been the safer-looking choice and would have shipped it inert: every
+      // existing client asks this route with no query at all.
+      const sb = stubWithRole("member");
+      rowWithPreview(sb);
+      const res = await mint(sb);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ variant: "preview" });
+      expect(sb.find("POST", /^\/storage\/v1\/object\/sign\//)[0].path).toBe(
+        `/storage/v1/object/sign/attachments/${PREVIEW}`,
+      );
+    });
+
+    it("charges egress for the bytes it actually serves", async () => {
+      // Claiming the original's 20 MB for a 180 KB preview would spend a
+      // workspace's allowance on bytes that never left — the exact opposite of
+      // what serving derivatives is for, and invisible unless asserted.
+      const sb = stubWithRole("member");
+      rowWithPreview(sb);
+      await mint(sb);
+      const claim = sb.find(
+        "POST",
+        "/rest/v1/rpc/claim_signed_url_egress_objects",
+      )[0];
+      expect(claim.body).toMatchObject({
+        p_objects: [{ key: `attachments/${PREVIEW}`, bytes: 184320 }],
+      });
+    });
+
+    it("serves the original when the caller explicitly asks", async () => {
+      // A full-size view and a download both want the file itself. Making that
+      // a deliberate act is what keeps the cheap path the common one.
+      const sb = stubWithRole("member");
+      rowWithPreview(sb);
+      const res = await mint(sb, "?variant=original");
+      expect(await res.json()).toMatchObject({ variant: "original" });
+      expect(sb.find("POST", /^\/storage\/v1\/object\/sign\//)[0].path).toBe(
+        `/storage/v1/object/sign/attachments/${ORIGINAL}`,
+      );
+      const claim = sb.find(
+        "POST",
+        "/rest/v1/rpc/claim_signed_url_egress_objects",
+      )[0];
+      expect(claim.body).toMatchObject({
+        p_objects: [{ key: `attachments/${ORIGINAL}`, bytes: 20971520 }],
+      });
+    });
+
+    it("serves the original for a row that has no preview", async () => {
+      // Every attachment uploaded before this shipped, and anything sent by a
+      // client that does not make one. PostgREST omits a column it has nothing
+      // to say about, so the row arrives with the field UNDEFINED — and
+      // `undefined !== null` is true, which would sign the string "undefined"
+      // as an object key.
+      const sb = stubWithRole("member");
+      sb.on("GET", "/rest/v1/attachments", () => [
+        { storage_path: ORIGINAL, size_bytes: 20971520, content_type: "image/jpeg" },
+      ]);
+      egressStubs(sb);
+      sb.on("POST", /^\/storage\/v1\/object\/sign\//, () => ({
+        signedURL: "/object/sign/attachments/x?token=sig",
+      }));
+      const res = await mint(sb);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ variant: "original" });
+      expect(sb.find("POST", /^\/storage\/v1\/object\/sign\//)[0].path).toBe(
+        `/storage/v1/object/sign/attachments/${ORIGINAL}`,
+      );
+    });
+
+    it("still refuses a quarantined row, whichever variant is asked for", async () => {
+      // #317: a reported file stops downloading for EVERYONE, and a preview is
+      // a second door onto the same report.
+      for (const query of ["", "?variant=original"]) {
+        const sb = stubWithRole("member");
+        sb.on("GET", "/rest/v1/attachments", () => [
+          {
+            storage_path: ORIGINAL,
+            size_bytes: 20971520,
+            preview_path: PREVIEW,
+            preview_bytes: 184320,
+            content_type: "image/jpeg",
+            quarantined_at: "2026-08-01T00:00:00Z",
+          },
+        ]);
+        egressStubs(sb);
+        const res = await mint(sb, query);
+        expect(res.status, query).toBe(403);
+        expect(sb.find("POST", /^\/storage\/v1\/object\/sign\//), query).toHaveLength(0);
+      }
+    });
+
+    it("says `original` for MMS media, which has no derivative", async () => {
+      // Every inbound item is ≤1 MB by carrier limit (D28) — the founder's own
+      // re-derivation on #240. The original IS the bounded preview here, and
+      // saying so keeps a client from asking for a variant that cannot exist.
+      const sb = stubWithRole("member");
+      sb.on("GET", "/rest/v1/attachments", () => []);
+      sb.on("GET", "/rest/v1/message_attachments", () => [
+        {
+          storage_path: "mms-media/co/msg/img.jpg",
+          size_bytes: 900000,
+          message_id: NOTE_ID,
+          content_type: "image/jpeg",
+        },
+      ]);
+      egressStubs(sb);
+      sb.on("POST", /^\/storage\/v1\/object\/sign\//, () => ({
+        signedURL: "/object/sign/mms-media/x?token=sig",
+      }));
+      const res = await mint(sb);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ variant: "original" });
+    });
+  });
+
+  /**
    * #317 — what a signed URL lets the browser DO with the bytes.
    *
    * This product is a conduit between a business and members of the public who are
@@ -508,6 +663,165 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
       };
     });
   }
+
+  /**
+   * #240 — the uploader sends a bounded preview beside the original.
+   *
+   * It is the one place in the system where a resize costs nothing: that device
+   * has already decoded the image, because it just showed it to somebody in a
+   * picker. Everything else about it is a client-supplied file and is treated
+   * as one.
+   */
+  describe("the preview that rides along", () => {
+    function bigJpeg(sizeBytes: number): Uint8Array {
+      const bytes = new Uint8Array(sizeBytes);
+      bytes.set([0xff, 0xd8, 0xff, 0xe0], 0);
+      return bytes;
+    }
+
+    function withPreview(
+      form: FormData,
+      preview: { bytes: Uint8Array; type: string },
+    ): FormData {
+      form.append(
+        "preview",
+        new File([preview.bytes.slice().buffer], "preview.jpg", {
+          type: preview.type,
+        }),
+      );
+      return form;
+    }
+
+    async function upload(sb: SupabaseStub, form: FormData) {
+      stubFetch(jwksRoute(auth), sb.route);
+      return apiRequest(app, env, await auth.token(), "/v1/attachments", {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: form,
+      });
+    }
+
+    it("stores it beside the original and stamps the row", async () => {
+      const sb = stubWithRole("member");
+      uploadStubs(sb);
+      sb.on("POST", /^\/storage\/v1\/object\/attachments\//, () => ({
+        Key: "attachments/x",
+      }));
+      sb.on("PATCH", "/rest/v1/attachments", () => []);
+      sb.on("POST", "/rest/v1/conversation_events", () => []);
+
+      const res = await upload(
+        sb,
+        withPreview(
+          uploadForm("note", NOTE_ID, {
+            name: "roof.jpg",
+            type: "image/jpeg",
+            bytes: bigJpeg(4 * 1024 * 1024),
+          }),
+          { bytes: bigJpeg(120 * 1024), type: "image/jpeg" },
+        ),
+      );
+      expect(res.status).toBe(201);
+      expect(await res.json()).toMatchObject({ has_preview: true });
+
+      // Two objects, the preview keyed beside its original so the pair is
+      // legible in a bucket listing.
+      const writes = sb.find("POST", /^\/storage\/v1\/object\/attachments\//);
+      expect(writes).toHaveLength(2);
+      // The key is derived from the ORIGINAL's, which carries a fresh uuid per
+      // upload — so the assertion is on the marker segment, not on a literal.
+      expect(writes[1].path).toMatch(/\/preview-[0-9a-f-]+-roof\.jpg$/);
+
+      // …and the row points at it, with the size the egress claim will charge.
+      const stamp = sb.find("PATCH", "/rest/v1/attachments")[0];
+      expect(stamp.body).toMatchObject({ preview_bytes: 120 * 1024 });
+    });
+
+    it("keeps the upload when only the preview fails", async () => {
+      // The original is the file; the preview is a way of serving it cheaply.
+      // A storage hiccup on the derivative must not cost somebody the upload
+      // they actually made — the row simply serves its original, which is what
+      // every row did before this shipped.
+      const sb = stubWithRole("member");
+      uploadStubs(sb);
+      let write = 0;
+      sb.on("POST", /^\/storage\/v1\/object\/attachments\//, () => {
+        write += 1;
+        return write === 1
+          ? ({ Key: "attachments/x" } as unknown as Record<string, unknown>)
+          : new Response(JSON.stringify({ message: "storage is having a day" }), {
+              status: 500,
+            });
+      });
+      sb.on("POST", "/rest/v1/conversation_events", () => []);
+
+      const res = await upload(
+        sb,
+        withPreview(
+          uploadForm("note", NOTE_ID, {
+            name: "roof.jpg",
+            type: "image/jpeg",
+            bytes: bigJpeg(4 * 1024 * 1024),
+          }),
+          { bytes: bigJpeg(120 * 1024), type: "image/jpeg" },
+        ),
+      );
+      expect(res.status).toBe(201);
+      expect(await res.json()).toMatchObject({ has_preview: false });
+      // Nothing was stamped, so nothing points at a half-written object.
+      expect(sb.find("PATCH", "/rest/v1/attachments")).toHaveLength(0);
+    });
+
+    it("refuses a bad preview BEFORE either object is written", async () => {
+      // A 422 and no storage, rather than an orphaned original nobody asked
+      // for. The preview here is bigger than the ceiling — the shape of "a
+      // client that is not really resizing".
+      const sb = stubWithRole("member");
+      uploadStubs(sb);
+      sb.on("POST", /^\/storage\/v1\/object\/attachments\//, () => ({
+        Key: "attachments/x",
+      }));
+
+      const res = await upload(
+        sb,
+        withPreview(
+          uploadForm("note", NOTE_ID, {
+            name: "roof.jpg",
+            type: "image/jpeg",
+            bytes: bigJpeg(4 * 1024 * 1024),
+          }),
+          { bytes: bigJpeg(900 * 1024), type: "image/jpeg" },
+        ),
+      );
+      expect(res.status).toBe(422);
+      expect(sb.find("POST", /^\/storage\/v1\/object\/attachments\//)).toHaveLength(0);
+      expect(sb.find("POST", "/rest/v1/rpc/claim_attachment_storage")).toHaveLength(0);
+    });
+
+    it("uploads exactly as before when no preview is sent", async () => {
+      // Every client that has not shipped this yet, and every file that never
+      // gets one — a PDF, a spreadsheet, a small photo.
+      const sb = stubWithRole("member");
+      uploadStubs(sb);
+      sb.on("POST", /^\/storage\/v1\/object\/attachments\//, () => ({
+        Key: "attachments/x",
+      }));
+      sb.on("POST", "/rest/v1/conversation_events", () => []);
+
+      const res = await upload(
+        sb,
+        uploadForm("note", NOTE_ID, {
+          name: "photo.png",
+          type: "image/png",
+          bytes: pngBytes(),
+        }),
+      );
+      expect(res.status).toBe(201);
+      expect(await res.json()).toMatchObject({ has_preview: false });
+      expect(sb.find("POST", /^\/storage\/v1\/object\/attachments\//)).toHaveLength(1);
+      expect(sb.find("PATCH", "/rest/v1/attachments")).toHaveLength(0);
+    });
+  });
 
   it("uploads a note attachment: owner check, storage upload, atomic budget claim, audit event", async () => {
     const sb = stubWithRole("member");
