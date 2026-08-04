@@ -74,6 +74,22 @@ final class RootViewModel {
     /// #483: the in-flight `retryNumberList`, so bootstraps cannot stack them.
     private var numberListRetry: Task<Void, Never>?
 
+    /**
+     #289: the pending background drop, so a quick app-switch cancels it rather
+     than stacking a second one behind it.
+     */
+    private var realtimeDrop: Task<Void, Never>?
+
+    /**
+     #289: whether the socket is down because the app was backgrounded, as
+     opposed to never having been up.
+
+     Needed because becoming active fires on every return to the app, and
+     reconnecting a socket that is already connected would tear down a live one
+     for nothing.
+     */
+    private var droppedForBackground = false
+
     init(graph: AppGraph) {
         self.graph = graph
     }
@@ -183,6 +199,66 @@ final class RootViewModel {
             await PushCoordinator.shared.ensureRegistrar(api: graph.api).unregister()
             await self.graph.authManager.signOut()
         }
+    }
+
+
+    // MARK: - #289 the socket a backgrounded phone should not be holding
+
+    /**
+     The app went to the background.
+
+     Both apps connected on sign-in and disconnected on sign-out, so a phone in
+     a pocket kept a WebSocket alive and sent a heartbeat every 25 seconds all
+     day. The bytes are nothing; the RADIO is the cost — on LTE each
+     transmission holds the modem in a high-power state for seconds afterwards,
+     so a packet every 25 seconds never lets it sleep.
+
+     Nothing is lost by dropping it: push carries every message, task and — the
+     unforgivable one — every incoming call, which arrives through PushKit and
+     never by a socket frame.
+     */
+    func appDidEnterBackground() {
+        realtimeDrop?.cancel()
+        guard let wait = RealtimeLifecycle.dropDelayMs(
+            foreground: false,
+            backgroundedForMs: 0,
+            callActive: Self.callActive()
+        ) else { return }
+        realtimeDrop = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(wait))
+            guard !Task.isCancelled, let self else { return }
+            // Asked again after the wait: a call can start inside the grace
+            // window — a push wakes the app, it rings, and the person answers
+            // from the lock screen without the app ever coming forward.
+            guard !Self.callActive() else { return }
+            self.droppedForBackground = true
+            await self.graph.realtime.disconnect()
+        }
+    }
+
+    /** The app came back. Cancel a pending drop, or undo one that happened. */
+    func appDidBecomeActive() {
+        realtimeDrop?.cancel()
+        realtimeDrop = nil
+        guard droppedForBackground else { return }
+        droppedForBackground = false
+        // Not `connect` directly: the token may have expired while the app was
+        // away and the number list may have changed. Bootstrap is the path that
+        // re-derives both, and it is what a cold start runs anyway.
+        Task { [weak self] in await self?.bootstrap() }
+    }
+
+    /**
+     Is a call live on this device right now?
+
+     Read through `peek()` rather than `get(graph:)` because the realtime
+     lifecycle must not be the thing that forces a softphone into existence — a
+     phone that has never made a call should not build one to find out it has no
+     call. No manager means no call, which is the honest answer and the safe
+     one: the socket drops, and an incoming call still arrives by push.
+     */
+    private static func callActive() -> Bool {
+        CallsManager.peek()?.state.activeId != nil
     }
 
     private func bootstrap() async {

@@ -10,6 +10,7 @@ struct RootView: View {
     /// #339: owned here rather than in the shell, because the update gate
     /// outranks every routed state including signed-out.
     @State private var updates: UpdateRepository
+    @Environment(\.scenePhase) private var scenePhase
 
     init(graph: AppGraph) {
         self.graph = graph
@@ -80,6 +81,29 @@ struct RootView: View {
         .overlay { UpdatePrompt(state: updates.state) }
         .task { model.start() }
         .task { await updates.refresh() }
+        // #289: the realtime socket follows the app, not the session.
+        //
+        // Both apps connected on sign-in and disconnected on sign-out, so a
+        // phone in a pocket held a WebSocket and sent a heartbeat every 25
+        // seconds all day. iOS suspends a backgrounded process within seconds
+        // anyway, which sounds like it makes this moot and does the opposite:
+        // the socket dies without the app ever saying so, and it resumes into a
+        // reconnect it did not schedule. Saying it out loud is what makes the
+        // behaviour a decision rather than a side effect.
+        //
+        // On the ROUTER rather than the shell so it also covers the states that
+        // hold a session without a shell — the MFA gate, checkout — where a
+        // socket is just as connected and just as unwatched.
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .active: model.appDidBecomeActive()
+            case .background: model.appDidEnterBackground()
+            // .inactive is a transition — the app switcher, a notification
+            // shade, an incoming call banner. Acting on it would drop the
+            // socket every time somebody pulled down Control Centre.
+            default: break
+            }
+        }
     }
 }
 

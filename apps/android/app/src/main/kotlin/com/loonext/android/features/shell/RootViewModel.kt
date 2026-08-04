@@ -1,5 +1,8 @@
 package com.loonext.android.features.shell
 
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.loonext.android.AppGraph
@@ -8,6 +11,7 @@ import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.SubscriptionStatus
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
+import com.loonext.android.core.realtime.RealtimeLifecycle
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -75,6 +79,21 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
     /** #483: the in-flight [retryNumberList], so bootstraps cannot stack them. */
     private var numberListRetry: Job? = null
 
+    /**
+     * #289: the pending background drop, so a quick app-switch cancels it
+     * rather than stacking a second one behind it.
+     */
+    private var realtimeDrop: Job? = null
+
+    /**
+     * #289: whether the socket is down because the app is backgrounded, as
+     * opposed to never having been up.
+     *
+     * Needed because ON_START fires on every return to the app, and reconnecting
+     * a socket that is already connected would tear down a live one for nothing.
+     */
+    private var droppedForBackground = false
+
     init {
         // Session appearing/disappearing drives everything.
         viewModelScope.launch {
@@ -89,6 +108,19 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
                 }
             }
         }
+        // #289: the socket a backgrounded phone should not be holding.
+        //
+        // Both apps connected on sign-in and disconnected on sign-out, so a
+        // phone in a pocket kept a WebSocket alive and sent a heartbeat every
+        // 25 seconds all day. The bytes are nothing; the RADIO is the cost —
+        // on LTE each transmission holds the modem in a high-power state for
+        // seconds afterwards, so a packet every 25 seconds never lets it sleep.
+        //
+        // Nothing is lost by dropping it: push carries every message, task and
+        // — the unforgivable one — every incoming call, which is woken through
+        // PushHooks.callWakeHandler and never by a socket frame.
+        watchAppVisibility()
+
         // A dead refresh token anywhere lands back on login.
         viewModelScope.launch {
             graph.api.signedOut.collect {
@@ -181,6 +213,57 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
      * (#483). The two collectors above discard it: they fire off a signal that
      * will come again, so there is nothing for them to do about a `false`.
      */
+    /**
+     * #289: drop the socket when the phone goes in a pocket; bring it back when
+     * somebody looks at the app.
+     *
+     * The grace window is what makes this safe to do at all — see
+     * [RealtimeLifecycle.BACKGROUND_GRACE_MS]. A live call holds the socket
+     * regardless: call state rides realtime, and a call is exactly when the
+     * phone is out and being used.
+     */
+    private fun watchAppVisibility() {
+        ProcessLifecycleOwner.get().lifecycle.addObserver(
+            LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_START -> {
+                        realtimeDrop?.cancel()
+                        realtimeDrop = null
+                        if (droppedForBackground) {
+                            droppedForBackground = false
+                            // Not `connect` directly: the token may have expired
+                            // while the app was away, and the number list may
+                            // have changed. This is the same path the #480
+                            // access-change signal uses.
+                            viewModelScope.launch { reconnectRealtime() }
+                        }
+                    }
+
+                    Lifecycle.Event.ON_STOP -> {
+                        realtimeDrop?.cancel()
+                        realtimeDrop = viewModelScope.launch {
+                            val wait = RealtimeLifecycle.dropDelayMs(
+                                foreground = false,
+                                backgroundedForMs = 0,
+                                callActive = graph.callActive(),
+                            ) ?: return@launch
+                            delay(wait)
+                            // Asked again after the wait: a call can start
+                            // inside the grace window (a push wakes the app,
+                            // rings, and the person answers from the lock
+                            // screen without the app ever coming forward).
+                            if (graph.callActive()) return@launch
+                            droppedForBackground = true
+                            graph.realtime.disconnect()
+                        }
+                    }
+
+                    else -> Unit
+                }
+            },
+        )
+    }
+
     private suspend fun reconnectRealtime(): Boolean {
         val ready = _state.value as? RootState.Ready ?: return false
         val refreshed = runCatching { graph.meRepo.me(ready.companyId) }.getOrNull() ?: return false

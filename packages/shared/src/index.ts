@@ -128,6 +128,14 @@ export {
 } from "./attachment-types";
 
 export {
+  REALTIME_BACKGROUND_GRACE_MS,
+  realtimeDropDelayMs,
+  shouldHoldRealtime,
+  type AppVisibility,
+  type RealtimeLifecycleInput,
+} from "./realtime-lifecycle";
+
+export {
   MAX_PREVIEW_BYTES,
   MAX_PREVIEW_FRACTION,
   PREVIEW_JPEG_QUALITY,

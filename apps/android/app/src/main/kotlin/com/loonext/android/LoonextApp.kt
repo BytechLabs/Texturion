@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
+import com.loonext.android.telephony.SoftphoneManager
 
 /**
  * Hand-rolled object graph — the app is one process with one composition
@@ -78,6 +79,21 @@ class AppGraph(private val app: Application) {
      */
     val updates = UpdateRepository(http = http, baseUrl = BuildConfig.API_URL)
     val authManager = AuthManager(supabaseAuth, sessionStore, prefs)
+    /**
+     * #289: is a call live on this device right now?
+     *
+     * Read through [SoftphoneManager.peek] rather than a held reference because
+     * the softphone is built lazily by whatever screen needs it first, and the
+     * realtime lifecycle must not be the thing that forces it into existence —
+     * a phone that has never made a call should not spin up a softphone to find
+     * out that it has no call.
+     *
+     * No softphone means no call, which is the honest answer and the safe one:
+     * the socket drops, and an incoming call still arrives by push.
+     */
+    fun callActive(): Boolean =
+        SoftphoneManager.peek()?.state?.value?.activeId != null
+
     val realtime = RealtimeClient(
         http = http,
         supabaseUrl = BuildConfig.SUPABASE_URL,
