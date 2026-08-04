@@ -141,6 +141,7 @@ const SUITES = [
   "voicemail_greetings",
   "after_hours_call_routing",
   "ring_strategy",
+  "lead_sources",
 
 ];
 

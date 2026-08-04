@@ -84,6 +84,7 @@ declare
     'number_access', 'number_health', 'company_ai_settings', 'templates', 'tags',
     -- #309: a recording of one of OUR users' voices, never a contact's.
     'voicemail_greetings',
+    'lead_sources',
     -- §4 prospect data
     'contact_messages', 'marketing_contacts',
     -- §5 operational data with an identifier attached

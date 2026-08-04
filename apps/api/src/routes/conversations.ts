@@ -112,6 +112,7 @@ import {
   pathUuid,
   unwrap,
 } from "./core/http";
+import { assertOwnLeadSource } from "./lead-sources";
 import {
   loadMessageTaskFlags,
   loadNoteTaskLinks,
@@ -202,6 +203,21 @@ const patchSchema = z
     // Only literal false has meaning — nothing may set a suspicion from
     // outside, because then it would no longer be the machine's opinion.
     spam_suspected: z.literal(false).optional(),
+    /**
+     * #301: where this customer came from, as a person answered it.
+     *
+     * Null CLEARS it back to unknown rather than falling back to the line's
+     * source — a tech who realises they picked the wrong one needs to be able
+     * to say "actually I don't know", and re-deriving from the number would
+     * dress that up as a fact again.
+     *
+     * Setting it is `conversations.note` like everything else on this route,
+     * while CREATING a source is owner/admin. A tech who cannot categorise a
+     * thread leaves it uncategorised, which is honest; a tech who invents a
+     * fifth spelling of "Facebook" makes the report wrong in a way nobody
+     * notices (#298's argument about tags, applied to the report's axis).
+     */
+    lead_source_id: z.uuid().nullable().optional(),
   })
   .refine(
     (body) =>
@@ -210,7 +226,8 @@ const patchSchema = z
       body.is_spam !== undefined ||
       body.pinned !== undefined ||
       body.spam_reviewed === true ||
-      body.spam_suspected === false,
+      body.spam_suspected === false ||
+      "lead_source_id" in body,
     { message: "Provide at least one field to update." },
   );
 
@@ -750,6 +767,21 @@ conversationsRoutes.patch(
 
     const now = new Date().toISOString();
     const patch: Record<string, unknown> = {};
+
+    // #301: a person's answer about where this customer came from.
+    //
+    // The origin moves with it, and that is the honest half: 'manual' says a
+    // human told us, which is what lets the report separate "attributed" from
+    // "we guessed". Clearing sets both back to null together — the column's
+    // CHECK requires it, and so does the meaning: a source with no story about
+    // where it came from is exactly the inferred-source-as-fact #301 forbids.
+    if ("lead_source_id" in body) {
+      const sourceId = body.lead_source_id ?? null;
+      if (sourceId !== null) await assertOwnLeadSource(c, sourceId);
+      patch.lead_source_id = sourceId;
+      patch.lead_source_origin = sourceId === null ? null : "manual";
+      patch.lead_source_set_by = sourceId === null ? null : userId;
+    }
     /** #515: who this thread was just handed to, if anybody. */
     let handedTo: string | null = null;
     const events: ConversationEventRow[] = [];

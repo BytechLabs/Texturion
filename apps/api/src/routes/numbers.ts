@@ -16,6 +16,7 @@ import {
 } from "@loonext/shared";
 
 import { assertOwnGreeting } from "./companies";
+import { assertOwnLeadSource } from "./lead-sources";
 
 import { isValidIanaTimezone } from "./core/timezone";
 
@@ -667,7 +668,16 @@ const accessBodySchema = z.discriminatedUnion("access", [
  * than silencing the line, so an owner can always get back to where they
  * started without knowing what they started with.
  */
-const identityBodySchema = z
+/**
+ * Exported so a test can assert the GET returns everything the PATCH accepts.
+ *
+ * #278 shipped four new fields on this route and the GET returned none of
+ * them: the clients read `.inherited` off `undefined` and the identity dialog
+ * crashed. Nothing caught it, because the PATCH tests assert a status and the
+ * client tests mock this call. A list of fields kept in two places by hand is
+ * a list that will differ again, so the guard derives one from the other.
+ */
+export const identityBodySchema = z
   .strictObject({
     label: z.string().trim().max(60).nullable().optional(),
     voicemail_greeting: z.string().max(1000).nullable().optional(),
@@ -710,6 +720,17 @@ const identityBodySchema = z
       .max(RING_SECONDS_MAX)
       .nullable()
       .optional(),
+    /**
+     * #301 — where calls and texts to THIS line come from.
+     *
+     * The one field on this route that does NOT inherit, and the exception is
+     * the point: a lead source is a fact about a specific line — the number on
+     * the truck, the number in the ad — and a workspace-level default would
+     * attribute every line to the same place, which is the opposite of what
+     * tracking numbers are for. Null means untracked, not "use the
+     * workspace's", so it never reaches `resolveNumberIdentity`.
+     */
+    lead_source_id: z.string().uuid().nullable().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, {
     message: "give at least one field to change",
@@ -734,7 +755,7 @@ async function loadIdentity(
       // ONE literal, deliberately: splitting it with `+` defeats the client's
       // literal-type inference and the row stops being assignable.
       .select(
-        "id,label,voicemail_greeting,away_message,mctb_enabled,mctb_message,timezone,business_hours,business_hours_exceptions,voicemail_greeting_id,after_hours_calls,after_hours_greeting_id,ring_strategy,ring_seconds",
+        "id,label,voicemail_greeting,away_message,mctb_enabled,mctb_message,timezone,business_hours,business_hours_exceptions,voicemail_greeting_id,after_hours_calls,after_hours_greeting_id,ring_strategy,ring_seconds,lead_source_id",
       )
       .eq("company_id", companyId)
       .eq("id", numberId)
@@ -769,6 +790,7 @@ async function loadIdentity(
         after_hours_greeting_id: string | null;
         ring_strategy: RingStrategy | null;
         ring_seconds: number | null;
+        lead_source_id: string | null;
       }
     | undefined;
   if (!number) return null;
@@ -827,6 +849,16 @@ async function loadIdentity(
     },
   );
 
+  // #301 rides ALONGSIDE the resolved identity rather than inside it, because
+  // it does not inherit. Folding a non-inheriting field into a resolver whose
+  // entire contract is "the line's value, else the workspace's" would make the
+  // one exception invisible to the next reader.
+  // `?? null` and not a bare read: JSON drops an `undefined` key entirely, so a
+  // narrower select would silently turn "untracked" into "field absent" — and
+  // a client checking `lead_source_id === null` and one checking `in` would
+  // then disagree about the same line.
+  const leadSourceId = number.lead_source_id ?? null;
+
   return {
     label: identity.label,
     voicemail_greeting: identity.voicemailGreeting,
@@ -837,6 +869,14 @@ async function loadIdentity(
     business_hours: identity.businessHours,
     business_hours_exceptions: identity.businessHoursExceptions,
     voicemail_greeting_id: identity.voicemailGreetingId,
+    after_hours_calls: identity.afterHoursCalls,
+    after_hours_greeting_id: identity.afterHoursGreetingId,
+    ring_strategy: identity.ringStrategy,
+    ring_seconds: identity.ringSeconds,
+    // #301: a bare value, not a Resolved<> — this one does not inherit, and a
+    // shape that claimed it did would have the UI offering "use the
+    // workspace's" for a setting no workspace has.
+    lead_source_id: leadSourceId,
   };
 }
 
@@ -923,6 +963,14 @@ numbersRoutes.patch("/:id/identity", requireCapability("numbers.manage"), async 
   // following the workspace.
   if ("after_hours_calls" in body) {
     patch.after_hours_calls = body.after_hours_calls ?? null;
+  }
+  // #301: checked against this workspace's own sources, for the same reason
+  // the greeting ids are — the company scope on the UPDATE decides which row
+  // is written, never which id lands in it.
+  if ("lead_source_id" in body) {
+    const sourceId = body.lead_source_id ?? null;
+    if (sourceId !== null) await assertOwnLeadSource(c, sourceId);
+    patch.lead_source_id = sourceId;
   }
   if ("ring_strategy" in body) patch.ring_strategy = body.ring_strategy ?? null;
   if ("ring_seconds" in body) patch.ring_seconds = body.ring_seconds ?? null;

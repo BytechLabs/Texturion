@@ -86,6 +86,7 @@ const TENANT_TABLES = new Set([
   "templates", "text_enablement_orders", "usage_alerts", "usage_events",
   // #309: the business's own recorded greetings.
   "voicemail_greetings",
+  "lead_sources",
 ]);
 
 /**

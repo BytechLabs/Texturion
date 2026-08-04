@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { numbersRoutes } from "./numbers";
+import { identityBodySchema, numbersRoutes } from "./numbers";
 import type { AppEnv, MemberRole } from "../context";
 import type { Bindings } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
@@ -30,6 +30,10 @@ const NUMBER_DEFAULTS = {
   last_provision_error: null,
   suspended_at: null,
   released_at: null,
+  // #301: the column exists on every real row, so the double has it too — a
+  // fixture missing a column is how ID-0 would pass against a shape the
+  // database never produces.
+  lead_source_id: null,
 };
 
 /**
@@ -1643,6 +1647,30 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
       await harness.request(`/v1/numbers/${ID}/identity`)
     ).json()) as Record<string, { value: unknown; inherited: boolean }>;
     expect(back.voicemail_greeting_id).toEqual({ value: null, inherited: true });
+  });
+
+  it("ID-0: the GET returns every field the PATCH accepts", async () => {
+    // THE ONE THAT SHOULD HAVE EXISTED FIRST. #278 added four fields to the
+    // PATCH and the GET returned none of them, so all three clients read
+    // `.inherited` off `undefined` and the identity dialog crashed. Nothing
+    // caught it: the PATCH tests assert a status, and the client tests mock
+    // this call.
+    //
+    // Derived from the schema rather than written as a list, because a list
+    // kept in two places by hand is a list that will differ again — which is
+    // exactly how it differed the first time.
+    const harness = buildHarness(COMPANY_IDENTITY);
+    withNumber(harness);
+
+    const res = await harness.request(`/v1/numbers/${ID}/identity`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+
+    for (const field of Object.keys(identityBodySchema._def.shape)) {
+      expect(body, `PATCH accepts ${field} and GET never returns it`).toHaveProperty(
+        field,
+      );
+    }
   });
 
   it("ID-13: a line cannot play another workspace's recorded voice", async () => {

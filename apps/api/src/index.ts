@@ -92,6 +92,7 @@ import { appointmentReminderRoutes } from "./routes/appointment-reminders";
 import { onCallRoutes } from "./routes/on-call";
 import { scheduledMessageRoutes } from "./routes/scheduled-messages";
 import { numbersRoutes } from "./routes/numbers";
+import { leadSourcesRoutes } from "./routes/lead-sources";
 import { voicemailGreetingsRoutes } from "./routes/voicemail-greetings";
 import { ownershipRoutes } from "./routes/ownership";
 import { portingRoutes } from "./routes/porting";
@@ -225,6 +226,7 @@ app.route("/v1", attachmentsRoutes);
 // #309: recording lives here; SELECTING a greeting stays on the identity
 // route, so one place answers "what does this line do".
 app.route("/v1", voicemailGreetingsRoutes);
+app.route("/v1", leadSourcesRoutes);
 app.route("/v1", contactsRoutes);
 app.route("/v1", accountRoutes);
 app.route("/v1", exportsRoutes);

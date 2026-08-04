@@ -159,6 +159,17 @@ export type AuditAction =
    * leg writes no `calls` row and the voice cap can therefore never see it.
    */
   | "voicemail_greeting.capture_call"
+  /**
+   * #301: the workspace's marketing vocabulary. Recorded because it is the
+   * AXIS of a report about where the money comes from — renaming or archiving
+   * a source silently changes what last quarter looks like, and "who changed
+   * what our sources are called" is the question asked the moment two reports
+   * disagree.
+   */
+  | "lead_source.created"
+  | "lead_source.renamed"
+  | "lead_source.archived"
+  | "lead_source.restored"
   // The departing-employee signature (#231: "bulk-export alarm")
   | "contacts.imported"
   | "contacts.exported"

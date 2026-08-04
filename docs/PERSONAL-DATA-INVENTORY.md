@@ -99,6 +99,7 @@ The most sensitive category, because the person never chose us.
 | `company_ai_settings` | business description | Life of the workspace |
 | `templates`, `tags` | copy the business wrote | Life of the workspace |
 | `voicemail_greetings` | an **audio recording of a crew member's voice** (#309), plus the `created_by` user id. The speaker is one of OUR users, never a contact — a greeting is the business introducing itself, which is why it carries none of the consent weight a customer's voicemail does. It is still someone's voice: a recording identifies a person more directly than their name does, so it is listed here rather than under "no personal data" | Life of the workspace; the row cascades on closure and the audio object is purged with the bucket |
+| `lead_sources` | the owner's own words for where their customers come from — "Truck", "Yard sign", "Neighbour" — plus the `created_by` user id (#301). The NAMES are the business's marketing vocabulary and describe nobody; the attribution they carry sits on `conversations`, which is already listed, and says which of the owner's own channels a contact arrived through rather than anything about the contact themselves | Life of the workspace; cascades on closure |
 
 ## 4. Prospect data — neither user nor contact
 
