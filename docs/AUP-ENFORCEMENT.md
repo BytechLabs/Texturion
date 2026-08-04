@@ -33,6 +33,8 @@ The signals, and the thresholds as built:
 | Floor | `MIN_SENDS_TO_JUDGE = 100` | Below this nothing is judged; a quiet workspace tripling from 3 to 9 is noise |
 | Fan-out | `FRESH_RATIO = 0.8` to previously-uncontacted numbers | Reaching strangers at scale is the shape mass marketing makes |
 | Opt-outs | `OPT_OUT_ALARM = 10` | The recipients' own verdict, and one of two signals needing no interpretation |
+| Opt-out RATE | `OPT_OUT_RATIO_ALARM = 0.03` above 50 sends | Catches the small workspace an absolute count is blindest to — the shape a bought list makes |
+| Rejection RATE | `BLOCK_RATIO_ALARM = 0.02` above 50 sends | The same reading for the carrier's verdict |
 | Carrier blocks | `SPAM_BLOCK_ALARM = 5` | The network's verdict. Lower than the opt-out bar because carrier filtering applies to the SENDING POOL, so these are already spending every other customer's deliverability |
 
 Velocity and fan-out are a **conjunction**, not independent triggers. Volume
@@ -136,7 +138,16 @@ Honest state, so nobody assumes a lever exists:
   afternoon was silently dropped — the cost protection suppressing the reports
   that protect the sending pool. Published in `/legal/aup` §9.
 
-- **Complaint ratios** are named in #303's scope and not implemented. Carrier-
+- **Complaint ratios** are implemented, as a second reading of the two
+  verdict signals rather than new data. A count answers the wrong question for
+  half our customers: ten opt-outs against ten thousand sends is a good week,
+  ten against forty is a workspace texting people who never asked. Above
+  `RATIO_MIN_SENDS = 50`, an opt-out rate of 3% or a carrier-rejection rate of
+  2% is reported — but only when the COUNT alarm has not already said it, so
+  one workspace never produces the same fact twice in different arithmetic.
+
+  The floor is the whole trick. Without it, one opt-out from three sends is
+  33% and every quiet workspace trips on its first unsubscribe. Carrier-
   violation codes now are: `api_aup_signals.spam_blocks_24h` counts outbound
   FAILED with the codes `carrier-failure.ts` classifies as `spam_blocked`
   (40003, 40015, 40322). `40300` is excluded on purpose — it is an opt-out and

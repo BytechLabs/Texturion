@@ -87,6 +87,40 @@ const OPT_OUT_ALARM = 10;
  */
 const SPAM_BLOCK_ALARM = 5;
 
+/**
+ * #303 — the RATIO thresholds, and why absolute counts are not enough.
+ *
+ * The two alarms above are counts, and a count answers the wrong question for
+ * half our customers. Ten opt-outs against ten thousand sends is a good week;
+ * ten against forty is a workspace texting people who never asked. The count
+ * catches the second only by accident and shouts at the first for being
+ * successful.
+ *
+ * A ratio catches the small workspace with a terrible one — which is the shape
+ * a bought list makes, and the one an absolute threshold is blindest to.
+ *
+ * THE FLOOR IS THE WHOLE TRICK. Without it, one opt-out from three sends is
+ * 33% and every quiet workspace trips on its first unsubscribe. Judged only
+ * once there is enough traffic for the fraction to mean anything.
+ */
+const RATIO_MIN_SENDS = 50;
+
+/**
+ * Opt-out rate that says the recipients did not expect this.
+ *
+ * Carriers start asking questions in low single digits, and a healthy
+ * conversational inbox — which is what this product is — sits far below that,
+ * because people do not unsubscribe from a plumber they texted first.
+ */
+const OPT_OUT_RATIO_ALARM = 0.03;
+
+/**
+ * Carrier-rejection rate. Lower than the opt-out bar for the same reason its
+ * count is: a network is already filtering, and that filtering is applied to
+ * the pool every other customer sends from.
+ */
+const BLOCK_RATIO_ALARM = 0.02;
+
 export interface AupSignals {
   company_id: string;
   company_name: string | null;
@@ -129,6 +163,29 @@ export function aupConcerns(row: AupSignals): string[] {
         `reading of a pattern but a network's, and the filtering it brings ` +
         `lands on every workspace sharing our numbers`,
     );
+  }
+
+  // The ratios. Reported only when the counts have NOT already said it, so a
+  // workspace with sixty opt-outs gets one clear concern rather than the same
+  // fact twice in different arithmetic — an email that repeats itself is one
+  // that gets skimmed.
+  if (sent >= RATIO_MIN_SENDS) {
+    const optOutRate = optOuts / sent;
+    if (optOutRate >= OPT_OUT_RATIO_ALARM && optOuts < OPT_OUT_ALARM) {
+      concerns.push(
+        `${Math.round(optOutRate * 100)}% of this workspace's ${sent} sends ` +
+          `ended in an opt-out — a small number in total, but a rate that says ` +
+          `the people receiving these did not expect them`,
+      );
+    }
+    const blockRate = blocked / sent;
+    if (blockRate >= BLOCK_RATIO_ALARM && blocked < SPAM_BLOCK_ALARM) {
+      concerns.push(
+        `${Math.round(blockRate * 100)}% of this workspace's ${sent} sends ` +
+          `were rejected by a carrier — few in total, but a proportion that ` +
+          `does not happen to a workspace texting people who asked`,
+      );
+    }
   }
 
   // Stands alone, because it is not our inference: these people pressed STOP.

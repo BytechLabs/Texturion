@@ -206,3 +206,83 @@ describe("#303 carrier spam-rejections", () => {
     expect(concerns.join(" ")).toMatch(/rejected by carriers/);
   });
 });
+
+/**
+ * #303 — complaint RATIOS, the last signal the issue names.
+ *
+ * CR-1 is why they exist. The count thresholds answer the wrong question for
+ * half our customers: ten opt-outs against ten thousand sends is a good week,
+ * ten against forty is a workspace texting people who never asked. A count
+ * catches the second only by accident, and a bought list on a small workspace
+ * is exactly the shape it misses.
+ */
+describe("#303 complaint ratios", () => {
+  const base = {
+    company_id: "c1",
+    company_name: "Reed Roofing",
+    baseline_daily: 200,
+    fresh_ratio: 0.1,
+    opt_outs_24h: 0,
+    spam_blocks_24h: 0,
+  };
+
+  it("CR-1: a small workspace with a terrible rate is caught", () => {
+    // Four opt-outs is under the count alarm of ten and would have passed
+    // silently. Four from sixty is 7%, which does not happen to somebody
+    // texting people who asked to hear from them.
+    const concerns = aupConcerns({ ...base, sent_24h: 60, opt_outs_24h: 4 });
+    expect(concerns).toHaveLength(1);
+    expect(concerns[0]).toMatch(/7% of this workspace's 60 sends/);
+    expect(concerns[0]).toMatch(/did not expect them/);
+  });
+
+  it("CR-2: a large workspace is not punished for being busy", () => {
+    // Nine opt-outs against four thousand sends is 0.2%. A count-only model
+    // says nothing here either, but the point is that adding ratios must not
+    // start shouting at the healthiest customers.
+    expect(aupConcerns({ ...base, sent_24h: 4000, opt_outs_24h: 9 })).toEqual([]);
+  });
+
+  it("CR-3: the volume floor stops a quiet workspace tripping on its first STOP", () => {
+    // One opt-out from three sends is 33%. Without the floor every workspace
+    // in the product trips the week somebody unsubscribes, and the alerts
+    // become noise before the feature has caught anything.
+    expect(aupConcerns({ ...base, sent_24h: 3, opt_outs_24h: 1 })).toEqual([]);
+    // 9 from 49 is 18% and still below the floor. Deliberately 9 and not 40:
+    // forty opt-outs trips the COUNT alarm whatever the volume, so the first
+    // version of this line was testing that instead of the floor, and failed.
+    // The count staying live below the floor is the right behaviour — a
+    // workspace collecting forty STOPs is worth a look at any size.
+    expect(aupConcerns({ ...base, sent_24h: 49, opt_outs_24h: 9 })).toEqual([]);
+    expect(
+      aupConcerns({ ...base, sent_24h: 49, opt_outs_24h: 40 }),
+    ).toHaveLength(1);
+  });
+
+  it("CR-4: the same fact is not reported twice in different arithmetic", () => {
+    // Sixty opt-outs from a thousand sends trips the COUNT alarm. Reporting
+    // the ratio alongside it says nothing new, and an email that repeats
+    // itself is one that gets skimmed.
+    const concerns = aupConcerns({ ...base, sent_24h: 1000, opt_outs_24h: 60 });
+    expect(concerns).toHaveLength(1);
+    expect(concerns[0]).toMatch(/recipients' own verdict/);
+  });
+
+  it("CR-5: a carrier-rejection rate is caught below the count alarm too", () => {
+    // Three rejections is under the alarm of five. Three from a hundred is
+    // 3%, and a network rejecting three in every hundred is already filtering
+    // the pool every other customer sends from.
+    const concerns = aupConcerns({ ...base, sent_24h: 100, spam_blocks_24h: 3 });
+    expect(concerns).toHaveLength(1);
+    expect(concerns[0]).toMatch(/rejected by a carrier/);
+    expect(concerns[0]).toMatch(/does not happen to a workspace/);
+  });
+
+  it("CR-6: a healthy workspace stays quiet", () => {
+    // The assertion that stops every test above from passing against a
+    // function that reports everybody.
+    expect(
+      aupConcerns({ ...base, sent_24h: 800, opt_outs_24h: 2, spam_blocks_24h: 1 }),
+    ).toEqual([]);
+  });
+});
