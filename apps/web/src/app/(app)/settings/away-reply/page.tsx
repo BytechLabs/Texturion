@@ -17,12 +17,12 @@ import { EmergencyCard } from "@/components/settings/emergency-card";
 import { OnCallCard } from "@/components/settings/on-call-card";
 import { ReminderRulesCard } from "@/components/settings/reminder-rules-card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
+import { WeeklyHoursGrid } from "@/components/settings/weekly-hours-grid";
 import { ApiError } from "@/lib/api/error";
 import {
   awayEmergencyNotice,
@@ -35,7 +35,6 @@ import {
   isDirty,
   toBusinessHours,
   toFormState,
-  WEEKDAY_LABEL,
   type DayFormState,
 } from "@/lib/settings/business-hours-form";
 import type { CompanyView } from "@/lib/api/types";
@@ -107,53 +106,16 @@ function BusinessHoursCard({
       }
     >
       <div className="space-y-3">
-        {days.map((day) => (
-          <div
-            key={day.weekday}
-            className="flex flex-wrap items-center gap-3 border-b border-border-subtle pb-3 last:border-b-0 last:pb-0"
-          >
-            <div className="flex min-w-[9.5rem] items-center gap-2.5">
-              <Switch
-                id={`open-${day.weekday}`}
-                checked={day.enabled}
-                disabled={!canEdit || update.isPending}
-                onCheckedChange={(enabled) =>
-                  patchDay(day.weekday, { enabled })
-                }
-              />
-              <Label htmlFor={`open-${day.weekday}`} className="text-sm">
-                {WEEKDAY_LABEL[day.weekday]}
-              </Label>
-            </div>
-            {day.enabled ? (
-              <div className="flex items-center gap-2 text-sm">
-                <Input
-                  type="time"
-                  aria-label={`${WEEKDAY_LABEL[day.weekday]} open time`}
-                  value={day.open}
-                  disabled={!canEdit || update.isPending}
-                  onChange={(e) =>
-                    patchDay(day.weekday, { open: e.target.value })
-                  }
-                  className="w-[7.5rem]"
-                />
-                <span className="text-muted-foreground">to</span>
-                <Input
-                  type="time"
-                  aria-label={`${WEEKDAY_LABEL[day.weekday]} close time`}
-                  value={day.close}
-                  disabled={!canEdit || update.isPending}
-                  onChange={(e) =>
-                    patchDay(day.weekday, { close: e.target.value })
-                  }
-                  className="w-[7.5rem]"
-                />
-              </div>
-            ) : (
-              <span className="text-sm text-muted-foreground">Closed</span>
-            )}
-          </div>
-        ))}
+        {/*
+          #307: the same grid a single number's hours use. Two copies would
+          have drifted the first time either was touched.
+        */}
+        <WeeklyHoursGrid
+          days={days}
+          disabled={!canEdit || update.isPending}
+          idPrefix="open"
+          onChange={patchDay}
+        />
         {error && (
           <p role="alert" className="text-sm text-destructive">
             {error}

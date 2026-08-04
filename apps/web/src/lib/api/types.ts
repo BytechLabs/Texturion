@@ -2347,6 +2347,9 @@ export interface NumberIdentity {
   away_message: ResolvedField<string | null>;
   mctb_enabled: ResolvedField<boolean>;
   mctb_message: ResolvedField<string | null>;
+  timezone: ResolvedField<string>;
+  business_hours: ResolvedField<BusinessHours | null>;
+  business_hours_exceptions: ResolvedField<HoursException[] | null>;
 }
 
 /** Null on a field CLEARS the override back to the workspace value. */
@@ -2356,4 +2359,7 @@ export interface NumberIdentityPatch {
   away_message?: string | null;
   mctb_enabled?: boolean | null;
   mctb_message?: string | null;
+  timezone?: string | null;
+  business_hours?: BusinessHours | null;
+  business_hours_exceptions?: HoursException[] | null;
 }

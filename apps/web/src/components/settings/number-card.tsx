@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api/error";
 import { NumberAccessDialog } from "@/components/settings/number-access-dialog";
+import { NumberHoursDialog } from "@/components/settings/number-hours-dialog";
 import { NumberIdentityDialog } from "@/components/settings/number-identity-dialog";
 import { useReleaseNumber } from "@/lib/api/numbers";
 import { NumberHealthNotice } from "@/components/settings/number-health-notice";
@@ -195,6 +196,7 @@ export function NumberCard({ number }: { number: PhoneNumberSummary }) {
   const [choosing, setChoosing] = useState(false);
   const [managingAccess, setManagingAccess] = useState(false);
   const [managingIdentity, setManagingIdentity] = useState(false);
+  const [managingHours, setManagingHours] = useState(false);
   const now = useNow();
   const released = number.status === "released";
   const canManage = role === "owner" || role === "admin";
@@ -335,6 +337,23 @@ export function NumberCard({ number }: { number: PhoneNumberSummary }) {
             numberId={number.id}
             open={managingIdentity}
             onOpenChange={setManagingIdentity}
+          />
+          {/*
+            #307: a SECOND entry rather than more rows in the first dialog.
+            "How this line answers" is already five fields, and when the line
+            is open is a different question asked at a different time.
+          */}
+          <Button
+            variant="link"
+            className="h-auto p-0 text-[13px]"
+            onClick={() => setManagingHours(true)}
+          >
+            When this line is open…
+          </Button>
+          <NumberHoursDialog
+            numberId={number.id}
+            open={managingHours}
+            onOpenChange={setManagingHours}
           />
         </div>
       )}
