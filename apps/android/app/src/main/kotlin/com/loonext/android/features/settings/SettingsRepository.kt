@@ -395,6 +395,25 @@ class SettingsRepository(
     ): VoicemailGreeting =
         GreetingUploader(api, baseUrl).upload(companyId, name, durationMs, audio)
 
+    /**
+     * #309's record-by-phone path: WE ring the owner, they speak after the beep
+     * and hang up.
+     *
+     * Nothing exists when this returns. The greeting is written only once the
+     * recording lands, so the card polls the list rather than trusting a
+     * response — a call the owner never answers correctly produces nothing.
+     */
+    suspend fun greetingCaptureCall(companyId: String, name: String, to: String) {
+        api.post<JsonObject, JsonObject>(
+            "/v1/voicemail-greetings/capture-call",
+            buildJsonObject {
+                put("name", name)
+                put("to", to)
+            },
+            companyId = companyId,
+        )
+    }
+
     /** Delete one. Every line using it goes back to the written words. */
     suspend fun deleteGreeting(companyId: String, id: String) {
         api.delete("/v1/voicemail-greetings/$id", companyId)

@@ -12,15 +12,21 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { recordMutate, deleteMutate, rows, toastSuccess, toastError } = vi.hoisted(
-  () => ({
-    recordMutate: vi.fn(),
-    deleteMutate: vi.fn(),
-    rows: { current: [] as Record<string, unknown>[] },
-    toastSuccess: vi.fn(),
-    toastError: vi.fn(),
-  }),
-);
+const {
+  recordMutate,
+  deleteMutate,
+  captureMutate,
+  rows,
+  toastSuccess,
+  toastError,
+} = vi.hoisted(() => ({
+  recordMutate: vi.fn(),
+  deleteMutate: vi.fn(),
+  captureMutate: vi.fn(),
+  rows: { current: [] as Record<string, unknown>[] },
+  toastSuccess: vi.fn(),
+  toastError: vi.fn(),
+}));
 
 vi.mock("@/lib/api/voicemail-greetings", async () => {
   const actual = await vi.importActual<
@@ -31,6 +37,10 @@ vi.mock("@/lib/api/voicemail-greetings", async () => {
     useVoicemailGreetings: () => ({ data: { data: rows.current } }),
     useRecordGreeting: () => ({ isPending: false, mutateAsync: recordMutate }),
     useDeleteGreeting: () => ({ isPending: false, mutateAsync: deleteMutate }),
+    useGreetingCaptureCall: () => ({
+      isPending: false,
+      mutateAsync: captureMutate,
+    }),
   };
 });
 vi.mock("sonner", () => ({
@@ -44,6 +54,11 @@ afterEach(cleanup);
 beforeEach(() => {
   recordMutate.mockReset().mockResolvedValue({});
   deleteMutate.mockReset().mockResolvedValue(undefined);
+  captureMutate.mockReset().mockResolvedValue({
+    to: "+16135550199",
+    from: "+16135550100",
+    name: "After hours",
+  });
   toastSuccess.mockReset();
   toastError.mockReset();
   rows.current = [];
@@ -129,5 +144,84 @@ describe("#309 your own voice", () => {
       expect(screen.getByRole("alert").textContent).toMatch(/microphone/i),
     );
     expect(screen.getByRole("alert").textContent).toMatch(/address bar/i);
+  });
+
+  it("VC-7: a denied microphone promotes the phone path, which is the answer", async () => {
+    // The moment the browser refuses is the moment "have us call you" stops
+    // being an alternative and starts being the way through. The link is always
+    // there; only its words change.
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: () => Promise.reject(new Error("denied")) },
+    });
+    render(<VoiceGreetingCard canEdit />);
+    expect(screen.getByRole("button", { name: /rather do it on the phone/i })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /record/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /have us call you/i })).toBeTruthy(),
+    );
+  });
+
+  it("VC-8: the phone form is never empty, and the call carries both fields", async () => {
+    // Applying: Smart Defaults. The name is pre-filled with what most owners
+    // are recording, so nothing stands between them and the call but their own
+    // number — which the browser's own autofill can offer.
+    render(<VoiceGreetingCard canEdit />);
+    fireEvent.click(screen.getByRole("button", { name: /rather do it on the phone/i }));
+
+    const name = await waitFor(() =>
+      screen.getByLabelText("Name it") as HTMLInputElement,
+    );
+    expect(name.value).toBe("After hours");
+
+    const to = screen.getByLabelText("Your number") as HTMLInputElement;
+    // Typed, so the browser offers the number it already knows.
+    expect(to.type).toBe("tel");
+    // And there is nothing to call until they say where.
+    expect(
+      (screen.getByRole("button", { name: /call me/i }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+
+    fireEvent.change(to, { target: { value: "613 555 0199" } });
+    fireEvent.click(screen.getByRole("button", { name: /call me/i }));
+
+    await waitFor(() =>
+      expect(captureMutate).toHaveBeenCalledWith({
+        name: "After hours",
+        to: "613 555 0199",
+      }),
+    );
+  });
+
+  it("VC-9: once the call is out, the screen says what to do on it", async () => {
+    // The owner is on the phone and away from this window. It has to hold the
+    // three steps, and it has to name the greeting it is waiting for.
+    render(<VoiceGreetingCard canEdit />);
+    fireEvent.click(screen.getByRole("button", { name: /rather do it on the phone/i }));
+    fireEvent.change(await waitFor(() => screen.getByLabelText("Your number")), {
+      target: { value: "+16135550199" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /call me/i }));
+
+    await waitFor(() => expect(screen.getByText(/wait for the beep/i)).toBeTruthy());
+    expect(screen.getByText(/hang up. it saves itself/i)).toBeTruthy();
+    // Nothing was written by the call starting — the greeting arrives later.
+    expect(recordMutate).not.toHaveBeenCalled();
+  });
+
+  it("VC-10: a call that could not be placed says so instead of pretending", async () => {
+    captureMutate.mockRejectedValueOnce(new Error("nope"));
+    render(<VoiceGreetingCard canEdit />);
+    fireEvent.click(screen.getByRole("button", { name: /rather do it on the phone/i }));
+    fireEvent.change(await waitFor(() => screen.getByLabelText("Your number")), {
+      target: { value: "+16135550199" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /call me/i }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    // And the form is still there, with what they typed, rather than a
+    // "waiting for your call" screen for a call nobody placed.
+    expect(screen.getByRole("button", { name: /call me/i })).toBeTruthy();
   });
 });

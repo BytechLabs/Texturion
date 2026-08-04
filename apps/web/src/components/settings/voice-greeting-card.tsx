@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Mic, Square, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Mic, PhoneOutgoing, Square, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import {
   formatDuration,
   MAX_GREETING_MS,
   useDeleteGreeting,
+  useGreetingCaptureCall,
   useRecordGreeting,
   useVoicemailGreetings,
 } from "@/lib/api/voicemail-greetings";
@@ -53,12 +54,25 @@ import {
  *   hears, and the effect is invisible from this screen. *Applying: Ethical
  *   Friction.*
  *
+ * - **There is a second way in, and it is a phone call.** Some owners will
+ *   never record in a browser — the mic permission, the laptop held at arm's
+ *   length. "Have us call you" rings their phone and they talk. It lives behind
+ *   a link rather than beside the record button, because two equally-weighted
+ *   ways to do one thing is a decision nobody asked for — and it is promoted to
+ *   the front the moment the microphone fails, which is exactly when it is the
+ *   answer. *Applying: Zen of Clarity, and Prioritize Intent.*
+ *
  * - **Icons from Lucide**, never emoji.
  */
 export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
-  const greetings = useVoicemailGreetings();
+  const [capture, setCapture] = useState<CaptureState | null>(null);
+  // Polled ONLY while a capture call is out. The owner is on the phone and away
+  // from this screen; the greeting appearing in the list below is the only
+  // confirmation the call could produce, so it has to arrive on its own.
+  const greetings = useVoicemailGreetings(true, capture?.phase === "calling" ? 5_000 : false);
   const record = useRecordGreeting();
   const remove = useDeleteGreeting();
+  const captureCall = useGreetingCaptureCall();
 
   const [take, setTake] = useState<{ blob: Blob; url: string; ms: number } | null>(
     null,
@@ -165,7 +179,34 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
     }
   }
 
-  const rows = greetings.data?.data ?? [];
+  // Memoised because the arrival effect below depends on it: a fresh `[]` on
+  // every render would re-run that effect forever.
+  const rows = useMemo(() => greetings.data?.data ?? [], [greetings.data]);
+
+  /**
+   * The greeting landing in the list IS the end of the phone flow.
+   *
+   * Watched by NAME rather than by count, because a second person recording at
+   * the same moment would move a count and mean nothing about this call.
+   */
+  useEffect(() => {
+    if (capture?.phase !== "calling") return;
+    if (!rows.some((row) => row.name === capture.name)) return;
+    setCapture(null);
+    toast.success(`"${capture.name}" saved. Choose it on a number to use it.`);
+  }, [capture, rows]);
+
+  async function startCaptureCall() {
+    if (!capture || capture.phase === "calling") return;
+    try {
+      await captureCall.mutateAsync({ name: capture.name.trim(), to: capture.to });
+      setCapture({ ...capture, phase: "calling" });
+    } catch (cause) {
+      toast.error(
+        cause instanceof ApiError ? cause.message : "We could not start that call.",
+      );
+    }
+  }
 
   return (
     <SettingsCard
@@ -267,9 +308,115 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
                 {micError}
               </p>
             )}
+            {!take && !recording && (
+              <Button
+                variant="link"
+                className="h-auto p-0 text-sm"
+                onClick={() => setCapture({ phase: "form", name: DEFAULT_NAME, to: "" })}
+              >
+                <PhoneOutgoing className="mr-1.5 size-4" />
+                {micError
+                  ? "Have us call you instead"
+                  : "Rather do it on the phone?"}
+              </Button>
+            )}
           </div>
         )}
       </div>
+
+      {/* The phone path. One dialog, two states — asking, then waiting — so the
+          owner who put the laptop down comes back to the same window that told
+          them what to do. */}
+      <Dialog
+        open={capture !== null}
+        onOpenChange={(next) => {
+          if (!next) setCapture(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          {capture?.phase === "calling" ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Calling {capture.to} now</DialogTitle>
+                <DialogDescription>
+                  Answer, and you&apos;ll hear what to do.
+                </DialogDescription>
+              </DialogHeader>
+              <ol className="ml-4 list-decimal space-y-1.5 text-sm text-muted-foreground">
+                <li>Wait for the beep.</li>
+                <li>Say what you want your callers to hear.</li>
+                <li>Hang up. It saves itself.</li>
+              </ol>
+              <p className="text-[12px] text-app-muted-2">
+                It&apos;ll appear below as &quot;{capture.name}&quot; when it
+                lands. You can close this.
+              </p>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setCapture(null)}>
+                  Close
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Record it on the phone</DialogTitle>
+                <DialogDescription>
+                  We&apos;ll ring you, you speak after the beep, and you hang up.
+                  No microphone permission, nothing to hold.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="capture-to">Your number</Label>
+                  <Input
+                    id="capture-to"
+                    type="tel"
+                    autoComplete="tel"
+                    inputMode="tel"
+                    placeholder="(613) 555-0199"
+                    value={capture?.to ?? ""}
+                    onChange={(event) =>
+                      setCapture((prev) =>
+                        prev ? { ...prev, to: event.target.value } : prev,
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="capture-name">Name it</Label>
+                  <Input
+                    id="capture-name"
+                    value={capture?.name ?? ""}
+                    maxLength={60}
+                    onChange={(event) =>
+                      setCapture((prev) =>
+                        prev ? { ...prev, name: event.target.value } : prev,
+                      )
+                    }
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setCapture(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => void startCaptureCall()}
+                  disabled={
+                    captureCall.isPending ||
+                    (capture?.to.trim().length ?? 0) === 0 ||
+                    (capture?.name.trim().length ?? 0) === 0
+                  }
+                >
+                  <PhoneOutgoing className="mr-1.5 size-4" />
+                  {captureCall.isPending ? "Calling…" : "Call me"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={pendingDelete !== null}
@@ -311,3 +458,16 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
  * name before they can hear their first take.
  */
 const DEFAULT_NAME = "After hours";
+
+/**
+ * The phone flow's two states.
+ *
+ * "form" is asking; "calling" is the leg being out there. They share one dialog
+ * because they are one errand — an owner who steps away mid-call comes back to
+ * the same window that told them what to do, not to a closed one.
+ */
+interface CaptureState {
+  phase: "form" | "calling";
+  name: string;
+  to: string;
+}

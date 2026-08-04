@@ -463,6 +463,25 @@ struct SettingsRepository: Sendable {
         return page.data
     }
 
+    /// #309's record-by-phone path: WE ring the owner, they speak after the
+    /// beep and hang up.
+    ///
+    /// Nothing exists when this returns. The greeting is written only once the
+    /// recording lands, so the card polls the list rather than trusting a
+    /// response — a call the owner never answers correctly produces nothing.
+    @discardableResult
+    func greetingCaptureCall(
+        _ companyId: String,
+        name: String,
+        to: String
+    ) async throws -> JSONValue {
+        try await api.post(
+            "/v1/voicemail-greetings/capture-call",
+            body: JSONValue.object(["name": .string(name), "to": .string(to)]),
+            companyId: companyId
+        )
+    }
+
     /// Delete one. Every line using it goes back to the written words.
     func deleteGreeting(_ companyId: String, id: String) async throws {
         try await api.delete("/v1/voicemail-greetings/\(id)", companyId: companyId)

@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -28,8 +30,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.loonext.android.ui.common.userMessage
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -47,6 +51,12 @@ import kotlinx.coroutines.launch
  *   no purpose.
  * - **Deleting asks first**, because it changes what every caller to a line
  *   using it hears and this card cannot show which lines those are.
+ * - **There is a second way in, and it is a phone call.** Some owners will
+ *   never record in an app — the permission prompt, the phone held at arm's
+ *   length. "Have us call you" rings them and they talk. It sits behind a text
+ *   button rather than beside Record, because two equally-weighted ways to do
+ *   one thing is a decision nobody asked for, and it moves to the front the
+ *   moment the microphone is refused, which is exactly when it is the answer.
  */
 @Composable
 internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
@@ -61,6 +71,12 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
     var pending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf<VoicemailGreeting?>(null) }
+    // #309's phone path. `null` is closed; `phase` tells the one dialog whether
+    // it is still asking or already waiting on a call that is out there.
+    var capture by remember { mutableStateOf<CaptureState?>(null) }
+    // True once the microphone has actually been refused, which is when the
+    // phone path stops being an alternative and starts being the way through.
+    var micRefused by remember { mutableStateOf(false) }
     // The take's own player. Held here so it can be released with the screen —
     // a MediaPlayer left holding a file is a leak the member never sees.
     val player = remember { mutableStateOf<MediaPlayer?>(null) }
@@ -117,8 +133,10 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
             // revoked between the check and here. Say what to do, not that it
             // failed.
             error = "The microphone is not available. Close any call and try again."
+            micRefused = true
             return
         }
+        micRefused = false
         recording = true
     }
 
@@ -130,6 +148,7 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
         } else {
             error = "Loonext needs the microphone to record a greeting. " +
                 "Allow it in Settings, then try again."
+            micRefused = true
         }
     }
 
@@ -166,6 +185,48 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
                 name = DEFAULT_GREETING_NAME
                 refresh()
                 scope.showMessage("Saved. Choose it on a number to use it.")
+            } catch (cause: Exception) {
+                error = cause.userMessage()
+            } finally {
+                pending = false
+            }
+        }
+    }
+
+    /**
+     * The greeting landing in the list IS the end of the phone flow.
+     *
+     * The owner is on a call and away from this screen, so the only
+     * confirmation the call can produce is the row appearing. Polled by NAME
+     * rather than by count: a second person recording at the same moment would
+     * move a count and mean nothing about this call.
+     */
+    LaunchedEffect(capture?.phase, capture?.name) {
+        val waiting = capture ?: return@LaunchedEffect
+        if (waiting.phase != CapturePhase.CALLING) return@LaunchedEffect
+        repeat(CAPTURE_POLLS) {
+            delay(CAPTURE_POLL_MS)
+            refresh()
+            if (rows.any { it.name == waiting.name }) {
+                capture = null
+                scope.showMessage("\"${waiting.name}\" saved. Choose it on a number to use it.")
+                return@LaunchedEffect
+            }
+        }
+    }
+
+    fun startCaptureCall() {
+        val current = capture ?: return
+        coroutines.launch {
+            pending = true
+            error = null
+            try {
+                scope.repo.greetingCaptureCall(
+                    scope.companyId,
+                    current.name.trim(),
+                    current.to.trim(),
+                )
+                capture = current.copy(phase = CapturePhase.CALLING)
             } catch (cause: Exception) {
                 error = cause.userMessage()
             } finally {
@@ -273,6 +334,27 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
                         Button(onClick = { onRecord() }) { Text("Record") }
                     }
                 }
+
+                if (take == null && !recording) {
+                    TextButton(
+                        enabled = !pending,
+                        onClick = {
+                            capture = CaptureState(
+                                phase = CapturePhase.FORM,
+                                name = DEFAULT_GREETING_NAME,
+                                to = "",
+                            )
+                        },
+                    ) {
+                        Text(
+                            if (micRefused) {
+                                "Have us call you instead"
+                            } else {
+                                "Rather do it on the phone?"
+                            },
+                        )
+                    }
+                }
             }
         }
 
@@ -322,7 +404,96 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
             },
         )
     }
+
+    capture?.let { state ->
+        if (state.phase == CapturePhase.CALLING) {
+            AlertDialog(
+                onDismissRequest = { capture = null },
+                title = { Text("Calling ${state.to} now") },
+                text = {
+                    Column {
+                        Text("Answer, and you'll hear what to do.")
+                        Spacer(Modifier.height(8.dp))
+                        Text("1. Wait for the beep.")
+                        Text("2. Say what you want your callers to hear.")
+                        Text("3. Hang up. It saves itself.")
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "It'll appear above as \"${state.name}\" when it lands. " +
+                                "You can close this.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { capture = null }) { Text("Close") }
+                },
+            )
+        } else {
+            AlertDialog(
+                onDismissRequest = { capture = null },
+                title = { Text("Record it on the phone") },
+                text = {
+                    Column {
+                        Text(
+                            "We'll ring you, you speak after the beep, and you hang " +
+                                "up. No microphone permission, nothing to hold.",
+                        )
+                        OutlinedTextField(
+                            value = state.to,
+                            onValueChange = { capture = state.copy(to = it) },
+                            label = { Text("Your number") },
+                            placeholder = { Text("(613) 555-0199") },
+                            singleLine = true,
+                            enabled = !pending,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                        )
+                        OutlinedTextField(
+                            value = state.name,
+                            onValueChange = { capture = state.copy(name = it) },
+                            label = { Text("Name it") },
+                            singleLine = true,
+                            enabled = !pending,
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = !pending && state.to.isNotBlank() && state.name.isNotBlank(),
+                        onClick = { startCaptureCall() },
+                    ) { Text(if (pending) "Calling…" else "Call me") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { capture = null }) { Text("Cancel") }
+                },
+            )
+        }
+    }
 }
+
+/** Where the phone flow is: still asking, or already on a call. */
+internal enum class CapturePhase { FORM, CALLING }
+
+/**
+ * The phone flow's whole state.
+ *
+ * One dialog holds both phases because they are one errand — an owner who puts
+ * the phone to their ear mid-flow comes back to the window that told them what
+ * to do, not to a closed one.
+ */
+internal data class CaptureState(
+    val phase: CapturePhase,
+    val name: String,
+    val to: String,
+)
+
+/** Five seconds apart for three minutes: long enough to cover a 45-second ring,
+ *  a two-minute recording, and the seconds it takes us to store it. */
+private const val CAPTURE_POLL_MS = 5_000L
+private const val CAPTURE_POLLS = 36
 
 /**
  * What most owners are recording, so the field is never empty.

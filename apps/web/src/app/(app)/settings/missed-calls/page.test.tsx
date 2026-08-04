@@ -106,6 +106,7 @@ vi.mock("@/lib/api/voicemail-greetings", async () => {
     useVoicemailGreetings: () => ({ data: { data: [] } }),
     useRecordGreeting: () => ({ isPending: false, mutateAsync: vi.fn() }),
     useDeleteGreeting: () => ({ isPending: false, mutateAsync: vi.fn() }),
+    useGreetingCaptureCall: () => ({ isPending: false, mutateAsync: vi.fn() }),
   };
 });
 

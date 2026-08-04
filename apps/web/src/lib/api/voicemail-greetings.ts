@@ -29,8 +29,17 @@ const keys = {
   all: (companyId: string) => ["voicemail-greetings", companyId] as const,
 };
 
-/** GET /v1/voicemail-greetings — what this workspace has recorded. */
-export function useVoicemailGreetings(enabled = true) {
+/**
+ * GET /v1/voicemail-greetings — what this workspace has recorded.
+ *
+ * `refetchMs` exists for one caller: the phone-recording flow, where the owner
+ * is on a call and away from the screen, and the greeting appearing in this
+ * list IS their confirmation that it worked. Off (false) everywhere else.
+ */
+export function useVoicemailGreetings(
+  enabled = true,
+  refetchMs: number | false = false,
+) {
   const companyId = useCompanyId();
   return useQuery({
     queryKey: keys.all(companyId),
@@ -39,6 +48,7 @@ export function useVoicemailGreetings(enabled = true) {
         companyId,
       }),
     enabled,
+    refetchInterval: refetchMs,
   });
 }
 
@@ -72,6 +82,32 @@ export function useRecordGreeting() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: keys.all(companyId) });
     },
+  });
+}
+
+export interface CaptureCallInput {
+  name: string;
+  to: string;
+}
+
+/**
+ * POST /v1/voicemail-greetings/capture-call — record it over the phone.
+ *
+ * We ring THEM. The owners this path exists for are the ones who will not grant
+ * a microphone permission or hold a laptop at arm's length; answering a call
+ * and talking is exactly what they are comfortable with.
+ *
+ * Nothing is invalidated on success, because nothing has happened yet — the
+ * greeting appears only after the call, and the card polls for it.
+ */
+export function useGreetingCaptureCall() {
+  const companyId = useCompanyId();
+  return useMutation({
+    mutationFn: ({ name, to }: CaptureCallInput) =>
+      apiFetch<{ to: string; from: string; name: string }>(
+        "/v1/voicemail-greetings/capture-call",
+        { method: "POST", companyId, body: { name, to } },
+      ),
   });
 }
 

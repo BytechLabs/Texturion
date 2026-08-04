@@ -15,6 +15,12 @@ import SwiftUI
    purpose.
  - **Deleting asks first**, because it changes what every caller to a line using
    it hears and this card cannot show which lines those are.
+ - **There is a second way in, and it is a phone call.** Some owners will never
+   record in an app — the permission prompt, the phone held at arm's length.
+   "Have us call you" rings them and they talk. It sits behind a plain button
+   rather than beside Record, because two equally-weighted ways to do one thing
+   is a decision nobody asked for, and its words change the moment the
+   microphone is refused, which is exactly when it is the answer.
  */
 struct VoiceGreetingCard: View {
     let scope: SettingsScope
@@ -35,6 +41,12 @@ struct VoiceGreetingCard: View {
     @State private var pending = false
     @State private var error: String?
     @State private var confirmDelete: VoicemailGreeting?
+    /// #309's phone path. `nil` is closed; the phase tells the one sheet whether
+    /// it is still asking or already waiting on a call that is out there.
+    @State private var capture: CaptureState?
+    /// True once the microphone has actually been refused, which is when the
+    /// phone path stops being an alternative and starts being the way through.
+    @State private var micRefused = false
 
     var body: some View {
         SettingsCard(
@@ -91,6 +103,88 @@ struct VoiceGreetingCard: View {
                     + "Callers hear the change on the next call."
             )
         }
+        .sheet(
+            isPresented: Binding(
+                get: { capture != nil },
+                set: { if !$0 { capture = nil } }
+            )
+        ) {
+            captureSheet
+        }
+    }
+
+    /// The phone path. One sheet, two states — asking, then waiting — because
+    /// they are one errand: an owner who puts the phone to their ear mid-flow
+    /// comes back to the screen that told them what to do, not to a closed one.
+    @ViewBuilder
+    private var captureSheet: some View {
+        NavigationStack {
+            Form {
+                if capture?.phase == .calling {
+                    Section {
+                        Text("Answer, and you'll hear what to do.")
+                        Text("1. Wait for the beep.")
+                        Text("2. Say what you want your callers to hear.")
+                        Text("3. Hang up. It saves itself.")
+                    } header: {
+                        Text(verbatim: "Calling " + (capture?.to ?? "") + " now")
+                    } footer: {
+                        // Assembled rather than interpolated: a quoted name
+                        // inside an interpolation inside an escaped quote is
+                        // exactly the Swift that reads fine and compiles
+                        // differently, and this file is only ever compiled by
+                        // CI — so there is no cheap way to find out.
+                        Text(
+                            verbatim: "It'll appear in your list as \u{201C}"
+                                + (capture?.name ?? "")
+                                + "\u{201D} when it lands. You can close this."
+                        )
+                    }
+                } else {
+                    Section {
+                        TextField(
+                            "Your number",
+                            text: Binding(
+                                get: { capture?.to ?? "" },
+                                set: { capture?.to = $0 }
+                            )
+                        )
+                        .keyboardType(.phonePad)
+                        .textContentType(.telephoneNumber)
+                        TextField(
+                            "Name it",
+                            text: Binding(
+                                get: { capture?.name ?? "" },
+                                set: { capture?.name = $0 }
+                            )
+                        )
+                    } footer: {
+                        Text(
+                            "We'll ring you, you speak after the beep, and you hang "
+                                + "up. No microphone permission, nothing to hold."
+                        )
+                    }
+                }
+                InlineError(error)
+            }
+            .navigationTitle(capture?.phase == .calling ? "On the way" : "Record it on the phone")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(capture?.phase == .calling ? "Close" : "Cancel") { capture = nil }
+                }
+                if capture?.phase != .calling {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button(pending ? "Calling…" : "Call me") { startCaptureCall() }
+                            .disabled(
+                                pending
+                                    || (capture?.to ?? "").trimmingCharacters(in: .whitespaces).isEmpty
+                                    || (capture?.name ?? "").trimmingCharacters(in: .whitespaces).isEmpty
+                            )
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -146,6 +240,14 @@ struct VoiceGreetingCard: View {
                         .tint(BrandColor.olive)
                 }
             }
+            if take == nil && !recording {
+                Button(micRefused ? "Have us call you instead" : "Rather do it on the phone?") {
+                    error = nil
+                    capture = CaptureState(phase: .form, name: defaultGreetingName, to: "")
+                }
+                .font(.caption)
+                .disabled(pending)
+            }
         }
         .padding(.top, 14)
     }
@@ -166,8 +268,10 @@ struct VoiceGreetingCard: View {
         // `.couldNotStart` with a message that says to try again.
         if let refusal = recorder.start(callInProgress: false) {
             error = refusal.message
+            micRefused = true
             return
         }
+        micRefused = false
         recording = true
     }
 
@@ -208,6 +312,46 @@ struct VoiceGreetingCard: View {
         }
     }
 
+    private func startCaptureCall() {
+        guard let current = capture, current.phase == .form else { return }
+        let wanted = current.name.trimmingCharacters(in: .whitespaces)
+        Task { @MainActor in
+            pending = true
+            error = nil
+            do {
+                try await scope.repo.greetingCaptureCall(
+                    scope.companyId,
+                    name: wanted,
+                    to: current.to.trimmingCharacters(in: .whitespaces)
+                )
+                pending = false
+                capture?.phase = .calling
+                await awaitCapturedGreeting(named: wanted)
+            } catch {
+                pending = false
+                self.error = error.userMessage
+            }
+        }
+    }
+
+    /// The greeting landing in the list IS the end of the phone flow.
+    ///
+    /// The owner is on a call and away from this screen, so the only
+    /// confirmation the call can produce is the row appearing. Watched by NAME
+    /// rather than by count: a second person recording at the same moment would
+    /// move a count and mean nothing about this call.
+    private func awaitCapturedGreeting(named wanted: String) async {
+        for _ in 0..<capturePollCount {
+            try? await Task.sleep(nanoseconds: capturePollNanos)
+            if capture == nil { return }
+            await refresh()
+            if rows.contains(where: { $0.name == wanted }) {
+                capture = nil
+                return
+            }
+        }
+    }
+
     private func remove(_ target: VoicemailGreeting) {
         Task { @MainActor in
             pending = true
@@ -231,3 +375,21 @@ struct VoiceGreetingCard: View {
  they can hear their first take.
  */
 private let defaultGreetingName = "After hours"
+
+/// Where the phone flow is: still asking, or already on a call.
+enum CapturePhase {
+    case form
+    case calling
+}
+
+/// The phone flow's whole state, carried by the one sheet that shows both.
+struct CaptureState {
+    var phase: CapturePhase
+    var name: String
+    var to: String
+}
+
+/// Five seconds apart for three minutes: long enough to cover a 45-second ring,
+/// a two-minute recording, and the seconds it takes us to store it.
+private let capturePollNanos: UInt64 = 5_000_000_000
+private let capturePollCount = 36
