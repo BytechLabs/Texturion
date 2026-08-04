@@ -90,6 +90,11 @@ const CONTACT_COLUMNS =
   "consent_attested_by,created_by_user_id,updated_by_user_id," +
   // #292: the human's correction to the area-code inference. NULL means infer.
   "timezone," +
+  // #228: this customer's own language, or NULL to follow the company's. On the
+  // detail projection only - the list has no control for it, and PATCH answers
+  // with this shape, so a client writing the answer into its cache needs the
+  // field present or the override it just set reads back as absent.
+  "locale," +
   // #393: null means a first outbound to this contact would carry the
   // identification suffix. The composer needs it to fold the suffix into its
   // segment count — a meter that shows one segment while the send bills two is
