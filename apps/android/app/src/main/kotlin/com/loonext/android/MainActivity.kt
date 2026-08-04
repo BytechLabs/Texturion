@@ -68,7 +68,6 @@ import com.loonext.android.features.auth.AuthFlow
 import com.loonext.android.features.auth.AuthViewModel
 import com.loonext.android.features.auth.OAUTH_REDIRECT_SCHEME
 import com.loonext.android.features.calls.CallsOverlay
-import com.loonext.android.features.calls.NotificationPrimer
 import com.loonext.android.features.compose.NewConversationScreen
 import com.loonext.android.features.contacts.ContactDetailScreen
 import com.loonext.android.features.contacts.ContactMutations
@@ -79,6 +78,7 @@ import com.loonext.android.features.inbox.InboundMessageToastHost
 import com.loonext.android.features.inbox.InboxDestination
 import com.loonext.android.features.notifications.NotificationsScreen
 import com.loonext.android.features.onboarding.MemberOrientation
+import com.loonext.android.features.onboarding.NotificationPrimer
 import com.loonext.android.features.onboarding.shouldShowOrientation
 import com.loonext.android.features.settings.SettingsHome
 import com.loonext.android.features.settings.SettingsSection

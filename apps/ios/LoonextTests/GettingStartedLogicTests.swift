@@ -47,9 +47,19 @@ final class GettingStartedLogicTests: XCTestCase {
     private func firsts(
         replied: Bool = false,
         noted: Bool = false,
-        markedDone: Bool = false
+        markedDone: Bool = false,
+        // #286: nothing in this file is about the joining flow, and the
+        // checklist reads none of it — but the memberwise init demands every
+        // field, so it is spelled out here for the same reason the other three
+        // are.
+        oriented: Bool = true
     ) -> MemberFirsts {
-        MemberFirsts(replied: replied, noted: noted, marked_done: markedDone)
+        MemberFirsts(
+            replied: replied,
+            noted: noted,
+            marked_done: markedDone,
+            oriented: oriented
+        )
     }
 
     // MARK: - the paid gate

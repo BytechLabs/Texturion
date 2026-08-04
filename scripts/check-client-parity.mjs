@@ -79,6 +79,11 @@ const SURFACES = [
   { key: "shell", web: "shell", android: "shell", ios: "Shell" },
   { key: "tasks", web: "tasks", android: "tasks", ios: "Tasks" },
   { key: "thread", web: "thread", android: "thread", ios: "Thread" },
+  // #286: the joining orientation a new member sees on first sign-in, and the
+  // notification primer that replaced the cold OS prompt on both phones. All
+  // three, because the whole point of the issue is that a tech is a phone-first
+  // reader who may have been handed a laptop instead.
+  { key: "onboarding", web: "onboarding", android: "onboarding", ios: "Onboarding" },
 
   // ---- deliberate asymmetries, each with its reason -----------------------
   {

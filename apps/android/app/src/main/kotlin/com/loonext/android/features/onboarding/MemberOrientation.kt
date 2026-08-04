@@ -34,7 +34,6 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.StickyNote2
 import com.loonext.android.AppGraph
-import com.loonext.android.features.calls.rememberNotificationAsk
 import kotlinx.coroutines.launch
 
 /**

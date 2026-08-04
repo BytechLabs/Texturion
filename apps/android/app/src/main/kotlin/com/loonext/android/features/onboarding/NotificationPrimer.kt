@@ -1,4 +1,4 @@
-package com.loonext.android.features.calls
+package com.loonext.android.features.onboarding
 
 import android.Manifest
 import android.content.pm.PackageManager

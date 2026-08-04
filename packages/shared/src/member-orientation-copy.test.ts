@@ -32,7 +32,7 @@ const CLIENTS = {
 /** Where each client keeps the standalone notification primer. */
 const PRIMERS = {
   android:
-    "apps/android/app/src/main/kotlin/com/loonext/android/features/calls/NotificationPermission.kt",
+    "apps/android/app/src/main/kotlin/com/loonext/android/features/onboarding/NotificationPrimer.kt",
   ios: "apps/ios/Loonext/Features/Onboarding/NotificationPrimer.swift",
 } as const;
 
