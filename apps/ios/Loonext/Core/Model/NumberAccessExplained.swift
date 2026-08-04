@@ -44,17 +44,67 @@ func numberAccessLevelLabel(_ level: String) -> String {
 /// nobody has restricted this number, `no-match` means somebody did and left
 /// this person out. Both leave the member un-named by any rule; only one is a
 /// mistake, and confusing them is how an owner concludes the rules are broken.
-func numberAccessReason(_ decidedBy: String, _ principal: String?) -> String {
+func numberAccessReason(
+    _ decidedBy: String,
+    _ principal: String?,
+    /// #286: who is reading. An owner inspecting somebody else's access reads
+    /// "them"; a member asking about their own reads "you".
+    ///
+    /// A PARAMETER and not a second function, matching the shared TypeScript:
+    /// these clauses are the one place a security rule is put into words, and
+    /// a copy written for the member-facing screen is a copy that drifts.
+    ///
+    /// Labelled `isSelf` rather than `self`, which is a reserved word an
+    /// argument label can only carry in backticks — and a backticked label on
+    /// a function three clients call is a trap for the next reader.
+    isSelf: Bool = false
+) -> String {
     switch decidedBy {
-    case "user": "A rule naming them"
-    case "role": principal.map { "A rule for \($0)s" } ?? "A rule for their role"
+    case "user": isSelf ? "A rule naming you" : "A rule naming them"
+    case "role":
+        principal.map { "A rule for \($0)s" }
+            ?? (isSelf ? "A rule for your role" : "A rule for their role")
     case "all": "A rule for everyone"
-    case "no-match": "This number has rules, and none of them include them"
+    case "no-match":
+        isSelf
+            ? "This number has rules, and none of them include you"
+            : "This number has rules, and none of them include them"
     case "unruled": "Nobody has restricted this number"
     case "role-override":
         principal == "owner" ? "Owners reach every number" : "Admins reach every number"
-    default: "No longer in this workspace"
+    default:
+        isSelf ? "You are no longer in this workspace" : "No longer in this workspace"
     }
+}
+
+/**
+ #286 — what a MEMBER is owed when a number is missing from their app.
+
+ The issue names the failure precisely: a new tech who can see one line and not
+ another reads the absence as the app being broken, and "silent absence is the
+ worse failure". This is the sentence under the list, and it is the part that
+ stops the reader concluding it is a bug and stops them asking the owner one at
+ a time.
+
+ Nil when there is nothing to explain: a member who reaches everything has no
+ absence to account for, and a paragraph reassuring them about a problem they
+ do not have is furniture.
+ */
+func numberAccessSelfNote(_ rows: [NumberAccessExplanation]) -> String? {
+    let hidden = rows.filter { $0.level == "none" }.count
+    let readOnly = rows.filter { $0.level == "note" }.count
+    if hidden == 0 && readOnly == 0 { return nil }
+
+    var parts: [String] = []
+    if hidden > 0 {
+        parts.append("\(hidden) \(hidden == 1 ? "number is" : "numbers are") hidden from you")
+    }
+    if readOnly > 0 {
+        parts.append("\(readOnly) \(readOnly == 1 ? "is" : "are") read-only")
+    }
+    return parts.joined(separator: " and ")
+        + ". That is deliberate — somebody set it up that way, and it is not "
+        + "the app failing. Ask an owner or admin if you need more."
 }
 
 /// Anything short of full use is a restriction worth showing first.

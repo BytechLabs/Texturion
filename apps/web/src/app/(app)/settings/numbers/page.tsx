@@ -2,6 +2,7 @@
 
 import { partitionNumbers } from "@/components/porting/port-ui-state";
 import { LeadSourcesCard } from "@/components/settings/lead-sources-card";
+import { MyAccessCard } from "@/components/settings/my-access-card";
 import { NumberCard } from "@/components/settings/number-card";
 import { PortSection } from "@/components/settings/port-section";
 import { ProvisionNumberDialog } from "@/components/settings/provision-number-dialog";
@@ -15,7 +16,7 @@ import { useNumbers } from "@/lib/api/numbers";
 import { usePortRequests } from "@/lib/api/porting";
 import { useActiveCompany } from "@/lib/company/provider";
 import {
-  hiddenNumbersNotice, extraNumberBlockedReason } from "@loonext/shared";
+  extraNumberBlockedReason } from "@loonext/shared";
 
 /** SPEC §2: Pro includes 2 numbers, Starter 1. */
 const PLAN_NUMBER_LIMIT = { starter: 1, pro: 2 } as const;
@@ -106,15 +107,6 @@ export default function NumbersSettingsPage() {
             company.data.subscription_status === "active" &&
             (usedSlots < limit || canBuyExtra);
 
-          // #286: numbers this member cannot see. The server filters them out
-          // silently, and silence is the worse failure — a tech who knows the
-          // shop runs two lines and finds one here reads it as the app being
-          // broken, then asks the owner, who has to work out they configured
-          // it deliberately (#106).
-          const hiddenNotice = hiddenNumbersNotice(
-            numbers.data.hidden_count ?? 0,
-          );
-
           return (
             <div className="space-y-6">
               {/* #301: ABOVE the numbers, because it is the vocabulary the
@@ -139,11 +131,14 @@ export default function NumbersSettingsPage() {
                   shape of the list above rather than competing with it.
                   *Applying: Zen of Clarity — the primary view stays about the
                   numbers this person can actually use.* */}
-              {hiddenNotice && (
-                <p className="rounded-lg border border-app-line bg-app-paper px-4 py-3 text-sm text-muted-foreground">
-                  {hiddenNotice}
-                </p>
-              )}
+              {/* #286: what a member CANNOT reach, and why.
+                  It replaces the bare count that used to sit here — "ask an
+                  owner if you need them" was the cost #286 is about, and a
+                  member who cannot tell a deliberate restriction from a broken
+                  app resolves it by interrupting somebody. Renders nothing for
+                  anyone who reaches everything, which is every owner and admin
+                  and most members. */}
+              <MyAccessCard />
 
               {canProvision && (
                 <div className="flex items-center justify-between gap-4 rounded-lg border border-dashed px-4 py-3">

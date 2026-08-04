@@ -28,6 +28,13 @@ vi.mock("@/lib/api/lead-sources", () => ({
 
 vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ role: state.role }),
+  // #286: the page now mounts the member's own access card, which reads the
+  // company id from here.
+  useCompanyId: () => "c-1",
+}));
+// #286: the card has its own suite; this file's subject is the number list.
+vi.mock("@/components/settings/my-access-card", () => ({
+  MyAccessCard: () => null,
 }));
 vi.mock("@/lib/api/companies", () => ({
   useCompany: () => ({

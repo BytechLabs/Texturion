@@ -159,6 +159,17 @@ struct SettingsRepository: Sendable {
         try await api.get("/v1/members", companyId: companyId)
     }
 
+    /**
+     #286: what I reach, and why — INCLUDING the numbers I do not.
+
+     The member-facing twin of the route below. It takes no user id: the
+     session decides who is asking, so there is nobody to be protected from,
+     which is why every role may call it.
+     */
+    func myNumberAccess(_ companyId: String) async throws -> MemberNumberAccess {
+        try await api.get("/v1/numbers/access/me", companyId: companyId)
+    }
+
     /// #348: what one member reaches on every number, and which rule decided it.
     /// Owner/admin only — it answers for ANOTHER person, which is a management
     /// question rather than something a member may ask about themselves.

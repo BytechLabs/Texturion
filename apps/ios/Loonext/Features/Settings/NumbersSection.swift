@@ -53,17 +53,18 @@ struct NumbersSectionView: View {
                 ForEach(cards, id: \.id) { number in
                     NumberCard(scope: scope, company: company, number: number, onChanged: refresh)
                 }
-                // #286: the numbers this member cannot see. Below the cards,
-                // because it explains the shape of the list rather than
-                // competing with it — the primary view stays about the
+                // #286: what this member cannot reach, and WHY. Below the
+                // cards, because it explains the shape of the list rather
+                // than competing with it — the primary view stays about the
                 // numbers they can actually use.
-                if let notice = hiddenNumbersNotice(data.hiddenNumbers) {
-                    SettingsCard(title: "Not shared with you") {
-                        Text(notice)
-                            .font(.body)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                //
+                // It replaces the bare count that used to sit here. "Ask an
+                // owner if you need them" was the cost #286 is about: a tech
+                // who cannot tell a deliberate restriction from a broken app
+                // resolves it by interrupting somebody, and the owner then has
+                // to work out which of three rules they set months ago
+                // produced it.
+                MyAccessCard(scope: scope)
                 AddNumberCard(scope: scope, company: company, numbers: data.numbers, onChanged: refresh)
                 PortsBlock(scope: scope, company: company, ports: data.ports, onChanged: refresh)
                 TextEnableBlock(scope: scope, company: company, orders: data.textEnablements, onChanged: refresh)
@@ -789,4 +790,63 @@ func numberHealthCopy(_ health: NumberHealth) -> String {
         + " Carriers sometimes start filtering a number — often one that was "
         + "reused from a previous business. We've been alerted and we're on it; "
         + "you don't need to do anything yet."
+}
+
+/**
+ #286 — what this member cannot reach, and why.
+
+ Hand-port of `apps/web/src/components/settings/my-access-card.tsx` and
+ `NumbersSection.kt`'s card.
+
+ Only the RESTRICTED rows: the numbers they can fully use are the cards above
+ this one, and repeating them would make this a second copy of that list rather
+ than an answer to the question the reader actually has.
+
+ Renders nothing for anybody who reaches everything — every owner and admin,
+ and most members. A panel reassuring somebody about a problem they do not have
+ is furniture, and furniture is not read.
+ */
+private struct MyAccessCard: View {
+    let scope: SettingsScope
+
+    @State private var rows: [NumberAccessExplanation] = []
+
+    var body: some View {
+        if let note = numberAccessSelfNote(rows) {
+            SettingsCard(
+                title: "What you can reach",
+                description: "Some of this workspace's numbers are not shared "
+                    + "with you. Here is which, and what decided it."
+            ) {
+                Text(note).font(.body)
+                ForEach(rows.sortedForOwner().filter { $0.level != "text" }) { row in
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 10) {
+                            Text(row.number_e164.map(formatPhone) ?? "A number")
+                                .font(.body)
+                            Text(numberAccessLevelLabel(row.level))
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        Text(numberAccessReason(row.decided_by, row.principal, isSelf: true))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .task { await load() }
+        } else {
+            // Nothing to explain — but the read still has to happen once, or
+            // the card could never appear for the member who does need it.
+            Color.clear.frame(height: 0).task { await load() }
+        }
+    }
+
+    private func load() async {
+        // A read that fails hides the card rather than showing an error about
+        // a screen the member did not ask for.
+        rows = (try? await scope.repo.myNumberAccess(scope.companyId).numbers) ?? []
+    }
 }

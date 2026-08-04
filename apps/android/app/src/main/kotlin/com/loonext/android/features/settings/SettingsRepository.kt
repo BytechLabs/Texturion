@@ -155,6 +155,16 @@ class SettingsRepository(
     suspend fun memberNumberAccess(companyId: String, userId: String): MemberNumberAccess =
         api.get("/v1/numbers/access/explain/$userId", companyId = companyId)
 
+    /**
+     * #286: what I reach, and why — INCLUDING the numbers I do not.
+     *
+     * The member-facing twin of the route above. It takes no user id: the
+     * session decides who is asking, so there is nobody to be protected from,
+     * which is why every role may call it.
+     */
+    suspend fun myNumberAccess(companyId: String): MemberNumberAccess =
+        api.get("/v1/numbers/access/me", companyId = companyId)
+
     suspend fun setMemberRole(companyId: String, memberId: String, role: String): Member =
         api.patch("/v1/members/$memberId", buildJsonObject { put("role", role) }, companyId)
 

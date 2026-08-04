@@ -43,7 +43,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.data.CacheKeys
-import com.loonext.android.core.model.hiddenNumbersNotice
+import com.loonext.android.core.model.NumberAccessExplanation
+import com.loonext.android.core.model.numberAccessLevelLabel
+import com.loonext.android.core.model.numberAccessReason
+import com.loonext.android.core.model.numberAccessSelfNote
+import com.loonext.android.core.model.sortedForOwner
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberRole
@@ -154,18 +158,17 @@ fun NumbersSection(
             cards.forEach { number ->
                 NumberCard(scope, company, number, onChanged = refresh)
             }
-            // #286: the numbers this member cannot see. Below the cards,
-            // because it explains the shape of the list rather than competing
-            // with it — the primary view stays about the numbers they can use.
-            hiddenNumbersNotice(data.hiddenNumbers)?.let { notice ->
-                SettingsCard(title = "Not shared with you") {
-                    Text(
-                        notice,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            // #286: what this member cannot reach, and WHY. Below the
+            // cards, because it explains the shape of the list rather than
+            // competing with it — the primary view stays about the numbers
+            // they can use.
+            //
+            // It replaces the bare count that used to sit here. "Ask an owner
+            // if you need them" was the cost #286 is about: a tech who cannot
+            // tell a deliberate restriction from a broken app resolves it by
+            // interrupting somebody, and the owner then has to work out which
+            // of three rules they set months ago produced it.
+            MyAccessCard(scope)
             AddNumberCard(scope, company, data.numbers, onChanged = refresh)
             PortsBlock(scope, company, data.ports, onChanged = refresh)
             TextEnableBlock(scope, company, data.textEnablements, onChanged = refresh)
@@ -942,4 +945,61 @@ internal fun extraNumberBlockedReason(
         return "An extra number needs US texting turned on for your workspace first."
     }
     return null
+}
+
+/**
+ * #286 — what this member cannot reach, and why.
+ *
+ * Hand-port of `apps/web/src/components/settings/my-access-card.tsx`.
+ *
+ * Only the RESTRICTED rows: the numbers they can fully use are the cards above
+ * this one, and repeating them would make this a second copy of that list
+ * rather than an answer to the question the reader actually has.
+ *
+ * Renders nothing for anybody who reaches everything — every owner and admin,
+ * and most members. A panel reassuring somebody about a problem they do not
+ * have is furniture, and furniture is not read.
+ */
+@Composable
+private fun MyAccessCard(scope: SettingsScope) {
+    var rows by remember { mutableStateOf<List<NumberAccessExplanation>>(emptyList()) }
+
+    LaunchedEffect(scope.companyId) {
+        // A read that fails hides the card rather than showing an error about
+        // a screen the member did not ask for.
+        rows = runCatching { scope.repo.myNumberAccess(scope.companyId).numbers }
+            .getOrDefault(emptyList())
+    }
+
+    val note = numberAccessSelfNote(rows) ?: return
+    val restricted = rows.sortedForOwner().filter { it.level != "text" }
+
+    SettingsCard(
+        title = "What you can reach",
+        description = "Some of this workspace's numbers are not shared with " +
+            "you. Here is which, and what decided it.",
+    ) {
+        Text(note, style = MaterialTheme.typography.bodyMedium)
+        restricted.forEach { row ->
+            Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        row.number_e164?.let { formatPhone(it) } ?: "A number",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        numberAccessLevelLabel(row.level),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    numberAccessReason(row.decided_by, row.principal, self = true),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
 }
