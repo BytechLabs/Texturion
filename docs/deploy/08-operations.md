@@ -160,6 +160,39 @@ Re-check any time with:
 nslookup -type=TXT _dmarc.loonext.com 8.8.8.8
 ```
 
+**You do not have to remember to.** `job:email-health` now asks the DNS itself
+once a day (`apps/api/src/email/auth-posture.ts`) and emails
+`OPS_ALERT_EMAIL` while any of the three records is missing — with the exact
+TXT to add and the command above in the body. A dated line in this document is
+only true on the day it was written; DNS is edited by hand, at a registrar, by
+one person, usually while doing something else. The check exists because the
+gap is a founder action, and a gap somebody has to go and act on is exactly the
+kind that gets forgotten.
+
+It never alerts on its own failure: a resolver that times out or answers badly
+says nothing about our DNS, and "absent" and "could not ask" are kept as
+different answers. Once a day rather than hourly, because adding a DNS record
+takes days at best and twenty-four identical messages before anybody can act on
+the first is how a mailbox stops being read.
+
+### The second founder action: a critical sending subdomain
+
+Separate from DMARC, and also DNS. `RESEND_FROM_CRITICAL` is wired through the
+send path and already classified against the messages that need it — the
+cancellation notice and the day-1/15/27 number-release ladder. It is unset, so
+today everything sends from `RESEND_FROM` and nothing has changed.
+
+Setting it needs a SECOND authenticated subdomain (its own SPF and DKIM in
+Resend), because sending reputation is judged per DOMAIN. That is the whole
+point: routine notification volume — "a customer texted you", firing all day —
+is the stream whose bounces and complaints accumulate, and it must not be able
+to take down the message that tells somebody their business number is about to
+be released.
+
+```
+RESEND_FROM_CRITICAL = "Loonext <billing@send2.loonext.com>"
+```
+
 ## 5. Rotating a leaked key
 
 Set the new value, then invalidate the old at the vendor. No redeploy is needed for

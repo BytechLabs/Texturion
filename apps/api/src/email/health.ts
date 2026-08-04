@@ -19,6 +19,14 @@ import { emailLayout } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 
+import {
+  postureAlertText,
+  postureDomainFor,
+  postureProblems,
+  readAuthPosture,
+  shouldAlertNow,
+} from "./auth-posture";
+
 /**
  * Bounce rate that gets somebody's attention.
  *
@@ -64,6 +72,15 @@ export async function runEmailHealthJob(
   now: Date = new Date(),
   db: SupabaseClient = getDb(env),
 ): Promise<{ alerted: boolean; health: EmailHealth | null }> {
+  // #252: the posture check rides this job rather than getting a cron of its
+  // own. It is the same subject — whether our mail arrives — and a second
+  // schedule for three DNS lookups is a second thing to notice has stopped
+  // running. Best-effort and first, so a resolver having a bad day can never
+  // cost us the rate alert, which is the one with real numbers behind it.
+  await checkAuthPosture(env, now).catch((cause) => {
+    console.error(`email auth posture check failed: ${String(cause)}`);
+  });
+
   const { data, error } = await db.rpc("api_email_health", {
     p_now: now.toISOString(),
     p_window_hours: WINDOW_HOURS,
@@ -115,6 +132,41 @@ export async function runEmailHealthJob(
   });
 
   return { alerted: true, health };
+}
+
+/**
+ * #252 — is our SPF/DKIM/DMARC still what the deploy doc says it is?
+ *
+ * Runs at most once a day (see `shouldAlertNow`) even though this job is
+ * hourly: the gap it watches is a DNS record somebody has to go and add, and
+ * twenty-four copies of the same sentence before anybody could act on the
+ * first is how a mailbox stops being read.
+ *
+ * Never throws. The caller's rate alert is the one with real numbers behind
+ * it, and a DNS lookup must not be able to take it down.
+ */
+async function checkAuthPosture(env: Env, now: Date): Promise<void> {
+  if (!shouldAlertNow(now)) return;
+  const domain = postureDomainFor(env);
+  // No sending address configured at all — nothing to check, and nothing
+  // being sent either.
+  if (!domain) return;
+
+  const posture = await readAuthPosture(domain);
+  const problems = postureProblems(posture);
+  if (problems.length === 0) return;
+
+  await sendEmail(env, {
+    to: [env.OPS_ALERT_EMAIL ?? "support@loonext.com"],
+    subject: `[ops] email authentication gap on ${domain} (${problems.length})`,
+    text: postureAlertText(posture, problems),
+    html: emailLayout(
+      `<p><strong>Email authentication on ${escapeText(domain)} is not what ` +
+        `the deploy doc records.</strong></p><ul>` +
+        problems.map((line) => `<li>${escapeText(line)}</li>`).join("") +
+        `</ul>`,
+    ),
+  });
 }
 
 function pct(rate: number): string {
