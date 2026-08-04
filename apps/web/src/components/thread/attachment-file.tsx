@@ -42,7 +42,10 @@ export function AttachmentFileChip({
 }: {
   attachment: AttachmentSummary;
 }) {
-  const url = useAttachmentUrl(attachment.id);
+  // #240: a file row is a download — it hands over the FILE. Nothing here ever
+  // has a preview (they are PDFs and documents), but asking for the original
+  // explicitly is what keeps a download from ever saving a thumbnail.
+  const url = useAttachmentUrl(attachment.id, true, "original");
   const kind = mmsMediaKind(attachment.content_type);
   const { icon: Icon, label } = KIND_VIEW[kind];
   const size = formatBytes(attachment.size_bytes);

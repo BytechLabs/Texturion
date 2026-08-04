@@ -225,9 +225,26 @@ struct TaskMutations: Sendable {
         )
     }
 
-    /// Mint a short-lived signed URL for one derived-union attachment.
-    func attachmentUrl(companyId: String, attachmentId: String) async throws -> AttachmentUrl {
-        try await api.get("/v1/attachments/\(attachmentId)/url", companyId: companyId)
+    /// Mint a short-lived signed URL — call per view, NEVER cache the result.
+    ///
+    /// #240: the DEFAULT is the preview, because the callers that mint the most
+    /// of these are thread bubbles and gallery tiles, and a 25 MB original
+    /// behind a thumbnail was the single worst egress shape in the product — on
+    /// our allowance and on the tech's own mobile data (#289).
+    ///
+    /// Pass "original" to OPEN or DOWNLOAD the file: a deliberate act by a
+    /// caller that wants the file rather than a picture of it. A row with no
+    /// preview serves its original either way.
+    func attachmentUrl(
+        companyId: String,
+        attachmentId: String,
+        variant: String = "preview"
+    ) async throws -> AttachmentUrl {
+        try await api.get(
+            "/v1/attachments/\(attachmentId)/url",
+            query: variant == "original" ? ["variant": "original"] : [:],
+            companyId: companyId
+        )
     }
 
     /// Promote a message to a task ("Make a task"). 409 = already a task.

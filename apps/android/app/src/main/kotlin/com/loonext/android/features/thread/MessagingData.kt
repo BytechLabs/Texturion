@@ -771,9 +771,29 @@ class MessagingRepository(private val api: ApiClient) {
 
     // --- Attachments -------------------------------------------------------------
 
-    /** Mint a short-lived signed URL — call per view, NEVER cache the result. */
-    suspend fun attachmentUrl(companyId: String, attachmentId: String): AttachmentUrl =
-        api.get("/v1/attachments/$attachmentId/url", companyId = companyId)
+    /**
+     * Mint a short-lived signed URL — call per view, NEVER cache the result.
+     *
+     * #240: the DEFAULT is the preview, because the callers that mint the most
+     * of these are thread bubbles and gallery tiles, and a 25 MB original
+     * behind a 176dp thumbnail was the single worst egress shape in the
+     * product — on our allowance and on the tech's own mobile data (#289).
+     *
+     * Pass "original" to OPEN or DOWNLOAD the file: a deliberate act by a
+     * caller that wants the file rather than a picture of it. A row with no
+     * preview serves its original either way, so nothing uploaded before this
+     * shipped changes behaviour.
+     */
+    suspend fun attachmentUrl(
+        companyId: String,
+        attachmentId: String,
+        variant: String = "preview",
+    ): AttachmentUrl =
+        api.get(
+            "/v1/attachments/$attachmentId/url",
+            query = if (variant == "original") mapOf("variant" to "original") else emptyMap(),
+            companyId = companyId,
+        )
 
     /**
      * #317 — pull a file back for the WHOLE workspace.

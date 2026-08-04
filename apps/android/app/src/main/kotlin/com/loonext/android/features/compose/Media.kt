@@ -147,6 +147,28 @@ sealed interface FileStageResult {
  * the web composer uses. Mirrors isAllowedAttachmentType in
  * apps/web/src/lib/attachments/validate.ts.
  */
+/**
+ * #262: the image half is ENUMERATED, from the same list the API, the Storage
+ * bucket and the other two clients use — `packages/shared/src/attachment-types.ts`.
+ *
+ * A `startsWith("image/")` rule admitted image/tiff, image/avif and image/bmp,
+ * none of which the bucket accepts and none of which the byte sniffer has a
+ * signature for. Web and the API were fixed for exactly that; this one still
+ * staged them, so a tech picking a HEIC-adjacent format from a gallery got as
+ * far as the upload and then a 422 with no idea why.
+ */
+val ALLOWED_IMAGE_TYPES = setOf(
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/heic",
+    "image/heif",
+)
+
+fun isAllowedImageType(contentType: String): Boolean =
+    contentType.trim().lowercase(Locale.US) in ALLOWED_IMAGE_TYPES
+
 private val ALLOWED_NOTE_FILE_TYPES = setOf(
     "application/pdf",
     "text/plain",
@@ -165,8 +187,10 @@ private val ALLOWED_NOTE_FILE_TYPES = setOf(
 
 fun isAllowedNoteFileType(contentType: String): Boolean {
     val type = contentType.trim().lowercase(Locale.US)
-    if (type == "image/svg+xml") return false
-    if (type.startsWith("image/")) return type.length > "image/".length
+    // SVG is denied by being absent from the enumeration above rather than by
+    // its own line: an SVG is an active document, and so is whatever image
+    // format arrives next with the same property.
+    if (isAllowedImageType(type)) return true
     return type in ALLOWED_NOTE_FILE_TYPES
 }
 

@@ -22,7 +22,12 @@ struct MultipartClient: Sendable {
         fileField: String,
         fileName: String,
         contentType: String,
-        bytes: Data
+        bytes: Data,
+        /// #240: the bounded preview, when this phone made one. A second file
+        /// part rather than a second request — it belongs to the same row, and
+        /// the server validates it against the original's size, so they have to
+        /// arrive together.
+        preview: Data? = nil
     ) async throws -> Data {
         let boundary = "loonext-\(UUID().uuidString)"
         let body = multipartFormBody(
@@ -31,7 +36,8 @@ struct MultipartClient: Sendable {
             fileField: fileField,
             fileName: fileName,
             contentType: contentType,
-            fileBytes: bytes
+            fileBytes: bytes,
+            preview: preview
         )
         let first = try await send(
             path: path, companyId: companyId,
@@ -135,7 +141,12 @@ extension MultipartClient {
             fileField: "file",
             fileName: fileName,
             contentType: contentType,
-            bytes: bytes
+            bytes: bytes,
+            // #240: generated here rather than at the call site, so BOTH
+            // note-upload doors get it without either having to remember. Nil
+            // for anything that does not want one, and on any failure — the
+            // original uploads alone, which is what happened before this.
+            preview: AttachmentPreview.make(contentType: contentType, bytes: bytes)
         )
     }
 }
@@ -149,7 +160,10 @@ func multipartFormBody(
     fileField: String,
     fileName: String,
     contentType: String,
-    fileBytes: Data
+    fileBytes: Data,
+    /// #240: appended AFTER the file part, so an older server that does not
+    /// read it simply ignores a trailing part it was not looking for.
+    preview: Data? = nil
 ) -> Data {
     // Quotes/CRLF in a display-name-derived filename would corrupt the part
     // header — strip them rather than trust the picker.
@@ -172,6 +186,15 @@ func multipartFormBody(
     )
     append("Content-Type: \(contentType)\r\n\r\n")
     body.append(fileBytes)
+    if let preview {
+        append("\r\n--\(boundary)\r\n")
+        append(
+            "Content-Disposition: form-data; name=\"preview\"; " +
+                "filename=\"\(AttachmentPreview.fileName)\"\r\n"
+        )
+        append("Content-Type: image/jpeg\r\n\r\n")
+        body.append(preview)
+    }
     append("\r\n--\(boundary)--\r\n")
     return body
 }

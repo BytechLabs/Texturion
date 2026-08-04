@@ -1,4 +1,10 @@
-import { isAllowedImageType } from "@loonext/shared";
+import {
+  MAX_PREVIEW_BYTES,
+  MAX_PREVIEW_FRACTION,
+  PREVIEW_WORTH_IT_BYTES,
+  isAllowedImageType,
+  previewWorthHaving,
+} from "@loonext/shared";
 
 import { ApiError } from "../http/errors";
 import { bytesMatchDeclaredType } from "../routes/core/attachments";
@@ -39,47 +45,17 @@ import { scanAttachment } from "./scan";
  */
 
 /**
- * Hard ceiling on a preview, whatever its original weighs.
- *
- * 400 KB is generous for the job: a 1600px-wide JPEG at reasonable quality
- * lands around 150-250 KB, and that is already sharp on a phone at 3x. The
- * ceiling exists so a client that resizes badly — or not at all — cannot
- * quietly turn the preview path into a second full-size path.
+ * The ceilings, the worth-it threshold and the "is this worth having" rule all
+ * live in packages/shared: the three clients GENERATE these and this Worker
+ * refuses them, and two sets of numbers for one contract is how a client ends
+ * up producing something the server will not take.
  */
-export const MAX_PREVIEW_BYTES = 400 * 1024;
-
-/**
- * A preview must be at most this fraction of its original.
- *
- * Without it, a 300 KB original could arrive with a 299 KB "preview" and pass
- * the ceiling above while saving nothing. Half is a low bar deliberately —
- * a real downscale is 1-2% — and the point is to catch a client that is not
- * resizing at all, not to police how it resizes.
- */
-export const MAX_PREVIEW_FRACTION = 0.5;
-
-/**
- * Below this, an original is already its own preview.
- *
- * Inbound MMS is capped at 1 MB per item by the carrier, which is the founder's
- * own re-derivation on #240: at that size a derivative saves a fraction of a
- * fraction and costs an object, a column and a round trip. The same reasoning
- * applies to a small note upload. A client that sends one anyway is not wrong,
- * just wasteful, so this is the threshold below which we do not ASK — not a
- * rejection.
- */
-export const PREVIEW_WORTH_IT_BYTES = 512 * 1024;
-
-/** Is a derivative worth having for this file at all? */
-export function previewWorthHaving(
-  contentType: string,
-  sizeBytes: number,
-): boolean {
-  return (
-    isAllowedImageType(contentType.trim().toLowerCase()) &&
-    sizeBytes > PREVIEW_WORTH_IT_BYTES
-  );
-}
+export {
+  MAX_PREVIEW_BYTES,
+  MAX_PREVIEW_FRACTION,
+  PREVIEW_WORTH_IT_BYTES,
+  previewWorthHaving,
+};
 
 /**
  * The preview's object key: the original's, with a marker segment.

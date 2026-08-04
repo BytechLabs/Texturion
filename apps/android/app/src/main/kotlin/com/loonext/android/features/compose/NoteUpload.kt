@@ -5,6 +5,7 @@ import com.loonext.android.core.model.Attachment
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
+import com.loonext.android.features.attachments.AttachmentPreview
 import java.io.IOException
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -39,6 +40,19 @@ class NoteFileUploader(private val api: ApiClient, private val baseUrl: String) 
                 fileName,
                 bytes.toRequestBody(contentType.toMediaTypeOrNull()),
             )
+            .apply {
+                // #240: the thread renders a picture of the file, not the file.
+                // This phone has just decoded the image to show it in the
+                // staging strip, so the resize is nearly free here and saves
+                // the whole crew re-fetching a 25 MB original on every scroll.
+                AttachmentPreview.make(contentType, bytes)?.let {
+                    addFormDataPart(
+                        "preview",
+                        AttachmentPreview.FILE_NAME,
+                        it.toRequestBody("image/jpeg".toMediaTypeOrNull()),
+                    )
+                }
+            }
             .build()
         val request = Request.Builder()
             .url("$baseUrl/v1/attachments")

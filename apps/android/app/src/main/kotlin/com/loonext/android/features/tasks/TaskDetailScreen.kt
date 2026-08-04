@@ -1576,8 +1576,12 @@ private fun AttachmentCell(
                         .clickable {
                             scope.launch {
                                 try {
-                                    val fresh =
-                                        mutations.attachmentUrl(companyId, item.id).url
+                                    // #240: tapping through opens the file in
+                                    // another app — that hands over the FILE,
+                                    // not the 96dp picture of it above.
+                                    val fresh = mutations
+                                        .attachmentUrl(companyId, item.id, "original")
+                                        .url
                                     context.startActivity(
                                         Intent(Intent.ACTION_VIEW, Uri.parse(fresh)),
                                     )
@@ -1607,7 +1611,12 @@ private fun AttachmentCell(
             onClick = {
                 scope.launch {
                     try {
-                        val fresh = mutations.attachmentUrl(companyId, item.id).url
+                        // #240: a file card is a download. Nothing here has a
+                        // preview today — these are PDFs and documents — but
+                        // saying it keeps that true if the rule ever widens.
+                        val fresh = mutations
+                            .attachmentUrl(companyId, item.id, "original")
+                            .url
                         context.startActivity(
                             Intent(Intent.ACTION_VIEW, Uri.parse(fresh)),
                         )

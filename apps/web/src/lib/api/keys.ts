@@ -191,8 +191,17 @@ export const keys = {
   },
 
   search: (companyId: string, q: string) => [companyId, "search", q] as const,
-  attachmentUrl: (companyId: string, attachmentId: string) =>
-    [companyId, "attachments", attachmentId, "url"] as const,
+  /**
+   * #240: the variant is part of the key. A row has two objects behind one id —
+   * a preview and the original — and caching them together would hand a
+   * lightbox the thumbnail it already had, or worse, hand a thread scroll the
+   * 25 MB original because a lightbox happened to open first.
+   */
+  attachmentUrl: (
+    companyId: string,
+    attachmentId: string,
+    variant: "preview" | "original" = "preview",
+  ) => [companyId, "attachments", attachmentId, "url", variant] as const,
   /**
    * The generic (note/task) attachment list for one owner (D19 —
    * GET /v1/attachments?owner_type=&owner_id=). Keyed by owner so a note's and

@@ -717,7 +717,9 @@ private struct ThreadBody: View {
                     : nil,
                 onLoadNoteFiles: { controller.loadNoteFiles(message.id) },
                 onOpenFile: { openFile($0) },
-                mintAttachmentUrl: { try await controller.mintAttachmentUrl($0) },
+                mintAttachmentUrl: {
+                    try await controller.mintAttachmentUrl($0, variant: $1)
+                },
                 actions: MessageBubbleActions(
                     onToggleDone: { controller.toggleDone(message) },
                     onTogglePin: { controller.togglePin(message) },
@@ -763,7 +765,12 @@ private struct ThreadBody: View {
     private func openFile(_ attachment: Attachment) {
         Task {
             do {
-                let minted = try await controller.mintAttachmentUrl(attachment.id)
+                // #240: handing the file to another app means handing over the
+                // FILE, not a picture of it.
+                let minted = try await controller.mintAttachmentUrl(
+                    attachment.id,
+                    variant: "original"
+                )
                 if let url = URL(string: minted) {
                     openURL(url)
                 }
@@ -2413,7 +2420,7 @@ private func previewMessage(
                 noteFilesState: nil,
                 onLoadNoteFiles: {},
                 onOpenFile: { _ in },
-                mintAttachmentUrl: { _ in "" },
+                mintAttachmentUrl: { _, _ in "" },
                 actions: actions
             )
             MessageBubble(
@@ -2428,7 +2435,7 @@ private func previewMessage(
                 noteFilesState: nil,
                 onLoadNoteFiles: {},
                 onOpenFile: { _ in },
-                mintAttachmentUrl: { _ in "" },
+                mintAttachmentUrl: { _, _ in "" },
                 actions: actions
             )
             MessageBubble(
@@ -2443,7 +2450,7 @@ private func previewMessage(
                 noteFilesState: nil,
                 onLoadNoteFiles: {},
                 onOpenFile: { _ in },
-                mintAttachmentUrl: { _ in "" },
+                mintAttachmentUrl: { _, _ in "" },
                 actions: actions
             )
             EventLine(text: "Dana Fields moved this to Waiting", timeIso: "2026-07-15T15:10:00Z")

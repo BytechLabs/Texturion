@@ -321,7 +321,12 @@ fun ThreadScreen(
                         onOpenFile = { attachment ->
                             scope.launch {
                                 try {
-                                    val url = repo.attachmentUrl(companyId, attachment.id).url
+                                    // #240: handing the file to another app
+                                    // means handing over the FILE, not a
+                                    // picture of it.
+                                    val url = repo
+                                        .attachmentUrl(companyId, attachment.id, "original")
+                                        .url
                                     context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
                                 } catch (cause: Exception) {
                                     snackbar.showSnackbar(cause.userMessage())
@@ -332,7 +337,12 @@ fun ThreadScreen(
                         onOpenAttachment = { attachment ->
                             scope.launch {
                                 try {
-                                    val url = repo.attachmentUrl(companyId, attachment.id).url
+                                    // #240: handing the file to another app
+                                    // means handing over the FILE, not a
+                                    // picture of it.
+                                    val url = repo
+                                        .attachmentUrl(companyId, attachment.id, "original")
+                                        .url
                                     context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
                                 } catch (cause: Exception) {
                                     snackbar.showSnackbar(cause.userMessage())

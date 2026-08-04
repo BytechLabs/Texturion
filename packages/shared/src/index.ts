@@ -128,6 +128,17 @@ export {
 } from "./attachment-types";
 
 export {
+  MAX_PREVIEW_BYTES,
+  MAX_PREVIEW_FRACTION,
+  PREVIEW_JPEG_QUALITY,
+  PREVIEW_MAX_EDGE,
+  PREVIEW_WORTH_IT_BYTES,
+  previewDimensions,
+  previewIsUseful,
+  previewWorthHaving,
+} from "./attachment-preview";
+
+export {
   IDENTIFICATION_SUFFIX_TEMPLATE,
   appendIdentification,
   appendIdentificationSuffix,

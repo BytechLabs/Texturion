@@ -4,6 +4,7 @@ import com.loonext.android.core.auth.await
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
+import com.loonext.android.features.attachments.AttachmentPreview
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.Request
@@ -32,6 +33,13 @@ class MultipartClient(private val api: ApiClient, private val baseUrl: String) {
         fileName: String,
         contentType: String,
         bytes: ByteArray,
+        /**
+         * #240: the bounded preview, when this phone made one. A second file
+         * part rather than a second request — it belongs to the same row, and
+         * the server validates it against the original's size, so they have to
+         * arrive together.
+         */
+        preview: ByteArray? = null,
     ): String {
         val session = api.freshSession() ?: throw ApiException(
             ApiErrorCode.UNAUTHORIZED,
@@ -45,6 +53,13 @@ class MultipartClient(private val api: ApiClient, private val baseUrl: String) {
                 fileName,
                 bytes.toRequestBody(contentType.toMediaTypeOrNull()),
             )
+            preview?.let {
+                addFormDataPart(
+                    "preview",
+                    AttachmentPreview.FILE_NAME,
+                    it.toRequestBody("image/jpeg".toMediaTypeOrNull()),
+                )
+            }
         }.build()
         val request = Request.Builder()
             .url(baseUrl + path)
@@ -84,4 +99,9 @@ suspend fun MultipartClient.uploadNoteFile(
     fileName = fileName,
     contentType = contentType,
     bytes = bytes,
+    // #240: generated here rather than at the call site, so BOTH note-upload
+    // doors get it without either having to remember. Null for anything that
+    // does not want one, and on any failure — the original uploads alone,
+    // which is what happened before this shipped.
+    preview = AttachmentPreview.make(contentType, bytes),
 )

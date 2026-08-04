@@ -134,6 +134,22 @@ struct NoteFileUploader: Sendable {
         append("Content-Disposition: form-data; name=\"file\"; filename=\"\(safeName)\"\r\n")
         append("Content-Type: \(contentType)\r\n\r\n")
         body.append(bytes)
+
+        // #240: the thread renders a picture of the file, not the file. This
+        // phone has just decoded the image to show it in the staging strip, so
+        // the resize is nearly free here and saves the whole crew re-fetching a
+        // 25 MB original on every scroll. Nil for anything that does not want
+        // one, and on any failure.
+        if let preview = AttachmentPreview.make(contentType: contentType, bytes: bytes) {
+            append("\r\n--\(boundary)\r\n")
+            append(
+                "Content-Disposition: form-data; name=\"preview\"; " +
+                    "filename=\"\(AttachmentPreview.fileName)\"\r\n"
+            )
+            append("Content-Type: image/jpeg\r\n\r\n")
+            body.append(preview)
+        }
+
         append("\r\n--\(boundary)--\r\n")
         return body
     }

@@ -26,7 +26,9 @@ func audioRowCaption(failed: Bool) -> String {
 struct SignedAudioAttachment: View {
     let attachmentId: String
     let sizeBytes: Int?
-    let mintUrl: @MainActor (String) async throws -> String
+    /// #240: (attachmentId, variant). "preview" for anything rendered in
+    /// the timeline; "original" when the bytes leave for another app.
+    let mintUrl: @MainActor (String, String) async throws -> String
 
     @State private var player: AVPlayer?
     @State private var playing = false
@@ -77,7 +79,7 @@ struct SignedAudioAttachment: View {
         .task(id: "\(attachmentId)|\(mintKey)") {
             guard player == nil, !failed else { return }
             do {
-                let minted = try await mintUrl(attachmentId)
+                let minted = try await mintUrl(attachmentId, "preview")
                 guard let url = URL(string: minted) else {
                     failed = true
                     return
@@ -178,7 +180,9 @@ struct AttachmentFileChip: View {
     let attachment: AttachmentSummary
     /// MMS media has no generic `Attachment` row behind it, so the chip mints
     /// its own short-lived URL and hands it to the system viewer.
-    let mintUrl: @MainActor (String) async throws -> String
+    /// #240: (attachmentId, variant). "preview" for anything rendered in
+    /// the timeline; "original" when the bytes leave for another app.
+    let mintUrl: @MainActor (String, String) async throws -> String
 
     @Environment(\.openURL) private var openURL
     @State private var opening = false
@@ -191,7 +195,9 @@ struct AttachmentFileChip: View {
             opening = true
             Task {
                 defer { opening = false }
-                if let minted = try? await mintUrl(attachment.id),
+                // Opening a chip hands the file to another app — that is
+                // the FILE, not a picture of it.
+                if let minted = try? await mintUrl(attachment.id, "original"),
                    let url = URL(string: minted) {
                     openURL(url)
                 }

@@ -25,7 +25,8 @@ struct MessageBubble: View {
     let noteFilesState: LoadState<[Attachment]>?
     let onLoadNoteFiles: @MainActor () -> Void
     let onOpenFile: @MainActor (Attachment) -> Void
-    let mintAttachmentUrl: @MainActor (String) async throws -> String
+    /// #240: (attachmentId, variant) — see AttachmentMedia.
+    let mintAttachmentUrl: @MainActor (String, String) async throws -> String
     let actions: MessageBubbleActions
 
     private var outbound: Bool { message.direction == MessageDirection.outbound }
@@ -467,7 +468,9 @@ struct DayDividerLine: View {
 /// after that, an honest tap-to-retry chip.
 struct SignedAttachmentImage: View {
     let attachmentId: String
-    let mintUrl: @MainActor (String) async throws -> String
+    /// #240: (attachmentId, variant) — audio is streamed whole, so
+    /// this one always asks for the original.
+    let mintUrl: @MainActor (String, String) async throws -> String
 
     @State private var url: URL?
     @State private var mintKey = 0
@@ -517,7 +520,7 @@ struct SignedAttachmentImage: View {
         .task(id: "\(attachmentId)|\(mintKey)") {
             guard url == nil, !failed else { return }
             do {
-                let minted = try await mintUrl(attachmentId)
+                let minted = try await mintUrl(attachmentId, "original")
                 url = URL(string: minted)
                 if url == nil { failed = true }
             } catch {

@@ -17,6 +17,19 @@ import { cn } from "@/lib/utils";
  * rounded, signed-URL fetch with a blur-up reveal, click → lightbox. The
  * signed URL comes from GET /v1/attachments/:id/url (1h TTL; the hook caches
  * just under it).
+ *
+ * #240: two fetches, not one. The square gets the PREVIEW — a 25 MB original
+ * behind a 176px thumbnail was the single worst egress shape in the product,
+ * and it is the tech's own mobile data too (#289). The lightbox gets the
+ * ORIGINAL, and only once it is opened, so nobody pays for a full-size image
+ * they never looked at.
+ *
+ * The lightbox shows the preview underneath while the original loads. It is
+ * already decoded and in the browser's cache, so the picture appears instantly
+ * and sharpens — rather than a spinner over a photo the reader has, in every
+ * practical sense, already seen.
+ * *Applying: the Excitement principle — a progressive reveal instead of a wait,
+ * on the surface where somebody is looking closely.*
  */
 export function AttachmentImage({
   attachment,
@@ -28,6 +41,11 @@ export function AttachmentImage({
   const url = useAttachmentUrl(attachment.id);
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
+  // Fetched only while the lightbox is open — `enabled` is the whole point.
+  // A row with no preview serves its original for both, so this is a second
+  // mint of the same object rather than a wasted one.
+  const fullSize = useAttachmentUrl(attachment.id, open, "original");
+  const [fullSizeLoaded, setFullSizeLoaded] = useState(false);
   // The lightbox's full-size <img> can also fail to render (expired signed URL,
   // network blip) — without this the dialog is a blank frame.
   const [lightboxFailed, setLightboxFailed] = useState(false);
@@ -89,7 +107,10 @@ export function AttachmentImage({
         open={open}
         onOpenChange={(next) => {
           setOpen(next);
-          if (next) setLightboxFailed(false); // fresh attempt each open
+          if (next) {
+            setLightboxFailed(false); // fresh attempt each open
+            setFullSizeLoaded(false); // …and the reveal starts again
+          }
         }}
       >
         <DialogContent
@@ -98,13 +119,37 @@ export function AttachmentImage({
         >
           <DialogTitle className="sr-only">Photo</DialogTitle>
           {url.data && !lightboxFailed && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={url.data.url}
-              alt={alt}
-              onError={() => setLightboxFailed(true)}
-              className="max-h-[85vh] w-full rounded-lg object-contain"
-            />
+            <div className="relative">
+              {/* The preview, already decoded and cached from the thumbnail.
+                  Underneath, so the photo is there the instant the dialog is,
+                  and it sharpens when the original lands. */}
+              {!fullSizeLoaded && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={url.data.url}
+                  alt={alt}
+                  aria-hidden={fullSize.data !== undefined}
+                  className="max-h-[85vh] w-full rounded-lg object-contain"
+                />
+              )}
+              {fullSize.data && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={fullSize.data.url}
+                  alt={alt}
+                  onLoad={() => setFullSizeLoaded(true)}
+                  // A failed ORIGINAL is not a failed photo: the preview above
+                  // is still on screen and still shows what happened on the
+                  // job. Falling back to it beats an error over a picture the
+                  // reader can already see.
+                  onError={() => setFullSizeLoaded(false)}
+                  className={cn(
+                    "max-h-[85vh] w-full rounded-lg object-contain",
+                    fullSizeLoaded ? "relative" : "absolute inset-0 opacity-0",
+                  )}
+                />
+              )}
+            </div>
           )}
           {url.data && lightboxFailed && (
             <div className="flex items-center justify-center rounded-lg bg-muted p-12">

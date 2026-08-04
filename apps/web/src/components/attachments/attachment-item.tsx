@@ -230,9 +230,13 @@ function ImageAttachmentRow({
   attachment: AttachmentLike;
   meta?: string;
 }) {
+  // #240: the 40px chip gets the preview; the lightbox gets the original, and
+  // only once it is opened. `size` below stays the ORIGINAL's — it is what
+  // "12.4 MB" means to somebody deciding whether to open it on mobile data.
   const url = useAttachmentUrl(attachment.id);
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
+  const fullSize = useAttachmentUrl(attachment.id, open, "original");
   const label = attachmentLabel(attachment);
   const size = formatBytes(attachment.size_bytes);
 
@@ -300,10 +304,12 @@ function ImageAttachmentRow({
           showCloseButton
         >
           <DialogTitle className="sr-only">{label}</DialogTitle>
-          {url.data && (
+          {/* The original once it lands, the already-cached preview until then,
+              so the picture is on screen the instant the dialog is. */}
+          {(fullSize.data ?? url.data) && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={url.data.url}
+              src={(fullSize.data ?? url.data)!.url}
               alt={label}
               className="max-h-[85vh] w-full rounded-lg object-contain"
             />
@@ -321,7 +327,11 @@ function FileAttachmentRow({
   attachment: AttachmentLike;
   meta?: string;
 }) {
-  const url = useAttachmentUrl(attachment.id);
+  // #240: a download hands over the FILE. Nothing here has a preview today —
+  // this row is PDFs and documents, which never get one — but asking for the
+  // original explicitly is what keeps that true if the rule ever widens: a
+  // download that quietly saved a thumbnail would be a silent data loss.
+  const url = useAttachmentUrl(attachment.id, true, "original");
   const label = attachmentLabel(attachment);
   const size = formatBytes(attachment.size_bytes);
   const typeLabel =

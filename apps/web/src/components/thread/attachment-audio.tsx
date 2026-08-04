@@ -31,7 +31,9 @@ export function AttachmentAudio({
   /** Whose clip this is, for the accessible name ("Voice message from Dana"). */
   fromLabel: string;
 }) {
-  const url = useAttachmentUrl(attachment.id);
+  // #240: audio never has a preview, and a player needs the whole file. Said
+  // explicitly so the default cannot quietly change underneath it.
+  const url = useAttachmentUrl(attachment.id, true, "original");
   const size = formatBytes(attachment.size_bytes);
   const href = url.data?.url;
 

@@ -111,8 +111,18 @@ final class ThreadController {
     }
 
     /// Mint a signed attachment URL — per view, never cached.
-    func mintAttachmentUrl(_ attachmentId: String) async throws -> String {
-        try await repo.attachmentUrl(companyId: companyId, attachmentId: attachmentId).url
+    ///
+    /// #240: the default is the PREVIEW, which is what a thread bubble renders.
+    /// `variant: "original"` is for opening or handing the file to another app.
+    func mintAttachmentUrl(
+        _ attachmentId: String,
+        variant: String = "preview"
+    ) async throws -> String {
+        try await repo.attachmentUrl(
+            companyId: companyId,
+            attachmentId: attachmentId,
+            variant: variant
+        ).url
     }
 
     private func notify(

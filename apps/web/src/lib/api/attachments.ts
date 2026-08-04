@@ -9,6 +9,7 @@ import {
   uploadFilesSequentially,
   type StagedUploadResult,
 } from "@/lib/attachments/upload-chain";
+import { makeAttachmentPreview } from "@/lib/attachments/preview";
 import {
   buildAttachmentForm,
   validateAttachment,
@@ -38,14 +39,30 @@ export { invalidateAfterNoteUpload };
  * ~4 min stale/gc leaves a safety margin so a thumbnail or download link never
  * renders from a cache entry whose signature has already expired.
  */
-export function useAttachmentUrl(attachmentId: string, enabled = true) {
+export function useAttachmentUrl(
+  attachmentId: string,
+  enabled = true,
+  /**
+   * #240: which of a row's two objects to fetch. The default is the preview,
+   * which is what a thread thumbnail and a gallery tile want — a 25 MB original
+   * behind a 176px square was the single worst egress shape in the product, and
+   * it is the tech's own mobile data too (#289).
+   *
+   * `"original"` is for a full-size view or a download: a deliberate act by a
+   * caller that wants the FILE rather than a picture of it. A row with no
+   * preview serves its original either way, so nothing uploaded before this
+   * shipped changes behaviour.
+   */
+  variant: "preview" | "original" = "preview",
+) {
   const companyId = useCompanyId();
   return useQuery({
-    queryKey: keys.attachmentUrl(companyId, attachmentId),
+    queryKey: keys.attachmentUrl(companyId, attachmentId, variant),
     queryFn: () =>
-      apiFetch<AttachmentUrl>(`/v1/attachments/${attachmentId}/url`, {
-        companyId,
-      }),
+      apiFetch<AttachmentUrl>(
+        `/v1/attachments/${attachmentId}/url${variant === "original" ? "?variant=original" : ""}`,
+        { companyId },
+      ),
     enabled,
     staleTime: 4 * 60_000,
     gcTime: 4 * 60_000,
@@ -111,16 +128,21 @@ export function useUploadAttachment(noteId: string) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation<Attachment, ApiError | AttachmentValidationError, UploadAttachmentInput>({
-    mutationFn: ({ file, currentCount = 0 }) => {
+    mutationFn: async ({ file, currentCount = 0 }) => {
       const check = validateAttachment(file, currentCount);
       if (!check.ok) {
         // Reject before the network — the caller shows check.reason inline.
-        return Promise.reject(new AttachmentValidationError(check.reason));
+        throw new AttachmentValidationError(check.reason);
       }
+      // #240: the browser has already decoded this image — the person just
+      // picked it — so the resize is a few milliseconds on a bitmap that
+      // exists, and it saves the whole crew re-fetching the original on every
+      // thread scroll. Null whenever one is not worth making or not possible.
+      const preview = await makeAttachmentPreview(file);
       return apiFetch<Attachment>("/v1/attachments", {
         method: "POST",
         companyId,
-        formData: buildAttachmentForm("note", noteId, file),
+        formData: buildAttachmentForm("note", noteId, file, preview),
       });
     },
     onSuccess: () => {
@@ -155,11 +177,20 @@ export function useUploadNoteFiles() {
   >({
     mutationFn: ({ noteId, files }) =>
       uploadFilesSequentially(
-        (file) =>
+        async (file) =>
           apiFetch<Attachment>("/v1/attachments", {
             method: "POST",
             companyId,
-            formData: buildAttachmentForm("note", noteId, file),
+            // #240: generated per file, inside the sequencer, so four staged
+            // photos resize one at a time. Doing them all up front would hold
+            // four decoded bitmaps at once, which on a phone browser is the
+            // difference between a slow tab and a dead one.
+            formData: buildAttachmentForm(
+              "note",
+              noteId,
+              file,
+              await makeAttachmentPreview(file),
+            ),
           }),
         files,
       ),

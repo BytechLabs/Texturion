@@ -185,13 +185,15 @@ const SURFACES = [
   },
   {
     key: "attachments",
-    // Picking and rendering files. On mobile this is inside the composer and
-    // the thread timeline rather than its own package.
+    // Picking and rendering files. On mobile the PICKING is inside the composer
+    // and the thread timeline rather than its own package — but #240 gave this
+    // directory a second job on the phones: generating the bounded preview that
+    // uploads beside the original, which is pure image arithmetic belonging to
+    // neither screen. Web keeps its equivalent in `lib/attachments/` because
+    // `components/` there is for components.
     web: "attachments",
-    android: null,
-    androidReason: "file picking lives in compose/ and thread/",
-    ios: null,
-    iosReason: "file picking lives in Compose/ and Thread/",
+    android: "attachments",
+    ios: "Attachments",
   },
   {
     key: "contact-panel",

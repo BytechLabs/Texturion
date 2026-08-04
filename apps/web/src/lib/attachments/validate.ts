@@ -170,10 +170,19 @@ export function buildAttachmentForm(
   ownerType: "note",
   ownerId: string,
   file: File | Blob,
+  /**
+   * #240: the bounded preview the browser generated, when it made one. Omitted
+   * for a file that does not want one (anything that is not a big image),
+   * whenever the resize failed, and whenever the result came out too big to be
+   * worth sending — the API treats an absent preview exactly as it did before
+   * this shipped and serves the original.
+   */
+  preview?: File | Blob | null,
 ): FormData {
   const formData = new FormData();
   formData.append("owner_type", ownerType);
   formData.append("owner_id", ownerId);
   formData.append("file", file);
+  if (preview) formData.append("preview", preview);
   return formData;
 }
