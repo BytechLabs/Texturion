@@ -8,6 +8,7 @@
  * suites substitute a fake, so the shell's queue/journal/alarm logic is
  * testable with no Telnyx and no PostgREST.
  */
+import { resolveNumberIdentity } from "@loonext/shared";
 import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -471,7 +472,10 @@ export function createSessionRuntime(env: Env): SessionRuntime {
       const callerE164 = normalizeCaller(payload.from);
       const { data: numberRows, error: numberError } = await db
         .from("phone_numbers")
-        .select("id,company_id,status")
+        // #307: the line's OWN identity, if it has one. Null on both columns
+        // means inherit, which is every number until somebody sets an
+        // override — so this read changes nothing for existing workspaces.
+        .select("id,company_id,status,label,voicemail_greeting")
         .eq("number_e164", payload.to)
         .neq("status", "released")
         .limit(1);
@@ -479,7 +483,13 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         throw new Error(`phone_numbers lookup failed: ${numberError.message}`);
       }
       const number = numberRows?.[0] as
-        | { id: string; company_id: string; status: string }
+        | {
+            id: string;
+            company_id: string;
+            status: string;
+            label: string | null;
+            voicemail_greeting: string | null;
+          }
         | undefined;
       if (!number) return "drop"; // a number we do not own
 
@@ -579,13 +589,29 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         number.id,
       );
 
+      const identity = resolveNumberIdentity(
+        {
+          name: company.name,
+          timezone: "",
+          voicemailGreeting: company.voicemail_greeting,
+          awayMessage: null,
+          awayEnabled: false,
+          businessHours: null,
+          businessHoursExceptions: null,
+        },
+        { label: number.label, voicemailGreeting: number.voicemail_greeting },
+      );
+
       return {
         callSessionId: payload.call_session_id,
         inboundCcid: payload.call_control_id,
         companyId: number.company_id,
         phoneNumberId: number.id,
-        companyName: company.name,
-        greeting: company.voicemail_greeting,
+        // #307: the identity this CALLER meets, resolved once so the greeting
+        // and the name it uses cannot disagree. A line with no overrides
+        // resolves to exactly the company values used before this existed.
+        companyName: identity.label.value,
+        greeting: identity.voicemailGreeting.value,
         callerE164,
         businessNumberE164: payload.to,
         lineBusy,
