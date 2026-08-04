@@ -128,6 +128,15 @@ export {
 } from "./attachment-types";
 
 export {
+  METERED_ORIGINAL_HINT,
+  WIFI_ONLY_DESCRIPTION,
+  WIFI_ONLY_LABEL,
+  mayFetchMedia,
+  type ConnectionKind,
+  type MediaFetchInput,
+} from "./metered-media";
+
+export {
   REALTIME_BACKGROUND_GRACE_MS,
   realtimeDropDelayMs,
   shouldHoldRealtime,

@@ -242,6 +242,10 @@ struct ShellView: View {
         }
         .resyncOnForeground { countsKey &+= 1 }
         .task(id: companyId) { await wireSessionDevice() }
+        // #289: one process-wide path observation, started once. NWPathMonitor
+        // is a system resource with a real cost to start and stop, and the
+        // answer is the same for every screen.
+        .task { ConnectionWatch.shared.start() }
         // #286: asked only of roles the joining flow could ever be for, so
         // nobody else pays a round trip on app start. A failure leaves it nil,
         // i.e. shows nothing.

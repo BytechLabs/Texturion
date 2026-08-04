@@ -136,8 +136,12 @@ final class ThreadController {
 
     /// UI-originated notices (copy confirmations, picker rejections) ride the
     /// same toast channel as controller notices.
-    func notifyExternally(_ text: String) {
-        notify(text)
+    func notifyExternally(
+        _ text: String,
+        actionLabel: String? = nil,
+        action: (@MainActor () -> Void)? = nil
+    ) {
+        notify(text, actionLabel: actionLabel, action: action)
     }
 
     func markCopied() {

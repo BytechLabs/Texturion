@@ -1,5 +1,7 @@
 package com.loonext.android.features.settings
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.loonext.android.features.attachments.MeteredMedia
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -93,6 +95,12 @@ fun DevicesSection(scope: SettingsScope) {
 
         is LoadState.Ready -> {
             val data = current.value
+            // #289: this phone's own data plan, above the device list. It is
+            // the only setting on this screen that changes what the app DOES
+            // rather than what is signed in, so it goes first — a reader who
+            // came here for it should not have to scroll past a list of
+            // sessions to find it.
+            DataUseCard(scope)
             MyDevicesCard(scope, data.mine, onChanged = { refreshKey++ })
             if (data.crew != null) {
                 CrewDevicesCard(
@@ -379,5 +387,38 @@ private fun DeviceRow(
         }
         Spacer(Modifier.width(4.dp))
         action()
+    }
+}
+
+/**
+ * #289 — "download photos on Wi-Fi only, at minimum".
+ *
+ * One switch, and deliberately narrow. #240 made a thread and a gallery fetch a
+ * bounded preview, so the expensive fetch left is the full-size original behind
+ * a tap — which means this can wait for Wi-Fi without ever making the app look
+ * broken on a job site. The supporting line says so, because a setting whose
+ * blast radius is unclear is one nobody dares turn on.
+ *
+ * *Applying: Zen of Clarity — one control, and the sentence that makes it safe
+ * to touch.*
+ */
+@Composable
+private fun DataUseCard(scope: SettingsScope) {
+    val coroutines = rememberCoroutineScope()
+    val wifiOnly by scope.graph.prefs.wifiOnlyOriginals
+        .collectAsStateWithLifecycle(initialValue = false)
+
+    SettingsCard(
+        title = "Mobile data",
+        description = "This phone only. Your other devices keep their own answer.",
+    ) {
+        LabeledSwitchRow(
+            label = MeteredMedia.SETTING_LABEL,
+            supporting = MeteredMedia.SETTING_DESCRIPTION,
+            checked = wifiOnly,
+            onCheckedChange = { next ->
+                coroutines.launch { scope.graph.prefs.setWifiOnlyOriginals(next) }
+            },
+        )
     }
 }

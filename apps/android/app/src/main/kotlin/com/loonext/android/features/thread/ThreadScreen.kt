@@ -120,6 +120,7 @@ import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.net.ApiErrorCode
+import com.loonext.android.features.attachments.openOriginal
 import com.loonext.android.features.compose.bannerKind
 import com.loonext.android.features.contacts.contactRepeatBadge
 import com.loonext.android.features.settings.openExternal
@@ -196,6 +197,10 @@ fun ThreadScreen(
     onOpenContact: ((contactId: String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    // #289: this phone's own answer about its own data plan. Device-scoped,
+    // not workspace-scoped — the same person on a laptop has a different one.
+    val wifiOnlyOriginals by graph.prefs.wifiOnlyOriginals
+        .collectAsStateWithLifecycle(initialValue = false)
     val scope = rememberCoroutineScope()
     val repo = remember(graph) { MessagingRepository(graph.api) }
     val uploader = remember(graph) { NoteFileUploader(graph.api, BuildConfig.API_URL) }
@@ -324,10 +329,23 @@ fun ThreadScreen(
                                     // #240: handing the file to another app
                                     // means handing over the FILE, not a
                                     // picture of it.
-                                    val url = repo
-                                        .attachmentUrl(companyId, attachment.id, "original")
-                                        .url
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+                                    //
+                                    // #289: which is exactly why it waits for
+                                    // Wi-Fi when somebody has asked it to. The
+                                    // thread above already rendered from a
+                                    // 200 KB preview; this is the 25 MB one.
+                                    openOriginal(
+                                        context = context,
+                                        wifiOnlyOriginals = wifiOnlyOriginals,
+                                        snackbar = snackbar,
+                                        mint = {
+                                            repo.attachmentUrl(
+                                                companyId,
+                                                attachment.id,
+                                                "original",
+                                            ).url
+                                        },
+                                    )
                                 } catch (cause: Exception) {
                                     snackbar.showSnackbar(cause.userMessage())
                                 }
@@ -340,10 +358,23 @@ fun ThreadScreen(
                                     // #240: handing the file to another app
                                     // means handing over the FILE, not a
                                     // picture of it.
-                                    val url = repo
-                                        .attachmentUrl(companyId, attachment.id, "original")
-                                        .url
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+                                    //
+                                    // #289: which is exactly why it waits for
+                                    // Wi-Fi when somebody has asked it to. The
+                                    // thread above already rendered from a
+                                    // 200 KB preview; this is the 25 MB one.
+                                    openOriginal(
+                                        context = context,
+                                        wifiOnlyOriginals = wifiOnlyOriginals,
+                                        snackbar = snackbar,
+                                        mint = {
+                                            repo.attachmentUrl(
+                                                companyId,
+                                                attachment.id,
+                                                "original",
+                                            ).url
+                                        },
+                                    )
                                 } catch (cause: Exception) {
                                     snackbar.showSnackbar(cause.userMessage())
                                 }

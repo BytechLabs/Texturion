@@ -32,6 +32,10 @@ class AppPrefs(private val context: Context) {
         val ACTIVE_COMPANY = stringPreferencesKey("active_company_id")
         val THEME = stringPreferencesKey("theme") // system | light | dark
         val DEV_MODE = booleanPreferencesKey("dev_mode")
+        // #289: full-size photos wait for Wi-Fi. Device-scoped, not
+        // workspace-scoped — it is about THIS phone's data plan, and the same
+        // person on a laptop has a different answer.
+        val WIFI_ONLY_ORIGINALS = booleanPreferencesKey("wifi_only_originals")
         val OAUTH_STATE = stringPreferencesKey("pending_oauth_state")
         val OAUTH_VERIFIER = stringPreferencesKey("pending_oauth_verifier")
         val OAUTH_CREATED_AT = longPreferencesKey("pending_oauth_created_at")
@@ -48,6 +52,15 @@ class AppPrefs(private val context: Context) {
     val devMode: Flow<Boolean> =
         context.appPrefs.data.map { it[Keys.DEV_MODE] ?: false }
 
+    /**
+     * #289: wait for Wi-Fi before fetching a FULL-SIZE photo. Default off —
+     * most people will never open the setting, and putting a tap between every
+     * tradesperson and every photo would solve a problem most of them do not
+     * have. Threads and galleries load either way (#240 made them cheap).
+     */
+    val wifiOnlyOriginals: Flow<Boolean> =
+        context.appPrefs.data.map { it[Keys.WIFI_ONLY_ORIGINALS] ?: false }
+
     suspend fun currentCompanyId(): String? = activeCompanyId.first()
 
     suspend fun setActiveCompany(companyId: String?) {
@@ -63,6 +76,10 @@ class AppPrefs(private val context: Context) {
 
     suspend fun setDevMode(enabled: Boolean) {
         context.appPrefs.edit { it[Keys.DEV_MODE] = enabled }
+    }
+
+    suspend fun setWifiOnlyOriginals(enabled: Boolean) {
+        context.appPrefs.edit { it[Keys.WIFI_ONLY_ORIGINALS] = enabled }
     }
 
     suspend fun savePendingOAuth(pending: PendingOAuth) {

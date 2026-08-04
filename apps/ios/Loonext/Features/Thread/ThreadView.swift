@@ -762,7 +762,25 @@ private struct ThreadBody: View {
         }
     }
 
-    private func openFile(_ attachment: Attachment) {
+    private func openFile(_ attachment: Attachment, requested: Bool = false) {
+        // #289: the thread above already rendered from a 200 KB preview; this
+        // is the 25 MB one, and it waits for Wi-Fi when somebody asked it to.
+        // The notice carries the action, so the escape is per-photo rather than
+        // per-session — the point of the setting is that data is spent
+        // deliberately.
+        guard MeteredMedia.mayFetch(
+            variant: "original",
+            connection: ConnectionWatch.shared.connection,
+            wifiOnlyOriginals: graph.prefs.wifiOnlyOriginals,
+            requested: requested
+        ) else {
+            controller.notifyExternally(
+                MeteredMedia.meteredHint,
+                actionLabel: "Load",
+                action: { openFile(attachment, requested: true) }
+            )
+            return
+        }
         Task {
             do {
                 // #240: handing the file to another app means handing over the

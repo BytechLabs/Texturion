@@ -38,6 +38,12 @@ struct DevicesSectionView: View {
                 CenteredError(message: message) { refreshKey += 1 }
                     .frame(height: 200)
             case .ready(let data):
+                // #289: this phone's own data plan, above the device list. It
+                // is the only setting on this screen that changes what the app
+                // DOES rather than what is signed in, so it goes first — a
+                // reader who came here for it should not have to scroll past a
+                // list of sessions to find it.
+                DataUseCard(scope: scope)
                 MyDevicesCard(scope: scope, sessions: data.mine) { refreshKey += 1 }
                 if let crew = data.crew {
                     CrewDevicesCard(scope: scope, sessions: crew, members: data.members) {
@@ -371,5 +377,40 @@ private struct DeviceRow<Action: View>: View {
             action()
         }
         .padding(.vertical, 10)
+    }
+}
+
+/**
+ #289 — "download photos on Wi-Fi only, at minimum".
+
+ One switch, and deliberately narrow. #240 made a thread and a gallery fetch a
+ bounded preview, so the expensive fetch left is the full-size original behind a
+ tap — which means this can wait for Wi-Fi without ever making the app look
+ broken on a job site. The supporting line says so, because a setting whose
+ blast radius is unclear is one nobody dares turn on.
+
+ *Applying: Zen of Clarity — one control, and the sentence that makes it safe to
+ touch.*
+ */
+private struct DataUseCard: View {
+    let scope: SettingsScope
+
+    var body: some View {
+        SettingsCard(
+            title: "Mobile data",
+            description: "This phone only. Your other devices keep their own answer."
+        ) {
+            Toggle(isOn: Binding(
+                get: { scope.graph.prefs.wifiOnlyOriginals },
+                set: { scope.graph.prefs.wifiOnlyOriginals = $0 }
+            )) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(MeteredMedia.settingLabel).font(.body)
+                    Text(MeteredMedia.settingDescription)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
     }
 }

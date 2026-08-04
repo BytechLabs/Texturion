@@ -16,6 +16,8 @@ final class AppPrefs {
     private enum Keys {
         static let activeCompany = "active_company_id"
         static let theme = "theme" // system | light | dark
+        // #289: full-size photos wait for Wi-Fi on this phone.
+        static let wifiOnlyOriginals = "wifi_only_originals"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -26,10 +28,24 @@ final class AppPrefs {
         didSet { defaults.set(theme, forKey: Keys.theme) }
     }
 
+    /**
+     #289: wait for Wi-Fi before fetching a FULL-SIZE photo.
+
+     Default off — most people will never open the setting, and putting a tap
+     between every tradesperson and every photo would solve a problem most of
+     them do not have. Threads and galleries load either way (#240 made them
+     cheap). Device-scoped, not workspace-scoped: it is about THIS phone's data
+     plan, and the same person on a laptop has a different answer.
+     */
+    var wifiOnlyOriginals: Bool {
+        didSet { defaults.set(wifiOnlyOriginals, forKey: Keys.wifiOnlyOriginals) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         activeCompanyId = defaults.string(forKey: Keys.activeCompany)
         theme = defaults.string(forKey: Keys.theme) ?? Theme.system
+        wifiOnlyOriginals = defaults.bool(forKey: Keys.wifiOnlyOriginals)
     }
 
     func setActiveCompany(_ companyId: String?) {
