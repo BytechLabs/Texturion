@@ -136,7 +136,14 @@ const CONVERSATION_COLUMNS =
   // whoever replies next, never an opt-out: only the contact can opt out, and
   // only they can lift it, so the product cannot afford to guess on their
   // behalf.
-  "opt_out_hint_at";
+  "opt_out_hint_at," +
+  // #301 — where this customer came from, and how we came to believe it.
+  //
+  // The ORIGIN travels with the id and is not optional. A source shown without
+  // it is exactly the "inferred source presented as a fact" the issue forbids:
+  // "the truck rang" and "a tech says a neighbour sent them" are different
+  // kinds of claim, and the picker has to be able to say which this is.
+  "lead_source_id,lead_source_origin";
 
 const MESSAGE_COLUMNS =
   "id,conversation_id,direction,body,status,segments,encoding," +

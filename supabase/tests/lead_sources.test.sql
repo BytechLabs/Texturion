@@ -282,4 +282,52 @@ begin
   raise notice 'LS-7 PASSED: one name per workspace, and it fits in a chip';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- LS-8: the report counts the unknowns, because they decide what it means.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_unknown bigint;
+  v_truck   bigint;
+  v_manual  bigint;
+  v_rows    integer;
+begin
+  select count(*) into v_rows from public.api_lead_source_report(
+    '7c000000-0000-4000-8000-0000000000c1'::uuid,
+    now() - interval '1 day', now() + interval '1 day');
+  if v_rows = 0 then
+    raise exception 'LS-8: the report returned nothing for a workspace with conversations';
+  end if;
+
+  -- The untracked line's conversation groups under a NULL id. A
+  -- `where lead_source_id is not null` here would make every percentage
+  -- downstream a percentage of the wrong denominator, and the table would look
+  -- complete.
+  -- `total`, NOT by_number + by_person: an unattributed conversation has no
+  -- origin, so both sub-counts skip it and the sum is zero. That is exactly
+  -- the omission this test exists to catch, and it caught it.
+  select total into v_unknown
+    from public.api_lead_source_report(
+      '7c000000-0000-4000-8000-0000000000c1'::uuid,
+      now() - interval '1 day', now() + interval '1 day')
+   where lead_source_id is null;
+  if coalesce(v_unknown, 0) <> 1 then
+    raise exception 'LS-8: expected 1 unattributed conversation, got %', v_unknown;
+  end if;
+
+  -- And the two kinds of belief are counted apart: a line ringing is a fact
+  -- about our own infrastructure, a tech tapping a chip is a report of what a
+  -- customer said.
+  select by_number, by_person into v_truck, v_manual
+    from public.api_lead_source_report(
+      '7c000000-0000-4000-8000-0000000000c1'::uuid,
+      now() - interval '1 day', now() + interval '1 day')
+   where lead_source_id = '7c000000-0000-4000-8000-0000000000e1'::uuid;
+  if coalesce(v_truck, 0) <> 1 or coalesce(v_manual, 0) <> 0 then
+    raise exception 'LS-8: truck should be 1 by number / 0 by person, got % / %',
+      v_truck, v_manual;
+  end if;
+  raise notice 'LS-8 PASSED: the report counts the unknowns';
+end $$;
+
 rollback;

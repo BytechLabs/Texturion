@@ -55,6 +55,12 @@ import { unwrap } from "./core/http";
 export const reportsRoutes = new Hono<AppEnv>();
 
 /** Windows the clients offer. Bounded so one request cannot scan all history. */
+import {
+  buildLeadSourceReport,
+  coverageNote,
+  type LeadSourceRollupRow,
+} from "../reports/lead-sources";
+
 const ALLOWED_DAYS = [7, 30, 90] as const;
 const DEFAULT_DAYS = 30;
 
@@ -477,6 +483,52 @@ function sliceOf(rows: RatingRow[], truncated: boolean): SatisfactionSlice {
     truncated,
   };
 }
+
+/**
+ * #301 — GET /v1/reports/lead-sources: where these customers came from.
+ *
+ * "Where do my customers come from?" is the question every small-business
+ * owner asks and almost none can answer, and it is the one with the most money
+ * attached. We sit at the exact point where it becomes knowable.
+ *
+ * The COVERAGE number is the point of this endpoint, not a footnote on it. A
+ * ranking built on a third of the conversations could be reordered completely
+ * by the other two thirds, and an owner acting on it would be spending real
+ * money on an artefact. `buildLeadSourceReport` computes it and `coverageNote`
+ * writes the sentence, both in shared code, so a phone and a laptop cannot
+ * disagree about how much of this to believe.
+ */
+reportsRoutes.get(
+  "/reports/lead-sources",
+  requireCapability("conversations.read"),
+  async (c) => {
+    const db = getDb(getEnv(c.env));
+    const companyId = c.get("companyId");
+
+    const requested = Number(c.req.query("days") ?? DEFAULT_DAYS);
+    const days = (ALLOWED_DAYS as readonly number[]).includes(requested)
+      ? requested
+      : DEFAULT_DAYS;
+
+    const until = new Date();
+    const since = new Date(until.getTime() - days * 24 * 60 * 60 * 1000);
+
+    const { data, error } = await db.rpc("api_lead_source_report", {
+      p_company_id: companyId,
+      p_since: since.toISOString(),
+      p_until: until.toISOString(),
+    });
+    if (error) {
+      throw new Error(`api_lead_source_report failed: ${error.message}`);
+    }
+
+    const report = buildLeadSourceReport(
+      (data ?? []) as LeadSourceRollupRow[],
+      days,
+    );
+    return c.json({ ...report, note: coverageNote(report) });
+  },
+);
 
 reportsRoutes.get(
   "/reports/satisfaction",
