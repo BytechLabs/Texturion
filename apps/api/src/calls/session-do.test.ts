@@ -6,7 +6,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildMemberRingState } from "../messaging/inbound-ring";
+import { buildMemberRingState, buildVoicemailState } from "../messaging/inbound-ring";
 import type { TelnyxEvent } from "../messaging/types";
 
 import { CallSessionDO } from "./session-do";
@@ -72,6 +72,10 @@ function makeStorage() {
 // ---- fake runtime ----------------------------------------------------------
 
 interface FakeConfig {
+  /** #309: false = Telnyx refused the audio, so the caller must get TTS. */
+  playbackResult?: () => boolean;
+  /** #309: null = no recorded greeting, which is every workspace by default. */
+  greetingAudioUrl?: () => string | null;
   initiated?: InitiatedContext | "drop" | "replay-ended";
   /** #211: what loadOutboundInitiatedContext returns for a 4-part oc initiated. */
   outboundInitiated?: OutboundInitiatedContext | "reject" | "drop";
@@ -109,6 +113,8 @@ function makeRuntime(config: FakeConfig = {}) {
     sentryWarns: [] as string[],
     sentryErrors: 0,
     threads: 0,
+    // #309: which recorded greetings were played, and from what URL.
+    playbacks: [] as { ccid: string; audioUrl: string }[],
   };
   const runtime: SessionRuntime = {
     now: () => Date.now(),
@@ -140,6 +146,13 @@ function makeRuntime(config: FakeConfig = {}) {
       },
       async speak(ccid) {
         calls.speaks.push(ccid);
+      },
+      // #309: recorded greetings. `playbackResult` lets a test say the audio
+      // is unfetchable, which is the case that must fall back to speak rather
+      // than leave the caller listening to nothing.
+      async playAudio(ccid, audioUrl) {
+        calls.playbacks.push({ ccid, audioUrl });
+        return config.playbackResult ? config.playbackResult() : true;
       },
       async recordStart() {},
       async probeLegAlive() {
@@ -203,6 +216,10 @@ function makeRuntime(config: FakeConfig = {}) {
       outboundPlacer: () => "op-state",
     },
     greetingText: () => "Hello from Acme",
+    // Null is the default because it is production's default: no workspace
+    // has a recorded greeting until somebody records one.
+    greetingAudioUrl: async () =>
+      config.greetingAudioUrl ? config.greetingAudioUrl() : null,
   };
   return { runtime, calls };
 }
@@ -254,6 +271,25 @@ function initiatedEvent(id: string): TelnyxEvent {
       id,
       event_type: "call.initiated",
       payload: { call_control_id: "cust-ccid", call_session_id: SESSION, direction: "incoming", to: "+19995000", from: "+15551000" } as never,
+    },
+  };
+}
+
+/**
+ * #309: the voicemail pipeline leg reporting that the greeting finished —
+ * `call.playback.ended` for a recording, `call.speak.ended` for TTS. The DO
+ * must treat them identically or a recorded greeting never reaches the beep.
+ */
+function vmiEvent(eventType: string): TelnyxEvent {
+  return {
+    data: {
+      id: `vmi-${eventType}`,
+      event_type: eventType,
+      payload: {
+        call_control_id: "cust-ccid",
+        call_session_id: SESSION,
+        client_state: buildVoicemailState("+15551000"),
+      } as never,
     },
   };
 }
@@ -711,6 +747,65 @@ describe("Founder sequence 1 — FOREGROUND (banner never vanishes → answer)",
     expect(snap?.state).toBe("voicemail_greeting");
     expect(calls.answersVm).toHaveLength(1);
     void store;
+  });
+});
+
+describe("#309 a greeting in the owner's own voice", () => {
+  /** Nobody answers, so the alarm sends the call to voicemail. */
+  async function toVoicemail(config: Parameters<typeof makeDO>[0]) {
+    const made = makeDO(config);
+    await made.instance.onTelnyxEvent(initiatedEvent("e1"));
+    vi.setSystemTime(new Date(Date.now() + 46_000));
+    await made.instance.alarm();
+    return made;
+  }
+
+  it("VR-1: a workspace with no recording still gets the TTS greeting", async () => {
+    // The zero-setup default, and the state of every workspace on the day this
+    // ships. #309 is an addition, not a replacement.
+    const { calls } = await toVoicemail({ initiated: ctx() });
+    expect(calls.playbacks).toHaveLength(0);
+    expect(calls.speaks).toHaveLength(1);
+  });
+
+  it("VR-2: a selected recording plays instead of the robot", async () => {
+    const { calls } = await toVoicemail({
+      initiated: ctx(),
+      greetingAudioUrl: () => "https://signed.example/greeting.m4a",
+    });
+    expect(calls.playbacks).toHaveLength(1);
+    expect(calls.playbacks[0].audioUrl).toBe("https://signed.example/greeting.m4a");
+    // And the robot did NOT also speak. Two greetings in a row is worse than
+    // either one alone.
+    expect(calls.speaks).toHaveLength(0);
+  });
+
+  it("VR-3: an unplayable recording falls back to TTS, never to silence", async () => {
+    // THE ONE THAT MATTERS. #309: "a caller hearing nothing is worse than a
+    // caller hearing a robot." The recording is gone, the signature expired,
+    // or Telnyx will not fetch the format — the caller still hears something.
+    const { calls } = await toVoicemail({
+      initiated: ctx(),
+      greetingAudioUrl: () => "https://signed.example/gone.m4a",
+      playbackResult: () => false,
+    });
+    expect(calls.playbacks).toHaveLength(1);
+    expect(calls.speaks).toHaveLength(1);
+  });
+
+  it("VR-4: a played greeting ends the greeting state, exactly as a spoken one does", async () => {
+    // call.playback.ended, not call.speak.ended. Mapping only the speak event
+    // would leave every caller who heard a recorded greeting listening to
+    // silence until they hung up, with no voicemail written — the failure this
+    // feature exists to prevent, reintroduced by the feature itself.
+    const { instance } = await toVoicemail({
+      initiated: ctx(),
+      greetingAudioUrl: () => "https://signed.example/greeting.m4a",
+    });
+    expect((await snapshot(instance))?.state).toBe("voicemail_greeting");
+
+    await instance.onTelnyxEvent(vmiEvent("call.playback.ended"));
+    expect((await snapshot(instance))?.state).toBe("voicemail_recording");
   });
 });
 

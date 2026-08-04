@@ -139,6 +139,16 @@ export interface SessionRuntime {
     hangup(ccid: string): Promise<"ok" | "dead">;
     reject(ccid: string, cause: "USER_BUSY"): Promise<void>;
     speak(ccid: string, payload: string, clientState: string): Promise<void>;
+    /**
+     * #309 — play a recorded greeting.
+     *
+     * Returns whether Telnyx accepted it, rather than swallowing a 4xx the way
+     * `speak` does. That difference is the whole fail-safe: a swallowed 404 on
+     * a missing audio object would leave the caller listening to nothing, and
+     * "a caller hearing nothing is worse than a caller hearing a robot" is the
+     * line #309 draws. The caller of this decides to speak instead.
+     */
+    playAudio(ccid: string, audioUrl: string, clientState: string): Promise<boolean>;
     recordStart(ccid: string): Promise<void>;
     probeLegAlive(ccid: string): Promise<boolean>;
   };
@@ -265,6 +275,24 @@ export interface SessionRuntime {
     outboundPlacer(sessionId: string, userId: string): string;
   };
   greetingText(machine: SessionMachine): string;
+  /**
+   * #309 — a signed URL for this line's RECORDED greeting, or null.
+   *
+   * Resolved HERE, when the greeting is about to play, rather than stamped on
+   * the machine at call initiation. Two reasons, and both matter on a path
+   * where somebody is listening to silence for every millisecond:
+   *
+   * - A call that gets ANSWERED never reaches voicemail, so stamping the URL
+   *   up front would make every caller pay a read and a signature for audio
+   *   that is usually never played.
+   * - A signed URL expires. One minted at initiation and played after a long
+   *   ring is exactly the "unplayable recording" case #309 says must never
+   *   produce silence — and the cheapest way not to have that case is not to
+   *   mint the URL early.
+   *
+   * Returns null on ANY failure, which puts the caller on the TTS line.
+   */
+  greetingAudioUrl(machine: SessionMachine): Promise<string | null>;
 }
 
 /** §4.1: is this Telnyx leg alive? GET /v2/calls/{ccid} — the DO-era
@@ -305,6 +333,9 @@ async function commandWithDiscrimination(
     throw cause;
   }
 }
+
+/** #309: the private bucket recorded greetings live in. */
+const GREETING_BUCKET = "voicemail-greetings";
 
 /** 4xx-swallowing hangup/cancel/speak-family command (dead leg = done). */
 async function swallow4xx(
@@ -408,6 +439,30 @@ export function createSessionRuntime(env: Env): SessionRuntime {
           language: "en-US",
           client_state: clientState,
         }),
+      playAudio: async (ccid, audioUrl, clientState) => {
+        try {
+          await telnyxRequest(env, {
+            method: "POST",
+            path: `/v2/calls/${ccid}/actions/playback_start`,
+            body: {
+              audio_url: audioUrl,
+              client_state: clientState,
+              // One pass. A greeting that loops is a caller who cannot get to
+              // the beep, which is worse than the robot voice we replaced.
+              loop: 1,
+            },
+          });
+          return true;
+        } catch (cause) {
+          // A 4xx here is the expected failure — a deleted object, an expired
+          // signature, a format Telnyx will not fetch. Report it so the caller
+          // gets the TTS line. A 5xx is reported the same way for the same
+          // reason: the caller is on the phone NOW, and there is no retry that
+          // helps them.
+          if (cause instanceof TelnyxApiError) return false;
+          throw cause;
+        }
+      },
       recordStart: (ccid) =>
         swallow4xx(env, `/v2/calls/${ccid}/actions/record_start`, {
           format: "mp3",
@@ -1081,6 +1136,52 @@ export function createSessionRuntime(env: Env): SessionRuntime {
     greetingText(machine) {
       // #518: the owner's words, and nothing appended to them.
       return sanitizeGreeting(machine.greeting, machine.companyName);
+    },
+
+    async greetingAudioUrl(machine) {
+      if (!machine.phoneNumberId) return null;
+      const db = getDb(env);
+
+      // One read: the line's selection and the workspace's, together. #307's
+      // rule — null on the number means INHERIT, never "no greeting".
+      const [numberRes, companyRes] = await Promise.all([
+        db
+          .from("phone_numbers")
+          .select("voicemail_greeting_id")
+          .eq("id", machine.phoneNumberId)
+          .limit(1),
+        db
+          .from("companies")
+          .select("voicemail_greeting_id")
+          .eq("id", machine.companyId)
+          .limit(1),
+      ]);
+      // No throw on error, deliberately: every failure here means TTS, and a
+      // caller on the line gets words rather than an exception nobody can act
+      // on before they hang up.
+      const selected =
+        ((numberRes.data ?? [])[0] as { voicemail_greeting_id: string | null } | undefined)
+          ?.voicemail_greeting_id ??
+        ((companyRes.data ?? [])[0] as { voicemail_greeting_id: string | null } | undefined)
+          ?.voicemail_greeting_id ??
+        null;
+      if (!selected) return null;
+
+      const { data: rows } = await db
+        .from("voicemail_greetings")
+        .select("storage_path")
+        .eq("id", selected)
+        .eq("company_id", machine.companyId)
+        .limit(1);
+      const path = ((rows ?? [])[0] as { storage_path: string } | undefined)?.storage_path;
+      if (!path) return null;
+
+      // Long enough to survive a slow fetch on Telnyx's side, short enough
+      // that a leaked URL is not a standing read of the workspace's audio.
+      const { data: signed } = await db.storage
+        .from(GREETING_BUCKET)
+        .createSignedUrl(path.replace(`${GREETING_BUCKET}/`, ""), 300);
+      return signed?.signedUrl ?? null;
     },
   };
 }

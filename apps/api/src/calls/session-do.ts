@@ -718,11 +718,33 @@ export class CallSessionDO extends DurableObject<Env> {
         // constant and NOT the company's greeting — a suspended workspace
         // cannot be trusted to have configured one, and it must never disclose
         // why the line is down.
+        const clientState = this.rt.buildClientStates.vmi(machine.callerE164);
+
+        // #309: the owner's own voice, when they recorded one.
+        //
+        // NOT for the unavailable notice — a suspended workspace cannot be
+        // trusted to have configured a greeting, and that notice must never
+        // become something the workspace can choose. Same reasoning as the
+        // #490 constant below.
+        if (effect.script === "voicemail-greeting") {
+          const audioUrl = await this.rt.greetingAudioUrl(machine);
+          const played =
+            audioUrl !== null &&
+            (await this.rt.telnyx.playAudio(effect.ccid, audioUrl, clientState));
+          if (played) {
+            await this.save(machine);
+            return [];
+          }
+          // Fell through deliberately: the recording is gone, unfetchable or
+          // unplayable, so the caller gets the words instead of nothing.
+        }
+
+        // #490: the script decides the words. The unavailable notice is a
+        // constant and NOT the company's greeting.
         const text =
           effect.script === "unavailable-notice"
             ? UNAVAILABLE_NOTICE
             : this.rt.greetingText(machine);
-        const clientState = this.rt.buildClientStates.vmi(machine.callerE164);
         await this.rt.telnyx.speak(effect.ccid, text, clientState);
         await this.save(machine);
         return [];
@@ -1115,7 +1137,13 @@ export class CallSessionDO extends DurableObject<Env> {
     }
 
     // vmi voicemail pipeline legs.
-    if (eventType === "call.speak.ended") {
+    // #309: a PLAYED greeting ends with call.playback.ended, a SPOKEN one with
+    // call.speak.ended. Both mean the same thing to this machine — the greeting
+    // is over, start recording. Mapping only the speak event would leave every
+    // caller who heard a recorded greeting listening to silence until they hung
+    // up, with no voicemail written: the exact failure #309 exists to prevent,
+    // reintroduced by the feature meant to fix it.
+    if (eventType === "call.speak.ended" || eventType === "call.playback.ended") {
       return { event: { type: "speak-ended" } };
     }
     if (eventType === "call.recording.saved") {
@@ -1200,11 +1228,16 @@ export class CallSessionDO extends DurableObject<Env> {
             : "ended_missed";
     } else if (
       eventType === "call.speak.ended" ||
+      eventType === "call.playback.ended" ||
       eventType === "call.recording.saved" ||
       (eventType === "call.hangup" && tag === "vmi")
     ) {
-      // §7.5.3: an in-flight legacy voicemail — the event proves it.
-      state = eventType === "call.speak.ended" ? "voicemail_greeting" : "voicemail_recording";
+      // §7.5.3: an in-flight legacy voicemail — the event proves it. #309: a
+      // recorded greeting is the same state as a spoken one.
+      state =
+        eventType === "call.speak.ended" || eventType === "call.playback.ended"
+          ? "voicemail_greeting"
+          : "voicemail_recording";
     } else if (eventType === "call.hangup" && tag === "bri" && !row.answeredAt) {
       state = "ringing"; // T17 will resolve it via the bri tag
     } else if (row.answeredAt) {

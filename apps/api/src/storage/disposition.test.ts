@@ -112,6 +112,12 @@ describe("#317 every signed-URL mint decides its disposition", () => {
       "Outbound MMS media, fetched by TELNYX and the carrier — never by a " +
       "browser. Content-Disposition means nothing to a machine fetcher, and " +
       "sending one to a carrier's media pipeline is a change with no upside.",
+    "calls/runtime.ts":
+      "#309 recorded voicemail greetings, fetched by TELNYX to play down a " +
+      "phone line — never opened in a browser. Same reasoning as the MMS " +
+      "media above: a Content-Disposition header means nothing to a machine " +
+      "fetcher. The URL is minted at play time and expires in five minutes, " +
+      "so it is not a link anybody can hold on to and open later either.",
   };
 
   function sourceFiles(dir: string): string[] {
