@@ -94,6 +94,21 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ role: "owner" }),
 }));
 
+// #309: the recorded-greeting card renders inside this page. Its data hooks
+// are mocked like every other hook here — this file's subject is the WRITTEN
+// greeting and the caller-ID flow, and the card has its own suite.
+vi.mock("@/lib/api/voicemail-greetings", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/lib/api/voicemail-greetings")
+  >("@/lib/api/voicemail-greetings");
+  return {
+    ...actual,
+    useVoicemailGreetings: () => ({ data: { data: [] } }),
+    useRecordGreeting: () => ({ isPending: false, mutateAsync: vi.fn() }),
+    useDeleteGreeting: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  };
+});
+
 import CallingSettingsPage from "./page";
 
 function render(): string {

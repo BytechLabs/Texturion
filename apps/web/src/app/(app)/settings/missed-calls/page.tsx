@@ -12,6 +12,8 @@ import { DEFAULT_MCTB_MESSAGE } from "@loonext/shared";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { VoiceGreetingCard } from "@/components/settings/voice-greeting-card";
+
 import {
   LoadError,
   SettingsCard,
@@ -800,6 +802,10 @@ export default function CallingSettingsPage() {
           )}
           <TextBackCard company={company.data} canEdit={canEdit} />
           <VoicemailCard company={company.data} canEdit={canEdit} />
+      {/* #309: directly under the written greeting, because it answers
+          the same question in a better way. The written one stays as the
+          zero-setup default and the fallback. */}
+      <VoiceGreetingCard canEdit={canEdit} />
           <ScreeningCard company={company.data} canEdit={canEdit} />
           <CallerIdCard company={company.data} canEdit={canEdit} />
           {/* D36/D38 fair use, one quiet line — the detail lives in Usage. */}
