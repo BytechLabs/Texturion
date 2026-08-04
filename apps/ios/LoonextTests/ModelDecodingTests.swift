@@ -44,6 +44,10 @@ final class ModelDecodingTests: XCTestCase {
         // live calls for a workspace that never asked, and would show the
         // owner a setting they did not choose.
         XCTAssertEqual(company.after_hours_calls, "ring_everyone")
+        // #278's other deploy-day guarantee: 45 seconds and every phone at
+        // once is how the product rang before these columns existed.
+        XCTAssertEqual(company.ring_strategy, "all")
+        XCTAssertEqual(company.ring_seconds, 45)
         XCTAssertNil(company.after_hours_greeting_id)
         XCTAssertNil(company.voicemail_greeting_id)
         XCTAssertTrue(company.numbers.isEmpty)

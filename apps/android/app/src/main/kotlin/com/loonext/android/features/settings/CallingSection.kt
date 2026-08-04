@@ -11,6 +11,10 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.TextButton
+import kotlinx.serialization.json.JsonObject
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -81,6 +85,9 @@ fun CallingSection(
     // same question in a better way. The written one stays as the
     // zero-setup default and the runtime fallback.
     VoiceGreetingCard(scope, canEdit = SettingsRoleGate.canEditWorkspace(scope.role))
+    // #278: how they ring first, then the exception — "this is how a call
+    // reaches you… except after hours" reads in that order.
+    RingCard(scope, company, onCompanyUpdated)
     // #278: after the voicemail cards, before screening — it is a routing
     // decision about the SAME calls those describe, so it reads as a qualifier
     // on them rather than a new subject.
@@ -391,6 +398,176 @@ private fun ScreeningCard(
         }
     }
 }
+
+/**
+ * #278 — how the phones ring, and for how long.
+ *
+ * Hand-port of `apps/web/src/components/settings/ring-card.tsx`, keeping the
+ * two readings that make the controls legible together:
+ *
+ * - **Seconds are shown as rings.** Nobody has an intuition for "30 seconds of
+ *   ringing"; everybody has one for "about five rings".
+ * - **A short window with "one at a time" says who never rings.** That pairing
+ *   is a rota which silently excludes half a crew, and nothing else on the
+ *   screen would ever say so.
+ */
+@Composable
+private fun RingCard(
+    scope: SettingsScope,
+    company: CompanyView,
+    onCompanyUpdated: (CompanyView) -> Unit,
+) {
+    val canEdit = SettingsRoleGate.canEditWorkspace(scope.role)
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var secondsMenuOpen by remember { mutableStateOf(false) }
+    val coroutines = rememberCoroutineScope()
+
+    fun save(patch: JsonObject, message: String) {
+        error = null
+        saving = true
+        coroutines.launch {
+            try {
+                onCompanyUpdated(scope.repo.updateCompany(scope.companyId, patch))
+                scope.showMessage(message)
+            } catch (cause: Exception) {
+                error = cause.userMessage()
+            } finally {
+                saving = false
+            }
+        }
+    }
+
+    SettingsCard(
+        title = "How the phones ring",
+        description = "When a call comes in, every phone on the crew can ring " +
+            "together, or they can join one at a time so whoever answers most " +
+            "gets first refusal.",
+    ) {
+        RING_CHOICES.forEach { choice ->
+            val selected = company.ring_strategy == choice.value
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .selectable(
+                        selected = selected,
+                        enabled = canEdit && !saving,
+                        onClick = {
+                            if (selected) return@selectable
+                            save(
+                                buildJsonObject { put("ring_strategy", choice.value) },
+                                "Ringing updated.",
+                            )
+                        },
+                    )
+                    .padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = selected, onClick = null, enabled = canEdit && !saving)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(choice.label, style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        choice.detail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
+        Row(
+            Modifier.fillMaxWidth().padding(top = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("How long they ring", style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.weight(1f))
+            TextButton(
+                enabled = canEdit && !saving,
+                onClick = { secondsMenuOpen = true },
+            ) { Text(ringSecondsLabel(company.ring_seconds)) }
+            DropdownMenu(
+                expanded = secondsMenuOpen,
+                onDismissRequest = { secondsMenuOpen = false },
+            ) {
+                // The stored value always appears, even when it is not one of
+                // the four — a picker that silently rounds somebody's setting
+                // is a picker lying about what their line does.
+                val options = (RING_SECOND_CHOICES + company.ring_seconds)
+                    .distinct()
+                    .sorted()
+                options.forEach { value ->
+                    DropdownMenuItem(
+                        text = { Text(ringSecondsLabel(value)) },
+                        onClick = {
+                            secondsMenuOpen = false
+                            save(
+                                buildJsonObject { put("ring_seconds", value) },
+                                "Ring length updated.",
+                            )
+                        },
+                    )
+                }
+            }
+        }
+        Text(
+            if (company.ring_strategy == "in_turn") {
+                val reached = phonesReached(company.ring_seconds)
+                "Then the caller gets your greeting. In ${company.ring_seconds} " +
+                    "seconds, $reached ${if (reached == 1) "phone gets" else "phones get"} " +
+                    "a turn — anyone after that never rings on this line."
+            } else {
+                "Then the caller gets your greeting. Longer than 45 seconds isn't " +
+                    "offered: the call legs themselves end there, so it would be " +
+                    "ringing nobody could hear."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        InlineError(error)
+        if (!canEdit) {
+            Spacer(Modifier.height(4.dp))
+            ReadOnlyLine("Only owners and admins can change how the phones ring.")
+        }
+    }
+}
+
+/** NANP ringing is roughly a six-second cadence. A reading, not a unit. */
+internal fun ringsIn(seconds: Int): Int = maxOf(1, Math.round(seconds / 6f))
+
+/** How long before the next phone joins, under "one at a time" — mirrors
+ *  RING_STEP_SECS, where the machine reads it. */
+private const val RING_STEP_SECS = 12
+
+/** How many phones actually get a turn inside a window of this length. */
+internal fun phonesReached(seconds: Int): Int =
+    maxOf(1, (seconds - 1) / RING_STEP_SECS + 1)
+
+private fun ringSecondsLabel(seconds: Int): String =
+    "$seconds seconds \u00b7 about ${ringsIn(seconds)} rings"
+
+/** The same four the web card offers, so the two never disagree about what a
+ *  reasonable ring length is. */
+private val RING_SECOND_CHOICES = listOf(15, 20, 30, 45)
+
+private data class RingChoice(val value: String, val label: String, val detail: String)
+
+private val RING_CHOICES = listOf(
+    RingChoice(
+        "all",
+        "All at once",
+        "What happens today. Every phone on the crew rings for the whole time, " +
+            "and the first to pick up takes the call.",
+    ),
+    RingChoice(
+        "in_turn",
+        "One at a time",
+        "The longest-serving member's phone rings first, alone. Twelve seconds " +
+            "later the next joins them, then the next — nobody's phone is ever " +
+            "cut off mid-reach.",
+    ),
+)
 
 /**
  * #278 — what an inbound call does after hours.

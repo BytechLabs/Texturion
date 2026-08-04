@@ -30,7 +30,9 @@ import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -78,6 +80,10 @@ internal fun NumberIdentityDialog(
     // #278: what this line does after hours. Inherit is a real value here, so
     // the menu carries it as its first entry rather than as an absence.
     var afterHoursMenuOpen by remember { mutableStateOf(false) }
+    // #278: how this line rings, and for how long. Inherit is a real value on
+    // both, so each menu carries it as its first entry.
+    var ringMenuOpen by remember { mutableStateOf(false) }
+    var ringSecondsMenuOpen by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
 
@@ -158,6 +164,28 @@ internal fun NumberIdentityDialog(
                             put("after_hours_calls", value)
                         }
                     },
+                )
+                seed(next)
+                loaded = LoadState.Ready(next)
+                onChanged()
+            } catch (cause: Exception) {
+                error = cause.userMessage()
+            } finally {
+                pending = false
+            }
+        }
+    }
+
+    /** #278: set one of the ring fields, or null to follow the workspace. */
+    fun selectRing(field: String, value: JsonElement) {
+        coroutines.launch {
+            pending = true
+            error = null
+            try {
+                val next = scope.repo.setNumberIdentity(
+                    scope.companyId,
+                    number.id,
+                    buildJsonObject { put(field, value) },
                 )
                 seed(next)
                 loaded = LoadState.Ready(next)
@@ -386,6 +414,131 @@ internal fun NumberIdentityDialog(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        // #278: how THIS line rings.
+                        val ringInherited = state.value.ring_strategy.inherited
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "How the phones ring",
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                            Spacer(Modifier.weight(1f))
+                            if (ringInherited) {
+                                Text(
+                                    INHERIT_LABEL,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            } else {
+                                TextButton(
+                                    enabled = !pending,
+                                    onClick = { clear("ring_strategy") },
+                                ) {
+                                    Text(
+                                        "Use the workspace's",
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                            }
+                        }
+                        TextButton(
+                            enabled = !pending,
+                            onClick = { ringMenuOpen = true },
+                        ) {
+                            Text(
+                                if (ringInherited) {
+                                    INHERIT_LABEL
+                                } else {
+                                    RING_LABELS[state.value.ring_strategy.value] ?: INHERIT_LABEL
+                                },
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = ringMenuOpen,
+                            onDismissRequest = { ringMenuOpen = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(INHERIT_LABEL) },
+                                onClick = {
+                                    ringMenuOpen = false
+                                    selectRing("ring_strategy", JsonNull)
+                                },
+                            )
+                            RING_LABELS.forEach { (value, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        ringMenuOpen = false
+                                        selectRing("ring_strategy", JsonPrimitive(value))
+                                    },
+                                )
+                            }
+                        }
+
+                        val secondsInherited = state.value.ring_seconds.inherited
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "How long they ring",
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                            Spacer(Modifier.weight(1f))
+                            if (secondsInherited) {
+                                Text(
+                                    INHERIT_LABEL,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            } else {
+                                TextButton(
+                                    enabled = !pending,
+                                    onClick = { clear("ring_seconds") },
+                                ) {
+                                    Text(
+                                        "Use the workspace's",
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                            }
+                        }
+                        TextButton(
+                            enabled = !pending,
+                            onClick = { ringSecondsMenuOpen = true },
+                        ) {
+                            val seconds = state.value.ring_seconds.value
+                            Text(
+                                if (secondsInherited || seconds == null) {
+                                    INHERIT_LABEL
+                                } else {
+                                    "$seconds seconds"
+                                },
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = ringSecondsMenuOpen,
+                            onDismissRequest = { ringSecondsMenuOpen = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(INHERIT_LABEL) },
+                                onClick = {
+                                    ringSecondsMenuOpen = false
+                                    selectRing("ring_seconds", JsonNull)
+                                },
+                            )
+                            RING_SECOND_CHOICES.forEach { value ->
+                                DropdownMenuItem(
+                                    text = { Text("$value seconds") },
+                                    onClick = {
+                                        ringSecondsMenuOpen = false
+                                        selectRing("ring_seconds", JsonPrimitive(value))
+                                    },
+                                )
+                            }
+                        }
                         IdentityField(
                             title = "Name for this line",
                             hint = "Used in the greeting, on missed-call texts, and " +
@@ -581,6 +734,14 @@ private const val WRITTEN_GREETING_LABEL = "The written greeting, read aloud"
 
 /** "Follow the workspace" is a real choice here, so it is a labelled option. */
 private const val INHERIT_LABEL = "Same as your workspace"
+
+/** #278: the two ring shapes, and the four windows the workspace card offers. */
+private val RING_LABELS = linkedMapOf(
+    "all" to "All at once",
+    "in_turn" to "One at a time",
+)
+
+private val RING_SECOND_CHOICES = listOf(15, 20, 30, 45)
 
 /** #278: the three shapes, in the order an owner grows through them. */
 private val AFTER_HOURS_LABELS = linkedMapOf(

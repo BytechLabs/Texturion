@@ -401,6 +401,18 @@ data class NumberIdentity(
     val after_hours_calls: ResolvedField = ResolvedField(),
     /** #278: the recording played after hours; null is the ordinary greeting. */
     val after_hours_greeting_id: ResolvedField = ResolvedField(),
+    /** #278: how this line's phones ring. */
+    val ring_strategy: ResolvedField = ResolvedField(),
+    /** #278: how long they ring. A ResolvedInt because the value is a number
+     *  and a string-shaped resolver would parse it back at every read. */
+    val ring_seconds: ResolvedInt = ResolvedInt(),
+)
+
+/** A resolved NUMBER, and whether it came from the workspace. */
+@Serializable
+data class ResolvedInt(
+    val value: Int? = null,
+    val inherited: Boolean = true,
 )
 
 /**

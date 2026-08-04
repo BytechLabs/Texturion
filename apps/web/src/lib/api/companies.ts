@@ -121,6 +121,9 @@ export interface CompanyPatch {
   /** #278 (O/A): what a call does outside hours, and which recording says so. */
   after_hours_calls?: "ring_everyone" | "on_call_only" | "voicemail";
   after_hours_greeting_id?: string | null;
+  /** #278 (O/A): how the phones ring, and for how long. */
+  ring_strategy?: "all" | "in_turn";
+  ring_seconds?: number;
   call_screening?: "off" | "flag" | "divert";
   cnam_display_name?: string | null;
   caller_id_lookup?: boolean;

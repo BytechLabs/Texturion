@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api/error";
+import { ringsIn } from "@/components/settings/ring-card";
 import { useNumberIdentity, useSetNumberIdentity } from "@/lib/api/numbers";
 import { useVoicemailGreetings } from "@/lib/api/voicemail-greetings";
 import type { NumberIdentity, NumberIdentityPatch } from "@/lib/api/types";
@@ -299,6 +300,99 @@ export function NumberIdentityDialog({
                 message.
               </p>
             </div>
+            {/*
+              #278: how THIS line rings. Same inherit-first shape as everything
+              else here — the option that is always correct is the one that
+              needs no thought.
+            */}
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <Label htmlFor="identity-ring">How the phones ring</Label>
+                {identity.data.ring_strategy.inherited ? (
+                  <span className="text-[12px] text-app-muted-2">
+                    Same as your workspace
+                  </span>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto px-1.5 py-0.5 text-[12px]"
+                    disabled={save.isPending}
+                    onClick={() => void restoreWorkspaceValue("ring_strategy")}
+                  >
+                    Use the workspace&apos;s
+                  </Button>
+                )}
+              </div>
+              <Select
+                value={
+                  identity.data.ring_strategy.inherited
+                    ? INHERIT
+                    : identity.data.ring_strategy.value
+                }
+                onValueChange={(next) =>
+                  void save.mutateAsync({
+                    ring_strategy:
+                      next === INHERIT
+                        ? null
+                        : (next as NumberIdentity["ring_strategy"]["value"]),
+                  })
+                }
+              >
+                <SelectTrigger id="identity-ring">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={INHERIT}>Same as your workspace</SelectItem>
+                  <SelectItem value="all">All at once</SelectItem>
+                  <SelectItem value="in_turn">One at a time</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <Label htmlFor="identity-ring-seconds">How long they ring</Label>
+                {identity.data.ring_seconds.inherited ? (
+                  <span className="text-[12px] text-app-muted-2">
+                    Same as your workspace
+                  </span>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto px-1.5 py-0.5 text-[12px]"
+                    disabled={save.isPending}
+                    onClick={() => void restoreWorkspaceValue("ring_seconds")}
+                  >
+                    Use the workspace&apos;s
+                  </Button>
+                )}
+              </div>
+              <Select
+                value={
+                  identity.data.ring_seconds.inherited
+                    ? INHERIT
+                    : String(identity.data.ring_seconds.value)
+                }
+                onValueChange={(next) =>
+                  void save.mutateAsync({
+                    ring_seconds: next === INHERIT ? null : Number(next),
+                  })
+                }
+              >
+                <SelectTrigger id="identity-ring-seconds">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={INHERIT}>Same as your workspace</SelectItem>
+                  {RING_SECOND_CHOICES.map((value) => (
+                    <SelectItem key={value} value={String(value)}>
+                      {value} seconds · about {ringsIn(value)} rings
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             {FIELDS.map((field) => {
               const resolved = identity.data![field.key];
               return (
@@ -376,7 +470,9 @@ type ClearableField =
   // #278: null is INHERIT here too, and it is a value an owner sets on purpose
   // — a line that was set to take messages after hours has to be able to go
   // back to following the workspace.
-  | "after_hours_calls";
+  | "after_hours_calls"
+  | "ring_strategy"
+  | "ring_seconds";
 
 /**
  * The select's stand-in for "no recording".
@@ -389,6 +485,10 @@ const WRITTEN = "__written__";
 
 /** The select's "follow the workspace" sentinel — Radix cannot hold null. */
 const INHERIT = "__inherit__";
+
+/** The same four the workspace card offers, so the two never disagree about
+ *  what a reasonable ring length is. */
+const RING_SECOND_CHOICES = [15, 20, 30, 45];
 
 const FIELDS: { key: Field; label: string; hint: string; multiline?: boolean }[] = [
   {

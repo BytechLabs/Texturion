@@ -38,9 +38,14 @@ const { save, greetingRows, toastSuccess, toastError, identity } = vi.hoisted(
         voicemail_greeting_id: { value: null, inherited: true },
         after_hours_calls: { value: "ring_everyone", inherited: true },
         after_hours_greeting_id: { value: null, inherited: true },
+        ring_strategy: { value: "all", inherited: true },
+        ring_seconds: { value: 45, inherited: true },
       } as Record<
         string,
-        { value: string | boolean | null; inherited: boolean }
+        // #278 widened this: ring_seconds is a NUMBER, and pinning the union
+        // to the three types that happened to exist made the fixture reject
+        // the next field rather than describe it.
+        { value: string | number | boolean | null; inherited: boolean }
       >,
     },
   }),
@@ -82,6 +87,8 @@ beforeEach(() => {
     voicemail_greeting_id: { value: null, inherited: true },
     after_hours_calls: { value: "ring_everyone", inherited: true },
     after_hours_greeting_id: { value: null, inherited: true },
+    ring_strategy: { value: "all", inherited: true },
+    ring_seconds: { value: 45, inherited: true },
   };
 });
 
@@ -116,7 +123,9 @@ describe("#307 how this line answers", () => {
     expect(
       screen.getAllByText("Same as your workspace").length,
     ).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: "Use the workspace's" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Use the workspace's" }),
+    ).toBeNull();
   });
 
   it("NI-3: an overridden field offers the way back, worded as the outcome", () => {
@@ -190,6 +199,8 @@ describe("#307 how this line answers", () => {
       voicemail_greeting_id: { value: null, inherited: true },
       after_hours_calls: { value: "ring_everyone", inherited: true },
       after_hours_greeting_id: { value: null, inherited: true },
+      ring_strategy: { value: "all", inherited: true },
+      ring_seconds: { value: 45, inherited: true },
     };
     open();
 

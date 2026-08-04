@@ -291,6 +291,17 @@ enum DefaultRingEveryone: DefaultCodableProvider {
     static var defaultValue: String { "ring_everyone" }
 }
 
+/// #278: every phone at once is how the product rang before this existed, so a
+/// lagging payload without the field keeps that.
+enum DefaultRingAll: DefaultCodableProvider {
+    static var defaultValue: String { "all" }
+}
+
+/// #278: 45 seconds is both the pre-#278 window and the ceiling.
+enum DefaultRingSeconds: DefaultCodableProvider {
+    static var defaultValue: Int { 45 }
+}
+
 /// #193: caller ID defaults to the company name platform-wide, so a lagging
 /// payload without the field reads as the company-name default.
 enum DefaultCallerIdCompanyName: DefaultCodableProvider {
@@ -415,6 +426,10 @@ struct CompanyView: Codable, Sendable {
     /// #278: the recording played after hours; nil falls back to the ordinary
     /// greeting, never to silence.
     let after_hours_greeting_id: String?
+    /// #278: every phone at once, or joining the ring one at a time.
+    @Default<DefaultRingAll> var ring_strategy: String
+    /// #278: how long they ring. 45 is the ceiling — the legs end there.
+    @Default<DefaultRingSeconds> var ring_seconds: Int
     @Default<DefaultScreeningOff> var call_screening: String
     let cnam_display_name: String?
     @Default<DefaultFalse> var caller_id_lookup: Bool
@@ -474,6 +489,17 @@ struct NumberIdentity: Codable, Sendable {
     var after_hours_calls = ResolvedField()
     /// #278: the recording played after hours; nil is the ordinary greeting.
     var after_hours_greeting_id = ResolvedField()
+    /// #278: how this line's phones ring.
+    var ring_strategy = ResolvedField()
+    /// #278: how long they ring. A ResolvedInt because the value is a number
+    /// and a string-shaped resolver would parse it back at every read.
+    var ring_seconds = ResolvedInt()
+}
+
+/// A resolved NUMBER, and whether it came from the workspace.
+struct ResolvedInt: Codable, Sendable {
+    var value: Int?
+    var inherited: Bool = true
 }
 
 /// The week, resolved.

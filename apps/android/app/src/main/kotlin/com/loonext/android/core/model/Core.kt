@@ -406,6 +406,11 @@ data class CompanyView(
     /** #278: the recording played after hours; null falls back to the ordinary
      *  greeting, never to silence. */
     val after_hours_greeting_id: String? = null,
+    /** #278: every phone at once, or joining the ring one at a time. */
+    val ring_strategy: String = "all",
+    /** #278: how long they ring before the caller gets the greeting. 45 is the
+     *  ceiling — the call legs themselves end there. */
+    val ring_seconds: Int = 45,
     val call_screening: String = "off",
     val cnam_display_name: String? = null,
     val caller_id_lookup: Boolean = false,

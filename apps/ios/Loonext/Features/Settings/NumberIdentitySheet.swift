@@ -73,6 +73,8 @@ struct NumberIdentitySheet: View {
                         // businesses, and the one that must reach somebody at
                         // 3am is rarely the one taking invoice questions.
                         afterHoursPicker(identity)
+                        // #278: how THIS line rings, and for how long.
+                        ringPicker(identity)
                         field(
                             title: "Name for this line",
                             hint: "Used in the greeting, on missed-call texts, and "
@@ -326,6 +328,113 @@ struct NumberIdentitySheet: View {
         .padding(.top, 14)
     }
 
+    private func ringPicker(_ identity: NumberIdentity) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("How the phones ring").font(.subheadline.weight(.medium))
+                Spacer()
+                if identity.ring_strategy.inherited {
+                    Text("Same as your workspace")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button("Use the workspace's") { restore("ring_strategy") }
+                        .font(.caption)
+                        .disabled(pending)
+                }
+            }
+            Picker(
+                "How the phones ring",
+                selection: Binding(
+                    get: {
+                        identity.ring_strategy.inherited
+                            ? inheritTag
+                            : (identity.ring_strategy.value ?? inheritTag)
+                    },
+                    set: { setRingStrategy($0 == inheritTag ? nil : $0) }
+                )
+            ) {
+                Text("Same as your workspace").tag(inheritTag)
+                Text("All at once").tag("all")
+                Text("One at a time").tag("in_turn")
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .disabled(pending)
+
+            HStack(alignment: .firstTextBaseline) {
+                Text("How long they ring").font(.subheadline.weight(.medium))
+                Spacer()
+                if identity.ring_seconds.inherited {
+                    Text("Same as your workspace")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button("Use the workspace's") { restore("ring_seconds") }
+                        .font(.caption)
+                        .disabled(pending)
+                }
+            }
+            Picker(
+                "How long they ring",
+                selection: Binding(
+                    get: {
+                        identity.ring_seconds.inherited
+                            ? -1
+                            : (identity.ring_seconds.value ?? -1)
+                    },
+                    set: { setRingSeconds($0 == -1 ? nil : $0) }
+                )
+            ) {
+                // -1 is the inherit tag here rather than a string, because the
+                // value this picker holds is a number and a mixed-type tag is
+                // how a SwiftUI Picker silently stops matching its selection.
+                Text("Same as your workspace").tag(-1)
+                ForEach(ringSecondChoices, id: \.self) { value in
+                    Text("\(value) seconds").tag(value)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .disabled(pending)
+        }
+        .padding(.top, 14)
+    }
+
+    private func setRingStrategy(_ value: String?) {
+        saveIdentity(.object([
+            "ring_strategy": value.map { JSONValue.string($0) } ?? .null
+        ]))
+    }
+
+    private func setRingSeconds(_ value: Int?) {
+        saveIdentity(.object([
+            "ring_seconds": value.map { JSONValue.number(Double($0)) } ?? .null
+        ]))
+    }
+
+    /// One field, saved and re-seeded. #278 added three call sites that
+    /// differed only in the body, and a third hand-rolled Task block is how
+    /// one of them ends up forgetting to re-seed.
+    private func saveIdentity(_ body: JSONValue) {
+        Task { @MainActor in
+            pending = true
+            error = nil
+            defer { pending = false }
+            do {
+                let next = try await scope.repo.setNumberIdentity(
+                    scope.companyId,
+                    numberId: number.id,
+                    body: body
+                )
+                seed(next)
+                loaded = .ready(next)
+            } catch {
+                self.error = error.userMessage
+            }
+        }
+    }
+
     /// Route this line's after-hours calls, or nil to follow the workspace.
     private func selectAfterHours(_ value: String?) {
         Task { @MainActor in
@@ -468,3 +577,7 @@ private let writtenGreetingId = "__written__"
 /// #278: "follow the workspace" is a real choice here, not an absence, so the
 /// picker needs a tag for it — SwiftUI cannot select nil.
 private let inheritTag = "__inherit__"
+
+/// The same four the workspace card offers, so the two never disagree about
+/// what a reasonable ring length is.
+private let ringSecondChoices = [15, 20, 30, 45]

@@ -432,6 +432,11 @@ export interface CompanyView {
   /** #278: the recording played after hours; null falls back to the ordinary
    *  greeting, never to silence. */
   after_hours_greeting_id: string | null;
+  /** #278: every phone at once, or joining the ring one at a time. */
+  ring_strategy: "all" | "in_turn";
+  /** #278: how long they ring before the caller gets the greeting. Capped at
+   *  45 — the call legs themselves end there. */
+  ring_seconds: number;
   call_screening: "off" | "flag" | "divert";
   cnam_display_name: string | null;
   caller_id_lookup: boolean;
@@ -2364,6 +2369,9 @@ export interface NumberIdentity {
   after_hours_calls: ResolvedField<"ring_everyone" | "on_call_only" | "voicemail">;
   /** #278: the recording played after hours; null is the ordinary greeting. */
   after_hours_greeting_id: ResolvedField<string | null>;
+  /** #278: how this line's phones ring, and for how long. */
+  ring_strategy: ResolvedField<"all" | "in_turn">;
+  ring_seconds: ResolvedField<number>;
 }
 
 /** Null on a field CLEARS the override back to the workspace value. */
@@ -2379,4 +2387,6 @@ export interface NumberIdentityPatch {
   voicemail_greeting_id?: string | null;
   after_hours_calls?: "ring_everyone" | "on_call_only" | "voicemail" | null;
   after_hours_greeting_id?: string | null;
+  ring_strategy?: "all" | "in_turn" | null;
+  ring_seconds?: number | null;
 }
