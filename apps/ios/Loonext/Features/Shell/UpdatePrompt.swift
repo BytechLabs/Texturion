@@ -102,7 +102,7 @@ private struct UpdateBlock: View {
             Color(.systemBackground).ignoresSafeArea()
             VStack(spacing: 0) {
                 Image(systemName: "arrow.down.circle")
-                    .font(.system(size: 40))
+                    .font(.scaled(40))
                 Text("Loonext needs an update")
                     .font(.title3.weight(.semibold))
                     .padding(.top, 24)

@@ -119,7 +119,7 @@ struct SatisfactionCard: View {
                             .font(.golos(13, weight: .medium))
                             .frame(maxWidth: .infinity, alignment: .leading)
                         Image(systemName: "arrow.right")
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.scaled(12, weight: .medium))
                             .foregroundStyle(BrandColor.muted500)
                     }
                     .contentShape(Rectangle())
@@ -135,7 +135,7 @@ struct SatisfactionCard: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .lastTextBaseline, spacing: 6) {
                 Image(systemName: "star")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.scaled(12, weight: .medium))
                     .foregroundStyle(BrandColor.muted500)
                 Text(SatisfactionFormat.format(report.average))
                     .font(.golos(24, weight: .semibold))
@@ -152,7 +152,7 @@ struct SatisfactionCard: View {
                         systemName: direction == "better"
                             ? "arrow.up.right" : "arrow.down.right"
                     )
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.scaled(11, weight: .bold))
                     Text(arc)
                         .font(.golos(13, weight: .medium))
                 }
@@ -181,7 +181,7 @@ struct SatisfactionCard: View {
                         .font(.golos(13))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Image(systemName: "arrow.right")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.scaled(12, weight: .medium))
                         .foregroundStyle(BrandColor.muted500)
                 }
                 .padding(.horizontal, 14)

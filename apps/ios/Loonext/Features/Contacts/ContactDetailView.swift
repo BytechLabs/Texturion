@@ -297,7 +297,7 @@ struct ContactDetailView: View {
                     UIPasteboard.general.string = contact.phone_e164
                 } label: {
                     Image(systemName: "doc.on.doc")
-                        .font(.system(size: 11))
+                        .font(.scaled(11))
                         .foregroundStyle(BrandColor.muted400)
                 }
                 .buttonStyle(.borderless)
@@ -361,7 +361,7 @@ struct ContactDetailView: View {
                             .controlSize(.mini)
                     } else {
                         Image(systemName: "phone")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.scaled(13, weight: .medium))
                     }
                     Text(placingCall ? "Calling…" : "Call")
                         .font(.golos(12, weight: .semibold))
@@ -381,7 +381,7 @@ struct ContactDetailView: View {
     private var textPillLabel: some View {
         HStack(spacing: 7) {
             Image(systemName: "message")
-                .font(.system(size: 13, weight: .medium))
+                .font(.scaled(13, weight: .medium))
             Text("Text")
                 .font(.golos(12, weight: .semibold))
         }
@@ -648,7 +648,7 @@ struct ContactDetailView: View {
                     .foregroundStyle(BrandColor.muted500)
                 HStack(spacing: 6) {
                     Image(systemName: "clock")
-                        .font(.system(size: 11))
+                        .font(.scaled(11))
                         .foregroundStyle(BrandColor.muted500)
                     Text(localReading(zone))
                         .font(.golos(12.5))
@@ -719,7 +719,7 @@ struct ContactDetailView: View {
         HStack(alignment: .center, spacing: 9) {
             if contact.consent_source != nil {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.scaled(11, weight: .bold))
                     .foregroundStyle(BrandColor.onLime)
                     .frame(width: 22, height: 22)
                     .background(BrandColor.lime, in: Circle())
@@ -766,7 +766,7 @@ struct ContactDetailView: View {
                                 .foregroundStyle(BrandColor.ink)
                             Spacer()
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .medium))
+                                .font(.scaled(12, weight: .medium))
                                 .foregroundStyle(BrandColor.muted250)
                         }
                         .padding(.horizontal, 15)
@@ -1280,7 +1280,7 @@ private struct ContactCallRow: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 11) {
                 Image(systemName: directionIcon)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.scaled(14, weight: .medium))
                     .foregroundStyle(metaColor)
                     .frame(width: 20)
                 Text(callOutcomeLabel(call))
@@ -1369,7 +1369,7 @@ private struct ContactVoicemailPlayerRow: View {
                                 .tint(BrandColor.paper)
                         } else {
                             Image(systemName: playing ? "pause.fill" : "play.fill")
-                                .font(.system(size: 11, weight: .bold))
+                                .font(.scaled(11, weight: .bold))
                                 .foregroundStyle(BrandColor.paper)
                         }
                     }

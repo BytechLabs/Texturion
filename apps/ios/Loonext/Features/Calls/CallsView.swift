@@ -227,7 +227,7 @@ struct CallsView: View {
                 activeSheet = .dialer
             } label: {
                 Image(systemName: "circle.grid.3x3")
-                    .font(.system(size: 17, weight: .medium))
+                    .font(.scaled(17, weight: .medium))
                     .foregroundStyle(BrandColor.ink)
                     .frame(width: 44, height: 44)
                     .background(BrandColor.paper, in: Circle())
@@ -596,7 +596,7 @@ private struct CallRow: View {
                         .lineLimit(1)
                     HStack(spacing: 6) {
                         Image(systemName: directionIcon)
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.scaled(11, weight: .medium))
                             .foregroundStyle(metaColor)
                         Text(callOutcomeLabel(call))
                             .font(.golos(
@@ -710,7 +710,7 @@ private struct VoicemailPlayerRow: View {
                                 .tint(BrandColor.paper)
                         } else {
                             Image(systemName: playing ? "pause.fill" : "play.fill")
-                                .font(.system(size: 11, weight: .bold))
+                                .font(.scaled(11, weight: .bold))
                                 .foregroundStyle(BrandColor.paper)
                         }
                     }

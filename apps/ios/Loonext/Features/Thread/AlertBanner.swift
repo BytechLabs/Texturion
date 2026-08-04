@@ -30,7 +30,7 @@ struct AlertBanner: View {
         if let alert {
             HStack(spacing: 8) {
                 Image(systemName: "bell.badge")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.scaled(13, weight: .medium))
                     .foregroundStyle(BrandColor.olive)
                 Text(waitingLine(alert))
                     .font(.golos(13))

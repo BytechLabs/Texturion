@@ -207,7 +207,7 @@ private struct TimelineRow: View {
     var body: some View {
         let row = HStack(spacing: 10) {
             Image(systemName: iconName)
-                .font(.system(size: 15))
+                .font(.scaled(15))
                 .foregroundStyle(BrandColor.muted500)
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 2) {

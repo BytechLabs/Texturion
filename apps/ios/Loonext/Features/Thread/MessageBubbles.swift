@@ -65,7 +65,7 @@ struct MessageBubble: View {
             if note {
                 HStack(spacing: 4) {
                     Image(systemName: "lock")
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.scaled(10, weight: .medium))
                         .foregroundStyle(BrandColor.muted700)
                     Text(authorName ?? "Internal note")
                         .font(.golos(11, weight: .semibold))
@@ -237,7 +237,7 @@ private struct MessageMetaLine: View {
     /// visual is identical whether or not a link id resolved).
     private var taskIcon: some View {
         Image(systemName: "checklist")
-            .font(.system(size: 10))
+            .font(.scaled(10))
             .foregroundStyle(BrandColor.muted300)
     }
 
@@ -263,7 +263,7 @@ private struct MessageMetaLine: View {
         HStack(spacing: 6) {
             if message.pinned_at != nil {
                 Image(systemName: "pin.fill")
-                    .font(.system(size: 10))
+                    .font(.scaled(10))
                     .foregroundStyle(BrandColor.muted300)
                     .accessibilityLabel("Pinned")
             }
@@ -556,7 +556,7 @@ struct NoteFilesSection: View {
                         } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "doc")
-                                    .font(.system(size: 12, weight: .medium))
+                                    .font(.scaled(12, weight: .medium))
                                     .foregroundStyle(BrandColor.olive)
                                 Text(file.file_name ?? "File")
                                     .font(.golos(11.5, weight: .medium))

@@ -1,5 +1,7 @@
 import CoreText
 import SwiftUI
+// UIFontMetrics and UIFont.TextStyle, for the system-font scaling below.
+import UIKit
 
 /// The shared "Paper & Olive" kit (docs/MOBILE-DESIGN.md) — the SwiftUI twin
 /// of Android's ui/common/Ds.kt. Surfaces compose these instead of re-deriving
@@ -17,15 +19,80 @@ enum DesignFonts {
     }
 }
 
+/// Dynamic Type support for the point sizes this kit is drawn in (#238).
+///
+/// WHY A REFERENCE STYLE IS NEEDED AT ALL. Neither `Font.custom(_:size:)` nor
+/// `Font.system(size:)` scales with the reader's text-size setting: both take a
+/// literal point size and render it, at 100% forever. Somebody who has turned
+/// text up because they cannot otherwise read it gets the same 13pt caption
+/// they could not read. The APIs that DO scale both want to know which text
+/// style the size is standing in for, so scaling stays proportionate: a 30pt
+/// title and a 12pt caption must not grow by the same number of points.
+///
+/// The mapping is nearest-by-default-size, against Apple's sizes at the Large
+/// (default) content size category. Nearest rather than a hand-written table
+/// per call site because there are seven hundred of them, and a table nobody
+/// can maintain decays into a table nobody trusts.
+///
+/// Rendering at the default setting is UNCHANGED. `relativeTo:` and
+/// `UIFontMetrics.scaledValue(for:)` both return the literal size at Large, so
+/// this is additive: the kit looks exactly as drawn, and now moves when asked.
+enum TypeScale {
+    /// Apple's default point size for each style at the Large content size.
+    private static let anchors: [(size: CGFloat, swiftUI: Font.TextStyle, uiKit: UIFont.TextStyle)] = [
+        (34, .largeTitle, .largeTitle),
+        (28, .title, .title1),
+        (22, .title2, .title2),
+        (20, .title3, .title3),
+        (17, .body, .body),
+        (16, .callout, .callout),
+        (15, .subheadline, .subheadline),
+        (13, .footnote, .footnote),
+        (12, .caption, .caption1),
+        (11, .caption2, .caption2),
+    ]
+
+    private static func anchor(for size: CGFloat) -> (size: CGFloat, swiftUI: Font.TextStyle, uiKit: UIFont.TextStyle) {
+        anchors.min(by: { abs($0.size - size) < abs($1.size - size) }) ?? anchors[4]
+    }
+
+    /// The style a custom font at this size should scale in step with.
+    static func textStyle(for size: CGFloat) -> Font.TextStyle {
+        anchor(for: size).swiftUI
+    }
+
+    /// The same size, grown or shrunk by the reader's setting.
+    ///
+    /// For the system font only, which has no `relativeTo:` variant. Reading
+    /// the metric here rather than through `@ScaledMetric` keeps this a plain
+    /// `Font` factory usable anywhere a font is; SwiftUI re-evaluates the body
+    /// when the content size category changes, so the value stays current.
+    static func scaledValue(for size: CGFloat) -> CGFloat {
+        UIFontMetrics(forTextStyle: anchor(for: size).uiKit).scaledValue(for: size)
+    }
+}
+
 extension Font {
-    /// The display voice: Bricolage Grotesque SemiBold — screen titles only.
+    /// The display voice: Bricolage Grotesque SemiBold, screen titles only.
     static func display(_ size: CGFloat, weight: Font.Weight = .semibold) -> Font {
-        .custom("Bricolage Grotesque", size: size).weight(weight)
+        .custom("Bricolage Grotesque", size: size, relativeTo: TypeScale.textStyle(for: size))
+            .weight(weight)
     }
 
     /// Golos Text at an explicit size (body voice; system-metrics fallback).
     static func golos(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        .custom("Golos Text", size: size).weight(weight)
+        .custom("Golos Text", size: size, relativeTo: TypeScale.textStyle(for: size))
+            .weight(weight)
+    }
+
+    /// The system font at an explicit size, scaling with the reader's setting.
+    ///
+    /// Use instead of `.system(size:)`, which does not scale. Kept as a
+    /// separate entry point rather than folded into `golos` because the sites
+    /// that reach for the system font want its metrics: tabular digits, and
+    /// alignment with the SF Symbols beside them.
+    static func scaled(_ size: CGFloat, weight: Font.Weight = .regular, design: Font.Design = .default) -> Font {
+        .system(size: TypeScale.scaledValue(for: size), weight: weight, design: design)
     }
 }
 

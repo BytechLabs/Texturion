@@ -88,7 +88,7 @@ struct InitialsAvatar: View {
 
     var body: some View {
         Text(initialsOf(name))
-            .font(.system(size: size * 0.38, weight: .semibold))
+            .font(.scaled(size * 0.38, weight: .semibold))
             .foregroundStyle(BrandColor.muted900)
             .frame(width: size, height: size)
             .background(BrandColor.avatarTint, in: Circle())

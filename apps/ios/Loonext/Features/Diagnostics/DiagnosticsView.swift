@@ -107,7 +107,7 @@ struct DiagnosticsView: View {
                     ) {
                         HStack(spacing: 12) {
                             Image(systemName: "square.and.arrow.up")
-                                .font(.system(size: 15, weight: .medium))
+                                .font(.scaled(15, weight: .medium))
                                 .foregroundStyle(BrandColor.muted500)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text("Share everything")
@@ -190,7 +190,7 @@ struct DiagnosticsView: View {
                 // Monospaced because every value here is an identifier, a
                 // version or a state word, and these get read aloud down a
                 // phone line and typed into a search box.
-                .font(.system(size: 12.5, design: .monospaced))
+                .font(.scaled(12.5, design: .monospaced))
                 .foregroundStyle(BrandColor.ink)
                 .multilineTextAlignment(.trailing)
                 .textSelection(.enabled)
@@ -211,16 +211,16 @@ struct DiagnosticsView: View {
                     .kerning(0.8)
                     .foregroundStyle(BrandColor.destructive)
                 Text(shortTime(crash.receivedAt))
-                    .font(.system(size: 10.5, design: .monospaced))
+                    .font(.scaled(10.5, design: .monospaced))
                     .foregroundStyle(BrandColor.muted400)
                 if let version = crash.appVersion {
                     Text("build \(version)")
-                        .font(.system(size: 10.5, design: .monospaced))
+                        .font(.scaled(10.5, design: .monospaced))
                         .foregroundStyle(BrandColor.muted400)
                 }
             }
             Text(crash.reason ?? "No reason reported")
-                .font(.system(size: 12, design: .monospaced))
+                .font(.scaled(12, design: .monospaced))
                 .foregroundStyle(BrandColor.ink)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -238,11 +238,11 @@ struct DiagnosticsView: View {
                     .kerning(0.8)
                     .foregroundStyle(BrandColor.olive)
                 Text(shortTime(entry.at))
-                    .font(.system(size: 10.5, design: .monospaced))
+                    .font(.scaled(10.5, design: .monospaced))
                     .foregroundStyle(BrandColor.muted400)
             }
             Text(entry.detail.map { "\(entry.event)  \($0)" } ?? entry.event)
-                .font(.system(size: 12, design: .monospaced))
+                .font(.scaled(12, design: .monospaced))
                 .foregroundStyle(BrandColor.ink)
                 .fixedSize(horizontal: false, vertical: true)
         }

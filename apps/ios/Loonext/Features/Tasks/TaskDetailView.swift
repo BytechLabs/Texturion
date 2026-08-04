@@ -376,7 +376,7 @@ struct TaskDetailView: View {
                         if detail.done {
                             Circle().fill(BrandColor.lime)
                             Image(systemName: "checkmark")
-                                .font(.system(size: 13, weight: .bold))
+                                .font(.scaled(13, weight: .bold))
                                 .foregroundStyle(BrandColor.onLime)
                         } else {
                             Circle().strokeBorder(BrandColor.muted250, lineWidth: 2)
@@ -547,7 +547,7 @@ struct TaskDetailView: View {
 
     private var metaRowChevron: some View {
         Image(systemName: "chevron.down")
-            .font(.system(size: 12, weight: .medium))
+            .font(.scaled(12, weight: .medium))
             .foregroundStyle(BrandColor.muted250)
     }
 
@@ -857,7 +857,7 @@ private struct TaskAddressSection: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "mappin.and.ellipse")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.scaled(13, weight: .medium))
                             .foregroundStyle(BrandColor.muted500)
                         Text("Address")
                             .font(.golos(13.5, weight: .semibold))
@@ -886,7 +886,7 @@ private struct TaskAddressSection: View {
                 // The disclosure chevron stays the trailing affordance (parity
                 // with Android/web); tapping it toggles like the label.
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.scaled(12, weight: .medium))
                     .foregroundStyle(BrandColor.muted250)
                     .rotationEffect(.degrees(open ? 180 : 0))
                     .onTapGesture {
@@ -1161,7 +1161,7 @@ private struct NoteCard: View {
             // Spec 23: internal note = dashed inset well, lock + AUTHOR · TIME.
             HStack(spacing: 6) {
                 Image(systemName: "lock")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.scaled(10, weight: .semibold))
                     .foregroundStyle(BrandColor.muted600)
                 Text("\(author) · \(relativeTime(createdAt))".uppercased())
                     .font(.golos(10, weight: .bold))
@@ -1273,7 +1273,7 @@ private struct NoteComposer: View {
                     post()
                 } label: {
                     Image(systemName: "arrow.up")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.scaled(15, weight: .semibold))
                         .foregroundStyle(BrandColor.paper)
                         .frame(width: 38, height: 38)
                         .background(BrandColor.ink, in: Circle())

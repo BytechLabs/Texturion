@@ -77,7 +77,7 @@ struct DuplicateContactsCard: View {
     private var header: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "person.2")
-                .font(.system(size: 14, weight: .medium))
+                .font(.scaled(14, weight: .medium))
                 .foregroundStyle(BrandColor.muted500)
                 .padding(.top, 1)
             VStack(alignment: .leading, spacing: 2) {
@@ -213,7 +213,7 @@ private struct MergeContactsSheet: View {
                                 ? "largecircle.fill.circle"
                                 : "circle"
                         )
-                        .font(.system(size: 16, weight: .regular))
+                        .font(.scaled(16, weight: .regular))
                         .foregroundStyle(
                             keepFirst == first ? BrandColor.olive : BrandColor.muted300
                         )

@@ -233,7 +233,7 @@ struct InCallView: View {
                     .font(.golos(15, weight: .semibold))
                 Spacer()
                 Image(systemName: "phone.down")
-                    .font(.system(size: 19, weight: .medium))
+                    .font(.scaled(19, weight: .medium))
                     .frame(width: 44, height: 44)
                     .background(BrandColor.paperFixed.opacity(0.16), in: Circle())
             }
@@ -258,7 +258,7 @@ struct InCallView: View {
                     manager.hangup(call.id)
                 } label: {
                     Image(systemName: "phone.down")
-                        .font(.system(size: 24, weight: .medium))
+                        .font(.scaled(24, weight: .medium))
                         .foregroundStyle(BrandColor.paperFixed)
                         .frame(width: 72, height: 72)
                         .background(BrandColor.destructive, in: Circle())
@@ -275,7 +275,7 @@ struct InCallView: View {
                     answerWithMicPreflight(call.id)
                 } label: {
                     Image(systemName: "phone")
-                        .font(.system(size: 24, weight: .medium))
+                        .font(.scaled(24, weight: .medium))
                         .foregroundStyle(BrandColor.onLime)
                         .frame(width: 72, height: 72)
                         .background(BrandColor.lime, in: Circle())
@@ -400,7 +400,7 @@ private struct ControlToggle: View {
         Button(action: action) {
             VStack(spacing: 6) {
                 Image(systemName: systemImage)
-                    .font(.system(size: 20, weight: .regular))
+                    .font(.scaled(20, weight: .regular))
                     .foregroundStyle(on ? BrandColor.paper : BrandColor.ink)
                     .frame(width: 60, height: 60)
                     .background(
@@ -501,7 +501,7 @@ private struct OtherCallRow: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "phone")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.scaled(12, weight: .semibold))
                         Text("Answer")
                             .font(.golos(11.5, weight: .bold))
                     }

@@ -271,7 +271,7 @@ struct GettingStartedCard: View {
                 dismissed = true
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.scaled(13, weight: .medium))
                     .foregroundStyle(BrandColor.muted500)
                     .frame(width: 30, height: 30)
             }
@@ -296,7 +296,7 @@ struct GettingStartedCard: View {
     private func row(_ step: StartedStep) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: step.done ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 15, weight: .regular))
+                .font(.scaled(15, weight: .regular))
                 .foregroundStyle(step.done ? BrandColor.olive : BrandColor.muted300)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {

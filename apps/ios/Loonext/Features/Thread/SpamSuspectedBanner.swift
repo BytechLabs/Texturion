@@ -28,7 +28,7 @@ struct SpamSuspectedBanner: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.shield")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.scaled(12, weight: .medium))
                     .foregroundStyle(BrandColor.muted500)
                 Text("This looks like spam")
                     .font(.golos(12.5, weight: .semibold))

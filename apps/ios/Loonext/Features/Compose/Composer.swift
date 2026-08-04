@@ -1387,7 +1387,7 @@ struct StagedMediaChip: View {
     var body: some View {
         VStack(spacing: 2) {
             Image(systemName: media.kind.symbolName)
-                .font(.system(size: 17))
+                .font(.scaled(17))
                 .foregroundStyle(BrandColor.muted600)
             Text(media.name ?? attachmentLabel(kind: media.kind, count: 1))
                 .font(.golos(8.5, weight: .semibold))
@@ -1439,7 +1439,7 @@ struct PhotoChipsRow: View {
                             onRemove(photo.id)
                         } label: {
                             Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 16))
+                                .font(.scaled(16))
                                 .foregroundStyle(BrandColor.ink, BrandColor.paper)
                         }
                         .accessibilityLabel("Remove attachment")
@@ -1471,7 +1471,7 @@ struct FileChipsRow: View {
                             onRemove(file.id)
                         } label: {
                             Image(systemName: "xmark")
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(.scaled(11, weight: .semibold))
                                 .foregroundStyle(BrandColor.muted500)
                         }
                         .accessibilityLabel("Remove \(file.name)")
@@ -1606,7 +1606,7 @@ struct TemplatePickerSheet: View {
     private var searchField: some View {
         HStack(spacing: 9) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 14, weight: .medium))
+                .font(.scaled(14, weight: .medium))
                 .foregroundStyle(BrandColor.muted300)
             TextField("Search templates", text: $query)
                 .font(.golos(13))

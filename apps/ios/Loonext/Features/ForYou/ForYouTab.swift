@@ -600,7 +600,7 @@ private struct RecentCallRow: View {
                     .lineLimit(1)
                 HStack(spacing: 5) {
                     Image(systemName: directionIcon)
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.scaled(10, weight: .medium))
                         .foregroundStyle(metaColor)
                     Text(callOutcomeLabel(call))
                         .font(.golos(11.5, weight: isActionableMiss(call) ? .semibold : .regular))
@@ -649,7 +649,7 @@ private struct PersonRow: View {
                     AttentionDot()
                 }
                 Image(systemName: "arrow.right")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.scaled(15, weight: .medium))
                     .foregroundStyle(BrandColor.muted250)
             }
             .padding(.horizontal, 16)
@@ -689,7 +689,7 @@ private struct TaskLineRow: View {
                 }
                 Spacer(minLength: 8)
                 Image(systemName: "arrow.right")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.scaled(15, weight: .medium))
                     .foregroundStyle(BrandColor.muted250)
             }
             .padding(.horizontal, 16)

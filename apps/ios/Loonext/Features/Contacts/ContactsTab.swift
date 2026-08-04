@@ -290,7 +290,7 @@ struct ContactsTab: View {
                 createOpen = true
             } label: {
                 Image(systemName: "plus")
-                    .font(.system(size: 17, weight: .medium))
+                    .font(.scaled(17, weight: .medium))
                     .foregroundStyle(BrandColor.paper)
                     .frame(width: 44, height: 44)
                     .background(BrandColor.ink, in: Circle())
@@ -305,7 +305,7 @@ struct ContactsTab: View {
     private var searchField: some View {
         HStack(spacing: 9) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 15, weight: .medium))
+                .font(.scaled(15, weight: .medium))
                 .foregroundStyle(BrandColor.muted300)
             TextField("Search name or number", text: $query)
                 .font(.golos(13.5))
@@ -595,7 +595,7 @@ struct ContactsTab: View {
                 addFromDevice = row
             } label: {
                 Image(systemName: "person.badge.plus")
-                    .font(.system(size: 15, weight: .regular))
+                    .font(.scaled(15, weight: .regular))
                     .foregroundStyle(BrandColor.muted500)
             }
             .buttonStyle(.plain)
@@ -785,7 +785,7 @@ private struct ContactRow: View {
             Spacer(minLength: 8)
             // Decorative doorway glyph — the whole row opens the contact.
             Image(systemName: "message")
-                .font(.system(size: 15, weight: .medium))
+                .font(.scaled(15, weight: .medium))
                 .foregroundStyle(BrandColor.muted900)
                 .frame(width: 34, height: 34)
                 .background(BrandColor.inset, in: Circle())

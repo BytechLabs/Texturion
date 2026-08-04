@@ -26,7 +26,7 @@ struct MemberPickerSheet: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.scaled(14, weight: .medium))
                     .foregroundStyle(BrandColor.muted400)
                 TextField("Search teammates", text: $query)
                     .font(.golos(13))

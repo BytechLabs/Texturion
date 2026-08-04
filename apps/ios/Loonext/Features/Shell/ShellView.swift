@@ -505,7 +505,7 @@ struct ShellView: View {
                     Circle().fill(BrandColor.paperFixed)
                 }
                 Image(systemName: icon)
-                    .font(.system(size: 20, weight: .regular))
+                    .font(.scaled(20, weight: .regular))
                     .foregroundStyle(
                         tab == value
                             ? BrandColor.inkFixed
@@ -582,7 +582,7 @@ struct ShellView: View {
             activeSheet = .compose(prefillContactId: nil, prefillPhone: nil)
         } label: {
             Image(systemName: "pencil")
-                .font(.system(size: 21, weight: .medium))
+                .font(.scaled(21, weight: .medium))
                 .foregroundStyle(BrandColor.paper)
                 .frame(width: 54, height: 54)
                 .background(BrandColor.ink, in: Circle())

@@ -124,7 +124,7 @@ struct ResponseTimeCard: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .lastTextBaseline, spacing: 6) {
                 Image(systemName: "clock")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.scaled(12, weight: .medium))
                     .foregroundStyle(BrandColor.muted500)
                 Text(ResponseTimeFormat.format(report.median_seconds))
                     .font(.golos(24, weight: .semibold))
@@ -141,7 +141,7 @@ struct ResponseTimeCard: View {
                         systemName: direction == "faster"
                             ? "arrow.down.right" : "arrow.up.right"
                     )
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.scaled(11, weight: .bold))
                     Text(arc)
                         .font(.golos(13, weight: .medium))
                 }
@@ -170,7 +170,7 @@ struct ResponseTimeCard: View {
                         .font(.golos(13))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Image(systemName: "arrow.right")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.scaled(12, weight: .medium))
                         .foregroundStyle(BrandColor.muted500)
                 }
                 .padding(.horizontal, 14)

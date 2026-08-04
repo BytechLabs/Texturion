@@ -614,7 +614,7 @@ private struct ThreadBody: View {
                                     Text("New message")
                                         .font(.golos(12, weight: .semibold))
                                     Image(systemName: "chevron.down")
-                                        .font(.system(size: 12, weight: .semibold))
+                                        .font(.scaled(12, weight: .semibold))
                                 }
                                 .foregroundStyle(BrandColor.canvas)
                                 .padding(.horizontal, 14)
@@ -1275,7 +1275,7 @@ private struct ThreadHeader: View {
                             .frame(width: 44, height: 44)
                     } else {
                         Image(systemName: "phone")
-                            .font(.system(size: 17, weight: .medium))
+                            .font(.scaled(17, weight: .medium))
                             .foregroundStyle(BrandColor.canvas)
                             .frame(width: 44, height: 44)
                             .background(Circle().fill(BrandColor.ink))
@@ -1585,7 +1585,7 @@ private struct ConversationSheet: View {
             HStack(spacing: 10) {
                 if let icon {
                     Image(systemName: icon)
-                        .font(.system(size: 14, weight: .regular))
+                        .font(.scaled(14, weight: .regular))
                         .foregroundStyle(BrandColor.muted500)
                         .frame(width: 20, alignment: .leading)
                 }
@@ -1616,7 +1616,7 @@ private struct ConversationSheet: View {
             HStack(spacing: 10) {
                 if let icon {
                     Image(systemName: icon)
-                        .font(.system(size: 14, weight: .regular))
+                        .font(.scaled(14, weight: .regular))
                         .foregroundStyle(on ? BrandColor.olive : BrandColor.muted500)
                         .frame(width: 20, alignment: .leading)
                 }
@@ -1628,7 +1628,7 @@ private struct ConversationSheet: View {
                 // appears only when on leaves an unchecked row pixel-identical
                 // to the plain action rows around it, which is the complaint.
                 Image(systemName: on ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 15, weight: .regular))
+                    .font(.scaled(15, weight: .regular))
                     .foregroundStyle(on ? BrandColor.olive : BrandColor.muted400)
             }
             .padding(.horizontal, 15)
@@ -1744,7 +1744,7 @@ private struct SnoozedBanner: View {
         Button(action: onBringBack) {
             HStack(spacing: 8) {
                 Image(systemName: "clock")
-                    .font(.system(size: 12))
+                    .font(.scaled(12))
                     .foregroundStyle(BrandColor.muted700)
                 Text(label)
                     .font(.golos(11.5, weight: .semibold))
@@ -1796,14 +1796,14 @@ private struct PinnedBanner: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "pin.fill")
-                        .font(.system(size: 12))
+                        .font(.scaled(12))
                         .foregroundStyle(BrandColor.muted700)
                     Text("Pinned · \(pinned.count)")
                         .font(.golos(11.5, weight: .semibold))
                         .foregroundStyle(BrandColor.muted900)
                     Spacer()
                     Image(systemName: expanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.scaled(12, weight: .semibold))
                         .foregroundStyle(BrandColor.muted700)
                 }
                 .padding(.horizontal, 16)
@@ -1976,7 +1976,7 @@ private struct MakeTaskSheet: View {
             Spacer()
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.scaled(13, weight: .semibold))
                     .foregroundStyle(BrandColor.muted700)
                     .frame(width: 34, height: 34)
                     .background(Circle().fill(BrandColor.inset))
@@ -2077,7 +2077,7 @@ private struct MakeTaskSheet: View {
                             .foregroundStyle(due == nil ? BrandColor.muted500 : BrandColor.ink)
                         Spacer(minLength: 0)
                         Image(systemName: "calendar")
-                            .font(.system(size: 13))
+                            .font(.scaled(13))
                             .foregroundStyle(BrandColor.muted400)
                     }
                     .padding(.horizontal, 15)
@@ -2094,7 +2094,7 @@ private struct MakeTaskSheet: View {
                         dueSuggested = false
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 20))
+                            .font(.scaled(20))
                             .foregroundStyle(BrandColor.muted300)
                     }
                     .buttonStyle(.borderless)
@@ -2121,7 +2121,7 @@ private struct MakeTaskSheet: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "mappin.and.ellipse")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.scaled(13, weight: .medium))
                             .foregroundStyle(BrandColor.muted500)
                         Text("Address")
                             .font(.golos(13.5, weight: .semibold))
@@ -2152,7 +2152,7 @@ private struct MakeTaskSheet: View {
                 // Disclosure chevron stays the trailing affordance (parity with
                 // Android/web); tapping it toggles like the label.
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.scaled(12, weight: .medium))
                     .foregroundStyle(BrandColor.muted250)
                     .rotationEffect(.degrees(addrOpen ? 180 : 0))
                     .onTapGesture { addrOpen.toggle() }
@@ -2231,7 +2231,7 @@ private struct MakeTaskSheet: View {
                     .foregroundStyle(BrandColor.canvas)
                 Spacer()
                 Image(systemName: "checkmark")
-                    .font(.system(size: 15, weight: .bold))
+                    .font(.scaled(15, weight: .bold))
                     .foregroundStyle(BrandColor.onLime)
                     .frame(width: 42, height: 42)
                     .background(Circle().fill(BrandColor.lime))

@@ -210,7 +210,7 @@ struct TasksTab: View {
             if view != kind { view = kind }
         } label: {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .medium))
+                .font(.scaled(15, weight: .medium))
                 .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted700)
                 .frame(width: 38, height: 38)
                 .background(selected ? BrandColor.ink : BrandColor.paper, in: Circle())
@@ -248,7 +248,7 @@ struct TasksTab: View {
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 14, weight: .medium))
+                .font(.scaled(14, weight: .medium))
                 .foregroundStyle(BrandColor.muted400)
             TextField("Search task titles", text: $search)
                 .font(.golos(13))
@@ -339,7 +339,7 @@ struct TasksTab: View {
             if let clearLabel {
                 Button(action: onClear) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.scaled(9, weight: .semibold))
                         .foregroundStyle(foreground)
                 }
                 .buttonStyle(.plain)
@@ -557,7 +557,7 @@ private struct TaskListRow: View {
                     if task.done {
                         Circle().fill(BrandColor.lime)
                         Image(systemName: "checkmark")
-                            .font(.system(size: 11, weight: .bold))
+                            .font(.scaled(11, weight: .bold))
                             .foregroundStyle(BrandColor.onLime)
                     } else {
                         Circle().strokeBorder(BrandColor.muted250, lineWidth: 1.8)
@@ -707,7 +707,7 @@ extension TasksTab {
                 bulkSelection = .empty
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.scaled(13, weight: .semibold))
             }
             .buttonStyle(.plain)
             .disabled(bulkRunning)
@@ -746,7 +746,7 @@ extension TasksTab {
                 }
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.scaled(13, weight: .semibold))
             }
             .disabled(bulkRunning)
             .accessibilityLabel("More bulk actions")

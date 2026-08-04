@@ -341,7 +341,7 @@ private struct DeviceRow<Action: View>: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: deviceClientSymbol(client))
-                .font(.system(size: 17))
+                .font(.scaled(17))
                 .foregroundStyle(current ? BrandColor.olive : BrandColor.muted600)
                 .frame(width: 22)
                 .padding(.top, 2)

@@ -35,7 +35,7 @@ struct PhoneList: View {
             ForEach(phones) { entry in
                 HStack(spacing: 8) {
                     Image(systemName: "phone")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.scaled(12, weight: .medium))
                         .foregroundStyle(BrandColor.muted500)
                     Text(line(for: entry))
                         .font(.golos(13))
@@ -44,7 +44,7 @@ struct PhoneList: View {
                         onRemove(entry.id)
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.scaled(11, weight: .medium))
                             .foregroundStyle(BrandColor.muted500)
                     }
                     .buttonStyle(.plain)
@@ -97,7 +97,7 @@ struct PhoneList: View {
                 } label: {
                     HStack(spacing: 5) {
                         Image(systemName: "plus")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.scaled(10, weight: .semibold))
                         Text(phoneAddLabel).font(.golos(13))
                     }
                     .foregroundStyle(BrandColor.muted600)

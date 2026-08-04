@@ -83,7 +83,28 @@ from the source:
 | Point | Android | iOS |
 |---|---|---|
 | Icon-only controls with no accessible name | **None found** (scanned 2026-08-03) | **None found** (scanned 2026-08-03) |
-| Text scales with the OS font setting | **Yes** — all text sizes are `sp`; zero are `dp` | **Partly** — 225 semantic text styles scale; 134 fixed-point `.system(size:)` call sites are not confirmed to |
+| Text sizes are declared in a scaling unit | **Yes**, and enforced — `scripts/check-native-a11y.mjs` | **Yes**, and enforced — `scripts/check-native-a11y.mjs` |
+
+### The iOS row above used to say "Partly", and the number in it was wrong
+
+Until 2026-08-04 this table reported that 225 semantic text styles scaled and
+134 fixed-point `.system(size:)` call sites were unconfirmed. Both halves were
+wrong, in the direction that flattered us.
+
+`Font.custom(_:size:)` does not scale with Dynamic Type either — only its
+`relativeTo:` overload does — and the brand kit (`Font.golos`, `Font.display`)
+was built on the bare form. The string `relativeTo:` appeared **nowhere** in the
+iOS app. The real exposure was **723** non-scaling call sites, not 134.
+
+That is the exact failure this document exists to prevent: a claim derived from
+a specification and a one-off scan, published to buyers, with nothing that fails
+when it stops being true. A hand scan is a photograph and it goes stale on the
+next commit. It is now a build step, which is why the row cites a path.
+
+**What the guard proves, and what it does not.** It proves the *mechanism*:
+every font on both phones is declared in a unit that carries the reader's font
+scale. It does not prove the *outcome* — that a screen still works at 200%, with
+nothing clipped, truncated or pushed off. That needs a device and a person.
 
 **No TalkBack or VoiceOver pass has been performed**, on any flow. Nobody has
 sat down with either screen reader and worked through sending a message,
@@ -92,7 +113,9 @@ to "do the phone apps work with a screen reader" is *we do not know* — and the
 labelling scan above is evidence that the groundwork is there, not evidence
 that the flows work.
 
-Dynamic Type to 200% has not been tested on iOS.
+**Dynamic Type to 200% has not been visually tested on iOS.** Since 2026-08-04
+the text does scale rather than ignoring the setting, which is a precondition
+for that test rather than a substitute for it.
 
 ---
 

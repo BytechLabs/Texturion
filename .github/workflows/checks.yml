@@ -224,6 +224,17 @@ jobs:
       - name: Guard client parity
         run: node scripts/check-client-parity.mjs
 
+      # #238: the accessibility statement told buyers that iOS text "partly"
+      # scaled, on the strength of a scan somebody ran once by hand. It was
+      # wrong by a factor of five, because `Font.custom(_:size:)` does not scale
+      # either and the brand kit is built on it. A photograph of the codebase
+      # goes stale on the next commit; this fails the build instead. iOS: no
+      # font at a literal point size without a text style behind it. Android:
+      # text sizes in sp, never dp. Source-only, so it runs with the cheap
+      # guards rather than in the native jobs.
+      - name: Guard native text scaling
+        run: node scripts/check-native-a11y.mjs
+
       # #376: `packages/shared` is shared by two of four clients, so every rule
       # Android and iOS need exists three times. The generated vectors are what
       # the Kotlin and Swift suites assert against — if a shared rule changes and

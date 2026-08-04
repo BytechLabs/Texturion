@@ -45,7 +45,7 @@ struct SignedAudioAttachment: View {
         HStack(spacing: 10) {
             Button(action: toggle) {
                 Image(systemName: playing ? "pause.circle.fill" : "play.circle.fill")
-                    .font(.system(size: 30))
+                    .font(.scaled(30))
                     .foregroundStyle(BrandColor.olive)
             }
             .buttonStyle(.plain)
@@ -205,7 +205,7 @@ struct AttachmentFileChip: View {
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: kind.symbolName)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.scaled(13, weight: .medium))
                     .foregroundStyle(BrandColor.muted700)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(attachmentLabel(kind: kind, count: 1))
@@ -223,7 +223,7 @@ struct AttachmentFileChip: View {
                     ProgressView().controlSize(.small)
                 } else {
                     Image(systemName: "arrow.down.circle")
-                        .font(.system(size: 13))
+                        .font(.scaled(13))
                         .foregroundStyle(BrandColor.muted500)
                 }
             }

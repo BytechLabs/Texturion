@@ -959,7 +959,7 @@ private struct InboxList: View {
                     onCompose()
                 } label: {
                     Image(systemName: "pencil")
-                        .font(.system(size: 20, weight: .medium))
+                        .font(.scaled(20, weight: .medium))
                         .foregroundStyle(BrandColor.paper)
                         .frame(width: 54, height: 54)
                         .background(BrandColor.ink, in: Circle())
@@ -1236,7 +1236,7 @@ private struct InboxList: View {
         @Bindable var controller = controller
         return HStack(spacing: 9) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 15, weight: .medium))
+                .font(.scaled(15, weight: .medium))
                 .foregroundStyle(BrandColor.muted700)
             TextField("Search texts, tasks, contacts…", text: $controller.query)
                 .font(.golos(13.5))
@@ -1402,7 +1402,7 @@ private struct FilterChip: View {
             if let onClear {
                 Button(action: onClear) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.scaled(10, weight: .semibold))
                         .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted500)
                 }
                 .buttonStyle(.plain)
@@ -1668,7 +1668,7 @@ private struct ConversationRow: View {
                         if row.emergency_at != nil, row.closed_at == nil {
                             HStack(spacing: 3) {
                                 Image(systemName: "exclamationmark.triangle.fill")
-                                    .font(.system(size: 8.5, weight: .bold))
+                                    .font(.scaled(8.5, weight: .bold))
                                 Text("URGENT")
                                     .font(.golos(9.5, weight: .bold))
                             }
@@ -1687,7 +1687,7 @@ private struct ConversationRow: View {
                         HStack(alignment: .top, spacing: 4) {
                             if row.last_message?.has_attachments == true {
                                 Image(systemName: "paperclip")
-                                    .font(.system(size: 9.5))
+                                    .font(.scaled(9.5))
                                     .foregroundStyle(BrandColor.muted300)
                                     .padding(.top, 2)
                             }
@@ -2235,7 +2235,7 @@ private struct BulkSelectionBar: View {
                     controller.clearBulkSelection()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.scaled(13, weight: .semibold))
                 }
                 .buttonStyle(.plain)
                 .disabled(controller.bulkRunning)
@@ -2265,7 +2265,7 @@ private struct BulkSelectionBar: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.scaled(13, weight: .semibold))
                 }
                 .disabled(controller.bulkRunning)
                 .accessibilityLabel("More bulk actions")

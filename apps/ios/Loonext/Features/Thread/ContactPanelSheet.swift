@@ -64,7 +64,7 @@ struct ContactPanelSheet: View {
                         onOpenContact(detail.contact_id)
                     } label: {
                         Image(systemName: "arrow.up.forward.square")
-                            .font(.system(size: 17, weight: .regular))
+                            .font(.scaled(17, weight: .regular))
                             .foregroundStyle(BrandColor.muted500)
                     }
                     .buttonStyle(.plain)

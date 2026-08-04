@@ -345,7 +345,7 @@ struct SettingsHome: View {
                             .font(.golos(11, weight: .semibold))
                             .monospacedDigit()
                         Image(systemName: "doc.on.doc")
-                            .font(.system(size: 10))
+                            .font(.scaled(10))
                     }
                     .foregroundStyle(BrandColor.paper)
                     .padding(.horizontal, 12)
@@ -499,7 +499,7 @@ private struct SettingsSectionRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: section.icon)
-                .font(.system(size: 15))
+                .font(.scaled(15))
                 .foregroundStyle(BrandColor.muted900)
                 .frame(width: 36, height: 36)
                 .background(
@@ -525,7 +525,7 @@ private struct SettingsSectionRow: View {
                     .frame(width: 8, height: 8)
             }
             Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.scaled(12, weight: .semibold))
                 .foregroundStyle(BrandColor.muted250)
         }
         .padding(.horizontal, 15)

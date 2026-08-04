@@ -240,7 +240,7 @@ struct DialerSheet: View {
                             }
                         } label: {
                             Image(systemName: "message")
-                                .font(.system(size: 20, weight: .regular))
+                                .font(.scaled(20, weight: .regular))
                                 .foregroundStyle(BrandColor.muted500)
                         }
                         .disabled(dialable == nil && picked == nil)
@@ -256,7 +256,7 @@ struct DialerSheet: View {
                                 .tint(BrandColor.onLime)
                         } else {
                             Image(systemName: "phone")
-                                .font(.system(size: 24 * scale, weight: .medium))
+                                .font(.scaled(24 * scale, weight: .medium))
                         }
                     }
                     .foregroundStyle(BrandColor.onLime)
@@ -274,7 +274,7 @@ struct DialerSheet: View {
                         digits = String(digits.dropLast())
                     } label: {
                         Image(systemName: "delete.left")
-                            .font(.system(size: 20, weight: .regular))
+                            .font(.scaled(20, weight: .regular))
                             .foregroundStyle(BrandColor.muted500)
                     }
                     .disabled(digits.isEmpty)
