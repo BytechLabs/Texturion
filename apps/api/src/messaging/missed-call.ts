@@ -12,9 +12,11 @@
  * dials a cell anymore.
  */
 import {
+  copyFor,
   effectiveMctbMessage,
   estimateSegments,
   isUsCaDestination,
+  resolveLocale,
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -116,6 +118,8 @@ interface MctbSettings {
   mctb_enabled: boolean;
   mctb_message: string | null;
   subscription_status: string;
+  /** #228: the language the business works in. */
+  locale: string | null;
 }
 
 /**
@@ -167,7 +171,7 @@ export async function sendMissedCallText(
   const [companyRead, numberRead] = await Promise.all([
     db
       .from("companies")
-      .select("name,mctb_enabled,mctb_message,subscription_status")
+      .select("name,mctb_enabled,mctb_message,subscription_status,locale")
       .eq("id", args.companyId)
       .limit(1),
     // Best-effort WITHOUT a try/catch, deliberately. PostgREST failures arrive
@@ -242,7 +246,19 @@ export async function sendMissedCallText(
   // #192: the toggle alone decides WHETHER a text goes out. The owner's text
   // overrides only when non-blank; otherwise the product default ships — an
   // enabled text-back never silently sends nothing.
-  const template = effectiveMctbMessage(identity.mctbMessage.value).message;
+  // #228: the language this caller reads. A stranger has no contact row and
+  // resolves to the company's language; somebody we have met and marked as
+  // French-speaking gets French. Only the PRODUCT DEFAULT is translated - an
+  // owner who wrote their own text-back gets the sentence they wrote.
+  // THE COMPANY'S LANGUAGE, not the caller's, and that is deliberate. A
+  // missed call is overwhelmingly from a number with no contact row - that is
+  // the case this whole path exists for - so a per-contact read would buy a
+  // language override for the minority and cost a query on the hottest path in
+  // the product for everyone. The thread paths (away reply, rating ask) already
+  // hold the contact, and that is where a per-customer language earns its read.
+  const copy = copyFor(resolveLocale(null, settings.locale));
+  const template = effectiveMctbMessage(identity.mctbMessage.value, copy.missedCallTextBack)
+    .message;
 
   // An anonymous/CLIR caller ('anonymous'), a malformed token, or a non-US/CA
   // number can never be texted — skip SILENTLY. Throwing here would burn all

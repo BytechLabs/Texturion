@@ -25,7 +25,7 @@
  * The safety property survives with a narrower blast radius than "we write
  * everything".
  */
-import { emergencyReplyBody, estimateSegments } from "@loonext/shared";
+import { copyFor, emergencyReplyBody, estimateSegments, resolveLocale } from "@loonext/shared";
 
 /**
  * Re-exported so the one sentence with a safety property has a home in the
@@ -100,6 +100,12 @@ export async function sendEmergencyAcknowledgment(
      * one place to not spend a network call.
      */
     ownerMessage?: string | null;
+    /**
+     * #228: the language the business works in, for the product default and
+     * the safety line appended to it. Passed in for the same reason
+     * `ownerMessage` is - the inbound handler already holds the company row.
+     */
+    companyLocale?: string | null;
   },
 ): Promise<AutoSendOutcome> {
   const { data: convRows, error: convError } = await db
@@ -134,12 +140,21 @@ export async function sendEmergencyAcknowledgment(
   // anyway would burn the throttle on a message that never lands.
   const clearance = await runPreSendGates(env, args.companyId, to);
 
+  // #228: the product default and the safety line, in the language the business
+  // works in. An owner who wrote their own body keeps it verbatim; the safety
+  // line is appended in the resolved language either way, because that sentence
+  // is the one a person in danger has to be able to read.
+  const copy = copyFor(resolveLocale(null, args.companyLocale));
+
   return guardedAutoSend(env, db, {
     companyId: args.companyId,
     conversationId: args.conversationId,
     from,
     to,
-    body: emergencyReplyBody(args.ownerMessage),
+    body: emergencyReplyBody(args.ownerMessage, {
+      fallback: copy.emergencyAck,
+      safetyLine: copy.emergencySafetyLine,
+    }),
     triggerBody: args.triggerBody,
     clearance,
     // No merge fields: {first_name} on a message about a gas leak reads as

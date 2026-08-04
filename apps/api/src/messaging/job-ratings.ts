@@ -14,7 +14,7 @@
  * question arriving at 5am, or a reminder arriving after the van.
  */
 import {
-  RATING_ASK_BODY,
+  copyForContact,
   RATING_ASK_DELAY_HOURS,
   RATING_ASK_HORIZON_HOURS,
   JOB_RATED_EVENT,
@@ -58,7 +58,7 @@ export async function askForJobRating(
     conversations: {
       contact_id: string;
       contact_phone_e164: string | null;
-    contacts: { timezone: string | null } | null;
+    contacts: { timezone: string | null; locale: string | null } | null;
     } | null;
   } | null>(
     await db
@@ -67,7 +67,7 @@ export async function askForJobRating(
         "conversation_id,assigned_user_id," +
           // #291: the thread's number; the timezone stays the
           // contact's.
-          "conversations(contact_id,contact_phone_e164,contacts(timezone))",
+          "conversations(contact_id,contact_phone_e164,contacts(timezone,locale))",
       )
       .eq("id", input.taskId)
       .eq("company_id", input.companyId)
@@ -112,7 +112,21 @@ export async function askForJobRating(
   const sendAt =
     nextSendableInstant(clock.timezone, clock.region ?? null, wanted) ?? wanted;
 
-  const ctx = await resolveSendMergeFields(db, RATING_ASK_BODY, {
+  // #228: the language this customer reads. The company row is read here
+  // rather than ridden in on the task lookup because the rating ask is
+  // scheduled hours after the job, off the hot path, where one indexed read
+  // costs nothing.
+  const companyRow = await db
+    .from("companies")
+    .select("locale")
+    .eq("id", input.companyId)
+    .limit(1);
+  const ratingAsk = copyForContact(
+    conversation?.contacts?.locale ?? null,
+    ((companyRow.data ?? [])[0] as { locale: string | null } | undefined)?.locale ?? null,
+  ).ratingAsk;
+
+  const ctx = await resolveSendMergeFields(db, ratingAsk, {
     companyId: input.companyId,
     conversationId: task.conversation_id,
     userId: input.userId,
@@ -125,7 +139,7 @@ export async function askForJobRating(
       conversation_id: task.conversation_id,
       task_id: input.taskId,
       origin: "rating",
-      body: applySendMergeFields(RATING_ASK_BODY, ctx),
+      body: applySendMergeFields(ratingAsk, ctx),
       send_at: sendAt.toISOString(),
       clock_timezone: clock.timezone,
       clock_source: clock.source,

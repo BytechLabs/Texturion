@@ -48,7 +48,7 @@
 
 import { DEFAULT_REMINDER_RULES } from "./appointment-reminders.js";
 import { DEFAULT_AWAY_MESSAGE } from "./away.js";
-import { DEFAULT_EMERGENCY_MESSAGE } from "./emergency.js";
+import { DEFAULT_EMERGENCY_MESSAGE, EMERGENCY_SAFETY_LINE } from "./emergency.js";
 import { IDENTIFICATION_SUFFIX_TEMPLATE } from "./first-message-identification.js";
 import { RATING_ASK_BODY } from "./job-ratings.js";
 import { DEFAULT_MCTB_MESSAGE } from "./mctb.js";
@@ -101,6 +101,16 @@ export interface AutomatedCopy {
   awayReply: string;
   /** Sent when a customer's reply is flagged urgent. */
   emergencyAck: string;
+  /**
+   * Appended to the emergency reply, and removable by no setting.
+   *
+   * The one sentence here with a safety property. Everything else degrades to
+   * "the customer reads English" when a translation is missing; this degrades
+   * to somebody in danger being told what to do in a language they may not
+   * read. A French body with an English safety line keeps the appearance of the
+   * guarantee and loses the guarantee.
+   */
+  emergencySafetyLine: string;
   /** Sent after a job is marked done. `{business_name}` is substituted. */
   ratingAsk: string;
   /** Appended once per contact when sender identification is on. */
@@ -128,6 +138,9 @@ export const FR_CA_COPY: AutomatedCopy = {
   emergencyAck:
     "Signale comme urgent - toute l'equipe vient d'etre alertee. " +
     "Ne restez pas sans nouvelles.",
+  // 911 is the emergency number in both Canada and the US, so this stays as
+  // region-neutral in French as the English line is.
+  emergencySafetyLine: "Si quelqu'un est en danger, composez le 911.",
   ratingAsk:
     "Merci d'avoir fait appel a {business_name}. Comment cela s'est-il passe? " +
     "Repondez avec un chiffre de 1 a 5 - 5 est excellent.",
@@ -162,6 +175,7 @@ export const EN_COPY: AutomatedCopy = {
   missedCallTextBack: DEFAULT_MCTB_MESSAGE,
   awayReply: DEFAULT_AWAY_MESSAGE,
   emergencyAck: DEFAULT_EMERGENCY_MESSAGE,
+  emergencySafetyLine: EMERGENCY_SAFETY_LINE,
   ratingAsk: RATING_ASK_BODY,
   identificationSuffix: IDENTIFICATION_SUFFIX_TEMPLATE,
   appointmentReminders: DEFAULT_REMINDER_RULES.map((rule) => ({

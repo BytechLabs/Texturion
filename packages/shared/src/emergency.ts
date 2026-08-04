@@ -395,9 +395,28 @@ export function effectiveEmergencyMessage(
  */
 export function emergencyReplyBody(
   ownerMessage: string | null | undefined,
+  /**
+   * #228 - the language-dependent halves, already resolved.
+   *
+   * Sentences rather than a locale, matching `effectiveEmergencyMessage` above
+   * and for the same import-cycle reason.
+   *
+   * THE SAFETY LINE IS TRANSLATED AND THE OTHERS ARE NOT ACCIDENTS. Everything
+   * else here degrades to "the customer reads English" if a translation is
+   * missing, which is a poor experience. This one degrades to a person in a
+   * burning building being told what to do in a language they may not read,
+   * and it is the sentence no setting can delete precisely because it is the
+   * one that has to land. A French body with an English safety line keeps the
+   * appearance of the guarantee and loses the guarantee.
+   */
+  copy: { fallback?: string; safetyLine?: string } = {},
 ): string {
-  const body = effectiveEmergencyMessage(ownerMessage).message;
-  return body.includes(EMERGENCY_SAFETY_LINE)
-    ? body
-    : `${body} ${EMERGENCY_SAFETY_LINE}`;
+  const safetyLine = copy.safetyLine ?? EMERGENCY_SAFETY_LINE;
+  const body = effectiveEmergencyMessage(
+    ownerMessage,
+    copy.fallback ?? DEFAULT_EMERGENCY_MESSAGE,
+  ).message;
+  // Idempotent against the line ACTUALLY being appended: an owner who pasted
+  // the French line into a French body must not receive it twice.
+  return body.includes(safetyLine) ? body : `${body} ${safetyLine}`;
 }

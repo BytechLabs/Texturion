@@ -194,7 +194,7 @@ export async function handleInboundMessage(
         // structurally different time-to-value). All three ride the lookup this
         // path already makes, so activation costs no extra round trip either.
         "emergency_keyword_enabled,emergency_keywords,emergency_message," +
-        "first_inbound_reply_at,country,us_texting_enabled," +
+        "first_inbound_reply_at,country,us_texting_enabled,locale," +
         // #481: the off-ramp only ever applies to a workspace on its way
         // out, and this is the hottest path in the product. Riding the
         // lookup that already runs means a PAYING workspace costs nothing
@@ -223,6 +223,8 @@ export async function handleInboundMessage(
           first_inbound_reply_at?: string | null;
           country?: string | null;
           us_texting_enabled?: boolean | null;
+          /** #228: the language the business works in. */
+          locale?: string | null;
           subscription_status?: string | null;
         } | null;
       }
@@ -474,6 +476,12 @@ export async function handleInboundMessage(
         // #460: the owner's own words, already on the company row this handler
         // read. The product's safety line is appended inside, not here.
         ownerMessage: company?.emergency_message ?? null,
+        // #228: the language the business works in. Not the contact's here -
+        // an emergency reply goes out on the hottest path in the product, and
+        // a per-contact read to translate one sentence is not worth a round
+        // trip when somebody has just said their heat is out. The safety line
+        // inside is translated with it, which is the half that matters.
+        companyLocale: company?.locale ?? null,
       });
     } catch (cause) {
       console.error(

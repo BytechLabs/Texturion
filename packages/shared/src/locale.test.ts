@@ -10,6 +10,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_AWAY_MESSAGE } from "./away.js";
+import { emergencyReplyBody } from "./emergency.js";
 import {
   DEFAULT_LOCALE,
   EN_COPY,
@@ -115,6 +116,40 @@ describe("#228 the copy behind each language", () => {
     // keyword matcher is what has to recognise it. A French invitation to
     // reply with a French word nothing matches is #414 in another language.
     expect(FR_CA_COPY.awayReply).toContain("URGENT");
+  });
+
+  it("LOC-10a the safety line is translated, and the reply carries the translated one", () => {
+    // The sentence with the safety property, and the one place a missing
+    // translation is not merely a poor experience: a French body ending in
+    // "If anyone is in danger, call 911" keeps the appearance of the guarantee
+    // and loses it for the person it exists for.
+    expect(FR_CA_COPY.emergencySafetyLine).not.toBe(EN_COPY.emergencySafetyLine);
+    expect(FR_CA_COPY.emergencySafetyLine).toContain("911");
+
+    const body = emergencyReplyBody(null, {
+      fallback: FR_CA_COPY.emergencyAck,
+      safetyLine: FR_CA_COPY.emergencySafetyLine,
+    });
+    expect(body).toContain(FR_CA_COPY.emergencyAck);
+    expect(body).toContain(FR_CA_COPY.emergencySafetyLine);
+    expect(body).not.toContain(EN_COPY.emergencySafetyLine);
+  });
+
+  it("LOC-10b appends the safety line to an owner's own words, in the resolved language", () => {
+    // An owner writing their own emergency body does not opt out of the safety
+    // line, and a French workspace must not get an English one bolted on.
+    const body = emergencyReplyBody("On arrive tout de suite.", {
+      fallback: FR_CA_COPY.emergencyAck,
+      safetyLine: FR_CA_COPY.emergencySafetyLine,
+    });
+    expect(body).toContain("On arrive tout de suite.");
+    expect(body).toContain(FR_CA_COPY.emergencySafetyLine);
+    // Still idempotent, against the line actually being used.
+    expect(
+      emergencyReplyBody(`Deja dit. ${FR_CA_COPY.emergencySafetyLine}`, {
+        safetyLine: FR_CA_COPY.emergencySafetyLine,
+      }).match(/911/g)?.length,
+    ).toBe(1);
   });
 
   it("LOC-11 resolves and picks the copy in one step for a contact", () => {

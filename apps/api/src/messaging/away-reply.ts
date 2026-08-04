@@ -22,6 +22,7 @@
  * throttle makes a sweeper replay safe (a re-run within the window is throttled).
  */
 import {
+  copyForContact,
   effectiveAwayMessage,
   isAfterHours,
   type BusinessHours,
@@ -44,6 +45,8 @@ interface AwaySettings {
   away_enabled: boolean;
   away_message: string | null;
   name: string;
+  /** #228: the language the business works in. */
+  locale: string | null;
 }
 
 interface ConvSendSlice {
@@ -78,7 +81,7 @@ export async function maybeSendAwayReply(
       .select(
         // One literal, deliberately: splitting it with `+` defeats the client's
         // literal-type inference and the row stops being assignable.
-        "timezone,business_hours,business_hours_exceptions,away_enabled,away_message,name",
+        "timezone,business_hours,business_hours_exceptions,away_enabled,away_message,name,locale",
       )
       .eq("id", args.companyId)
       .limit(1),
@@ -92,7 +95,7 @@ export async function maybeSendAwayReply(
         "id,contact_phone_e164," +
           "phone_numbers(number_e164,status,label,away_message,away_enabled," +
           "timezone,business_hours,business_hours_exceptions)," +
-          "contacts(name)",
+          "contacts(name,locale)",
       )
       .eq("company_id", args.companyId)
       .eq("id", args.conversationId)
@@ -119,7 +122,7 @@ export async function maybeSendAwayReply(
           business_hours: BusinessHours | null;
           business_hours_exceptions: HoursException[] | null;
         } | null;
-        contacts: { name: string | null } | null;
+        contacts: { name: string | null; locale: string | null } | null;
       }
     | undefined;
   const fromNumber = conv?.phone_numbers?.number_e164;
@@ -189,7 +192,13 @@ export async function maybeSendAwayReply(
   // #192. Before this, an owner who switched away replies on without writing
   // anything got a Preview of the default on all three clients and a customer
   // who got nothing.
-  const { message } = effectiveAwayMessage(identity.awayMessage.value);
+  // #228: the language THIS customer reads. The contact's own setting wins;
+  // null means "whatever the business works in", so a crew that switched the
+  // company to French reaches every customer it never said otherwise about.
+  // Only the PRODUCT DEFAULT is translated - an owner who wrote their own away
+  // message gets the sentence they wrote, in whatever language they wrote it.
+  const copy = copyForContact(conv.contacts?.locale ?? null, settings.locale);
+  const { message } = effectiveAwayMessage(identity.awayMessage.value, copy.awayReply);
 
   // The away CLOCK: outside THIS LINE's business hours in THIS LINE's timezone
   // (not the contact's — FEATURE-GAPS §2). An unresolvable zone returns "open"
