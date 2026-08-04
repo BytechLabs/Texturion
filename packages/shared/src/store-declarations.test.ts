@@ -186,6 +186,86 @@ describe("#502 the deletion promises still have something behind them", () => {
   it.each(surfaces)("%s still has one", (label, parts) => {
     expect(() => read(...parts), `${label}: ${parts.join("/")} is gone`).not.toThrow();
   });
+
+  /**
+   * A file that exists is not a surface a customer can reach.
+   *
+   * Apple 5.1.1(v) is about REACHABILITY: the requirement is that somebody can
+   * delete their account from inside the app, and both declarations tell a
+   * reviewer the exact route (Settings, Account, Delete your account). The
+   * check above passes on a `DeleteAccountCard` nobody renders, which is the
+   * state a refactor leaves behind when it drops one call site: the file is
+   * still in the tree, the declaration still promises the route, and the button
+   * is gone from the app.
+   */
+  const mounts: [string, string[], RegExp][] = [
+    [
+      "iOS",
+      ["apps", "ios", "Loonext", "Features", "Settings", "ProfileSection.swift"],
+      /DeleteAccountCard\s*\(/,
+    ],
+    [
+      "Android",
+      [
+        "apps",
+        "android",
+        "app",
+        "src",
+        "main",
+        "kotlin",
+        "com",
+        "loonext",
+        "android",
+        "features",
+        "settings",
+        "ProfileSection.kt",
+      ],
+      /DeleteAccountCard\s*\(/,
+    ],
+    [
+      "web",
+      ["apps", "web", "src", "app", "(app)", "settings", "account", "page.tsx"],
+      /<DeleteAccountCard\s*\/?>/,
+    ],
+  ];
+
+  it.each(mounts)("%s actually renders it", (label, parts, mounted) => {
+    expect(
+      read(...parts),
+      `${label}: ${parts.join("/")} no longer renders DeleteAccountCard, so the ` +
+        "in-app deletion route both store declarations promise does not exist",
+    ).toMatch(mounted);
+  });
+
+  /**
+   * The deletion URL is FILED WITH GOOGLE, so the string in the declaration is
+   * the promise, and the route is what honours it. Checking each separately
+   * leaves the gap between them: a typo in the declaration, or a route renamed
+   * to something the declaration does not name, passes both halves. Play does
+   * not re-check the URL until it 404s in a review sweep.
+   */
+  it("the filed deletion URL is the route that exists", () => {
+    const FILED = /https:\/\/loonext\.com(\/[a-z0-9/-]*)/g;
+    for (const [label, source] of [
+      ["apps/ios/store/privacy-nutrition.md", IOS_DECLARATION],
+      ["apps/android/store/data-safety.md", ANDROID_DECLARATION],
+    ] as const) {
+      const deletion = [...source.matchAll(FILED)]
+        .map((match) => match[1])
+        .filter((path) => path.includes("delete"));
+      expect(deletion.length, `${label} files no deletion URL at all`).toBeGreaterThan(0);
+      for (const path of deletion) {
+        // A route in this app is a directory with a page under it. Route groups
+        // like `(marketing)` do not appear in the URL, so the lookup names the
+        // group rather than deriving it: getting that wrong would make this
+        // pass by never finding anything.
+        expect(
+          () => read("apps", "web", "src", "app", "(marketing)", ...path.slice(1).split("/"), "page.tsx"),
+          `${label} files ${path}, and no page serves it`,
+        ).not.toThrow();
+      }
+    }
+  });
 });
 
 describe("#502 the inventory does not deny what the code does", () => {

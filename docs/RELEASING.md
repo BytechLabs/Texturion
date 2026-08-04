@@ -255,13 +255,20 @@ whether it is still honest.
    actually does with each permission, in words a person would recognise.
 4. **Android permission justifications** in the Play Console still match
    `apps/android/store/data-safety.md`, especially the Contacts one.
-5. **Account deletion still reachable in-app on both apps** (Apple 5.1.1(v)):
-   Settings → Account → Delete your account. Open it and check.
-6. **The data-deletion URL still resolves**:
-   `https://loonext.com/legal/delete-my-data`. The path is filed with Google;
-   a rename or a 404 breaks the declaration silently.
-7. **Anything new sent to a model?** That is a third-party sharing disclosure
+5. **Anything new sent to a model?** That is a third-party sharing disclosure
    on both forms, not an implementation detail.
+
+**Account deletion and the deletion URL are no longer on this list.** They were
+items 5 and 6, and both are mechanical, so asking a person to re-check them
+every release taught the reader that this list is busywork — which is how the
+items above it get skimmed too. `store-declarations.test.ts` now asserts that
+each client still RENDERS the delete-account card (a file that exists is not a
+surface anybody can reach: dropping one call site in a refactor leaves the file
+in the tree, the declaration still promising the route, and the button gone from
+the app), and that the deletion URL filed in each declaration is a path this
+site actually serves. Checking those two separately was the gap: a typo in the
+declaration passed both halves, and Play does not re-check the URL until it
+404s in a review sweep.
 
 ## Commit conventions — enforced
 
