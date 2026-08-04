@@ -14,7 +14,13 @@ struct Page<T: Codable & Sendable>: Codable, Sendable {
     let next_cursor: String?
     /// #286: how many rows this member cannot see. Sent only by /v1/numbers
     /// today; optional so every other list decodes unchanged.
-    let hidden_count: Int?
+    ///
+    /// `var` with a DEFAULT, not `let`. A stored property with no default is
+    /// a required argument of the memberwise init, and eight call sites in
+    /// LoonextTests construct a Page directly — which CI found and a grep of
+    /// `apps/ios/Loonext/` did not, because the tests live in the sibling
+    /// `apps/ios/LoonextTests/`.
+    var hidden_count: Int? = nil
 }
 
 enum SubscriptionStatus {
