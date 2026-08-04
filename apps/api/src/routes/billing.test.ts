@@ -595,6 +595,69 @@ describe("POST /v1/billing/confirm-checkout (webhook-independent activation)", (
   });
 });
 
+describe("POST /v1/billing/cancellation-reason (#277)", () => {
+  it("accepts a reason and their own words", async () => {
+    const harness = makeHarness([
+      endpoint("POST", /rest\/v1\/cancellation_reasons/, () => []),
+    ]);
+    const response = await post(
+      "/v1/billing/cancellation-reason",
+      { reason: "seasonal", detail: "Quiet until spring, back in March." },
+      harness,
+    );
+    expect(response.status).toBe(204);
+    const body = harness.callsTo("POST", /cancellation_reasons/)[0].json() as
+      Record<string, unknown>;
+    expect(body).toMatchObject({
+      reason: "seasonal",
+      detail: "Quiet until spring, back in March.",
+      // Not confirmed: saying why is not leaving. The webhook stamps this if
+      // the subscription actually ends.
+      confirmed_at: null,
+    });
+  });
+
+  it("accepts a SKIPPED question, because a reason we cannot skip is one we cannot trust", async () => {
+    // #277's own devil's advocate is binding here: cancelling must never take
+    // more steps than subscribing did. An empty body is a valid record that
+    // somebody declined to answer, not a 422.
+    const harness = makeHarness([
+      endpoint("POST", /rest\/v1\/cancellation_reasons/, () => []),
+    ]);
+    const response = await post("/v1/billing/cancellation-reason", {}, harness);
+    expect(response.status).toBe(204);
+    expect(
+      harness.callsTo("POST", /cancellation_reasons/)[0].json(),
+    ).toMatchObject({ reason: null, detail: null });
+  });
+
+  it("upserts on the open row, so reopening the screen is not a second reason", async () => {
+    // Somebody who opens the cancel screen three times has given one reason.
+    // Three rows would triple-count them in every report, which is exactly the
+    // pattern the table exists to make readable.
+    const harness = makeHarness([
+      endpoint("POST", /rest\/v1\/cancellation_reasons/, () => []),
+    ]);
+    await post("/v1/billing/cancellation-reason", { reason: "cost" }, harness);
+    const call = harness.callsTo("POST", /cancellation_reasons/)[0];
+    expect(call.url.searchParams.get("on_conflict")).toBe("company_id");
+    expect(call.headers.get("prefer") ?? "").toContain("resolution=merge-duplicates");
+  });
+
+  it("422s a reason code longer than the column allows", async () => {
+    const harness = makeHarness([
+      endpoint("POST", /rest\/v1\/cancellation_reasons/, () => []),
+    ]);
+    const response = await post(
+      "/v1/billing/cancellation-reason",
+      { reason: "x".repeat(41) },
+      harness,
+    );
+    expect(response.status).toBe(422);
+    expect(harness.callsTo("POST", /cancellation_reasons/)).toHaveLength(0);
+  });
+});
+
 describe("POST /v1/billing/portal", () => {
   it("409 before any checkout (no Stripe customer)", async () => {
     const harness = makeHarness([companyEndpoint(companyRow())]);

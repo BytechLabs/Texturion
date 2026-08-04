@@ -874,6 +874,40 @@ async function handleSubscriptionDeleted(
   if (!company) return; // unknown subscription — nothing of ours to cancel
 
   await startCancellationLifecycle(env, db, company, subscription, eventCreated);
+  await confirmCancellationReason(db, company.id);
+}
+
+/**
+ * #277 — stamp the reason they gave BEFORE the handoff, now that they have
+ * actually gone.
+ *
+ * The row is written when somebody opens the cancel screen and says why, which
+ * is the only moment they will still answer. Saying why is not leaving, so an
+ * unstamped row means somebody told us their reason and then stayed. That is
+ * the number any retention offer has to be measured against, and collapsing the
+ * two - by writing the row only here - would throw it away.
+ *
+ * Best-effort and never throws. The cancellation itself is already mirrored and
+ * the grace clock already started; losing a report field must not wedge a
+ * webhook Stripe will retry.
+ */
+async function confirmCancellationReason(
+  db: ReturnType<typeof getDb>,
+  companyId: string,
+): Promise<void> {
+  try {
+    const { error } = await db
+      .from("cancellation_reasons")
+      .update({ confirmed_at: new Date().toISOString() })
+      .eq("company_id", companyId)
+      .is("confirmed_at", null);
+    if (error) throw new Error(error.message);
+  } catch (cause) {
+    // Never-silent (D3), non-fatal.
+    console.error(
+      `cancellation reason confirm failed (${companyId}): ${String(cause)}`,
+    );
+  }
 }
 
 /** Subscription reference from a Dahlia-shape invoice (parent details). */

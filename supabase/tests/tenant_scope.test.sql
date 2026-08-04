@@ -31,7 +31,8 @@ declare
   known text[] := array[
     'attachments', 'audit_log', 'billing_disputes', 'blocked_senders',
     'call_member_legs',
-    'call_records', 'calls', 'company_ai_settings', 'company_ai_usage',
+    'call_records', 'calls', 'cancellation_reasons',
+    'company_ai_settings', 'company_ai_usage',
     'company_members', 'company_modules', 'contact_consent_events',
     'contacts', 'conversation_events', 'conversation_snoozes',
     'conversations', 'data_exports', 'egress_events', 'email_ledger',

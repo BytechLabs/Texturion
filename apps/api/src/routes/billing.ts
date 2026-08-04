@@ -51,6 +51,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
+import { expectOk, parseJsonBody } from "./core/http";
 import { handleCheckoutCompleted, isProvisionableCheckout } from "../webhooks/stripe";
 
 const planBodySchema = z.object({
@@ -72,6 +73,16 @@ const moduleBodySchema = z.object({
   // ("calling is included now") from the handler instead of a generic 422.
   module: z.enum([...PLAN_MODULES, "voice"] as const),
   enabled: z.boolean(),
+});
+
+/**
+ * #277. Both fields optional: a reason that cannot be skipped is a reason that
+ * cannot be trusted, and this must never add a step to cancelling. The reason
+ * is a short code the client picked from its list; `detail` is what they wrote.
+ */
+const cancellationReasonSchema = z.object({
+  reason: z.string().trim().max(40).nullable().optional(),
+  detail: z.string().trim().max(2000).nullable().optional(),
 });
 
 const confirmCheckoutSchema = z.object({
@@ -430,6 +441,50 @@ billingRoutes.post("/confirm-checkout", async (c) => {
  * The route stays admin-reachable, which keeps the routine case working; what
  * changes is what an admin can reach once inside.
  */
+/**
+ * POST /v1/billing/cancellation-reason — #277. Why this workspace is leaving,
+ * asked before the handoff to Stripe.
+ *
+ * ASKED BEFORE, because afterwards they are gone and nobody answers a survey
+ * about a product they have just left. But saying why is not leaving: some
+ * people read the screen, see what else is on offer, and stay. So this records
+ * a STATEMENT, and the `customer.subscription.deleted` webhook stamps
+ * `confirmed_at` if the subscription really ends. Two numbers instead of one,
+ * and the second - who said why and then stayed - is what any retention offer
+ * has to be measured against.
+ *
+ * NOTHING IS REQUIRED. #277's own devil's advocate is binding: "a reason we
+ * cannot skip is a reason we cannot trust", and cancelling must never take more
+ * steps than subscribing did. Both fields are optional, and a call with neither
+ * is a valid record that somebody skipped the question. The route deliberately
+ * does not gate the portal on having been called.
+ *
+ * UPSERT ON THE OPEN ROW. Opening the cancel screen three times is one person
+ * giving one reason, not three, and three rows would triple-count them in every
+ * report. The partial unique index on `(company_id) where confirmed_at is null`
+ * is what makes that true in the database rather than in this handler.
+ */
+billingRoutes.post("/cancellation-reason", async (c) => {
+  const body = await parseJsonBody(c, cancellationReasonSchema);
+  const env = getEnv(c.env);
+  const db = getDb(env);
+
+  expectOk(
+    await db.from("cancellation_reasons").upsert(
+      {
+        company_id: c.get("companyId"),
+        user_id: c.get("userId"),
+        reason: body.reason ?? null,
+        detail: body.detail ?? null,
+        confirmed_at: null,
+      },
+      { onConflict: "company_id", ignoreDuplicates: false },
+    ),
+    "cancellation reason",
+  );
+  return c.body(null, 204);
+});
+
 billingRoutes.post("/portal", async (c) => {
   const env = getEnv(c.env);
   const company = await fetchCompany(getDb(env), c.get("companyId"));

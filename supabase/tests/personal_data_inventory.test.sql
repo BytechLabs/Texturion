@@ -71,6 +71,12 @@ declare
     -- name is free text on a member's row, so it is classified here rather
     -- than waved through as configuration.
     'saved_views',
+    -- #277: which member said the workspace was leaving, and what they wrote.
+    -- `detail` is free text somebody typed while annoyed, which is the most
+    -- candid thing in the database and can name a person, a competitor or a
+    -- price. Classified here rather than as business data because the row is
+    -- attributable to the member who wrote it.
+    'cancellation_reasons',
     -- #244: which member was holding the phone and when — a record of one
     -- person's working hours, which is employment data rather than a
     -- preference; and which member a page went to and who claimed it. Both
