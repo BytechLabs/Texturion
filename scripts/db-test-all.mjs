@@ -135,6 +135,7 @@ const SUITES = [
   "scoped_exports",
   "usage_window",
   "aup_enforcement",
+  "abuse_intake",
 
 ];
 

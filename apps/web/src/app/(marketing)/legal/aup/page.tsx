@@ -198,7 +198,15 @@ export default function AupPage() {
         <p>
           Not sure whether something is allowed? Ask first:{" "}
           <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>.
-          To report abuse of a Loonext number, email the same address.
+        </p>
+        <p>
+          <strong>Reporting abuse of a Loonext number.</strong> Whether you
+          received the message, or you are a carrier acting on a complaint,
+          email the same address with the number and what it sent. Reports are
+          read before ordinary enquiries, and they are not subject to the
+          contact form&rsquo;s daily limit: one number behaving badly affects
+          delivery for every business on the network, so we would rather hear
+          about it twice than not at all.
         </p>
       </LegalSectionBlock>
     </LegalPage>

@@ -129,6 +129,13 @@ Honest state, so nobody assumes a lever exists:
   on real contractors, whoever reads the alerts learns to dismiss them, and the
   one real dispensary lands in a queue nobody trusts. PC-8 fails the build if a
   term is a word an ordinary trade name contains.
+- **Complaint intake exists and has its own budget.** `POST /contact` takes a
+  `kind`, and `abuse` is counted against a separate daily cap. That is not
+  cosmetic: the cap counted every submission globally, so twenty sales
+  enquiries exhausted the day and the abuse report arriving at four in the
+  afternoon was silently dropped — the cost protection suppressing the reports
+  that protect the sending pool. Published in `/legal/aup` §9.
+
 - **Complaint ratios** are named in #303's scope and not implemented. Carrier-
   violation codes now are: `api_aup_signals.spam_blocks_24h` counts outbound
   FAILED with the codes `carrier-failure.ts` classifies as `spam_blocked`

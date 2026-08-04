@@ -10,7 +10,7 @@ import { INTERNAL_ERROR_CODE, INTERNAL_ERROR_STATUS } from "@loonext/shared";
 import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { CONTACT_DAILY_CAP, CONTACT_INBOX, contactRoutes } from "./contact";
+import { ABUSE_DAILY_CAP, CONTACT_DAILY_CAP, CONTACT_INBOX, contactRoutes } from "./contact";
 import type { AppEnv } from "../context";
 import type { Env } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
@@ -145,6 +145,9 @@ describe("POST /contact — happy path", () => {
       p_message: "Do you support teams of five sending from one number?",
       p_ip: IP,
       p_cap: CONTACT_DAILY_CAP,
+      // #303: a submission that does not say what it is means a general one,
+      // and is budgeted against the general cap.
+      p_kind: "general",
     });
 
     // Two sends: support forward (reply_to = submitter), then the ack.
@@ -432,5 +435,76 @@ describe("POST /contact — CORS (exact APP_ORIGIN, no wildcard)", () => {
       env,
     );
     expect(res.headers.get("access-control-allow-origin")).toBeNull();
+  });
+});
+
+/**
+ * #303 — the abuse intake.
+ *
+ * AI-2 is the reason this exists as more than a label. The daily cap is there
+ * because each stored submission sends two emails and an uncapped public form
+ * is a bot army running up the bill — but counting a carrier's abuse report
+ * against the same twenty as a sales enquiry means an ordinary Tuesday
+ * silently drops the one message that protects every customer's
+ * deliverability. Separate budgets, not a bigger shared one.
+ */
+describe("POST /contact — abuse reports (#303)", () => {
+  it("AI-1: an abuse report is stored and budgeted as one", async () => {
+    const env = completeEnv();
+    const world = buildWorld(env);
+    stubFetch(...world.routes);
+
+    const res = await post(buildApp(), env, {
+      ...validBody(),
+      name: "Carrier Abuse Desk",
+      email: "abuse@carrier.example",
+      message: "Number +14155550101 is sending unsolicited marketing.",
+      kind: "abuse",
+    });
+    expect(res.status).toBe(201);
+
+    const claim = world.sb.find("POST", "/rest/v1/rpc/api_claim_contact_message")[0];
+    expect((claim.body as Record<string, unknown>).p_kind).toBe("abuse");
+    expect((claim.body as Record<string, unknown>).p_cap).toBe(ABUSE_DAILY_CAP);
+  });
+
+  it("AI-2: the abuse budget is separate from the general one, and larger", () => {
+    // A shared pool with a raised ceiling still lets ordinary traffic consume
+    // whatever a report needs. Only a separate counter makes "a carrier can
+    // always reach us" true regardless of what else happened today — and the
+    // asymmetry is real: a dropped enquiry loses a lead, a dropped report
+    // loses the sending pool.
+    expect(ABUSE_DAILY_CAP).toBeGreaterThan(CONTACT_DAILY_CAP);
+  });
+
+  it("AI-3: it is findable in an inbox at a glance", async () => {
+    // A subject reading "Contact form" buries the one message that needs
+    // answering today under the ones that can wait.
+    const env = completeEnv();
+    const world = buildWorld(env);
+    stubFetch(...world.routes);
+
+    await post(buildApp(), env, {
+      ...validBody(),
+      name: "Carrier Abuse Desk",
+      email: "abuse@carrier.example",
+      message: "Number +14155550101 is sending unsolicited marketing.",
+      kind: "abuse",
+    });
+
+    const support = world.resend.calls[0] as { subject: string };
+    expect(support.subject).toMatch(/^ABUSE REPORT:/);
+  });
+
+  it("AI-4: an unknown kind is refused rather than silently downgraded", async () => {
+    // Accepting it as "general" would file a report under the budget that can
+    // run out, which is the failure this whole change exists to remove.
+    const env = completeEnv();
+    const world = buildWorld(env);
+    stubFetch(...world.routes);
+
+    const res = await post(buildApp(), env, { ...validBody(), kind: "urgent" });
+    expect(res.status).toBe(422);
+    expect(world.sb.find("POST", "/rest/v1/rpc/api_claim_contact_message")).toHaveLength(0);
   });
 });

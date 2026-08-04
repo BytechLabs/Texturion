@@ -49,6 +49,21 @@ export const CONTACT_INBOX = "support@loonext.com";
  */
 export const CONTACT_DAILY_CAP = 20;
 
+/**
+ * #303 — the separate daily budget for abuse reports.
+ *
+ * A SEPARATE COUNTER, not a bigger shared one. The cap exists because each
+ * stored row sends two emails and an uncapped public form is a bot army
+ * running up the bill — but counting a carrier's abuse report against the same
+ * twenty as a sales enquiry means an ordinary Tuesday can silently drop the
+ * one message that protects every customer's deliverability.
+ *
+ * Higher than the general cap because the cost of missing one is asymmetric:
+ * a dropped sales enquiry loses a lead, a dropped abuse report loses the
+ * sending pool.
+ */
+export const ABUSE_DAILY_CAP = 100;
+
 const TURNSTILE_VERIFY_URL =
   "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
@@ -61,6 +76,15 @@ const contactBodySchema = z.object({
   website: z.string().max(400).optional(),
   /** Cloudflare Turnstile response token (required iff the secret is set). */
   turnstileToken: z.string().min(1).max(4096).optional(),
+  /**
+   * #303: what this is. `abuse` is a report about a Loonext number — from a
+   * recipient, a carrier, or anybody — and it gets its own daily budget so
+   * ordinary traffic can never exhaust the day and drop it.
+   *
+   * Defaulted rather than required, so every existing caller keeps working
+   * and means exactly what it meant before.
+   */
+  kind: z.enum(["general", "abuse"]).default("general"),
 });
 
 type ContactBody = z.infer<typeof contactBodySchema>;
@@ -161,7 +185,8 @@ contactRoutes.post("/contact", async (c) => {
     p_company: body.company ?? null,
     p_message: body.message,
     p_ip: ip,
-    p_cap: CONTACT_DAILY_CAP,
+    p_cap: body.kind === "abuse" ? ABUSE_DAILY_CAP : CONTACT_DAILY_CAP,
+    p_kind: body.kind,
   });
   if (error) {
     throw new Error(`api_claim_contact_message failed: ${error.message}`);
@@ -180,7 +205,13 @@ contactRoutes.post("/contact", async (c) => {
   await sendEmail(env, {
     to: CONTACT_INBOX,
     replyTo: body.email,
-    subject: `Contact form: ${body.name}`,
+    // #303: an abuse report must be findable in an inbox at a glance. A
+    // subject reading "Contact form" buries the one message that needs
+    // answering today under the ones that can wait.
+    subject:
+      body.kind === "abuse"
+        ? `ABUSE REPORT: ${body.name}`
+        : `Contact form: ${body.name}`,
     text: supportText(body, ip),
     html: supportHtml(body, ip),
   });
