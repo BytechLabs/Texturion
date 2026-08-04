@@ -120,6 +120,14 @@ struct ContactPanelSheet: View {
                     .foregroundStyle(.secondary)
                 }
 
+                // #301: where this customer came from. Above the tasks
+                // because it is a question somebody ASKS in the first minute
+                // of a call, while a task is what they write down afterwards —
+                // and because the ask disappears the moment it is answered.
+                sheetSection("Where they came from") {
+                    LeadSourcePicker(controller: controller, detail: detail)
+                }
+
                 sheetSection("Tasks in this conversation") {
                     TasksChecklistSection(
                         state: controller.conversationTasks,

@@ -293,6 +293,12 @@ export interface ConversationPatch {
    * stops being the machine's own opinion.
    */
   spam_suspected?: false;
+  /**
+   * #301: where this customer came from, as a person answered it. Null CLEARS
+   * it back to unknown rather than falling back to the line's source — a tech
+   * who picked the wrong chip needs to be able to say "actually I don't know".
+   */
+  lead_source_id?: string | null;
 }
 
 /** PATCH /v1/conversations/:id — status / assignee / spam. */

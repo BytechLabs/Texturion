@@ -300,6 +300,15 @@ struct ConversationDetail: Codable, Sendable {
     /// memberwise default, so it would become a required parameter at all six
     /// existing ConversationDetail construction sites.
     var spam_signals: [SpamSignal]? = nil
+    /**
+     #301: where this customer came from, and how we came to believe it.
+
+     The ORIGIN travels with the id. A source shown without it is exactly the
+     "inferred source presented as a fact" #301 forbids — "the truck rang" and
+     "a tech says a neighbour sent them" are different kinds of claim.
+     */
+    var lead_source_id: String? = nil
+    var lead_source_origin: String? = nil
 }
 
 /// #250 — one reason the classifier scored a thread.

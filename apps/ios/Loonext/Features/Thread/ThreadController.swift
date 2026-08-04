@@ -981,6 +981,30 @@ final class ThreadController {
         }
     }
 
+    /// #301: the workspace's own source list, for the panel's picker.
+    func leadSources() async throws -> [LeadSource] {
+        try await repo.leadSources(companyId: companyId)
+    }
+
+    /**
+     #301: where this customer came from, as a person answered it.
+
+     Returns the updated row rather than only applying it, because the picker
+     needs the ORIGIN back — the server decides that a person's answer reads as
+     'manual', and a client that assumed it would be inventing the one
+     distinction the report depends on.
+     */
+    @discardableResult
+    func setLeadSource(_ leadSourceId: String?) async throws -> Conversation {
+        let next = try await repo.setLeadSource(
+            companyId: companyId,
+            conversationId: conversationId,
+            leadSourceId: leadSourceId
+        )
+        applyConversationRow(next)
+        return next
+    }
+
     func setSpam(_ spam: Bool) {
         Task {
             do {

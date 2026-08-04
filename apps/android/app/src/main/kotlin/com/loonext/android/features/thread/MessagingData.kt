@@ -16,6 +16,7 @@ import kotlinx.serialization.json.add
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.DestinationClock
 import com.loonext.android.core.model.Conversation
+import com.loonext.android.core.model.LeadSource
 import com.loonext.android.core.model.ConversationDetail
 import com.loonext.android.core.model.ConversationEvent
 import com.loonext.android.core.model.ConversationListItem
@@ -415,6 +416,30 @@ class MessagingRepository(private val api: ApiClient) {
 
     suspend fun setSpam(companyId: String, conversationId: String, spam: Boolean): Conversation =
         patchConversation(companyId, conversationId, buildJsonObject { put("is_spam", spam) })
+
+    /**
+     * #301: where this customer came from, as a person answered it.
+     *
+     * Null CLEARS it back to unknown rather than falling back to the line's
+     * source — a tech who picked the wrong chip needs to be able to say
+     * "actually I don't know", and re-deriving would dress that up as a fact.
+     */
+    suspend fun setLeadSource(
+        companyId: String,
+        conversationId: String,
+        leadSourceId: String?,
+    ): Conversation = patchConversation(
+        companyId,
+        conversationId,
+        buildJsonObject {
+            if (leadSourceId == null) put("lead_source_id", JsonNull)
+            else put("lead_source_id", leadSourceId)
+        },
+    )
+
+    /** #301: the workspace's own list, for the picker. */
+    suspend fun leadSources(companyId: String): List<LeadSource> =
+        api.get<Page<LeadSource>>("/v1/lead-sources", companyId = companyId).data
 
     /**
      * #250: "this is not spam" against the CLASSIFIER, which is a different

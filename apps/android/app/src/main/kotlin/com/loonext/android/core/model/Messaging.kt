@@ -111,6 +111,15 @@ data class Conversation(
      * can opt out, and only they can lift it.
      */
     val opt_out_hint_at: String? = null,
+    /**
+     * #301: where this customer came from, and how we came to believe it.
+     *
+     * The ORIGIN travels with the id. A source shown without it is exactly the
+     * "inferred source presented as a fact" #301 forbids — "the truck rang"
+     * and "a tech says a neighbour sent them" are different kinds of claim.
+     */
+    val lead_source_id: String? = null,
+    val lead_source_origin: String? = null,
     val created_at: String,
     val updated_at: String,
 )
@@ -289,6 +298,15 @@ data class ConversationDetail(
     val spam_suspected_at: String? = null,
     /** #250: the reasons behind it, so the badge can say WHY. */
     val spam_signals: List<SpamSignal> = emptyList(),
+    /**
+     * #301: where this customer came from, and how we came to believe it.
+     *
+     * The ORIGIN travels with the id. A source shown without it is exactly the
+     * "inferred source presented as a fact" #301 forbids — "the truck rang"
+     * and "a tech says a neighbour sent them" are different kinds of claim.
+     */
+    val lead_source_id: String? = null,
+    val lead_source_origin: String? = null,
     val created_at: String,
     val updated_at: String,
     val contact: ConversationDetailContact,

@@ -42,6 +42,7 @@ import {
   useConversations,
   useDetachTag,
 } from "@/lib/api/conversations";
+import { LeadSourcePicker } from "@/components/contact-panel/lead-source-picker";
 import { ApiError } from "@/lib/api/error";
 import { roleHasCapability, suggestExistingTag } from "@loonext/shared";
 import { useCompany } from "@/lib/api/companies";
@@ -394,6 +395,15 @@ export function ContactPanel({
           onOpenGallery={onOpenGallery}
           enabled={active}
         />
+
+        {/* #301: where this customer came from. Above the tags because it is
+            a question somebody ASKS a customer in the first minute, while a
+            tag is a filing decision made afterwards — and because the ask
+            disappears the moment it is answered, so it should not sit under
+            something that never does. *Applying: Prioritize Intent.* */}
+        <QuietGroup label="Where they came from">
+          <LeadSourcePicker conversation={conversation} />
+        </QuietGroup>
 
         {/* Tags on this conversation — quiet. */}
         <QuietGroup label="Tags">

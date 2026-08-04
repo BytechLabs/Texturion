@@ -15,7 +15,9 @@ import com.loonext.android.core.snooze.DeferralKind
 import com.loonext.android.core.snooze.snoozeReturnLabel
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Contact
+import com.loonext.android.core.model.Conversation
 import com.loonext.android.core.model.ConversationDetail
+import com.loonext.android.core.model.LeadSource
 import com.loonext.android.core.model.ConversationEvent
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.Member
@@ -1063,6 +1065,23 @@ class ThreadController(
                 notify(cause.userMessage())
             }
         }
+    }
+
+    /** #301: the workspace's own source list, for the panel's picker. */
+    suspend fun leadSources(): List<LeadSource> = repo.leadSources(companyId)
+
+    /**
+     * #301: where this customer came from, as a person answered it.
+     *
+     * Returns the updated row rather than only applying it, because the picker
+     * needs the ORIGIN back — the server decides that a person's answer reads
+     * as 'manual', and a client that assumed it would be inventing the one
+     * distinction the report depends on.
+     */
+    suspend fun setLeadSource(conversationId: String, leadSourceId: String?): Conversation {
+        val next = repo.setLeadSource(companyId, conversationId, leadSourceId)
+        applyConversationRow(next)
+        return next
     }
 
     fun setSpam(spam: Boolean) {

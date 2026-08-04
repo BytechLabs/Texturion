@@ -537,6 +537,16 @@ export interface Conversation {
    */
   opt_out_hint_at?: string | null;
   /**
+   * #301: where this customer came from, and how we came to believe it.
+   *
+   * The ORIGIN travels with the id and is not optional in the sense that
+   * matters: a source shown without it is exactly the "inferred source
+   * presented as a fact" the issue forbids. "The truck rang" and "a tech says
+   * a neighbour sent them" are different kinds of claim.
+   */
+  lead_source_id?: string | null;
+  lead_source_origin?: "number" | "manual" | null;
+  /**
    * #250: when the inbound classifier last scored this thread above the
    * threshold. Never set by a person, and never a reason to hide the
    * thread — it suppressed the notification and nothing else.

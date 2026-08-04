@@ -1,5 +1,17 @@
 package com.loonext.android.features.thread
 
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import com.loonext.android.core.model.ConversationDetail
+import com.loonext.android.core.model.LeadSource
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -166,6 +178,14 @@ internal fun ContactPanelSheet(
                 )
             }
 
+            // #301: where this customer came from. Above the tasks because it
+            // is a question somebody ASKS in the first minute of a call, while
+            // a task is what they write down afterwards — and because the ask
+            // disappears the moment it is answered.
+            SheetSection("Where they came from") {
+                LeadSourcePicker(controller = controller, detail = detail)
+            }
+
             SheetSection("Tasks in this conversation") {
                 TasksChecklist(
                     state = controller.conversationTasks,
@@ -182,6 +202,98 @@ internal fun ContactPanelSheet(
             }
 
             Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+/**
+ * #301 — "how did you hear about us?", as one tap.
+ *
+ * Hand-port of `apps/web/src/components/contact-panel/lead-source-picker.tsx`.
+ *
+ * #301's devil's-advocate section names the trap this is built around: asking
+ * the tech to categorise every inbound is a tax on the person with the least
+ * time, and if it is not one tap it will not happen — which produces a source
+ * field empty 80% of the time and a MISLEADING report rather than no report.
+ * So it is chips and not a menu.
+ *
+ * IT NEVER ASKS A QUESTION IT ALREADY KNOWS THE ANSWER TO. When the LINE
+ * attributed the conversation there is nothing to ask, so it states the answer
+ * and offers no prompt; asking anyway is how a crew learns to dismiss this
+ * control, and the whole value of per-number attribution is that nobody has to
+ * do anything.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LeadSourcePicker(controller: ThreadController, detail: ConversationDetail) {
+    val scope = rememberCoroutineScope()
+    var sources by remember { mutableStateOf<List<LeadSource>>(emptyList()) }
+    var pending by remember { mutableStateOf(false) }
+    var current by remember(detail.id) { mutableStateOf(detail.lead_source_id) }
+    var origin by remember(detail.id) { mutableStateOf(detail.lead_source_origin) }
+
+    LaunchedEffect(detail.id) {
+        // A list that will not load hides the picker rather than showing a
+        // prompt with no answers on offer.
+        sources = runCatching { controller.leadSources() }.getOrDefault(emptyList())
+    }
+
+    val options = sources.filter { it.archived_at == null }
+    if (options.isEmpty()) return
+
+    // An archived source still NAMES the thread it attributed — this
+    // conversation genuinely came from the yard sign, even after it came down.
+    val currentName = sources.firstOrNull { it.id == current }?.name
+
+    fun choose(id: String?) {
+        pending = true
+        scope.launch {
+            try {
+                val next = controller.setLeadSource(detail.id, id)
+                current = next.lead_source_id
+                origin = next.lead_source_origin
+            } finally {
+                pending = false
+            }
+        }
+    }
+
+    Column(Modifier.fillMaxWidth()) {
+        when {
+            origin == "number" && currentName != null -> Text(
+                "$currentName · the line they called",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            currentName != null -> Text(
+                "$currentName · somebody said so",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            else -> Text(
+                "Ask them: how did you hear about us?",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        FlowRow(
+            Modifier.fillMaxWidth().padding(top = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            options.forEach { source ->
+                val selected = source.id == current
+                FilterChip(
+                    selected = selected,
+                    enabled = !pending,
+                    // Tapping the chosen one again clears it: the fastest way
+                    // back from a mistap is the control you just used.
+                    onClick = { choose(if (selected) null else source.id) },
+                    label = { Text(source.name) },
+                )
+            }
+            if (current != null) {
+                TextButton(enabled = !pending, onClick = { choose(null) }) {
+                    Text("Don't know")
+                }
+            }
         }
     }
 }

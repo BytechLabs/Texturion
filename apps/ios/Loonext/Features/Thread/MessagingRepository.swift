@@ -196,6 +196,36 @@ struct MessagingRepository: Sendable {
         )
     }
 
+    /**
+     #301: where this customer came from, as a person answered it.
+
+     Nil CLEARS it back to unknown rather than falling back to the line's
+     source — a tech who picked the wrong chip needs to be able to say
+     "actually I don't know", and re-deriving would dress that up as a fact.
+     */
+    func setLeadSource(
+        companyId: String,
+        conversationId: String,
+        leadSourceId: String?
+    ) async throws -> Conversation {
+        try await patchConversation(
+            companyId: companyId,
+            conversationId: conversationId,
+            body: .object([
+                "lead_source_id": leadSourceId.map { JSONValue.string($0) } ?? .null
+            ])
+        )
+    }
+
+    /// #301: the workspace's own list, for the picker.
+    func leadSources(companyId: String) async throws -> [LeadSource] {
+        let page: Page<LeadSource> = try await api.get(
+            "/v1/lead-sources",
+            companyId: companyId
+        )
+        return page.data
+    }
+
     func setSpam(
         companyId: String,
         conversationId: String,
