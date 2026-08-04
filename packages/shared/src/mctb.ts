@@ -32,9 +32,16 @@ export interface EffectiveMctbMessage {
  */
 export function effectiveMctbMessage(
   ownerMessage: string | null | undefined,
+  /**
+   * #228 - the product default to fall back to, which is language-dependent.
+   * The already-resolved sentence rather than a locale, so `locale.ts` can keep
+   * reading this module's English constant without closing an import cycle.
+   * Ignored when the owner wrote their own.
+   */
+  fallback: string = DEFAULT_MCTB_MESSAGE,
 ): EffectiveMctbMessage {
   const trimmed = (ownerMessage ?? "").trim();
   return trimmed.length > 0
     ? { message: trimmed, custom: true }
-    : { message: DEFAULT_MCTB_MESSAGE, custom: false };
+    : { message: fallback, custom: false };
 }

@@ -53,6 +53,7 @@ import { DEFAULT_AWAY_MESSAGE } from "./away.js";
 import { DEFAULT_EMERGENCY_MESSAGE } from "./emergency.js";
 import { IDENTIFICATION_SUFFIX_TEMPLATE } from "./first-message-identification.js";
 import { RATING_ASK_BODY } from "./job-ratings.js";
+import { LOCALES, copyFor } from "./locale.js";
 import { DEFAULT_MCTB_MESSAGE } from "./mctb.js";
 import { onMyWayText } from "./on-my-way.js";
 import { estimateSegments } from "./segments.js";
@@ -80,6 +81,24 @@ const AUTOMATED_BODIES: readonly [string, string][] = [
         string,
       ],
   ),
+  // Every translation, on the same terms as the English. This is the half the
+  // guard was written FOR: the French copy is where the temptation to spell
+  // `bientôt` correctly meets a bill, and it is the one place a reviewer would
+  // read a hyphen for an accent as sloppiness rather than as the constraint.
+  ...LOCALES.flatMap((locale) => {
+    const copy = copyFor(locale);
+    return [
+      [`${locale}.missedCallTextBack`, copy.missedCallTextBack],
+      [`${locale}.awayReply`, copy.awayReply],
+      [`${locale}.emergencyAck`, copy.emergencyAck],
+      [`${locale}.ratingAsk`, copy.ratingAsk],
+      [`${locale}.identificationSuffix`, copy.identificationSuffix],
+      ...copy.appointmentReminders.map((rule) => [
+        `${locale}.appointmentReminders[${rule.offset_minutes}m]`,
+        rule.body,
+      ]),
+    ] as [string, string][];
+  }),
 ];
 
 describe("#228 automated SMS copy stays inside GSM-7", () => {

@@ -65,9 +65,24 @@ export interface EffectiveAwayMessage {
  */
 export function effectiveAwayMessage(
   ownerMessage: string | null | undefined,
+  /**
+   * #228 - the product default to fall back to, which is language-dependent.
+   *
+   * The LOCALE is deliberately not the parameter here, and the reason is
+   * structural rather than stylistic: `locale.ts` reads this module's English
+   * constant so there is exactly one definition of it, and taking a locale here
+   * would close that into an import cycle. Passing the already-resolved
+   * sentence keeps the dependency pointing one way.
+   *
+   * Ignored when the owner wrote their own, which is the point: somebody who
+   * typed a sentence gets the sentence they typed. A product that translated an
+   * owner's own words would be inventing copy for a business it does not speak
+   * for.
+   */
+  fallback: string = DEFAULT_AWAY_MESSAGE,
 ): EffectiveAwayMessage {
   const trimmed = (ownerMessage ?? "").trim();
   return trimmed.length > 0
     ? { message: trimmed, custom: true }
-    : { message: DEFAULT_AWAY_MESSAGE, custom: false };
+    : { message: fallback, custom: false };
 }

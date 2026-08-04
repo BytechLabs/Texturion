@@ -144,6 +144,7 @@ const SUITES = [
   "lead_sources",
   "member_orientation",
   "attachment_previews",
+  "locale",
 
 ];
 

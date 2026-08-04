@@ -672,3 +672,17 @@ export {
   type NumberOverrides,
   type Resolved,
 } from "./number-identity";
+
+export {
+  LOCALES,
+  DEFAULT_LOCALE,
+  LOCALE_LABELS,
+  EN_COPY,
+  FR_CA_COPY,
+  isLocale,
+  resolveLocale,
+  copyFor,
+  copyForContact,
+  type Locale,
+  type AutomatedCopy,
+} from "./locale";
