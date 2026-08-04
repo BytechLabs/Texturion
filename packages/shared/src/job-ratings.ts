@@ -61,7 +61,7 @@ export function isPoorRating(score: number): boolean {
  */
 export const RATING_ASK_BODY =
   "Thanks for having {business_name} out. How did it go? " +
-  "Reply with a number from 1 to 5 — 5 is great.";
+  "Reply with a number from 1 to 5 - 5 is great.";
 
 /**
  * Read a rating out of a reply, or null when it is not one.

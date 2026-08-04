@@ -47,7 +47,7 @@ export const DEFAULT_REMINDER_RULES: readonly {
   {
     offset_minutes: 120,
     body:
-      "{business_name} here — we're on track for {job_time} today. " +
+      "{business_name} here - we're on track for {job_time} today. " +
       "Reply C to confirm.",
   },
 ];

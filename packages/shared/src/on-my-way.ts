@@ -54,7 +54,7 @@ export type OnMyWayPreset = (typeof ON_MY_WAY_PRESETS)[number];
  * 2:40" — is a claim about traffic nobody can make from a van.
  */
 export function onMyWayText(minutes: number): string {
-  return `On my way — about ${minutes} minutes.`;
+  return `On my way - about ${minutes} minutes.`;
 }
 
 /** The label on the choice itself, which is shorter than the sentence. */

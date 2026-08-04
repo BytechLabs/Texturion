@@ -10,9 +10,15 @@ import {
 describe("#520 the on-my-way text", () => {
   it("OMW-1: hedges the arrival, because a van cannot promise a minute", () => {
     // A tech who says 20 and arrives at 28 has not broken a promise. An exact
-    // time — "arriving at 2:40" — is a claim about traffic nobody can make,
+    // time - "arriving at 2:40" - is a claim about traffic nobody can make,
     // and the customer who writes it down is the one who is annoyed at 2:41.
-    expect(onMyWayText(20)).toBe("On my way — about 20 minutes.");
+    //
+    // The separator is a HYPHEN and must stay one. An em dash is outside
+    // GSM-7, and one character outside it drops the whole message to UCS-2 at
+    // 67 units per segment instead of 153 - on a text sent once per visit.
+    // `sms-copy-encoding.test.ts` enforces that across every automated body;
+    // this pin is what stops the dash coming back as a typographic tidy-up.
+    expect(onMyWayText(20)).toBe("On my way - about 20 minutes.");
     expect(onMyWayText(20)).toContain("about");
   });
 

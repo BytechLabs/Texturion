@@ -35,7 +35,7 @@ enum OnMyWay {
     /// broken a promise. An exact arrival time is a claim about traffic nobody
     /// can make from a van.
     static func text(_ minutes: Int) -> String {
-        "On my way — about \(minutes) minutes."
+        "On my way - about \(minutes) minutes."
     }
 
     /// The label on the choice, which is shorter than the sentence it sends.

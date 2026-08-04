@@ -53,9 +53,18 @@ describe("#520 the on-my-way text reads the same everywhere", () => {
   it("hedges the arrival on every client", () => {
     // THE WORD THAT MATTERS. Without it the sentence promises a minute that
     // nobody in traffic can promise.
+    //
+    // THE SEPARATOR MATTERS TOO, for a different reason. This pinned an em
+    // dash, and the three clients agreed on it perfectly - which is what a
+    // parity test is for, and also how the same expensive character survived in
+    // all three at once. An em dash is outside GSM-7, so it drops the whole
+    // message to UCS-2 at 67 units per segment instead of 153, on a text sent
+    // once per visit. Parity was never the missing check; nothing was asking
+    // what the agreed sentence cost to deliver.
+    // `packages/shared/src/sms-copy-encoding.test.ts` asks that now.
     for (const [platform, path] of Object.entries(PORTS)) {
       expect(parityCode(path), `${platform}: hedges`).toContain(
-        "On my way — about ",
+        "On my way - about ",
       );
     }
     expect(onMyWayText(20)).toContain("about");

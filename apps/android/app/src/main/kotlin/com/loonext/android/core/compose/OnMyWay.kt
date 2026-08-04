@@ -40,7 +40,7 @@ object OnMyWay {
      * broken a promise. An exact arrival time is a claim about traffic nobody
      * can make from a van.
      */
-    fun text(minutes: Int): String = "On my way — about $minutes minutes."
+    fun text(minutes: Int): String = "On my way - about $minutes minutes."
 
     /** The label on the choice, which is shorter than the sentence it sends. */
     fun presetLabel(minutes: Int): String = "$minutes min"
