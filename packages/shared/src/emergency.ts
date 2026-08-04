@@ -143,10 +143,17 @@ export function mentionsEmergencyKeyword(
 
 /**
  * The words a reply instruction may legitimately name that are NOT ours: the
- * §5/D3 carrier keywords, which Telnyx answers at the network before we see
- * them. "Reply STOP to unsubscribe" is required compliance copy, and warning an
- * owner that STOP is unrecognised would be both wrong and the fastest way to
- * teach them to ignore this warning.
+ * §5/D3 reserved keywords. "Reply STOP to unsubscribe" is required compliance
+ * copy, and warning an owner that STOP is unrecognised would be both wrong and
+ * the fastest way to teach them to ignore this warning.
+ *
+ * RESERVED, not carrier-answered, and the two stopped being the same list on
+ * 2026-08-04. Every entry here but one is answered by Telnyx at the network
+ * before we see it; `ARRET` is answered by us, because Telnyx's opt-out set is
+ * English-only and a French-speaking customer's opt-out would otherwise arrive
+ * as an ordinary message (#228). What this list is FOR is unchanged either way:
+ * these are the words an owner may safely tell customers to send, because
+ * something is listening for each of them.
  *
  * Mirrors `STOP_KEYWORDS ∪ START_KEYWORDS ∪ HELP_KEYWORDS` in the API's
  * `keywords.ts`. That file stays the canonical source for the OPT-OUT path —
@@ -161,6 +168,8 @@ export const CARRIER_REPLY_KEYWORDS: readonly string[] = [
   "CANCEL",
   "END",
   "QUIT",
+  "ARRET",
+  "ARRÊT",
   "START",
   "UNSTOP",
   "YES",

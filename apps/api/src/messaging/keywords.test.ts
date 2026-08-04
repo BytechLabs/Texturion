@@ -81,6 +81,46 @@ describe("an emergency never draws the away reply (#414 ask 4)", () => {
   });
 });
 
+describe("#228 — a French opt-out is honoured, and nothing behind us catches it", () => {
+  it("treats ARRET as an opt-out, in both spellings", () => {
+    // The word a French-speaking customer in Canada actually sends. Telnyx's
+    // opt-out set is English-only (verified against the live messaging profile
+    // on 2026-08-04: smart_encoding off, no autoresp configs), so before this
+    // an inbound ARRET arrived as an ordinary message - no opt_outs row, no
+    // timeline event, and the auto-reply not suppressed.
+    for (const body of ["ARRET", "ARRÊT", "arret", "  Arrêt  "]) {
+      expect(STOP_KEYWORDS.has(body.trim().toUpperCase()), body).toBe(true);
+    }
+  });
+
+  it("suppresses the auto-reply, so we never text back over an opt-out", () => {
+    // The failure this prevents is specific and bad: somebody asks in French to
+    // be left alone and receives an automated message in reply.
+    for (const body of ["ARRET", "ARRÊT"]) {
+      expect(isCarrierKeyword(body), body).toBe(true);
+      expect(suppressesAutoReply(body), body).toBe(true);
+    }
+  });
+
+  it("does not swallow a sentence that merely contains the word", () => {
+    // Matching is exact on the trimmed body everywhere this set is used. A
+    // customer writing about an "arret de bus" is not withdrawing consent, and
+    // silencing them would be the expensive direction of this change.
+    expect(STOP_KEYWORDS.has("ARRET DE BUS")).toBe(false);
+    expect(suppressesAutoReply("on se voit a l'arret de bus")).toBe(false);
+  });
+
+  it("leaves AIDE out of the help set on purpose", () => {
+    // Adding it would look like the matching fix and would be worse. This set
+    // means "the carrier is answering, so we must not", and Telnyx answers AIDE
+    // no more than it answers ARRET - so a French speaker asking for help would
+    // get silence instead of the away message they get today. The fix is a
+    // French help reply, which is #228's copy work.
+    expect(HELP_KEYWORDS.has("AIDE")).toBe(false);
+    expect(suppressesAutoReply("AIDE")).toBe(false);
+  });
+});
+
 describe("#453 — the settings warning and the opt-out path agree on carrier words", () => {
   it("has the same carrier vocabulary on both sides", () => {
     // THIS FILE is canonical for the opt-out path: carrier truth is not moved
