@@ -11,6 +11,7 @@ import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.MemberFirsts
 import com.loonext.android.core.model.NotificationItem
 import com.loonext.android.core.model.Page
+import com.loonext.android.core.model.LeadSourceReport
 import com.loonext.android.core.model.PipelineReportResponse
 import com.loonext.android.core.model.ResponseTimeReport
 import com.loonext.android.core.model.SearchResult
@@ -76,6 +77,14 @@ class ForYouRepository(private val api: ApiClient) {
 
     suspend fun pipeline(companyId: String, days: Int = 30): PipelineReportResponse =
         api.get("/v1/reports/pipeline?days=$days", companyId = companyId)
+
+    /**
+     * #301: where these customers came from. Fixed at 30 days like the
+     * pipeline beside it — "where did this month's work come from" is the
+     * question, not a window somebody tunes.
+     */
+    suspend fun leadSources(companyId: String, days: Int = 30): LeadSourceReport =
+        api.get("/v1/reports/lead-sources?days=$days", companyId = companyId)
 
     /**
      * #342: spam marks that do not look like spam. Its own call rather than a

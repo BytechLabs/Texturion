@@ -27,6 +27,34 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertNil(me.company)
     }
 
+    /// #301 — the lead-source report's own defaults.
+    ///
+    /// A hand-port is where two platforms quietly start disagreeing, and this
+    /// one carries a number an owner spends money on. `coverage` and `note`
+    /// are OPTIONAL rather than defaulted: nil coverage means "no
+    /// conversations at all", which is a different sentence from 0% and the
+    /// card must not be able to conflate them.
+    func testLeadSourceReportDefaults() throws {
+        let empty: LeadSourceReport = try decode(#"{}"#)
+        XCTAssertEqual(empty.total, 0)
+        XCTAssertEqual(empty.unknown, 0)
+        XCTAssertTrue(empty.sources.isEmpty)
+        XCTAssertNil(empty.coverage)
+        XCTAssertNil(empty.note)
+
+        let thin: LeadSourceReport = try decode(#"""
+        {"days":30,"unknown":97,"total":100,"coverage":0.03,
+         "note":"You know where 3% of these customers came from.",
+         "sources":[{"lead_source_id":"s1","name":"Truck","by_number":3,"by_person":0,"total":3}]}
+        """#)
+        XCTAssertEqual(thin.sources.first?.name, "Truck")
+        XCTAssertEqual(thin.unknown, 97)
+        XCTAssertNotNil(thin.note)
+        // The headline is silent at 100% of a tiny attributed count only when
+        // the SHARE is small; three of three is the whole of what is known.
+        XCTAssertNotNil(leadSourceHeadline(thin))
+    }
+
     func testCompanyViewMinimalPayloadFallsToDefaults() throws {
         let company: CompanyView = try decode(#"""
         {"id":"c1","name":"Acme","country":"US","us_texting_enabled":true,

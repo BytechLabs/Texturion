@@ -54,6 +54,13 @@ struct ForYouApi: Sendable {
         try await api.get("/v1/reports/pipeline?days=\(days)", companyId: companyId)
     }
 
+    /// #301: where these customers came from. Fixed at 30 days like the
+    /// pipeline beside it — "where did this month's work come from" is the
+    /// question, not a window somebody tunes.
+    func leadSources(companyId: String, days: Int = 30) async throws -> LeadSourceReport {
+        try await api.get("/v1/reports/lead-sources?days=\(days)", companyId: companyId)
+    }
+
     /// #342: spam marks that do not look like spam. Its own call rather than a
     /// section of /v1/for-you — it answers a different question and is empty
     /// on nearly every day.

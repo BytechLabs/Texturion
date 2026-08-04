@@ -438,3 +438,45 @@ data class CompanyView(
 
 /** One realtime broadcast payload is always an ID-bag; kept as raw JSON. */
 typealias EventPayload = JsonObject
+
+/**
+ * #301 — where these customers came from.
+ *
+ * `coverage` and `note` are computed SERVER-side, like every other number on
+ * the home surface and for the same reason: three clients deciding
+ * independently how much of a thin ranking to believe is three chances to show
+ * an owner a confidence the others would not.
+ */
+@Serializable
+data class LeadSourceCount(
+    val lead_source_id: String,
+    val name: String,
+    /** Attributed automatically, by which line rang. */
+    val by_number: Int = 0,
+    /** A person said so. */
+    val by_person: Int = 0,
+    val total: Int = 0,
+)
+
+@Serializable
+data class LeadSourceReport(
+    val days: Int = 30,
+    val sources: List<LeadSourceCount> = emptyList(),
+    /** Conversations with no source at all. A row, never an omission. */
+    val unknown: Int = 0,
+    val total: Int = 0,
+    /** 0-1, or null when the window held no conversations at all. */
+    val coverage: Double? = null,
+    /** The caveat to print above the table, or null when there is none. */
+    val note: String? = null,
+)
+
+/** #301: the workspace's own list of where customers come from. */
+@Serializable
+data class LeadSource(
+    val id: String,
+    val name: String,
+    /** Non-null once retired: off the pickers, kept in the record. */
+    val archived_at: String? = null,
+    val created_at: String = "",
+)

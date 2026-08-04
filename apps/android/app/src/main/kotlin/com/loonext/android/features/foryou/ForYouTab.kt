@@ -57,6 +57,7 @@ import com.loonext.android.AppGraph
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.ForYou
 import com.loonext.android.core.model.Me
+import com.loonext.android.core.model.LeadSourceReport
 import com.loonext.android.core.model.PipelineReportResponse
 import com.loonext.android.core.model.ResponseTimeReport
 import com.loonext.android.core.model.SatisfactionReport
@@ -188,6 +189,16 @@ fun ForYouTab(
         refreshKey = refreshKey,
     ) { graph.forYouRepo.pipeline(companyId) }
 
+    // #301: where this month's customers came from. Its own cache-first read
+    // on the same 30-day window as the pipeline, and last of the four cards
+    // because it answers a slower question — the three above it are about this
+    // week's work, this one is about next month's spending.
+    val leadSources = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = CacheKeys.leadSources(companyId, 30),
+        refreshKey = refreshKey,
+    ) { graph.forYouRepo.leadSources(companyId) }
+
     // #342: spam marks that do not look like spam. Empty on nearly every day,
     // and deliberately NOT a badge or a push — a signal you find, not one that
     // finds you.
@@ -294,6 +305,7 @@ fun ForYouTab(
                 satisfaction = (satisfaction as? LoadState.Ready)?.value,
                 // #354: null while it loads, and the card says nothing.
                 pipeline = (pipeline as? LoadState.Ready)?.value,
+                leadSources = (leadSources as? LoadState.Ready)?.value,
                 unreadNotifications = unreadNotifications,
                 me = me,
                 onOpenConversation = { onOpenThread?.invoke(it) },
@@ -322,6 +334,8 @@ private fun ForYouList(
     satisfaction: SatisfactionReport?,
     /** #354: null while it loads — the card renders nothing rather than zeroes. */
     pipeline: PipelineReportResponse?,
+    /** #301: null while it loads, and the card says nothing either. */
+    leadSources: LeadSourceReport?,
     unreadNotifications: Int,
     me: Me,
     onOpenConversation: (String) -> Unit,
@@ -398,6 +412,10 @@ private fun ForYouList(
         // something true to say.
         item(key = "pipeline") {
             PipelineCard(report = pipeline)
+            // #301: last of the four, because it answers a slower question
+            // than the three above it — next month's spending rather than
+            // this week's work.
+            LeadSourcesCard(report = leadSources)
         }
 
         // #313: directly under the speed number on purpose. How fast you

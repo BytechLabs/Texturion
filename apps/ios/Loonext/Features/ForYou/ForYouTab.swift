@@ -42,6 +42,9 @@ struct ForYouTab: View {
     /// #354: the pipeline report. Fixed at 30 days — the pipeline question is
     /// "how did this month's quotes do", not a window somebody tunes.
     @State private var pipeline: PipelineReportResponse?
+    /// #301: where this month's customers came from. Same fixed window as the
+    /// pipeline above, and nil until it loads — the card says nothing either.
+    @State private var leadSources: LeadSourceReport?
     /// #508: how many times the unanswered row has been tapped this session.
     /// It is the destination's token — a repeat tap has to re-apply the filter
     /// after the reader has wandered off it, and an unchanged command says
@@ -80,6 +83,7 @@ struct ForYouTab: View {
                     // #354: nil while it loads, and the card says nothing.
                     satisfaction: satisfaction,
                     pipeline: pipeline,
+                    leadSources: leadSources,
                     onOpenConversation: { AppRouter.shared.openConversationId = $0 },
                     onOpenCalls: onOpenCalls,
                     onRefresh: {
@@ -199,6 +203,9 @@ struct ForYouTab: View {
         if let fresh = try? await graph.forYouApi.pipeline(companyId: companyId) {
             pipeline = fresh
         }
+        if let fresh = try? await graph.forYouApi.leadSources(companyId: companyId) {
+            leadSources = fresh
+        }
     }
 
     private func reloadRecentCalls() async {
@@ -229,6 +236,8 @@ private struct ForYouList: View {
     /// #354: nil while it loads — the card renders nothing rather than zeroes.
     let satisfaction: SatisfactionReport?
     let pipeline: PipelineReportResponse?
+    /// #301: nil while it loads, and the card renders nothing.
+    let leadSources: LeadSourceReport?
     let onOpenConversation: @MainActor (String) -> Void
     let onOpenCalls: (() -> Void)?
     /// Both loaders, awaited together, so the pull-to-refresh spinner settles
@@ -295,6 +304,10 @@ private struct ForYouList: View {
                 // #354: beside its neighbour, and absent entirely until there
                 // is something true to say.
                 PipelineCard(report: pipeline)
+                // #301: last of the four, because it answers a slower question
+                // than the three above it — next month's spending rather than
+                // this week's work.
+                LeadSourcesCard(report: leadSources)
                 // #313: directly under the speed number on purpose. How fast
                 // you answered and whether it landed are one thought, and
                 // separating them onto two screens is how a business optimises
@@ -763,6 +776,7 @@ private func previewCall(
         // #354: nil report — the preview shows the card's absent state, which
         // is what a workspace with no quotes actually sees.
         pipeline: nil,
+        leadSources: nil,
         onOpenConversation: { _ in },
         onOpenCalls: {},
         onRefresh: {},
@@ -788,6 +802,7 @@ private func previewCall(
         // #354: nil report — the preview shows the card's absent state, which
         // is what a workspace with no quotes actually sees.
         pipeline: nil,
+        leadSources: nil,
         onOpenConversation: { _ in },
         onOpenCalls: {},
         onRefresh: {},
@@ -832,6 +847,7 @@ private func previewCall(
         // #354: nil report — the preview shows the card's absent state, which
         // is what a workspace with no quotes actually sees.
         pipeline: nil,
+        leadSources: nil,
         onOpenConversation: { _ in },
         onOpenCalls: {},
         onRefresh: {},

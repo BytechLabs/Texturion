@@ -526,3 +526,47 @@ struct ResolvedBool: Codable, Sendable {
     var value = false
     var inherited = true
 }
+
+/**
+ #301 — where these customers came from.
+
+ `coverage` and `note` are computed SERVER-side, like every other number on the
+ home surface and for the same reason: three clients deciding independently how
+ much of a thin ranking to believe is three chances to show an owner a
+ confidence the others would not.
+ */
+struct LeadSourceCount: Codable, Sendable, Identifiable {
+    let lead_source_id: String
+    let name: String
+    /// Attributed automatically, by which line rang.
+    @Default<DefaultZero> var by_number: Int
+    /// A person said so.
+    @Default<DefaultZero> var by_person: Int
+    @Default<DefaultZero> var total: Int
+
+    var id: String { lead_source_id }
+}
+
+struct LeadSourceReport: Codable, Sendable {
+    /// The window this covers. A plain Int with a default in the initialiser's
+    /// place is not available on a Codable struct, so it reuses the zero
+    /// provider and the card never reads it — the copy says "Last 30 days"
+    /// from its own constant, which is the value the API is asked for.
+    @Default<DefaultZero> var days: Int
+    @Default<DefaultEmptyList<LeadSourceCount>> var sources: [LeadSourceCount]
+    /// Conversations with no source at all. A row, never an omission.
+    @Default<DefaultZero> var unknown: Int
+    @Default<DefaultZero> var total: Int
+    /// 0-1, or nil when the window held no conversations at all.
+    let coverage: Double?
+    /// The caveat to print above the table, or nil when there is none.
+    let note: String?
+}
+
+/// #301: the workspace's own list of where customers come from.
+struct LeadSource: Codable, Sendable, Identifiable {
+    let id: String
+    let name: String
+    /// Non-nil once retired: off the pickers, kept in the record.
+    let archived_at: String?
+}
