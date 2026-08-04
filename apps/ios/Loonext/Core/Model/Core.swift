@@ -186,6 +186,16 @@ struct MemberFirsts: Codable, Sendable {
     @Default<DefaultFalse> var replied: Bool
     @Default<DefaultFalse> var noted: Bool
     @Default<DefaultFalse> var marked_done: Bool
+    /// #286: has this member been through the joining orientation — the one
+    /// piece of their first-run state that cannot be derived from rows they
+    /// wrote, because it is a thing we did to them rather than a thing they did.
+    ///
+    /// Defaults to TRUE, not false. Every other field here defaults to "not
+    /// done yet", which is the harmless answer for a checklist row; the
+    /// harmless answer for a FLOW is "already seen". A server one release
+    /// behind that omits the key must not walk somebody through four screens
+    /// they have been past for a month.
+    @Default<DefaultTrue> var oriented: Bool
 }
 
 enum NumberStatus {

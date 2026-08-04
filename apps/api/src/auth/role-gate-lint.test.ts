@@ -78,6 +78,11 @@ const SELF_SCOPED_WRITES = new Set([
   "PUT /saved-views/default",
   // #406: leaving is always yours to do.
   "DELETE /members/me",
+  // #286: "I have been through the joining orientation" is a statement about
+  // yourself and nothing else. The route takes no body at all — the user id
+  // comes from the verified session — so there is nobody it could be said on
+  // behalf of, and it pairs with a read every role already holds.
+  "POST /me/oriented",
 ]);
 
 /**

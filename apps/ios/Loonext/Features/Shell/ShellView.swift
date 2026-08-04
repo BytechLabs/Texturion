@@ -90,6 +90,12 @@ struct ShellView: View {
     @State private var pendingSettingsSection: SettingsSection?
     @State private var counts = ShellCounts()
     @State private var countsKey = 0
+    /// #286: has this member been through the joining orientation. Nil until
+    /// the read lands, which is what keeps four screens from flashing at
+    /// somebody who has been here for months.
+    @State private var oriented: Bool?
+    @State private var notificationAsk = NotificationAsk()
+    @State private var primerDismissed = false
 
     /// #180: the shell is where the window's horizontal size class is known.
     /// Regular width (iPad, or an iPad-style split) caps the floating pill so it
@@ -236,6 +242,68 @@ struct ShellView: View {
         }
         .resyncOnForeground { countsKey &+= 1 }
         .task(id: companyId) { await wireSessionDevice() }
+        // #286: asked only of roles the joining flow could ever be for, so
+        // nobody else pays a round trip on app start. A failure leaves it nil,
+        // i.e. shows nothing.
+        .task(id: companyId) {
+            guard shouldShowOrientation(role, false) else { return }
+            oriented = try? await graph.meApi.firsts(companyId: companyId).oriented
+        }
+        // #286: the four screens a new tech gets on their first sign-in.
+        // Presented from the shell because they belong to the SESSION rather
+        // than to whichever tab happens to be selected.
+        .sheet(
+            isPresented: Binding(
+                get: { shouldShowOrientation(role, oriented) },
+                // A swipe down IS the skip. #286 promises a skippable flow,
+                // and a gesture that closes the sheet without recording the
+                // skip would re-present it on the next sign-in — which is the
+                // definition of a skip that did not work.
+                set: { if !$0 { finishOrientation() } }
+            )
+        ) {
+            MemberOrientationSheet(onFinished: finishOrientation)
+        }
+        // #286: and for everybody the orientation is not for — the owner who
+        // just finished setup, anybody already here when it shipped. One
+        // screen saying what we will buzz about, then the real prompt.
+        // Suppressed while the orientation is up: that flow ends on the same
+        // ask with three screens of reason in front of it, and two sheets
+        // about one permission is the cold ask with extra steps.
+        .sheet(
+            isPresented: Binding(
+                get: {
+                    notificationAsk.askable
+                        && !primerDismissed
+                        && !shouldShowOrientation(role, oriented)
+                },
+                // Closing without answering is NOT a refusal, so nothing is
+                // recorded and the sheet is simply gone for this launch. The
+                // next one asks again — unlike the system prompt, this is ours
+                // to repeat, and repeating it is cheaper than losing the
+                // permission for good.
+                set: { if !$0 { primerDismissed = true } }
+            )
+        ) {
+            NotificationPrimerSheet(ask: notificationAsk) { primerDismissed = true }
+        }
+        .task(id: companyId) { await notificationAsk.refresh() }
+    }
+
+    /// #286: finished, or skipped — the same call either way, because a skip
+    /// that comes back tomorrow is not a skip.
+    ///
+    /// Marked locally first so closing the sheet cannot re-present it on the
+    /// next body evaluation while the write is still in flight; a failed write
+    /// costs somebody a repeat on their next sign-in rather than the app.
+    private func finishOrientation() {
+        oriented = true
+        Task { try? await graph.meApi.markOriented(companyId: companyId) }
+    }
+
+    /// This viewer's role in the company the shell was hydrated for.
+    private var role: String? {
+        hydratedMe.memberships.first { $0.company_id == companyId }?.role
     }
 
     // MARK: - Roles with no inbox (#315)
@@ -244,9 +312,7 @@ struct ShellView: View {
     /// membership the shell was hydrated with. Fails closed: an unknown role,
     /// or a hydration that no longer contains this company, reads as NO.
     private var hasInbox: Bool {
-        MemberRole.canReadConversations(
-            hydratedMe.memberships.first { $0.company_id == companyId }?.role
-        )
+        MemberRole.canReadConversations(role)
     }
 
     /// The whole app for a bookkeeper: billing, and the settings sections their

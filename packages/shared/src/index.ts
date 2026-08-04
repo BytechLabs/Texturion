@@ -16,6 +16,13 @@ export {
 } from "./settings-visibility";
 
 export {
+  ORIENTATION_STEPS,
+  orientationProgress,
+  shouldShowOrientation,
+  type OrientationStep,
+} from "./member-orientation";
+
+export {
   handoverPromptCancelLabel,
   handoverPromptHeadline,
   handoverPromptIsUrgent,

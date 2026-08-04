@@ -63,6 +63,39 @@ meRoutes.get("/me/firsts", requireCapability("workspace.access"), async (c) => {
   return c.json(data);
 });
 
+/**
+ * POST /v1/me/oriented — #286. The member finished, or skipped, the joining
+ * orientation.
+ *
+ * ONE ROUTE FOR BOTH OUTCOMES. Skipping is not a lesser result to be re-asked
+ * tomorrow; #286 promises a skippable flow, and a skip that comes back is not
+ * one. Splitting them would also invite a client to record only completions,
+ * which is the bug where the person least interested in the flow is the one
+ * who keeps seeing it.
+ *
+ * Idempotent, and answers 200 to a repeat: the SQL leaves the original
+ * timestamp alone (it is also the record of when this person joined the
+ * product properly) and reports whether it changed anything. A client retrying
+ * after a dropped response must not be handed an error for succeeding twice.
+ *
+ * Same capability as the read it pairs with. There is nothing to protect here
+ * beyond membership — the caller can only ever mark THEMSELVES, because the
+ * user id comes from the verified session and never from the body.
+ */
+meRoutes.post(
+  "/me/oriented",
+  requireCapability("workspace.access"),
+  async (c) => {
+    const db = getDb(getEnv(c.env));
+    const { data, error } = await db.rpc("api_mark_oriented", {
+      p_company_id: c.get("companyId"),
+      p_user_id: c.get("userId"),
+    });
+    if (error) throw new Error(`mark oriented failed: ${error.message}`);
+    return c.json(data);
+  },
+);
+
 // #112: the caller sets their OWN display name (the team sees it everywhere —
 // members list, avatars, notes). Company-exempt: the invite flow collects the
 // name BEFORE the first membership exists. Upsert mirrors the signup trigger

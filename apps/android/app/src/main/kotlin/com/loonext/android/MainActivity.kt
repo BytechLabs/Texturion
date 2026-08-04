@@ -68,6 +68,7 @@ import com.loonext.android.features.auth.AuthFlow
 import com.loonext.android.features.auth.AuthViewModel
 import com.loonext.android.features.auth.OAUTH_REDIRECT_SCHEME
 import com.loonext.android.features.calls.CallsOverlay
+import com.loonext.android.features.calls.NotificationPrimer
 import com.loonext.android.features.compose.NewConversationScreen
 import com.loonext.android.features.contacts.ContactDetailScreen
 import com.loonext.android.features.contacts.ContactMutations
@@ -77,6 +78,8 @@ import com.loonext.android.features.diagnostics.DiagnosticsScreen
 import com.loonext.android.features.inbox.InboundMessageToastHost
 import com.loonext.android.features.inbox.InboxDestination
 import com.loonext.android.features.notifications.NotificationsScreen
+import com.loonext.android.features.onboarding.MemberOrientation
+import com.loonext.android.features.onboarding.shouldShowOrientation
 import com.loonext.android.features.settings.SettingsHome
 import com.loonext.android.features.settings.SettingsSection
 import com.loonext.android.features.shell.AccountSheet
@@ -605,9 +608,20 @@ private fun ReadyShell(
     // are conversation surfaces — rendering the shell for them would be four
     // tabs that each answer 403. They get the one screen they can work instead.
     // Seeded once, and NOT popped: there is nothing underneath it for them.
-    val hasInbox = MemberRole.canReadConversations(
-        hydratedMe.memberships.firstOrNull { it.company_id == companyId }?.role,
-    )
+    val role = hydratedMe.memberships.firstOrNull { it.company_id == companyId }?.role
+    val hasInbox = MemberRole.canReadConversations(role)
+
+    // #286: has this member been through the joining orientation. Null until
+    // the read lands, which is what keeps four screens from flashing at
+    // somebody who has been here for months. Asked only of roles the flow
+    // could ever be for, so nobody else pays a round trip on app start; a
+    // failure leaves it null, i.e. shows nothing.
+    var oriented by remember(companyId) { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(companyId, role) {
+        if (shouldShowOrientation(role, false)) {
+            oriented = runCatching { graph.meRepo.firsts(companyId).oriented }.getOrNull()
+        }
+    }
     LaunchedEffect(hasInbox, companyId) {
         if (!hasInbox && routeStack.isEmpty()) {
             routeStack.add(Overlay.Settings(SettingsSection.Billing))
@@ -690,6 +704,27 @@ private fun ReadyShell(
                     onViewedConversationChanged = { tabViewedConversation = it },
                 )
             }
+
+            // #286: the four screens a new tech gets on their first sign-in,
+            // mounted on the shell because they belong to the SESSION rather
+            // than to whichever tab happens to be selected. Silent for
+            // everybody who has already been through it.
+            MemberOrientation(
+                graph = graph,
+                companyId = companyId,
+                role = role,
+                oriented = oriented,
+                // Marked locally too, so closing it cannot re-open it on the
+                // next recomposition while the write is still in flight.
+                onFinished = { oriented = true },
+            )
+            // #286: and for everybody the orientation is not for — the owner
+            // who just finished setup, anybody already here when it shipped.
+            // One screen saying what we will buzz about, then the real prompt.
+            // Suppressed while the orientation is up: that flow ends on the
+            // same ask with three screens of reason in front of it, and two
+            // dialogs about one permission is the cold ask with extra steps.
+            NotificationPrimer(suppressed = shouldShowOrientation(role, oriented))
 
             // The persistent call chip (renders nothing while idle). Mounting it is
             // what makes this member ring-eligible while the app is open (#155).

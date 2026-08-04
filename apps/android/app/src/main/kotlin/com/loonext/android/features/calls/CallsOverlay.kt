@@ -48,8 +48,12 @@ import kotlinx.coroutines.delay
  * full-screen [InCallScreen] it expands into. The incoming RING is owned by
  * Android Telecom now (#171/§6) — there is no in-app ring surface here.
  * Mounting this is also what registers the softphone on app open, so the member
- * is ring-eligible even before ever visiting the Calls tab — and what fires the
- * one-shot POST_NOTIFICATIONS prompt.
+ * is ring-eligible even before ever visiting the Calls tab.
+ *
+ * #286: the one-shot POST_NOTIFICATIONS prompt used to fire from here, cold, on
+ * first launch. It now belongs to NotificationPrimer (and to the joining
+ * orientation's last screen), which say what the alerts are before spending the
+ * only prompt Android gives us.
  */
 @Composable
 fun CallsOverlay(
@@ -64,8 +68,6 @@ fun CallsOverlay(
     val repo = remember(graph) { CallsRepository(graph.api) }
     val snapshot by manager.state.collectAsStateWithLifecycle()
     var expanded by remember { mutableStateOf(false) }
-
-    EnsureNotificationPermission()
 
     LaunchedEffect(companyId, me.display_name) {
         manager.start(companyId, me.display_name)

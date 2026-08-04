@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { LandingGate } from "@/components/for-you/landing-gate";
 import { InviteBanner } from "@/components/invites/invite-banner";
+import { MemberOrientation } from "@/components/onboarding/member-orientation";
 import { HandoverBanner } from "@/components/ownership/handover-banner";
 import { AppShell } from "@/components/shell/app-shell";
 import { MfaGate } from "@/components/shell/mfa-gate";
@@ -72,6 +73,11 @@ export default function AppLayout({
             <MfaGate>
               <AppShell>{children}</AppShell>
             </MfaGate>
+            {/* #286: the four screens a new tech gets on their first sign-in.
+                Mounted on the shell rather than a route because it belongs to
+                the SESSION, not to wherever the landing gate happened to put
+                them; silent for everybody who has already been through it. */}
+            <MemberOrientation />
             {/* #109: ambient "you've been invited — Join" card (fixed, no
                 layout shift; renders nothing when there's no pending invite). */}
             <InviteBanner />

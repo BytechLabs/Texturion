@@ -5,8 +5,10 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
+  AUTHORIZE_RPC,
   apiRequest,
   buildTestApp,
+  membershipResponder,
   supabaseStub,
   type SupabaseStub,
 } from "../test/routes-harness";
@@ -22,6 +24,7 @@ import { meRoutes } from "./me";
 const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 const OTHER_COMPANY_ID = "11111111-2222-4333-8444-555555555555";
+const MEMBER_ID = "22222222-3333-4444-8555-666666666666";
 
 let auth: TestAuth;
 const app = buildTestApp(meRoutes);
@@ -265,3 +268,99 @@ describe("PATCH /v1/me (#112: set your own display name)", () => {
     expect(sb.find("POST", "/rest/v1/profiles")).toHaveLength(0);
   });
 });
+
+describe("POST /v1/me/oriented (#286: the joining orientation)", () => {
+  function orientedStub(): SupabaseStub {
+    const sb = supabaseStub(env);
+    sb.on("POST", AUTHORIZE_RPC, membershipResponder(MEMBER_ID, "member"));
+    return sb;
+  }
+
+  it("marks the CALLER, in the company they sent, from the session", async () => {
+    const sb = orientedStub();
+    sb.on("POST", "/rest/v1/rpc/api_mark_oriented", () => ({
+      oriented: true,
+      marked: true,
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/me/oriented",
+      { method: "POST", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ oriented: true, marked: true });
+
+    // The user id is the verified `sub`. There is no body on this route at
+    // all, which is the point: "I have been oriented" is only ever a statement
+    // about yourself, and a body would be somewhere to put somebody else's id.
+    const call = sb.find("POST", "/rest/v1/rpc/api_mark_oriented")[0];
+    expect(call.body).toEqual({
+      p_company_id: COMPANY_ID,
+      p_user_id: auth.subject,
+    });
+  });
+
+  it("answers 200 to a repeat, saying it changed nothing", async () => {
+    // Two devices can race this: the same person finishes on a phone while the
+    // laptop's copy is still open, or a client retries after a dropped
+    // response. Neither is an error — they are both already oriented.
+    const sb = orientedStub();
+    sb.on("POST", "/rest/v1/rpc/api_mark_oriented", () => ({
+      oriented: true,
+      marked: false,
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/me/oriented",
+      { method: "POST", companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ oriented: true, marked: false });
+  });
+
+  it("refuses somebody who is not a member of the company they named", async () => {
+    const sb = supabaseStub(env);
+    sb.on("POST", AUTHORIZE_RPC, membershipResponder(MEMBER_ID, null));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/me/oriented",
+      { method: "POST", companyId: OTHER_COMPANY_ID },
+    );
+    expect(res.status).toBe(403);
+    expect(sb.find("POST", "/rest/v1/rpc/api_mark_oriented")).toHaveLength(0);
+  });
+
+  it("carries the orientation on the read the card already makes", async () => {
+    // Folded into /v1/me/firsts rather than given a route of its own: it is
+    // the same question at the same moment, and a second round trip on app
+    // start would cost every member of every workspace forever for a screen
+    // each of them sees once.
+    const sb = orientedStub();
+    sb.on("POST", "/rest/v1/rpc/api_member_firsts", () => ({
+      replied: false,
+      noted: false,
+      marked_done: false,
+      oriented: false,
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/me/firsts", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ oriented: false });
+  });
+});
+

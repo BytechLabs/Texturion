@@ -142,6 +142,7 @@ const SUITES = [
   "after_hours_call_routing",
   "ring_strategy",
   "lead_sources",
+  "member_orientation",
 
 ];
 

@@ -18,6 +18,17 @@ struct MeApi: Sendable {
         try await api.get("/v1/me/firsts", companyId: companyId)
     }
 
+    /// #286: finished, or skipped — the same call either way, because a skip
+    /// that comes back tomorrow is not a skip. Idempotent server-side, so a
+    /// retry after a dropped response is a 200 rather than an error.
+    func markOriented(companyId: String) async throws {
+        let _: JSONValue = try await api.post(
+            "/v1/me/oriented",
+            body: JSONValue.object([:]),
+            companyId: companyId
+        )
+    }
+
     func updateDisplayName(_ name: String) async throws {
         let _: JSONValue = try await api.patch(
             "/v1/me",

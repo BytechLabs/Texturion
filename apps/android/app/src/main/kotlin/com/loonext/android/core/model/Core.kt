@@ -158,6 +158,18 @@ data class MemberFirsts(
     val replied: Boolean = false,
     val noted: Boolean = false,
     val marked_done: Boolean = false,
+    /**
+     * #286: has this member been through the joining orientation — the one
+     * piece of their first-run state that cannot be derived from rows they
+     * wrote, because it is a thing we did to them rather than a thing they did.
+     *
+     * Defaults to TRUE, not false. Every other field here defaults to "not
+     * done yet", which is the harmless answer for a checklist row; the
+     * harmless answer for a FLOW is "already seen". A server one release behind
+     * that omits the key must not walk somebody through four screens they have
+     * been past for a month.
+     */
+    val oriented: Boolean = true,
 )
 
 /** GET /v1/me — optionally hydrated with `company` when X-Company-Id is sent. */

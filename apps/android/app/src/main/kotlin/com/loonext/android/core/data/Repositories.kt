@@ -48,6 +48,14 @@ class MeRepository(private val api: ApiClient) {
      */
     suspend fun firsts(companyId: String): MemberFirsts =
         api.get("/v1/me/firsts", companyId = companyId)
+
+    /**
+     * #286: finished, or skipped — the same call either way, because a skip
+     * that comes back tomorrow is not a skip. Idempotent server-side, so a
+     * retry after a dropped response is a 200 rather than an error.
+     */
+    suspend fun markOriented(companyId: String): Map<String, Boolean> =
+        api.post("/v1/me/oriented", companyId = companyId)
 }
 
 class ForYouRepository(private val api: ApiClient) {
