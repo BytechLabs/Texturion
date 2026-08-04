@@ -238,6 +238,11 @@ function ctx(overrides: Partial<InitiatedContext> = {}): InitiatedContext {
     greeting: null,
     callerE164: "+15551000",
     businessNumberE164: "+19995000",
+    // #278: false on all three is the pre-#278 product — rings exactly as it
+    // always did, which is what every existing case in this file asserts.
+    afterHours: false,
+    nextOpenLabel: null,
+    afterHoursVoicemail: false,
     lineBusy: false,
     screeningDivert: false,
     suspendedOrInactive: false,

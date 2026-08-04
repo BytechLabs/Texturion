@@ -1252,6 +1252,13 @@ export class CallSessionDO extends DurableObject<Env> {
       // spoken at initiation or not at all — so adoption can only ever inherit
       // "no notice", never invent one.
       noticeSpoken: false,
+      // #278, same reasoning: the routing verdict was made at initiation by
+      // whichever machine owned this call first, and an adopted session has
+      // already passed the point where it could change anything. False here
+      // means the greeting falls back to the ordinary one, which is the
+      // pre-#278 behaviour and never silence.
+      afterHours: false,
+      nextOpenLabel: null,
       callSessionId: row.callSessionId,
       companyId: row.companyId,
       phoneNumberId: row.phoneNumberId,

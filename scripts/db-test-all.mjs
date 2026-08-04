@@ -139,6 +139,7 @@ const SUITES = [
   "per_number_identity",
   "per_number_mctb",
   "voicemail_greetings",
+  "after_hours_call_routing",
 
 ];
 

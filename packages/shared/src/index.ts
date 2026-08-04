@@ -171,6 +171,10 @@ export {
   type HoursException,
 } from "./business-hours";
 
+// #278: the same clock, asked forwards. "We're closed" is not an answer; "we're
+// back Monday at 8" is, and the shop already told us.
+export { nextOpening, spokenTime, type NextOpening } from "./next-opening";
+
 export {
   TEN_DLC_CEILINGS,
   TEN_DLC_CEILINGS_VERIFIED_ON,
@@ -613,6 +617,10 @@ export { hiddenNumbersNotice } from "./hidden-numbers-notice";
 export {
   inheritedFields,
   resolveNumberIdentity,
+  // #278: what a call does outside hours, resolved by the same one rule.
+  AFTER_HOURS_CALLS,
+  isAfterHoursCalls,
+  type AfterHoursCalls,
   type CompanyIdentity,
   type NumberIdentity,
   type NumberOverrides,

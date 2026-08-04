@@ -228,6 +228,30 @@ export interface SessionMachine {
   /** §4 T7: userId of the answered owner whose leg died while an intent was
    *  live (the stand-down consumed the only observing event); null otherwise. */
   ownerLegDeadDuringIntent: string | null;
+  /**
+   * #278 — this call arrived outside the line's business hours.
+   *
+   * Decided ONCE, at initiation, from the clock that was true when the caller
+   * rang. Not re-asked when the greeting plays: a call that starts at 16:59
+   * and rings out for 45 seconds is not an after-hours call, and a greeting
+   * that changed its mind halfway through the ring would be deciding on a
+   * clock the caller never met.
+   *
+   * A machine persisted before #278 loads without this key, which reads as
+   * false — exactly the pre-#278 behaviour, which is the right default for a
+   * field whose true value changes what a caller hears.
+   */
+  afterHours: boolean;
+  /**
+   * #278 — "Monday at 8am", when we can honestly say it.
+   *
+   * Null whenever we cannot: no hours configured, an unresolvable timezone,
+   * nothing open inside a fortnight. The greeting then says nothing about
+   * timing rather than saying something wrong, because a caller told "back
+   * Monday at 8" who rings on Monday at 8 and gets voicemail again has been
+   * lied to by a machine.
+   */
+  nextOpenLabel: string | null;
   /** §7.5.4: legacy-cutover machine — scopes §7.7 ledger-less minting. */
   adopted: boolean;
   pushCapableUserIds: string[];
@@ -255,6 +279,27 @@ export interface InitiatedContext {
   businessNumberE164: string;
   lineBusy: boolean;
   screeningDivert: boolean;
+  /**
+   * #278 — the caller rang outside this line's hours.
+   *
+   * Carried separately from `afterHoursVoicemail` because it changes what is
+   * SAID even when the crew is still rung: an on-call member picking up at
+   * 11pm is an after-hours call whose greeting, if nobody reaches the phone,
+   * should still be the after-hours one.
+   */
+  afterHours: boolean;
+  /** #278 — "back Monday at 8am", or null when we cannot honestly say. */
+  nextOpenLabel: string | null;
+  /**
+   * #278 — go straight to the greeting instead of ringing out first.
+   *
+   * True only when the line is set to `voicemail`, the clock says after hours,
+   * and nobody is holding the on-call phone. Every uncertainty resolves to
+   * false and the call rings exactly as it does today, which is the #244 rule
+   * applied to the call side: waking four people who did not need it is a bad
+   * night, and reaching nobody is a customer who rings a competitor.
+   */
+  afterHoursVoicemail: boolean;
   suspendedOrInactive: boolean;
   /** #490: this company is under its daily ceiling for spoken suspended-line
    *  notices. False degrades to today's ring-out, which is why the cap is
@@ -1140,6 +1185,8 @@ function reduceInitiated(
     noticeSpoken: false,
     wakeAttempted: false,
     ownerLegDeadDuringIntent: null,
+    afterHours: context.afterHours,
+    nextOpenLabel: context.nextOpenLabel,
     adopted: false,
     pushCapableUserIds: [...context.pushAudience],
     declinedUserIds: [],
@@ -1155,7 +1202,18 @@ function reduceInitiated(
 
   // T1a: line busy, or screening divert + flagged → VM-ENTRY now, state
   // minted voicemail_greeting (never a false `ringing` broadcast — §16.8).
-  if (context.lineBusy || context.screeningDivert) {
+  //
+  // #278 joins them: a line set to take messages after hours, rung after
+  // hours, with nobody holding the on-call phone. The three arrive at the same
+  // place for the same reason — there is nobody this call could reach, and
+  // forty-five seconds of ringback before admitting it teaches the caller the
+  // business is unreliable rather than closed.
+  //
+  // Everything that makes this true is decided in the shell, and every
+  // uncertainty there resolves to false: an unknown clock, an unset schedule,
+  // a failed on-call read, or the default `ring_everyone` all ring exactly as
+  // they do today.
+  if (context.lineBusy || context.screeningDivert || context.afterHoursVoicemail) {
     vmEntry(base, effects);
     return { machine: base, effects };
   }
@@ -1288,9 +1346,13 @@ function reduceOutboundInitiated(
     callSessionId: context.callSessionId,
     companyId: context.companyId,
     phoneNumberId: context.phoneNumberId,
-    // Voicemail-only fields are unused for outbound (no greeting path).
+    // Voicemail-only fields are unused for outbound (no greeting path) —
+    // #278's after-hours facts included: WE placed this call, so the callee's
+    // clock is theirs and no greeting of ours is ever spoken on it.
     companyName: "",
     greeting: null,
+    afterHours: false,
+    nextOpenLabel: null,
     callerE164: context.customer,
     businessNumberE164: context.businessNumberE164,
     customerCcid: context.customerCcid,

@@ -8,13 +8,21 @@
  * suites substitute a fake, so the shell's queue/journal/alarm logic is
  * testable with no Telnyx and no PostgREST.
  */
-import { resolveNumberIdentity } from "@loonext/shared";
+import {
+  isAfterHours,
+  nextOpening,
+  resolveNumberIdentity,
+  type AfterHoursCalls,
+  type BusinessHours,
+  type HoursException,
+} from "@loonext/shared";
 import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
 import {
+  afterHoursDefaultGreeting,
   buildBrowserAnsweredState,
   buildMemberRingState,
   buildVoicemailState,
@@ -360,6 +368,14 @@ interface InboundCompanyRow {
   subscription_status: string;
   call_screening: "off" | "flag" | "divert";
   voicemail_greeting: string | null;
+  /** #278: the clock the call path now consults. Every one nullable, because
+   *  most workspaces have never set any of them and must keep ringing exactly
+   *  as they do today. */
+  timezone: string | null;
+  business_hours: BusinessHours | null;
+  business_hours_exceptions: HoursException[] | null;
+  after_hours_calls: AfterHoursCalls | null;
+  after_hours_greeting_id: string | null;
 }
 
 /** In-flight window for the line-busy read (mirrors voice-webhook.ts). */
@@ -530,20 +546,33 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         // #307: the line's OWN identity, if it has one. Null on both columns
         // means inherit, which is every number until somebody sets an
         // override — so this read changes nothing for existing workspaces.
-        .select("id,company_id,status,label,voicemail_greeting")
+        // #278 adds the clock: a line's own hours, its exceptions, what a
+        // call does outside them and which recording says so. All nullable,
+        // all meaning INHERIT, so this read changes nothing for a workspace
+        // that has never touched any of it.
+        .select(
+          "id,company_id,status,label,voicemail_greeting,timezone," +
+            "business_hours,business_hours_exceptions,after_hours_calls," +
+            "after_hours_greeting_id",
+        )
         .eq("number_e164", payload.to)
         .neq("status", "released")
         .limit(1);
       if (numberError) {
         throw new Error(`phone_numbers lookup failed: ${numberError.message}`);
       }
-      const number = numberRows?.[0] as
+      const number = numberRows?.[0] as unknown as
         | {
             id: string;
             company_id: string;
             status: string;
             label: string | null;
             voicemail_greeting: string | null;
+            timezone: string | null;
+            business_hours: BusinessHours | null;
+            business_hours_exceptions: HoursException[] | null;
+            after_hours_calls: AfterHoursCalls | null;
+            after_hours_greeting_id: string | null;
           }
         | undefined;
       if (!number) return "drop"; // a number we do not own
@@ -564,14 +593,17 @@ export function createSessionRuntime(env: Env): SessionRuntime {
       const { data: companyRows, error: companyError } = await db
         .from("companies")
         .select(
-          "id,name,plan,current_period_start,overage_cap_multiplier,subscription_status,call_screening,voicemail_greeting",
+          "id,name,plan,current_period_start,overage_cap_multiplier," +
+            "subscription_status,call_screening,voicemail_greeting,timezone," +
+            "business_hours,business_hours_exceptions,after_hours_calls," +
+            "after_hours_greeting_id",
         )
         .eq("id", number.company_id)
         .limit(1);
       if (companyError) {
         throw new Error(`company lookup failed: ${companyError.message}`);
       }
-      const company = companyRows?.[0] as InboundCompanyRow | undefined;
+      const company = companyRows?.[0] as unknown as InboundCompanyRow | undefined;
       if (!company) return "drop";
 
       // Line model (D43, binding): api_claim_inbound_line kept verbatim.
@@ -647,24 +679,107 @@ export function createSessionRuntime(env: Env): SessionRuntime {
       const identity = resolveNumberIdentity(
         {
           name: company.name,
-          timezone: "",
+          // #278: the clock is REAL on this path now. It was "" and null
+          // before because nothing on the call side had ever consulted the
+          // hours the away-reply has been using since #402.
+          timezone: company.timezone ?? "",
           voicemailGreeting: company.voicemail_greeting,
           awayMessage: null,
           awayEnabled: false,
-          businessHours: null,
-          businessHoursExceptions: null,
-      // Not read on this path — mctb resolves where the missed call is
-      // handled. Passed because CompanyIdentity is one shape: a resolver with
-      // optional halves would let a caller forget the half it does need.
-      mctbEnabled: false,
-      mctbMessage: null,
-      // Not read on this path — the recording is resolved where the greeting
-      // actually plays (greetingAudioUrl). Passed because CompanyIdentity is
-      // one shape.
-      voicemailGreetingId: null,
+          businessHours: company.business_hours,
+          businessHoursExceptions: company.business_hours_exceptions,
+          // Not read on this path — mctb resolves where the missed call is
+          // handled. Passed because CompanyIdentity is one shape: a resolver
+          // with optional halves would let a caller forget the half it does
+          // need.
+          mctbEnabled: false,
+          mctbMessage: null,
+          // Not read on this path — the recording is resolved where the
+          // greeting actually plays (greetingAudioUrl). Passed because
+          // CompanyIdentity is one shape.
+          voicemailGreetingId: null,
+          afterHoursCalls: company.after_hours_calls ?? "ring_everyone",
+          // Resolved here so the LINE's selection wins, then read again at
+          // play time for the same reason the ordinary one is (see
+          // greetingAudioUrl) — this half only decides the routing.
+          afterHoursGreetingId: company.after_hours_greeting_id,
         },
-        { label: number.label, voicemailGreeting: number.voicemail_greeting },
+        {
+          label: number.label,
+          voicemailGreeting: number.voicemail_greeting,
+          timezone: number.timezone,
+          businessHours: number.business_hours,
+          businessHoursExceptions: number.business_hours_exceptions,
+          afterHoursCalls: number.after_hours_calls,
+          afterHoursGreetingId: number.after_hours_greeting_id,
+        },
       );
+
+      // #278 — the clock, asked once, on the instant the caller rang.
+      //
+      // Every uncertainty answers "not after hours", which rings exactly as
+      // the product does today: no timezone, no schedule, an unknown IANA
+      // zone. That is the #244 rule on the call side — reaching nobody is a
+      // customer who rings a competitor, and it is the failure only they find
+      // out about.
+      const now = new Date();
+      const clockTz = identity.timezone.value;
+      const clockHours = identity.businessHours.value as BusinessHours | null;
+      const afterHours =
+        Boolean(clockTz) &&
+        Boolean(clockHours) &&
+        isAfterHours(
+          clockTz,
+          clockHours as BusinessHours,
+          now,
+          identity.businessHoursExceptions.value as HoursException[] | null,
+        );
+      const nextOpenLabel = afterHours
+        ? (nextOpening(
+            clockTz,
+            clockHours,
+            now,
+            identity.businessHoursExceptions.value as HoursException[] | null,
+          )?.label ?? null)
+        : null;
+
+      // #278 — after hours, who is actually reachable?
+      //
+      // `on_call_only` and `voicemail` both narrow to whoever is holding the
+      // phone (#244's shift), which is where the issue's emergency path lives:
+      // hours-based routing with no hole in it is how a 3am burst pipe reaches
+      // nobody. Only when NOBODY is on call do the two differ — one rings
+      // everybody anyway, the other takes a message.
+      let routedTargets = dialTargets;
+      let routedAudience = pushAudience;
+      let afterHoursVoicemail = false;
+      const mode = identity.afterHoursCalls.value;
+      if (afterHours && mode !== "ring_everyone") {
+        const onCallUserId = await onCallMemberNow(
+          db,
+          number.company_id,
+          number.id,
+          now,
+        );
+        if (onCallUserId) {
+          const narrowedTargets = dialTargets.filter(
+            (target) => target.userId === onCallUserId,
+          );
+          const narrowedAudience = pushAudience.filter(
+            (userId) => userId === onCallUserId,
+          );
+          // If the person on call can be reached at all, they are the only one
+          // rung. If they can be reached by NEITHER channel, narrowing would
+          // silence the call entirely — so the whole crew rings instead, which
+          // is the same widen-on-uncertainty rule.
+          if (narrowedTargets.length > 0 || narrowedAudience.length > 0) {
+            routedTargets = narrowedTargets;
+            routedAudience = narrowedAudience;
+          }
+        } else if (mode === "voicemail") {
+          afterHoursVoicemail = true;
+        }
+      }
 
       return {
         callSessionId: payload.call_session_id,
@@ -680,11 +795,14 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         businessNumberE164: payload.to,
         lineBusy,
         screeningDivert,
+        afterHours,
+        nextOpenLabel,
+        afterHoursVoicemail,
         suspendedOrInactive,
         noticeAllowed,
         overCap,
-        dialTargets,
-        pushAudience,
+        dialTargets: routedTargets,
+        pushAudience: routedAudience,
       };
     },
 
@@ -1139,7 +1257,19 @@ export function createSessionRuntime(env: Env): SessionRuntime {
 
     greetingText(machine) {
       // #518: the owner's words, and nothing appended to them.
-      return sanitizeGreeting(machine.greeting, machine.companyName);
+      //
+      // #278 does NOT change that, and the distinction is the whole reason
+      // this reads the way it does. What gains a sentence is OUR OWN default
+      // greeting — the one a workspace hears because it never wrote one. An
+      // owner who wrote their own gets exactly their own, after hours or not,
+      // because #518 settled that: a sentence of ours bolted onto the end of
+      // theirs, in our voice, on every call, is not an improvement they asked
+      // for. Their honesty about their own hours is theirs to write.
+      const own = (machine.greeting ?? "").trim();
+      if (own) return sanitizeGreeting(machine.greeting, machine.companyName);
+      return machine.afterHours
+        ? afterHoursDefaultGreeting(machine.companyName, machine.nextOpenLabel)
+        : sanitizeGreeting(null, machine.companyName);
     },
 
     async greetingAudioUrl(machine) {
@@ -1151,24 +1281,40 @@ export function createSessionRuntime(env: Env): SessionRuntime {
       const [numberRes, companyRes] = await Promise.all([
         db
           .from("phone_numbers")
-          .select("voicemail_greeting_id")
+          .select("voicemail_greeting_id,after_hours_greeting_id")
           .eq("id", machine.phoneNumberId)
           .limit(1),
         db
           .from("companies")
-          .select("voicemail_greeting_id")
+          .select("voicemail_greeting_id,after_hours_greeting_id")
           .eq("id", machine.companyId)
           .limit(1),
       ]);
       // No throw on error, deliberately: every failure here means TTS, and a
       // caller on the line gets words rather than an exception nobody can act
       // on before they hang up.
+      type GreetingSelection = {
+        voicemail_greeting_id: string | null;
+        after_hours_greeting_id: string | null;
+      };
+      const numberSel = (numberRes.data ?? [])[0] as GreetingSelection | undefined;
+      const companySel = (companyRes.data ?? [])[0] as GreetingSelection | undefined;
+
+      // #278: after hours, the after-hours recording if there IS one, and the
+      // ordinary one otherwise. Four values in one precedence, and the order
+      // matters twice over: the line beats the workspace (#307), and the
+      // situation beats the general case — but a workspace that recorded an
+      // after-hours greeting and a line that recorded only an ordinary one
+      // should play the LINE's, because that is the identity the caller
+      // reached. Null anywhere falls through rather than silencing anything.
       const selected =
-        ((numberRes.data ?? [])[0] as { voicemail_greeting_id: string | null } | undefined)
-          ?.voicemail_greeting_id ??
-        ((companyRes.data ?? [])[0] as { voicemail_greeting_id: string | null } | undefined)
-          ?.voicemail_greeting_id ??
-        null;
+        (machine.afterHours
+          ? (numberSel?.after_hours_greeting_id ??
+            numberSel?.voicemail_greeting_id ??
+            companySel?.after_hours_greeting_id ??
+            companySel?.voicemail_greeting_id)
+          : (numberSel?.voicemail_greeting_id ??
+            companySel?.voicemail_greeting_id)) ?? null;
       if (!selected) return null;
 
       const { data: rows } = await db
@@ -1340,6 +1486,42 @@ export async function computeRingContext(
     if (pushEnabled && channelUsers.has(userId)) pushAudience.push(userId);
   }
   return { dialTargets, pushAudience };
+}
+
+/**
+ * #278/#244 — who is holding the phone right now, or null.
+ *
+ * `api_on_call_now` is the same RPC the alert fan-out asks, deliberately: "who
+ * is on call" must have one answer, and a call and the missed-call push that
+ * follows it disagreeing about who that is would be worse than neither
+ * narrowing at all.
+ *
+ * NULL IS AN ANSWER, not a missing value — most crews will never set a shift,
+ * and that is the commonest state in the product. A failed read is ALSO null,
+ * which widens: the caller's line then rings exactly as it does today rather
+ * than being narrowed on the strength of a lookup that did not work.
+ */
+async function onCallMemberNow(
+  db: SupabaseClient,
+  companyId: string,
+  phoneNumberId: string,
+  at: Date,
+): Promise<string | null> {
+  const { data, error } = await db.rpc("api_on_call_now", {
+    p_company_id: companyId,
+    p_phone_number_id: phoneNumberId,
+    p_at: at.toISOString(),
+  });
+  if (error) {
+    // Loud for us, invisible to the caller. Narrowing a live call on a read we
+    // could not perform is the one thing this must not do.
+    Sentry.captureMessage(
+      `#278 on-call lookup failed for ${companyId}: ${error.message}`,
+      "warning",
+    );
+    return null;
+  }
+  return typeof data === "string" && data ? data : null;
 }
 
 /** Build the answer-intent bri tag payload for a T2 answer. */

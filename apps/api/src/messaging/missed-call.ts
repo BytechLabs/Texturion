@@ -216,9 +216,13 @@ export async function sendMissedCallText(
       mctbEnabled: settings.mctb_enabled,
       mctbMessage: settings.mctb_message,
       // Not read on this path — the recording is resolved where the greeting
-      // actually plays (greetingAudioUrl). Passed because CompanyIdentity is
-      // one shape.
+      // actually plays (greetingAudioUrl), and #278's routing is decided where
+      // the CALL is answered. Passed because CompanyIdentity is one shape: a
+      // resolver with optional halves would let a caller forget the half it
+      // does need.
       voicemailGreetingId: null,
+      afterHoursCalls: "ring_everyone",
+      afterHoursGreetingId: null,
     },
     {
       // Mapped field by field rather than spread: the row is snake_case and

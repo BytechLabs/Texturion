@@ -213,6 +213,35 @@ export function defaultGreeting(companyName: string): string {
   );
 }
 
+/**
+ * #278 — the default greeting, after hours, saying when.
+ *
+ * Only OUR default learns this. #518 settled that a sentence of ours appended
+ * to an owner's own greeting — in our voice, on every call — is not an
+ * improvement anybody asked for, and an owner who writes their own words is
+ * the right person to decide what those words promise. This is the greeting a
+ * workspace hears because it never wrote one, so making it honest about the
+ * hours the workspace already told us is ours to do.
+ *
+ * `nextOpen` is null whenever we cannot honestly say when — no schedule, an
+ * unresolvable timezone, nothing open inside a fortnight — and the sentence is
+ * then simply absent. A caller told "back Monday at 8" who rings on Monday at
+ * 8 and gets voicemail again has been lied to by a machine, and the only
+ * person who ever finds out is the customer who left.
+ */
+export function afterHoursDefaultGreeting(
+  companyName: string,
+  nextOpen: string | null,
+): string {
+  const when = (nextOpen ?? "").trim();
+  return (
+    `You've reached ${companyName}. We're closed right now` +
+    (when ? ` — we're back ${when}` : "") +
+    `. Please leave a message after the beep, or hang up and text us at this ` +
+    `number, and we'll get back to you.`
+  );
+}
+
 /** TTS input is owner-authored — bound it and strip control characters so a
  *  pathological greeting can never wedge the speak command. */
 export function sanitizeGreeting(raw: string | null, companyName: string): string {

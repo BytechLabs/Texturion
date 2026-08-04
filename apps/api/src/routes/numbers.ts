@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { resolveNumberIdentity } from "@loonext/shared";
+import { resolveNumberIdentity, type AfterHoursCalls } from "@loonext/shared";
 
 import { isValidIanaTimezone } from "./core/timezone";
 
@@ -683,6 +683,15 @@ const identityBodySchema = z
       .nullable()
       .optional(),
     business_hours_exceptions: z.array(z.unknown()).nullable().optional(),
+    // #278: what a call to THIS line does outside those hours, and which
+    // recording says so. Null is inherit on both, the same tri-state rule
+    // mctb_enabled needed — a line that has been set to take messages after
+    // hours must be able to go back to following the workspace.
+    after_hours_calls: z
+      .enum(["ring_everyone", "on_call_only", "voicemail"])
+      .nullable()
+      .optional(),
+    after_hours_greeting_id: z.string().uuid().nullable().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, {
     message: "give at least one field to change",
@@ -707,7 +716,7 @@ async function loadIdentity(
       // ONE literal, deliberately: splitting it with `+` defeats the client's
       // literal-type inference and the row stops being assignable.
       .select(
-        "id,label,voicemail_greeting,away_message,mctb_enabled,mctb_message,timezone,business_hours,business_hours_exceptions,voicemail_greeting_id",
+        "id,label,voicemail_greeting,away_message,mctb_enabled,mctb_message,timezone,business_hours,business_hours_exceptions,voicemail_greeting_id,after_hours_calls,after_hours_greeting_id",
       )
       .eq("company_id", companyId)
       .eq("id", numberId)
@@ -715,7 +724,7 @@ async function loadIdentity(
     db
       .from("companies")
       .select(
-        "name,timezone,voicemail_greeting,away_message,away_enabled,mctb_enabled,mctb_message,business_hours,business_hours_exceptions,voicemail_greeting_id",
+        "name,timezone,voicemail_greeting,away_message,away_enabled,mctb_enabled,mctb_message,business_hours,business_hours_exceptions,voicemail_greeting_id,after_hours_calls,after_hours_greeting_id",
       )
       .eq("id", companyId)
       .limit(1),
@@ -738,6 +747,8 @@ async function loadIdentity(
         business_hours: unknown;
         business_hours_exceptions: unknown;
         voicemail_greeting_id: string | null;
+        after_hours_calls: AfterHoursCalls | null;
+        after_hours_greeting_id: string | null;
       }
     | undefined;
   if (!number) return null;
@@ -753,6 +764,8 @@ async function loadIdentity(
     business_hours: unknown;
     business_hours_exceptions: unknown;
     voicemail_greeting_id: string | null;
+    after_hours_calls: AfterHoursCalls | null;
+    after_hours_greeting_id: string | null;
   };
 
   const identity = resolveNumberIdentity(
@@ -767,6 +780,11 @@ async function loadIdentity(
       mctbEnabled: company.mctb_enabled,
       mctbMessage: company.mctb_message,
       voicemailGreetingId: company.voicemail_greeting_id,
+      // A workspace row's value is NOT NULL in the schema; the coalesce is for
+      // a row read before the column existed, which resolves to the behaviour
+      // that predates it.
+      afterHoursCalls: company.after_hours_calls ?? "ring_everyone",
+      afterHoursGreetingId: company.after_hours_greeting_id,
     },
     {
       label: number.label,
@@ -778,6 +796,8 @@ async function loadIdentity(
       businessHours: number.business_hours,
       businessHoursExceptions: number.business_hours_exceptions,
       voicemailGreetingId: number.voicemail_greeting_id,
+      afterHoursCalls: number.after_hours_calls,
+      afterHoursGreetingId: number.after_hours_greeting_id,
     },
   );
 

@@ -43,6 +43,38 @@ export interface CompanyIdentity {
   mctbMessage: string | null;
   /** #309: the RECORDED greeting selected, or null for the written words. */
   voicemailGreetingId: string | null;
+  /** #278: what an inbound call does outside business hours. */
+  afterHoursCalls: AfterHoursCalls;
+  /** #278: the recording played after hours, or null for the ordinary one. */
+  afterHoursGreetingId: string | null;
+}
+
+/**
+ * #278 — the three shapes an inbound call can take outside business hours.
+ *
+ * There are exactly three because the emergency path belongs INSIDE the two
+ * non-default options rather than beside them: "route by hours" and "but the
+ * person on call still gets the 3am pipe burst" are not two decisions an owner
+ * makes separately, and offering them as two is how somebody ends up with
+ * hours routing and no hole in it.
+ */
+export type AfterHoursCalls = "ring_everyone" | "on_call_only" | "voicemail";
+
+/** The three, as a value — for validation and for a picker. */
+export const AFTER_HOURS_CALLS: readonly AfterHoursCalls[] = [
+  "ring_everyone",
+  "on_call_only",
+  "voicemail",
+] as const;
+
+/** True when `value` is one of the three. Anything else must never reach the
+ *  runtime, where an unrecognised value would fall through to whichever branch
+ *  the `if` chain happens to end on — a routing decision made by a typo. */
+export function isAfterHoursCalls(value: unknown): value is AfterHoursCalls {
+  return (
+    typeof value === "string" &&
+    (AFTER_HOURS_CALLS as readonly string[]).includes(value)
+  );
 }
 
 /** A number's overrides. Every field null means "follow the workspace". */
@@ -57,6 +89,8 @@ export interface NumberOverrides {
   mctbEnabled?: boolean | null;
   mctbMessage?: string | null;
   voicemailGreetingId?: string | null;
+  afterHoursCalls?: AfterHoursCalls | null;
+  afterHoursGreetingId?: string | null;
 }
 
 /** A resolved value, and whether it came from the workspace. */
@@ -94,6 +128,22 @@ export interface NumberIdentity {
    * played, so this is a preference rather than a switch.
    */
   voicemailGreetingId: Resolved<string | null>;
+  /**
+   * #278 — what happens to a call that arrives outside this line's hours.
+   *
+   * Per number for the same reason the greeting is: a service line and a sales
+   * line are two businesses, and the one that must reach somebody at 3am is
+   * rarely the one taking invoice questions.
+   */
+  afterHoursCalls: Resolved<AfterHoursCalls>;
+  /**
+   * #278 — which recording plays after hours.
+   *
+   * Null is not "no greeting after hours": it falls back to the ordinary one,
+   * which is what every line does today. There is no configuration here that
+   * can produce silence.
+   */
+  afterHoursGreetingId: Resolved<string | null>;
 }
 
 /**
@@ -134,6 +184,11 @@ export function resolveNumberIdentity(
     voicemailGreetingId: pick(
       overrides.voicemailGreetingId,
       company.voicemailGreetingId,
+    ),
+    afterHoursCalls: pick(overrides.afterHoursCalls, company.afterHoursCalls),
+    afterHoursGreetingId: pick(
+      overrides.afterHoursGreetingId,
+      company.afterHoursGreetingId,
     ),
   };
 }

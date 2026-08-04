@@ -42,6 +42,11 @@ function initCtx(overrides: Partial<InitiatedContext> = {}): InitiatedContext {
     greeting: null,
     callerE164: "+15551000",
     businessNumberE164: "+19995000",
+    // #278: false on all three is the pre-#278 product — rings exactly as it
+    // always did, which is what every existing case in this file asserts.
+    afterHours: false,
+    nextOpenLabel: null,
+    afterHoursVoicemail: false,
     lineBusy: false,
     screeningDivert: false,
     suspendedOrInactive: false,
@@ -1367,3 +1372,57 @@ function shuffle<T>(arr: T[], rng: () => number): void {
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
 }
+
+/**
+ * #278 — the third way a call reaches the greeting without ringing.
+ *
+ * It joins line-busy and screening-divert for the same reason both are there:
+ * there is nobody this call could reach, and forty-five seconds of ringback
+ * before admitting it teaches the caller the business is unreliable rather
+ * than closed.
+ */
+describe("#278 after-hours voicemail", () => {
+  it("AH-T1: a line set to take messages after hours never rings out", () => {
+    const result = reduce(
+      null,
+      { type: "initiated", context: initCtx({ afterHoursVoicemail: true }) },
+      1_000,
+      keyGen(),
+    );
+    expect(result.machine!.state).toBe("voicemail_greeting");
+    // Nothing was dialled: no leg, and no ring alarm to expire.
+    expect(result.machine!.legs).toHaveLength(0);
+    expect(result.machine!.ringDeadlineMs).toBeNull();
+    expect(result.effects.some((e) => e.kind === "telnyx-dial")).toBe(false);
+  });
+
+  it("AH-T2: the same call with the flag off rings the crew", () => {
+    // The pair matters more than either half: a branch that sent every call to
+    // voicemail would pass AH-T1 and be a total outage.
+    const result = reduce(
+      null,
+      { type: "initiated", context: initCtx({ afterHoursVoicemail: false }) },
+      1_000,
+      keyGen(),
+    );
+    expect(result.machine!.state).toBe("ringing");
+    expect(result.effects.some((e) => e.kind === "telnyx-dial")).toBe(true);
+  });
+
+  it("AH-T3: the clock verdict rides the machine, so the greeting can use it", () => {
+    // The greeting is resolved when it PLAYS, long after this — and it must
+    // use the clock that was true when the caller rang, not the one that is
+    // true 45 seconds later.
+    const result = reduce(
+      null,
+      {
+        type: "initiated",
+        context: initCtx({ afterHours: true, nextOpenLabel: "Monday at 8am" }),
+      },
+      1_000,
+      keyGen(),
+    );
+    expect(result.machine!.afterHours).toBe(true);
+    expect(result.machine!.nextOpenLabel).toBe("Monday at 8am");
+  });
+});

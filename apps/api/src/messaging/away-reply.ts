@@ -160,9 +160,13 @@ export async function maybeSendAwayReply(
       mctbEnabled: false,
       mctbMessage: null,
       // Not read on this path — the recording is resolved where the greeting
-      // actually plays (greetingAudioUrl). Passed because CompanyIdentity is
-      // one shape.
+      // actually plays (greetingAudioUrl), and #278's routing is decided where
+      // the CALL is answered. Passed because CompanyIdentity is one shape: a
+      // resolver with optional halves would let a caller forget the half it
+      // does need.
       voicemailGreetingId: null,
+      afterHoursCalls: "ring_everyone",
+      afterHoursGreetingId: null,
     },
     {
       label: conv.phone_numbers?.label ?? null,
