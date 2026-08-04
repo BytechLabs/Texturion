@@ -15,6 +15,11 @@ import kotlinx.serialization.json.JsonObject
 data class Page<T>(
     val data: List<T>,
     val next_cursor: String? = null,
+    /**
+     * #286: how many rows this member cannot see. Sent only by /v1/numbers
+     * today; defaulted so every other list decodes unchanged.
+     */
+    val hidden_count: Int = 0,
 )
 
 object SubscriptionStatus {

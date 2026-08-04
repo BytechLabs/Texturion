@@ -22,7 +22,10 @@ export function useNumbers() {
   return useQuery({
     queryKey: keys.numbers(companyId),
     queryFn: () =>
-      apiFetch<Page<PhoneNumberSummary>>("/v1/numbers", { companyId }),
+      apiFetch<Page<PhoneNumberSummary> & { hidden_count?: number }>(
+        "/v1/numbers",
+        { companyId },
+      ),
   });
 }
 

@@ -43,6 +43,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.model.hiddenNumbersNotice
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberRole
@@ -63,6 +64,8 @@ import java.util.UUID
 /** Everything the numbers screen shows, loaded together. */
 private data class NumbersData(
     val numbers: List<PhoneNumberSummary>,
+    /** #286: how many numbers this member cannot see. */
+    val hiddenNumbers: Int,
     val ports: List<PortRequest>,
     val textEnablements: List<TextEnablementOrder>,
     val registration: RegistrationDetailPair,
@@ -90,8 +93,10 @@ fun NumbersSection(
         key = CacheKeys.numbers(scope.companyId),
         refreshKey = refreshKey,
     ) {
+        val numbersPage = scope.repo.numbers(scope.companyId)
         NumbersData(
-            numbers = scope.repo.numbers(scope.companyId).data,
+            numbers = numbersPage.data,
+            hiddenNumbers = numbersPage.hidden_count,
             ports = scope.repo.ports(scope.companyId).data,
             textEnablements = scope.repo.textEnablements(scope.companyId).data,
             registration = scope.repo.registration(scope.companyId),
@@ -148,6 +153,18 @@ fun NumbersSection(
             }
             cards.forEach { number ->
                 NumberCard(scope, company, number, onChanged = refresh)
+            }
+            // #286: the numbers this member cannot see. Below the cards,
+            // because it explains the shape of the list rather than competing
+            // with it — the primary view stays about the numbers they can use.
+            hiddenNumbersNotice(data.hiddenNumbers)?.let { notice ->
+                SettingsCard(title = "Not shared with you") {
+                    Text(
+                        notice,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             AddNumberCard(scope, company, data.numbers, onChanged = refresh)
             PortsBlock(scope, company, data.ports, onChanged = refresh)

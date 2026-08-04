@@ -167,6 +167,19 @@ numbersRoutes.get("/", async (c) => {
       /** The ceiling itself, so a client never hard-codes 24. */
       ring_target_limit: MAX_LEGS_PER_SESSION,
     })),
+    /**
+     * #286 — how many numbers this member cannot see.
+     *
+     * The filter above is silent, and silence is the worse failure. A tech who
+     * knows the shop has two lines and finds one in the picker reads that as
+     * the app being broken, and the person they ask is the owner, who has to
+     * work out that they configured it on purpose (#106).
+     *
+     * A COUNT and nothing else. Naming the numbers would undo the access rule
+     * it is explaining, and a member does not need to know which line exists
+     * to understand that one does.
+     */
+    hidden_count: rows.length - visible.length,
     next_cursor: null,
   });
 });

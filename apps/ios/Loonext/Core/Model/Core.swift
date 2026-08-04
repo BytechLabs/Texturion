@@ -12,6 +12,9 @@ import Foundation
 struct Page<T: Codable & Sendable>: Codable, Sendable {
     let data: [T]
     let next_cursor: String?
+    /// #286: how many rows this member cannot see. Sent only by /v1/numbers
+    /// today; optional so every other list decodes unchanged.
+    let hidden_count: Int?
 }
 
 enum SubscriptionStatus {

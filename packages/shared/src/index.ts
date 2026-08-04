@@ -598,3 +598,9 @@ export {
   type CategoryMatch,
   type ProhibitedCategory,
 } from "./prohibited-categories";
+
+/**
+ * #286 — the sentence a member sees where a number they cannot access would
+ * have been. One place, so all three clients say the same thing.
+ */
+export { hiddenNumbersNotice } from "./hidden-numbers-notice";

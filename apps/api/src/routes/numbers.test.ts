@@ -304,8 +304,67 @@ describe("GET /v1/numbers", () => {
 
     const res = await harness.request("/v1/numbers");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { id: string }[] };
+    const body = (await res.json()) as {
+      data: { id: string }[];
+      hidden_count: number;
+    };
     expect(body.data.map((n) => n.id)).toEqual([visibleId]);
+
+    // #286: and the member is TOLD one is missing. The filter above is
+    // silent, and a tech who knows the shop runs two lines reads a
+    // one-line picker as the app being broken — then asks the owner, who
+    // has to work out they configured it deliberately.
+    expect(body.hidden_count).toBe(1);
+  });
+
+  it("#286: a member with full access is told nothing", async () => {
+    // The overwhelming default. A notice that appeared for everybody would
+    // be noise on the screen a crew sends from.
+    const harness = buildHarness();
+    harness.state.role = "member";
+    harness.rest.insert("phone_numbers", {
+      id: "aaaaaaaa-0000-4000-8000-0000000000a1",
+      company_id: COMPANY_ID,
+      status: "active",
+      country: "US",
+      number_e164: "+12125550001",
+    });
+    harness.rest.rpc("member_number_levels", () => []);
+
+    const res = await harness.request("/v1/numbers");
+    const body = (await res.json()) as { data: unknown[]; hidden_count: number };
+    expect(body.data).toHaveLength(1);
+    expect(body.hidden_count).toBe(0);
+  });
+
+  it("#286: the count never names what it is hiding", async () => {
+    // The notice explains an access rule, and naming the number would undo
+    // the rule it is explaining. A count is the whole payload.
+    const harness = buildHarness();
+    harness.state.role = "member";
+    const hiddenId = "aaaaaaaa-0000-4000-8000-0000000000a2";
+    harness.rest.insert("phone_numbers", {
+      id: "aaaaaaaa-0000-4000-8000-0000000000a1",
+      company_id: COMPANY_ID,
+      status: "active",
+      country: "US",
+      number_e164: "+12125550001",
+    });
+    harness.rest.insert("phone_numbers", {
+      id: hiddenId,
+      company_id: COMPANY_ID,
+      status: "active",
+      country: "US",
+      number_e164: "+12125559999",
+    });
+    harness.rest.rpc("member_number_levels", () => [
+      { phone_number_id: hiddenId, level: "none" },
+    ]);
+
+    const res = await harness.request("/v1/numbers");
+    const raw = JSON.stringify(await res.json());
+    expect(raw).not.toContain(hiddenId);
+    expect(raw).not.toContain("5559999");
   });
 });
 

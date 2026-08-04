@@ -13,7 +13,8 @@ import { useCompany } from "@/lib/api/companies";
 import { useNumbers } from "@/lib/api/numbers";
 import { usePortRequests } from "@/lib/api/porting";
 import { useActiveCompany } from "@/lib/company/provider";
-import { extraNumberBlockedReason } from "@loonext/shared";
+import {
+  hiddenNumbersNotice, extraNumberBlockedReason } from "@loonext/shared";
 
 /** SPEC §2: Pro includes 2 numbers, Starter 1. */
 const PLAN_NUMBER_LIMIT = { starter: 1, pro: 2 } as const;
@@ -104,6 +105,15 @@ export default function NumbersSettingsPage() {
             company.data.subscription_status === "active" &&
             (usedSlots < limit || canBuyExtra);
 
+          // #286: numbers this member cannot see. The server filters them out
+          // silently, and silence is the worse failure — a tech who knows the
+          // shop runs two lines and finds one here reads it as the app being
+          // broken, then asks the owner, who has to work out they configured
+          // it deliberately (#106).
+          const hiddenNotice = hiddenNumbersNotice(
+            numbers.data.hidden_count ?? 0,
+          );
+
           return (
             <div className="space-y-6">
               {hasAnyNumber ? (
@@ -116,6 +126,16 @@ export default function NumbersSettingsPage() {
                 <p className="rounded-lg border bg-card px-4 py-4 text-sm text-muted-foreground">
                   No number yet. It&apos;s created automatically when your
                   subscription starts.
+                </p>
+              )}
+
+              {/* Below the numbers they DO have, because it explains the
+                  shape of the list above rather than competing with it.
+                  *Applying: Zen of Clarity — the primary view stays about the
+                  numbers this person can actually use.* */}
+              {hiddenNotice && (
+                <p className="rounded-lg border border-app-line bg-app-paper px-4 py-3 text-sm text-muted-foreground">
+                  {hiddenNotice}
                 </p>
               )}
 

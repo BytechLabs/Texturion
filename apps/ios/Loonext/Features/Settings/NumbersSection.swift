@@ -3,6 +3,8 @@ import SwiftUI
 /// Everything the numbers screen shows, loaded together.
 private struct NumbersData {
     let numbers: [PhoneNumberSummary]
+    /// #286: how many numbers this member cannot see.
+    let hiddenNumbers: Int
     let ports: [PortRequest]
     let textEnablements: [TextEnablementOrder]
     let registration: RegistrationDetailPair
@@ -51,6 +53,17 @@ struct NumbersSectionView: View {
                 ForEach(cards, id: \.id) { number in
                     NumberCard(scope: scope, company: company, number: number, onChanged: refresh)
                 }
+                // #286: the numbers this member cannot see. Below the cards,
+                // because it explains the shape of the list rather than
+                // competing with it — the primary view stays about the
+                // numbers they can actually use.
+                if let notice = hiddenNumbersNotice(data.hiddenNumbers) {
+                    SettingsCard(title: "Not shared with you") {
+                        Text(notice)
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 AddNumberCard(scope: scope, company: company, numbers: data.numbers, onChanged: refresh)
                 PortsBlock(scope: scope, company: company, ports: data.ports, onChanged: refresh)
                 TextEnableBlock(scope: scope, company: company, orders: data.textEnablements, onChanged: refresh)
@@ -60,9 +73,11 @@ struct NumbersSectionView: View {
         .task(id: "\(scope.companyId)|\(refreshKey)") {
             if case .ready = state {} else { state = .loading }
             do {
+                let numbersPage = try await scope.repo.numbers(scope.companyId)
                 state = .ready(
                     NumbersData(
-                        numbers: try await scope.repo.numbers(scope.companyId).data,
+                        numbers: numbersPage.data,
+                        hiddenNumbers: numbersPage.hidden_count ?? 0,
                         ports: try await scope.repo.ports(scope.companyId).data,
                         textEnablements: try await scope.repo.textEnablements(scope.companyId).data,
                         registration: try await scope.repo.registration(scope.companyId)
