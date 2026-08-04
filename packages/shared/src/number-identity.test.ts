@@ -23,9 +23,34 @@ const company: CompanyIdentity = {
   awayEnabled: true,
   businessHours: { mon: ["08:00", "17:00"] },
   businessHoursExceptions: [],
+  mctbEnabled: true,
+  mctbMessage: "Sorry we missed your call.",
 };
 
 describe("#307 resolving a number's identity", () => {
+  it("NI-0: the missed-call toggle and text inherit like everything else", () => {
+    // The last two behaviours in #307's Scope. A tracked number on a yard sign
+    // is missed for a different reason than the office line, and the owner may
+    // want no text from it at all — which no company-wide toggle can say.
+    const untouched = resolveNumberIdentity(company, {});
+    expect(untouched.mctbEnabled).toEqual({ value: true, inherited: true });
+    expect(untouched.mctbMessage.value).toBe("Sorry we missed your call.");
+
+    const silent = resolveNumberIdentity(company, { mctbEnabled: false });
+    expect(silent.mctbEnabled).toEqual({ value: false, inherited: false });
+    // And it did not disturb the text, which the owner may still want kept.
+    expect(silent.mctbMessage.inherited).toBe(true);
+
+    // A blank message is a CLEAR, not an override that silences the line —
+    // the same rule every text field here follows, and the reason the column
+    // is nullable rather than defaulted to ''.
+    const blank = resolveNumberIdentity(company, { mctbMessage: "   " });
+    expect(blank.mctbMessage).toEqual({
+      value: "Sorry we missed your call.",
+      inherited: true,
+    });
+  });
+
   it("NI-1: a number with no overrides is the workspace, entirely", () => {
     // The migration's no-op guarantee, as a test. Every existing number is
     // all-null, so nobody's greeting changes on deploy.
@@ -33,7 +58,11 @@ describe("#307 resolving a number's identity", () => {
     expect(identity.label.value).toBe("Reed Roofing");
     expect(identity.voicemailGreeting.value).toBe(company.voicemailGreeting);
     expect(identity.awayEnabled.value).toBe(true);
-    expect(inheritedFields(identity)).toHaveLength(7);
+    // Against the field COUNT, not a literal. A literal here is a ceiling:
+        // it passes today, and the next field added to the identity makes this
+        // fail for being right rather than catching anything. What the test
+        // means is "every field", so that is what it says.
+    expect(inheritedFields(identity)).toHaveLength(Object.keys(identity).length);
   });
 
   it("NI-2: null is INHERIT, not empty", () => {

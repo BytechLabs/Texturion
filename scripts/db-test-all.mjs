@@ -137,6 +137,7 @@ const SUITES = [
   "aup_enforcement",
   "abuse_intake",
   "per_number_identity",
+  "per_number_mctb",
 
 ];
 

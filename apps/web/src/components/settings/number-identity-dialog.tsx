@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api/error";
 import { useNumberIdentity, useSetNumberIdentity } from "@/lib/api/numbers";
@@ -62,7 +63,7 @@ export function NumberIdentityDialog({
   const identity = useNumberIdentity(numberId, open);
   const save = useSetNumberIdentity(numberId);
 
-  const [draft, setDraft] = useState<Record<Field, string>>(EMPTY_DRAFT);
+  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
 
   // Re-seed whenever the server's answer changes, including after a save that
   // cleared a field: the box must show what a caller now gets, which for a
@@ -84,7 +85,7 @@ export function NumberIdentityDialog({
     }
   }
 
-  async function restoreWorkspaceValue(field: Field) {
+  async function restoreWorkspaceValue(field: ClearableField) {
     try {
       await save.mutateAsync({ [field]: null } as NumberIdentityPatch);
       toast.success("Back to your workspace's.");
@@ -110,6 +111,54 @@ export function NumberIdentityDialog({
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : identity.data ? (
           <div className="space-y-4">
+            {/*
+              The one control here that is not a box. It is rendered from the
+              RESOLVED value, so it shows what a missed caller gets today
+              rather than what this line has stored — which for every number
+              nobody has touched is the workspace's answer.
+
+              A switch is two-state and the setting is three: on, off, and
+              follow the workspace. Rather than invent a third position nobody
+              would recognise, the third state is carried by the same per-field
+              affordance the other four fields already use. One model across
+              the dialog beats a second one learned for a single row.
+              *Applying: the Safety Principle (a conventional control) and Zen
+              of Clarity (the exception lives in the label, not the widget).*
+            */}
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="identity-mctb-enabled">
+                  Text back a missed caller
+                </Label>
+                <p className="text-[12px] text-app-muted-2">
+                  Sent from this line when a call goes unanswered.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {identity.data.mctb_enabled.inherited ? (
+                  <span className="text-[12px] text-app-muted-2">
+                    Same as your workspace
+                  </span>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto px-1.5 py-0.5 text-[12px]"
+                    disabled={save.isPending}
+                    onClick={() => void restoreWorkspaceValue("mctb_enabled")}
+                  >
+                    Use the workspace&apos;s
+                  </Button>
+                )}
+                <Switch
+                  id="identity-mctb-enabled"
+                  checked={draft.mctb_enabled}
+                  onCheckedChange={(checked) =>
+                    setDraft((d) => ({ ...d, mctb_enabled: checked }))
+                  }
+                />
+              </div>
+            </div>
             {FIELDS.map((field) => {
               const resolved = identity.data![field.key];
               return (
@@ -177,7 +226,10 @@ export function NumberIdentityDialog({
   );
 }
 
-type Field = "label" | "voicemail_greeting" | "away_message";
+type Field = "label" | "voicemail_greeting" | "away_message" | "mctb_message";
+
+/** Every field the dialog can clear, including the one that is not text. */
+type ClearableField = Field | "mctb_enabled";
 
 const FIELDS: { key: Field; label: string; hint: string; multiline?: boolean }[] = [
   {
@@ -197,20 +249,35 @@ const FIELDS: { key: Field; label: string; hint: string; multiline?: boolean }[]
     hint: "The text sent when somebody messages this line outside your hours.",
     multiline: true,
   },
+  {
+    key: "mctb_message",
+    label: "Missed-call text",
+    hint: "What a caller gets when nobody picks up and they hang up.",
+    multiline: true,
+  },
 ];
 
-const EMPTY_DRAFT: Record<Field, string> = {
+const EMPTY_DRAFT: Draft = {
   label: "",
   voicemail_greeting: "",
   away_message: "",
+  mctb_message: "",
+  mctb_enabled: false,
 };
 
+/** The boxes, plus the one switch. */
+type Draft = Record<Field, string> & { mctb_enabled: boolean };
+
 /** The boxes start at what a caller GETS, inherited or not. */
-function draftOf(identity: NumberIdentity): Record<Field, string> {
+function draftOf(identity: NumberIdentity): Draft {
   return {
     label: identity.label.value,
     voicemail_greeting: identity.voicemail_greeting.value ?? "",
     away_message: identity.away_message.value ?? "",
+    mctb_message: identity.mctb_message.value ?? "",
+    // The switch starts at what a missed caller gets TODAY, never off.
+    // *Applying: Smart Defaults.*
+    mctb_enabled: identity.mctb_enabled.value,
   };
 }
 
@@ -223,12 +290,19 @@ function draftOf(identity: NumberIdentity): Record<Field, string> {
  */
 export function patchFrom(
   identity: NumberIdentity,
-  draft: Record<Field, string>,
+  draft: Draft,
 ): NumberIdentityPatch {
   const patch: NumberIdentityPatch = {};
   for (const field of FIELDS) {
     const current = identity[field.key].value ?? "";
     if (draft[field.key] !== current) patch[field.key] = draft[field.key];
+  }
+  // The switch, by the same rule. Flipping it to the value it already shows is
+  // not a change — and sending it anyway would turn an inherited toggle into
+  // an override just by opening the dialog, which is the one thing this
+  // function exists to prevent.
+  if (draft.mctb_enabled !== identity.mctb_enabled.value) {
+    patch.mctb_enabled = draft.mctb_enabled;
   }
   return patch;
 }

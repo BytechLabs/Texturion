@@ -39,6 +39,8 @@ export interface CompanyIdentity {
   awayEnabled: boolean;
   businessHours: unknown;
   businessHoursExceptions: unknown;
+  mctbEnabled: boolean;
+  mctbMessage: string | null;
 }
 
 /** A number's overrides. Every field null means "follow the workspace". */
@@ -50,6 +52,8 @@ export interface NumberOverrides {
   awayEnabled?: boolean | null;
   businessHours?: unknown;
   businessHoursExceptions?: unknown;
+  mctbEnabled?: boolean | null;
+  mctbMessage?: string | null;
 }
 
 /** A resolved value, and whether it came from the workspace. */
@@ -68,6 +72,16 @@ export interface NumberIdentity {
   awayEnabled: Resolved<boolean>;
   businessHours: Resolved<unknown>;
   businessHoursExceptions: Resolved<unknown>;
+  /**
+   * Whether a missed call on THIS line texts back, and what it says.
+   *
+   * The reason this is per number and not just per workspace: a tracked number
+   * on a yard sign and the office line are missed for different reasons, and
+   * the text that should follow is different too — or should not be sent at
+   * all, which no company-wide toggle can express.
+   */
+  mctbEnabled: Resolved<boolean>;
+  mctbMessage: Resolved<string | null>;
 }
 
 /**
@@ -103,6 +117,8 @@ export function resolveNumberIdentity(
       overrides.businessHoursExceptions,
       company.businessHoursExceptions,
     ),
+    mctbEnabled: pick(overrides.mctbEnabled, company.mctbEnabled),
+    mctbMessage: pick(blankToNull(overrides.mctbMessage), company.mctbMessage),
   };
 }
 

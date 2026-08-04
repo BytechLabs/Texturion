@@ -31,6 +31,8 @@ struct NumberIdentitySheet: View {
     @State private var label = ""
     @State private var greeting = ""
     @State private var away = ""
+    @State private var mctbMessage = ""
+    @State private var mctbEnabled = false
     @State private var pending = false
     @State private var error: String?
 
@@ -84,6 +86,21 @@ struct NumberIdentitySheet: View {
                             multiline: true,
                             inherited: identity.away_message.inherited,
                             restore: { restore("away_message") }
+                        )
+                        toggleRow(
+                            title: "Text back a missed caller",
+                            hint: "Sent from this line when a call goes unanswered.",
+                            inherited: identity.mctb_enabled.inherited,
+                            restore: { restore("mctb_enabled") }
+                        )
+                        field(
+                            title: "Missed-call text",
+                            hint: "What a caller gets when nobody picks up and "
+                                + "they hang up.",
+                            text: $mctbMessage,
+                            multiline: true,
+                            inherited: identity.mctb_message.inherited,
+                            restore: { restore("mctb_message") }
                         )
                     }
                     InlineError(error)
@@ -160,6 +177,42 @@ struct NumberIdentitySheet: View {
         .padding(.top, 14)
     }
 
+    /// The one control here that is not a box.
+    ///
+    /// A switch is two-state and the setting is three — on, off, and follow the
+    /// workspace. Rather than invent a third position nobody would recognise,
+    /// the third state is carried by the same per-field affordance every other
+    /// row already uses. One model across the sheet beats a second one learned
+    /// for a single line.
+    @ViewBuilder
+    private func toggleRow(
+        title: String,
+        hint: String,
+        inherited: Bool,
+        restore: @escaping @MainActor () -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title).font(.subheadline.weight(.medium))
+                Spacer()
+                if inherited {
+                    Text("Same as your workspace")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button("Use the workspace's") { restore() }
+                        .font(.caption)
+                        .disabled(pending)
+                }
+                Toggle("", isOn: $mctbEnabled)
+                    .labelsHidden()
+                    .disabled(pending)
+            }
+            Text(hint).font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(.top, 14)
+    }
+
     private var isReady: Bool {
         if case .ready = loaded { return true }
         return false
@@ -170,6 +223,11 @@ struct NumberIdentitySheet: View {
         label = identity.label.value ?? ""
         greeting = identity.voicemail_greeting.value ?? ""
         away = identity.away_message.value ?? ""
+        mctbMessage = identity.mctb_message.value ?? ""
+        // Starts at what a missed caller gets TODAY, never off — an owner who
+        // flipped a wrongly-off switch ON would change nothing visible and
+        // silently stop this line following the workspace from then on.
+        mctbEnabled = identity.mctb_enabled.value
     }
 
     /// Send null for ONE field: that is what "use the workspace's" means.
@@ -207,6 +265,15 @@ struct NumberIdentitySheet: View {
         }
         if away != (current.away_message.value ?? "") {
             body["away_message"] = .string(away)
+        }
+        if mctbMessage != (current.mctb_message.value ?? "") {
+            body["mctb_message"] = .string(mctbMessage)
+        }
+        // The switch, by the same rule: flipping it to the value it already
+        // shows is not a change, and sending it anyway would turn an inherited
+        // toggle into an override just by opening this sheet.
+        if mctbEnabled != current.mctb_enabled.value {
+            body["mctb_enabled"] = .bool(mctbEnabled)
         }
         return .object(body)
     }

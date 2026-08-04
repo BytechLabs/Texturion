@@ -658,6 +658,12 @@ const identityBodySchema = z
     label: z.string().trim().max(60).nullable().optional(),
     voicemail_greeting: z.string().max(1000).nullable().optional(),
     away_message: z.string().max(1000).nullable().optional(),
+    // Tri-state, and the third state is the point: false is "this line stays
+    // silent when missed" and null is "do whatever the workspace does". A
+    // two-state boolean cannot say the second, so a line could never go back
+    // to following the workspace once it had been touched.
+    mctb_enabled: z.boolean().nullable().optional(),
+    mctb_message: z.string().max(1000).nullable().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, {
     message: "give at least one field to change",
@@ -679,13 +685,15 @@ async function loadIdentity(
   const [numberRes, companyRes] = await Promise.all([
     db
       .from("phone_numbers")
-      .select("id,label,voicemail_greeting,away_message")
+      .select("id,label,voicemail_greeting,away_message,mctb_enabled,mctb_message")
       .eq("company_id", companyId)
       .eq("id", numberId)
       .limit(1),
     db
       .from("companies")
-      .select("name,timezone,voicemail_greeting,away_message,away_enabled")
+      .select(
+        "name,timezone,voicemail_greeting,away_message,away_enabled,mctb_enabled,mctb_message",
+      )
       .eq("id", companyId)
       .limit(1),
   ]);
@@ -701,6 +709,8 @@ async function loadIdentity(
         label: string | null;
         voicemail_greeting: string | null;
         away_message: string | null;
+        mctb_enabled: boolean | null;
+        mctb_message: string | null;
       }
     | undefined;
   if (!number) return null;
@@ -711,6 +721,8 @@ async function loadIdentity(
     voicemail_greeting: string | null;
     away_message: string | null;
     away_enabled: boolean;
+    mctb_enabled: boolean;
+    mctb_message: string | null;
   };
 
   const identity = resolveNumberIdentity(
@@ -722,11 +734,15 @@ async function loadIdentity(
       awayEnabled: company.away_enabled,
       businessHours: null,
       businessHoursExceptions: null,
+      mctbEnabled: company.mctb_enabled,
+      mctbMessage: company.mctb_message,
     },
     {
       label: number.label,
       voicemailGreeting: number.voicemail_greeting,
       awayMessage: number.away_message,
+      mctbEnabled: number.mctb_enabled,
+      mctbMessage: number.mctb_message,
     },
   );
 
@@ -734,6 +750,8 @@ async function loadIdentity(
     label: identity.label,
     voicemail_greeting: identity.voicemailGreeting,
     away_message: identity.awayMessage,
+    mctb_enabled: identity.mctbEnabled,
+    mctb_message: identity.mctbMessage,
   };
 }
 
@@ -752,13 +770,20 @@ numbersRoutes.patch("/:id/identity", requireCapability("numbers.manage"), async 
   const id = pathUuid(c, "id");
   const body = await parseJsonBody(c, identityBodySchema);
 
-  const patch: Record<string, string | null> = {};
+  const patch: Record<string, string | boolean | null> = {};
   if ("label" in body) patch.label = overrideValue(body.label) ?? null;
   if ("voicemail_greeting" in body) {
     patch.voicemail_greeting = overrideValue(body.voicemail_greeting) ?? null;
   }
   if ("away_message" in body) {
     patch.away_message = overrideValue(body.away_message) ?? null;
+  }
+  // `?? null` and not `|| null`: false is a real override here, and `||` would
+  // quietly turn "this line never texts back" into "follow the workspace" —
+  // the one value an owner sets this field to on purpose.
+  if ("mctb_enabled" in body) patch.mctb_enabled = body.mctb_enabled ?? null;
+  if ("mctb_message" in body) {
+    patch.mctb_message = overrideValue(body.mctb_message) ?? null;
   }
 
   const { data, error } = await db

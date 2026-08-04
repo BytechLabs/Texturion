@@ -151,23 +151,88 @@ export async function sendMissedCallText(
     callId: string;
   },
 ): Promise<MissedCallTextOutcome> {
-  // Company MCTB settings — one small read; mctb_enabled short-circuits so a
-  // company without the feature pays nothing beyond this select.
-  const { data: companyRows, error: companyError } = await db
-    .from("companies")
-    .select("name,mctb_enabled,mctb_message,subscription_status")
-    .eq("id", args.companyId)
-    .limit(1);
-  if (companyError) {
-    throw new Error(`mctb settings lookup failed: ${companyError.message}`);
+  /**
+   * #307 — the workspace row and the LINE's row, together.
+   *
+   * The company read can no longer decide on its own: a tracked number on a
+   * yard sign may want no text where the workspace wants one, and a sales line
+   * may want one where the workspace does not. Neither is expressible while
+   * the toggle is read before the number is known.
+   *
+   * The two reads are independent, so they issue together — one round trip,
+   * where reading the number after the toggle used to cost two whenever a text
+   * was actually due. A workspace with the feature off now pays one extra
+   * indexed read on a path that only runs when a call was missed.
+   */
+  const [companyRead, numberRead] = await Promise.all([
+    db
+      .from("companies")
+      .select("name,mctb_enabled,mctb_message,subscription_status")
+      .eq("id", args.companyId)
+      .limit(1),
+    // Best-effort WITHOUT a try/catch, deliberately. PostgREST failures arrive
+    // as `error` rather than as a throw, so ignoring it and taking no rows is
+    // already the fallback — every field inherits and the caller gets the
+    // workspace's text, signed with the workspace name. A try/catch here could
+    // only ever catch a transport throw, and an unreachable branch reads as a
+    // handled case that is not.
+    db
+      .from("phone_numbers")
+      .select("label,mctb_enabled,mctb_message")
+      .eq("id", args.phoneNumberId)
+      .limit(1),
+  ]);
+  if (companyRead.error) {
+    throw new Error(`mctb settings lookup failed: ${companyRead.error.message}`);
   }
-  const settings = (companyRows ?? [])[0] as MctbSettings | undefined;
-  if (!settings || !settings.mctb_enabled) return NO_TEXT;
+  const settings = (companyRead.data ?? [])[0] as MctbSettings | undefined;
+  if (!settings) return NO_TEXT;
+  const numberRow = (numberRead.data ?? [])[0] as
+    | {
+        label: string | null;
+        mctb_enabled: boolean | null;
+        mctb_message: string | null;
+      }
+    | undefined;
+
+  /**
+   * #307 — the text comes from the LINE they rang, and so does the decision
+   * to send one at all.
+   *
+   * A caller who rings the sales line and gets a text signed with the service
+   * line's name has met two businesses in one interaction, which is worse than
+   * meeting a generic one. Same resolver as the greeting they just heard, so
+   * the two cannot disagree.
+   */
+  const identity = resolveNumberIdentity(
+    {
+      name: settings.name,
+      timezone: "",
+      voicemailGreeting: null,
+      awayMessage: null,
+      awayEnabled: false,
+      businessHours: null,
+      businessHoursExceptions: null,
+      mctbEnabled: settings.mctb_enabled,
+      mctbMessage: settings.mctb_message,
+    },
+    {
+      // Mapped field by field rather than spread: the row is snake_case and
+      // NumberOverrides is camelCase, so a spread would land every override as
+      // an unread key and every field would silently inherit — the failure
+      // would look exactly like a workspace nobody had configured.
+      label: numberRow?.label ?? null,
+      mctbEnabled: numberRow?.mctb_enabled ?? null,
+      mctbMessage: numberRow?.mctb_message ?? null,
+    },
+  );
+
+  if (!identity.mctbEnabled.value) return NO_TEXT;
 
   // #192: the toggle alone decides WHETHER a text goes out. The owner's text
   // overrides only when non-blank; otherwise the product default ships — an
   // enabled text-back never silently sends nothing.
-  const template = effectiveMctbMessage(settings.mctb_message).message;
+  const template = effectiveMctbMessage(identity.mctbMessage.value).message;
 
   // An anonymous/CLIR caller ('anonymous'), a malformed token, or a non-US/CA
   // number can never be texted — skip SILENTLY. Throwing here would burn all
@@ -188,48 +253,6 @@ export async function sendMissedCallText(
     if (cause instanceof ApiError) return NO_TEXT;
     throw cause;
   }
-
-  /**
-   * #307 — the text comes from the LINE they rang.
-   *
-   * A caller who rings the sales line and gets a text signed with the service
-   * line's name has met two businesses in one interaction, which is worse
-   * than meeting a generic one. Same resolver as the greeting they just
-   * heard, so the two cannot disagree.
-   *
-   * Read HERE, after the enabled check, rather than beside the company row:
-   * this path is already committed to sending a text — a Telnyx call and
-   * several writes — so one indexed read is nothing, and a workspace with the
-   * feature off still pays for exactly one select.
-   *
-   * Best-effort: a failure resolves to the company name rather than failing
-   * the text. A caller who has just been missed should get the reply.
-   */
-  // Best-effort WITHOUT a try/catch, deliberately. PostgREST failures arrive
-  // as `error` rather than as a throw, so ignoring it and taking no rows is
-  // already the fallback — a caller who has just been missed gets the reply
-  // signed with the workspace name. The try/catch this replaced could only
-  // ever have caught a transport throw, and the sweep showed nothing could
-  // reach it: an unreachable branch reads as a handled case that is not.
-  const { data: numberRows } = await db
-    .from("phone_numbers")
-    .select("label")
-    .eq("id", args.phoneNumberId)
-    .limit(1);
-  const numberLabel =
-    ((numberRows ?? [])[0] as { label: string | null } | undefined)?.label ?? null;
-  const identity = resolveNumberIdentity(
-    {
-      name: settings.name,
-      timezone: "",
-      voicemailGreeting: null,
-      awayMessage: null,
-      awayEnabled: false,
-      businessHours: null,
-      businessHoursExceptions: null,
-    },
-    { label: numberLabel },
-  );
 
   // Merge fields into the booking-forward message — owner-authored or the
   // product default (contact name is unknown for a brand-new caller).

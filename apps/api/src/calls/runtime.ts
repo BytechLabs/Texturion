@@ -598,6 +598,11 @@ export function createSessionRuntime(env: Env): SessionRuntime {
           awayEnabled: false,
           businessHours: null,
           businessHoursExceptions: null,
+      // Not read on this path — mctb resolves where the missed call is
+      // handled. Passed because CompanyIdentity is one shape: a resolver with
+      // optional halves would let a caller forget the half it does need.
+      mctbEnabled: false,
+      mctbMessage: null,
         },
         { label: number.label, voicemailGreeting: number.voicemail_greeting },
       );

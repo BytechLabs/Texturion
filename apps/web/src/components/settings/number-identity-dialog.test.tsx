@@ -22,7 +22,9 @@ const { save, toastSuccess, toastError, identity } = vi.hoisted(() => ({
       label: { value: "Reed Roofing", inherited: true },
       voicemail_greeting: { value: "You have reached Reed Roofing.", inherited: true },
       away_message: { value: "We are closed.", inherited: true },
-    } as Record<string, { value: string | null; inherited: boolean }>,
+      mctb_enabled: { value: true, inherited: true },
+      mctb_message: { value: "Sorry we missed you.", inherited: true },
+    } as Record<string, { value: string | boolean | null; inherited: boolean }>,
   },
 }));
 
@@ -48,6 +50,8 @@ beforeEach(() => {
     label: { value: "Reed Roofing", inherited: true },
     voicemail_greeting: { value: "You have reached Reed Roofing.", inherited: true },
     away_message: { value: "We are closed.", inherited: true },
+    mctb_enabled: { value: true, inherited: true },
+    mctb_message: { value: "Sorry we missed you.", inherited: true },
   };
 });
 
@@ -71,7 +75,7 @@ describe("#307 how this line answers", () => {
   it("NI-2: an inherited field says so", () => {
     // The distinction the whole model exists to make visible.
     open();
-    expect(screen.getAllByText("Same as your workspace")).toHaveLength(3);
+    expect(screen.getAllByText("Same as your workspace")).toHaveLength(5);
   });
 
   it("NI-3: an overridden field offers the way back, worded as the outcome", () => {
@@ -83,7 +87,7 @@ describe("#307 how this line answers", () => {
     };
     open();
 
-    expect(screen.getAllByText("Same as your workspace")).toHaveLength(2);
+    expect(screen.getAllByText("Same as your workspace")).toHaveLength(4);
     const back = screen.getByRole("button", { name: "Use the workspace's" });
     expect(back).toBeTruthy();
     expect(screen.queryByRole("button", { name: /^clear$/i })).toBeNull();
@@ -99,6 +103,8 @@ describe("#307 how this line answers", () => {
         label: "Reed Roofing",
         voicemail_greeting: "You have reached Reed Roofing.",
         away_message: "We are closed.",
+        mctb_message: "Sorry we missed you.",
+        mctb_enabled: true,
       }),
     ).toEqual({});
 
@@ -108,6 +114,8 @@ describe("#307 how this line answers", () => {
         label: "Reed Roofing Sales",
         voicemail_greeting: "You have reached Reed Roofing.",
         away_message: "We are closed.",
+        mctb_message: "Sorry we missed you.",
+        mctb_enabled: true,
       }),
     ).toEqual({ label: "Reed Roofing Sales" });
   });
@@ -130,6 +138,8 @@ describe("#307 how this line answers", () => {
       label: { value: "Reed Roofing Sales", inherited: false },
       voicemail_greeting: { value: "Sales line.", inherited: false },
       away_message: { value: "We are closed.", inherited: true },
+      mctb_enabled: { value: true, inherited: true },
+      mctb_message: { value: "Sorry we missed you.", inherited: true },
     };
     open();
 
@@ -149,6 +159,56 @@ describe("#307 how this line answers", () => {
 
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledTimes(1));
     expect(toastSuccess.mock.calls[0][0]).toMatch(/straight away/i);
+  });
+
+  it("NI-9: the switch starts at what a missed caller gets today", () => {
+    // Never off by default. A switch showing "off" for a line that does text
+    // back would be the same lie as an empty greeting box, and this one is
+    // worse: an owner would flip it ON, changing nothing, and the number would
+    // silently stop following the workspace from then on.
+    open();
+    expect(
+      (screen.getByLabelText("Text back a missed caller") as HTMLInputElement)
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+  });
+
+  it("NI-10: an untouched switch is never sent", () => {
+    // Same rule as the boxes, and the same failure if it is broken: opening
+    // the dialog would turn an inherited toggle into an override, and the line
+    // would stop following the workspace with nothing looking wrong.
+    expect(
+      patchFrom(identity.current as never, {
+        label: "Reed Roofing",
+        voicemail_greeting: "You have reached Reed Roofing.",
+        away_message: "We are closed.",
+        mctb_message: "Sorry we missed you.",
+        mctb_enabled: true,
+      }),
+    ).toEqual({});
+
+    // Switching it OFF is a real change, and false must survive the send —
+    // this is the value an owner sets on purpose for a tracked number.
+    expect(
+      patchFrom(identity.current as never, {
+        label: "Reed Roofing",
+        voicemail_greeting: "You have reached Reed Roofing.",
+        away_message: "We are closed.",
+        mctb_message: "Sorry we missed you.",
+        mctb_enabled: false,
+      }),
+    ).toEqual({ mctb_enabled: false });
+  });
+
+  it("NI-11: an overridden switch offers the way back", () => {
+    identity.current = {
+      ...identity.current,
+      mctb_enabled: { value: false, inherited: false },
+    };
+    open();
+    expect(
+      screen.getAllByRole("button", { name: "Use the workspace's" }).length,
+    ).toBeGreaterThan(0);
   });
 
   it("NI-8: shows the server's reason when it refuses", async () => {

@@ -384,4 +384,19 @@ data class NumberIdentity(
     val label: ResolvedField = ResolvedField(),
     val voicemail_greeting: ResolvedField = ResolvedField(),
     val away_message: ResolvedField = ResolvedField(),
+    val mctb_enabled: ResolvedBool = ResolvedBool(),
+    val mctb_message: ResolvedField = ResolvedField(),
+)
+
+/**
+ * The same shape for the one field that is not text.
+ *
+ * A separate type rather than a nullable value on [ResolvedField]: the toggle
+ * always resolves to a real boolean, and giving it a `String?` would put a
+ * "true"/"false" parse between the server and a switch for no reason.
+ */
+@Serializable
+data class ResolvedBool(
+    val value: Boolean = false,
+    val inherited: Boolean = true,
 )

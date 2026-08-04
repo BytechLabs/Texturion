@@ -5,11 +5,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -63,6 +65,8 @@ internal fun NumberIdentityDialog(
     var label by remember { mutableStateOf("") }
     var greeting by remember { mutableStateOf("") }
     var away by remember { mutableStateOf("") }
+    var mctbMessage by remember { mutableStateOf("") }
+    var mctbEnabled by remember { mutableStateOf(false) }
     var pending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
@@ -71,6 +75,11 @@ internal fun NumberIdentityDialog(
         label = identity.label.value.orEmpty()
         greeting = identity.voicemail_greeting.value.orEmpty()
         away = identity.away_message.value.orEmpty()
+        mctbMessage = identity.mctb_message.value.orEmpty()
+        // Starts at what a missed caller gets TODAY, never off — an owner who
+        // flipped a wrongly-off switch ON would change nothing visible and
+        // silently stop this line following the workspace from then on.
+        mctbEnabled = identity.mctb_enabled.value
     }
 
     LaunchedEffect(number.id) {
@@ -120,6 +129,13 @@ internal fun NumberIdentityDialog(
             put("voicemail_greeting", greeting)
         }
         if (away != current.away_message.value.orEmpty()) put("away_message", away)
+        if (mctbMessage != current.mctb_message.value.orEmpty()) {
+            put("mctb_message", mctbMessage)
+        }
+        // The switch, by the same rule: flipping it to the value it already
+        // shows is not a change, and sending it anyway would turn an inherited
+        // toggle into an override just by opening this.
+        if (mctbEnabled != current.mctb_enabled.value) put("mctb_enabled", mctbEnabled)
     }
 
     AlertDialog(
@@ -179,6 +195,26 @@ internal fun NumberIdentityDialog(
                             singleLine = false,
                             onValueChange = { away = it },
                             onUseWorkspace = { clear("away_message") },
+                        )
+                        IdentityToggle(
+                            title = "Text back a missed caller",
+                            hint = "Sent from this line when a call goes unanswered.",
+                            checked = mctbEnabled,
+                            inherited = state.value.mctb_enabled.inherited,
+                            enabled = !pending,
+                            onCheckedChange = { mctbEnabled = it },
+                            onUseWorkspace = { clear("mctb_enabled") },
+                        )
+                        IdentityField(
+                            title = "Missed-call text",
+                            hint = "What a caller gets when nobody picks up and " +
+                                "they hang up.",
+                            value = mctbMessage,
+                            inherited = state.value.mctb_message.inherited,
+                            enabled = !pending,
+                            singleLine = false,
+                            onValueChange = { mctbMessage = it },
+                            onUseWorkspace = { clear("mctb_message") },
                         )
                     }
                 }
@@ -258,6 +294,52 @@ private fun IdentityField(
             modifier = Modifier.fillMaxWidth(),
             singleLine = singleLine,
         )
+        Text(
+            hint,
+            modifier = Modifier.padding(top = 4.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * The one control here that is not a box.
+ *
+ * A switch is two-state and the setting is three — on, off, and follow the
+ * workspace. Rather than invent a third position nobody would recognise, the
+ * third state is carried by the same per-field affordance every other row
+ * already uses. One model across the dialog beats a second one learned for a
+ * single line.
+ */
+@Composable
+private fun IdentityToggle(
+    title: String,
+    hint: String,
+    checked: Boolean,
+    inherited: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    onUseWorkspace: () -> Unit,
+) {
+    Column(Modifier.padding(top = 14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.weight(1f))
+            if (inherited) {
+                Text(
+                    "Same as your workspace",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                TextButton(enabled = enabled, onClick = onUseWorkspace) {
+                    Text("Use the workspace's", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
+        }
         Text(
             hint,
             modifier = Modifier.padding(top = 4.dp),

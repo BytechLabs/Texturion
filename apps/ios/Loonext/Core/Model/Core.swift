@@ -447,4 +447,19 @@ struct NumberIdentity: Codable, Sendable {
     var label = ResolvedField()
     var voicemail_greeting = ResolvedField()
     var away_message = ResolvedField()
+    var mctb_enabled = ResolvedBool()
+    var mctb_message = ResolvedField()
+}
+
+/// The same shape for the one field that is not text.
+///
+/// A separate type rather than a nullable value on `ResolvedField`: the toggle
+/// always resolves to a real boolean, and giving it a `String?` would put a
+/// "true"/"false" parse between the server and a switch for no reason.
+///
+/// Both properties are `var` with defaults, per the rule a red build taught
+/// this repo: an optional `let` is a REQUIRED argument of the memberwise init.
+struct ResolvedBool: Codable, Sendable {
+    var value = false
+    var inherited = true
 }

@@ -2345,6 +2345,8 @@ export interface NumberIdentity {
   label: ResolvedField<string>;
   voicemail_greeting: ResolvedField<string | null>;
   away_message: ResolvedField<string | null>;
+  mctb_enabled: ResolvedField<boolean>;
+  mctb_message: ResolvedField<string | null>;
 }
 
 /** Null on a field CLEARS the override back to the workspace value. */
@@ -2352,4 +2354,6 @@ export interface NumberIdentityPatch {
   label?: string | null;
   voicemail_greeting?: string | null;
   away_message?: string | null;
+  mctb_enabled?: boolean | null;
+  mctb_message?: string | null;
 }

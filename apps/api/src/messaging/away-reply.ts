@@ -154,6 +154,11 @@ export async function maybeSendAwayReply(
       awayEnabled: settings.away_enabled,
       businessHours: settings.business_hours,
       businessHoursExceptions: settings.business_hours_exceptions,
+      // Not read on this path — mctb resolves where the missed call is
+      // handled. Passed because CompanyIdentity is one shape: a resolver with
+      // optional halves would let a caller forget the half it does need.
+      mctbEnabled: false,
+      mctbMessage: null,
     },
     {
       label: conv.phone_numbers?.label ?? null,

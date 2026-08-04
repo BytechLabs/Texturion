@@ -164,11 +164,19 @@ function mctbCompanyStub(
 }
 
 /**
- * #307: the line's own name, read after the enabled check. Null is every
- * number until somebody sets an override, so this stub's default is the
- * production reality on deploy day.
+ * #307: the line's own name, toggle and text, read ALONGSIDE the company row
+ * rather than after it — a line can switch the text-back on for itself, which
+ * is unknowable while the toggle is read before the number is. Null on every
+ * override is every number until somebody sets one, so this stub's default is
+ * the production reality on deploy day.
  */
-function numberStub(label: string | null = null): Stub {
+function numberStub(
+  label: string | null = null,
+  overrides: {
+    mctb_enabled?: boolean | null;
+    mctb_message?: string | null;
+  } = {},
+): Stub {
   return stubRoute(
     restMatch(
       env,
@@ -176,7 +184,9 @@ function numberStub(label: string | null = null): Stub {
       "phone_numbers",
       (url) => url.searchParams.get("select")?.includes("label") ?? false,
     ),
-    () => [{ label }],
+    // #307: null on the overrides is every number until somebody sets one,
+    // and null must resolve to the workspace's value.
+    () => [{ label, mctb_enabled: null, mctb_message: null, ...overrides }],
   );
 }
 
@@ -624,10 +634,12 @@ describe("#307 the text-back names the line", () => {
     expect(String(claimBody?.p_body ?? "")).toContain("Ace Plumbing");
   });
 
-  it("MC-4: a disabled workspace never reads the number at all", async () => {
-    // The early short-circuit still pays for exactly one select. This read
-    // sits after it precisely so a workspace with the feature off is
-    // unaffected.
+  it("MC-4: a disabled workspace sends nothing", async () => {
+    // #307 changed WHERE this is decided. The number is now read alongside the
+    // company rather than after it, because a line can switch the text-back on
+    // for itself — which is unknowable while the toggle is read before the
+    // number is. So this no longer asserts the read order; it asserts the
+    // outcome, which is what a caller experiences either way.
     const company = mctbCompanyStub({ mctb_enabled: false });
     const number = numberStub("Ace Plumbing Sales");
     const claim = stubRoute(rpcMatch(env, "claim_missed_call_text"), () => ({}));
@@ -641,6 +653,74 @@ describe("#307 the text-back names the line", () => {
       callId: CALL_ID,
     });
 
-    expect(number.calls).toHaveLength(0);
+    expect(claim.calls).toHaveLength(0);
+  });
+
+  it("MC-5: a line that switched the text-back OFF stays silent", async () => {
+    // The yard-sign number in #307's Scope. A tracked number is missed for a
+    // different reason than the office line, and the owner may want no text at
+    // all from it — which no company-wide toggle can express.
+    const company = mctbCompanyStub({ mctb_enabled: true });
+    const number = numberStub("Ace Plumbing Sales", { mctb_enabled: false });
+    const claim = stubRoute(rpcMatch(env, "claim_missed_call_text"), () => ({}));
+    serve(company, number, ...sendGateStubs(), claim);
+
+    await sendMissedCallText(env, getDb(env), {
+      companyId: COMPANY_ID,
+      phoneNumberId: NUMBER_ID,
+      fromNumberE164: OUR_NUMBER,
+      callerE164: CALLER,
+      callId: CALL_ID,
+    });
+
+    expect(claim.calls).toHaveLength(0);
+  });
+
+  it("MC-6: a line sends its OWN text, not the workspace's", async () => {
+    // The other half: a sales line that answers differently from the service
+    // line. Signing a sales caller's text with the service line's words is the
+    // "two businesses in one interaction" failure the issue opens with.
+    const company = mctbCompanyStub({
+      mctb_enabled: true,
+      mctb_message: "Sorry we missed you — the office opens at 8.",
+    });
+    const number = numberStub("Ace Plumbing Sales", {
+      mctb_message: "Thanks for calling sales. We will ring you right back.",
+    });
+    let claimBody: Record<string, unknown> | undefined;
+    const claim = stubRoute(rpcMatch(env, "claim_missed_call_text"), (call) => {
+      claimBody = call.body as Record<string, unknown>;
+      return {
+        message: messageRow({ status: "queued" }),
+        conversation_id: CONVERSATION_ID,
+        created_conversation: true,
+      };
+    });
+    const persist = stubRoute(
+      (url, request) =>
+        request.method === "PATCH" && url.pathname === "/rest/v1/messages",
+      () => [messageRow({ telnyx_message_id: "telnyx-mctb-n6" })],
+    );
+    serve(
+      company,
+      number,
+      ...sendGateStubs(),
+      telnyxStub(),
+      ...alertStubs(),
+      claim,
+      persist,
+    );
+
+    await sendMissedCallText(env, getDb(env), {
+      companyId: COMPANY_ID,
+      phoneNumberId: NUMBER_ID,
+      fromNumberE164: OUR_NUMBER,
+      callerE164: CALLER,
+      callId: CALL_ID,
+    });
+
+    expect(claim.calls).toHaveLength(1);
+    expect(String(claimBody?.p_body ?? "")).toContain("Thanks for calling sales");
+    expect(String(claimBody?.p_body ?? "")).not.toContain("opens at 8");
   });
 });
