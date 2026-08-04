@@ -54,16 +54,19 @@ function forwardState(caller: string): string {
   return btoa(`${FORWARD_LEG_STATE}|${caller}`);
 }
 
-/** phone_numbers resolution by dialed number. */
-function numberStub(status = "active"): Stub {
+/**
+ * phone_numbers resolution by dialed number.
+ *
+ * Serves BOTH reads this file's paths make: the resolution by dialed number,
+ * and #307's per-line `label` lookup on the text-back path. Matched on the
+ * table rather than on one select, because a stub keyed to a single column
+ * list stops matching the moment a caller asks for a different one — which is
+ * how seven tests in here started timing out at five seconds each.
+ */
+function numberStub(status = "active", label: string | null = null): Stub {
   return stubRoute(
-    restMatch(
-      env,
-      "GET",
-      "phone_numbers",
-      (url) => url.searchParams.get("select")?.includes("company_id") ?? false,
-    ),
-    () => [{ id: NUMBER_ID, company_id: COMPANY_ID, status }],
+    restMatch(env, "GET", "phone_numbers"),
+    () => [{ id: NUMBER_ID, company_id: COMPANY_ID, status, label }],
   );
 }
 

@@ -18,6 +18,8 @@ import {
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { resolveNumberIdentity } from "@loonext/shared";
+
 import type { Env } from "../env";
 import { ApiError } from "../http/errors";
 import { notifyMissedCall } from "../notifications/missed-call";
@@ -187,11 +189,53 @@ export async function sendMissedCallText(
     throw cause;
   }
 
+  /**
+   * #307 — the text comes from the LINE they rang.
+   *
+   * A caller who rings the sales line and gets a text signed with the service
+   * line's name has met two businesses in one interaction, which is worse
+   * than meeting a generic one. Same resolver as the greeting they just
+   * heard, so the two cannot disagree.
+   *
+   * Read HERE, after the enabled check, rather than beside the company row:
+   * this path is already committed to sending a text — a Telnyx call and
+   * several writes — so one indexed read is nothing, and a workspace with the
+   * feature off still pays for exactly one select.
+   *
+   * Best-effort: a failure resolves to the company name rather than failing
+   * the text. A caller who has just been missed should get the reply.
+   */
+  // Best-effort WITHOUT a try/catch, deliberately. PostgREST failures arrive
+  // as `error` rather than as a throw, so ignoring it and taking no rows is
+  // already the fallback — a caller who has just been missed gets the reply
+  // signed with the workspace name. The try/catch this replaced could only
+  // ever have caught a transport throw, and the sweep showed nothing could
+  // reach it: an unreachable branch reads as a handled case that is not.
+  const { data: numberRows } = await db
+    .from("phone_numbers")
+    .select("label")
+    .eq("id", args.phoneNumberId)
+    .limit(1);
+  const numberLabel =
+    ((numberRows ?? [])[0] as { label: string | null } | undefined)?.label ?? null;
+  const identity = resolveNumberIdentity(
+    {
+      name: settings.name,
+      timezone: "",
+      voicemailGreeting: null,
+      awayMessage: null,
+      awayEnabled: false,
+      businessHours: null,
+      businessHoursExceptions: null,
+    },
+    { label: numberLabel },
+  );
+
   // Merge fields into the booking-forward message — owner-authored or the
   // product default (contact name is unknown for a brand-new caller).
   const body = applySendMergeFields(template, {
     contactName: null,
-    businessName: settings.name,
+    businessName: identity.label.value,
   });
 
   const segments = Math.max(1, estimateSegments(body).segments);

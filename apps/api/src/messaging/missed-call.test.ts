@@ -163,6 +163,23 @@ function mctbCompanyStub(
   );
 }
 
+/**
+ * #307: the line's own name, read after the enabled check. Null is every
+ * number until somebody sets an override, so this stub's default is the
+ * production reality on deploy day.
+ */
+function numberStub(label: string | null = null): Stub {
+  return stubRoute(
+    restMatch(
+      env,
+      "GET",
+      "phone_numbers",
+      (url) => url.searchParams.get("select")?.includes("label") ?? false,
+    ),
+    () => [{ label }],
+  );
+}
+
 /** getSendGates: registration companies select + messaging_registrations. */
 function sendGateStubs(): Stub[] {
   const gatesCompany = stubRoute(
@@ -265,7 +282,7 @@ describe("sendMissedCallText — text-back + alert", () => {
         request.method === "PATCH" && url.pathname === "/rest/v1/messages",
       () => [messageRow({ telnyx_message_id: "telnyx-mctb-1" })],
     );
-    serve(company, ...gates, claim, telnyx, persist, ...alertStubs());
+    serve(company, numberStub(), ...gates, claim, telnyx, persist, ...alertStubs());
 
     await run();
 
@@ -288,7 +305,7 @@ describe("sendMissedCallText — text-back + alert", () => {
   it("does nothing when mctb is disabled (no further work)", async () => {
     const company = mctbCompanyStub({ mctb_enabled: false });
     const claim = stubRoute(rpcMatch(env, "claim_missed_call_text"), () => ({}));
-    serve(company, claim);
+    serve(company, numberStub(), claim);
     await run();
     expect(claim.calls).toHaveLength(0);
   });
@@ -311,7 +328,7 @@ describe("sendMissedCallText — text-back + alert", () => {
         request.method === "PATCH" && url.pathname === "/rest/v1/messages",
       () => [messageRow({ telnyx_message_id: "telnyx-mctb-1" })],
     );
-    serve(company, ...gates, claim, telnyx, persist, ...alertStubs());
+    serve(company, numberStub(), ...gates, claim, telnyx, persist, ...alertStubs());
 
     await run();
 
@@ -345,7 +362,7 @@ describe("sendMissedCallText — text-back + alert", () => {
         request.method === "PATCH" && url.pathname === "/rest/v1/messages",
       () => [messageRow({ telnyx_message_id: "telnyx-mctb-1" })],
     );
-    serve(company, ...gates, claim, telnyx, persist, ...alertStubs());
+    serve(company, numberStub(), ...gates, claim, telnyx, persist, ...alertStubs());
 
     await run();
 
@@ -365,7 +382,7 @@ describe("sendMissedCallText — text-back + alert", () => {
     const claim = stubRoute(rpcMatch(env, "claim_missed_call_text"), () => ({
       skipped: "duplicate",
     }));
-    serve(company, ...gates, claim, telnyx);
+    serve(company, numberStub(), ...gates, claim, telnyx);
     await run();
     expect(claim.calls).toHaveLength(1);
     expect(telnyx.calls).toHaveLength(0); // no dispatch on a duplicate
@@ -378,7 +395,7 @@ describe("sendMissedCallText — text-back + alert", () => {
     const claim = stubRoute(rpcMatch(env, "claim_missed_call_text"), () => ({
       skipped: "recipient_opted_out",
     }));
-    serve(company, ...gates, claim, telnyx);
+    serve(company, numberStub(), ...gates, claim, telnyx);
     await run();
     expect(claim.calls).toHaveLength(1);
     expect(telnyx.calls).toHaveLength(0);
@@ -390,7 +407,7 @@ describe("sendMissedCallText — text-back + alert", () => {
     // Sentry page on a condition known final on the first pass.
     const company = mctbCompanyStub();
     const claim = stubRoute(rpcMatch(env, "claim_missed_call_text"), () => ({}));
-    serve(company, claim);
+    serve(company, numberStub(), claim);
     await run("anonymous");
     await run("+447911123456");
     expect(claim.calls).toHaveLength(0);
@@ -460,7 +477,7 @@ describe("sendMissedCallText — text-back + alert", () => {
     const account = await makeServiceAccount();
     const service = fcmService();
     stubFetch(
-      ...[company, ...gates, claim, telnyx, persist, conv, members, prefs, webSubs, deviceTokens]
+      ...[company, numberStub(), ...gates, claim, telnyx, persist, conv, members, prefs, webSubs, deviceTokens]
         .map((s) => s.route as FetchRoute),
       ...service.routes,
     );
@@ -482,5 +499,148 @@ describe("sendMissedCallText — text-back + alert", () => {
     expect(data).toBeDefined();
     expect(data!.body).toBe("Their text-back failed. Call them back.");
     expect(data!.body).not.toContain("We texted them");
+  });
+});
+
+/**
+ * #307 — the text-back is signed by the line that was rung.
+ *
+ * MC-1 is the deploy-day guarantee; MC-3 is the one the sweep demanded, after
+ * the same hole appeared twice on the greeting and away paths: a stub returns
+ * the column whatever the select asks for, so every other assertion passes
+ * against a query that never fetched it.
+ */
+describe("#307 the text-back names the line", () => {
+  async function bodyFor(label: string | null): Promise<string> {
+    const company = mctbCompanyStub();
+    const gates = sendGateStubs();
+    const telnyx = telnyxStub();
+    let claimBody: Record<string, unknown> | undefined;
+    const claim = stubRoute(rpcMatch(env, "claim_missed_call_text"), (c) => {
+      claimBody = c.body as Record<string, unknown>;
+      return {
+        message: messageRow({ status: "queued" }),
+        conversation_id: CONVERSATION_ID,
+        created_conversation: true,
+      };
+    });
+    const persist = stubRoute(
+      (url, request) =>
+        request.method === "PATCH" && url.pathname === "/rest/v1/messages",
+      () => [messageRow({ telnyx_message_id: "telnyx-mctb-1" })],
+    );
+    serve(company, numberStub(label), ...gates, claim, telnyx, persist, ...alertStubs());
+
+    await sendMissedCallText(env, getDb(env), {
+      companyId: COMPANY_ID,
+      phoneNumberId: NUMBER_ID,
+      fromNumberE164: OUR_NUMBER,
+      callerE164: CALLER,
+      callId: CALL_ID,
+    });
+    return String(claimBody?.p_body ?? "");
+  }
+
+  it("MC-1: a line with no name of its own signs with the workspace's", async () => {
+    expect(await bodyFor(null)).toContain("Ace Plumbing");
+  });
+
+  it("MC-2: a named line signs with its own name", async () => {
+    // The coherence: this caller just heard "Ace Plumbing Sales" on the
+    // greeting. A text signed "Ace Plumbing" is a second business.
+    expect(await bodyFor("Ace Plumbing Sales")).toContain("Ace Plumbing Sales");
+  });
+
+  it("MC-3: the line's name is actually fetched", async () => {
+    const company = mctbCompanyStub();
+    const number = numberStub("Ace Plumbing Sales");
+    const gates = sendGateStubs();
+    const telnyx = telnyxStub();
+    const claim = stubRoute(rpcMatch(env, "claim_missed_call_text"), () => ({
+      message: messageRow({ status: "queued" }),
+      conversation_id: CONVERSATION_ID,
+      created_conversation: true,
+    }));
+    const persist = stubRoute(
+      (url, request) =>
+        request.method === "PATCH" && url.pathname === "/rest/v1/messages",
+      () => [messageRow({ telnyx_message_id: "telnyx-mctb-1" })],
+    );
+    serve(company, number, ...gates, claim, telnyx, persist, ...alertStubs());
+
+    await sendMissedCallText(env, getDb(env), {
+      companyId: COMPANY_ID,
+      phoneNumberId: NUMBER_ID,
+      fromNumberE164: OUR_NUMBER,
+      callerE164: CALLER,
+      callId: CALL_ID,
+    });
+
+    expect(number.calls, "the number row was never read").toHaveLength(1);
+    expect(number.calls[0].url.searchParams.get("id")).toBe(`eq.${NUMBER_ID}`);
+  });
+
+  it("MC-5: a failed name lookup still sends the text", async () => {
+    // Best-effort by construction, and unproven until now: the stub always
+    // succeeded, so the catch never ran and `throw cause` in it broke
+    // nothing. A caller who has just been missed should get the reply even
+    // if we could not read what to sign it with.
+    const company = mctbCompanyStub();
+    const number = stubRoute(
+      restMatch(env, "GET", "phone_numbers", (url) =>
+        url.searchParams.get("select")?.includes("label") ?? false,
+      ),
+      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+    );
+    const gates = sendGateStubs();
+    const telnyx = telnyxStub();
+    let claimBody: Record<string, unknown> | undefined;
+    const claim = stubRoute(rpcMatch(env, "claim_missed_call_text"), (c) => {
+      claimBody = c.body as Record<string, unknown>;
+      return {
+        message: messageRow({ status: "queued" }),
+        conversation_id: CONVERSATION_ID,
+        created_conversation: true,
+      };
+    });
+    const persist = stubRoute(
+      (url, request) =>
+        request.method === "PATCH" && url.pathname === "/rest/v1/messages",
+      () => [messageRow({ telnyx_message_id: "telnyx-mctb-1" })],
+    );
+    serve(company, number, ...gates, claim, telnyx, persist, ...alertStubs());
+
+    await expect(
+      sendMissedCallText(env, getDb(env), {
+        companyId: COMPANY_ID,
+        phoneNumberId: NUMBER_ID,
+        fromNumberE164: OUR_NUMBER,
+        callerE164: CALLER,
+        callId: CALL_ID,
+      }),
+    ).resolves.toBeDefined();
+
+    // And it signed with the workspace name rather than nothing.
+    expect(String(claimBody?.p_body ?? "")).toContain("Ace Plumbing");
+  });
+
+  it("MC-4: a disabled workspace never reads the number at all", async () => {
+    // The early short-circuit still pays for exactly one select. This read
+    // sits after it precisely so a workspace with the feature off is
+    // unaffected.
+    const company = mctbCompanyStub({ mctb_enabled: false });
+    const number = numberStub("Ace Plumbing Sales");
+    const claim = stubRoute(rpcMatch(env, "claim_missed_call_text"), () => ({}));
+    serve(company, number, claim);
+
+    await sendMissedCallText(env, getDb(env), {
+      companyId: COMPANY_ID,
+      phoneNumberId: NUMBER_ID,
+      fromNumberE164: OUR_NUMBER,
+      callerE164: CALLER,
+      callId: CALL_ID,
+    });
+
+    expect(number.calls).toHaveLength(0);
   });
 });
