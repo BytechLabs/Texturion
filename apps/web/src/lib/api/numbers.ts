@@ -12,6 +12,8 @@ import type {
   AvailableNumbersResult,
   MemberNumberAccess,
   NumberAccess,
+  NumberIdentity,
+  NumberIdentityPatch,
   Page,
   PhoneNumberSummary,
 } from "./types";
@@ -228,6 +230,42 @@ export function useSetNumberAccess(numberId: string) {
       void queryClient.invalidateQueries({
         queryKey: keys.conversations.lists(companyId),
       });
+    },
+  });
+}
+
+/**
+ * #307 — one line's identity, RESOLVED, with what each field inherits.
+ *
+ * The `inherited` flags are the reason this is its own endpoint rather than a
+ * slice of the numbers list: a screen showing resolved text in a box cannot
+ * otherwise tell an owner whether editing it changes one line or all of them.
+ */
+export function useNumberIdentity(numberId: string, enabled = true) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: keys.numberIdentity(companyId, numberId),
+    queryFn: () =>
+      apiFetch<NumberIdentity>(`/v1/numbers/${numberId}/identity`, { companyId }),
+    enabled,
+  });
+}
+
+/** #307: set or CLEAR this line's overrides. Null on a field means inherit. */
+export function useSetNumberIdentity(numberId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: NumberIdentityPatch) =>
+      apiFetch<NumberIdentity>(`/v1/numbers/${numberId}/identity`, {
+        method: "PATCH",
+        companyId,
+        body: patch,
+      }),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(keys.numberIdentity(companyId, numberId), saved);
+      // The numbers list shows the line's name, so it is now stale.
+      void queryClient.invalidateQueries({ queryKey: keys.numbers(companyId) });
     },
   });
 }

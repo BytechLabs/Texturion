@@ -1,0 +1,167 @@
+/**
+ * @vitest-environment happy-dom
+ *
+ * #307 — "How this line answers".
+ *
+ * NI-4 is the one that decides whether this dialog is safe to open. A field
+ * left alone must not be SENT: posting the resolved value back would turn an
+ * inherited field into an override just by opening the dialog, and the line
+ * would silently stop following the workspace without anybody choosing that.
+ * Nothing about the screen would look wrong, and the owner would find out when
+ * they changed the workspace greeting and one line ignored it.
+ */
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const { save, toastSuccess, toastError, identity } = vi.hoisted(() => ({
+  save: vi.fn(),
+  toastSuccess: vi.fn(),
+  toastError: vi.fn(),
+  identity: {
+    current: {
+      label: { value: "Reed Roofing", inherited: true },
+      voicemail_greeting: { value: "You have reached Reed Roofing.", inherited: true },
+      away_message: { value: "We are closed.", inherited: true },
+    } as Record<string, { value: string | null; inherited: boolean }>,
+  },
+}));
+
+vi.mock("@/lib/api/numbers", () => ({
+  useNumberIdentity: () => ({ isPending: false, data: identity.current }),
+  useSetNumberIdentity: () => ({ isPending: false, mutateAsync: save }),
+}));
+vi.mock("sonner", () => ({
+  toast: { success: toastSuccess, error: toastError },
+}));
+
+import { NumberIdentityDialog, patchFrom } from "./number-identity-dialog";
+import { ApiError } from "@/lib/api/error";
+
+afterEach(cleanup);
+
+beforeEach(() => {
+  save.mockReset();
+  save.mockResolvedValue(identity.current);
+  toastSuccess.mockReset();
+  toastError.mockReset();
+  identity.current = {
+    label: { value: "Reed Roofing", inherited: true },
+    voicemail_greeting: { value: "You have reached Reed Roofing.", inherited: true },
+    away_message: { value: "We are closed.", inherited: true },
+  };
+});
+
+function open() {
+  render(<NumberIdentityDialog numberId="n1" open onOpenChange={() => {}} />);
+}
+
+describe("#307 how this line answers", () => {
+  it("NI-1: every box starts at what a caller actually gets", () => {
+    // Never blank. An empty field cannot tell an owner what the line does
+    // today, and showing that before it changes is this screen's whole job.
+    open();
+    expect((screen.getByLabelText("Name for this line") as HTMLInputElement).value).toBe(
+      "Reed Roofing",
+    );
+    expect(
+      (screen.getByLabelText("Voicemail greeting") as HTMLTextAreaElement).value,
+    ).toBe("You have reached Reed Roofing.");
+  });
+
+  it("NI-2: an inherited field says so", () => {
+    // The distinction the whole model exists to make visible.
+    open();
+    expect(screen.getAllByText("Same as your workspace")).toHaveLength(3);
+  });
+
+  it("NI-3: an overridden field offers the way back, worded as the outcome", () => {
+    // "Clear" implies empty, and empty is the one thing this cannot mean — a
+    // cleared greeting restores the workspace's rather than silencing the line.
+    identity.current = {
+      ...identity.current,
+      voicemail_greeting: { value: "Sales line.", inherited: false },
+    };
+    open();
+
+    expect(screen.getAllByText("Same as your workspace")).toHaveLength(2);
+    const back = screen.getByRole("button", { name: "Use the workspace's" });
+    expect(back).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^clear$/i })).toBeNull();
+  });
+
+  it("NI-4: a field left alone is never sent", () => {
+    // THE ONE THAT MATTERS. Sending the resolved value back would turn an
+    // inherited field into an override just by opening the dialog — the line
+    // stops following the workspace and nothing looks wrong until somebody
+    // edits the workspace greeting and one line ignores it.
+    expect(
+      patchFrom(identity.current as never, {
+        label: "Reed Roofing",
+        voicemail_greeting: "You have reached Reed Roofing.",
+        away_message: "We are closed.",
+      }),
+    ).toEqual({});
+
+    // And a field that DID change is sent, alone.
+    expect(
+      patchFrom(identity.current as never, {
+        label: "Reed Roofing Sales",
+        voicemail_greeting: "You have reached Reed Roofing.",
+        away_message: "We are closed.",
+      }),
+    ).toEqual({ label: "Reed Roofing Sales" });
+  });
+
+  it("NI-5: saving sends only the edited field", async () => {
+    open();
+    fireEvent.change(screen.getByLabelText("Name for this line"), {
+      target: { value: "Reed Roofing Sales" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save).toHaveBeenCalledWith({ label: "Reed Roofing Sales" });
+  });
+
+  it("NI-6: 'use the workspace's' sends null for that field only", async () => {
+    // Null is the clear, and it is per field — restoring the greeting must
+    // not disturb a name the owner set separately.
+    identity.current = {
+      label: { value: "Reed Roofing Sales", inherited: false },
+      voicemail_greeting: { value: "Sales line.", inherited: false },
+      away_message: { value: "We are closed.", inherited: true },
+    };
+    open();
+
+    const backButtons = screen.getAllByRole("button", { name: "Use the workspace's" });
+    fireEvent.click(backButtons[1]);
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save).toHaveBeenCalledWith({ voicemail_greeting: null });
+  });
+
+  it("NI-7: says the change is live, because a caller hears it immediately", async () => {
+    open();
+    fireEvent.change(screen.getByLabelText("Name for this line"), {
+      target: { value: "Reed Roofing Sales" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledTimes(1));
+    expect(toastSuccess.mock.calls[0][0]).toMatch(/straight away/i);
+  });
+
+  it("NI-8: shows the server's reason when it refuses", async () => {
+    save.mockRejectedValue(
+      new ApiError("validation_failed", "That greeting is too long.", 422),
+    );
+    open();
+    fireEvent.change(screen.getByLabelText("Voicemail greeting"), {
+      target: { value: "x" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    expect(toastError.mock.calls[0][0]).toContain("too long");
+  });
+});

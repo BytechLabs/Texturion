@@ -36,6 +36,9 @@ export const keys = {
   /** #106: one number's access shape (who can use it, at what level). */
   numberAccess: (companyId: string, numberId: string) =>
     [companyId, "numbers", "access", numberId] as const,
+  /** #307: one line's identity, resolved with what it inherits. */
+  numberIdentity: (companyId: string, numberId: string) =>
+    [companyId, "numbers", numberId, "identity"] as const,
   registration: (companyId: string) => [companyId, "registration"] as const,
   portRequests: {
     /** Root for the company's port list + every port detail. */

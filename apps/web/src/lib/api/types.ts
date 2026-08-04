@@ -2330,3 +2330,26 @@ export interface DataExport {
   /** Signed links, minted at read time. Empty unless ready and unexpired. */
   files: { name: string; url: string }[];
 }
+
+/**
+ * #307 — one field of a line's identity: what a caller gets, and whether it
+ * came from the workspace rather than from this line.
+ */
+export interface ResolvedField<T> {
+  value: T;
+  inherited: boolean;
+}
+
+/** GET/PATCH /v1/numbers/:id/identity. */
+export interface NumberIdentity {
+  label: ResolvedField<string>;
+  voicemail_greeting: ResolvedField<string | null>;
+  away_message: ResolvedField<string | null>;
+}
+
+/** Null on a field CLEARS the override back to the workspace value. */
+export interface NumberIdentityPatch {
+  label?: string | null;
+  voicemail_greeting?: string | null;
+  away_message?: string | null;
+}

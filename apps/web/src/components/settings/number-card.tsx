@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api/error";
 import { NumberAccessDialog } from "@/components/settings/number-access-dialog";
+import { NumberIdentityDialog } from "@/components/settings/number-identity-dialog";
 import { useReleaseNumber } from "@/lib/api/numbers";
 import { NumberHealthNotice } from "@/components/settings/number-health-notice";
 import type { PhoneNumberSummary } from "@/lib/api/types";
@@ -193,6 +194,7 @@ export function NumberCard({ number }: { number: PhoneNumberSummary }) {
   const [releasing, setReleasing] = useState(false);
   const [choosing, setChoosing] = useState(false);
   const [managingAccess, setManagingAccess] = useState(false);
+  const [managingIdentity, setManagingIdentity] = useState(false);
   const now = useNow();
   const released = number.status === "released";
   const canManage = role === "owner" || role === "admin";
@@ -316,6 +318,23 @@ export function NumberCard({ number }: { number: PhoneNumberSummary }) {
             numberLabel={formatPhone(number.number_e164)}
             open={managingAccess}
             onOpenChange={setManagingAccess}
+          />
+          {/* #307: how the line ANSWERS, beside who can use it. The two are
+              the same kind of question about one number, and a second number
+              is a second business — the greeting, the name on a missed-call
+              text and the after-hours reply should be able to differ. */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
+            onClick={() => setManagingIdentity(true)}
+          >
+            How this line answers…
+          </Button>
+          <NumberIdentityDialog
+            numberId={number.id}
+            open={managingIdentity}
+            onOpenChange={setManagingIdentity}
           />
         </div>
       )}
