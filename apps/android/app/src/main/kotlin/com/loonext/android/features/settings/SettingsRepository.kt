@@ -373,6 +373,23 @@ class SettingsRepository(
     suspend fun numberAccess(companyId: String, numberId: String): NumberAccess =
         api.get("/v1/numbers/$numberId/access", companyId = companyId)
 
+    /** #307: this line's identity, resolved with what each field inherits. */
+    suspend fun numberIdentity(companyId: String, numberId: String): NumberIdentity =
+        api.get("/v1/numbers/$numberId/identity", companyId = companyId)
+
+    /**
+     * #307: set or CLEAR this line's overrides.
+     *
+     * A field carrying JsonNull means INHERIT, so the body must send null
+     * rather than omit the key — omitting it leaves the override in place,
+     * which is the opposite of what "use the workspace's" means.
+     */
+    suspend fun setNumberIdentity(
+        companyId: String,
+        numberId: String,
+        body: JsonObject,
+    ): NumberIdentity = api.patch("/v1/numbers/$numberId/identity", body, companyId = companyId)
+
     suspend fun setNumberAccess(
         companyId: String,
         numberId: String,

@@ -1,0 +1,268 @@
+package com.loonext.android.features.settings
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.loonext.android.core.model.PhoneNumberSummary
+import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.userMessage
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+
+/**
+ * #307 — "How this line answers".
+ *
+ * Hand-port of `apps/web/src/components/settings/number-identity-dialog.tsx`.
+ * A workspace running a service line and a sales line had one identity across
+ * both, so somebody who bought a second number BECAUSE it is a different
+ * business found the product quietly making it the same one.
+ *
+ * The three rules the web version establishes, kept identical here because
+ * three clients describing one model three ways is the #437 failure:
+ *
+ * - **Every box starts at what a caller ACTUALLY gets**, never blank. An empty
+ *   field cannot tell an owner what the line does today, and showing that
+ *   before it changes is this screen's whole job.
+ * - **Inherited is stated per field.** Without it, somebody editing a box
+ *   cannot tell whether they are fixing a sales greeting or rewriting the one
+ *   every customer already knows.
+ * - **The way back is worded as its outcome** — "Use the workspace's", not
+ *   "Clear". Clear implies empty, and empty is the one thing this cannot mean:
+ *   a cleared greeting restores the workspace's rather than silencing the line.
+ */
+@Composable
+internal fun NumberIdentityDialog(
+    scope: SettingsScope,
+    number: PhoneNumberSummary,
+    onDismiss: () -> Unit,
+    onChanged: () -> Unit,
+) {
+    var loaded by remember { mutableStateOf<LoadState<NumberIdentity>>(LoadState.Loading) }
+    var label by remember { mutableStateOf("") }
+    var greeting by remember { mutableStateOf("") }
+    var away by remember { mutableStateOf("") }
+    var pending by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val coroutines = rememberCoroutineScope()
+
+    fun seed(identity: NumberIdentity) {
+        label = identity.label.value.orEmpty()
+        greeting = identity.voicemail_greeting.value.orEmpty()
+        away = identity.away_message.value.orEmpty()
+    }
+
+    LaunchedEffect(number.id) {
+        loaded = LoadState.Loading
+        loaded = try {
+            val identity = scope.repo.numberIdentity(scope.companyId, number.id)
+            seed(identity)
+            LoadState.Ready(identity)
+        } catch (cause: Exception) {
+            LoadState.Failed(cause.userMessage())
+        }
+    }
+
+    /** Send JsonNull for one field: that is what "use the workspace's" means. */
+    fun clear(field: String) {
+        coroutines.launch {
+            pending = true
+            error = null
+            try {
+                val next = scope.repo.setNumberIdentity(
+                    scope.companyId,
+                    number.id,
+                    buildJsonObject { put(field, JsonNull) },
+                )
+                seed(next)
+                loaded = LoadState.Ready(next)
+                onChanged()
+            } catch (cause: Exception) {
+                error = cause.userMessage()
+            } finally {
+                pending = false
+            }
+        }
+    }
+
+    /**
+     * Only what CHANGED.
+     *
+     * A field left alone must not be sent: posting the resolved value back
+     * would turn an inherited field into an override just by opening this, and
+     * the line would stop following the workspace with nothing looking wrong
+     * until somebody edited the workspace greeting and one line ignored it.
+     */
+    fun patchBody(current: NumberIdentity): JsonObject = buildJsonObject {
+        if (label != current.label.value.orEmpty()) put("label", label)
+        if (greeting != current.voicemail_greeting.value.orEmpty()) {
+            put("voicemail_greeting", greeting)
+        }
+        if (away != current.away_message.value.orEmpty()) put("away_message", away)
+    }
+
+    AlertDialog(
+        onDismissRequest = { if (!pending) onDismiss() },
+        title = { Text("How this line answers") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    "Anything you leave alone follows your workspace. Change one " +
+                        "here and it only affects this number.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                when (val state = loaded) {
+                    is LoadState.Loading -> Text(
+                        "Loading…",
+                        modifier = Modifier.padding(top = 12.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+
+                    is LoadState.Failed -> Text(
+                        state.message,
+                        modifier = Modifier.padding(top = 12.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+
+                    is LoadState.Ready -> {
+                        IdentityField(
+                            title = "Name for this line",
+                            hint = "Used in the greeting, on missed-call texts, and " +
+                                "wherever this line introduces itself.",
+                            value = label,
+                            inherited = state.value.label.inherited,
+                            enabled = !pending,
+                            singleLine = true,
+                            onValueChange = { label = it },
+                            onUseWorkspace = { clear("label") },
+                        )
+                        IdentityField(
+                            title = "Voicemail greeting",
+                            hint = "What a caller hears when nobody picks up.",
+                            value = greeting,
+                            inherited = state.value.voicemail_greeting.inherited,
+                            enabled = !pending,
+                            singleLine = false,
+                            onValueChange = { greeting = it },
+                            onUseWorkspace = { clear("voicemail_greeting") },
+                        )
+                        IdentityField(
+                            title = "After-hours reply",
+                            hint = "The text sent when somebody messages this line " +
+                                "outside your hours.",
+                            value = away,
+                            inherited = state.value.away_message.inherited,
+                            enabled = !pending,
+                            singleLine = false,
+                            onValueChange = { away = it },
+                            onUseWorkspace = { clear("away_message") },
+                        )
+                    }
+                }
+                error?.let {
+                    Text(
+                        it,
+                        modifier = Modifier.padding(top = 8.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !pending && loaded is LoadState.Ready,
+                onClick = {
+                    val current = (loaded as? LoadState.Ready)?.value ?: return@TextButton
+                    coroutines.launch {
+                        pending = true
+                        error = null
+                        try {
+                            scope.repo.setNumberIdentity(
+                                scope.companyId,
+                                number.id,
+                                patchBody(current),
+                            )
+                            onChanged()
+                            onDismiss()
+                        } catch (cause: Exception) {
+                            error = cause.userMessage()
+                        } finally {
+                            pending = false
+                        }
+                    }
+                },
+            ) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(enabled = !pending, onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
+
+/** One field, saying whether it is this line's own or the workspace's. */
+@Composable
+private fun IdentityField(
+    title: String,
+    hint: String,
+    value: String,
+    inherited: Boolean,
+    enabled: Boolean,
+    singleLine: Boolean,
+    onValueChange: (String) -> Unit,
+    onUseWorkspace: () -> Unit,
+) {
+    Column(Modifier.padding(top = 14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.weight(1f))
+            if (inherited) {
+                Text(
+                    "Same as your workspace",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                TextButton(enabled = enabled, onClick = onUseWorkspace) {
+                    Text("Use the workspace's", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = singleLine,
+        )
+        Text(
+            hint,
+            modifier = Modifier.padding(top = 4.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}

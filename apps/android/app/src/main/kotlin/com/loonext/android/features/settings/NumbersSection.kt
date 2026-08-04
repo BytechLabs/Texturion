@@ -192,6 +192,7 @@ private fun NumberCard(
     val released = number.status == NumberStatus.RELEASED
     var releasing by remember { mutableStateOf(false) }
     var managingAccess by remember { mutableStateOf(false) }
+    var managingIdentity by remember { mutableStateOf(false) }
     var choosing by remember { mutableStateOf(false) }
 
     val display = number.number_e164?.let(::formatPhone)
@@ -306,6 +307,12 @@ private fun NumberCard(
         if (!released && number.status == NumberStatus.ACTIVE) {
             Row(modifier = Modifier.padding(top = 6.dp)) {
                 if (canManage) {
+                    // #307: how the line ANSWERS, beside who can use it. The
+                    // same kind of question about one number, and a second
+                    // number is a second business.
+                    LinkButton(onClick = { managingIdentity = true }) {
+                        Text("How this line answers")
+                    }
                     LinkButton(onClick = { managingAccess = true }) {
                         Text("Who can use this number")
                     }
@@ -334,6 +341,14 @@ private fun NumberCard(
                 releasing = false
                 onChanged()
             },
+        )
+    }
+    if (managingIdentity) {
+        NumberIdentityDialog(
+            scope = scope,
+            number = number,
+            onDismiss = { managingIdentity = false },
+            onChanged = onChanged,
         )
     }
     if (managingAccess) {

@@ -367,3 +367,21 @@ data class WorkspaceMfa(
     val required: Boolean = false,
     val grace_until: String? = null,
 )
+
+/**
+ * #307 — one field of a line's identity: what a caller gets, and whether it
+ * came from the workspace rather than from this line.
+ */
+@Serializable
+data class ResolvedField(
+    val value: String? = null,
+    val inherited: Boolean = true,
+)
+
+/** GET/PATCH /v1/numbers/{id}/identity. */
+@Serializable
+data class NumberIdentity(
+    val label: ResolvedField = ResolvedField(),
+    val voicemail_greeting: ResolvedField = ResolvedField(),
+    val away_message: ResolvedField = ResolvedField(),
+)
