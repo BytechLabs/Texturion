@@ -81,6 +81,10 @@ fun CallingSection(
     // same question in a better way. The written one stays as the
     // zero-setup default and the runtime fallback.
     VoiceGreetingCard(scope, canEdit = SettingsRoleGate.canEditWorkspace(scope.role))
+    // #278: after the voicemail cards, before screening — it is a routing
+    // decision about the SAME calls those describe, so it reads as a qualifier
+    // on them rather than a new subject.
+    AfterHoursCard(scope, company, onCompanyUpdated)
     ScreeningCard(scope, company, onCompanyUpdated)
     CallerIdCard(scope, company, onCompanyUpdated)
     MinutesFooter(scope)
@@ -387,6 +391,140 @@ private fun ScreeningCard(
         }
     }
 }
+
+/**
+ * #278 — what an inbound call does after hours.
+ *
+ * Hand-port of `apps/web/src/components/settings/after-hours-calls-card.tsx`,
+ * keeping the three rules that shape it:
+ *
+ * - **The default is the product as it was.** #278's own devil's-advocate
+ *   section is right that a badly-built phone tree makes a small business
+ *   sound like a call centre, so ring-all stays the recommended shape and is
+ *   first in the list.
+ * - **Each option states its CONSEQUENCE.** "On-call only" is a label;
+ *   "everyone else's phone stays quiet" is the decision being made.
+ * - **A setting that cannot fire says so.** With no business hours there is no
+ *   after-hours, and an owner who picks "take a message" and watches nothing
+ *   happen has been failed silently — which is the worst way to fail somebody.
+ */
+@Composable
+private fun AfterHoursCard(
+    scope: SettingsScope,
+    company: CompanyView,
+    onCompanyUpdated: (CompanyView) -> Unit,
+) {
+    val canEdit = SettingsRoleGate.canEditWorkspace(scope.role)
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val coroutines = rememberCoroutineScope()
+    val hoursSet = company.business_hours.values.any { it != null }
+
+    SettingsCard(
+        title = "After hours",
+        description = "Outside your business hours a call can ring everyone, " +
+            "ring only whoever's on call, or go straight to a message. Most " +
+            "small crews are best on the first one.",
+    ) {
+        if (!hoursSet) {
+            Text(
+                "You haven't set business hours yet, so nothing here can " +
+                    "happen — every hour is a working hour until you do. Set " +
+                    "them under Hours.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+        }
+        AFTER_HOURS_CHOICES.forEach { choice ->
+            val selected = company.after_hours_calls == choice.value
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .selectable(
+                        selected = selected,
+                        enabled = canEdit && !saving,
+                        onClick = {
+                            if (selected) return@selectable
+                            error = null
+                            saving = true
+                            coroutines.launch {
+                                try {
+                                    val updated = scope.repo.updateCompany(
+                                        scope.companyId,
+                                        buildJsonObject {
+                                            put("after_hours_calls", choice.value)
+                                        },
+                                    )
+                                    onCompanyUpdated(updated)
+                                    scope.showMessage("After-hours calling updated.")
+                                } catch (cause: Exception) {
+                                    error = cause.userMessage()
+                                } finally {
+                                    saving = false
+                                }
+                            }
+                        },
+                    )
+                    .padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(
+                    selected = selected,
+                    onClick = null,
+                    enabled = canEdit && !saving,
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(choice.label, style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        choice.detail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        InlineError(error)
+        if (!canEdit) {
+            Spacer(Modifier.height(4.dp))
+            ReadOnlyLine("Only owners and admins can change after-hours calling.")
+        }
+    }
+}
+
+/**
+ * The three shapes, in the order an owner grows through them.
+ *
+ * The middle option's second sentence is the one that stops somebody choosing
+ * it by mistake: with nobody on call it behaves like the first, because every
+ * uncertainty widens.
+ */
+private data class AfterHoursChoice(
+    val value: String,
+    val label: String,
+    val detail: String,
+)
+
+private val AFTER_HOURS_CHOICES = listOf(
+    AfterHoursChoice(
+        "ring_everyone",
+        "Ring everyone, day or night",
+        "What happens today. Every call rings the whole crew whatever the clock says.",
+    ),
+    AfterHoursChoice(
+        "on_call_only",
+        "Ring only whoever's on call",
+        "After hours, the phone rings for the person holding the on-call shift " +
+            "and nobody else. With no shift set, everyone rings — we never " +
+            "leave a call reaching nobody.",
+    ),
+    AfterHoursChoice(
+        "voicemail",
+        "Take a message",
+        "After hours, the caller goes straight to your greeting instead of " +
+            "ringing out first — unless somebody is on call, who still rings.",
+    ),
+)
 
 /** #193: the change awaiting confirmation — value null = back to the
  *  company-name default. */

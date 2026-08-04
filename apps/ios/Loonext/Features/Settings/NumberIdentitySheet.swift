@@ -68,6 +68,11 @@ struct NumberIdentitySheet: View {
                         if !greetings.isEmpty {
                             greetingPicker(identity)
                         }
+                        // #278: what THIS line does after hours. Per number
+                        // because a service line and a sales line are two
+                        // businesses, and the one that must reach somebody at
+                        // 3am is rarely the one taking invoice questions.
+                        afterHoursPicker(identity)
                         field(
                             title: "Name for this line",
                             hint: "Used in the greeting, on missed-call texts, and "
@@ -273,6 +278,76 @@ struct NumberIdentitySheet: View {
         .padding(.top, 14)
     }
 
+    private func afterHoursPicker(_ identity: NumberIdentity) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("After-hours calls").font(.subheadline.weight(.medium))
+                Spacer()
+                if identity.after_hours_calls.inherited {
+                    Text("Same as your workspace")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button("Use the workspace's") { restore("after_hours_calls") }
+                        .font(.caption)
+                        .disabled(pending)
+                }
+            }
+            Picker(
+                "After-hours calls",
+                selection: Binding(
+                    get: {
+                        identity.after_hours_calls.inherited
+                            ? inheritTag
+                            : (identity.after_hours_calls.value ?? inheritTag)
+                    },
+                    set: { selectAfterHours($0 == inheritTag ? nil : $0) }
+                )
+            ) {
+                // Inherit FIRST: it is what every line does until somebody says
+                // otherwise, and the option that is always correct is the one
+                // that needs no thought.
+                Text("Same as your workspace").tag(inheritTag)
+                Text("Ring everyone, day or night").tag("ring_everyone")
+                Text("Ring only whoever's on call").tag("on_call_only")
+                Text("Take a message").tag("voicemail")
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .disabled(pending)
+            Text(
+                "Outside this line's hours. With nobody on call, the last two "
+                    + "still differ — one rings the crew anyway, the other takes "
+                    + "a message."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.top, 14)
+    }
+
+    /// Route this line's after-hours calls, or nil to follow the workspace.
+    private func selectAfterHours(_ value: String?) {
+        Task { @MainActor in
+            pending = true
+            error = nil
+            defer { pending = false }
+            do {
+                let next = try await scope.repo.setNumberIdentity(
+                    scope.companyId,
+                    numberId: number.id,
+                    body: .object([
+                        "after_hours_calls": value.map { JSONValue.string($0) } ?? .null
+                    ])
+                )
+                seed(next)
+                loaded = .ready(next)
+            } catch {
+                self.error = error.userMessage
+            }
+        }
+    }
+
     /// Choose a recording, or null for the written words.
     private func selectGreeting(_ id: String?) {
         Task { @MainActor in
@@ -389,3 +464,7 @@ struct NumberIdentitySheet: View {
  a caller still hears a greeting either way.
  */
 private let writtenGreetingId = "__written__"
+
+/// #278: "follow the workspace" is a real choice here, not an absence, so the
+/// picker needs a tag for it — SwiftUI cannot select nil.
+private let inheritTag = "__inherit__"

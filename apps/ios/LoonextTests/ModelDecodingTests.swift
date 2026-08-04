@@ -38,6 +38,14 @@ final class ModelDecodingTests: XCTestCase {
         XCTAssertTrue(company.business_hours.isEmpty)
         XCTAssertFalse(company.away_enabled)
         XCTAssertEqual(company.call_screening, "off")
+        // #278's deploy-day guarantee, on the client side. A payload from a
+        // server that predates the field must read as the product as it was —
+        // an app that defaulted to any other value would silently re-route
+        // live calls for a workspace that never asked, and would show the
+        // owner a setting they did not choose.
+        XCTAssertEqual(company.after_hours_calls, "ring_everyone")
+        XCTAssertNil(company.after_hours_greeting_id)
+        XCTAssertNil(company.voicemail_greeting_id)
         XCTAssertTrue(company.numbers.isEmpty)
         XCTAssertTrue(company.enabled_modules.isEmpty)
         XCTAssertNil(company.registration.brand)

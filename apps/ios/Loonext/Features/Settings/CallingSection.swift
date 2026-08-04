@@ -54,6 +54,10 @@ struct CallingSectionView: View {
         // the same question in a better way. The written one stays as the
         // zero-setup default and the runtime fallback.
         VoiceGreetingCard(scope: scope, canEdit: SettingsRoleGate.canEditWorkspace(scope.role))
+        // #278: after the voicemail cards, before screening — it is a routing
+        // decision about the SAME calls those describe, so it reads as a
+        // qualifier on them rather than a new subject.
+        AfterHoursCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
         ScreeningCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
         CallerIdCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
         MinutesFooter(scope: scope)
@@ -299,6 +303,137 @@ private struct VoicemailCard: View {
 }
 
 // MARK: - Call screening
+
+/**
+ #278 — what an inbound call does after hours.
+
+ Hand-port of `apps/web/src/components/settings/after-hours-calls-card.tsx`
+ and `CallingSection.kt`, keeping the three rules that shape it:
+
+ - **The default is the product as it was.** #278's own devil's-advocate
+   section is right that a badly-built phone tree makes a small business sound
+   like a call centre, so ring-all stays the recommended shape and is first.
+ - **Each option states its CONSEQUENCE.** "On-call only" is a label;
+   "everyone else's phone stays quiet" is the decision being made.
+ - **A setting that cannot fire says so.** With no business hours there is no
+   after-hours, and an owner who picks "take a message" and watches nothing
+   happen has been failed silently — the worst way to fail somebody.
+ */
+private struct AfterHoursCard: View {
+    let scope: SettingsScope
+    let company: CompanyView
+    let onCompanyUpdated: @MainActor (CompanyView) -> Void
+
+    @State private var saving = false
+    @State private var error: String?
+
+    private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
+    private var hoursSet: Bool {
+        company.business_hours.values.contains { $0 != nil }
+    }
+
+    var body: some View {
+        SettingsCard(
+            title: "After hours",
+            description: "Outside your business hours a call can ring everyone, "
+                + "ring only whoever's on call, or go straight to a message. Most "
+                + "small crews are best on the first one."
+        ) {
+            if !hoursSet {
+                Text(
+                    "You haven't set business hours yet, so nothing here can happen — "
+                        + "every hour is a working hour until you do. Set them under Hours."
+                )
+                .font(.footnote)
+                .padding(.bottom, 8)
+            }
+            ForEach(afterHoursChoices) { choice in
+                let selected = company.after_hours_calls == choice.value
+                Button {
+                    guard !selected else { return }
+                    save(choice.value)
+                } label: {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                            .foregroundStyle(selected ? BrandColor.olive : Color.secondary)
+                            .padding(.top, 2)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(choice.label)
+                                .font(.body)
+                                .foregroundStyle(Color.primary)
+                            Text(choice.detail)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 6)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canEdit || saving)
+            }
+            InlineError(error)
+            if !canEdit {
+                Spacer().frame(height: 4)
+                ReadOnlyLine("Only owners and admins can change after-hours calling.")
+            }
+        }
+    }
+
+    private func save(_ value: String) {
+        error = nil
+        saving = true
+        Task {
+            do {
+                let updated = try await scope.repo.updateCompany(
+                    scope.companyId,
+                    patch: .object(["after_hours_calls": .string(value)])
+                )
+                onCompanyUpdated(updated)
+                scope.showMessage("After-hours calling updated.")
+            } catch {
+                self.error = error.userMessage
+            }
+            saving = false
+        }
+    }
+}
+
+private struct AfterHoursChoice: Identifiable {
+    let value: String
+    let label: String
+    let detail: String
+    var id: String { value }
+}
+
+/**
+ The three shapes, in the order an owner grows through them.
+
+ The middle option's second sentence is the one that stops somebody choosing it
+ by mistake: with nobody on call it behaves like the first, because every
+ uncertainty widens.
+ */
+private let afterHoursChoices = [
+    AfterHoursChoice(
+        value: "ring_everyone",
+        label: "Ring everyone, day or night",
+        detail: "What happens today. Every call rings the whole crew whatever "
+            + "the clock says."
+    ),
+    AfterHoursChoice(
+        value: "on_call_only",
+        label: "Ring only whoever's on call",
+        detail: "After hours, the phone rings for the person holding the on-call "
+            + "shift and nobody else. With no shift set, everyone rings — we never "
+            + "leave a call reaching nobody."
+    ),
+    AfterHoursChoice(
+        value: "voicemail",
+        label: "Take a message",
+        detail: "After hours, the caller goes straight to your greeting instead "
+            + "of ringing out first — unless somebody is on call, who still rings."
+    ),
+]
 
 private struct ScreeningChoice: Identifiable {
     let value: String

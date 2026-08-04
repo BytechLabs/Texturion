@@ -75,6 +75,9 @@ internal fun NumberIdentityDialog(
     // the picker entirely.
     var greetings by remember { mutableStateOf(emptyList<VoicemailGreeting>()) }
     var greetingMenuOpen by remember { mutableStateOf(false) }
+    // #278: what this line does after hours. Inherit is a real value here, so
+    // the menu carries it as its first entry rather than as an absence.
+    var afterHoursMenuOpen by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
 
@@ -125,6 +128,34 @@ internal fun NumberIdentityDialog(
                             put("voicemail_greeting_id", JsonNull)
                         } else {
                             put("voicemail_greeting_id", id)
+                        }
+                    },
+                )
+                seed(next)
+                loaded = LoadState.Ready(next)
+                onChanged()
+            } catch (cause: Exception) {
+                error = cause.userMessage()
+            } finally {
+                pending = false
+            }
+        }
+    }
+
+    /** #278: route this line's after-hours calls, or null to follow the workspace. */
+    fun selectAfterHours(value: String?) {
+        coroutines.launch {
+            pending = true
+            error = null
+            try {
+                val next = scope.repo.setNumberIdentity(
+                    scope.companyId,
+                    number.id,
+                    buildJsonObject {
+                        if (value == null) {
+                            put("after_hours_calls", JsonNull)
+                        } else {
+                            put("after_hours_calls", value)
                         }
                     },
                 )
@@ -279,6 +310,82 @@ internal fun NumberIdentityDialog(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        // #278: what THIS line does after hours. Per number
+                        // because a service line and a sales line are two
+                        // businesses, and the one that must reach somebody at
+                        // 3am is rarely the one taking invoice questions.
+                        val afterHoursInherited =
+                            state.value.after_hours_calls.inherited
+                        val afterHoursLabel =
+                            if (afterHoursInherited) {
+                                INHERIT_LABEL
+                            } else {
+                                AFTER_HOURS_LABELS[state.value.after_hours_calls.value]
+                                    ?: INHERIT_LABEL
+                            }
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "After-hours calls",
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                            Spacer(Modifier.weight(1f))
+                            if (afterHoursInherited) {
+                                Text(
+                                    INHERIT_LABEL,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            } else {
+                                TextButton(
+                                    enabled = !pending,
+                                    onClick = { clear("after_hours_calls") },
+                                ) {
+                                    Text(
+                                        "Use the workspace's",
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                            }
+                        }
+                        TextButton(
+                            enabled = !pending,
+                            onClick = { afterHoursMenuOpen = true },
+                        ) { Text(afterHoursLabel) }
+                        DropdownMenu(
+                            expanded = afterHoursMenuOpen,
+                            onDismissRequest = { afterHoursMenuOpen = false },
+                        ) {
+                            // Inherit FIRST: it is what every line does until
+                            // somebody says otherwise, and the option that is
+                            // always correct is the one that needs no thought.
+                            DropdownMenuItem(
+                                text = { Text(INHERIT_LABEL) },
+                                onClick = {
+                                    afterHoursMenuOpen = false
+                                    selectAfterHours(null)
+                                },
+                            )
+                            AFTER_HOURS_LABELS.forEach { (value, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        afterHoursMenuOpen = false
+                                        selectAfterHours(value)
+                                    },
+                                )
+                            }
+                        }
+                        Text(
+                            "Outside this line's hours. With nobody on call, the " +
+                                "last two still differ — one rings the crew anyway, " +
+                                "the other takes a message.",
+                            modifier = Modifier.padding(top = 4.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         IdentityField(
                             title = "Name for this line",
                             hint = "Used in the greeting, on missed-call texts, and " +
@@ -471,3 +578,13 @@ private fun IdentityToggle(
  * spoken aloud from the written words, and "None" would suggest silence.
  */
 private const val WRITTEN_GREETING_LABEL = "The written greeting, read aloud"
+
+/** "Follow the workspace" is a real choice here, so it is a labelled option. */
+private const val INHERIT_LABEL = "Same as your workspace"
+
+/** #278: the three shapes, in the order an owner grows through them. */
+private val AFTER_HOURS_LABELS = linkedMapOf(
+    "ring_everyone" to "Ring everyone, day or night",
+    "on_call_only" to "Ring only whoever's on call",
+    "voicemail" to "Take a message",
+)

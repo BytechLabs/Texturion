@@ -284,6 +284,13 @@ enum DefaultScreeningOff: DefaultCodableProvider {
     static var defaultValue: String { "off" }
 }
 
+/// #278: what an inbound call does outside business hours. `ring_everyone` is
+/// the product exactly as it behaved before this existed, so a lagging payload
+/// without the field keeps that rather than inventing a routing decision.
+enum DefaultRingEveryone: DefaultCodableProvider {
+    static var defaultValue: String { "ring_everyone" }
+}
+
 /// #193: caller ID defaults to the company name platform-wide, so a lagging
 /// payload without the field reads as the company-name default.
 enum DefaultCallerIdCompanyName: DefaultCodableProvider {
@@ -401,6 +408,13 @@ struct CompanyView: Codable, Sendable {
     /// somewhere else. Defaults FALSE: most shops want no taxonomy at all.
     @Default<DefaultFalse> var tags_locked: Bool
     let voicemail_greeting: String?
+    /// #309: the workspace's default RECORDING; nil = the written words.
+    let voicemail_greeting_id: String?
+    /// #278: what an inbound call does outside business hours.
+    @Default<DefaultRingEveryone> var after_hours_calls: String
+    /// #278: the recording played after hours; nil falls back to the ordinary
+    /// greeting, never to silence.
+    let after_hours_greeting_id: String?
     @Default<DefaultScreeningOff> var call_screening: String
     let cnam_display_name: String?
     @Default<DefaultFalse> var caller_id_lookup: Bool
@@ -453,6 +467,13 @@ struct NumberIdentity: Codable, Sendable {
     var business_hours = ResolvedHours()
     /// #309: which RECORDING plays. Null is the written words, read aloud.
     var voicemail_greeting_id = ResolvedField()
+    /// #278: what a call to this line does outside its hours. A ResolvedField
+    /// rather than a ResolvedBool for the same reason it is a three-value
+    /// column: "ring everyone" and "follow the workspace" are different
+    /// answers, and only a nullable value can say the second.
+    var after_hours_calls = ResolvedField()
+    /// #278: the recording played after hours; nil is the ordinary greeting.
+    var after_hours_greeting_id = ResolvedField()
 }
 
 /// The week, resolved.

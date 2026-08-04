@@ -391,6 +391,16 @@ data class NumberIdentity(
     val business_hours: ResolvedHours = ResolvedHours(),
     /** #309: which RECORDING plays. Null is the written words, read aloud. */
     val voicemail_greeting_id: ResolvedField = ResolvedField(),
+    /**
+     * #278: what a call to this line does outside its hours.
+     *
+     * A ResolvedField rather than a ResolvedBool for the same reason it is a
+     * three-value column: "ring everyone" and "follow the workspace" are
+     * different answers, and only a nullable value can say the second.
+     */
+    val after_hours_calls: ResolvedField = ResolvedField(),
+    /** #278: the recording played after hours; null is the ordinary greeting. */
+    val after_hours_greeting_id: ResolvedField = ResolvedField(),
 )
 
 /**

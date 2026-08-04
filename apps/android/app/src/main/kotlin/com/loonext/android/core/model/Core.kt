@@ -397,6 +397,15 @@ data class CompanyView(
      *  somewhere else. Defaults FALSE: most shops want no taxonomy at all. */
     val tags_locked: Boolean = false,
     val voicemail_greeting: String? = null,
+    /** #309: the workspace's default RECORDING; null = the written words. */
+    val voicemail_greeting_id: String? = null,
+    /** #278: what an inbound call does outside business hours. Defaults to
+     *  ring_everyone, which is the product exactly as it behaved before it
+     *  existed — a payload without the field keeps that. */
+    val after_hours_calls: String = "ring_everyone",
+    /** #278: the recording played after hours; null falls back to the ordinary
+     *  greeting, never to silence. */
+    val after_hours_greeting_id: String? = null,
     val call_screening: String = "off",
     val cnam_display_name: String? = null,
     val caller_id_lookup: Boolean = false,
