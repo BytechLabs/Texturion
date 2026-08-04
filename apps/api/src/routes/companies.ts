@@ -21,6 +21,7 @@ import {
   isValidBusinessHours,
   isValidHoursExceptions,
   NANP_AREA_CODES,
+  screenBusinessName,
 } from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -28,6 +29,7 @@ import { z } from "zod";
 import { type CompanyAiSettings, loadAiSettings } from "../ai/settings";
 import { auditDiff } from "../audit/diff";
 import { recordAuditFromRequest } from "../audit/log";
+import { alertProhibitedCategory } from "../messaging/aup-signup-screen";
 import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -375,6 +377,41 @@ companiesRoutes.post("/companies", async (c) => {
       // Never fail the signup over a segmentation field. The workspace is more
       // important than knowing how big its crew is.
       console.error(`crew size persist skipped: ${crewError.message}`);
+    }
+  }
+
+  /**
+   * #303 — screen the name against the categories §4 prohibits outright.
+   *
+   * The issue asks that we notice a prohibited category at SIGNUP rather than
+   * when a complaint arrives against our carrier account, because carrier
+   * action lands on the sending pool and not on the offender.
+   *
+   * It FLAGS and never declines, and never blocks the signup. A business name
+   * is weak evidence — "Colt Plumbing" is a plumber — so refusing on a keyword
+   * would turn away real customers at the moment they are deciding whether to
+   * trust us, with nobody to argue to. A person reads the alert and decides
+   * before the number is provisioned, which is the same alert-then-human
+   * posture the watch job takes and for the same reason.
+   *
+   * Best-effort, like the two blocks around it: a workspace that exists must
+   * not fail to be created because an alert could not be sent.
+   */
+  const flags = screenBusinessName(body.name);
+  if (flags.length > 0) {
+    try {
+      await alertProhibitedCategory(getEnv(c.env), {
+        companyId: company.id as string,
+        name: body.name,
+        matches: flags,
+      });
+    } catch (cause) {
+      // Awaited inside a try rather than handed to `executionCtx.waitUntil`.
+      // The execution context is not present in every environment this route
+      // runs in, and reaching for it turned a working signup into a 500 —
+      // which is a far worse bug than the one this screen prevents. The same
+      // shape as the referral block below, for the same reason.
+      console.error(`aup signup screen alert skipped: ${String(cause)}`);
     }
   }
 

@@ -265,6 +265,90 @@ describe("POST /v1/companies (company-exempt)", () => {
  * about the server re-doing that work: what lands in a column has to be safe
  * even when the request was hand-crafted with curl.
  */
+/**
+ * #303 — screening a new workspace's name against the categories §4 prohibits.
+ *
+ * SS-2 is the one that matters. This exists to catch a dispensary before a
+ * carrier complaint does, and it must never be the reason a real contractor
+ * cannot sign up: the screen flags, a person decides, and the workspace is
+ * created either way. A signup that failed because an ops mailbox was down
+ * would be a far worse bug than the one this prevents.
+ */
+describe("POST /v1/companies — AUP signup screening (#303)", () => {
+  function world() {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/rpc/api_create_company", () => ({ id: COMPANY_ID }));
+    return sb;
+  }
+
+  it("SS-1: a name suggesting a prohibited category alerts somebody", async () => {
+    const sb = world();
+    const sent: unknown[] = [];
+    stubFetch(jwksRoute(auth), sb.route, (url, request) => {
+      if (!url.href.includes("resend")) return undefined;
+      return request.text().then((body) => {
+        sent.push(JSON.parse(body));
+        return Response.json({ id: "email-1" });
+      });
+    });
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/companies", {
+      method: "POST",
+      companyId: null,
+      body: { ...validBody, requested_area_code: "212", name: "Green Leaf Dispensary" },
+    });
+    expect(res.status).toBe(201);
+
+    const email = sent[0] as { subject: string; text: string };
+    expect(email.subject).toMatch(/cannabis/i);
+    // Never a verdict: whoever opens this is about to look at a real business.
+    expect(email.subject).not.toMatch(/violation|prohibited business/i);
+    expect(email.text).toMatch(/not\s+a finding/i);
+  });
+
+  it("SS-2: an ordinary contractor is not alerted on, and never blocked", async () => {
+    // THE ONE THAT MATTERS. A screen that fires on real customers trains
+    // whoever reads it to dismiss the queue, and one that could block a signup
+    // would be a worse bug than the problem it solves.
+    const sb = world();
+    const sent: unknown[] = [];
+    stubFetch(jwksRoute(auth), sb.route, (url, request) => {
+      if (!url.href.includes("resend")) return undefined;
+      return request.text().then((body) => {
+        sent.push(JSON.parse(body));
+        return Response.json({ id: "email-1" });
+      });
+    });
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/companies", {
+      method: "POST",
+      companyId: null,
+      body: { ...validBody, requested_area_code: "212", name: "Colt Plumbing & Heating" },
+    });
+    expect(res.status).toBe(201);
+    expect(sent).toEqual([]);
+  });
+
+  it("SS-3: the workspace is created even when the alert cannot be sent", async () => {
+    // The alert is best-effort by construction. A workspace that exists must
+    // not fail to be created because an ops mailbox was unreachable.
+    const sb = world();
+    stubFetch(jwksRoute(auth), sb.route, (url) =>
+      url.href.includes("resend")
+        ? new Response("upstream down", { status: 500 })
+        : undefined,
+    );
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/companies", {
+      method: "POST",
+      companyId: null,
+      body: { ...validBody, requested_area_code: "212", name: "Green Leaf Dispensary" },
+    });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ id: COMPANY_ID });
+  });
+});
+
 describe("POST /v1/companies — first-touch attribution (#296)", () => {
   function createStub(): SupabaseStub {
     const sb = supabaseStub(env);

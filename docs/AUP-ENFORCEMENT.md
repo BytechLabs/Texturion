@@ -118,9 +118,17 @@ Honest state, so nobody assumes a lever exists:
   Re-asserting the SAME step writes nothing. A second complaint about a
   workspace already suspended is not a second suspension, and an audit column
   that cries wolf is one people stop reading.
-- **No signup screening** for the categories §4 prohibits outright, so a
-  prohibited-category workspace is still declined at 10DLC registration rather
-  than before provisioning.
+- **Signup screening exists, and it FLAGS rather than declines.**
+  `screenBusinessName` (packages/shared) matches the workspace name against the
+  categories §4 prohibits and emails ops before the number is provisioned. It
+  never blocks the signup: a name is weak evidence — "Colt Plumbing" is a
+  plumber — and refusing on a keyword would turn away a real customer at the
+  moment they are deciding whether to trust us, with nobody to argue to.
+
+  The term list's SPECIFICITY is the feature. A single common word in it fires
+  on real contractors, whoever reads the alerts learns to dismiss them, and the
+  one real dispensary lands in a queue nobody trusts. PC-8 fails the build if a
+  term is a word an ordinary trade name contains.
 - **Complaint ratios** are named in #303's scope and not implemented. Carrier-
   violation codes now are: `api_aup_signals.spam_blocks_24h` counts outbound
   FAILED with the codes `carrier-failure.ts` classifies as `spam_blocked`

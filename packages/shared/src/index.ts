@@ -586,3 +586,15 @@ export {
   VOICE_OVERAGE_CENTS_PER_MINUTE,
   type BillingCurrency,
 } from "./billing-currency";
+
+/**
+ * #303 — signup screening for the categories `/legal/aup` §4 prohibits.
+ * Returns suspicion, never a verdict: a business name is weak evidence and a
+ * person decides.
+ */
+export {
+  screenBusinessName,
+  screeningSummary,
+  type CategoryMatch,
+  type ProhibitedCategory,
+} from "./prohibited-categories";
