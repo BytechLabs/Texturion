@@ -74,12 +74,28 @@ final class LocaleCopyTests: XCTestCase {
     }
 
     func testTheInheritOptionIsNeverBlankEvenWhenTheWorkspaceLanguageIsUnknown() {
-        // It resolves the same way the send path does rather than rendering
-        // "Same as workspace ()", which would read as a bug and teach nothing.
+        // Never blank, and never a GUESS either. This originally resolved the
+        // way the send path does and named English, which is wrong in the one
+        // case it covers: the workspace read has not landed, or failed, so the
+        // answer is unknown. Naming English there tells a French workspace its
+        // default is English, which is the exact confusion this control exists
+        // to remove - and it is stated with the same confidence as a fact we
+        // actually have.
+        //
+        // Vaguer beats misleading. The label degrades to the unqualified
+        // sentence, which is still meaningful ("whatever the workspace uses")
+        // and never renders "Same as workspace ()".
         XCTAssertEqual(
             inheritedLocaleLabel(companyLocale: nil),
-            "Same as workspace (English)"
+            "Same as workspace"
         )
+        // The same is true of a value this build does not recognise, which is
+        // the shape a later locale reaching an older app would take.
+        XCTAssertEqual(
+            inheritedLocaleLabel(companyLocale: "de"),
+            "Same as workspace"
+        )
+        XCTAssertFalse(inheritedLocaleLabel(companyLocale: nil).isEmpty)
     }
 
     func testTheInheritOptionIsDistinguishableFromThePlainLanguageBesideIt() {

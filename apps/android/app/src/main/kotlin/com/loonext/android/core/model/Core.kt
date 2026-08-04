@@ -347,8 +347,18 @@ object MessageLocale {
      * the only option that can put a contact back to following the workspace,
      * so it has to read as a real choice rather than as an absence.
      */
-    fun inheritLabel(companyLocale: String): String =
-        "Same as workspace (${label(companyLocale)})"
+    fun inheritLabel(companyLocale: String?): String {
+        // Names the language only when it is actually known. A value this build
+        // does not recognise would otherwise render as its raw code ("Same as
+        // workspace (de)"), and naming English instead would be worse still: it
+        // would tell a workspace its default is English with the same
+        // confidence as a fact we have. Vaguer beats misleading, and the bare
+        // sentence still means something.
+        //
+        // Matches the web and iOS clients, which degrade the same way.
+        if (companyLocale == null || companyLocale !in ALL) return "Same as workspace"
+        return "Same as workspace (${label(companyLocale)})"
+    }
 
     /**
      * The language a text to this contact actually goes out in.

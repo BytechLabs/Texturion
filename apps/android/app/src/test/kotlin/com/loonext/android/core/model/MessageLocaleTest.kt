@@ -98,4 +98,18 @@ class MessageLocaleTest {
         assertEquals(listOf(MessageLocale.EN, MessageLocale.FR_CA), MessageLocale.ALL)
         assertEquals(MessageLocale.EN, MessageLocale.DEFAULT)
     }
+
+    @Test
+    fun `the inherit option never names a language it is only guessing`() {
+        // An unrecognised value is the shape a later locale reaching an older
+        // build takes. Rendering its raw code reads as a bug; naming English
+        // instead states a fact we do not have, to a workspace that may not be
+        // English. The bare sentence still means "whatever the workspace uses".
+        //
+        // Web and iOS degrade identically, which is the point: three clients
+        // showing three different answers to the same unknown is the drift this
+        // control was added to remove.
+        assertEquals("Same as workspace", MessageLocale.inheritLabel("de"))
+        assertEquals("Same as workspace", MessageLocale.inheritLabel(null))
+    }
 }
