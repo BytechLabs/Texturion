@@ -25,6 +25,7 @@ import {
   type PlanId,
   STORAGE_ABUSE_TIERS_GB,
 } from "./plans";
+import { checkFleetStorage } from "./fleet-storage";
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
@@ -386,6 +387,21 @@ export async function runUsageAlertsJob(
   }
 
   const failures: unknown[] = [];
+
+  // #240: the fleet number, once per run rather than per company — it is not a
+  // per-tenant fact, and summing what this capped loop happened to visit would
+  // under-report exactly as the fleet grew past the point where it matters.
+  //
+  // Reported to Sentry rather than added to `failures`: this job exists to warn
+  // tenants about their own overage, and the aggregate error below counts
+  // COMPANIES. Folding an ops tripwire into that number would fail the run for
+  // something no tenant is affected by and misreport how many of them broke.
+  try {
+    await checkFleetStorage(env);
+  } catch (cause) {
+    Sentry.captureException(cause);
+  }
+
   for (const company of (data ?? []) as ActiveCompanyRow[]) {
     try {
       const { data: sum, error: sumError } = await db.rpc(

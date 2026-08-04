@@ -48,7 +48,9 @@ import {
 import {
   MAX_PREVIEW_BYTES,
   assertUsablePreview,
+  parseContentTwin,
   previewStoragePath,
+  sha256Hex,
 } from "../attachments/preview";
 import { scanAttachment } from "../attachments/scan";
 import { requireCapability } from "../auth/company";
@@ -506,7 +508,27 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
     assertUsablePreview(preview, { sizeBytes: bytes.byteLength });
   }
 
-  const objectPath = attachmentStoragePath({
+  // #240 item 3 — the same file, stored once.
+  //
+  // "A 25 MB file forwarded into three threads is 75 MB." Hashed here rather
+  // than anywhere later because this is the only moment the bytes are in hand;
+  // a hash added afterwards means re-reading every object in the bucket, which
+  // is the one thing in this product guaranteed to get large.
+  //
+  // Company-scoped, always. Cross-tenant sharing would save more and would have
+  // one workspace's row serving bytes another uploaded — a bug near the
+  // reference counting would then be a data leak rather than a broken image.
+  const contentSha256 = await sha256Hex(bytes);
+  const { data: twinData, error: twinError } = await db.rpc(
+    "api_attachment_by_content",
+    { p_company_id: companyId, p_sha256: contentSha256 },
+  );
+  if (twinError) {
+    throw new Error(`attachment content lookup failed: ${twinError.message}`);
+  }
+  const twin = parseContentTwin(twinData);
+
+  const objectPath = twin?.storage_path ?? attachmentStoragePath({
     companyId,
     ownerType,
     ownerId,
@@ -548,12 +570,18 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
   }
   if (!claim.attachment) throw new Error("claim_attachment_storage returned no row");
 
-  const upload = await db.storage
-    .from(ATTACHMENTS_BUCKET)
-    .upload(objectPath, bytes.slice().buffer, {
-      contentType: declaredType,
-      upsert: false, // a fresh uuid per upload — never overwrite
-    });
+  // #240: nothing to upload when the bytes are already here. The row is real
+  // and separate — its own id, owner, name and audit trail — it simply points
+  // at an object that already exists, and the sweep's in-use check is what
+  // keeps the other row from taking it away.
+  const upload = twin
+    ? { error: null }
+    : await db.storage
+        .from(ATTACHMENTS_BUCKET)
+        .upload(objectPath, bytes.slice().buffer, {
+          contentType: declaredType,
+          upsert: false, // a fresh uuid per upload — never overwrite
+        });
   if (upload.error) {
     // Release the claim: the row must not hold D30 budget for bytes that never
     // landed. A failed release is reclaimed by the ghost-row sweep pass (#15),
@@ -577,8 +605,31 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
   // actually made, so a failure here leaves `preview_path` null and the row
   // serves its original — which is exactly what every row did before this
   // shipped. The object is swept as an orphan if it half-landed.
-  let previewPath: string | null = null;
-  if (preview) {
+  let previewPath: string | null = twin?.preview_path ?? null;
+  // #240: a shared object shares its preview. Reusing the original and
+  // uploading a second preview beside it would store one file twice as far as
+  // the thread is concerned, which is the bug this is meant to fix wearing a
+  // different hat.
+  if (twin) {
+    const stamp = await db
+      .from("attachments")
+      .update({
+        content_sha256: contentSha256,
+        preview_path: twin.preview_path,
+        preview_bytes: twin.preview_bytes,
+      })
+      .eq("company_id", companyId)
+      .eq("id", claim.attachment.id as string);
+    if (stamp.error) {
+      // The row still points at a real object; it has simply lost its preview
+      // and its place in the dedup index. It serves its original, like every
+      // row did before this shipped.
+      console.error(
+        `attachment dedup stamp failed (${objectPath}): ${stamp.error.message}`,
+      );
+      previewPath = null;
+    }
+  } else if (preview) {
     const target = previewStoragePath(objectPath);
     const previewUpload = await db.storage
       .from(ATTACHMENTS_BUCKET)
@@ -596,6 +647,7 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
         .update({
           preview_path: target,
           preview_bytes: preview.bytes.byteLength,
+          content_sha256: contentSha256,
         })
         .eq("company_id", companyId)
         .eq("id", claim.attachment.id as string);
@@ -606,6 +658,19 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
       } else {
         previewPath = target;
       }
+    }
+  } else {
+    // No preview to store, but the hash still has to land or this file can
+    // never be the twin of the next upload.
+    const stamp = await db
+      .from("attachments")
+      .update({ content_sha256: contentSha256 })
+      .eq("company_id", companyId)
+      .eq("id", claim.attachment.id as string);
+    if (stamp.error) {
+      console.error(
+        `attachment hash stamp failed (${objectPath}): ${stamp.error.message}`,
+      );
     }
   }
 

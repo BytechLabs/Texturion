@@ -192,4 +192,92 @@ begin
   end if;
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- [#240 item 3] THE SAME FILE, STORED ONCE — and never taken from under a row
+-- that is still using it.
+do $$
+declare
+  v_co   uuid := 'ab000000-0000-4000-8000-0000000000c1'::uuid;
+  v_co2  uuid := 'ab000000-0000-4000-8000-0000000000c2'::uuid;
+  v_conv uuid := 'ab000000-0000-4000-8000-0000000000d1'::uuid;
+  v_note uuid;
+  v      jsonb;
+  v_used text[];
+begin
+  select id into v_note from public.messages
+   where company_id = v_co and direction = 'note' limit 1;
+
+  insert into public.attachments
+    (company_id, owner_type, owner_id, conversation_id, storage_path,
+     file_name, content_type, size_bytes, preview_path, preview_bytes,
+     content_sha256)
+  values (v_co, 'note', v_note, v_conv, 'ab/shared.pdf', 'spec.pdf',
+          'application/pdf', 5000000, null, null, repeat('a', 64));
+
+  -- A second upload of the same bytes finds the first.
+  v := public.api_attachment_by_content(v_co, repeat('a', 64));
+  if v ->> 'storage_path' <> 'ab/shared.pdf' then
+    raise exception 'the twin must be found: %', v;
+  end if;
+
+  -- ==========================================================================
+  -- NEVER ACROSS TENANTS.
+  --
+  -- Cross-company dedup would save more and would have one workspace's row
+  -- serving bytes another uploaded. A bug near the reference counting would
+  -- then be a data leak rather than a broken image.
+  -- ==========================================================================
+  if public.api_attachment_by_content(v_co2, repeat('a', 64)) is not null then
+    raise exception 'another company must never match these bytes';
+  end if;
+
+  -- A soft-deleted row is not a candidate: it is on its way to the sweep, and
+  -- pointing a new upload at an object about to be reclaimed is the worst
+  -- possible saving.
+  update public.attachments set deleted_at = now() where storage_path = 'ab/shared.pdf';
+  if public.api_attachment_by_content(v_co, repeat('a', 64)) is not null then
+    raise exception 'a soft-deleted row must not be shared with';
+  end if;
+  update public.attachments set deleted_at = null where storage_path = 'ab/shared.pdf';
+
+  -- ==========================================================================
+  -- THE DELETION RULE.
+  --
+  -- Two rows, one object. Deleting one must not take the bytes the other is
+  -- rendering — the failure arrives weeks later, from a customer, as "the app
+  -- lost my picture".
+  -- ==========================================================================
+  insert into public.attachments
+    (company_id, owner_type, owner_id, conversation_id, storage_path,
+     file_name, content_type, size_bytes, content_sha256, deleted_at)
+  values (v_co, 'note', v_note, v_conv, 'ab/shared.pdf', 'spec-again.pdf',
+          'application/pdf', 5000000, repeat('a', 64), now());
+
+  select array_agg(p order by p) into v_used
+    from public.api_attachment_paths_in_use(
+      array['ab/shared.pdf', 'ab/nobody-else.pdf']
+    ) as p;
+  if v_used is distinct from array['ab/shared.pdf'] then
+    raise exception 'the shared object must read as in use: %', v_used;
+  end if;
+
+  -- And a row's PREVIEW counts as a reference too — dedup reuses the pair.
+  select array_agg(p order by p) into v_used
+    from public.api_attachment_paths_in_use(array['ab/preview-1.jpg']) as p;
+  if v_used is distinct from array['ab/preview-1.jpg'] then
+    raise exception 'a live preview must read as in use: %', v_used;
+  end if;
+
+  raise notice 'attachment dedup (#240): assertions passed';
+end $$;
+
+-- Service-role only, like every other api_* function here.
+do $$
+begin
+  if has_function_privilege('authenticated', 'public.api_attachment_by_content(uuid, text)', 'execute')
+     or has_function_privilege('anon', 'public.api_attachment_paths_in_use(text[])', 'execute') then
+    raise exception 'the dedup functions must stay service_role only';
+  end if;
+end $$;
+
 rollback;

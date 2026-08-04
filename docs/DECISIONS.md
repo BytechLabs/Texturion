@@ -7163,3 +7163,98 @@ satisfied by silence — the exact silence above. It now forbids the CLAIM in
 either word order (`SOC 2 … certified`, `certified … SOC 2`) and separately
 requires the position to be present, so it cannot be satisfied by deleting the
 section either. Proven by breaking it four ways.
+
+---
+
+## D120 — attachment cost: derivatives yes, dedup yes, tiering no (#240, 2026-08-04)
+
+#240 asked for four things about what attachments cost us. Item 4 (standing
+per-workspace figures) shipped in b1aa1b12. This records what happened to the
+other three, and — for the one that was not built — the number at which that
+answer expires.
+
+### 1. Serve derivatives, not originals — BUILT
+
+A note attachment is capped at 25 MB and ten per note (D19 §2.4), and a thread
+re-fetched every one of them on every scroll, for every member of the crew,
+against the fixed 200 GB egress allowance D34 set — and on the tech's own mobile
+data (#289). The image on screen is a few hundred pixels wide.
+
+**Not a transform at sign time.** Supabase Storage image transformations would
+have needed no schema change at all. Their billing unit ruled it out: as of
+2026-08-04 the pricing page reads *"100 origin images included, then $5 per 1000
+origin images"*, counted per BILLING PERIOD — so a photo that stays in view
+costs again every month, forever, and the total scales with how much customers
+look at their own threads. That is an uncapped recurring cost center, which the
+standing cost rule does not allow without a cap, and capping it would mean a
+thread that stops rendering images.
+
+**The uploader makes it.** The device uploading has already decoded the image —
+it just showed it to somebody in a picker — so the resize is free there and
+costs us nothing. The two alternatives both buy something that would then need
+capping: a transform API bills per image, and decoding a 25 MB JPEG inside a
+Worker buys CPU time and a WASM codec in the bundle. It also shrinks the UPLOAD,
+which is the half of #289 nothing else was going to fix.
+
+A client-supplied preview is a client-supplied file and gets every gate the
+original gets — allow-list, byte-sniff, #317 content scan — plus a 400 KB ceiling
+and a materially-smaller rule so it cannot become a second full-size path. The
+mint serves the preview BY DEFAULT (`?variant=original` for a full-size view or
+download), because defaulting the other way would have shipped it inert.
+
+MMS media gets no derivative: every inbound item is ≤1 MB by carrier limit
+(D28), so the original IS the bounded preview.
+
+### 2. Lifecycle tiering for cold objects — NOT BUILT, and here is the trigger
+
+**The vendor cannot do it.** Supabase Storage's S3-compatibility page marks
+`GetBucketLifecycleConfiguration` and `PutBucketLifecycleConfiguration`
+unimplemented, and `PutObject`'s `x-amz-storage-class` unsupported (checked
+2026-08-04). There is no lifecycle rule and no storage class to move an object
+into. Tiering would mean a SECOND storage vendor: a new subprocessor with its own
+DPA, a second signing path, a second deletion contract to keep in step with #284
+and #227, and a second place for the sweep to be wrong.
+
+**There is nothing to tier.** Measured against production the same day: 2 live
+note attachments totalling 990 KB and 4 MMS media totalling 1.1 MB, across 3
+workspaces — 0.0009 GB against the 100 GB Supabase Pro includes. Storage costs
+us nothing, and would keep costing nothing after a hundred thousand times as
+much.
+
+**So the number was built instead of the machinery.** `api_fleet_stored_bytes()`
+plus a once-per-run check in the hourly usage-alerts cron emails ops the first
+time the FLEET crosses the included 100 GB — the moment a stored byte starts
+costing money, and therefore the moment tiering and deeper dedup stop costing
+more than they save. Ops only: D34 made storage free to the customer on purpose,
+and telling a workspace owner would read as a bill they are about to get.
+
+Without that number, "we looked at this and it was not worth it" decays into
+folklore and somebody re-derives it in a year — or nobody does, and the first
+sign is an invoice.
+
+### 3. Deduplicate identical objects — BUILT, early, on purpose
+
+"A 25 MB file forwarded into three threads is 75 MB." It saves nothing today and
+will not for a long time. It was built anyway because the COST OF BUILDING IT
+grows and the benefit does not shrink: the hash is computed at upload, so adding
+the column later means backfilling by re-reading every object in the bucket, and
+the bucket is the one thing in this product guaranteed to get large. Six rows is
+the cheapest this migration will ever be.
+
+**Scoped to one company, always.** Cross-tenant dedup would save more and is not
+on the table: it would have one workspace's row serving bytes another uploaded,
+and a bug near the reference counting would be a cross-tenant data leak rather
+than a broken image.
+
+**The deletion rule is the whole risk.** One row meant one object, so the sweep
+could delete an object the moment its row was hard-deleted. Both halves of that
+stopped being true — previews gave a row a second object, dedup lets one object
+serve several rows — so the sweep now subtracts every path a LIVE row still
+points at before reclaiming, and refuses to reclaim at all if it cannot find out.
+Getting this wrong deletes somebody else's photo in another thread and surfaces
+weeks later, from a customer, as "the app lost my picture".
+
+**Consistency:** D19 (machinery unchanged), D30/D34 (storage free and uncapped —
+nothing here caps or bills anything), #284/#227 (deletion still means the object
+goes; it just waits for the last row referencing it), #289 (the upload shrinks
+too).

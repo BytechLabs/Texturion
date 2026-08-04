@@ -128,3 +128,45 @@ export function assertUsablePreview(
     throw new ApiError("validation_failed", `preview: ${scan.message}`);
   }
 }
+
+/**
+ * #240 item 3 — hex SHA-256 of the uploaded bytes.
+ *
+ * Web Crypto rather than a library: it is in the Workers runtime already, it is
+ * the fastest thing available there, and a hash is the one place a hand-rolled
+ * implementation is both easy to get subtly wrong and impossible to notice.
+ */
+export async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", bytes.slice().buffer);
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * The live attachment already holding these exact bytes, as returned by
+ * `api_attachment_by_content`, or null.
+ *
+ * Parsed rather than cast: this decides whether a 25 MB upload is skipped, and
+ * a malformed answer must read as "no twin" — storing a second copy is a wasted
+ * object, while pointing a row at a path that came back wrong is a broken
+ * photo.
+ */
+export function parseContentTwin(data: unknown): {
+  storage_path: string;
+  preview_path: string | null;
+  preview_bytes: number | null;
+} | null {
+  if (!data || typeof data !== "object") return null;
+  const row = data as Record<string, unknown>;
+  if (typeof row.storage_path !== "string" || row.storage_path.length === 0) {
+    return null;
+  }
+  return {
+    storage_path: row.storage_path,
+    preview_path:
+      typeof row.preview_path === "string" ? row.preview_path : null,
+    preview_bytes:
+      typeof row.preview_bytes === "number" ? row.preview_bytes : null,
+  };
+}

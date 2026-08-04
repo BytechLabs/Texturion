@@ -76,6 +76,8 @@ export const EGRESS_RETENTION_MS = 62 * 24 * 60 * 60 * 1000;
 interface DeletedAttachmentRow {
   id: string;
   storage_path: string;
+  /** #240: a row's second object. Reclaimed with it, subject to the same check. */
+  preview_path: string | null;
 }
 
 /**
@@ -127,7 +129,7 @@ async function sweepSoftDeletedRows(
 ): Promise<void> {
   const { data, error } = await db
     .from("attachments")
-    .select("id,storage_path")
+    .select("id,storage_path,preview_path")
     .not("deleted_at", "is", null)
     .lt("deleted_at", cutoff)
     .order("deleted_at", { ascending: true })
@@ -142,15 +144,39 @@ async function sweepSoftDeletedRows(
   // Remove the Storage objects in one batched call, then hard-delete exactly the
   // rows whose objects we asked Storage to reclaim. remove() is idempotent — an
   // already-gone object is a no-op — so a partial prior run is safe to repeat.
-  const paths = rows.map((row) => row.storage_path);
-  const { error: removeError } = await db.storage
-    .from(ATTACHMENTS_BUCKET)
-    .remove(paths);
-  if (removeError) {
-    // Leave the rows soft-deleted (still selectable) so the next run retries.
-    console.error("attachment sweep storage remove failed:", removeError.message);
-    Sentry.captureMessage("attachment sweep storage remove failed", "warning");
-    return;
+  //
+  // #240: BOTH objects on a row, and only the ones nothing else is using.
+  //
+  // A row has two objects since previews shipped, and since dedup an object can
+  // be shared by several rows in the same company. Deleting an object a LIVE
+  // row still points at would silently break somebody else's photo in another
+  // thread — the kind of bug that arrives weeks later, from a customer, as "the
+  // app lost my picture". The rows themselves are still hard-deleted either
+  // way: what a shared object survives is the removal, not the bookkeeping.
+  const candidates = rows.flatMap((row) =>
+    row.preview_path ? [row.storage_path, row.preview_path] : [row.storage_path],
+  );
+  const { data: inUse, error: inUseError } = await db.rpc(
+    "api_attachment_paths_in_use",
+    { p_paths: candidates },
+  );
+  if (inUseError) {
+    // Fail the pass rather than guess. Reclaiming on an unknown answer is the
+    // one mistake here that destroys data.
+    throw new Error(`attachment in-use check failed: ${inUseError.message}`);
+  }
+  const spokenFor = new Set((inUse ?? []) as string[]);
+  const paths = candidates.filter((path) => !spokenFor.has(path));
+  if (paths.length > 0) {
+    const { error: removeError } = await db.storage
+      .from(ATTACHMENTS_BUCKET)
+      .remove(paths);
+    if (removeError) {
+      // Leave the rows soft-deleted (still selectable) so the next run retries.
+      console.error("attachment sweep storage remove failed:", removeError.message);
+      Sentry.captureMessage("attachment sweep storage remove failed", "warning");
+      return;
+    }
   }
 
   const ids = rows.map((row) => row.id);

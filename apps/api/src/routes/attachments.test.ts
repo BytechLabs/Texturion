@@ -640,6 +640,13 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
       { conversation_id: CONV_ID, direction: "note" },
     ]);
     sb.on("GET", "/rest/v1/attachments", () => []);
+    // #240: "nobody in this company has uploaded these exact bytes" — the
+    // world every test written before dedup was against. A suite that wants a
+    // twin registers this path itself and wins.
+    sb.on("POST", "/rest/v1/rpc/api_attachment_by_content", () => null);
+    // …and the hash stamp that follows a successful upload. Ambient because it
+    // is best-effort: a failure logs and the row simply never dedups.
+    sb.on("PATCH", "/rest/v1/attachments", () => []);
     sb.on("POST", "/rest/v1/rpc/claim_attachment_storage", (call) => {
       const p = call.body as { p_size_bytes: number; p_budget_bytes: number };
       const used = options.storedBytes ?? 0;
@@ -819,7 +826,129 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
       expect(res.status).toBe(201);
       expect(await res.json()).toMatchObject({ has_preview: false });
       expect(sb.find("POST", /^\/storage\/v1\/object\/attachments\//)).toHaveLength(1);
-      expect(sb.find("PATCH", "/rest/v1/attachments")).toHaveLength(0);
+      // One stamp, and it carries the hash ONLY — there is no preview to point
+      // at, and writing a null over one would be a different bug.
+      const stamp = sb.find("PATCH", "/rest/v1/attachments");
+      expect(stamp).toHaveLength(1);
+      expect(Object.keys(stamp[0].body as object)).toEqual(["content_sha256"]);
+    });
+  });
+
+  /**
+   * #240 item 3 — "a 25 MB file forwarded into three threads is 75 MB".
+   *
+   * The row is always real and separate: its own id, owner, name and audit
+   * trail. What it shares is the bytes.
+   */
+  describe("the same file, stored once", () => {
+    const TWIN_PATH = `${COMPANY_ID}/note/${NOTE_ID}/uuid-original.pdf`;
+
+    function twinStubs(sb: SupabaseStub, twin: Record<string, unknown> | null) {
+      sb.on("POST", "/rest/v1/rpc/api_attachment_by_content", () => twin);
+    }
+
+    async function upload(sb: SupabaseStub) {
+      stubFetch(jwksRoute(auth), sb.route);
+      return apiRequest(app, env, await auth.token(), "/v1/attachments", {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: uploadForm("note", NOTE_ID, {
+          name: "spec.pdf",
+          type: "application/pdf",
+          bytes: new TextEncoder().encode("%PDF-1.4 the same spec sheet"),
+        }),
+      });
+    }
+
+    it("skips the upload and points the new row at the existing object", async () => {
+      const sb = stubWithRole("member");
+      // Registered BEFORE uploadStubs: handlers are first-match-wins, and
+      // uploadStubs carries the ambient "no twin" answer.
+      twinStubs(sb, {
+        storage_path: TWIN_PATH,
+        preview_path: null,
+        preview_bytes: null,
+      });
+      uploadStubs(sb);
+      sb.on("PATCH", "/rest/v1/attachments", () => []);
+      sb.on("POST", "/rest/v1/conversation_events", () => []);
+
+      const res = await upload(sb);
+      expect(res.status).toBe(201);
+      // Nothing was written to Storage — the bytes are already there.
+      expect(sb.find("POST", /^\/storage\/v1\/object\/attachments\//)).toHaveLength(0);
+      // …but a row was still claimed: it is a separate attachment on a separate
+      // note, with its own audit event, that happens to share an object.
+      expect(sb.find("POST", "/rest/v1/rpc/claim_attachment_storage")).toHaveLength(1);
+      expect(
+        sb.find("POST", "/rest/v1/rpc/claim_attachment_storage")[0].body,
+      ).toMatchObject({ p_storage_path: TWIN_PATH });
+      expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(1);
+    });
+
+    it("inherits the twin's preview rather than storing a second one", async () => {
+      // Reusing the original and uploading a fresh preview beside it would
+      // store one file twice as far as the thread is concerned — the same bug
+      // wearing a different hat.
+      const sb = stubWithRole("member");
+      twinStubs(sb, {
+        storage_path: TWIN_PATH,
+        preview_path: `${COMPANY_ID}/note/${NOTE_ID}/preview-uuid-original.pdf`,
+        preview_bytes: 150000,
+      });
+      uploadStubs(sb);
+      sb.on("PATCH", "/rest/v1/attachments", () => []);
+      sb.on("POST", "/rest/v1/conversation_events", () => []);
+
+      const res = await upload(sb);
+      expect(await res.json()).toMatchObject({ has_preview: true });
+      expect(sb.find("PATCH", "/rest/v1/attachments")[0].body).toMatchObject({
+        preview_path: `${COMPANY_ID}/note/${NOTE_ID}/preview-uuid-original.pdf`,
+        preview_bytes: 150000,
+      });
+    });
+
+    it("hashes the bytes and asks scoped to the caller's company", async () => {
+      // Cross-tenant sharing would save more and would have one workspace's row
+      // serving bytes another uploaded. The company id is an argument here AND
+      // a predicate in the SQL, deliberately.
+      const sb = stubWithRole("member");
+      uploadStubs(sb);
+      twinStubs(sb, null);
+      sb.on("POST", /^\/storage\/v1\/object\/attachments\//, () => ({
+        Key: "attachments/x",
+      }));
+      sb.on("PATCH", "/rest/v1/attachments", () => []);
+      sb.on("POST", "/rest/v1/conversation_events", () => []);
+
+      await upload(sb);
+      const lookup = sb.find("POST", "/rest/v1/rpc/api_attachment_by_content")[0];
+      expect(lookup.body).toMatchObject({ p_company_id: COMPANY_ID });
+      // SHA-256 of "%PDF-1.4 the same spec sheet", hex — pinned so a change of
+      // algorithm or encoding cannot pass silently and split every workspace's
+      // dedup index in half.
+      expect((lookup.body as { p_sha256: string }).p_sha256).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it("uploads normally, and records the hash, when nothing matches", async () => {
+      // The hash has to land even with no preview to store, or this file can
+      // never be the twin of the next upload.
+      const sb = stubWithRole("member");
+      uploadStubs(sb);
+      twinStubs(sb, null);
+      sb.on("POST", /^\/storage\/v1\/object\/attachments\//, () => ({
+        Key: "attachments/x",
+      }));
+      sb.on("PATCH", "/rest/v1/attachments", () => []);
+      sb.on("POST", "/rest/v1/conversation_events", () => []);
+
+      const res = await upload(sb);
+      expect(res.status).toBe(201);
+      expect(sb.find("POST", /^\/storage\/v1\/object\/attachments\//)).toHaveLength(1);
+      const stamp = sb.find("PATCH", "/rest/v1/attachments")[0];
+      expect((stamp.body as { content_sha256: string }).content_sha256).toMatch(
+        /^[0-9a-f]{64}$/,
+      );
     });
   });
 
@@ -1237,6 +1366,11 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
     sb.on("GET", "/rest/v1/attachments", () => []);
     sb.on("POST", /^\/storage\/v1\/object\/attachments\//, () => ({ Key: "x" }));
     sb.on("POST", "/rest/v1/conversation_events", () => []);
+    // #240: this suite builds its own stubs rather than calling uploadStubs,
+    // so it needs the two dedup paths explicitly — no twin, and a hash stamp
+    // that lands.
+    sb.on("POST", "/rest/v1/rpc/api_attachment_by_content", () => null);
+    sb.on("PATCH", "/rest/v1/attachments", () => []);
     // The RPC stub keeps the SQL's re-sum math so the outcome is derived from
     // the unbounded budget, not hardcoded.
     let liveBytes = OLD_STARTER_BUDGET - 64;

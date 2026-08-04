@@ -26,6 +26,8 @@ const RECENT_PROBE_BOUNDARY = "2026-06-01T00:00:00.000Z";
 const NOW = "2026-07-16T00:00:00.000Z";
 
 interface UsageState {
+  /** #240: fleet-wide stored bytes, for the once-per-run tripwire. */
+  fleetBytes?: number;
   /** Sum api_period_segments reports for the company. */
   used: number;
   /** Ledger keys already present, `${metric}:${threshold}` (e.g. "segments:80"). */
@@ -77,6 +79,14 @@ function usageEndpoints(state: UsageState): StubEndpoint[] {
       attachments_bytes: state.attachmentBytes ?? 0,
       mms_bytes: state.mmsBytes ?? 0,
     })),
+    // #240: the fleet tripwire runs once per job. Zero by default — every test
+    // here is about ONE tenant's thresholds, and a fleet past 100 GB would put
+    // an extra ops email in each of their outboxes.
+    endpoint(
+      "POST",
+      /\/rest\/v1\/rpc\/api_fleet_stored_bytes/,
+      () => state.fleetBytes ?? 0,
+    ),
     endpoint(
       "POST",
       /\/rest\/v1\/rpc\/api_period_forward_seconds/,

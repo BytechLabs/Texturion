@@ -36,6 +36,8 @@ interface Captured {
   exportOrphanScans: { p_cutoff: string; p_limit: number }[];
   /** The PATCH that clears a call's voicemail pointer (never a DELETE). */
   callPatches: { url: URL; body: Record<string, unknown> }[];
+  /** #240: every api_attachment_paths_in_use body the sweep sent. */
+  inUseChecks: { p_paths: string[] }[];
 }
 
 interface SweepWorldOptions {
@@ -56,6 +58,14 @@ interface SweepWorldOptions {
   voicemailGhostIds?: string[];
   /** #479: api_orphan_export_objects result (default none). */
   exportOrphanPaths?: string[];
+  /**
+   * #240: api_attachment_paths_in_use result — the object paths a LIVE row
+   * still points at, which the sweep must NOT reclaim. Default none, which is
+   * the world every test written before dedup was against.
+   */
+  pathsInUse?: string[];
+  /** Make the in-use check itself fail: the pass must refuse to reclaim. */
+  inUseCheckFails?: boolean;
 }
 
 /**
@@ -65,7 +75,9 @@ interface SweepWorldOptions {
  * object-remove return an error (rows must then survive).
  */
 function stubSweepWorld(
-  scanRows: { id: string; storage_path: string }[],
+  // #240: `preview_path` optional so the pre-dedup fixtures still read as
+  // the world they were written for — a row with one object.
+  scanRows: { id: string; storage_path: string; preview_path?: string | null }[],
   opts: SweepWorldOptions = {},
 ): { route: FetchRoute; captured: Captured } {
   const captured: Captured = {
@@ -82,6 +94,7 @@ function stubSweepWorld(
     vmGhostScans: [],
     exportOrphanScans: [],
     callPatches: [],
+    inUseChecks: [],
   };
   const removePath = `/storage/v1/object/${ATTACHMENTS_BUCKET}`;
   const route: FetchRoute = (url, request) => {
@@ -94,6 +107,21 @@ function stubSweepWorld(
         captured.deletes.push(url);
         return Response.json([]);
       }
+    }
+    if (
+      url.href.startsWith(
+        `${env.SUPABASE_URL}/rest/v1/rpc/api_attachment_paths_in_use`,
+      ) &&
+      request.method === "POST"
+    ) {
+      return (async () => {
+        const body = (await request.clone().json()) as { p_paths: string[] };
+        captured.inUseChecks.push(body);
+        if (opts.inUseCheckFails) {
+          return new Response(JSON.stringify({ message: "boom" }), { status: 500 });
+        }
+        return Response.json(opts.pathsInUse ?? []);
+      })();
     }
     if (
       url.href.startsWith(
@@ -293,6 +321,116 @@ describe("sweepDeletedAttachments (D19 §2; #15/#16)", () => {
     // …then the rows hard-deleted by id.
     expect(captured.deletes).toHaveLength(1);
     expect(captured.deletes[0].searchParams.get("id")).toBe("in.(a1,a2)");
+  });
+
+  /**
+   * #240 — a row has two objects, and an object can belong to several rows.
+   *
+   * This pass used to be "one row, one object, delete it". Both halves of that
+   * stopped being true: previews gave a row a second object, and dedup lets one
+   * object serve several rows in the same company. Getting it wrong deletes
+   * somebody else's photo in another thread, and it surfaces weeks later from a
+   * customer as "the app lost my picture".
+   */
+  describe("reclaiming an object that might not be exclusively theirs", () => {
+    it("takes the preview with the original", async () => {
+      const { route, captured } = stubSweepWorld([
+        {
+          id: "a1",
+          storage_path: "co/note/o1/uuid-roof.jpg",
+          preview_path: "co/note/o1/preview-uuid-roof.jpg",
+        },
+      ]);
+      stubFetch(route);
+
+      await sweepDeletedAttachments(env);
+
+      expect(captured.removes[0].paths).toEqual([
+        "co/note/o1/uuid-roof.jpg",
+        "co/note/o1/preview-uuid-roof.jpg",
+      ]);
+    });
+
+    it("spares an object a LIVE row still points at, and deletes the row anyway", async () => {
+      // The dedup case: two attachments in one company share one object, and
+      // one of them is deleted. The bookkeeping is not what survives — the ROW
+      // is still hard-deleted — it is the bytes the other row is rendering.
+      const { route, captured } = stubSweepWorld(
+        [
+          {
+            id: "a1",
+            storage_path: "co/note/o1/uuid-spec.pdf",
+            preview_path: null,
+          },
+          {
+            id: "a2",
+            storage_path: "co/note/o2/uuid-other.pdf",
+            preview_path: null,
+          },
+        ],
+        { pathsInUse: ["co/note/o1/uuid-spec.pdf"] },
+      );
+      stubFetch(route);
+
+      await sweepDeletedAttachments(env);
+
+      expect(captured.removes[0].paths).toEqual(["co/note/o2/uuid-other.pdf"]);
+      expect(captured.deletes[0].searchParams.get("id")).toBe("in.(a1,a2)");
+    });
+
+    it("asks about both objects on the row, not just the original", async () => {
+      // A shared preview is as real as a shared original — dedup reuses the
+      // pair. Asking about only one of them would reclaim the other from under
+      // whoever is still using it.
+      const { route, captured } = stubSweepWorld([
+        {
+          id: "a1",
+          storage_path: "co/note/o1/uuid-roof.jpg",
+          preview_path: "co/note/o1/preview-uuid-roof.jpg",
+        },
+      ]);
+      stubFetch(route);
+
+      await sweepDeletedAttachments(env);
+
+      expect(captured.inUseChecks[0].p_paths).toEqual([
+        "co/note/o1/uuid-roof.jpg",
+        "co/note/o1/preview-uuid-roof.jpg",
+      ]);
+    });
+
+    it("removes nothing at all when every object is spoken for", async () => {
+      // An empty remove() is not the same as a remove([]) — Storage would
+      // treat the latter as a call worth making, and a batched delete with no
+      // paths is the kind of thing an SDK version bump turns into "delete all".
+      const { route, captured } = stubSweepWorld(
+        [{ id: "a1", storage_path: "co/note/o1/uuid-spec.pdf", preview_path: null }],
+        { pathsInUse: ["co/note/o1/uuid-spec.pdf"] },
+      );
+      stubFetch(route);
+
+      await sweepDeletedAttachments(env);
+
+      expect(captured.removes).toHaveLength(0);
+      // The row still goes: it is deleted, and its object simply belongs to
+      // somebody else now.
+      expect(captured.deletes[0].searchParams.get("id")).toBe("in.(a1)");
+    });
+
+    it("refuses to reclaim anything when it cannot find out", async () => {
+      // Reclaiming on an unknown answer is the one mistake here that destroys
+      // data. The pass fails, the rows stay soft-deleted, and the next run
+      // tries again — which is exactly what a retryable sweep is for.
+      const { route, captured } = stubSweepWorld(
+        [{ id: "a1", storage_path: "co/note/o1/uuid-spec.pdf", preview_path: null }],
+        { inUseCheckFails: true },
+      );
+      stubFetch(route);
+
+      await expect(sweepDeletedAttachments(env)).rejects.toThrow();
+      expect(captured.removes).toHaveLength(0);
+      expect(captured.deletes).toHaveLength(0);
+    });
   });
 
   it("does nothing when there is no aged soft-deleted row (no remove, no delete)", async () => {
