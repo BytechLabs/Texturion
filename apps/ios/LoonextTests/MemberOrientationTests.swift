@@ -99,4 +99,73 @@ final class MemberOrientationTests: XCTestCase {
         XCTAssertEqual(firsts?.oriented, false)
         XCTAssertTrue(shouldShowOrientation(MemberRole.member, firsts?.oriented))
     }
+
+    // MARK: - The joining note (#521)
+
+    func testNothingToSayLeavesTheFlowExactlyAsItWas() throws {
+        // `{ note: null, from: null }` is the ORDINARY answer, not a failure:
+        // every membership predating the field, every owner who made their own
+        // workspace, every invite sent without a note. It must produce no
+        // screen, no placeholder and no empty quotation.
+        let json = Data(#"{"note":null,"from":null}"#.utf8)
+        let answer = try JSONDecoder().decode(JoiningNote.self, from: json)
+        XCTAssertNil(joiningNoteText(answer))
+        // And the read that never landed at all.
+        XCTAssertNil(joiningNoteText(nil))
+    }
+
+    func testANameWithNoNoteIsStillNothingToShow() {
+        // The route resolves the attribution separately from the note, so this
+        // shape is reachable. A signature with nothing above it is not a note.
+        XCTAssertNil(joiningNoteText(JoiningNote(note: nil, from: "Dave")))
+    }
+
+    func testAWhitespaceNoteIsNothingToShow() {
+        // The server normalises blank to null, so this is the braces to that
+        // belt: a quotation mark around three spaces is worse than no
+        // quotation at all.
+        XCTAssertNil(joiningNoteText(JoiningNote(note: "   \n ", from: "Dave")))
+    }
+
+    func testTheNoteIsShownAsTheyWroteIt() throws {
+        let json = Data(
+            #"{"note":"You're covering weekend texts with Dave.","from":"Sam"}"#.utf8
+        )
+        let answer = try JSONDecoder().decode(JoiningNote.self, from: json)
+        XCTAssertEqual(
+            joiningNoteText(answer),
+            "You're covering weekend texts with Dave."
+        )
+    }
+
+    func testSurroundingWhitespaceDoesNotBecomeIndentation() {
+        XCTAssertEqual(
+            joiningNoteText(JoiningNote(note: "  Ask Dave for the keys.\n", from: nil)),
+            "Ask Dave for the keys."
+        )
+    }
+
+    func testAnAttributedNoteIsSignedTheWayTheInviteEmailSignedIt() {
+        // Word for word what the email put above the same sentence, so the
+        // words a new teammate read in their mail are signed the same way when
+        // they meet them again in the app.
+        XCTAssertEqual(joiningNoteAttribution("Dave"), "Dave says")
+    }
+
+    func testAnUnattributedNoteStillReadsAsAPersonsWords() {
+        // `from` can be null while the note is not: the name lookup is best
+        // effort. The fallback still names a person, because "Your workspace
+        // says" would turn a colleague's sentence into product copy.
+        for missing in [nil, "", "   "] as [String?] {
+            XCTAssertEqual(joiningNoteAttribution(missing), "They said")
+        }
+    }
+
+    func testANoteDoesNotAddAScreen() {
+        // It rides on the first screen, before the product's copy, rather than
+        // becoming a fifth one. Four is the number the flow was scoped to, and
+        // a note is not a step somebody completes.
+        XCTAssertEqual(orientationScreenCount, 4)
+        XCTAssertEqual(orientationProgress(0), 0.25, accuracy: 0.0001)
+    }
 }

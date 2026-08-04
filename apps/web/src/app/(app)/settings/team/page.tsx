@@ -31,6 +31,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -45,6 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { useCompany } from "@/lib/api/companies";
 import { MemberAccessDialog } from "@/components/settings/member-access-dialog";
 import { ApiError } from "@/lib/api/error";
@@ -396,6 +398,20 @@ function InviteRow({ invite }: { invite: Invite }) {
             ? "Expired, doesn't hold a seat"
             : `Expires ${new Date(invite.expires_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`}
         </p>
+        {/* #521: what this person will be told, still readable by the person
+            who wrote it. There is no way to change a note once the invite
+            exists, so without this the sentence becomes unverifiable the
+            moment it is sent, and the next place it appears is in front of the
+            new member. Bounded and scrollable rather than clamped: a truncated
+            note is exactly as unverifiable as no note.
+            *Applying: Zen of Clarity. The row's actions keep their weight; the
+            quote is quiet, indented, and never taller than a couple of lines
+            of the list.* */}
+        {invite.note && (
+          <blockquote className="mt-1.5 max-h-16 overflow-y-auto whitespace-pre-wrap break-words border-l-2 border-border pl-2 text-xs text-muted-foreground">
+            {invite.note}
+          </blockquote>
+        )}
       </div>
       {/* #99: a shareable accept link — the only way an invitee who already has
           an account (Supabase emails them nothing) can find their invite. */}
@@ -438,11 +454,49 @@ function InviteRow({ invite }: { invite: Invite }) {
   );
 }
 
+/**
+ * The note's cap, mirroring the column CHECK and the API's zod
+ * (apps/api/src/routes/team.ts). Held here so the field simply stops taking
+ * characters instead of letting somebody write past the limit and meet a 422.
+ */
+const NOTE_MAX = 500;
+
+/**
+ * How close to the cap the count appears. A counter pinned to the screen reads
+ * as a word budget on a field most invites leave empty; one that shows up in
+ * the last stretch is the only point at which it is information.
+ */
+const NOTE_COUNTDOWN_FROM = 50;
+
+/**
+ * What the field actually promises, kept as one literal because
+ * `packages/shared/src/member-orientation-copy.test.ts` reads this file as text
+ * to hold the three clients to the same sentence, and a wrapped JSX string is
+ * not the sentence any more.
+ *
+ * It says "when they join" and nothing about mail on purpose. A brand new
+ * address is invited by Supabase Auth from a template this repo does not own,
+ * and that template carries no note; only the fallback for an address that
+ * already has an account renders one. What is true of every invite is that the
+ * note is read once, on the way in, and cannot be edited afterwards.
+ */
+const NOTE_DESCRIPTION =
+  "They see this once, when they join. You cannot change it after the invite goes out.";
+
 // Mirrors the API invite schema (apps/api/src/routes/team.ts): a real email +
-// role admin|member (owner never assignable).
+// role admin|member (owner never assignable) + an optional note.
 const inviteSchema = z.object({
   email: z.email("Enter a valid email address."),
   role: z.enum(["admin", "member"]),
+  /**
+   * Optional the whole way down: no minimum, nothing required, and nothing
+   * here can hold up an invite that leaves it blank. The cap is the API's,
+   * restated so the only route to its 422 is defeating the field's own
+   * maxLength.
+   */
+  note: z
+    .string()
+    .max(NOTE_MAX, `Keep the note under ${NOTE_MAX} characters.`),
 });
 type InviteValues = z.infer<typeof inviteSchema>;
 
@@ -453,8 +507,9 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
   const createInvite = useCreateInvite();
   const form = useForm<InviteValues>({
     resolver: zodResolver(inviteSchema),
-    defaultValues: { email: "", role: "member" },
+    defaultValues: { email: "", role: "member", note: "" },
   });
+  const noteLeft = NOTE_MAX - form.watch("note").length;
 
   if (invites.isPending || company.isPending) {
     return (
@@ -490,30 +545,40 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
   );
 
   function onSubmit(values: InviteValues) {
-    createInvite.mutate(values, {
-      onSuccess: (created) => {
-        form.reset({ email: "", role: "member" });
-        if (created.email_sent) {
-          toast.success(`Invite sent to ${values.email}.`);
-        } else {
-          // #109: every invite is emailed automatically now (new addresses via
-          // Supabase Auth, existing accounts via a direct email). email_sent is
-          // false only when that send FAILED — point the inviter at the
-          // shareable link so the teammate isn't silently stranded.
-          toast.warning(
-            `The invite is saved, but we couldn't email ${values.email} — use "Copy link" below to send it to them.`,
-            { duration: 8000 },
-          );
-        }
+    createInvite.mutate(
+      {
+        ...values,
+        // Blank is no note. The server normalises whitespace to null as well,
+        // but sending "" would have this client claiming somebody wrote an
+        // empty string, which is a different thing from writing nothing.
+        note: values.note.trim() === "" ? null : values.note,
       },
-      onError: (cause) =>
-        form.setError("root", {
-          message:
-            cause instanceof ApiError
-              ? cause.message
-              : "Couldn't send the invite. Try again.",
-        }),
-    });
+      {
+        onSuccess: (created) => {
+          form.reset({ email: "", role: "member", note: "" });
+          if (created.email_sent) {
+            toast.success(`Invite sent to ${values.email}.`);
+          } else {
+            // #109: every invite is emailed automatically now (new addresses
+            // via Supabase Auth, existing accounts via a direct email).
+            // email_sent is false only when that send FAILED — point the
+            // inviter at the shareable link so the teammate isn't silently
+            // stranded.
+            toast.warning(
+              `The invite is saved, but we couldn't email ${values.email} — use "Copy link" below to send it to them.`,
+              { duration: 8000 },
+            );
+          }
+        },
+        onError: (cause) =>
+          form.setError("root", {
+            message:
+              cause instanceof ApiError
+                ? cause.message
+                : "Couldn't send the invite. Try again.",
+          }),
+      },
+    );
   }
 
   return (
@@ -548,74 +613,119 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col gap-2 sm:flex-row sm:items-start"
+          className="space-y-3"
           noValidate
         >
+          {/* Who, then why. The note sits under the pair rather than beside
+              them so the field an owner may want two sentences in is not a
+              third column, and so tab order still ends on Invite. */}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem className="flex-1">
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="email"
+                      inputMode="email"
+                      autoComplete="off"
+                      placeholder="teammate@company.com"
+                      disabled={seats.full}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="role"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Role</FormLabel>
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    disabled={seats.full}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full sm:w-36">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="max-w-[min(22rem,calc(100vw-2rem))]">
+                      {/* #315: named presets, and each says what it is FOR. An
+                          owner picking a role for their accountant should not
+                          have to infer it from the word "member". */}
+                      {(
+                        ["member", "admin", "read_only", "bookkeeper"] as const
+                      ).map((value) => (
+                        <SelectItem key={value} value={value}>
+                          <span className="flex flex-col gap-0.5 py-0.5">
+                            <span>{ROLE_LABELS[value]}</span>
+                            <span className="text-xs text-muted-foreground whitespace-normal">
+                              {ROLE_BLURBS[value]}
+                            </span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          {/* #521: why this person, in the owner's words. Optional in every
+              direction: blank sends exactly the invite it sent before this
+              field existed, and nothing here can hold up a submit. */}
           <FormField
             control={form.control}
-            name="email"
+            name="note"
             render={({ field }) => (
-              <FormItem className="flex-1">
-                <FormLabel>Email</FormLabel>
+              <FormItem>
+                <FormLabel>What to tell them (optional)</FormLabel>
                 <FormControl>
-                  <Input
-                    type="email"
-                    inputMode="email"
-                    autoComplete="off"
-                    placeholder="teammate@company.com"
+                  <Textarea
+                    rows={2}
+                    maxLength={NOTE_MAX}
+                    placeholder="What they'll be doing, or anything they should know on day one."
                     disabled={seats.full}
                     {...field}
                   />
                 </FormControl>
+                {/* The count lives INSIDE the description because the field
+                    already points at it: `FormControl` wires aria-describedby
+                    to this one element and nothing else, so a sibling
+                    paragraph is text a screen reader never reaches from the
+                    field. The description is the live region rather than the
+                    count itself, so the region is already there when the count
+                    appears; a region that arrives already populated is the
+                    case readers announce least reliably. Nothing else in here
+                    ever changes, so the count is the only thing spoken. */}
+                <FormDescription aria-live="polite">
+                  {NOTE_DESCRIPTION}
+                  {noteLeft <= NOTE_COUNTDOWN_FROM && (
+                    <span className="mt-1 block text-xs tabular-nums">
+                      {plural(noteLeft, "character")} left
+                    </span>
+                  )}
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
-          <FormField
-            control={form.control}
-            name="role"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Role</FormLabel>
-                <Select
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  disabled={seats.full}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full sm:w-36">
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent className="max-w-[min(22rem,calc(100vw-2rem))]">
-                    {/* #315: named presets, and each says what it is FOR. An
-                        owner picking a role for their accountant should not
-                        have to infer it from the word "member". */}
-                    {(
-                      ["member", "admin", "read_only", "bookkeeper"] as const
-                    ).map((value) => (
-                      <SelectItem key={value} value={value}>
-                        <span className="flex flex-col gap-0.5 py-0.5">
-                          <span>{ROLE_LABELS[value]}</span>
-                          <span className="text-xs text-muted-foreground whitespace-normal">
-                            {ROLE_BLURBS[value]}
-                          </span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <Button
-            type="submit"
-            disabled={seats.full || createInvite.isPending}
-            className="sm:mt-[1.625rem]"
-          >
-            {createInvite.isPending ? "Sending…" : "Invite"}
-          </Button>
+          <div className="flex justify-end">
+            <Button
+              type="submit"
+              disabled={seats.full || createInvite.isPending}
+            >
+              {createInvite.isPending ? "Sending…" : "Invite"}
+            </Button>
+          </div>
         </form>
       </Form>
       {form.formState.errors.root && (

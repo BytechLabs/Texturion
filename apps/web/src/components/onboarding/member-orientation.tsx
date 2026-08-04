@@ -16,7 +16,11 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useMarkOriented, useMemberFirsts } from "@/lib/api/me-company";
+import {
+  useJoiningNote,
+  useMarkOriented,
+  useMemberFirsts,
+} from "@/lib/api/me-company";
 import { useActiveCompany } from "@/lib/company/provider";
 import { usePushSubscription } from "@/lib/push/use-push-subscription";
 import { cn } from "@/lib/utils";
@@ -98,12 +102,19 @@ export function MemberOrientation() {
   // could ever be for — "if the answer came back `not oriented`, would this
   // open?" — so the audience rule stays in one place instead of being spelled
   // a second way here, where it could disagree.
-  const firsts = useMemberFirsts(shouldShowOrientation(role, false));
+  const audience = shouldShowOrientation(role, false);
+  const firsts = useMemberFirsts(audience);
+  // Whether the four screens can open at all, which is also the only condition
+  // under which a note has anywhere to appear. Asked on the role alone, this
+  // read would fire on every shell load forever: somebody oriented months ago
+  // would keep paying a round trip for a dialog that can no longer open.
+  const showing = shouldShowOrientation(role, firsts.data?.oriented);
+  const joining = useJoiningNote(showing);
   const markOriented = useMarkOriented();
   const [index, setIndex] = useState(0);
   const [closed, setClosed] = useState(false);
 
-  if (closed || !shouldShowOrientation(role, firsts.data?.oriented)) {
+  if (closed || !showing) {
     return null;
   }
 
@@ -130,6 +141,14 @@ export function MemberOrientation() {
       >
         <ProgressRail index={index} />
         <div className="space-y-4 px-6 pb-6 pt-5">
+          {/* Drawn when it lands, never waited on. Almost nobody has a note, so
+              holding the orientation shut behind a request about one would make
+              every member pay for the rare case, and a slow or failing call
+              would hold it shut through its retries. Screen one only: past
+              Next, somebody has moved on from the introduction it belongs to. */}
+          {index === 0 && joining.data?.note && (
+            <JoiningNote note={joining.data.note} from={joining.data.from} />
+          )}
           <div className="flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
             <Icon className="size-5" strokeWidth={1.75} />
           </div>
@@ -152,6 +171,44 @@ export function MemberOrientation() {
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * #521: the owner's words, before ours.
+ *
+ * The four screens below explain the PRODUCT. They cannot say what THIS crew
+ * expects of this person, which is the thing a new member would otherwise
+ * spend their first morning asking a colleague. So whoever added them gets the
+ * first word on the first screen, verbatim and unframed: a heading of ours
+ * above it would turn somebody's sentence into a product feature.
+ *
+ * The attribution sits ABOVE the quote and reads "{name} says", or "They said"
+ * when the name could not be resolved. Both are the construction
+ * `sendExistingAccountInvite` (apps/api/src/routes/team.ts) signs the same note
+ * with, so a member who gets the mail and then opens the app reads one sentence
+ * twice instead of two attempts at it. Below the quote it would come too late:
+ * by then they have already read somebody's words as ours.
+ *
+ * The quote scrolls past roughly six lines instead of growing. This dialog is
+ * centred rather than scrolled, so a long note that pushed the buttons past the
+ * bottom of a phone would strand somebody on screen one.
+ *
+ * *Applying: Relationship Strength. A different voice gets its own surface,
+ * not another paragraph in ours, and the byline is bound tight to the words it
+ * belongs to. Padding is optically corrected, not symmetrical: the left rule
+ * carries visual weight the right edge does not.*
+ */
+function JoiningNote({ note, from }: { note: string; from: string | null }) {
+  return (
+    <figure className="space-y-1.5 rounded-lg border-l-2 border-primary bg-muted/50 py-3 pl-4 pr-3">
+      <figcaption className="text-sm text-muted-foreground">
+        {from ? `${from} says` : "They said"}
+      </figcaption>
+      <blockquote className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-base leading-relaxed">
+        {note}
+      </blockquote>
+    </figure>
   );
 }
 

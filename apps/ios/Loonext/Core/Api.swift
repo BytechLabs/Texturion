@@ -18,6 +18,17 @@ struct MeApi: Sendable {
         try await api.get("/v1/me/firsts", companyId: companyId)
     }
 
+    /// #521: what this member was told about why they were added. Scoped to the
+    /// workspace for the same reason `firsts` above is: the answer belongs to
+    /// one membership, and somebody in two workspaces was added to each of them
+    /// for a different reason.
+    ///
+    /// Its own route rather than a field on `/v1/me`, which is the hottest read
+    /// in the product: this one matters on a single screen, once.
+    func joiningNote(companyId: String) async throws -> JoiningNote {
+        try await api.get("/v1/me/joining-note", companyId: companyId)
+    }
+
     /// #286: finished, or skipped — the same call either way, because a skip
     /// that comes back tomorrow is not a skip. Idempotent server-side, so a
     /// retry after a dropped response is a 200 rather than an error.

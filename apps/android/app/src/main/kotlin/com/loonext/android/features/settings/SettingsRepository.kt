@@ -297,12 +297,27 @@ class SettingsRepository(
     suspend fun invites(companyId: String): Page<Invite> =
         api.get("/v1/invites", companyId = companyId)
 
-    suspend fun createInvite(companyId: String, email: String, role: String): Invite =
+    /**
+     * #521: [note] is why this person is being added, in the inviter's own
+     * words, and it is genuinely optional.
+     *
+     * OMITTED RATHER THAN SENT EMPTY when there is nothing to say. The server
+     * normalises blank to null anyway, so both forms store the same row. But
+     * `""` on the wire would say an owner typed something, and every future
+     * reader of this call would have to know that it does not.
+     */
+    suspend fun createInvite(
+        companyId: String,
+        email: String,
+        role: String,
+        note: String? = null,
+    ): Invite =
         api.post(
             "/v1/invites",
             buildJsonObject {
                 put("email", email)
                 put("role", role)
+                note?.trim()?.takeIf { it.isNotEmpty() }?.let { put("note", it) }
             },
             companyId = companyId,
         )

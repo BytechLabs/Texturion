@@ -50,3 +50,15 @@ fun orientationProgress(index: Int, total: Int = ORIENTATION_SCREEN_COUNT): Floa
     val clamped = index.coerceIn(0, total - 1)
     return (clamped + 1).toFloat() / total
 }
+
+/**
+ * #521: the joining note as the first screen should carry it, or null when
+ * there is nothing to carry.
+ *
+ * `{ note: null }` is the ordinary answer, not a failure: every membership
+ * predating this, every owner who made their own workspace and every invite
+ * sent without a note reads that way. A blank-looking note is the same
+ * nothing: the server normalises whitespace away, and a client that trusted
+ * it blindly would open an empty quotation mark over an empty line.
+ */
+fun joiningNoteToShow(note: String?): String? = note?.trim()?.ifEmpty { null }

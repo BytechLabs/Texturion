@@ -74,6 +74,48 @@ const ORIENTATION_COPY = [
   "You're joining a workspace that already has traffic. Turn on notifications for the work meant for you, and change them any time in Settings.",
 ];
 
+/**
+ * #521 — the joining note, which is the same feature on three clients and
+ * therefore the same words on three clients.
+ *
+ * Added because the first port of it drifted on EVERY string: the attribution
+ * read "{from} says" above the quote on two clients and "From {from}" below it
+ * on the third, and the invite field had three different labels, placeholders
+ * and descriptions. The guard above existed for exactly that failure and did
+ * not cover these strings, so eighteen green tests proved nothing about them.
+ *
+ * ATTRIBUTION MATCHES THE INVITE EMAIL. `sendExistingAccountInvite` in
+ * `apps/api/src/routes/team.ts` signs the note "{name} says" and falls back to
+ * "They said" when there is no name. A member who gets both should read the
+ * same construction over the same quote rather than two attempts at it.
+ */
+const JOINING_NOTE_COPY = [
+  // The attribution, unnamed. The named form is interpolated per client and
+  // cannot be pinned as a literal, so the fallback is what anchors the wording.
+  "They said",
+];
+
+/**
+ * The invite field, which lives on the team settings screen rather than in the
+ * orientation, so it is checked against those three sources instead.
+ */
+const INVITE_NOTE_COPY = [
+  "What to tell them (optional)",
+  // NOT "goes in their invite email". For an address with no Loonext account
+  // the invite is sent by Supabase Auth from a template this repo does not
+  // control and which carries no note, so promising the email is false for the
+  // ordinary case. What is always true is that they read it when they join.
+  "They see this once, when they join. You cannot change it after the invite goes out.",
+];
+
+/** Where each client puts the invite form. */
+const TEAM_SOURCES = {
+  web: "apps/web/src/app/(app)/settings/team/page.tsx",
+  android:
+    "apps/android/app/src/main/kotlin/com/loonext/android/features/settings/TeamSection.kt",
+  ios: "apps/ios/Loonext/Features/Settings/TeamSection.swift",
+} as const;
+
 /** The buttons. A skip labelled three different ways is three flows. */
 const ACTIONS = ["Skip", "Next", "Turn on notifications", "Not now"];
 
@@ -114,6 +156,15 @@ describe("#286 the joining orientation reads the same on every client", () => {
             !text.includes(`"${action}"`) && !tight.includes(`>${action}<`)
           );
         })
+        .map(([client]) => client);
+      expect(missing).toEqual([]);
+    });
+  }
+
+  for (const line of JOINING_NOTE_COPY) {
+    it(`#521 all three orientations say: "${line}"`, () => {
+      const missing = Object.entries(sources)
+        .filter(([, text]) => !text.includes(line))
         .map(([client]) => client);
       expect(missing).toEqual([]);
     });
@@ -163,5 +214,50 @@ describe("#286 the standalone primer reads the same on both phones", () => {
       "utf8",
     );
     expect(ios).not.toContain("requestAuthorization");
+  });
+});
+
+describe("#521 the invite note asks for the same thing on all three clients", () => {
+  const teamSources = Object.fromEntries(
+    Object.entries(TEAM_SOURCES).map(([client, path]) => [
+      client,
+      readFileSync(join(REPO, path), "utf8"),
+    ]),
+  );
+
+  it("reads three real sources, so the guard cannot pass on empty files", () => {
+    for (const [client, text] of Object.entries(teamSources)) {
+      expect(text.length, client).toBeGreaterThan(2000);
+    }
+  });
+
+  for (const line of INVITE_NOTE_COPY) {
+    it(`all three say: "${line.slice(0, 44)}${line.length > 44 ? "…" : ""}"`, () => {
+      const missing = Object.entries(teamSources)
+        .filter(([, text]) => !text.includes(line))
+        .map(([client]) => client);
+      expect(missing).toEqual([]);
+    });
+  }
+
+  it("no client promises the note reaches the invite email", () => {
+    // The claim is false for the ordinary invite. A brand-new address is
+    // emailed by Supabase Auth from a template this repo does not control,
+    // which carries no note; only the already-has-an-account fallback in
+    // `sendExistingAccountInvite` renders it. All three clients wrote this
+    // promise on the first pass, which is why it is asserted rather than
+    // remembered.
+    const forbidden = /in (their|the) invite email|goes? (in|out) with the invite|invite email/i;
+    const offenders = Object.entries(teamSources)
+      .filter(([, text]) => {
+        const stripped = text
+          .replace(/\/\*[\s\S]*?\*\//g, " ")
+          .split("\n")
+          .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+          .join("\n");
+        return forbidden.test(stripped);
+      })
+      .map(([client]) => client);
+    expect(offenders).toEqual([]);
   });
 });

@@ -8,7 +8,9 @@ import com.loonext.android.core.model.PhoneNumberSummary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
+import java.io.File
 import java.time.Instant
 
 class SettingsLogicTest {
@@ -409,6 +411,90 @@ class SettingsLogicTest {
     @Test
     fun `invite link matches the web origin`() {
         assertEquals("https://app.loonext.com/invite/abc", inviteLink("abc"))
+    }
+
+    // -- #521 the inviter's note ---------------------------------------------
+
+    @Test
+    fun `an untouched note field sends no note at all`() {
+        // OPTIONAL means the owner who ignores it sends yesterday's invite.
+        // `""` on the wire would claim they typed something, and every later
+        // reader of the create call would have to know that it did not.
+        assertEquals(null, inviteNoteOrNull(""))
+        assertEquals(null, inviteNoteOrNull("   "))
+        assertEquals(null, inviteNoteOrNull("\n"))
+        // And the same answer for a note read back off an invite that never
+        // had one, which is how the pending row asks the question.
+        assertEquals(null, inviteNoteOrNull(null))
+    }
+
+    @Test
+    fun `a note the owner did write survives with its own spacing`() {
+        assertEquals(
+            "You'll be running the Bathurst jobs.",
+            inviteNoteOrNull("  You'll be running the Bathurst jobs.  "),
+        )
+        // Only the ends are touched: a two-sentence note is one note, and
+        // reflowing what somebody wrote is not this function's business.
+        assertEquals("Ask Dave.  Then quote.", inviteNoteOrNull("Ask Dave.  Then quote."))
+    }
+
+    @Test
+    fun `the note ceiling is the column's, not a number we picked`() {
+        // A client ceiling ABOVE the column's turns a typed sentence into a 422
+        // after the tap; below it, the field refuses a note the server would
+        // have taken. A constant checked against its own literal can see
+        // neither, so the CHECK constraints are read instead: `invites.note`
+        // for the invite that goes out, `company_members.joining_note` for the
+        // words the member is greeted with. Same technique as
+        // [com.loonext.android.core.model.ParityVectorsTest]: read the source
+        // of truth out of the repo rather than copy it here, where the copy is
+        // the thing that goes stale.
+        val ceilings = noteCheckConstraints()
+        assertEquals(
+            "both note columns must be found in supabase/migrations",
+            setOf("note", "joining_note"),
+            ceilings.map { it.first }.toSet(),
+        )
+        for ((column, ceiling) in ceilings) {
+            assertEquals("$column CHECK", ceiling, INVITE_NOTE_MAX)
+        }
+    }
+
+    /**
+     * Every character ceiling the migrations declare for a note an inviter
+     * writes, as column to characters.
+     *
+     * Anchored on `is null or` because other tables carry an unrelated `note`
+     * with a ceiling of its own, and matching one of those would pin this field
+     * to a number that has nothing to do with it.
+     */
+    private fun noteCheckConstraints(): List<Pair<String, Int>> {
+        val check = Regex(
+            """(note|joining_note)\s+is\s+null\s+or\s+char_length\(\1\)\s*<=\s*(\d+)""",
+        )
+        return repoDir("supabase/migrations").walkTopDown()
+            .filter { it.isFile && it.extension == "sql" }
+            .flatMap { file -> check.findAll(file.readText()) }
+            .map { it.groupValues[1] to it.groupValues[2].toInt() }
+            .toList()
+    }
+
+    /**
+     * A directory in the repository, found by walking up from wherever the test
+     * runner started. Gradle's working directory differs between an IDE run and
+     * a command line one, and a hardcoded relative path only works in whichever
+     * of the two its author used.
+     */
+    private fun repoDir(relative: String): File {
+        var dir: File? = File("").absoluteFile
+        while (dir != null) {
+            val candidate = File(dir, relative)
+            if (candidate.isDirectory) return candidate
+            dir = dir.parentFile
+        }
+        fail("$relative not found walking up from ${File("").absolutePath}")
+        error("unreachable")
     }
 
     // -- #414 / #453 emergency keyword ---------------------------------------

@@ -39,7 +39,10 @@ final class SettingsLogicTests: XCTestCase {
             revoked_at: revokedAt,
             created_at: "2026-07-01T00:00:00Z",
             email_sent: nil,
-            company_name: nil
+            company_name: nil,
+            // #521: the seat math these fixtures feed does not read the note.
+            // An invite without one is the ordinary invite.
+            note: nil
         )
     }
 
@@ -94,6 +97,59 @@ final class SettingsLogicTests: XCTestCase {
     func testUnderCapacityReadsPlainly() {
         XCTAssertEqual(seatUsage(activeMembers: 2, pendingInvites: 0, plan: nil).line, "2 of 3 seats")
         XCTAssertFalse(seatUsage(activeMembers: 2, pendingInvites: 0, plan: nil).full)
+    }
+
+    // MARK: - The invite note's cap (#521)
+
+    func testTheCapIsMeasuredTheWayTheServerMeasuresIt() {
+        // `String.count` is grapheme clusters and would answer 1 here. The
+        // route's zod `.max(500)` counts UTF-16 code units and the column's
+        // `char_length` counts code points, so a cap built on clusters passes a
+        // note the route then refuses with a 422, which is the one outcome the
+        // cap exists to prevent.
+        let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}"
+        XCTAssertEqual(family.count, 1)
+        XCTAssertEqual(inviteNoteLength(family), 8)
+        XCTAssertEqual(inviteNoteLength("abc"), 3)
+    }
+
+    func testAnOverLongPasteIsCutRatherThanDropped() {
+        // A setter that refuses a value leaves the field empty and says
+        // nothing. Truncating puts the first 500 in and lets the count say so.
+        let pasted = String(repeating: "a", count: 600)
+        XCTAssertEqual(truncatedInviteNote(pasted).count, inviteNoteMax)
+        XCTAssertEqual(inviteNoteLength(truncatedInviteNote(pasted)), inviteNoteMax)
+    }
+
+    func testANoteThatFitsIsReturnedUntouched() {
+        // Including the exact-length one, which must not lose its last
+        // character to an off-by-one.
+        XCTAssertEqual(truncatedInviteNote("Ask Dave for the keys."), "Ask Dave for the keys.")
+        let exact = String(repeating: "a", count: inviteNoteMax)
+        XCTAssertEqual(truncatedInviteNote(exact), exact)
+        XCTAssertEqual(truncatedInviteNote(""), "")
+    }
+
+    func testTheCutLandsBetweenCharactersAndNotInsideOne() {
+        // Cutting on UTF-16 units directly would split the last emoji and leave
+        // a lone surrogate. Whole characters are kept or dropped.
+        let emoji = String(repeating: "\u{1F600}", count: 300)
+        let cut = truncatedInviteNote(emoji)
+        XCTAssertEqual(inviteNoteLength(cut), inviteNoteMax)
+        XCTAssertEqual(cut.count, 250)
+        XCTAssertEqual(cut, String(repeating: "\u{1F600}", count: 250))
+    }
+
+    func testAClusterThatWouldStraddleTheCapIsLeftOutWhole() {
+        // 499 units of room and a 2-unit character next: keeping half of it
+        // would be a broken glyph, so the cut stops in front of it. Everything
+        // after stops with it, because this is a prefix and not a sieve:
+        // dropping one character out of the middle of somebody's sentence and
+        // keeping the rest would change what they wrote.
+        let note = String(repeating: "a", count: inviteNoteMax - 1) + "\u{1F600}b"
+        let cut = truncatedInviteNote(note)
+        XCTAssertEqual(cut, String(repeating: "a", count: inviteNoteMax - 1))
+        XCTAssertEqual(inviteNoteLength(cut), inviteNoteMax - 1)
     }
 
     // MARK: - Role-gate matrix

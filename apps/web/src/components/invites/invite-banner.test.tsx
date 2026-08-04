@@ -35,6 +35,7 @@ function myInvite(overrides: Partial<MyInvite> = {}): MyInvite {
     accepted_at: null,
     revoked_at: null,
     created_at: "2026-07-10T00:00:00+00:00",
+    note: null,
     company_name: "Acme Plumbing",
     ...overrides,
   };

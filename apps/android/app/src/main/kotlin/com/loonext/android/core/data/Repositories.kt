@@ -7,6 +7,7 @@ import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ContactFieldsResponse
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.ForYou
+import com.loonext.android.core.model.JoiningNote
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.MemberFirsts
 import com.loonext.android.core.model.NotificationItem
@@ -48,6 +49,17 @@ class MeRepository(private val api: ApiClient) {
      */
     suspend fun firsts(companyId: String): MemberFirsts =
         api.get("/v1/me/firsts", companyId = companyId)
+
+    /**
+     * #521: why this member was added, in the words of whoever added them.
+     *
+     * Its own route beside [firsts] for the same reason that one has one, and
+     * read on the same terms: company-scoped, and only ever asked by the one
+     * screen that shows it. `{ note: null, from: null }` is the ordinary
+     * answer, so a caller must treat "nothing to say" as success.
+     */
+    suspend fun joiningNote(companyId: String): JoiningNote =
+        api.get("/v1/me/joining-note", companyId = companyId)
 
     /**
      * #286: finished, or skipped — the same call either way, because a skip

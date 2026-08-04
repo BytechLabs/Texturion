@@ -284,6 +284,52 @@ private struct MemberRow: View {
 
 // MARK: - Invites
 
+/// Mirrors the invite note's column check and the route's zod max: a couple of
+/// sentences to a new teammate, not a policy document.
+let inviteNoteMax = 500
+
+/// How close to the cap the remaining count starts speaking.
+///
+/// Silent for the two sentences almost everybody writes. A counter that runs
+/// from the first keystroke turns a friendly note into a form field, and the
+/// number only becomes information near the end.
+let inviteNoteCountdownFrom = 50
+
+/// The length the SERVER will measure, which is not the one `String.count`
+/// reports.
+///
+/// `count` is grapheme clusters: a flag or a family emoji is one. The route's
+/// zod `.max(500)` counts UTF-16 code units and the column's `char_length`
+/// counts code points, and a single cluster can be many of either. Counting
+/// clusters therefore lets a note through that the route refuses, which is the
+/// exact outcome this cap exists to prevent. UTF-16 is never fewer than either
+/// server measure, so a note that fits here fits there.
+func inviteNoteLength(_ text: String) -> Int {
+    text.utf16.count
+}
+
+/// As much of `text` as fits the cap.
+///
+/// Truncating rather than refusing. A `Binding` setter that drops an over-long
+/// value leaves the state untouched, so a pasted paragraph puts NOTHING in the
+/// field and says nothing about why; unchanged state is also no re-render,
+/// which is how a `TextField` and the value behind it start disagreeing.
+///
+/// Cut on whole characters, re-measuring each one, so the cut cannot land
+/// inside an emoji or a combining sequence and leave half of it behind.
+func truncatedInviteNote(_ text: String) -> String {
+    guard inviteNoteLength(text) > inviteNoteMax else { return text }
+    var kept = ""
+    var length = 0
+    for character in text {
+        let next = length + String(character).utf16.count
+        if next > inviteNoteMax { break }
+        kept.append(character)
+        length = next
+    }
+    return kept
+}
+
 private struct InvitesCard: View {
     let scope: SettingsScope
     let company: CompanyView
@@ -293,6 +339,7 @@ private struct InvitesCard: View {
 
     @State private var email = ""
     @State private var role = MemberRole.member
+    @State private var note = ""
     @State private var sending = false
     @State private var formError: String?
 
@@ -312,6 +359,11 @@ private struct InvitesCard: View {
         invites.filter { $0.accepted_at == nil && $0.revoked_at == nil }
     }
 
+    /// Room left in the note, in the units the server counts.
+    private var noteLeft: Int {
+        max(inviteNoteMax - inviteNoteLength(note), 0)
+    }
+
     var body: some View {
         SettingsCard(title: "Invite a teammate", description: seat.line) {
             TextField("Email", text: $email)
@@ -320,6 +372,46 @@ private struct InvitesCard: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .disabled(seat.full || sending)
+            Spacer().frame(height: 8)
+            // #521: why this person, in the owner's own words. The joining
+            // orientation already tells a new teammate what the PRODUCT is; it
+            // cannot tell them what this crew expects of them, which is what
+            // they would otherwise ask a colleague on day one.
+            //
+            // Left blank it is the invite that has always been sent: nothing
+            // below it changes and nothing blocks the button.
+            TextField(
+                "What to tell them (optional)",
+                text: Binding(
+                    get: { note },
+                    // Capped where the server caps it, so an over-long note
+                    // stops taking characters rather than coming back as a 422
+                    // with the invite unsent.
+                    set: { note = truncatedInviteNote($0) }
+                ),
+                axis: .vertical
+            )
+            .textFieldStyle(.roundedBorder)
+            .lineLimit(2 ... 4)
+            .disabled(seat.full || sending)
+            VStack(alignment: .leading, spacing: 2) {
+                // Said BEFORE anything is typed, because it is a fact about the
+                // writing rather than about what was written: there is no edit
+                // path, so an owner who learns this afterwards learns it too
+                // late to act on it.
+                Text("They see this once, when they join. You cannot change it after the invite goes out.")
+                    .fixedSize(horizontal: false, vertical: true)
+                if noteLeft <= inviteNoteCountdownFrom {
+                    // The cap made visible at the point it starts to bite, and
+                    // the one signal a paste that got cut off leaves behind.
+                    Text(noteLeft == 1 ? "1 character left" : "\(noteLeft) characters left")
+                        .monospacedDigit()
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 4)
             Spacer().frame(height: 8)
             HStack(spacing: 12) {
                 Menu {
@@ -378,15 +470,26 @@ private struct InvitesCard: View {
             formError = "Enter the teammate's email address."
             return
         }
+        // Trimmed here as well as server-side so "typed a space" and "left it
+        // blank" reach the same place: nothing is sent, and the invite is the
+        // ordinary one.
+        let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
         sending = true
         formError = nil
         Task {
             do {
-                let invite = try await scope.repo.createInvite(scope.companyId, email: trimmed, role: role)
+                let invite = try await scope.repo.createInvite(
+                    scope.companyId,
+                    email: trimmed,
+                    role: role,
+                    note: trimmedNote.isEmpty ? nil : trimmedNote
+                )
                 email = ""
+                note = ""
                 if invite.email_sent == false {
                     scope.showMessage(
-                        "The invite email couldn't be sent. Use Copy link below and share it yourself."
+                        "The invite is saved, but we couldn't email \(trimmed). "
+                            + "Use Copy link below and share it yourself."
                     )
                 } else {
                     scope.showMessage("Invite sent to \(trimmed).")
@@ -419,6 +522,33 @@ private struct PendingInviteRow: View {
                 )
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+                // #521: what was said, shown back. There is no edit path by
+                // design, because an invite that has gone out is a thing
+                // somebody has read, so seeing it is the only way to know what
+                // it says.
+                //
+                // Ruled and in full ink, not another grey footnote. The line
+                // directly above it is bookkeeping (a role and an expiry date)
+                // and these are a colleague's own words to a person; set in the
+                // same weight and colour they read as one more field of the
+                // record. The rule is the device the emailed invitation and the
+                // joining orientation both already put around this sentence, so
+                // it is recognisably the same quotation in all three places.
+                if let note = invite.note, !note.isBlank {
+                    Text(note)
+                        .font(.footnote)
+                        .foregroundStyle(BrandColor.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, 10)
+                        // An overlay takes the height of what it sits on, so
+                        // the rule matches however many lines the note runs to.
+                        .overlay(alignment: .leading) {
+                            Capsule()
+                                .fill(BrandColor.olive)
+                                .frame(width: 3)
+                        }
+                        .padding(.top, 8)
+                }
             }
             Spacer()
             if !expired {

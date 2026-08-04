@@ -172,6 +172,22 @@ data class MemberFirsts(
     val oriented: Boolean = true,
 )
 
+/**
+ * GET /v1/me/joining-note (#521): what this member was told about why they
+ * were added, in the words of whoever added them.
+ *
+ * BOTH FIELDS NULL IS THE ORDINARY ANSWER, not an error. Every membership that
+ * predates this, every owner who made their own workspace, and every invite
+ * sent without a note answers that way, and that is the majority. [from] can
+ * also be null on its own, because a display name is best-effort server-side.
+ * An unattributed note still reads as a person's words.
+ */
+@Serializable
+data class JoiningNote(
+    val note: String? = null,
+    val from: String? = null,
+)
+
 /** GET /v1/me — optionally hydrated with `company` when X-Company-Id is sent. */
 @Serializable
 data class Me(

@@ -3,6 +3,7 @@ package com.loonext.android.features.onboarding
 import com.loonext.android.core.model.MemberRole
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -83,6 +84,44 @@ class MemberOrientationLogicTest {
     fun `the bar holds for an index outside the flow`() {
         assertEquals(0.25f, orientationProgress(-3), 0.0001f)
         assertEquals(1f, orientationProgress(99), 0.0001f)
+    }
+
+    @Test
+    fun `nothing to say is the ordinary answer, not a failure`() {
+        // #521: every membership predating this, every owner who made their
+        // own workspace, and every invite sent without a note answers null.
+        // A client that treated that as an error would show an empty
+        // quotation mark to the majority.
+        assertNull(joiningNoteToShow(null))
+    }
+
+    @Test
+    fun `a note of nothing but whitespace is nothing`() {
+        // The server normalises blank to null, so this is belt-and-braces.
+        // But a client that trusted it blindly would draw a lime rule beside
+        // an empty line if it ever stopped.
+        assertNull(joiningNoteToShow("   "))
+        assertNull(joiningNoteToShow("\n\t "))
+        assertEquals("Take the Bathurst jobs.", joiningNoteToShow("  Take the Bathurst jobs.  "))
+    }
+
+    @Test
+    fun `the attribution repeats the words the invite email already used`() {
+        // The member read `Dave says: "…"` in the email that brought them
+        // here. A second phrasing over the same quote reads as a second
+        // message from a second person.
+        assertEquals("Dave says", joiningNoteAttribution("Dave"))
+        assertEquals("Dave says", joiningNoteAttribution("  Dave  "))
+    }
+
+    @Test
+    fun `an unattributed note still reads as a person`() {
+        // `from` is best-effort server-side: a display name can be missing
+        // while the note is not. "The workspace said" would be a lie about
+        // who wrote it.
+        assertEquals("They said", joiningNoteAttribution(null))
+        assertEquals("They said", joiningNoteAttribution(""))
+        assertEquals("They said", joiningNoteAttribution("   "))
     }
 
     @Test

@@ -1356,6 +1356,14 @@ export interface Invite {
   accepted_at: string | null;
   revoked_at: string | null;
   created_at: string;
+  /**
+   * #521: what the inviter told this person, or null when they left it blank.
+   *
+   * The API returns it on the team list on purpose. There is no edit path by
+   * design, so a read path is the only way whoever sent the invite can check
+   * what it says before the new member reads it once and it is gone.
+   */
+  note: string | null;
 }
 
 /**

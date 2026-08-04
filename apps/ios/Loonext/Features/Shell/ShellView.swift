@@ -94,6 +94,9 @@ struct ShellView: View {
     /// the read lands, which is what keeps four screens from flashing at
     /// somebody who has been here for months.
     @State private var oriented: Bool?
+    /// #521: what the person who added them said, or nil for the ordinary case
+    /// where nobody said anything.
+    @State private var joiningNote: JoiningNote?
     @State private var notificationAsk = NotificationAsk()
     @State private var primerDismissed = false
 
@@ -250,8 +253,41 @@ struct ShellView: View {
         // nobody else pays a round trip on app start. A failure leaves it nil,
         // i.e. shows nothing.
         .task(id: companyId) {
+            // #521: a joining note belongs to ONE membership, and this view's
+            // state survives a workspace switch. Cleared FIRST, ahead of the
+            // guard, because every path out of this block that does not reach
+            // the read below would otherwise leave the previous workspace's
+            // private sentence sitting on this workspace's screen.
+            joiningNote = nil
             guard shouldShowOrientation(role, false) else { return }
-            oriented = try? await graph.meApi.firsts(companyId: companyId).oriented
+            // Both reads start together. Awaited one after the other they cost
+            // the SUM of two round trips before the sheet may open, which every
+            // member about to be oriented pays, including the majority whose
+            // answer is "nobody wrote one"; started together they cost the
+            // slower of the two. `ApiClient` sets no timeout, so the serial
+            // form could hold the sheet off screen for twice URLSession's
+            // default minute.
+            //
+            // The note read is therefore speculative: it is issued before we
+            // know whether the sheet will open at all, which costs one extra
+            // row read on the launches where it does not. That buys the sheet
+            // opening whole, which is the alternative to it resizing under a
+            // thumb when a late note arrives and changes its detents.
+            //
+            // Hoisted into locals because the graph is main-actor state: the
+            // API values are Sendable, the object holding them is not, and a
+            // child task cannot reach through it.
+            let meApi = graph.meApi
+            let company = companyId
+            async let firsts = meApi.firsts(companyId: company)
+            async let note = meApi.joiningNote(companyId: company)
+            let answer = (try? await firsts)?.oriented
+            // #521: assigned BEFORE `oriented` opens the sheet, so the first
+            // screen arrives with the note on it instead of pushing the
+            // product's copy down a beat later. A failure leaves it nil, i.e.
+            // the flow exactly as it was.
+            joiningNote = try? await note
+            oriented = answer
         }
         // #286: the four screens a new tech gets on their first sign-in.
         // Presented from the shell because they belong to the SESSION rather
@@ -266,7 +302,7 @@ struct ShellView: View {
                 set: { if !$0 { finishOrientation() } }
             )
         ) {
-            MemberOrientationSheet(onFinished: finishOrientation)
+            MemberOrientationSheet(joining: joiningNote, onFinished: finishOrientation)
         }
         // #286: and for everybody the orientation is not for — the owner who
         // just finished setup, anybody already here when it shipped. One

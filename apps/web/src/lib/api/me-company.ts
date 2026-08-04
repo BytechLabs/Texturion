@@ -53,6 +53,33 @@ export function useMemberFirsts(enabled: boolean) {
 }
 
 /**
+ * GET /v1/me/joining-note (#521): why this member was added, in the words of
+ * whoever added them.
+ *
+ * `{ note: null, from: null }` is the ordinary answer, not a miss: every
+ * membership older than the field, every owner who made their own workspace,
+ * and every invite sent without a note. `from` can be null on its own too, and
+ * an unattributed note is still a person's words rather than a broken read.
+ *
+ * Its own query for the reason `/me/firsts` has one: this answers a question
+ * that matters on one screen, once, and /v1/me is on every app load.
+ */
+export interface JoiningNote {
+  note: string | null;
+  from: string | null;
+}
+
+export function useJoiningNote(enabled: boolean) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: ["me", "joining-note", companyId] as const,
+    queryFn: () => apiFetch<JoiningNote>("/v1/me/joining-note", { companyId }),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+/**
  * POST /v1/me/oriented — #286. Finished, or skipped; the same call either way.
  *
  * Optimistic in effect without being optimistic in code: the orientation

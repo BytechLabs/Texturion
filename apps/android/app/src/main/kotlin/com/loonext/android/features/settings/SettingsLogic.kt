@@ -149,6 +149,28 @@ fun seatUsage(
     return SeatUsage(used = used, limit = limit, full = full, canUpgrade = canUpgrade, line = line)
 }
 
+/**
+ * #521: the joining note's ceiling, matching the column's CHECK and the API's
+ * schema. Stopping the field here turns a 422 into a box that simply stops
+ * taking characters, which is the difference between a limit and a rejection.
+ */
+const val INVITE_NOTE_MAX = 500
+
+/**
+ * The note as the invite body should carry it, or null for "there is none".
+ *
+ * A field somebody opened and left alone, and a field they never touched, are
+ * the same invite. Collapsing whitespace-only to null here is what keeps them
+ * that way on this client, so nothing downstream has to ask whether `""` meant
+ * anything.
+ *
+ * Takes a nullable because the same question is asked of a note coming BACK
+ * from the server, where "there is none" arrives as null. One rule for both
+ * directions is what stops a pending row drawing quotation marks around a
+ * blank the form would never have sent.
+ */
+fun inviteNoteOrNull(typed: String?): String? = typed?.trim()?.ifEmpty { null }
+
 // ---------------------------------------------------------------------------
 // CNAM (carrier rule: 1-15 letters, digits, or spaces)
 // ---------------------------------------------------------------------------

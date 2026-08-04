@@ -359,10 +359,26 @@ struct SettingsRepository: Sendable {
         try await api.get("/v1/invites", companyId: companyId)
     }
 
-    func createInvite(_ companyId: String, email: String, role: String) async throws -> Invite {
-        try await api.post(
+    func createInvite(
+        _ companyId: String,
+        email: String,
+        role: String,
+        /// #521: why this person is being added, in the inviter's own words, or
+        /// nil for the invite this route has always sent. Never the empty
+        /// string: the server normalises blank to null, so `""` would be a
+        /// longer way of saying nothing.
+        note: String? = nil
+    ) async throws -> Invite {
+        var body: [String: JSONValue] = [
+            "email": .string(email),
+            "role": .string(role),
+        ]
+        // Written only when there is one, so an invite sent without a note
+        // carries exactly the body it always did.
+        if let note { body["note"] = .string(note) }
+        return try await api.post(
             "/v1/invites",
-            body: JSONValue.object(["email": .string(email), "role": .string(role)]),
+            body: JSONValue.object(body),
             companyId: companyId
         )
     }

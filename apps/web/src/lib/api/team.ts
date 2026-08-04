@@ -117,15 +117,24 @@ export function useInvites() {
 }
 
 /**
- * POST /v1/invites — { email, role }; seat limit enforced server-side (409).
- * The response carries `email_sent` (false when the address already has an
- * account) so the caller can prompt the inviter to share the accept link.
+ * POST /v1/invites — { email, role, note? }; seat limit enforced server-side
+ * (409). The response carries `email_sent` (false when the address already has
+ * an account) so the caller can prompt the inviter to share the accept link.
+ *
+ * #521: `note` is why this person is being added, in the inviter's own words,
+ * and it travels with the invite to the member's joining screen. Optional, 500
+ * characters, and written once. There is no edit path, because an invite that
+ * has been sent is something somebody has already read.
  */
 export function useCreateInvite() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { email: string; role: "admin" | "member" }) =>
+    mutationFn: (input: {
+      email: string;
+      role: "admin" | "member";
+      note?: string | null;
+    }) =>
       apiFetch<CreatedInvite>("/v1/invites", {
         method: "POST",
         companyId,

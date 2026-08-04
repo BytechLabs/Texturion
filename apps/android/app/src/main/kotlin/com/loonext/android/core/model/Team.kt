@@ -23,6 +23,13 @@ data class Invite(
     val accepted_at: String? = null,
     val revoked_at: String? = null,
     val created_at: String,
+    /**
+     * #521: why the inviter said they were adding this person, or null when
+     * they said nothing, which is most invites. Written once, at invite time:
+     * the words went out in an email somebody has already read, so there is no
+     * edit path for them here or on the server.
+     */
+    val note: String? = null,
     /** POST /v1/invites only: false = send failed, fall back to Copy link. */
     val email_sent: Boolean? = null,
     /** GET /v1/invites/mine only: inviting company's name for the banner. */

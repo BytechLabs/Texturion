@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.data.CacheKeys
@@ -342,6 +343,7 @@ private fun InvitesCard(
         servedLimit = company.seat_limit,
     )
     var email by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf("") }
     var role by remember { mutableStateOf(MemberRole.MEMBER) }
     var roleMenuOpen by remember { mutableStateOf(false) }
     var sending by remember { mutableStateOf(false) }
@@ -358,6 +360,37 @@ private fun InvitesCard(
             enabled = !seat.full && !sending,
             label = { Text("Email") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+        )
+        Spacer(Modifier.height(8.dp))
+        // #521: an owner knows why they are adding THIS person. The joining
+        // orientation a new member already gets can only explain the product;
+        // what their own crew expects of them is the part they would otherwise
+        // have to ask a colleague about on day one.
+        //
+        // Optional in the strict sense: nothing below validates it, nothing
+        // gates the Invite button on it, and an owner who never touches it
+        // sends exactly the invite they sent yesterday.
+        OutlinedTextField(
+            value = note,
+            // The column's CHECK, mirrored, by KEEPING the first 500 characters
+            // rather than refusing the value that carries them. Refusing the
+            // whole value leaves a pasted paragraph as an empty field with
+            // nothing said about why, and makes a held key feel broken.
+            onValueChange = { note = it.take(INVITE_NOTE_MAX) },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 2,
+            enabled = !seat.full && !sending,
+            label = { Text("What to tell them (optional)") },
+            placeholder = {
+                Text("You'll be running the Bathurst jobs. Text Dave before quoting anything big.")
+            },
+            supportingText = {
+                // When they read it, and that it is one shot. An owner writing
+                // here deserves to know both before they write something they
+                // would not want read aloud: the words are gone the moment the
+                // invite is sent, and no screen in this app can call them back.
+                Text("They see this once, when they join. You cannot change it after the invite goes out.")
+            },
         )
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -411,12 +444,19 @@ private fun InvitesCard(
                     formError = null
                     coroutines.launch {
                         try {
-                            val invite = scope.repo.createInvite(scope.companyId, trimmed, role)
+                            val invite = scope.repo.createInvite(
+                                scope.companyId, trimmed, role, inviteNoteOrNull(note),
+                            )
                             email = ""
+                            // Cleared with the email: the next invite is for a
+                            // different person, and re-sending one owner's words
+                            // to a second teammate by accident is worse than
+                            // retyping them.
+                            note = ""
                             haptics.confirm()
                             if (invite.email_sent == false) {
                                 scope.showMessage(
-                                    "The invite email couldn't be sent. " +
+                                    "We couldn't email that invite. " +
                                         "Use Copy link below and share it yourself.",
                                 )
                             } else {
@@ -466,6 +506,30 @@ private fun InvitesCard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        // #521: what was said when this went out. Shown, never
+                        // editable: the words are already in somebody's inbox,
+                        // and a row that let an owner rewrite them would be
+                        // rewriting a letter that has been read.
+                        //
+                        // Routed through the same emptiness rule the field
+                        // writes with, so a row cannot draw a pair of quotation
+                        // marks around nothing if a blank one ever reaches it.
+                        val said = inviteNoteOrNull(invite.note)
+                        if (said != null) {
+                            Text(
+                                "“$said”",
+                                style = MaterialTheme.typography.bodySmall,
+                                // `outline` is for hairlines and control edges.
+                                // Against these two canvases it measures about
+                                // 2:1, under the 4.5:1 that 12sp text has to
+                                // clear. This is somebody's sentence, so it
+                                // gets the secondary TEXT role instead.
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
                     }
                     if (!expired) {
                         LinkButton(onClick = {
