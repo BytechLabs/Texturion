@@ -447,6 +447,24 @@ struct SettingsRepository: Sendable {
         try await api.put("/v1/numbers/\(numberId)/access", body: body, companyId: companyId)
     }
 
+    /// #307: this line's identity, resolved with what each field inherits.
+    func numberIdentity(_ companyId: String, numberId: String) async throws -> NumberIdentity {
+        try await api.get("/v1/numbers/\(numberId)/identity", companyId: companyId)
+    }
+
+    /// #307: set or CLEAR this line's overrides.
+    ///
+    /// A field carrying `.null` means INHERIT, so the body must SEND null
+    /// rather than omit the key — omitting it leaves the override in place,
+    /// which is the opposite of what "use the workspace's" means.
+    func setNumberIdentity(
+        _ companyId: String,
+        numberId: String,
+        body: JSONValue
+    ) async throws -> NumberIdentity {
+        try await api.patch("/v1/numbers/\(numberId)/identity", body: body, companyId: companyId)
+    }
+
     // MARK: - Port-in
 
     func ports(_ companyId: String) async throws -> Page<PortRequest> {

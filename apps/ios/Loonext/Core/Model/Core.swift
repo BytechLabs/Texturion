@@ -430,3 +430,21 @@ struct CompanyView: Codable, Sendable {
         }
     }
 }
+
+/// #307 — one field of a line's identity: what a caller gets, and whether it
+/// came from the workspace rather than from this line.
+///
+/// Both properties are `var` with defaults, per the rule a red build taught
+/// this repo: an optional `let` is a REQUIRED argument of the memberwise init,
+/// and every construction site in both iOS targets has to change for it.
+struct ResolvedField: Codable, Sendable {
+    var value: String? = nil
+    var inherited: Bool = true
+}
+
+/// GET/PATCH /v1/numbers/{id}/identity.
+struct NumberIdentity: Codable, Sendable {
+    var label = ResolvedField()
+    var voicemail_greeting = ResolvedField()
+    var away_message = ResolvedField()
+}

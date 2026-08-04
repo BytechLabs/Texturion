@@ -120,6 +120,7 @@ private struct NumberCard: View {
 
     @State private var releasing = false
     @State private var managingAccess = false
+    @State private var managingIdentity = false
     @State private var choosing = false
 
     private var canManage: Bool { SettingsRoleGate.canManageNumbers(scope.role) }
@@ -160,6 +161,7 @@ private struct NumberCard: View {
             if !released && number.status == NumberStatus.active {
                 HStack(spacing: 12) {
                     if canManage {
+                        Button("How this line answers") { managingIdentity = true }
                         Button("Who can use this number") { managingAccess = true }
                             .font(.subheadline)
                             .buttonStyle(.borderless)
@@ -190,6 +192,11 @@ private struct NumberCard: View {
         .sheet(isPresented: $managingAccess) {
             NumberAccessSheet(scope: scope, number: number) {
                 managingAccess = false
+            }
+        }
+        .sheet(isPresented: $managingIdentity) {
+            NumberIdentitySheet(scope: scope, number: number) {
+                managingIdentity = false
             }
         }
         .sheet(isPresented: $choosing) {
