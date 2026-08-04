@@ -1,6 +1,6 @@
 # Capacity: what breaks first, and at what volume
 
-> **Status: partial, and the partiality is the point.** #251 asks for "a
+> **Status: partial, and the partiality is the point.** Updated 2026-08-04 with the `EXPLAIN` pass. #251 asks for "a
 > documented capacity plan naming the first thing that breaks and at what
 > volume." One of its five unknowns is now measured. The other four are not,
 > and this document says so rather than estimating them, because a capacity
@@ -44,10 +44,85 @@ prospect is therefore: *the list surfaces are fast for a normal trade business
 and have not been tuned for one with tens of thousands of customers, and we know
 where that starts to show.*
 
-**Not yet done, and deliberately filed rather than fixed here** (#251: "with the
-resulting index work filed separately rather than fixed here"): the
-`EXPLAIN (ANALYZE, BUFFERS)` pass on each of the four. Run
-`node scripts/ops/query-load.mjs --keep` and explain against the fixture.
+### The `EXPLAIN` pass — DONE 2026-08-04, and it changes the verdict
+
+The plans, not the milliseconds, are the finding. A plan is what changes when
+data grows; a number on one laptop is a fact about that laptop.
+
+| Surface | Plan at 50k/200k | |
+|---|---|---|
+| Inbox list, 50 most recent open | Index Scan, `conversations_inbox_idx` | 0.9 ms |
+| One thread's messages | Bitmap Index Scan, `messages_conv_created_idx` | <1 ms |
+| Message full-text, selective term | Bitmap Index Scan, `messages_body_tsv_idx` | 0.2 ms |
+| `api_for_you` | ranked queue | 39 ms |
+| `api_search`, whole call | contact half seq-scans (below) | 159 ms |
+
+**This contradicts the ">200 ms for all four" row above, and the earlier row is
+the one to distrust.** Two reasons, both measurement artefacts rather than
+changes to the product:
+
+1. The figures above were end-to-end through `query-load.mjs`; these are the
+   database's own time for the same work. The gap between them is node,
+   the driver and JSON, not Postgres.
+2. The earlier run's own caveat says the seeding budget ran out before the
+   individual sub-figures could be captured. `scripts/load/seed-volume.sql`
+   builds the same workspace in about thirty seconds, because it is set-based
+   SQL run inside psql rather than driven from node, so the large size is now
+   cheap enough to measure repeatedly.
+
+**Three of the four are indexed and flat.** The one that is not:
+
+### Contact search cannot use its own indexes
+
+`api_search`'s contact half sequential-scans **all 50,000 contacts, ~123 ms,
+even when nothing matches**. The trigram indexes it needs already exist
+(`contacts_name_trgm`, `contacts_phone_trgm`) and it does not use them.
+
+Its predicate is three branches OR'd together:
+
+```sql
+   ct.name ilike ('%' || p_q || '%')
+or ct.phone_e164 ilike ('%' || p_q || '%')
+or coalesce(ct.name, '') operator(extensions.%) p_q
+```
+
+Measured separately, the cause is unambiguous:
+
+| Predicate | Plan |
+|---|---|
+| the two `ilike` branches alone | **BitmapOr** over both trigram indexes |
+| the `coalesce(...)` branch alone | **Seq Scan** |
+
+`contacts_name_trgm` indexes `name`. It cannot serve `coalesce(name, '')`, which
+is a different expression, so that branch has no index available — and because
+it is OR'd with the other two, the planner cannot use the indexes for any of
+them. **One unindexable branch costs the whole predicate its index.**
+
+The `coalesce` is not earning that: `NULL % 'x'` is NULL, which an `OR` treats
+as false, so `ct.name operator(%) p_q` returns the same rows. Dropping the
+wrapper is better than adding an index to support a wrapper nothing needs.
+
+Left unfixed here per #251's own instruction that the resulting index work goes
+in its own change rather than in the analysis.
+
+### The fixture taught a lesson worth keeping
+
+The first version of the seed gave every message one of four canned sentences,
+so a search term matched 150,000 of 200,000 rows. Postgres chose a sequential
+scan — correctly, at that selectivity — and it looked exactly like a missing
+full-text index. The GIN index was there the whole time.
+
+Volume was right and **cardinality** was wrong, which is the empty-table mistake
+one level down. Each thread now carries a job reference, so a term matches a
+handful of threads the way a real search does, and the full-text path measures
+0.2 ms instead of 129 ms.
+
+### Two harnesses, and the remaining tidy-up
+
+`scripts/ops/query-load.mjs` times the queries end to end; `scripts/load/`
+seeds fast and reads plans. They seed the same workspace two ways, which is one
+way too many — folding the node harness onto the SQL seeder is the obvious next
+edit and is not done.
 
 ### Caveat on the measurement
 
