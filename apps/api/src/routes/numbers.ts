@@ -1,9 +1,15 @@
-import { NANP_AREA_CODES } from "@loonext/shared";
+import {
+  isValidBusinessHours,
+  isValidHoursExceptions,
+  NANP_AREA_CODES,
+} from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import { z } from "zod";
 
 import { resolveNumberIdentity } from "@loonext/shared";
+
+import { isValidIanaTimezone } from "./core/timezone";
 
 import { recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
@@ -664,6 +670,16 @@ const identityBodySchema = z
     // to following the workspace once it had been touched.
     mctb_enabled: z.boolean().nullable().optional(),
     mctb_message: z.string().max(1000).nullable().optional(),
+    // The clock this line keeps. Structural validity is checked below with
+    // the SAME validators the workspace route uses — a second near-identical
+    // rule here is how two surfaces end up disagreeing about what a valid
+    // Tuesday looks like.
+    timezone: z.string().trim().min(1).max(100).nullable().optional(),
+    business_hours: z
+      .record(z.string(), z.object({ open: z.string(), close: z.string() }).nullable())
+      .nullable()
+      .optional(),
+    business_hours_exceptions: z.array(z.unknown()).nullable().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, {
     message: "give at least one field to change",
@@ -685,14 +701,18 @@ async function loadIdentity(
   const [numberRes, companyRes] = await Promise.all([
     db
       .from("phone_numbers")
-      .select("id,label,voicemail_greeting,away_message,mctb_enabled,mctb_message")
+      // ONE literal, deliberately: splitting it with `+` defeats the client's
+      // literal-type inference and the row stops being assignable.
+      .select(
+        "id,label,voicemail_greeting,away_message,mctb_enabled,mctb_message,timezone,business_hours,business_hours_exceptions",
+      )
       .eq("company_id", companyId)
       .eq("id", numberId)
       .limit(1),
     db
       .from("companies")
       .select(
-        "name,timezone,voicemail_greeting,away_message,away_enabled,mctb_enabled,mctb_message",
+        "name,timezone,voicemail_greeting,away_message,away_enabled,mctb_enabled,mctb_message,business_hours,business_hours_exceptions",
       )
       .eq("id", companyId)
       .limit(1),
@@ -711,6 +731,9 @@ async function loadIdentity(
         away_message: string | null;
         mctb_enabled: boolean | null;
         mctb_message: string | null;
+        timezone: string | null;
+        business_hours: unknown;
+        business_hours_exceptions: unknown;
       }
     | undefined;
   if (!number) return null;
@@ -723,6 +746,8 @@ async function loadIdentity(
     away_enabled: boolean;
     mctb_enabled: boolean;
     mctb_message: string | null;
+    business_hours: unknown;
+    business_hours_exceptions: unknown;
   };
 
   const identity = resolveNumberIdentity(
@@ -732,8 +757,8 @@ async function loadIdentity(
       voicemailGreeting: company.voicemail_greeting,
       awayMessage: company.away_message,
       awayEnabled: company.away_enabled,
-      businessHours: null,
-      businessHoursExceptions: null,
+      businessHours: company.business_hours,
+      businessHoursExceptions: company.business_hours_exceptions,
       mctbEnabled: company.mctb_enabled,
       mctbMessage: company.mctb_message,
     },
@@ -743,6 +768,9 @@ async function loadIdentity(
       awayMessage: number.away_message,
       mctbEnabled: number.mctb_enabled,
       mctbMessage: number.mctb_message,
+      timezone: number.timezone,
+      businessHours: number.business_hours,
+      businessHoursExceptions: number.business_hours_exceptions,
     },
   );
 
@@ -752,6 +780,9 @@ async function loadIdentity(
     away_message: identity.awayMessage,
     mctb_enabled: identity.mctbEnabled,
     mctb_message: identity.mctbMessage,
+    timezone: identity.timezone,
+    business_hours: identity.businessHours,
+    business_hours_exceptions: identity.businessHoursExceptions,
   };
 }
 
@@ -770,7 +801,7 @@ numbersRoutes.patch("/:id/identity", requireCapability("numbers.manage"), async 
   const id = pathUuid(c, "id");
   const body = await parseJsonBody(c, identityBodySchema);
 
-  const patch: Record<string, string | boolean | null> = {};
+  const patch: Record<string, unknown> = {};
   if ("label" in body) patch.label = overrideValue(body.label) ?? null;
   if ("voicemail_greeting" in body) {
     patch.voicemail_greeting = overrideValue(body.voicemail_greeting) ?? null;
@@ -784,6 +815,45 @@ numbersRoutes.patch("/:id/identity", requireCapability("numbers.manage"), async 
   if ("mctb_enabled" in body) patch.mctb_enabled = body.mctb_enabled ?? null;
   if ("mctb_message" in body) {
     patch.mctb_message = overrideValue(body.mctb_message) ?? null;
+  }
+  if ("timezone" in body) {
+    const zone = overrideValue(body.timezone) ?? null;
+    // An unresolvable zone is refused rather than stored. The away clock reads
+    // this on every inbound, and an invalid zone there resolves to "open" —
+    // so a typo would not error, it would quietly stop the line ever counting
+    // as after-hours, which is indistinguishable from the feature being off.
+    if (zone !== null && !isValidIanaTimezone(zone)) {
+      throw new ApiError(
+        "validation_failed",
+        "timezone must be a valid IANA zone, like America/Toronto.",
+      );
+    }
+    patch.timezone = zone;
+  }
+  // The SAME validators the workspace route uses. Two surfaces with two
+  // near-identical rules is how they end up disagreeing about what a valid
+  // Tuesday looks like.
+  if ("business_hours" in body) {
+    if (body.business_hours !== null && !isValidBusinessHours(body.business_hours)) {
+      throw new ApiError(
+        "validation_failed",
+        "business_hours must map weekdays (mon..sun) to { open, close } HH:MM windows.",
+      );
+    }
+    patch.business_hours = body.business_hours ?? null;
+  }
+  if ("business_hours_exceptions" in body) {
+    if (
+      body.business_hours_exceptions !== null &&
+      !isValidHoursExceptions(body.business_hours_exceptions)
+    ) {
+      throw new ApiError(
+        "validation_failed",
+        "Each closed date needs a from and to date (YYYY-MM-DD, to on or after from) " +
+          "and either no hours or an { open, close } HH:MM window.",
+      );
+    }
+    patch.business_hours_exceptions = body.business_hours_exceptions ?? null;
   }
 
   const { data, error } = await db

@@ -1477,6 +1477,10 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
     voicemail_greeting: "You have reached Acme Plumbing.",
     away_message: "We are closed.",
     away_enabled: true,
+    mctb_enabled: true,
+    mctb_message: "Sorry we missed your call.",
+    business_hours: { mon: { open: "08:00", close: "17:00" } },
+    business_hours_exceptions: [],
   };
 
   function withNumber(
@@ -1492,6 +1496,11 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
       label: null,
       voicemail_greeting: null,
       away_message: null,
+      mctb_enabled: null,
+      mctb_message: null,
+      timezone: null,
+      business_hours: null,
+      business_hours_exceptions: null,
       ...overrides,
     });
   }
@@ -1507,6 +1516,84 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
     expect(body.label).toEqual({ value: "Acme Plumbing", inherited: true });
     expect(body.voicemail_greeting.inherited).toBe(true);
     expect(body.away_message.inherited).toBe(true);
+  });
+
+  it("ID-9: a line keeps its own clock, and null puts it back on the workspace's", async () => {
+    // The Vancouver line in a Toronto workspace. Before this the away clock
+    // was company-wide, so one of the two lines was always running on the
+    // wrong hours with no setting that could fix it.
+    const harness = buildHarness(COMPANY_IDENTITY);
+    withNumber(harness);
+
+    const set = await harness.request(`/v1/numbers/${ID}/identity`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        timezone: "America/Vancouver",
+        business_hours: { tue: { open: "09:00", close: "15:00" } },
+      }),
+    });
+    expect(set.status).toBe(200);
+
+    const after = (await (
+      await harness.request(`/v1/numbers/${ID}/identity`)
+    ).json()) as Record<string, { value: unknown; inherited: boolean }>;
+    expect(after.timezone).toEqual({
+      value: "America/Vancouver",
+      inherited: false,
+    });
+    expect(after.business_hours.inherited).toBe(false);
+
+    // And back. "Use the workspace's" has to work for the clock too, or a
+    // line that was moved once can never follow the workspace again.
+    await harness.request(`/v1/numbers/${ID}/identity`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ timezone: null, business_hours: null }),
+    });
+    const back = (await (
+      await harness.request(`/v1/numbers/${ID}/identity`)
+    ).json()) as Record<string, { value: unknown; inherited: boolean }>;
+    expect(back.timezone).toEqual({ value: "America/Toronto", inherited: true });
+    expect(back.business_hours).toEqual({
+      value: { mon: { open: "08:00", close: "17:00" } },
+      inherited: true,
+    });
+  });
+
+  it("ID-10: a zone the runtime cannot resolve is REFUSED, not stored", async () => {
+    // THE ONE THAT MATTERS HERE. The away clock reads this on every inbound,
+    // and an unresolvable zone there resolves to "open" — so a typo would not
+    // error anywhere, it would quietly stop the line ever counting as
+    // after-hours, which looks exactly like the feature being switched off.
+    const harness = buildHarness(COMPANY_IDENTITY);
+    withNumber(harness);
+
+    const res = await harness.request(`/v1/numbers/${ID}/identity`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ timezone: "America/Torotno" }),
+    });
+    expect(res.status).toBe(422);
+
+    const after = (await (
+      await harness.request(`/v1/numbers/${ID}/identity`)
+    ).json()) as Record<string, { value: unknown; inherited: boolean }>;
+    expect(after.timezone.inherited).toBe(true);
+  });
+
+  it("ID-11: malformed hours are refused by the SAME rule the workspace uses", async () => {
+    const harness = buildHarness(COMPANY_IDENTITY);
+    withNumber(harness);
+
+    const res = await harness.request(`/v1/numbers/${ID}/identity`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        business_hours: { mon: { open: "25:00", close: "17:00" } },
+      }),
+    });
+    expect(res.status).toBe(422);
   });
 
   it("ID-2: null CLEARS an override back to inherit", async () => {
