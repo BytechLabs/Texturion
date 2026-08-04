@@ -111,7 +111,7 @@ export async function sendEmergencyAcknowledgment(
   const { data: convRows, error: convError } = await db
     .from("conversations")
     // #291: the thread's number, not the contact's primary.
-    .select("id,contact_phone_e164,phone_numbers(number_e164,status)")
+    .select("id,contact_phone_e164,phone_numbers(number_e164,status),contacts(locale)")
     .eq("company_id", args.companyId)
     .eq("id", args.conversationId)
     .limit(1);
@@ -124,6 +124,8 @@ export async function sendEmergencyAcknowledgment(
     | {
         phone_numbers: { number_e164: string | null; status: string } | null;
         contact_phone_e164: string | null;
+        /** #228: this customer's own language, or null to follow the company. */
+        contacts: { locale: string | null } | null;
       }
     | undefined;
   const from = conv?.phone_numbers?.number_e164;
@@ -140,11 +142,15 @@ export async function sendEmergencyAcknowledgment(
   // anyway would burn the throttle on a message that never lands.
   const clearance = await runPreSendGates(env, args.companyId, to);
 
-  // #228: the product default and the safety line, in the language the business
-  // works in. An owner who wrote their own body keeps it verbatim; the safety
-  // line is appended in the resolved language either way, because that sentence
-  // is the one a person in danger has to be able to read.
-  const copy = copyFor(resolveLocale(null, args.companyLocale));
+  // #228: this customer's own language, else the business's. It rides the
+  // conversation embed already being read, so honouring a per-contact override
+  // costs no extra round trip on a path where somebody has just said their heat
+  // is out. An owner who wrote their own body keeps it verbatim; the safety line
+  // is appended in the resolved language either way, because that sentence is
+  // the one a person in danger has to be able to read.
+  const copy = copyFor(
+    resolveLocale(conv.contacts?.locale ?? null, args.companyLocale),
+  );
 
   return guardedAutoSend(env, db, {
     companyId: args.companyId,

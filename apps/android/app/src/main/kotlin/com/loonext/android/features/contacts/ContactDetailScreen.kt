@@ -41,6 +41,8 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Translate
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.model.northAmericanTimeZoneIds
 import com.loonext.android.core.model.timezoneProvenanceLabel
 import androidx.compose.material3.OutlinedTextField
@@ -122,6 +124,14 @@ internal fun ContactDetailScreen(
     onComposeNew: ((contactId: String) -> Unit)?,
     modifier: Modifier = Modifier,
     callerIdName: String = "",
+    /**
+     * #228: the workspace's own language, so the inherit option can NAME what
+     * it inherits. Defaulted rather than required because the shell reads it
+     * from a hydration that can be a beat behind; the fallback is the language
+     * the product sends when nobody has said otherwise, which is what the
+     * server would resolve too.
+     */
+    companyLocale: String = MessageLocale.DEFAULT,
 ) {
     BackHandler(onBack = onBack)
 
@@ -215,6 +225,7 @@ internal fun ContactDetailScreen(
                 mutations = mutations,
                 companyId = companyId,
                 callerIdName = callerIdName,
+                companyLocale = companyLocale,
                 contact = current.value,
                 members = members,
                 conversation = conversation,
@@ -233,6 +244,7 @@ private fun ContactDetailBody(
     mutations: ContactMutations,
     companyId: String,
     callerIdName: String,
+    companyLocale: String,
     contact: Contact,
     members: List<Member>,
     conversation: ConversationListItem?,
@@ -703,6 +715,19 @@ private fun ContactDetailBody(
                     graph.storeCache.put(CacheKeys.contact(companyId, contact.id), updated)
                 },
             )
+            RowDivider()
+            // #228: directly under the clock, because the two are the same kind
+            // of thing: a workspace default this one customer overrides.
+            ContactLanguageRow(
+                contact = contact,
+                companyLocale = companyLocale,
+                save = { locale ->
+                    val updated =
+                        mutations.updateField(companyId, contact.id, "locale", locale)
+                    graph.storeCache.put(CacheKeys.contact(companyId, contact.id), updated)
+                },
+                onError = { actionError = it },
+            )
         }
 
         // #191: a quiet record-attribution caption — who added this contact,
@@ -1023,6 +1048,123 @@ private fun DestinationClockRow(
                     Text("Use their area code")
                 }
             }
+        }
+    }
+}
+
+/**
+ * #228: which language the automated texts to THIS customer are written in.
+ *
+ * THREE states, not two, and the third is the point. A contact whose locale is
+ * null follows the workspace, so an owner who moves the workspace to French
+ * moves this customer too; a control that could only say "English" or "French"
+ * would have no way back to that, and the first person who tapped it would pin
+ * the row forever without being told they had.
+ *
+ * So the inherit option NAMES the language it is inheriting, as in "Same as
+ * workspace (English)", and somebody can read what following the workspace
+ * currently means without leaving the screen.
+ *
+ * Folded like the clock above it for the same reason: nearly every contact
+ * wants the workspace's language, and a permanently open picker would be
+ * clutter earning its keep a few times a year.
+ *
+ * Applying: Zen of Clarity (advanced control collapsed), Smart Defaults.
+ */
+@Composable
+private fun ContactLanguageRow(
+    contact: Contact,
+    companyLocale: String,
+    save: suspend (String?) -> Unit,
+    /**
+     * #228: where a failed save is reported. Without it the editor closes on a
+     * 422 or a dropped connection exactly as it does on success, and the row
+     * goes on showing the previous language - so silence reads as "saved".
+     */
+    onError: (String) -> Unit,
+) {
+    var editing by remember(contact.id) { mutableStateOf(false) }
+    var saving by remember(contact.id) { mutableStateOf(false) }
+    var expanded by remember(contact.id) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    val effective = MessageLocale.resolve(contact.locale, companyLocale)
+    val inheritLabel = MessageLocale.inheritLabel(companyLocale)
+
+    fun apply(next: String?) {
+        saving = true
+        scope.launch {
+            runCatching { save(next) }.onFailure { onError(it.userMessage()) }
+            saving = false
+            editing = false
+        }
+    }
+
+    Column(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 12.dp)) {
+        Text(
+            "Their language",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Outlined.Translate,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(MessageLocale.label(effective), style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                if (contact.locale == null) "Same as your workspace" else "Set by your crew",
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Spacer(Modifier.width(8.dp))
+            TextButton(onClick = { editing = !editing }, enabled = !saving) {
+                Text(if (editing) "Done" else "Change")
+            }
+        }
+
+        if (editing) {
+            Spacer(Modifier.height(4.dp))
+            Box {
+                OutlinedButton(onClick = { expanded = true }, enabled = !saving) {
+                    Text(
+                        if (contact.locale == null) inheritLabel
+                        else MessageLocale.label(contact.locale),
+                    )
+                }
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    // Following the workspace is first: it is the state every
+                    // contact starts in, and the one somebody comes back here
+                    // to restore.
+                    DropdownMenuItem(
+                        text = { Text(inheritLabel) },
+                        onClick = { expanded = false; apply(null) },
+                    )
+                    MessageLocale.ALL.forEach { candidate ->
+                        DropdownMenuItem(
+                            text = { Text(MessageLocale.label(candidate)) },
+                            onClick = { expanded = false; apply(candidate) },
+                        )
+                    }
+                }
+            }
+            // The caveat belongs at the moment of the decision, not in a help
+            // page: somebody setting a customer to French is usually imagining
+            // the whole conversation changing, and it is four texts.
+            Text(
+                "Automated texts only: the away reply, the missed-call text " +
+                    "back, the urgent reply, and the rating ask. Anything you " +
+                    "type is sent exactly as you wrote it.",
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }

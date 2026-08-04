@@ -22,6 +22,10 @@ struct WorkspaceSectionView: View {
         // we on", and the pair reads as one idea — yours above, the customer's
         // here.
         QuietHoursCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
+        // #228: after the two clock cards because it is the same shape of
+        // decision: those bend to the customer's hours, this bends to the
+        // customer's language.
+        LanguageCard(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
         // #291: below the two clock cards because it is a different question —
         // those are about when we contact people, this is about what we know
         // about them.
@@ -511,6 +515,108 @@ private struct QuietHoursCard: View {
             do {
                 let updated = try await scope.repo.updateCompany(scope.companyId, patch: body)
                 onCompanyUpdated(updated)
+            } catch {
+                self.error = error.userMessage
+            }
+            saving = false
+        }
+    }
+}
+
+// MARK: - Language (#228)
+
+/// #228: the sentence that stops this card being a broken promise.
+///
+/// An owner reading "language" reasonably expects the app to change language.
+/// It does not: four automated texts change, and nothing else. Naming the four
+/// in the card's own description, and naming the two things it does NOT do
+/// directly under the choice, is the whole design. Somebody who expected a
+/// French app and received four French texts was misled by us.
+///
+/// The other two clients carry this same caveat. Three screens describing the
+/// reach of one setting differently is how an owner ends up trusting the most
+/// generous of the three.
+let localeScopeCaveat =
+    "It does not change the app's own language, and it does not translate a "
+        + "message one of you wrote. An away message you typed keeps the "
+        + "sentence you typed, in the language you typed it."
+
+/// #228: which language the automated texts go out in.
+///
+/// TWO states, and neither of them is "unset": a business always works in some
+/// language, so there is nothing here to clear. The per-contact override in
+/// Contacts is the one with three.
+private struct LanguageCard: View {
+    let scope: SettingsScope
+    let company: CompanyView
+    let onCompanyUpdated: @MainActor (CompanyView) -> Void
+
+    @State private var saving = false
+    @State private var error: String?
+
+    private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
+
+    var body: some View {
+        SettingsCard(
+            title: "Language for automated texts",
+            description: "The after-hours away reply, the missed-call text-back, "
+                + "the emergency acknowledgment and the rating ask go out in "
+                + "this language."
+        ) {
+            ForEach(MessageLocale.all, id: \.self) { locale in
+                // #228: resolve rather than compare raw. A row carrying a
+                // locale this build does not know would leave EVERY circle
+                // empty here while the contact screen falls back to English for
+                // the same row, so the two screens would disagree about one
+                // workspace and the setting would look unset.
+                let selected = MessageLocale.resolve(contact: nil, company: company.locale) == locale
+                Button {
+                    guard !selected else { return }
+                    save(locale)
+                } label: {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                            .foregroundStyle(selected ? BrandColor.olive : Color.secondary)
+                            .padding(.top, 2)
+                        Text(MessageLocale.label(locale))
+                            .font(.body)
+                            .foregroundStyle(Color.primary)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 6)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canEdit || saving)
+            }
+            Spacer().frame(height: 6)
+            ReadOnlyLine(localeScopeCaveat)
+            Spacer().frame(height: 6)
+            // Discoverability for the other half of the feature: an owner who
+            // needs one language for the business and another for one customer
+            // would otherwise conclude the product cannot do it.
+            ReadOnlyLine(
+                "One customer who reads the other language can be set on their "
+                    + "own contact, which overrides this for them."
+            )
+            InlineError(error)
+            if !canEdit {
+                Spacer().frame(height: 4)
+                ReadOnlyLine("Only owners and admins can change the language.")
+            }
+        }
+    }
+
+    private func save(_ locale: String) {
+        error = nil
+        saving = true
+        Task {
+            do {
+                let updated = try await scope.repo.updateCompany(
+                    scope.companyId,
+                    patch: .object(["locale": .string(locale)])
+                )
+                onCompanyUpdated(updated)
+                scope.showMessage("Language saved.")
             } catch {
                 self.error = error.userMessage
             }

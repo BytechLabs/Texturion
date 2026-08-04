@@ -302,6 +302,70 @@ data class HoursException(
     val note: String? = null,
 )
 
+/**
+ * #228: which language an AUTOMATED text goes out in.
+ *
+ * Hand-ported from packages/shared/src/locale.ts. There is no shared Kotlin
+ * package, so these values live in two places and have to move together; the
+ * server validates whatever is sent, so a client that lags is refused rather
+ * than believed.
+ *
+ * Named for the MESSAGE, not the app. This is not `java.util.Locale` and never
+ * becomes it: nothing here translates the interface or anything a person typed,
+ * only the handful of texts we send on the owner's behalf.
+ */
+object MessageLocale {
+    const val EN = "en"
+    const val FR_CA = "fr-CA"
+
+    /** What a business works in until it says otherwise. */
+    const val DEFAULT = EN
+
+    /** The offer order for a picker: the product default first. */
+    val ALL = listOf(EN, FR_CA)
+
+    /**
+     * How each language names itself, never translated.
+     *
+     * Character-for-character equal to LOCALE_LABELS in packages/shared,
+     * unaccented "Francais" included: three clients each prettifying the label
+     * on their own is three pickers that no longer name the same thing.
+     * An unrecognised value renders as its own code, which is at least true.
+     */
+    fun label(value: String): String = when (value) {
+        EN -> "English"
+        FR_CA -> "Francais (Canada)"
+        else -> value
+    }
+
+    /**
+     * What the "follow the workspace" choice is called on a CONTACT.
+     *
+     * It NAMES the language being inherited rather than saying "default",
+     * because "same as workspace" on its own gives somebody the rule and not
+     * the answer, and the answer is what they opened the screen for. It is also
+     * the only option that can put a contact back to following the workspace,
+     * so it has to read as a real choice rather than as an absence.
+     */
+    fun inheritLabel(companyLocale: String): String =
+        "Same as workspace (${label(companyLocale)})"
+
+    /**
+     * The language a text to this contact actually goes out in.
+     *
+     * A null contact locale means "whatever the business works in", NEVER
+     * English: an owner who moves the workspace to fr-CA moves every customer
+     * they have not said otherwise about, including ones added years earlier.
+     * Anything unrecognised on either side falls back rather than throwing;
+     * this decides copy on a send path, and a row carrying a locale some later
+     * release added must not stop a text reaching somebody.
+     */
+    fun resolve(contactLocale: String?, companyLocale: String?): String =
+        contactLocale?.takeIf { it in ALL }
+            ?: companyLocale?.takeIf { it in ALL }
+            ?: DEFAULT
+}
+
 /** GET /v1/company and the GET /v1/me `company` hydration. */
 @Serializable
 data class CompanyView(
@@ -312,6 +376,14 @@ data class CompanyView(
     val requested_area_code: String,
     val chosen_number_e164: String? = null,
     val timezone: String,
+    /**
+     * #228: the language the automated texts go out in: the after-hours away
+     * reply, the missed-call text-back, the emergency acknowledgment, and the
+     * rating ask. Never null on the wire; defaulted so a payload from a Worker
+     * that predates the field decodes as the language the product has always
+     * sent rather than failing the whole company read.
+     */
+    val locale: String = MessageLocale.DEFAULT,
     val plan: String? = null,
     val subscription_status: String,
     val current_period_start: String? = null,

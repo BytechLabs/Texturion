@@ -49,6 +49,13 @@ struct ContactDetailView: View {
     @State private var placingCall = false
     /// #292: the timezone picker stays folded until asked for.
     @State private var editingTimezone = false
+    /// #228: the same, for the language picker.
+    @State private var editingLanguage = false
+    /// #228: the workspace's own language, read once per workspace like the
+    /// custom-field definitions above. The contact read carries only this
+    /// customer's OVERRIDE, and a nil override means "follow the workspace",
+    /// so without this the screen cannot say which language it is following.
+    @State private var companyLocale: String?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -98,6 +105,14 @@ struct ContactDetailView: View {
         .task(id: "fields|\(companyId)") {
             if let response = try? await mutations.contactFields(companyId: companyId) {
                 customFieldDefs = response.data
+            }
+        }
+        // #228: the workspace's language, once per workspace. A failure leaves
+        // it nil and the language row simply does not appear, which is the same
+        // way the custom fields above degrade.
+        .task(id: "language|\(companyId)") {
+            if let me = try? await graph.meApi.me(companyId: companyId) {
+                companyLocale = me.company?.locale
             }
         }
         // #82: the primary button is contextual — find this contact's
@@ -627,6 +642,11 @@ struct ContactDetailView: View {
             // #292/D49: what time it is where they are, and a way to fix it
             // when the area code lies.
             destinationClockRow(contact)
+            RowDivider()
+            // #228: beside the clock, because both are facts about the CUSTOMER
+            // that change how an automated message reaches them: one picks the
+            // hour, this one picks the words.
+            languageRow(contact)
         }
     }
 
@@ -664,6 +684,7 @@ struct ContactDetailView: View {
                     .foregroundStyle(BrandColor.olive)
                     .buttonStyle(.plain)
                     .disabled(working)
+                    .accessibilityLabel(editingTimezone ? "Done" : "Change timezone")
                 }
                 if editingTimezone {
                     Menu {
@@ -709,6 +730,111 @@ struct ContactDetailView: View {
                 companyId: companyId, contactId: contactId, field: "timezone", value: zone
             )
             editingTimezone = false
+            refreshKey += 1
+        }
+    }
+
+    /// #228: which language this customer's automated texts go out in.
+    ///
+    /// THREE states, not two, and the third is the whole point. A nil override
+    /// means "follow the workspace", which is a different instruction from
+    /// "English": an owner who switches the business to French expects this
+    /// customer to move with it. A control that could only say en or fr-CA
+    /// would have pinned every customer it ever touched, with nothing on screen
+    /// to say so and no way back.
+    ///
+    /// So the first option is the inherit one, and it NAMES the language being
+    /// inherited. "Same as workspace" that does not say which language is a
+    /// setting somebody has to leave this screen to understand.
+    ///
+    /// Folded like the clock above it, and for the same reason: the workspace
+    /// answer is right for nearly every customer, so a permanently-open picker
+    /// would be clutter earning its keep a few times a year.
+    ///
+    /// Renders nothing until the workspace's language is known, because naming
+    /// it is the point, and an inherit option that could not name a language would
+    /// be the confusion this control exists to prevent.
+    ///
+    /// Applying: Zen of Clarity (advanced control collapsed), Smart Defaults.
+    @ViewBuilder
+    private func languageRow(_ contact: Contact) -> some View {
+        // #228: the row renders whether or not the workspace read has landed.
+        // Gating it on `companyLocale` hid the whole control while that request
+        // was in flight or after it failed - so a contact who ALREADY has an
+        // override showed no language at all, with nothing on screen saying one
+        // existed and no way to clear it. An unknown workspace language costs
+        // the inherit option its name (below), which is a smaller loss than
+        // hiding a setting somebody has already made.
+        let resolved = MessageLocale.resolve(
+            contact: contact.locale, company: companyLocale
+        )
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Their language")
+                .font(.golos(10.5, weight: .semibold))
+                .foregroundStyle(BrandColor.muted500)
+            HStack(spacing: 6) {
+                Image(systemName: "character.bubble")
+                    .font(.scaled(11))
+                    .foregroundStyle(BrandColor.muted500)
+                Text(MessageLocale.label(resolved))
+                    .font(.golos(12.5))
+                    .foregroundStyle(BrandColor.muted900)
+                Text(
+                    contact.locale == nil
+                        ? "Same as your workspace"
+                        : "Set on this contact"
+                )
+                .font(.golos(10.5))
+                .foregroundStyle(BrandColor.muted500)
+                Spacer(minLength: 6)
+                // This card now holds two "Change" buttons, so each names
+                // what it changes. To VoiceOver they would otherwise be the
+                // same control twice.
+                Button(editingLanguage ? "Done" : "Change") {
+                    editingLanguage.toggle()
+                }
+                .font(.golos(11, weight: .semibold))
+                .foregroundStyle(BrandColor.olive)
+                .buttonStyle(.plain)
+                .disabled(working)
+                .accessibilityLabel(editingLanguage ? "Done" : "Change language")
+            }
+            if editingLanguage {
+                Menu {
+                    // Inherit first: it is the default every contact starts
+                    // on, and the one an override needs a way back to.
+                    Button(inheritedLocaleLabel(companyLocale: companyLocale)) {
+                        saveLocale(nil)
+                    }
+                    ForEach(MessageLocale.all, id: \.self) { candidate in
+                        Button(MessageLocale.label(candidate)) { saveLocale(candidate) }
+                    }
+                } label: {
+                    Text(
+                        contact.locale == nil
+                            ? inheritedLocaleLabel(companyLocale: companyLocale)
+                            : MessageLocale.label(resolved)
+                    )
+                    .font(.golos(12.5))
+                    .foregroundStyle(BrandColor.olive)
+                }
+                .disabled(working)
+                Text(localeContactScopeNote)
+                    .font(.golos(10.5))
+                    .foregroundStyle(BrandColor.muted500)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func saveLocale(_ locale: String?) {
+        runAction {
+            _ = try await mutations.updateField(
+                companyId: companyId, contactId: contactId, field: "locale", value: locale
+            )
+            editingLanguage = false
             refreshKey += 1
         }
     }
@@ -954,6 +1080,36 @@ private struct AutosaveField: View {
         }
     }
 }
+
+// MARK: - #228 contact language (pure, testable)
+
+/// The "follow the workspace" option, naming the language it follows.
+///
+/// A free function rather than an inline string, because this one label carries
+/// the whole three-state semantic: it has to be visibly different from the plain
+/// "English" option beside it, and it has to say WHICH language the workspace
+/// works in, or "same as workspace" is a setting somebody must leave the screen
+/// to understand. An unknown or missing workspace language resolves to English
+/// the same way the send path does, so the label can never come out empty.
+func inheritedLocaleLabel(companyLocale: String?) -> String {
+    // #228: name the language only when it is actually known. Naming English
+    // while the workspace read is in flight, or after it failed, would state a
+    // fact we do not have - and a French workspace being told its default is
+    // English is the exact confusion this control exists to remove. An unnamed
+    // option is vaguer; a wrongly named one is misleading.
+    guard let companyLocale, MessageLocale.all.contains(companyLocale) else {
+        return "Same as workspace"
+    }
+    return "Same as workspace (\(MessageLocale.label(companyLocale)))"
+}
+
+/// What this override does, and the two things it does not do, said where the
+/// choice is made rather than in a help page nobody opens. The workspace card's
+/// `localeScopeCaveat` makes the same promise about the workspace-wide setting.
+let localeContactScopeNote =
+    "Only automated texts follow this: the away reply, the missed-call "
+        + "text-back, the emergency reply and the rating ask. It does not change "
+        + "the app's language, and what your crew types is sent as typed."
 
 // MARK: - #191 record attribution (pure, testable)
 

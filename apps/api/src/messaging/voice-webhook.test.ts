@@ -115,6 +115,17 @@ function companyStubs(
   ];
 }
 
+/**
+ * #228: the caller's language lookup `sendMissedCallText` makes alongside the
+ * settings read. No rows is the ordinary case - a missed call is usually from a
+ * number with no contact record - and it resolves to the workspace language.
+ */
+function callerLocaleStub(locale: string | null = null): Stub {
+  return stubRoute(restMatch(env, "GET", "contacts"), () =>
+    locale === null ? [] : [{ locale }],
+  );
+}
+
 /** MCTB settings select used by sendMissedCallText. */
 function mctbSettingsStub(): Stub {
   return stubRoute(
@@ -755,7 +766,7 @@ describe("handleCallEvent — terminal → text-back", () => {
     serve(
       numberStub(),
       ...companyStubs(null),
-      mctbSettingsStub(),
+      mctbSettingsStub(), callerLocaleStub(),
       ...sendGateStubs(),
       claim,
       sms,
@@ -790,7 +801,7 @@ describe("handleCallEvent — terminal → text-back", () => {
     serve(
       numberStub(),
       ...companyStubs(null),
-      mctbSettingsStub(),
+      mctbSettingsStub(), callerLocaleStub(),
       ...sendGateStubs(),
       claim,
       sms,
@@ -841,7 +852,7 @@ describe("handleCallEvent — terminal → text-back", () => {
     serve(
       numberStub(),
       ...companyStubs(CELL),
-      mctbSettingsStub(),
+      mctbSettingsStub(), callerLocaleStub(),
       ...sendGateStubs(),
       claim,
       sms,
@@ -950,7 +961,7 @@ describe("handleCallEvent — terminal → text-back", () => {
     serve(
       numberStub(),
       ...companyStubs(CELL),
-      mctbSettingsStub(),
+      mctbSettingsStub(), callerLocaleStub(),
       ...sendGateStubs(),
       claimStub(),
       telnyxSms(),
@@ -1047,7 +1058,7 @@ describe("handleCallEvent — terminal → text-back", () => {
     serve(
       numberStub(),
       callRecordsStub(),
-      mctbSettingsStub(),
+      mctbSettingsStub(), callerLocaleStub(),
       ...sendGateStubs(),
       claimStub(),
       telnyxSms(),
@@ -1091,7 +1102,7 @@ describe("handleCallEvent — terminal → text-back", () => {
     serve(
       numberStub(),
       ...companyStubs(CELL),
-      mctbSettingsStub(),
+      mctbSettingsStub(), callerLocaleStub(),
       ...sendGateStubs(),
       claimStub(),
       telnyxSms(),
@@ -1485,7 +1496,7 @@ describe("handleCallEvent — #132 crew alert without a text-back", () => {
     serve(
       numberStub(),
       ...companyStubs(null),
-      mctbSettingsStub(),
+      mctbSettingsStub(), callerLocaleStub(),
       ...sendGateStubs(),
       claimStub(),
       telnyxSms(),
@@ -1507,7 +1518,7 @@ describe("handleCallEvent — #132 crew alert without a text-back", () => {
     serve(
       numberStub(),
       ...companyStubs(null),
-      mctbSettingsStub(),
+      mctbSettingsStub(), callerLocaleStub(),
       ...sendGateStubs(),
       stubRoute(rpcMatch(env, "claim_missed_call_text"), () => ({
         skipped: "opted_out",

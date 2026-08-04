@@ -14,6 +14,7 @@ import type { DeferralKind } from "@loonext/shared";
  */
 import type {
   HoursException,
+  Locale,
   MmsMediaKind,
   NumberAccessExplanation,
   VoicemailIntake,
@@ -319,6 +320,12 @@ export interface CompanyView {
   mfa_grace_until?: string | null;
   /** D15: workspace IANA timezone (business-facing daily framing). */
   timezone: string;
+  /**
+   * #228: the language the automated texts go out in. Never null. Every
+   * workspace has one, and it is the answer a contact without a language of
+   * their own inherits.
+   */
+  locale: Locale;
   plan: PlanId | null;
   /**
    * #328: what this workspace is charged in. Absent on a client that predates
@@ -1109,6 +1116,19 @@ export interface Contact {
    * the answer actually in force.
    */
   timezone: string | null;
+  /**
+   * #228: this customer's OWN language, or null to follow the workspace's.
+   *
+   * Null is not English. A workspace that switches to fr-CA moves every
+   * customer nobody has said otherwise about, including the ones added years
+   * earlier, so anything reading this must resolve against
+   * {@link CompanyView.locale} rather than defaulting on its own.
+   *
+   * Optional because the LIST projection does not carry it, the same reason
+   * `custom_fields` is: absent and null would otherwise be indistinguishable,
+   * and only one of them means the customer follows the workspace.
+   */
+  locale?: Locale | null;
 }
 
 /**

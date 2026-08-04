@@ -163,6 +163,19 @@ struct Contact: Codable, Sendable {
     var timezone_source: String?
     /// 0–23 where they are, at the moment the detail was read.
     var local_hour: Int?
+    /// #228: the language THIS customer's automated texts go out in, or nil to
+    /// follow the workspace's.
+    ///
+    /// Nil means "whatever the business works in", NOT English. Resolve it
+    /// through `MessageLocale.resolve` rather than reading it alone: a screen
+    /// that treated nil as English would name one language while the send path
+    /// used another, and an owner who later switched the workspace to French
+    /// would find this customer silently pinned to English.
+    ///
+    /// Detail projection only; the list does not carry it. `var … = nil` so it
+    /// does not become a required memberwise-init parameter at every existing
+    /// construction site.
+    var locale: String? = nil
     let last_activity_at: String?
     /// #191 record attribution — who created (or resurrected) and who last
     /// edited this contact. The detail + list reads resolve each actor to a

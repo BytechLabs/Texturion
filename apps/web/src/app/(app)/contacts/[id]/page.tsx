@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 
 import { CallButton } from "@/components/calls/call-button";
+import { ContactLanguage } from "@/components/contact-panel/contact-language";
 import { AddressList } from "@/components/contacts/address-list";
 import { PhoneList } from "@/components/contacts/phone-list";
 import { ExportHistory } from "@/components/contacts/export-history";
@@ -503,6 +504,18 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
               the settings screen never sees an empty heading. */}
           <ContactCustomFields contact={contact} />
           <DestinationClock contact={contact} />
+          {/* #228: the same control the thread panel carries, because a
+              contact nobody has texted yet has no thread and therefore no
+              panel. A language you can only set on customers who already wrote
+              to you is not a setting a crew can rely on.
+
+              A heading rather than a Label: a radiogroup has no single control
+              for htmlFor to point at, and the group already carries its own
+              accessible name. */}
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium">Language</p>
+            <ContactLanguage contact={contact} />
+          </div>
           <RecordAttribution contact={contact} />
         </div>
       </SettingsCard>

@@ -7,6 +7,8 @@ import {
 
 import { useCompanyId } from "@/lib/company/provider";
 
+import type { Locale } from "@loonext/shared";
+
 import { apiFetch } from "./client";
 import { keys } from "./keys";
 import { nextCursorParam } from "./pagination";
@@ -179,6 +181,12 @@ export interface ContactPatch {
    * a customer who moved.
    */
   timezone?: string | null;
+  /**
+   * #228: this customer's own language, or null to follow the workspace's.
+   * The null is the only way back to inheriting, so it has to be sendable:
+   * omitting the key leaves the override in place.
+   */
+  locale?: Locale | null;
   /**
    * #291: the workspace's own fields, as a WHOLE object. A partial send would
    * drop every value it left out — the API stores what it is given, because

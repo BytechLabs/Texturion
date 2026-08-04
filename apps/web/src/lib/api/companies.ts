@@ -6,7 +6,7 @@ import {
 
 import { useCompanyId } from "@/lib/company/provider";
 
-import type { CrewSizeBucket, HoursException } from "@loonext/shared";
+import type { CrewSizeBucket, HoursException, Locale } from "@loonext/shared";
 
 import { apiFetch } from "./client";
 import { keys } from "./keys";
@@ -79,6 +79,9 @@ export interface CompanyPatch {
   name?: string;
   /** D15: workspace IANA timezone (O/A, validated server-side). */
   timezone?: string;
+  /** #228 (O/A): the language automated texts go out in. Cannot be cleared:
+   *  a workspace with no language is not a state a send path can resolve. */
+  locale?: Locale;
   /** Owner-only: number, or null to remove the cap (SPEC §2). */
   overage_cap_multiplier?: number | null;
   /** FEATURE-GAPS Step 1 — after-hours away reply (O/A). */

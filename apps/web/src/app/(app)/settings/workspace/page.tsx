@@ -9,6 +9,7 @@ import { z } from "zod";
 
 import { CloseWorkspaceCard } from "@/components/settings/close-workspace-card";
 import { ContactFieldsCard } from "@/components/settings/contact-fields-card";
+import { LanguageCard } from "@/components/settings/language-card";
 import { LeaveWorkspaceCard } from "@/components/settings/leave-workspace-card";
 import { ExportDataCard } from "@/components/settings/export-data-card";
 import { TimezoneSelect } from "@/components/settings/timezone-select";
@@ -548,6 +549,15 @@ export default function WorkspaceSettingsPage() {
               are we on", and the pair reads as one idea — yours above, the
               customer's here. */}
           <QuietHoursCard company={company.data} />
+          {/* #228: under the two clock cards rather than between them, because
+              those two are a documented pair and splitting them would cost
+              more than the adjacency gains. It belongs here all the same: the
+              three together are everything about how an automated text reaches
+              a customer, whose clock it waits for and whose words it uses. */}
+          <LanguageCard
+            company={company.data}
+            canEdit={role === "owner" || role === "admin"}
+          />
           {/* #291: the fields this workspace keeps on a customer. Below the
               two clock cards because it is a different question — those are
               about when we contact people, this is about what we know about

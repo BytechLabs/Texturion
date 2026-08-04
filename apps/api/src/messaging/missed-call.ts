@@ -243,28 +243,48 @@ export async function sendMissedCallText(
 
   if (!identity.mctbEnabled.value) return NO_TEXT;
 
-  // #192: the toggle alone decides WHETHER a text goes out. The owner's text
-  // overrides only when non-blank; otherwise the product default ships — an
-  // enabled text-back never silently sends nothing.
-  // #228: the language this caller reads. A stranger has no contact row and
-  // resolves to the company's language; somebody we have met and marked as
-  // French-speaking gets French. Only the PRODUCT DEFAULT is translated - an
-  // owner who wrote their own text-back gets the sentence they wrote.
-  // THE COMPANY'S LANGUAGE, not the caller's, and that is deliberate. A
-  // missed call is overwhelmingly from a number with no contact row - that is
-  // the case this whole path exists for - so a per-contact read would buy a
-  // language override for the minority and cost a query on the hottest path in
-  // the product for everyone. The thread paths (away reply, rating ask) already
-  // hold the contact, and that is where a per-customer language earns its read.
-  const copy = copyFor(resolveLocale(null, settings.locale));
-  const template = effectiveMctbMessage(identity.mctbMessage.value, copy.missedCallTextBack)
-    .message;
-
   // An anonymous/CLIR caller ('anonymous'), a malformed token, or a non-US/CA
   // number can never be texted — skip SILENTLY. Throwing here would burn all
   // 5 ledger retries + a Sentry page on a condition known final on the first
   // pass (mirrors the forward path's caller-less client_state skip).
+  //
+  // BEFORE the language lookup below, deliberately: a caller we can never text
+  // must cost no reads at all, which is what the "no gates, no throw" test
+  // pins.
   if (!isUsCaDestination(args.callerE164)) return NO_TEXT;
+
+  // #228: the language this caller reads. Read HERE - past the enabled check
+  // and past the can-we-even-text-them check - so the only workspaces paying
+  // for it are the ones about to make a Telnyx API call, next to which one
+  // indexed select is free.
+  //
+  // Most missed calls are from a number with no contact row, which is the case
+  // this whole path exists for, and those resolve to the company's language:
+  // the right answer for a stranger. Somebody we have met and marked as
+  // French-speaking gets French, because the settings screens promise the
+  // per-contact override covers the automated texts and a text-back that
+  // ignored it would make that promise false for the one message a missed
+  // caller is most likely to read.
+  const contactRead = await db
+    .from("contacts")
+    .select("locale")
+    .eq("company_id", args.companyId)
+    .eq("phone_e164", args.callerE164)
+    .limit(1);
+  const copy = copyFor(
+    resolveLocale(
+      ((contactRead.data ?? [])[0] as { locale: string | null } | undefined)?.locale ?? null,
+      settings.locale,
+    ),
+  );
+
+  // #192: the toggle alone decides WHETHER a text goes out. The owner's text
+  // overrides only when non-blank; otherwise the product default ships — an
+  // enabled text-back never silently sends nothing. Only the PRODUCT DEFAULT is
+  // translated: an owner who wrote their own text-back gets the sentence they
+  // wrote, in the language they wrote it in.
+  const template = effectiveMctbMessage(identity.mctbMessage.value, copy.missedCallTextBack)
+    .message;
 
   // §7 send gates (subscription active, US/CA destination registration-clear).
   // A gate failure (lapsed subscription, pending 10DLC registration — states

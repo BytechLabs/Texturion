@@ -128,6 +128,45 @@ enum Capability {
     ]
 }
 
+/// #228: the languages an automated text can go out in.
+///
+/// Hand-ported from packages/shared/src/locale.ts, which two of the four
+/// clients import and this one cannot. The values and the labels have to be
+/// edited in step with it.
+///
+/// "Francais (Canada)" carries no cedilla, and that is deliberate rather than
+/// sloppy: the shared table is written inside the GSM-7 alphabet, because
+/// everything beside it in that file is a message body billed by the segment
+/// and one character outside GSM-7 halves how much fits in one.
+enum MessageLocale {
+    static let en = "en"
+    static let frCA = "fr-CA"
+
+    /// The order a picker offers them in.
+    static let all = [en, frCA]
+
+    /// How each language names itself. Never translated.
+    ///
+    /// Takes a NON-optional on purpose. A nil contact locale means "follow the
+    /// workspace", so an overload that accepted one would answer "English" for
+    /// a customer whose texts are about to go out in French.
+    static func label(_ locale: String) -> String {
+        locale == frCA ? "Francais (Canada)" : "English"
+    }
+
+    /// The language THIS customer's automated texts go out in.
+    ///
+    /// The contact's own setting wins; otherwise the workspace's. Hand-ported
+    /// from `resolveLocale`, including the fallback on both sides: a row
+    /// carrying a language some later migration added must resolve to something
+    /// rather than leave a screen blank.
+    static func resolve(contact: String?, company: String?) -> String {
+        if let contact, all.contains(contact) { return contact }
+        if let company, all.contains(company) { return company }
+        return en
+    }
+}
+
 struct Membership: Codable, Sendable {
     let company_id: String
     let name: String
@@ -294,6 +333,13 @@ enum DefaultScreeningOff: DefaultCodableProvider {
     static var defaultValue: String { "off" }
 }
 
+/// #228: a business always works in SOME language, so there is no unset state
+/// to represent. A payload from a Worker that predates the column reads as
+/// English, which is what those workspaces were already being sent.
+enum DefaultLocaleEnglish: DefaultCodableProvider {
+    static var defaultValue: String { MessageLocale.en }
+}
+
 /// #278: what an inbound call does outside business hours. `ring_everyone` is
 /// the product exactly as it behaved before this existed, so a lagging payload
 /// without the field keeps that rather than inventing a routing decision.
@@ -357,6 +403,14 @@ struct CompanyView: Codable, Sendable {
     /// bare `= []` — a default VALUE on a non-Optional does not make the
     /// Codable key optional, and a Worker predating #402 omits it entirely.
     @Default<DefaultEmptyList<HoursException>> var business_hours_exceptions: [HoursException]
+    /// #228: the language the AUTOMATED texts below go out in: the away reply,
+    /// the missed-call text-back, the emergency acknowledgment and the rating
+    /// ask. Not the app's own interface, and not a message somebody typed.
+    ///
+    /// Never null on the wire. Every contact without a language of its own
+    /// inherits this one, so changing it moves the whole customer list, and the
+    /// server re-resolves the `*_effective_message` previews to match.
+    @Default<DefaultLocaleEnglish> var locale: String
     @Default<DefaultFalse> var away_enabled: Bool
     let away_message: String?
     /// #414 ask 5: the template that will ACTUALLY send — the owner's text if

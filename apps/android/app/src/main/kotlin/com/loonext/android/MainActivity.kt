@@ -61,6 +61,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.MemberRole
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.update.UpdatePrompt
 import com.loonext.android.core.update.UpdateState
 import com.loonext.android.features.auth.AuthCallbacks
@@ -812,6 +813,11 @@ private fun ReadyShell(
                         },
                         companyId = companyId,
                         callerIdName = hydratedMe.display_name,
+                        // #228: the contact's language row names what "same as
+                        // workspace" currently means, which it cannot do
+                        // without the workspace's own setting.
+                        companyLocale = hydratedMe.company?.locale
+                            ?: MessageLocale.DEFAULT,
                         contactId = active.contactId,
                         onBack = { pop() },
                         onOpenConversation = { push(Overlay.Thread(it)) },

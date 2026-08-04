@@ -12,12 +12,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -26,9 +28,11 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.model.CompanyView
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.assertAboveIme
@@ -66,6 +70,10 @@ fun WorkspaceSection(
     // #225: directly under the timezone card. Both answer "whose clock are we
     // on", and the pair reads as one idea — yours above, the customer's here.
     QuietHoursCard(scope, company, onCompanyUpdated)
+    // #228: after the two clock cards, because it finishes the same sentence:
+    // those settle WHEN an automated text goes out, this settles what language
+    // it is written in. Both are about the text we send for the owner.
+    LanguageCard(scope, company, onCompanyUpdated)
     // #291: below the two clock cards because it is a different question —
     // those are about when we contact people, this is about what we know
     // about them.
@@ -569,6 +577,103 @@ private fun QuietHoursCard(
         if (!canEdit) {
             Spacer(Modifier.height(4.dp))
             ReadOnlyLine("Only owners and admins can change this.")
+        }
+    }
+}
+
+/**
+ * #228: the language the automated texts are written in.
+ *
+ * COPY DISCIPLINE, and it is most of the work. This setting reaches four texts
+ * and nothing else: an owner who reads "language" and expects the app to change
+ * around them, then finds four French texts, has been misled by us rather than
+ * by their own optimism. So the card names the four sends up front and says out
+ * loud what it does not touch: the interface, and any sentence a person typed
+ * themselves. The wording is meant to be the same on web and iOS: three clients
+ * each explaining this in their own words would be three different promises
+ * about what it changes.
+ *
+ * Two options, so a radio list rather than a picker: both choices and the one
+ * in force are readable without a tap.
+ */
+@Composable
+private fun LanguageCard(
+    scope: SettingsScope,
+    company: CompanyView,
+    onCompanyUpdated: (CompanyView) -> Unit,
+) {
+    val canEdit = SettingsRoleGate.canEditWorkspace(scope.role)
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val coroutines = rememberCoroutineScope()
+
+    SettingsCard(
+        title = "Language for automated texts",
+        description = "The language we write in when we text a customer for you: " +
+            "the after-hours away reply, the missed-call text-back, the emergency " +
+            "acknowledgment, and the rating ask after a job.",
+    ) {
+        // The stored value always appears, even when this build has not heard of
+        // it: a list that silently omitted somebody's language would render
+        // every option unselected and read as though nothing were set.
+        val options = remember(company.locale) {
+            (MessageLocale.ALL + company.locale).distinct()
+        }
+        options.forEach { value ->
+            val selected = company.locale == value
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .selectable(
+                        selected = selected,
+                        enabled = canEdit && !saving,
+                        onClick = {
+                            if (selected) return@selectable
+                            error = null
+                            saving = true
+                            coroutines.launch {
+                                try {
+                                    val updated = scope.repo.updateCompany(
+                                        scope.companyId,
+                                        buildJsonObject { put("locale", value) },
+                                    )
+                                    onCompanyUpdated(updated)
+                                    scope.showMessage("Language updated.")
+                                } catch (cause: Exception) {
+                                    error = cause.userMessage()
+                                } finally {
+                                    saving = false
+                                }
+                            }
+                        },
+                    )
+                    .padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = selected, onClick = null, enabled = canEdit && !saving)
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    MessageLocale.label(value),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        ReadOnlyLine(
+            "This does not change the app itself, and it never rewrites words " +
+                "somebody typed. An away message you wrote is sent exactly as " +
+                "you wrote it, in the language you wrote it in.",
+        )
+        Spacer(Modifier.height(4.dp))
+        ReadOnlyLine(
+            "One customer who should hear from you in the other language can be " +
+                "set on their own contact.",
+        )
+        InlineError(error)
+        if (!canEdit) {
+            Spacer(Modifier.height(4.dp))
+            ReadOnlyLine("Only owners and admins can change the language.")
         }
     }
 }

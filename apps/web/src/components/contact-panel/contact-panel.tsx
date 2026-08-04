@@ -55,6 +55,7 @@ import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
+import { ContactLanguage } from "./contact-language";
 import { AutoSaveNotes, InlineTextField } from "./inline-field";
 import { TasksChecklist } from "./tasks-checklist";
 
@@ -376,6 +377,16 @@ export function ContactPanel({
               )}
             </div>
           )}
+        </QuietGroup>
+
+        {/* #228: directly under Consent, because the two are one idea about
+            this person: whether we may send them automated texts at all, and
+            which language those texts go out in. Quiet, like Consent, since a
+            crew touches it once per customer at most. */}
+        <QuietGroup label="Language">
+          <div className="px-2">
+            <ContactLanguage contact={contact} />
+          </div>
         </QuietGroup>
 
         {/* Tasks checklist (D17/TASKS.md T5.2) — an action surface, so it keeps

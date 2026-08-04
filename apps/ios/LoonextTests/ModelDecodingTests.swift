@@ -76,6 +76,11 @@ final class ModelDecodingTests: XCTestCase {
         // once is how the product rang before these columns existed.
         XCTAssertEqual(company.ring_strategy, "all")
         XCTAssertEqual(company.ring_seconds, 45)
+        // #228: there is no unset language: a business always works in one, and
+        // the workspaces on a Worker that predates the column were already being
+        // sent English. Anything else here would show an owner a setting they
+        // never chose, on a screen that also says every contact inherits it.
+        XCTAssertEqual(company.locale, MessageLocale.en)
         XCTAssertNil(company.after_hours_greeting_id)
         XCTAssertNil(company.voicemail_greeting_id)
         XCTAssertTrue(company.numbers.isEmpty)
@@ -258,6 +263,11 @@ final class ModelDecodingTests: XCTestCase {
         """#)
         XCTAssertFalse(contact.opted_out)
         XCTAssertNil(contact.last_activity_at)
+        // #228: absent means "follow the workspace", and it decodes to nil
+        // rather than to a language. A defaulted "en" here would be an override
+        // nobody set, pinning this customer the first time anything wrote the
+        // record back.
+        XCTAssertNil(contact.locale)
     }
 
     func testMemberDisplayNameDefaultsEmpty() throws {

@@ -218,7 +218,12 @@ function sendGateStubs(): Stub[] {
   // The pre-send gates end with the opt-out check: nobody in these fixtures
   // has opted out.
   const optOuts = stubRoute(restMatch(env, "GET", "opt_outs"), () => []);
-  return [gatesCompany, registrations, optOuts];
+  // #228: the caller's language, read only once a text is actually going out.
+  // No rows is the ordinary case for a missed call - the number belongs to
+  // somebody with no contact record - and it resolves to the workspace
+  // language, which is the right answer for a stranger.
+  const callerLocale = stubRoute(restMatch(env, "GET", "contacts"), () => []);
+  return [gatesCompany, registrations, optOuts, callerLocale];
 }
 
 function telnyxStub(): Stub {

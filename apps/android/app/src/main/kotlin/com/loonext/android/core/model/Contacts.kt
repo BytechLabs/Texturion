@@ -116,6 +116,16 @@ data class Contact(
      */
     val timezone: String? = null,
     /**
+     * #228: the language automated texts to THIS customer go out in, or null to
+     * follow the workspace.
+     *
+     * Null is not English. A workspace working in fr-CA texts this customer in
+     * French until somebody says otherwise here, so storing a resolved "en" on
+     * every contact would freeze them all against a later change; the owner
+     * would switch the workspace and watch the setting do nothing.
+     */
+    val locale: String? = null,
+    /**
      * What the server actually resolved, and which rung of the ladder answered
      * ("contact", "area_code", "company"). Detail reads only — the list does
      * not carry them, hence the defaults.
