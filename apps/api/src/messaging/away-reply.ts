@@ -27,6 +27,8 @@ import {
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { resolveNumberIdentity } from "@loonext/shared";
+
 import type { Env } from "../env";
 import { runPreSendGates } from "./send";
 import { guardedAutoSend } from "./auto-send";
@@ -113,7 +115,11 @@ export async function maybeSendAwayReply(
     .select(
       // #291: `contact_phone_e164` is the number this THREAD is with. The
       // contact is still read for the name that goes in the merge.
-      "id,contact_phone_e164,phone_numbers(number_e164,status),contacts(name)",
+      // #307: the LINE's own identity rides the embed we already make, so a
+      // per-number away message costs no extra read.
+      "id,contact_phone_e164," +
+        "phone_numbers(number_e164,status,label,away_message)," +
+        "contacts(name)",
     )
     .eq("company_id", args.companyId)
     .eq("id", args.conversationId)
@@ -124,7 +130,12 @@ export async function maybeSendAwayReply(
   const conv = (convRows ?? [])[0] as unknown as
     | {
         contact_phone_e164: string | null;
-        phone_numbers: { number_e164: string | null; status: string } | null;
+        phone_numbers: {
+          number_e164: string | null;
+          status: string;
+          label: string | null;
+          away_message: string | null;
+        } | null;
         contacts: { name: string | null } | null;
       }
     | undefined;
@@ -143,10 +154,40 @@ export async function maybeSendAwayReply(
   // is caught by the caller and the inbound ingest is unaffected.
   const clearance = await runPreSendGates(env, args.companyId, slice.to);
 
+  /**
+   * #307 — the LINE's away reply and the LINE's name.
+   *
+   * Resolved from the embed above, so this costs no extra read. A number with
+   * no overrides resolves to exactly the company values used before, which is
+   * every number until somebody sets one.
+   *
+   * NOT away_enabled, deliberately. That is checked far above, before the
+   * conversation is read, so a company with away off pays for nothing —
+   * honouring a per-number toggle would mean reading the conversation on every
+   * inbound message for every workspace, including the majority who have this
+   * feature off entirely. The column exists and this consumer does not yet use
+   * it; a line cannot currently turn away replies on or off by itself.
+   */
+  const identity = resolveNumberIdentity(
+    {
+      name: settings.name,
+      timezone: settings.timezone,
+      voicemailGreeting: null,
+      awayMessage: message,
+      awayEnabled: settings.away_enabled,
+      businessHours: null,
+      businessHoursExceptions: null,
+    },
+    {
+      label: conv.phone_numbers?.label ?? null,
+      awayMessage: conv.phone_numbers?.away_message ?? null,
+    },
+  );
+
   // Merge fields into the owner-authored away message at send time.
-  const body = applySendMergeFields(message, {
+  const body = applySendMergeFields(identity.awayMessage.value ?? message, {
     contactName: slice.contactName,
-    businessName: settings.name,
+    businessName: identity.label.value,
   });
 
   await guardedAutoSend(env, db, {

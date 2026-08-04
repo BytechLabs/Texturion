@@ -72,7 +72,9 @@ function awayCompanyStub(overrides: {
 }
 
 /** The conversation lookup the away branch does (from number + contact). */
-function convStub(): Stub {
+function convStub(
+  numberOverrides?: { label?: string | null; away_message?: string | null },
+): Stub {
   return stubRoute(
     restMatch(
       env,
@@ -83,7 +85,14 @@ function convStub(): Stub {
     () => [
       {
         id: CONVERSATION_ID,
-        phone_numbers: { number_e164: NUMBER, status: "active" },
+        phone_numbers: {
+          number_e164: NUMBER,
+          status: "active",
+          // #307: null on both is every number until somebody overrides one.
+          label: null,
+          away_message: null,
+          ...(numberOverrides ?? {}),
+        },
         contacts: { name: "Dana Whitfield", phone_e164: CONTACT },
       },
     ],
@@ -247,5 +256,94 @@ describe("maybeSendAwayReply — skips", () => {
     await call();
     expect(claim.calls).toHaveLength(1);
     expect(telnyx.calls).toHaveLength(0); // never dispatched to an opted-out contact
+  });
+});
+
+/**
+ * #307 — the away reply is the LINE's, not the workspace's.
+ *
+ * AR-1 is the deploy-day guarantee: every number is all-null when this ships,
+ * so the reply a customer receives must be byte-for-byte what they received
+ * before. AR-3 is the coherence the issue is about — the name merged into the
+ * text is the same one the caller hears on that line's greeting.
+ */
+describe("#307 a second line replies as itself", () => {
+  /** Runs the away branch with the given number overrides, returning the body sent. */
+  async function bodyFor(
+    overrides: { label?: string | null; away_message?: string | null },
+  ): Promise<string> {
+    const company = awayCompanyStub();
+    const conv = convStub(overrides);
+    const gates = sendGateStubs();
+    const telnyx = telnyxStub();
+    let claimBody: Record<string, unknown> | undefined;
+    const claim = stubRoute(rpcMatch(env, "claim_auto_reply"), (c) => {
+      claimBody = c.body as Record<string, unknown>;
+      return { message: messageRow({ status: "queued" }) };
+    });
+    const persist = stubRoute(
+      (url, request) =>
+        request.method === "PATCH" && url.pathname === "/rest/v1/messages",
+      () => [messageRow({ telnyx_message_id: "telnyx-away-1" })],
+    );
+    serve(company, conv, ...gates, claim, telnyx, persist);
+
+    await call();
+    return String(claimBody?.p_body ?? "");
+  }
+
+  it("AR-1: a number with no overrides sends exactly what it sent before", async () => {
+    // The deploy-day guarantee. Every number is all-null when this ships, so
+    // the reply a customer receives is byte-for-byte the one they got before.
+    expect(await bodyFor({})).toBe(
+      "Hi Dana, thanks for texting Ace Plumbing. For an emergency reply URGENT.",
+    );
+  });
+
+  it("AR-2: the line's own away message wins", async () => {
+    const body = await bodyFor({ away_message: "Sales is closed. We open at 8." });
+    expect(body).toBe("Sales is closed. We open at 8.");
+  });
+
+  it("AR-3: the name merged in is the LINE's name", async () => {
+    // The coherence the issue is about: somebody who rings the sales line and
+    // then texts it should meet ONE business, not two.
+    const body = await bodyFor({ label: "Ace Plumbing Sales" });
+    expect(body).toContain("Ace Plumbing Sales");
+  });
+
+  it("AR-5: the line's columns are actually asked for", async () => {
+    // The stub returns them whatever the select requests, so AR-1..AR-4 would
+    // all pass against a query that never fetched them — the resolver reads
+    // undefined, treats it as inherit, and no override could ever take
+    // effect. Found by breaking it.
+    const company = awayCompanyStub();
+    const conv = convStub({ away_message: "Sales is closed." });
+    const gates = sendGateStubs();
+    const telnyx = telnyxStub();
+    const claim = stubRoute(rpcMatch(env, "claim_auto_reply"), () => ({
+      message: messageRow({ status: "queued" }),
+    }));
+    const persist = stubRoute(
+      (url, request) =>
+        request.method === "PATCH" && url.pathname === "/rest/v1/messages",
+      () => [messageRow({ telnyx_message_id: "telnyx-away-1" })],
+    );
+    serve(company, conv, ...gates, claim, telnyx, persist);
+
+    await call();
+
+    const select = conv.calls[0]?.url.searchParams.get("select") ?? "";
+    expect(select).toContain("label");
+    expect(select).toContain("away_message");
+  });
+
+  it("AR-4: a blank override is not an override", async () => {
+    // A form posting "" when a box is cleared must not send an empty reply,
+    // nor merge an empty business name into one.
+    const body = await bodyFor({ label: "   ", away_message: "" });
+    expect(body).toBe(
+      "Hi Dana, thanks for texting Ace Plumbing. For an emergency reply URGENT.",
+    );
   });
 });
