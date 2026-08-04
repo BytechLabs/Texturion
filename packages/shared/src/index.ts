@@ -604,3 +604,17 @@ export {
  * have been. One place, so all three clients say the same thing.
  */
 export { hiddenNumbersNotice } from "./hidden-numbers-notice";
+
+/**
+ * #307 — per-number identity. One implementation of "the number's value if it
+ * has one, else the workspace's", because a rule this small written five
+ * times is how a caller meets two different names in one interaction.
+ */
+export {
+  inheritedFields,
+  resolveNumberIdentity,
+  type CompanyIdentity,
+  type NumberIdentity,
+  type NumberOverrides,
+  type Resolved,
+} from "./number-identity";
