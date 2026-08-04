@@ -124,6 +124,9 @@ export async function noticeCancellation(
       `billing, so it may not have been you.`;
 
     await sendEmail(env, {
+      // #252: critical. Thirty days of runway on it, and if this is the
+      // message that gets filtered the next one is already too late.
+      critical: true,
       to: [data.user.email],
       subject: `Your Loonext subscription was cancelled — your number is released in 30 days`,
       text,

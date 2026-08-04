@@ -41,6 +41,26 @@ export interface SendEmailInput {
    * is what stops the next commercial sender from inheriting it by omission.
    */
   kind?: "transactional" | "commercial";
+  /**
+   * #252 — STREAM SEPARATION. True for the handful of messages a customer
+   * cannot afford to miss: your payment failed, your number is released in
+   * thirty days, it is released in three, it is gone.
+   *
+   * "Critical account mail should not share a sending reputation with routine
+   * notification volume. Losing the second must not take down the first."
+   * Routine notification mail is the high-volume stream — a customer texted
+   * you, fired all day — and it is the one whose bounces and complaints
+   * accumulate. If it poisons the domain, the message that costs somebody
+   * their business number goes down with it.
+   *
+   * The SEAM is here; the separation is a DNS action. `RESEND_FROM_CRITICAL`
+   * is optional and falls back to `RESEND_FROM`, so today this changes
+   * nothing — and the day a second authenticated subdomain exists, one secret
+   * routes every message already classified below through it. Deciding WHICH
+   * messages are critical is the part that needed judgement, and it is done
+   * and tested rather than waiting on a DNS record.
+   */
+  critical?: boolean;
 }
 
 export interface SentEmail {
@@ -109,7 +129,13 @@ export async function sendEmail(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: env.RESEND_FROM,
+      // #252: the critical stream, when one is configured. Unset falls back
+      // to the single sender, so an environment without the second subdomain
+      // behaves exactly as it did.
+      from:
+        input.critical === true
+          ? (env.RESEND_FROM_CRITICAL ?? env.RESEND_FROM)
+          : env.RESEND_FROM,
       to: deliverable,
       subject: input.subject,
       html: input.html,

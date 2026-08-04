@@ -198,7 +198,15 @@ export async function recordAndSendGraceNotice(
   const to = await billingRecipients(env, company.id, db);
   if (to.length === 0) return false;
   const { subject, text } = warningCopy(company, thresholdDay, env);
-  await sendEmail(env, { to, subject, text, html: renderEmailHtml(text) });
+  // #252: the critical stream. Every rung of this ladder is a deadline
+  // after which the customer's business number is gone.
+  await sendEmail(env, {
+    to,
+    subject,
+    text,
+    html: renderEmailHtml(text),
+    critical: true,
+  });
   await pushGraceWarning(env, db, company, thresholdDay, subject);
   return true;
 }
@@ -374,7 +382,13 @@ async function releaseExpiredCompany(
   const to = await billingRecipients(env, company.id, db);
   if (to.length === 0) return;
   const { subject, text } = releasedCopy(company);
-  await sendEmail(env, { to, subject, text, html: renderEmailHtml(text) });
+  await sendEmail(env, {
+    to,
+    subject,
+    text,
+    html: renderEmailHtml(text),
+    critical: true,
+  });
 
   // #252: the last of the consequential notices, and the only one that is
   // already true when it arrives. Nobody should learn their business number is

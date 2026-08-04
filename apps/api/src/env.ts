@@ -120,6 +120,12 @@ const envSchema = z.object({
   SITE_ORIGIN: originUrl().optional(),
   /** Resend sender, e.g. `Loonext <notifications@loonext.com>` (SPEC §3). */
   RESEND_FROM: z.string().min(1),
+  /**
+   * #252: the separate sender for mail a customer cannot afford to miss.
+   * Optional — unset falls back to RESEND_FROM and nothing changes. Setting it
+   * requires a second authenticated subdomain, which is a DNS action.
+   */
+  RESEND_FROM_CRITICAL: z.string().min(1).optional(),
   /** #121: ops recipient for abuse alerts (storage tiers). Optional — unset
    * falls back to support@loonext.com, which routes to the founder. */
   OPS_ALERT_EMAIL: z.string().min(3).optional(),

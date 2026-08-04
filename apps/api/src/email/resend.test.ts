@@ -1,12 +1,17 @@
 /**
  * Resend client suite: the real REST call over the stubbed fetch edge.
  */
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { emailTextFooter } from "./html";
 import { sendEmail } from "./resend";
 import { endpoint, makeHarness } from "../test/billing-support";
 import { completeEnv, stubFetch } from "../test/support";
+import { stripComments } from "../test/source-tree";
+import type { Env } from "../env";
 
 const env = completeEnv();
 
@@ -288,5 +293,144 @@ describe("suppression (#386)", () => {
     await sendEmail(env, { to: ["someone@example.com"], subject: "s", text: "t", html: "<p>t</p>" });
 
     expect(sent).toHaveLength(1);
+  });
+});
+
+/**
+ * #252 — stream separation.
+ *
+ * "Critical account mail should not share a sending reputation with routine
+ * notification volume. Losing the second must not take down the first."
+ *
+ * SS-3 is the reason this ships before the DNS does. The judgement — WHICH
+ * messages are the ones a customer cannot afford to miss — is the part that
+ * needed deciding, and it is decided and asserted here. The separation itself
+ * is one secret away, and until it is set nothing changes at all.
+ */
+describe("#252 the critical stream", () => {
+  function sender(env: Env, critical?: boolean) {
+    const sent: Record<string, unknown>[] = [];
+    stubFetch(async (url, request) => {
+      if (url.href !== "https://api.resend.com/emails") return undefined;
+      sent.push((await request.clone().json()) as Record<string, unknown>);
+      return Response.json({ id: "email_1" });
+    });
+    return { sent, critical };
+  }
+
+  it("SS-1: routine mail stays on the ordinary address even when a second exists", async () => {
+    // The second sender is CONFIGURED here on purpose. Without it both
+    // branches resolve to the same address and the test cannot tell a working
+    // split from one that routes everything through the critical stream —
+    // which is exactly what the break sweep showed.
+    const env = { ...completeEnv(), RESEND_FROM_CRITICAL: "billing@send2.loonext.com" };
+    const w = sender(env);
+    await sendEmail(env, {
+      to: ["owner@example.com"],
+      subject: "A customer texted you",
+      text: "Open Loonext to reply.",
+      html: "<p>Open Loonext to reply.</p>",
+    });
+    expect(w.sent[0].from).toBe(env.RESEND_FROM);
+    expect(w.sent[0].from).not.toBe("billing@send2.loonext.com");
+  });
+
+  it("SS-2: critical mail uses the separate sender when one exists", async () => {
+    const env = { ...completeEnv(), RESEND_FROM_CRITICAL: "billing@send2.loonext.com" };
+    const w = sender(env);
+    await sendEmail(env, {
+      to: ["owner@example.com"],
+      subject: "Your number is released in 3 days",
+      text: "Resubscribe to keep it.",
+      html: "<p>Resubscribe to keep it.</p>",
+      critical: true,
+    });
+    expect(w.sent[0].from).toBe("billing@send2.loonext.com");
+  });
+
+  it("SS-3: with no second sender configured, nothing changes", async () => {
+    // The seam ships before the DNS. An environment without the second
+    // authenticated subdomain must behave exactly as it did — otherwise this
+    // change is a a silent outage waiting for the first critical send.
+    const env = completeEnv();
+    expect(env.RESEND_FROM_CRITICAL).toBeUndefined();
+    const w = sender(env);
+    await sendEmail(env, {
+      to: ["owner@example.com"],
+      subject: "Your number is released in 3 days",
+      text: "Resubscribe to keep it.",
+      html: "<p>Resubscribe to keep it.</p>",
+      critical: true,
+    });
+    expect(w.sent[0].from).toBe(env.RESEND_FROM);
+  });
+});
+
+/**
+ * #252 — the classification itself, which is the part that needed judgement.
+ *
+ * The seam is one line. Deciding WHICH messages a customer cannot afford to
+ * miss is the work, and a decision recorded only in a `critical: true` buried
+ * in a send call is one that quietly stops being true when somebody
+ * refactors the call.
+ *
+ * So the roster is here, and it fails if a named send loses its flag. It is
+ * deliberately short: marking everything critical separates nothing, and a
+ * "critical" stream carrying routine volume is the ordinary stream with a
+ * different name on it.
+ */
+describe("#252 which mail is critical", () => {
+  const CRITICAL_SENDS: readonly { file: string; sends: number; why: string }[] = [
+    {
+      file: "billing/grace.ts",
+      // FOUR rungs, and the count is the assertion. Written first as "the
+      // file contains critical: true", which passed with one of the two sends
+      // declassified — the released notice could have quietly rejoined the
+      // routine stream.
+      sends: 2,
+      why:
+        "Every rung of the release ladder — day 1, 15, 27, and the released " +
+        "notice. Each is a deadline after which the business number is gone.",
+    },
+    {
+      file: "billing/cancellation-notice.ts",
+      sends: 1,
+      why:
+        "The first warning, with thirty days of runway. If this is the one " +
+        "filtered, the next one is already too late.",
+    },
+  ];
+
+  it("SS-4: every send on the release ladder is still marked critical", () => {
+    const missing: string[] = [];
+    for (const send of CRITICAL_SENDS) {
+      const path = join(process.cwd(), "src", send.file);
+      const code = stripComments(readFileSync(path, "utf8"));
+      const found = (code.match(/critical:\s*true/g) ?? []).length;
+      if (found < send.sends) {
+        missing.push(
+          `${send.file} — ${found} of ${send.sends} sends still critical. ${send.why}`,
+        );
+      }
+    }
+
+    expect(
+      missing,
+      "These sends carry a deadline after which a customer loses their " +
+        "business number, and they are no longer on the critical stream. If " +
+        "the stream was retired, remove them from this roster too rather " +
+        "than leaving a rule with nothing under it: " + missing.join("; "),
+    ).toEqual([]);
+  });
+
+  it("SS-5: the roster names files that exist", () => {
+    // A roster entry pointing at a moved file passes forever while the send it
+    // was meant to cover goes out on the ordinary stream.
+    for (const send of CRITICAL_SENDS) {
+      expect(
+        existsSync(join(process.cwd(), "src", send.file)),
+        `${send.file} is in the critical roster and does not exist`,
+      ).toBe(true);
+    }
   });
 });
