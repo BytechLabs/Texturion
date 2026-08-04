@@ -46,12 +46,12 @@
  * (`keywords.ts`) but it is not carrier-handled, so it is not what we instruct.
  */
 
-import { DEFAULT_REMINDER_RULES } from "./appointment-reminders.js";
-import { DEFAULT_AWAY_MESSAGE } from "./away.js";
-import { DEFAULT_EMERGENCY_MESSAGE, EMERGENCY_SAFETY_LINE } from "./emergency.js";
-import { IDENTIFICATION_SUFFIX_TEMPLATE } from "./first-message-identification.js";
-import { RATING_ASK_BODY } from "./job-ratings.js";
-import { DEFAULT_MCTB_MESSAGE } from "./mctb.js";
+import { DEFAULT_REMINDER_RULES } from "./appointment-reminders";
+import { DEFAULT_AWAY_MESSAGE } from "./away";
+import { DEFAULT_EMERGENCY_MESSAGE, EMERGENCY_SAFETY_LINE } from "./emergency";
+import { IDENTIFICATION_SUFFIX_TEMPLATE } from "./first-message-identification";
+import { RATING_ASK_BODY } from "./job-ratings";
+import { DEFAULT_MCTB_MESSAGE } from "./mctb";
 
 /** The languages an automated message can be sent in. */
 export const LOCALES = ["en", "fr-CA"] as const;
