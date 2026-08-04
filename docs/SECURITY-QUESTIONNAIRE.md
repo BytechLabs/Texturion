@@ -33,7 +33,7 @@ Three rules, and they matter more than the answers:
 
 | Question | Answer | Source |
 |---|---|---|
-| Do you hold SOC 2, ISO 27001 or equivalent? | No. None held, none in progress. | `docs/ACCEPTED-RISKS.md` R4 |
+| Do you hold SOC 2, ISO 27001 or equivalent? | No. None held, none in progress. **This is now stated on `/security` under "Certifications: we hold none"** — send the buyer there rather than only answering here, so the answer they get privately is the one anybody can read. | `docs/ACCEPTED-RISKS.md` R4, D119 |
 | Will you sign a DPA? | Not today. There is no `/legal/dpa` and no source document for one. | `docs/ACCEPTED-RISKS.md` R4 |
 | What is in scope? | The Loonext product: web app, iOS and Android apps, and the API that serves them. | `docs/DATA-INVENTORY.md` |
 

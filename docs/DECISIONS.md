@@ -7126,45 +7126,40 @@ A web client that is regularly closed mid-outage: a PWA installed on a laptop
 that sleeps, or the tab-close rate during a drop turning out to be high. Both
 are measurable. Neither is assumed.
 
-## D119 — we hold no security certification, and the trigger to seek one is a lost deal rather than a revenue number (#285, 2026-08-03)
+## D119 — the certification position is SAID on /security, not only accepted in a risk register (#285, 2026-08-03)
 
-A buyer's security questionnaire asks "are you SOC 2?" early, and the answer
-today is no. That answer needs to be a POSITION rather than a silence — a
-founder who improvises it improvises it differently each time, and a buyer who
-has to ask twice has learned something about us that is worse than the answer.
+**The position itself lives in `docs/ACCEPTED-RISKS.md` R4 and is not restated
+here.** R4 records no SOC 2, no ISO 27001, none in progress, why that is
+stage-appropriate, and three triggers to revisit — including the one that
+matters most, "a real security questionnaire arrives, one not a hypothetical".
+This entry exists for what R4 does not cover: where a buyer *reads* it.
 
-**The position.** Loonext holds no SOC 2, ISO 27001 or equivalent attestation,
-and is not pursuing one. `/security` lists what the product does today and says
-plainly that it lists nothing else; the accessibility statement
-(`docs/ACCESSIBILITY.md`) takes the same shape for the same reason.
+**What changed.** `/security` said only "no certifications we don't hold" —
+true, and invisible to somebody scanning for "SOC 2". A questionnaire asks by
+name, so a reader searching the page found nothing and emailed to ask a
+question already answered. Silence is not a position; it is a position nobody
+can find.
 
-**Why not, at this stage.** A Type II attestation is an observation window plus
-an auditor, and both cost money this product does not yet have and attention it
-needs elsewhere. Buying one now would mean a certificate describing controls
-around a product still changing weekly — which is how an attestation becomes
-something a company defends rather than something it uses.
+The page now states it plainly, in the reader's words, and invites the signal
+R4's trigger (b) depends on: *if your procurement needs one, tell us*. A trigger
+that fires on a lost deal only works if somebody tells us why, and asking is
+cheaper than inferring.
 
-The customers this product is for do not ask for it. A two-person plumbing
-outfit buys on whether their number keeps working. The question comes from the
-larger accounts we do not yet serve, and it arrives with the deal, not before.
+**Two secondary triggers**, either alone sufficient, recorded here because they
+are about the platform rather than the market and R4's three are about the
+market: a carrier, payment processor or platform partner requiring an
+attestation to keep an integration we depend on; or a regulatory change making
+one mandatory for messaging providers in the US or Canada.
 
-**What honesty requires in the meantime.** Not a certificate, but the artifacts
-a careful buyer actually reads: a vulnerability disclosure route
-(`/.well-known/security.txt`), a stated breach-notification timeline, a
-subprocessor list (#318), and a DPA. Those are commitments we can keep and
-check; a certification we do not hold is neither.
+**Why this is not a second copy of R4.** It deliberately carries no answer — a
+reader wanting the position is sent to R4, and the `/security` copy is checked
+by `security.test.tsx` rather than by this file. Two records of one decision
+drift; a record and a pointer do not.
 
-### The trigger
+### The guard that came with it
 
-**A deal lost, or materially delayed, with the absence named as the reason.**
-One is a data point and starts a conversation; two is the trigger. Deliberately
-not a revenue threshold — revenue does not tell you who is asking, and this is
-a question about which market we are in rather than how big we are.
-
-Two secondary triggers, either alone sufficient: a carrier, payment processor
-or platform partner requiring it to keep an integration we depend on; or a
-regulatory change that makes it mandatory for messaging providers in the US or
-Canada.
-
-Until one fires, the honest answer to the questionnaire is the one above, given
-the same way every time.
+`security.test.tsx` forbade the ACRONYMS on the page, which could only ever be
+satisfied by silence — the exact silence above. It now forbids the CLAIM in
+either word order (`SOC 2 … certified`, `certified … SOC 2`) and separately
+requires the position to be present, so it cannot be satisfied by deleting the
+section either. Proven by breaking it four ways.
