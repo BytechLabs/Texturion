@@ -148,6 +148,9 @@ export type AuditAction =
    * than at the time.
    */
   | "number.identity_changed"
+  // #309: who recorded the voice a caller hears, and who took it away.
+  | "voicemail_greeting.recorded"
+  | "voicemail_greeting.deleted"
   // The departing-employee signature (#231: "bulk-export alarm")
   | "contacts.imported"
   | "contacts.exported"
