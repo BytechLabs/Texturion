@@ -48,6 +48,19 @@ export interface SettingsSection {
    * (e.g. Templates keeps its top-level `/templates` route). Defaults to
    * `/settings/${slug}`. */
   href?: string;
+  /**
+   * #286: in the nav, but never where the settings index DROPS somebody.
+   *
+   * The desktop index redirects to the first section a role can open. That is
+   * the right rule while "can open" means "can use" — it stops sending a
+   * bookkeeper to a Workspace page their own nav hides. It breaks the moment a
+   * section is open to everybody as a READ, because the read then wins the
+   * redirect on nav order alone and a bookkeeper clicking Settings lands on
+   * the crew roster instead of the books they came for.
+   *
+   * A section flagged here is a place you go on purpose.
+   */
+  neverLanding?: boolean;
 }
 
 /** The G8 settings sections, in nav order. */
@@ -65,6 +78,10 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "Team",
     description: "Members, roles, and invites",
     icon: Users,
+    // #286: every role can READ this list — it is how a new member finds out
+    // who owns the workspace without asking. Landing on it is another matter:
+    // a member came for their notifications and a bookkeeper for the books.
+    neverLanding: true,
   },
   {
     id: "numbers",

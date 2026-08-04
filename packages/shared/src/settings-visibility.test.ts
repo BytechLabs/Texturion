@@ -59,7 +59,14 @@ describe("canSeeSettingsSection", () => {
   });
 
   it("hides the business's settings from a member", () => {
-    const businesses = ALL.filter((s) => !PERSONAL.includes(s));
+    // #286 moved `team` out of this set. It is now a READ of who is in the
+    // crew — "a new member can identify the owner and the rest of the crew
+    // without asking" is an Acceptance line, and gating it made that
+    // unmeetable. Every control on that screen is still owner/admin, and every
+    // mutation is still refused server-side.
+    const businesses = ALL.filter(
+      (s) => !PERSONAL.includes(s) && s !== "team",
+    );
     for (const section of businesses) {
       expect(canSeeSettingsSection(section, "member"), section).toBe(false);
     }
@@ -78,13 +85,23 @@ describe("canSeeSettingsSection", () => {
     }
   });
 
-  it("keeps billing, team and numbers away from a member", () => {
-    // Named explicitly because these are the three the complaint called out:
-    // a plan they cannot change, roles they cannot set, a registration they
-    // cannot file.
+  it("keeps billing and numbers away from a member", () => {
+    // Named explicitly because these were the ones the complaint called out:
+    // a plan they cannot change and a registration they cannot file.
     expect(canSeeSettingsSection("billing", "member")).toBe(false);
-    expect(canSeeSettingsSection("team", "member")).toBe(false);
     expect(canSeeSettingsSection("numbers", "member")).toBe(false);
+  });
+
+  it("#286: a member can see WHO is in the crew, and change nothing", () => {
+    // The Acceptance line this answers: "a new member can identify the owner
+    // and the rest of the crew without asking". A tech who wants to know who
+    // owns the workspace, or who to ask about a thread, previously had no
+    // screen at all — and asking is exactly the cost #286 is about.
+    expect(canSeeSettingsSection("team", "member")).toBe(true);
+    // The capability is the BASELINE one, not `team.manage`: seeing the list
+    // and changing it are different rights, and the page reads its own
+    // controls off the role.
+    expect(settingsSectionCapability("team")).toBe("workspace.access");
   });
 
   it("treats templates as the business's words, like the away message", () => {
@@ -125,6 +142,8 @@ describe("visibleSettingsSections", () => {
     ];
     expect(visibleSettingsSections(rows, (r) => r.id, "member")).toEqual([
       { id: "profile", label: "Profile" },
+      // #286: the crew list is a member's to read.
+      { id: "team", label: "Team" },
       { id: "help", label: "Help" },
     ]);
     expect(visibleSettingsSections(rows, (r) => r.id, "admin")).toHaveLength(4);
@@ -169,7 +188,11 @@ describe("visibleSettingsSections", () => {
     expect(canSeeSettingsSection("profile", unknown)).toBe(true);
     expect(canSeeSettingsSection("notifications", unknown)).toBe(true);
     expect(canSeeSettingsSection("billing", unknown)).toBe(false);
-    expect(canSeeSettingsSection("team", unknown)).toBe(false);
     expect(canSeeSettingsSection("workspace", unknown)).toBe(false);
+    // #286: `team` now rides the BASELINE capability, which every recognised
+    // role holds — including a role this build does not recognise, for the
+    // same reason profile and notifications do. Reaching a settings screen at
+    // all means the server authorized a session in this workspace.
+    expect(canSeeSettingsSection("team", unknown)).toBe(true);
   });
 });

@@ -8,6 +8,8 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { roleHasCapability } from "@loonext/shared";
+
 import { OwnershipCard } from "@/components/settings/ownership-card";
 import { RequireTwoFactorCard } from "@/components/settings/require-two-factor-card";
 import {
@@ -639,7 +641,11 @@ export default function TeamSettingsPage() {
   // owner's control reads its current state from the same place every client
   // reads the deadline from.
   const company = useCompany();
-  const canManage = role === "owner" || role === "admin";
+  // #315: the capability, not the two role names. Since #286 opened this page
+  // to every role, this boolean is the only thing between a member and a row
+  // of controls that would fail at the server — it has to answer the same
+  // question `requireCapability("team.manage")` answers there.
+  const canManage = roleHasCapability(role, "team.manage");
 
   const active = members.data?.data.filter((m) => m.deactivated_at === null);
   const deactivated = members.data?.data.filter(

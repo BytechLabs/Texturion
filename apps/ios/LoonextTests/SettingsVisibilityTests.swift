@@ -19,6 +19,13 @@ final class SettingsVisibilityTests: XCTestCase {
         .profile, .notifications, .devices, .help, .whatsNew, .diagnostics,
     ]
 
+    /// #286: the business's, but open to every role, because reading who is in
+    /// the crew and changing who is in it are different rights. "A new member
+    /// can identify the owner and the rest of the crew without asking" is an
+    /// Acceptance line a hidden row cannot meet. Kept out of `personal` for
+    /// exactly that reason: it is not theirs, it is one they may read.
+    private let readableByAll: Set<SettingsSection> = [.team]
+
     /// The same rule `SettingsHome.visibleSections` applies, minus the
     /// seven-tap diagnostics unlock, which is a gesture rather than a role.
     private func visible(_ role: String?) -> Set<SettingsSection> {
@@ -41,7 +48,9 @@ final class SettingsVisibilityTests: XCTestCase {
     }
 
     func testTheBusinessSettingsNeedMoreThanTheBaseline() {
-        let business = SettingsSection.allCases.filter { !personal.contains($0) }
+        let business = SettingsSection.allCases.filter {
+            !personal.contains($0) && !readableByAll.contains($0)
+        }
         for section in business {
             XCTAssertNotEqual(
                 section.needs,
@@ -55,16 +64,25 @@ final class SettingsVisibilityTests: XCTestCase {
     }
 
     func testAMemberSeesWhatIsTheirs() {
-        XCTAssertEqual(visible(MemberRole.member), personal)
+        XCTAssertEqual(visible(MemberRole.member), personal.union(readableByAll))
     }
 
-    func testTheThreeTheComplaintNamed() {
-        // A plan they cannot change, roles they cannot set, a registration
-        // they cannot file.
+    func testTheTwoOfTheThreeTheComplaintNamedThatAreStillHidden() {
+        // A plan they cannot change and a registration they cannot file. The
+        // third was Team, which #286 reopened as a read — below.
         let member = visible(MemberRole.member)
         XCTAssertFalse(member.contains(.billing))
-        XCTAssertFalse(member.contains(.team))
         XCTAssertFalse(member.contains(.numbers))
+    }
+
+    /// #286. A tech who wants to know who owns the workspace, or who to ask
+    /// about a thread, previously had no screen at all — and asking is the cost
+    /// the issue is about.
+    func testAMemberCanSeeWhoIsInTheCrewAndChangeNothing() {
+        XCTAssertTrue(visible(MemberRole.member).contains(.team))
+        // Shown on the baseline capability; acting on it is not.
+        XCTAssertEqual(SettingsSection.team.needs, Capability.workspaceAccess)
+        XCTAssertFalse(SettingsRoleGate.canManageTeam(MemberRole.member))
     }
 
     func testTemplatesAreTheBusinessesWords() {
@@ -91,23 +109,27 @@ final class SettingsVisibilityTests: XCTestCase {
     func testABookkeeperSeesBillingAndNothingElseOfTheBusiness() {
         XCTAssertEqual(
             visible(MemberRole.bookkeeper),
-            personal.union([.billing, .usage])
+            personal.union(readableByAll).union([.billing, .usage])
         )
     }
 
     /// #315: read_only differs from a member in what it can DO, not in what it
     /// sees — so the settings index answers exactly as it does for one.
-    func testAViewOnlyObserverSeesNoBusinessSettings() {
-        XCTAssertEqual(visible(MemberRole.readOnly), personal)
+    func testAViewOnlyObserverSeesTheSameIndexAMemberDoes() {
+        XCTAssertEqual(visible(MemberRole.readOnly), personal.union(readableByAll))
     }
 
     func testAnUnknownOrAbsentRoleIsTreatedAsAMember() {
         // The safe way for a missing membership to fail is least privilege —
         // and least privilege here is still the reader's own rows, because
         // reaching this screen means the server authorized the session.
-        XCTAssertEqual(visible(nil), personal)
-        XCTAssertEqual(visible(""), personal)
-        XCTAssertEqual(visible("superuser"), personal)
+        // #286: `readableByAll` rides the BASELINE capability, which every
+        // recognised role holds — including one this build has never heard of,
+        // for the same reason profile and notifications do.
+        let baseline = personal.union(readableByAll)
+        XCTAssertEqual(visible(nil), baseline)
+        XCTAssertEqual(visible(""), baseline)
+        XCTAssertEqual(visible("superuser"), baseline)
     }
 
     /// The #461 rule, held across every preset that exists now or later: an

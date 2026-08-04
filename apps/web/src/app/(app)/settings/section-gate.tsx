@@ -5,8 +5,6 @@ import { usePathname } from "next/navigation";
 
 import { SettingsPage } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useOwnership } from "@/lib/api/ownership";
 import { useActiveCompany } from "@/lib/company/provider";
 
 import { settingsAccessFor, type SettingsAccess } from "./section-access";
@@ -44,65 +42,7 @@ export function SettingsSectionGate({
     return <>{children}</>;
   }
 
-  // #332's recovery valve runs through the Team page, and the person it is for
-  // is usually not somebody who holds `team.manage`. Asked separately, below.
-  if (access.kind === "denied" && access.section.id === "team") {
-    return <SuccessionException section={access.section}>{children}</SuccessionException>;
-  }
-
   return <NoAccess section={access.kind === "denied" ? access.section : null} />;
-}
-
-/**
- * The one place a role is not the whole answer.
- *
- * #332 lets an owner name a BACKUP OWNER — the person who can take the
- * workspace over when the owner is gone, which is the entire point of naming
- * one. The database accepts any active member for that job (a spouse on a
- * `member` role is the ordinary case), and every action is gated server-side on
- * the specific user id rather than on a role, deliberately: "the person
- * entitled to act is not a ROLE — it is one specific user."
- *
- * The buttons that act on it live inside OwnershipCard on the Team page. There
- * is now a dedicated /ownership route outside settings, which is where the
- * emails point and where a nominee should end up — but the card is still
- * mounted here, and every ownership email sent BEFORE that route existed is
- * still sitting in somebody's inbox pointing at /settings/team. Gate `team` on
- * `team.manage` alone and those links become a refusal aimed at exactly the
- * person the mechanism was built for. A security fix that quietly bricks the
- * recovery path is a worse bug than the one it closes.
- *
- * Delete this the day OwnershipCard leaves the Team page and the old links have
- * aged out — not before, and not by assuming they have.
- *
- * So the gate asks the server the second question it already answers on a
- * `workspace.access` route: is this caller party to a handover. Nothing is
- * derived here — `i_am_backup` and `pending.mine` are booleans the API computes,
- * for the same reason the card's buttons are.
- *
- * Scoped to the two people the flow belongs to. OwnershipCard also shows an
- * in-flight handover to uninvolved colleagues (they are well placed to notice
- * one that should not be happening), and that audience does not survive this
- * gate — reaching them is an ambient-notice job, not a reason to reopen the
- * roster to the whole crew for the length of a transfer.
- */
-function SuccessionException({
-  section,
-  children,
-}: Readonly<{ section: SettingsSection; children: React.ReactNode }>) {
-  const ownership = useOwnership();
-
-  if (ownership.isPending) {
-    // Named nothing, because we do not yet know which answer we are loading —
-    // showing either the page or the refusal early would flash the wrong one.
-    return <Skeleton className="h-40 w-full rounded-lg" />;
-  }
-
-  const state = ownership.data;
-  const party =
-    state !== undefined && (state.i_am_backup || state.pending?.mine === true);
-
-  return party ? <>{children}</> : <NoAccess section={section} />;
 }
 
 function NoAccess({ section }: { section: SettingsSection | null }) {

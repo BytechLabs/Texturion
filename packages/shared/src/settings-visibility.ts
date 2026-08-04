@@ -86,7 +86,21 @@ const SECTION_CAPABILITY: Record<SettingsSectionId, Capability> = {
   // Words the whole crew sends in the business's name — same axis as the away
   // message and the voicemail greeting (#461).
   templates: "settings.manage",
-  team: "team.manage",
+  /**
+   * #286: EVERY role, not just the ones who can change it.
+   *
+   * "A new member can identify the owner and the rest of the crew without
+   * asking" is an Acceptance line, and gating this section behind
+   * `team.manage` made it unmeetable: a tech who wants to know who owns the
+   * workspace, or who to ask about a thread, had no screen at all.
+   *
+   * The section is READ-ONLY for anybody without `team.manage` — the page
+   * already threads a `canManage` flag through every control, and every
+   * mutation is gated server-side regardless. What the list carries is names,
+   * roles and join dates; no email, no phone, nothing a crew member could not
+   * learn by asking the person next to them.
+   */
+  team: "workspace.access",
   numbers: "numbers.manage",
   billing: "billing.manage",
   usage: "billing.manage",

@@ -1,5 +1,6 @@
 package com.loonext.android.features.settings
 
+import com.loonext.android.core.model.Capability
 import com.loonext.android.core.model.MemberRole
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -26,22 +27,42 @@ class SettingsVisibilityTest {
         SettingsSection.WhatsNew,
     )
 
+    /**
+     * #286: not personal, but open to every role — the crew list is a READ,
+     * and "a new member can identify the owner and the rest of the crew
+     * without asking" is an Acceptance line that a hidden row cannot meet.
+     * Kept out of [personal] because it is the business's, which is exactly
+     * why it needs saying: every control on it is still team.manage.
+     */
+    private val readableByAll = setOf(SettingsSection.Team)
+
     @Test
     fun `a member sees what is theirs`() {
         val visible = visibleSettingsSections("member").toSet()
-        assertEquals(personal, visible)
+        assertEquals(personal + readableByAll, visible)
     }
 
     @Test
-    fun `a member does not see the business's settings`() {
+    fun `a member does not see the business's settings they cannot act on`() {
         val visible = visibleSettingsSections("member")
-        // The three the complaint named: a plan they cannot change, roles they
-        // cannot set, a registration they cannot file.
+        // Two of the three the complaint named: a plan they cannot change and
+        // a registration they cannot file. The third was Team, which #286
+        // reopened as a read — see the test below.
         assertFalse(visible.contains(SettingsSection.Billing))
-        assertFalse(visible.contains(SettingsSection.Team))
         assertFalse(visible.contains(SettingsSection.Numbers))
         // And the words the whole crew sends in the business's name.
         assertFalse(visible.contains(SettingsSection.Templates))
+    }
+
+    @Test
+    fun `a member can see WHO is in the crew, and change nothing`() {
+        // #286. A tech who wants to know who owns the workspace, or who to ask
+        // about a thread, previously had no screen at all — and asking is the
+        // cost the issue is about.
+        assertTrue(visibleSettingsSections("member").contains(SettingsSection.Team))
+        // The section is SHOWN on the baseline capability; acting on it is not.
+        assertEquals(Capability.WORKSPACE_ACCESS, SettingsSection.Team.needs)
+        assertFalse(SettingsRoleGate.canManageTeam("member"))
     }
 
     @Test
@@ -61,14 +82,20 @@ class SettingsVisibilityTest {
         // rows their role exists for; every other business row stays hidden,
         // including the conversations they have no access to at all.
         val visible = visibleSettingsSections(MemberRole.BOOKKEEPER).toSet()
-        assertEquals(personal + setOf(SettingsSection.Billing, SettingsSection.Usage), visible)
+        assertEquals(
+            personal + readableByAll + setOf(SettingsSection.Billing, SettingsSection.Usage),
+            visible,
+        )
     }
 
     @Test
-    fun `a view-only observer sees no business settings`() {
+    fun `a view-only observer sees the same index a member does`() {
         // #315: read_only differs from a member in what it can DO, not in what
         // it sees — so the settings index answers exactly as it does for one.
-        assertEquals(personal, visibleSettingsSections(MemberRole.READ_ONLY).toSet())
+        assertEquals(
+            personal + readableByAll,
+            visibleSettingsSections(MemberRole.READ_ONLY).toSet(),
+        )
     }
 
     @Test
@@ -91,9 +118,13 @@ class SettingsVisibilityTest {
     @Test
     fun `an unknown or absent role is treated as a member`() {
         // The safe way for a missing membership to fail is least privilege.
-        assertEquals(personal, visibleSettingsSections(null).toSet())
-        assertEquals(personal, visibleSettingsSections("").toSet())
-        assertEquals(personal, visibleSettingsSections("superuser").toSet())
+        // #286: `readableByAll` rides the BASELINE capability, which every
+        // recognised role holds — including one this build has never heard of,
+        // for the same reason Profile and Notifications do. Reaching a settings
+        // screen at all means the server authorized a session in this workspace.
+        assertEquals(personal + readableByAll, visibleSettingsSections(null).toSet())
+        assertEquals(personal + readableByAll, visibleSettingsSections("").toSet())
+        assertEquals(personal + readableByAll, visibleSettingsSections("superuser").toSet())
     }
 
     @Test

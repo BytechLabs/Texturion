@@ -5,23 +5,16 @@
  * throws away where they were trying to go.
  */
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { MEMBER_ROLES, canSeeSettingsSection } from "@loonext/shared";
 
 import { SETTINGS_SECTIONS } from "@/components/settings/settings-nav";
 
-import type { Ownership } from "@/lib/api/ownership";
-
 // Hoisted state the mocked hooks read; each render seeds it.
-const state: {
-  pathname: string;
-  role: string;
-  ownership: { isPending: boolean; data: Ownership | undefined };
-} = {
+const state: { pathname: string; role: string } = {
   pathname: "/settings/billing",
   role: "owner",
-  ownership: { isPending: false, data: undefined },
 };
 
 vi.mock("next/navigation", () => ({
@@ -30,8 +23,16 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ role: state.role }),
 }));
+// #286: the gate used to ask the server a second question on /settings/team —
+// is this refused reader party to an ownership handover — because that page was
+// the only way to reach the card which answers one. `team` is now a baseline
+// read for every role, so there is no refusal left to make an exception to.
+// This throws rather than returning a value: if the request ever comes back,
+// the suite says so instead of quietly paying for it on every render.
 vi.mock("@/lib/api/ownership", () => ({
-  useOwnership: () => state.ownership,
+  useOwnership: () => {
+    throw new Error("the settings gate must not ask about ownership");
+  },
 }));
 
 import { SettingsSectionGate } from "./section-gate";
@@ -48,24 +49,6 @@ function render(pathname: string, role: string): string {
     </SettingsSectionGate>,
   );
 }
-
-function ownership(overrides: Partial<Ownership> = {}): Ownership {
-  return {
-    owner_member_id: "m_owner",
-    backup_member_id: null,
-    i_am_backup: false,
-    i_am_owner: false,
-    pending: null,
-    can_offer: false,
-    can_claim: false,
-    can_cancel: false,
-    ...overrides,
-  };
-}
-
-beforeEach(() => {
-  state.ownership = { isPending: false, data: undefined };
-});
 
 describe("the page a role may open", () => {
   it("renders it untouched", () => {
@@ -102,7 +85,7 @@ describe("the page a role may not open", () => {
     // No redirect — that would erase the destination and answer a question
     // nobody asked. One link instead, which is also the only route back on a
     // phone, where the nav is not on screen beside this.
-    const html = render("/settings/team", "read_only");
+    const html = render("/settings/billing", "read_only");
     expect(html).toContain('href="/settings"');
   });
 
@@ -112,7 +95,6 @@ describe("the page a role may not open", () => {
     for (const role of MEMBER_ROLES) {
       for (const section of SETTINGS_SECTIONS) {
         if (canSeeSettingsSection(section.id, role)) continue;
-        if (section.id === "team") continue; // asked its own question below
         const html = render(`/settings/${section.slug}`, role);
         expect(html, `${role}/${section.slug}`).not.toContain(PAGE);
         expect(html, `${role}/${section.slug}`).toContain("have access to");
@@ -130,76 +112,35 @@ describe("the page a role may not open", () => {
   });
 });
 
-describe("#332 — the backup owner can still reach the handover", () => {
-  it("lets the named backup owner in, whatever their role", () => {
-    // The whole point of naming a backup is that they can act when the owner
-    // cannot. The card still sits on the Team page, and ownership emails sent
-    // before /ownership existed still point at it, so gating `team` on
-    // team.manage alone would aim a refusal at exactly the person the
-    // mechanism was built for.
-    state.ownership = { isPending: false, data: ownership({ i_am_backup: true }) };
-    expect(render("/settings/team", "member")).toContain(PAGE);
-    expect(render("/settings/team", "read_only")).toContain(PAGE);
+describe("#286 — the crew list is open to every role", () => {
+  it("shows the roster to everybody, including a role that can change none of it", () => {
+    // The Acceptance line: "a new member can identify the owner and the rest of
+    // the crew without asking". Opening the page is the whole of it — the page
+    // itself hides every control from a role without `team.manage`, and the API
+    // refuses each of those calls regardless of what the page draws.
+    for (const role of MEMBER_ROLES) {
+      expect(render("/settings/team", role), role).toContain(PAGE);
+    }
   });
 
-  it("lets in whoever a pending handover is addressed to", () => {
-    state.ownership = {
-      isPending: false,
-      data: ownership({
-        pending: {
-          kind: "offer",
-          to_member_id: "m_me",
-          ripens_at: "2026-08-09T00:00:00Z",
-          expires_at: "2026-08-16T00:00:00Z",
-          created_at: "2026-08-02T00:00:00Z",
-          mine: true,
-          ready: true,
-        },
-      }),
-    };
+  it("#332: the backup owner reaches the handover with no exception left to make", () => {
+    // This used to need one. #332 lets an owner name a BACKUP OWNER — the
+    // person who takes the workspace over when the owner is gone — and the
+    // database accepts any active member for that job, a spouse on a `member`
+    // role being the ordinary case. OwnershipCard still sits on this page, and
+    // every ownership email sent before /ownership existed still points here,
+    // so gating `team` on `team.manage` aimed a refusal at exactly the person
+    // the mechanism was built for. The gate bought its way out by asking the
+    // server whether the caller was party to a handover.
+    //
+    // Opening the roster to the baseline capability retires that question, and
+    // with it a request on every render of a page most of its readers open for
+    // an entirely different reason. The mock above fails this test if it comes
+    // back.
     expect(render("/settings/team", "member")).toContain(PAGE);
   });
 
-  it("keeps everyone else off the roster", () => {
-    // A handover that is not theirs is not a key to the team list.
-    state.ownership = {
-      isPending: false,
-      data: ownership({
-        pending: {
-          kind: "claim",
-          to_member_id: "m_someone_else",
-          ripens_at: "2026-08-09T00:00:00Z",
-          expires_at: "2026-08-16T00:00:00Z",
-          created_at: "2026-08-02T00:00:00Z",
-          mine: false,
-          ready: false,
-        },
-      }),
-    };
-    const html = render("/settings/team", "member");
-    expect(html).not.toContain(PAGE);
-    expect(html).toContain("have access to Team");
-  });
-
-  it("refuses when the answer never arrives", () => {
-    // Fail closed. The server refuses every action on this page regardless,
-    // but the roster is a read and the read is the leak.
-    state.ownership = { isPending: false, data: undefined };
-    expect(render("/settings/team", "member")).not.toContain(PAGE);
-  });
-
-  it("shows neither answer while it is still asking", () => {
-    // Rendering the page or the refusal early would flash the wrong one at
-    // somebody who is about to be told the opposite.
-    state.ownership = { isPending: true, data: undefined };
-    const html = render("/settings/team", "member");
-    expect(html).not.toContain(PAGE);
-    expect(html).not.toContain("have access to");
-  });
-
-  it("does not open any other section for them", () => {
-    // The exception is about one card on one page, not a spare key.
-    state.ownership = { isPending: false, data: ownership({ i_am_backup: true }) };
+  it("is one page, not a spare key", () => {
     expect(render("/settings/billing", "member")).not.toContain(PAGE);
     expect(render("/settings/numbers", "member")).not.toContain(PAGE);
     expect(render("/settings/history", "member")).not.toContain(PAGE);

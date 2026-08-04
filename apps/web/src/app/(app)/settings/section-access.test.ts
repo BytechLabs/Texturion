@@ -73,8 +73,15 @@ const OPENS: Record<MemberRole, SettingsSectionId[]> = {
     "whatsNew",
   ],
   // Theirs, and only theirs: their login, their notifications, their devices,
-  // the help route and what shipped. Nothing the BUSINESS owns.
+  // the help route and what shipped — plus, since #286, the crew list.
+  //
+  // `team` is the one BUSINESS section a member may open, and it is a read:
+  // "a new member can identify the owner and the rest of the crew without
+  // asking" is #286's fourth Acceptance line, and gating the page made it
+  // unmeetable. Every control on it is still owner/admin and every mutation is
+  // still refused server-side.
   member: [
+    "team",
     "notifications",
     "profile",
     "account",
@@ -85,6 +92,7 @@ const OPENS: Record<MemberRole, SettingsSectionId[]> = {
   // #315: not a rung below a member — a different set that happens to land in
   // the same place for settings, because both hold only the baseline.
   read_only: [
+    "team",
     "notifications",
     "profile",
     "account",
@@ -95,6 +103,7 @@ const OPENS: Record<MemberRole, SettingsSectionId[]> = {
   // The books, and nothing else. The role exists so an owner can hand over
   // billing WITHOUT handing over every customer conversation.
   bookkeeper: [
+    "team",
     "usage",
     "billing",
     "notifications",
@@ -144,14 +153,26 @@ describe("settingsAccessFor — every role against every section", () => {
     }
   });
 
-  it("names billing, team, numbers and usage as the ones a member cannot open", () => {
+  it("names billing, numbers and usage as the ones a member cannot open", () => {
     // The complaint said "billing etc". Named explicitly so a future capability
     // shuffle has to argue with a test rather than slip past a loop.
-    for (const slug of ["billing", "team", "numbers", "usage"]) {
+    for (const slug of ["billing", "numbers", "usage"]) {
       expect(settingsAccessFor(`/settings/${slug}`, "member").kind, slug).toBe(
         "denied",
       );
     }
+  });
+
+  it("#286: team is the one business section a member may open, and only read", () => {
+    // It left the list above deliberately, so this says why in the place
+    // somebody removing it would look. A tech who wants to know who owns the
+    // workspace, or who to ask about a thread, had no screen at all — and
+    // asking is exactly the cost #286 is about.
+    //
+    // Opening it is not managing it: `team.manage` still gates every invite,
+    // role change and deactivation, on the page and at the route.
+    expect(settingsAccessFor("/settings/team", "member").kind).toBe("allowed");
+    expect(roleHasCapability("member", "team.manage")).toBe(false);
   });
 
   it("never leaves a role with nowhere to go", () => {
@@ -179,6 +200,25 @@ describe("settingsAccessFor — every role against every section", () => {
     }
     expect(firstVisibleSettingsSection("bookkeeper")?.slug).toBe("usage");
     expect(firstVisibleSettingsSection("member")?.slug).toBe("notifications");
+  });
+
+  it("#286: does not land anybody on a section they can only read", () => {
+    // Opening `team` to every role made it the SECOND section in nav order
+    // that a member or a bookkeeper can see, so first-visible would have
+    // redirected both of them onto the crew roster — a bookkeeper clicking
+    // "Settings" to reach the books, landed on a page of people whose roles
+    // they cannot change. `neverLanding` is what the two pins above rest on.
+    const team = SETTINGS_SECTIONS.find((s) => s.id === "team");
+    expect(team?.neverLanding, "team is still flagged").toBe(true);
+    for (const role of MEMBER_ROLES) {
+      expect(firstVisibleSettingsSection(role)?.id, role).not.toBe("team");
+    }
+    // And the flag is doing the work: without it, nav order hands `team` to
+    // exactly the roles the two pins above name.
+    const firstOpen = (role: MemberRole) =>
+      SETTINGS_SECTIONS.find((s) => canSeeSettingsSection(s.id, role))?.id;
+    expect(firstOpen("member")).toBe("team");
+    expect(firstOpen("bookkeeper")).toBe("team");
   });
 });
 

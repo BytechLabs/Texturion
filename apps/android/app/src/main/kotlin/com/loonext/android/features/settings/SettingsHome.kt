@@ -132,7 +132,12 @@ enum class SettingsSection(
         "Templates & tags",
         "Saved replies, and the labels you file conversations under",
     ),
-    Team("Team", "Who can see and answer your customers' texts", Capability.TEAM_MANAGE),
+    // #286: WORKSPACE_ACCESS, not TEAM_MANAGE. Reading who is in the crew and
+    // changing who is in it are different rights, and a new member could do
+    // neither — "identify the owner and the rest of the crew without asking"
+    // had no screen behind it. Every control on the section still asks
+    // SettingsRoleGate.canManageTeam, and the API still refuses each write.
+    Team("Team", "Who can see and answer your customers' texts", Capability.WORKSPACE_ACCESS),
     Numbers("Numbers", "Your numbers, ports, text-enablement, registration", Capability.NUMBERS_MANAGE),
     Usage("Usage", "Fair use, your spending cap, and the numbers", Capability.BILLING_MANAGE),
     Billing("Billing", "Plan, payment, and invoices", Capability.BILLING_MANAGE),

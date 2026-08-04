@@ -130,8 +130,9 @@ export function firstVisibleSettingsSection(
   role: MemberRole,
 ): SettingsSection | null {
   return (
-    SETTINGS_SECTIONS.find((section) =>
-      canSeeSettingsSection(section.id, role),
+    SETTINGS_SECTIONS.find(
+      (section) =>
+        !section.neverLanding && canSeeSettingsSection(section.id, role),
     ) ?? null
   );
 }

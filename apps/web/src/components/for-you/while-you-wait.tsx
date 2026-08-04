@@ -5,12 +5,14 @@ import {
   registrationProgress,
   isWaitingOnRegistration,
   type RegistrationSnapshot,
+  roleHasCapability,
 } from "@loonext/shared";
 import { ArrowRight, Check, Phone } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { useMeCompany } from "@/lib/api/me-company";
+import { useActiveCompany } from "@/lib/company/provider";
 
 /**
  * #310 — the waiting room, made into somewhere.
@@ -41,6 +43,10 @@ import { useMeCompany } from "@/lib/api/me-company";
  */
 export function WhileYouWait() {
   const { data } = useMeCompany();
+  const { role } = useActiveCompany();
+  // #286: OPENING the team screen and INVITING somebody are now different
+  // rights, so this asks about the one the step actually requires.
+  const canInvite = roleHasCapability(role, "team.manage");
   const snapshot = data?.company?.registration as RegistrationSnapshot | undefined;
 
   // Only while the wait is genuinely on the carriers. A workspace we are
@@ -96,12 +102,18 @@ export function WhileYouWait() {
           is not a sense of arriving somewhere. */}
       <ul className="mt-4 space-y-1">
         <SetupStep href="/contacts" label="Bring your customers in" />
-        {/* #515: two of the three go to Settings sections a member cannot
-            open. Offering them anyway turns the one card a new workspace
-            lands on into a pair of walls. Contacts is everybody's. */}
-        <SettingsLink section="team">
+        {/* #515: two of the three go to Settings surfaces a member cannot
+            ACT on. Offering them anyway turns the one card a new workspace
+            lands on into a pair of walls. Contacts is everybody's.
+
+            #286 made the distinction real: a member can now OPEN
+            /settings/team to see who is in the crew, and still cannot invite
+            anybody. So this step asks about the capability rather than about
+            the section — a checklist item nobody can complete is worse than
+            an absent one, because it reads as something they failed to do. */}
+        {canInvite && (
           <SetupStep href="/settings/team" label="Invite your crew" />
-        </SettingsLink>
+        )}
         <SettingsLink section="hours">
           <SetupStep
             href="/settings/hours"

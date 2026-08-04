@@ -48,10 +48,15 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         // Yours by being in the workspace at all.
         case .profile, .notifications, .devices, .help, .whatsNew, .diagnostics:
             Capability.workspaceAccess
+        // #286: reading who is in the crew, and changing who is in it, are
+        // different rights. A new member could do neither — "identify the owner
+        // and the rest of the crew without asking" had no screen behind it.
+        // Every control on the section still asks SettingsRoleGate.canManageTeam,
+        // and the API still refuses each write.
+        case .team: Capability.workspaceAccess
         // The business's, each behind the axis that actually governs it.
         case .workspace, .hours, .calling, .templates, .ai:
             Capability.settingsManage
-        case .team: Capability.teamManage
         case .numbers: Capability.numbersManage
         case .usage, .billing: Capability.billingManage
         }
