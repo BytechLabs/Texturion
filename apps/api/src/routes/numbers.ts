@@ -1083,6 +1083,80 @@ numbersRoutes.get("/:id/access", requireCapability("numbers.manage"), async (c) 
  * question — a member asking what they themselves can reach is the /v1/me
  * company embed, already filtered.
  */
+/**
+ * GET /v1/numbers/access/me (#286) — what I reach, and why.
+ *
+ * #286's second Acceptance line: *"A member can find out which numbers they
+ * can and cannot see, and why."* Until now the only answer available to a
+ * member was the FILTERED list on /v1/me — which is exactly the silent absence
+ * the issue calls the worse failure. A new tech who sees one line and not
+ * another has no way to tell a deliberate restriction from the app being
+ * broken, and the way they resolve that is by asking the owner, one at a time,
+ * which is the cost this route removes.
+ *
+ * Same RPC, same shape, same words as the owner-facing explain above — read by
+ * the person they are about (`viewer: "self"` in the shared copy). Deciding
+ * anything here would be a second implementation of a security rule, which
+ * `number-access-surfaces.test.ts` fails the build over.
+ *
+ * `workspace.access`, the baseline every role holds: this answers only about
+ * the CALLER, so there is nobody to be protected from. The userId comes from
+ * the session and is never a parameter — a route that took one would be the
+ * owner-facing route with the gate removed.
+ */
+numbersRoutes.get("/access/me", requireCapability("workspace.access"), async (c) => {
+  const db = getDb(getEnv(c.env));
+  const companyId = c.get("companyId");
+  const userId = c.get("userId");
+
+  const { data, error } = await db.rpc("member_number_access_explained", {
+    p_user_id: userId,
+    p_company_id: companyId,
+  });
+  if (error) {
+    throw new Error(`member_number_access_explained failed: ${error.message}`);
+  }
+
+  // Unfiltered by access ON PURPOSE, and it is the whole point: a member is
+  // told about the numbers they CANNOT reach as well as the ones they can.
+  // Only the E.164 and the verdict cross the wire — never the line's label,
+  // greeting or any of the identity a hidden number carries.
+  const { data: numberRows, error: numberError } = await db
+    .from("phone_numbers")
+    .select("id,number_e164")
+    .eq("company_id", companyId)
+    .neq("status", "released");
+  if (numberError) {
+    throw new Error(`phone_numbers lookup failed: ${numberError.message}`);
+  }
+  const numbers = new Map(
+    (numberRows ?? []).map((row) => [
+      (row as { id: string }).id,
+      (row as { number_e164: string }).number_e164,
+    ]),
+  );
+
+  const rows = (data ?? []) as {
+    phone_number_id: string;
+    level: "text" | "note" | "none";
+    decided_by: string;
+    principal: string | null;
+  }[];
+
+  return c.json({
+    user_id: userId,
+    numbers: rows
+      .filter((row) => numbers.has(row.phone_number_id))
+      .map((row) => ({
+        phone_number_id: row.phone_number_id,
+        number_e164: numbers.get(row.phone_number_id) ?? null,
+        level: row.level,
+        decided_by: row.decided_by,
+        principal: row.principal,
+      })),
+  });
+});
+
 numbersRoutes.get("/access/explain/:userId", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);

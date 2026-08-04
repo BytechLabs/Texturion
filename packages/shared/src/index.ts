@@ -228,6 +228,9 @@ export {
   numberAccessIsRestricted,
   numberAccessLevelLabel,
   numberAccessReason,
+  // #286: the same seven clauses, read by the person they are about.
+  numberAccessSelfNote,
+  type NumberAccessViewer,
   sortNumberAccessExplanations,
   type NumberAccessDecidedBy,
   type NumberAccessExplanation,

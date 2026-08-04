@@ -13,8 +13,11 @@ import {
   numberAccessIsRestricted,
   numberAccessLevelLabel,
   numberAccessReason,
+  numberAccessSelfNote,
   sortNumberAccessExplanations,
+  type NumberAccessDecidedBy,
   type NumberAccessExplanation,
+  type NumberAccessLevel,
 } from "./number-access-explained";
 
 describe("what they can do", () => {
@@ -118,3 +121,85 @@ describe("the order they are read in", () => {
     expect(numberAccessIsRestricted("none")).toBe(true);
   });
 });
+
+/**
+ * #286 — the same seven clauses, read by the person they are about.
+ *
+ * SV-1 is the one that matters. A member-facing copy of these sentences would
+ * be a second wording of one security rule, which is the #437 failure this
+ * file exists to prevent — so "you" and "them" are a parameter and the switch
+ * is walked once.
+ */
+describe("#286 reading your own access", () => {
+  it("SV-1: every reason has a self-reading, and the default is unchanged", () => {
+    const kinds: NumberAccessDecidedBy[] = [
+      "user",
+      "role",
+      "all",
+      "no-match",
+      "unruled",
+      "role-override",
+      "not-a-member",
+    ];
+    for (const kind of kinds) {
+      // Nothing throws and nothing comes back empty: a missing branch here is
+      // a blank line under a number on somebody's screen.
+      expect(numberAccessReason(kind, null, "self").length).toBeGreaterThan(0);
+      // And the owner-facing wording is byte-identical to before the parameter
+      // existed, since that screen shipped in #348 and nobody asked for it to
+      // change.
+      expect(numberAccessReason(kind, null)).toBe(
+        numberAccessReason(kind, null, "other"),
+      );
+    }
+    expect(numberAccessReason("user", null, "self")).toBe("A rule naming you");
+    expect(numberAccessReason("user", null)).toBe("A rule naming them");
+    expect(numberAccessReason("no-match", null, "self")).toMatch(/include you$/);
+  });
+
+  it("SV-2: a role rule reads the same either way, because it names the role", () => {
+    // "A rule for members" is already about the rule rather than the person,
+    // so rewording it for the self view would make it worse.
+    expect(numberAccessReason("role", "member", "self")).toBe("A rule for members");
+    expect(numberAccessReason("role", "member")).toBe("A rule for members");
+  });
+
+  it("SV-3: the note says how much is hidden, and that it is deliberate", () => {
+    // #286: silent absence is the worse failure. A member who cannot see a
+    // line reads it as the app being broken, and resolves that by asking the
+    // owner — which is the cost this sentence removes.
+    const note = numberAccessSelfNote([
+      row("text"),
+      row("none"),
+      row("none"),
+      row("note"),
+    ]);
+    expect(note).toContain("2 numbers are hidden");
+    expect(note).toContain("1 is read-only");
+    expect(note).toMatch(/deliberate/i);
+    expect(note).toMatch(/not the app failing/i);
+  });
+
+  it("SV-3b: a member who reaches everything is told nothing", () => {
+    // The pair. A paragraph reassuring somebody about a problem they do not
+    // have is furniture, and furniture is not read.
+    expect(numberAccessSelfNote([row("text"), row("text")])).toBeNull();
+    expect(numberAccessSelfNote([])).toBeNull();
+  });
+
+  it("SV-4: one of each reads as singular", () => {
+    const note = numberAccessSelfNote([row("none"), row("note")]);
+    expect(note).toContain("1 number is hidden");
+    expect(note).toContain("1 is read-only");
+  });
+});
+
+function row(level: NumberAccessLevel): NumberAccessExplanation {
+  return {
+    phone_number_id: `n-${level}-${Math.random()}`,
+    number_e164: "+12125550100",
+    level,
+    decided_by: "unruled",
+    principal: null,
+  };
+}

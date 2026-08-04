@@ -1406,6 +1406,96 @@ describe("POST /v1/numbers/:id/remediate (no-recharge)", () => {
   });
 });
 
+/**
+ * #286 — "a member can find out which numbers they can and cannot see, and
+ * why".
+ *
+ * SA-1 is the one that decides whether this route is worth having. The member
+ * already had a FILTERED list on /v1/me, and a filtered list is exactly the
+ * silent absence #286 calls the worse failure: a new tech who sees one line
+ * and not another cannot tell a deliberate restriction from the app being
+ * broken, and resolves it by asking the owner one number at a time.
+ */
+describe("GET /v1/numbers/access/me (#286)", () => {
+  const VISIBLE = "aaaaaaaa-0000-4000-8000-0000000000d1";
+  const HIDDEN = "aaaaaaaa-0000-4000-8000-0000000000d2";
+
+  function withTwoNumbers(harness: ReturnType<typeof buildHarness>) {
+    harness.rest.insert("phone_numbers", {
+      id: VISIBLE,
+      company_id: COMPANY_ID,
+      status: "active",
+      country: "US",
+      number_e164: "+12125559200",
+    });
+    harness.rest.insert("phone_numbers", {
+      id: HIDDEN,
+      company_id: COMPANY_ID,
+      status: "active",
+      country: "US",
+      number_e164: "+12125559201",
+    });
+  }
+
+  it("SA-1: a member is told about the numbers they CANNOT reach", async () => {
+    // THE ONE THAT MATTERS. Returning only what they can see would be the
+    // /v1/me list again, and the whole complaint is that the absence is
+    // unexplained.
+    const harness = buildHarness();
+    withTwoNumbers(harness);
+    harness.state.role = "member";
+    harness.rest.rpc("member_number_access_explained", () => [
+      { phone_number_id: VISIBLE, level: "text", decided_by: "unruled", principal: null },
+      { phone_number_id: HIDDEN, level: "none", decided_by: "no-match", principal: null },
+    ]);
+
+    const res = await harness.request("/v1/numbers/access/me");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      numbers: { phone_number_id: string; level: string; decided_by: string }[];
+    };
+    expect(body.numbers).toHaveLength(2);
+    const hidden = body.numbers.find((row) => row.phone_number_id === HIDDEN);
+    expect(hidden?.level).toBe("none");
+    // And WHY, which is the difference between "deliberate" and "broken".
+    expect(hidden?.decided_by).toBe("no-match");
+  });
+
+  it("SA-2: it answers only about the caller, and takes no user id", async () => {
+    // A route that took a userId would be the owner-facing explain with the
+    // gate removed. The id comes from the session, so there is nobody to be
+    // protected from — which is why the baseline capability is enough.
+    const harness = buildHarness();
+    withTwoNumbers(harness);
+    harness.state.role = "member";
+    harness.rest.rpc("member_number_access_explained", (args) => {
+      // The RPC is asked about the SESSION's user, never a parameter.
+      expect(args.p_user_id).toBe(OWNER_ID);
+      return [];
+    });
+    const res = await harness.request("/v1/numbers/access/me");
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { user_id: string }).user_id).toBe(OWNER_ID);
+  });
+
+  it("SA-3: a hidden number gives up its digits and nothing else", async () => {
+    // A member is owed the fact that a line exists and is not theirs. They are
+    // NOT owed its label, its greeting, or any of the identity #307 hangs off
+    // it — that is the workspace's business and this route is about absence.
+    const harness = buildHarness();
+    withTwoNumbers(harness);
+    harness.state.role = "member";
+    harness.rest.rpc("member_number_access_explained", () => [
+      { phone_number_id: HIDDEN, level: "none", decided_by: "no-match", principal: null },
+    ]);
+    const res = await harness.request("/v1/numbers/access/me");
+    const row = ((await res.json()) as { numbers: Record<string, unknown>[] }).numbers[0];
+    expect(Object.keys(row).sort()).toEqual(
+      ["decided_by", "level", "number_e164", "phone_number_id", "principal"],
+    );
+  });
+});
+
 describe("GET /v1/numbers/access/explain/:userId (#348)", () => {
   const NUMBER_ID = "aaaaaaaa-0000-4000-8000-0000000000c7";
   const RELEASED_ID = "aaaaaaaa-0000-4000-8000-0000000000c8";
