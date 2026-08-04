@@ -243,6 +243,8 @@ function ctx(overrides: Partial<InitiatedContext> = {}): InitiatedContext {
     afterHours: false,
     nextOpenLabel: null,
     afterHoursVoicemail: false,
+    ringStrategy: "all",
+    ringSeconds: 45,
     lineBusy: false,
     screeningDivert: false,
     suspendedOrInactive: false,

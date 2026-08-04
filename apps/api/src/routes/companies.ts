@@ -22,6 +22,8 @@ import {
   isValidHoursExceptions,
   NANP_AREA_CODES,
   screenBusinessName,
+  RING_SECONDS_MAX,
+  RING_SECONDS_MIN,
 } from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -237,6 +239,18 @@ const patchSchema = z
       .optional(),
     /** #278: the recording played after hours. Null = the ordinary greeting. */
     after_hours_greeting_id: z.string().uuid().nullable().optional(),
+    /**
+     * #278: whether every eligible phone rings at once, or they join in turn.
+     * NOT nullable, like its after-hours sibling: this IS what a line inherits.
+     */
+    ring_strategy: z.enum(["all", "in_turn"]).optional(),
+    /**
+     * #278: how long they ring before the caller gets the greeting.
+     *
+     * The ceiling is the leg-level dial timeout, so this refuses a longer
+     * window rather than letting a screen promise ringing that cannot happen.
+     */
+    ring_seconds: z.number().int().min(RING_SECONDS_MIN).max(RING_SECONDS_MAX).optional(),
     call_screening: z.enum(["off", "flag", "divert"]).optional(),
     cnam_display_name: z
       .string()
@@ -303,6 +317,8 @@ const patchSchema = z
       "voicemail_greeting_id" in body ||
       body.after_hours_calls !== undefined ||
       "after_hours_greeting_id" in body ||
+      body.ring_strategy !== undefined ||
+      body.ring_seconds !== undefined ||
       body.call_screening !== undefined ||
       "cnam_display_name" in body ||
       body.caller_id_lookup !== undefined ||
@@ -618,6 +634,10 @@ const AUDITED_COMPANY_SETTINGS = [
   // has one honest answer only if the log says who changed it.
   "after_hours_calls",
   "after_hours_greeting_id",
+  // #278: "why did nobody's phone ring" and "why did it only ring twice" are
+  // both questions whose answer is a settings change somebody made.
+  "ring_strategy",
+  "ring_seconds",
   "voicemail_enabled",
   "caller_id_name",
   "caller_id_lookup",
@@ -888,6 +908,8 @@ companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c
   if (body.after_hours_calls !== undefined) {
     patch.after_hours_calls = body.after_hours_calls;
   }
+  if (body.ring_strategy !== undefined) patch.ring_strategy = body.ring_strategy;
+  if (body.ring_seconds !== undefined) patch.ring_seconds = body.ring_seconds;
   if ("cnam_display_name" in body) {
     patch.cnam_display_name = body.cnam_display_name ?? null;
     // #193: changing the caller ID is a deliberate act whose carrier-side

@@ -31,6 +31,10 @@ const company: CompanyIdentity = {
   // behaved before #278 existed.
   afterHoursCalls: "ring_everyone",
   afterHoursGreetingId: null,
+  // #278: 'all' and 45 seconds are the column defaults, and are the product
+  // exactly as it rang before the columns existed.
+  ringStrategy: "all",
+  ringSeconds: 45,
 };
 
 describe("#307 resolving a number's identity", () => {

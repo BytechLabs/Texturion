@@ -378,6 +378,11 @@ export class CallSessionDO extends DurableObject<Env> {
         "mirror-retry",
         "fanout-settle",
         "intent-expiry",
+        // #278: the cascade step runs BEFORE the window expiry, so a step and
+        // an expiry landing in the same tick add the phone first and then let
+        // the window close — never the other way round, which would dial a leg
+        // for a call that had already gone to voicemail.
+        "ring-step",
         "ring",
         "janitor",
         "purge",
@@ -424,6 +429,10 @@ export class CallSessionDO extends DurableObject<Env> {
         { type: "push-fanout-settled", unreachableUserIds: unreachable },
         null,
       );
+      return;
+    }
+    if (slot === "ring-step") {
+      await this.admitAndDrain({ type: "alarm-ring-step" }, null);
       return;
     }
     if (slot === "ring") {
@@ -1259,6 +1268,10 @@ export class CallSessionDO extends DurableObject<Env> {
       // pre-#278 behaviour and never silence.
       afterHours: false,
       nextOpenLabel: null,
+      // #278: an adopted session is already ringing, so its cascade — if it
+      // had one — belongs to whichever machine started it. Empty means this
+      // one adds no phones, which is the pre-#278 behaviour and never silence.
+      queuedTargets: [],
       callSessionId: row.callSessionId,
       companyId: row.companyId,
       phoneNumberId: row.phoneNumberId,

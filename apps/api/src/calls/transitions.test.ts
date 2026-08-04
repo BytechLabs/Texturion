@@ -47,6 +47,10 @@ function initCtx(overrides: Partial<InitiatedContext> = {}): InitiatedContext {
     afterHours: false,
     nextOpenLabel: null,
     afterHoursVoicemail: false,
+    // #278: 'all' and the full window are the product as it rang before the
+    // columns existed, which is what every existing case in this file asserts.
+    ringStrategy: "all",
+    ringSeconds: 45,
     lineBusy: false,
     screeningDivert: false,
     suspendedOrInactive: false,
@@ -1424,5 +1428,175 @@ describe("#278 after-hours voicemail", () => {
     );
     expect(result.machine!.afterHours).toBe(true);
     expect(result.machine!.nextOpenLabel).toBe("Monday at 8am");
+  });
+});
+
+/**
+ * #278 — the phones join the ring one at a time.
+ *
+ * RT-3 is the one that decides whether this is safe to ship, and it is the
+ * rung that had to be ADDED to the avenue ladder rather than something that
+ * already worked. Under `in_turn` the first member's leg dying is the NORMAL
+ * case between steps — a decline, a dead credential, a timeout — and without
+ * a queued phone counting as an avenue the ladder would call the whole call
+ * exhausted and send the caller to voicemail while two more phones were
+ * seconds from ringing. That is exactly the "reached nobody" failure the
+ * cascade was chosen over a hunt group to avoid, arriving through the ladder
+ * instead of through the hunt.
+ */
+describe("#278 ringing in turn", () => {
+  const CREW = [
+    { userId: "u1", sipUsername: "s1" },
+    { userId: "u2", sipUsername: "s2" },
+    { userId: "u3", sipUsername: "s3" },
+  ];
+
+  function startInTurn(overrides: Partial<InitiatedContext> = {}) {
+    return reduce(
+      null,
+      {
+        type: "initiated",
+        context: initCtx({
+          ringStrategy: "in_turn",
+          dialTargets: CREW,
+          pushAudience: [],
+          ...overrides,
+        }),
+      },
+      1_000,
+      keyGen(),
+    );
+  }
+
+  it("RT-1: only the first phone rings, and the rest are queued in order", () => {
+    const result = startInTurn();
+    const dial = result.effects.find((e) => e.kind === "telnyx-dial");
+    expect(dial && "legs" in dial ? dial.legs.map((l) => l.userId) : []).toEqual([
+      "u1",
+    ]);
+    expect(result.machine!.queuedTargets.map((t) => t.userId)).toEqual(["u2", "u3"]);
+    // And the cascade is armed, or nothing would ever join.
+    expect(
+      result.effects.some((e) => e.kind === "arm-alarm" && e.alarm === "ring-step"),
+    ).toBe(true);
+  });
+
+  it("RT-1b: 'all' still rings every phone at once, and queues nothing", () => {
+    // The deploy-day half. A cascade that fired for everybody would change how
+    // every existing workspace rings, which is the one thing this must not do.
+    const result = reduce(
+      null,
+      { type: "initiated", context: initCtx({ dialTargets: CREW, pushAudience: [] }) },
+      1_000,
+      keyGen(),
+    );
+    const dial = result.effects.find((e) => e.kind === "telnyx-dial");
+    expect(dial && "legs" in dial ? dial.legs.length : 0).toBe(3);
+    expect(result.machine!.queuedTargets).toEqual([]);
+    expect(
+      result.effects.some((e) => e.kind === "arm-alarm" && e.alarm === "ring-step"),
+    ).toBe(false);
+  });
+
+  it("RT-2: each step ADDS a phone rather than replacing the one ringing", () => {
+    // The cascade, not a hunt. A hunt tears the previous leg down before
+    // dialing the next, which leaves a window where nobody's phone is ringing
+    // and loses the person who was reaching for theirs.
+    const started = startInTurn();
+    const step = reduce(started.machine, { type: "alarm-ring-step" }, 13_000, keyGen());
+    const dial = step.effects.find((e) => e.kind === "telnyx-dial");
+    expect(dial && "legs" in dial ? dial.legs.map((l) => l.userId) : []).toEqual([
+      "u2",
+    ]);
+    // u1's leg is untouched — no hangup, no cancel.
+    expect(step.effects.some((e) => e.kind === "telnyx-hangup")).toBe(false);
+    expect(step.machine!.legs.map((l) => l.userId)).toEqual(["u1", "u2"]);
+    expect(step.machine!.queuedTargets.map((t) => t.userId)).toEqual(["u3"]);
+  });
+
+  it("RT-3: a queued phone is an avenue, so a dead first leg is not exhaustion", () => {
+    // THE ONE THAT MATTERS. With no push audience and u1's leg dead, the
+    // ladder's zero-live-legs rung would fire voicemail — while u2 and u3 have
+    // not rung at all.
+    const started = startInTurn();
+    const key = started.machine!.legs[0].key;
+    const dialed = reduce(
+      started.machine,
+      { type: "dial-outcome", pendingKey: key, ccid: "c1", failure: null },
+      1_100,
+      keyGen(),
+    );
+    const dead = reduce(
+      dialed.machine,
+      { type: "member-leg-hangup", ccid: "c1", userId: "u1", destination: null },
+      2_000,
+      keyGen(),
+    );
+    expect(dead.machine!.state).toBe("ringing");
+    expect(dead.effects.some((e) => e.kind === "telnyx-answer-vm")).toBe(false);
+  });
+
+  it("RT-3b: once the queue is empty, exhaustion is exhaustion again", () => {
+    // The pair. A rung that never lets go would hold a caller on ringback
+    // forever with nothing left to ring, which is the opposite failure.
+    const started = startInTurn({ dialTargets: [CREW[0]] });
+    expect(started.machine!.queuedTargets).toEqual([]);
+    const key = started.machine!.legs[0].key;
+    const dialed = reduce(
+      started.machine,
+      { type: "dial-outcome", pendingKey: key, ccid: "c1", failure: null },
+      1_100,
+      keyGen(),
+    );
+    const dead = reduce(
+      dialed.machine,
+      { type: "member-leg-hangup", ccid: "c1", userId: "u1", destination: null },
+      2_000,
+      keyGen(),
+    );
+    expect(dead.machine!.state).toBe("voicemail_greeting");
+  });
+
+  it("RT-4: a step that lands on a finished call dials nothing", () => {
+    // Billable, and it rings somebody about a customer who has already hung
+    // up. The alarm can genuinely land late — the DO fires due slots in one
+    // tick after an eviction.
+    const started = startInTurn();
+    const gone = reduce(started.machine, { type: "alarm-ring" }, 46_000, keyGen());
+    expect(gone.machine!.state).toBe("voicemail_greeting");
+    // Entering voicemail also emptied the queue and cleared the alarm, so a
+    // replay of the step is a no-op twice over.
+    expect(gone.machine!.queuedTargets).toEqual([]);
+    expect(
+      gone.effects.some((e) => e.kind === "clear-alarm" && e.alarm === "ring-step"),
+    ).toBe(true);
+    const late = reduce(gone.machine, { type: "alarm-ring-step" }, 47_000, keyGen());
+    expect(late.effects.some((e) => e.kind === "telnyx-dial")).toBe(false);
+  });
+
+  it("RT-5: the window is the line's, and the cascade never outlives it", () => {
+    // A step armed past the deadline would dial a phone for a call that has
+    // already gone to voicemail.
+    const short = reduce(
+      null,
+      {
+        type: "initiated",
+        context: initCtx({
+          ringStrategy: "in_turn",
+          ringSeconds: 10,
+          dialTargets: CREW,
+          pushAudience: [],
+        }),
+      },
+      1_000,
+      keyGen(),
+    );
+    expect(short.machine!.ringDeadlineMs).toBe(11_000);
+    // 12s is past a 10s window, so no step is armed at all — the one phone
+    // that rang gets the whole window rather than a second one arriving after
+    // the caller has gone.
+    expect(
+      short.effects.some((e) => e.kind === "arm-alarm" && e.alarm === "ring-step"),
+    ).toBe(false);
   });
 });

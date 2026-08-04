@@ -20,8 +20,15 @@
  *     re-rings a member who explicitly declined this session (#171).
  */
 
-/** §5: the one real ring window. The DO alarm at this deadline is the ONLY
- *  clock-based voicemail trigger. */
+import { RING_STEP_SECS } from "@loonext/shared";
+
+/** §5: the ring window's CEILING, and the default. The DO alarm at the
+ *  resolved deadline is the ONLY clock-based voicemail trigger.
+ *
+ *  #278 made the window per line, and this stayed the ceiling rather than
+ *  becoming the value: it is RING_TIMEOUT_SECS, the leg-level bound every dial
+ *  carries, so a session window past it is a window during which the legs have
+ *  already died. */
 export const RING_WINDOW_SECS = 45;
 
 /** §6: asserted ring-me debounce — only against a live ring_me-sourced leg. */
@@ -261,6 +268,20 @@ export interface SessionMachine {
    *  transient leg death that a wake could recover). */
   declinedUserIds: string[];
   ringDeadlineMs: number | null;
+  /**
+   * #278 `in_turn` — the eligible phones that have NOT been dialed yet, in the
+   * order they will be.
+   *
+   * Empty under `all` (every phone was dialed at ring start) and empty once
+   * the cascade has run out, which is the same state and is treated the same:
+   * nothing left to add, the ring window decides the rest.
+   *
+   * A machine persisted before #278 loads without this key. `?? []` at every
+   * read means such a session simply never adds a phone — which is the
+   * pre-#278 behaviour, and the right way for an unknown field to fail on a
+   * live call.
+   */
+  queuedTargets: { userId: string; sipUsername: string }[];
   telnyxCommandCount: number;
   legs: LegRecord[];
   intent: SessionIntent | null;
@@ -290,6 +311,15 @@ export interface InitiatedContext {
   afterHours: boolean;
   /** #278 — "back Monday at 8am", or null when we cannot honestly say. */
   nextOpenLabel: string | null;
+  /**
+   * #278 — every phone at once, or one at a time joining the ring.
+   *
+   * Resolved in the shell against the line's own setting and the workspace's,
+   * so the machine never re-derives a precedence rule that lives in one place.
+   */
+  ringStrategy: "all" | "in_turn";
+  /** #278 — how long the phones ring before the caller gets the greeting. */
+  ringSeconds: number;
   /**
    * #278 — go straight to the greeting instead of ringing out first.
    *
@@ -391,6 +421,7 @@ export type SessionEvent =
    *  them from the avenue/audience set, and re-runs the T3 exhaustion ladder. */
   | { type: "decline"; userId: string }
   | { type: "alarm-ring" }
+  | { type: "alarm-ring-step" }
   | { type: "alarm-janitor" }
   | { type: "alarm-intent-expiry" }
   // Internal events (§4.1: effect outcomes re-enter under the same FIFO):
@@ -467,6 +498,7 @@ export const EVENT_TYPES: readonly SessionEvent["type"][] = [
   "clear-intent",
   "decline",
   "alarm-ring",
+  "alarm-ring-step",
   "alarm-janitor",
   "alarm-intent-expiry",
   "answer-outcome",
@@ -484,6 +516,8 @@ export const EVENT_TYPES: readonly SessionEvent["type"][] = [
 
 export type AlarmKind =
   | "ring"
+  /** #278 `in_turn`: the next phone joins the ring. */
+  | "ring-step"
   | "janitor"
   | "purge"
   | "intent-expiry"
@@ -643,8 +677,11 @@ function cancelAllLiveLegs(
 function vmEntry(machine: SessionMachine, effects: Effect[]): void {
   machine.state = "voicemail_greeting";
   machine.ringDeadlineMs = null;
+  // #278: nothing else joins a ring that is over.
+  machine.queuedTargets = [];
   effects.push({ kind: "mirror", set: { state: "voicemail_greeting" }, terminal: false });
   effects.push({ kind: "clear-alarm", alarm: "ring" });
+  effects.push({ kind: "clear-alarm", alarm: "ring-step" });
   if (machine.customerCcid) {
     // Terminal-path exemption class (§13): the voicemail answer must never
     // drop at the command cap — it is how the session ends honestly.
@@ -676,6 +713,14 @@ export const UNAVAILABLE_NOTICE =
 function runAvenueLadder(machine: SessionMachine, effects: Effect[]): void {
   if (machine.state !== "ringing") return;
   if (liveLegs(machine).length > 0) return; // (1) any live leg → stay
+  // (1b) #278: a phone waiting its turn IS an avenue, and the reason this rung
+  // exists at all. Under `in_turn` the first member's leg dying — a decline, a
+  // dead credential, a timeout — is the NORMAL case between steps, and without
+  // this the ladder would call the whole call exhausted and send the caller to
+  // voicemail while two more phones were seconds from ringing. That is the
+  // exact "reached nobody" failure the cascade was chosen to avoid, arriving
+  // through the ladder instead of through the hunt group.
+  if ((machine.queuedTargets ?? []).length > 0) return;
   if (machine.pushCapableUserIds.length > 0) return; // (2) hold ringback
   vmEntry(machine, effects); // (3) explicit exhaustion
 }
@@ -727,6 +772,7 @@ function terminalize(
   }
   if (!upgrade) {
     effects.push({ kind: "clear-alarm", alarm: "ring" });
+    effects.push({ kind: "clear-alarm", alarm: "ring-step" });
     effects.push({ kind: "clear-alarm", alarm: "fanout-settle" });
     effects.push({ kind: "arm-alarm", alarm: "purge", atMs: nowMs + PURGE_DELAY_MS });
   }
@@ -920,6 +966,30 @@ export function reduce(
     // ---- #171: DECLINE (first-class avenue removal, re-run the ladder) -----
     case "decline":
       return reduceDecline(next, event, effects);
+
+    // ---- #278: the next phone joins the ring ------------------------------
+    //
+    // Guarded on `ringing` for the same reason alarm-ring is: a step that
+    // lands after somebody answered, or after the call went to voicemail,
+    // would dial a leg for a call that is over — billable, and it rings
+    // somebody about a customer who has already hung up.
+    case "alarm-ring-step": {
+      if (next.state !== "ringing") return { machine: next, effects };
+      const queue = next.queuedTargets ?? [];
+      const target = queue[0];
+      if (!target) return { machine: next, effects };
+      next.queuedTargets = queue.slice(1);
+      // The same cap ring-start respects. A cascade cannot be the way past it.
+      if (next.legs.length >= MAX_LEGS_PER_SESSION) {
+        return { machine: next, effects };
+      }
+      effects.push({
+        kind: "telnyx-dial",
+        legs: [dialLegFor(next, target, nowMs, pendingKeyFor)],
+      });
+      armRingStep(next, effects, nowMs);
+      return { machine: next, effects };
+    }
 
     // ---- T10: the ONLY clock-based voicemail trigger ----------------------
     case "alarm-ring": {
@@ -1191,6 +1261,7 @@ function reduceInitiated(
     pushCapableUserIds: [...context.pushAudience],
     declinedUserIds: [],
     ringDeadlineMs: null,
+    queuedTargets: [],
     telnyxCommandCount: 0,
     legs: [],
     intent: null,
@@ -1288,25 +1359,24 @@ function reduceInitiated(
       MAX_LEGS_PER_SESSION,
     );
   }
-  const dialLegs = targets.map((target) => {
-    const pendingKey = `leg:pending:${pendingKeyFor()}`;
-    base.legs.push({
-      key: pendingKey,
-      ccid: null,
-      userId: target.userId,
-      status: "dialing",
-      source: "engine",
-      dialedAtMs: nowMs,
-      sipTarget: `sip:${target.sipUsername}@sip.telnyx.com`,
-    });
-    return {
-      pendingKey,
-      userId: target.userId,
-      sipTarget: `sip:${target.sipUsername}@sip.telnyx.com`,
-      source: "engine" as const,
-    };
-  });
-  base.ringDeadlineMs = nowMs + RING_WINDOW_SECS * 1_000;
+  // #278 `in_turn`: only the FIRST phone rings now; the rest JOIN it on the
+  // cascade alarm below. Note they join rather than replace — a hunt group
+  // tears down each leg before dialing the next, which leaves a window on
+  // every hop where nobody's phone is ringing, and loses the person who was
+  // reaching for theirs.
+  //
+  // The order is membership order, oldest first, which is what the shell
+  // already returns. That is deliberately the thing #366 called unfair for
+  // ring-all, because here it is the point: the owner joined first, so the
+  // owner's phone rings first.
+  const ringNow =
+    context.ringStrategy === "in_turn" && targets.length > 1
+      ? targets.slice(0, 1)
+      : targets;
+  base.queuedTargets = targets.slice(ringNow.length);
+
+  const dialLegs = ringNow.map((target) => dialLegFor(base, target, nowMs, pendingKeyFor));
+  base.ringDeadlineMs = nowMs + ringWindowMs(context.ringSeconds);
   effects.push({ kind: "mirror", set: { state: "ringing" }, terminal: false });
   if (dialLegs.length > 0) {
     effects.push({ kind: "telnyx-dial", legs: dialLegs });
@@ -1316,7 +1386,62 @@ function reduceInitiated(
   effects.push({ kind: "push-fanout", userIds: [...context.pushAudience] });
   effects.push({ kind: "arm-alarm", alarm: "fanout-settle", atMs: nowMs + FANOUT_SETTLE_MS });
   effects.push({ kind: "arm-alarm", alarm: "ring", atMs: base.ringDeadlineMs });
+  armRingStep(base, effects, nowMs);
   return { machine: base, effects };
+}
+
+/**
+ * One engine leg, recorded on the machine and returned for the dial effect.
+ *
+ * Extracted because #278 dials from two places now — ring start and each
+ * cascade step — and a second copy of "what a leg looks like" is how the two
+ * end up disagreeing about the pendingKey shape the dial-outcome handler
+ * matches on.
+ */
+function dialLegFor(
+  machine: SessionMachine,
+  target: { userId: string; sipUsername: string },
+  nowMs: number,
+  pendingKeyFor: () => string,
+): { pendingKey: string; userId: string; sipTarget: string; source: "engine" } {
+  const pendingKey = `leg:pending:${pendingKeyFor()}`;
+  const sipTarget = `sip:${target.sipUsername}@sip.telnyx.com`;
+  machine.legs.push({
+    key: pendingKey,
+    ccid: null,
+    userId: target.userId,
+    status: "dialing",
+    source: "engine",
+    dialedAtMs: nowMs,
+    sipTarget,
+  });
+  return { pendingKey, userId: target.userId, sipTarget, source: "engine" };
+}
+
+/**
+ * Arm the next cascade step, but never past the ring window.
+ *
+ * A step alarm that fired after the window would dial a phone for a call that
+ * has already gone to voicemail — a leg that costs money and rings somebody
+ * about a customer who is no longer there.
+ */
+function armRingStep(
+  machine: SessionMachine,
+  effects: Effect[],
+  nowMs: number,
+): void {
+  if (machine.queuedTargets.length === 0) return;
+  const atMs = nowMs + RING_STEP_SECS * 1_000;
+  if (machine.ringDeadlineMs !== null && atMs >= machine.ringDeadlineMs) return;
+  effects.push({ kind: "arm-alarm", alarm: "ring-step", atMs });
+}
+
+/** The window, bounded to what the legs can actually stay alive for. */
+function ringWindowMs(seconds: number): number {
+  const bounded = Number.isFinite(seconds)
+    ? Math.min(RING_WINDOW_SECS, Math.max(10, Math.round(seconds)))
+    : RING_WINDOW_SECS;
+  return bounded * 1_000;
 }
 
 /**
@@ -1369,6 +1494,7 @@ function reduceOutboundInitiated(
     pushCapableUserIds: [],
     declinedUserIds: [],
     ringDeadlineMs: null,
+    queuedTargets: [],
     telnyxCommandCount: 0,
     legs: [],
     intent: null,

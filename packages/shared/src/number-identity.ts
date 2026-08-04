@@ -47,7 +47,66 @@ export interface CompanyIdentity {
   afterHoursCalls: AfterHoursCalls;
   /** #278: the recording played after hours, or null for the ordinary one. */
   afterHoursGreetingId: string | null;
+  /** #278: whether every phone rings at once, or they join in turn. */
+  ringStrategy: RingStrategy;
+  /** #278: how long the phones ring before the caller gets the greeting. */
+  ringSeconds: number;
 }
+
+/**
+ * #278 — how the eligible phones ring.
+ *
+ * `in_turn` is a CASCADE, not a hunt group, and the name is chosen to avoid
+ * promising otherwise. A hunt tears down each leg before dialing the next,
+ * which leaves a window on every hop where nobody's phone is ringing — and
+ * "the call reached nobody" is the failure this product is built to avoid. So
+ * each phone JOINS the ring instead: the first member's rings alone, then the
+ * second joins them, then the third.
+ */
+export type RingStrategy = "all" | "in_turn";
+
+export const RING_STRATEGIES: readonly RingStrategy[] = ["all", "in_turn"] as const;
+
+export function isRingStrategy(value: unknown): value is RingStrategy {
+  return (
+    typeof value === "string" &&
+    (RING_STRATEGIES as readonly string[]).includes(value)
+  );
+}
+
+/**
+ * The window, and why both ends are where they are.
+ *
+ * The ceiling is RING_TIMEOUT_SECS — the leg-level bound every dial carries,
+ * which calls-v3 marks load-bearing. A session window longer than that is a
+ * window during which the legs have already died and nothing is ringing at
+ * all, so it is not a longer ring, it is a lie.
+ *
+ * The floor is where a mobile member has not finished being woken by a push,
+ * so the call is decided before the crew could have answered it — which reads
+ * to a caller as nobody being there and to the crew as calls that never rang.
+ */
+export const RING_SECONDS_MIN = 10;
+export const RING_SECONDS_MAX = 45;
+
+/** Bound a stored or submitted window to what the product can actually do. */
+export function clampRingSeconds(value: number): number {
+  if (!Number.isFinite(value)) return RING_SECONDS_MAX;
+  return Math.min(RING_SECONDS_MAX, Math.max(RING_SECONDS_MIN, Math.round(value)));
+}
+
+/**
+ * How long before the NEXT phone joins the ring, under `in_turn`.
+ *
+ * A constant rather than a second setting. It is the one number in this
+ * feature nobody has an opinion about until they have watched it, and a
+ * settings screen with two ring durations on it is a screen where somebody
+ * sets the step longer than the window and wonders why only one phone ever
+ * rings. Twelve seconds is about three rings — long enough that the first
+ * person genuinely gets first refusal, short enough that the second phone
+ * still has time inside a 45-second window.
+ */
+export const RING_STEP_SECS = 12;
 
 /**
  * #278 — the three shapes an inbound call can take outside business hours.
@@ -91,6 +150,8 @@ export interface NumberOverrides {
   voicemailGreetingId?: string | null;
   afterHoursCalls?: AfterHoursCalls | null;
   afterHoursGreetingId?: string | null;
+  ringStrategy?: RingStrategy | null;
+  ringSeconds?: number | null;
 }
 
 /** A resolved value, and whether it came from the workspace. */
@@ -144,6 +205,16 @@ export interface NumberIdentity {
    * can produce silence.
    */
   afterHoursGreetingId: Resolved<string | null>;
+  /**
+   * #278 — how this line's phones ring.
+   *
+   * Per number for the same reason everything else here is: a service line
+   * that should reach the owner first and a sales line that should reach
+   * whoever is free are two different businesses.
+   */
+  ringStrategy: Resolved<RingStrategy>;
+  /** #278 — how long they ring before the caller gets the greeting. */
+  ringSeconds: Resolved<number>;
 }
 
 /**
@@ -190,6 +261,8 @@ export function resolveNumberIdentity(
       overrides.afterHoursGreetingId,
       company.afterHoursGreetingId,
     ),
+    ringStrategy: pick(overrides.ringStrategy, company.ringStrategy),
+    ringSeconds: pick(overrides.ringSeconds, company.ringSeconds),
   };
 }
 

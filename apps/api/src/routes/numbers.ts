@@ -7,7 +7,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { resolveNumberIdentity, type AfterHoursCalls } from "@loonext/shared";
+import {
+  resolveNumberIdentity,
+  RING_SECONDS_MAX,
+  RING_SECONDS_MIN,
+  type AfterHoursCalls,
+  type RingStrategy,
+} from "@loonext/shared";
 
 import { assertOwnGreeting } from "./companies";
 
@@ -694,6 +700,16 @@ const identityBodySchema = z
       .nullable()
       .optional(),
     after_hours_greeting_id: z.string().uuid().nullable().optional(),
+    // #278: how this line's phones ring, and for how long. Null is inherit on
+    // both — the same tri-state every override here needs.
+    ring_strategy: z.enum(["all", "in_turn"]).nullable().optional(),
+    ring_seconds: z
+      .number()
+      .int()
+      .min(RING_SECONDS_MIN)
+      .max(RING_SECONDS_MAX)
+      .nullable()
+      .optional(),
   })
   .refine((body) => Object.keys(body).length > 0, {
     message: "give at least one field to change",
@@ -718,7 +734,7 @@ async function loadIdentity(
       // ONE literal, deliberately: splitting it with `+` defeats the client's
       // literal-type inference and the row stops being assignable.
       .select(
-        "id,label,voicemail_greeting,away_message,mctb_enabled,mctb_message,timezone,business_hours,business_hours_exceptions,voicemail_greeting_id,after_hours_calls,after_hours_greeting_id",
+        "id,label,voicemail_greeting,away_message,mctb_enabled,mctb_message,timezone,business_hours,business_hours_exceptions,voicemail_greeting_id,after_hours_calls,after_hours_greeting_id,ring_strategy,ring_seconds",
       )
       .eq("company_id", companyId)
       .eq("id", numberId)
@@ -726,7 +742,7 @@ async function loadIdentity(
     db
       .from("companies")
       .select(
-        "name,timezone,voicemail_greeting,away_message,away_enabled,mctb_enabled,mctb_message,business_hours,business_hours_exceptions,voicemail_greeting_id,after_hours_calls,after_hours_greeting_id",
+        "name,timezone,voicemail_greeting,away_message,away_enabled,mctb_enabled,mctb_message,business_hours,business_hours_exceptions,voicemail_greeting_id,after_hours_calls,after_hours_greeting_id,ring_strategy,ring_seconds",
       )
       .eq("id", companyId)
       .limit(1),
@@ -751,6 +767,8 @@ async function loadIdentity(
         voicemail_greeting_id: string | null;
         after_hours_calls: AfterHoursCalls | null;
         after_hours_greeting_id: string | null;
+        ring_strategy: RingStrategy | null;
+        ring_seconds: number | null;
       }
     | undefined;
   if (!number) return null;
@@ -768,6 +786,8 @@ async function loadIdentity(
     voicemail_greeting_id: string | null;
     after_hours_calls: AfterHoursCalls | null;
     after_hours_greeting_id: string | null;
+    ring_strategy: RingStrategy | null;
+    ring_seconds: number | null;
   };
 
   const identity = resolveNumberIdentity(
@@ -787,6 +807,8 @@ async function loadIdentity(
       // that predates it.
       afterHoursCalls: company.after_hours_calls ?? "ring_everyone",
       afterHoursGreetingId: company.after_hours_greeting_id,
+      ringStrategy: company.ring_strategy ?? "all",
+      ringSeconds: company.ring_seconds ?? RING_SECONDS_MAX,
     },
     {
       label: number.label,
@@ -800,6 +822,8 @@ async function loadIdentity(
       voicemailGreetingId: number.voicemail_greeting_id,
       afterHoursCalls: number.after_hours_calls,
       afterHoursGreetingId: number.after_hours_greeting_id,
+      ringStrategy: number.ring_strategy,
+      ringSeconds: number.ring_seconds,
     },
   );
 
@@ -900,6 +924,8 @@ numbersRoutes.patch("/:id/identity", requireCapability("numbers.manage"), async 
   if ("after_hours_calls" in body) {
     patch.after_hours_calls = body.after_hours_calls ?? null;
   }
+  if ("ring_strategy" in body) patch.ring_strategy = body.ring_strategy ?? null;
+  if ("ring_seconds" in body) patch.ring_seconds = body.ring_seconds ?? null;
   if ("business_hours_exceptions" in body) {
     if (
       body.business_hours_exceptions !== null &&

@@ -223,6 +223,8 @@ export async function sendMissedCallText(
       voicemailGreetingId: null,
       afterHoursCalls: "ring_everyone",
       afterHoursGreetingId: null,
+      ringStrategy: "all",
+      ringSeconds: 45,
     },
     {
       // Mapped field by field rather than spread: the row is snake_case and

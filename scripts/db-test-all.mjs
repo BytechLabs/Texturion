@@ -140,6 +140,7 @@ const SUITES = [
   "per_number_mctb",
   "voicemail_greetings",
   "after_hours_call_routing",
+  "ring_strategy",
 
 ];
 

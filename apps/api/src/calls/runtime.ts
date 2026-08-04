@@ -9,10 +9,13 @@
  * testable with no Telnyx and no PostgREST.
  */
 import {
+  clampRingSeconds,
   isAfterHours,
   nextOpening,
   resolveNumberIdentity,
+  RING_SECONDS_MAX,
   type AfterHoursCalls,
+  type RingStrategy,
   type BusinessHours,
   type HoursException,
 } from "@loonext/shared";
@@ -376,6 +379,8 @@ interface InboundCompanyRow {
   business_hours_exceptions: HoursException[] | null;
   after_hours_calls: AfterHoursCalls | null;
   after_hours_greeting_id: string | null;
+  ring_strategy: RingStrategy | null;
+  ring_seconds: number | null;
 }
 
 /** In-flight window for the line-busy read (mirrors voice-webhook.ts). */
@@ -553,7 +558,7 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         .select(
           "id,company_id,status,label,voicemail_greeting,timezone," +
             "business_hours,business_hours_exceptions,after_hours_calls," +
-            "after_hours_greeting_id",
+            "after_hours_greeting_id,ring_strategy,ring_seconds",
         )
         .eq("number_e164", payload.to)
         .neq("status", "released")
@@ -573,6 +578,8 @@ export function createSessionRuntime(env: Env): SessionRuntime {
             business_hours_exceptions: HoursException[] | null;
             after_hours_calls: AfterHoursCalls | null;
             after_hours_greeting_id: string | null;
+            ring_strategy: RingStrategy | null;
+            ring_seconds: number | null;
           }
         | undefined;
       if (!number) return "drop"; // a number we do not own
@@ -596,7 +603,7 @@ export function createSessionRuntime(env: Env): SessionRuntime {
           "id,name,plan,current_period_start,overage_cap_multiplier," +
             "subscription_status,call_screening,voicemail_greeting,timezone," +
             "business_hours,business_hours_exceptions,after_hours_calls," +
-            "after_hours_greeting_id",
+            "after_hours_greeting_id,ring_strategy,ring_seconds",
         )
         .eq("id", number.company_id)
         .limit(1);
@@ -703,6 +710,11 @@ export function createSessionRuntime(env: Env): SessionRuntime {
           // play time for the same reason the ordinary one is (see
           // greetingAudioUrl) — this half only decides the routing.
           afterHoursGreetingId: company.after_hours_greeting_id,
+          // A workspace row's values are NOT NULL in the schema; the coalesces
+          // are for a row read before the columns existed, which resolve to
+          // the behaviour that predates them.
+          ringStrategy: company.ring_strategy ?? "all",
+          ringSeconds: company.ring_seconds ?? RING_SECONDS_MAX,
         },
         {
           label: number.label,
@@ -712,6 +724,8 @@ export function createSessionRuntime(env: Env): SessionRuntime {
           businessHoursExceptions: number.business_hours_exceptions,
           afterHoursCalls: number.after_hours_calls,
           afterHoursGreetingId: number.after_hours_greeting_id,
+          ringStrategy: number.ring_strategy,
+          ringSeconds: number.ring_seconds,
         },
       );
 
@@ -798,6 +812,11 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         afterHours,
         nextOpenLabel,
         afterHoursVoicemail,
+        ringStrategy: identity.ringStrategy.value,
+        // Clamped here as well as at the column, because this value decides
+        // when a caller stops hearing ringback and the machine must never be
+        // handed a window it cannot honour.
+        ringSeconds: clampRingSeconds(identity.ringSeconds.value),
         suspendedOrInactive,
         noticeAllowed,
         overCap,

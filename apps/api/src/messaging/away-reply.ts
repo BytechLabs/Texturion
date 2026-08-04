@@ -167,6 +167,8 @@ export async function maybeSendAwayReply(
       voicemailGreetingId: null,
       afterHoursCalls: "ring_everyone",
       afterHoursGreetingId: null,
+      ringStrategy: "all",
+      ringSeconds: 45,
     },
     {
       label: conv.phone_numbers?.label ?? null,
