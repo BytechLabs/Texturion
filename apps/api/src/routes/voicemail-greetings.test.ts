@@ -10,6 +10,12 @@
 import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import {
+  GREETING_CAPTURE_DAILY_CAP,
+  GREETING_CAPTURE_RING_SECS,
+  GREETING_CAPTURE_TIME_LIMIT_SECS,
+  parseGreetingCaptureState,
+} from "../calls/greeting-capture";
 import { ApiError, errorResponse } from "../http/errors";
 import type { AppEnv } from "../context";
 import type { Bindings } from "../env";
@@ -51,14 +57,64 @@ function storageRoutes(env: Env) {
   return { route, uploads, removed };
 }
 
-function buildHarness(extra: { greetingInsertFails?: string } = {}) {
+/** Every dial this route places, so a test can read the tag off the wire. */
+function telnyxDialRoute() {
+  const dials: Record<string, unknown>[] = [];
+  const route: FetchRoute = async (url, request) => {
+    if (request.method !== "POST" || url.href !== "https://api.telnyx.com/v2/calls") {
+      return undefined;
+    }
+    dials.push((await request.json()) as Record<string, unknown>);
+    return Response.json({ data: { call_control_id: "ccid-capture-1" } });
+  };
+  return { route, dials };
+}
+
+function buildHarness(
+  extra: {
+    greetingInsertFails?: string;
+    /** Existing greetings, for the name-clash path. */
+    greetings?: Record<string, unknown>[];
+    /** Capture calls already placed in the last 24h. */
+    captureCallsToday?: number;
+    /** Give the workspace no active line to call from. */
+    noActiveNumber?: boolean;
+    subscriptionStatus?: string;
+  } = {},
+) {
   const env = completeEnv();
   const rest = new FakeRest(env);
   rest.table("companies");
   rest.table("company_members");
-  rest.table("voicemail_greetings");
+  rest.table("voicemail_greetings", {}, [["company_id", "name"]]);
   rest.table("audit_log");
-  rest.insert("companies", { id: COMPANY_ID, name: "Acme Plumbing" });
+  rest.table("phone_numbers");
+  rest.insert("companies", {
+    id: COMPANY_ID,
+    name: "Acme Plumbing",
+    subscription_status: extra.subscriptionStatus ?? "active",
+  });
+  if (!extra.noActiveNumber) {
+    rest.insert("phone_numbers", {
+      id: "aaaaaaaa-0000-4000-8000-00000000000a",
+      company_id: COMPANY_ID,
+      number_e164: "+16135550100",
+      status: "active",
+      created_at: "2026-01-01T00:00:00.000Z",
+    });
+  }
+  for (const greeting of extra.greetings ?? []) {
+    rest.insert("voicemail_greetings", { company_id: COMPANY_ID, ...greeting });
+  }
+  for (let i = 0; i < (extra.captureCallsToday ?? 0); i += 1) {
+    rest.insert("audit_log", {
+      id: `audit-${i}`,
+      company_id: COMPANY_ID,
+      action: "voicemail_greeting.capture_call",
+      target_type: "voicemail_greeting",
+      occurred_at: new Date().toISOString(),
+    });
+  }
   rest.insert("company_members", {
     company_id: COMPANY_ID,
     user_id: OWNER_ID,
@@ -97,13 +153,24 @@ function buildHarness(extra: { greetingInsertFails?: string } = {}) {
     );
   };
 
-  stubFetch(failRoute, storage.route, rest.route());
+  const telnyx = telnyxDialRoute();
+  stubFetch(failRoute, telnyx.route, storage.route, rest.route());
   return {
     env,
     rest,
     storage,
+    dials: telnyx.dials,
     request: (path: string, init?: RequestInit) =>
       app.request(path, init, env as unknown as Bindings),
+  };
+}
+
+/** POST body for the capture-call route. */
+function captureCall(name: string, to: string): RequestInit {
+  return {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, to }),
   };
 }
 
@@ -189,5 +256,136 @@ describe("#309 recording a greeting", () => {
     expect(res.status).toBe(404);
     // And no bytes were removed on the way to saying so.
     expect(harness.storage.removed).toHaveLength(0);
+  });
+});
+
+/**
+ * #309's record-by-phone path: we ring the owner, they speak, they hang up.
+ *
+ * VG-C5 is the one that matters, and it is why every other test here counts
+ * dials. This is the only leg the product dials to a PSTN number, so it is the
+ * only leg the outgoing-leg gate cannot clear on the dial target — the tag it
+ * carries has to be worth trusting on its own.
+ */
+describe("#309 recording a greeting by phone", () => {
+  it("VG-C1: the owner's phone is rung, with a tag only we could have made", async () => {
+    const harness = buildHarness();
+    const res = await harness.request(
+      "/v1/voicemail-greetings/capture-call",
+      captureCall("After hours", "613 555 0199"),
+    );
+    expect(res.status).toBe(202);
+    expect(harness.dials).toHaveLength(1);
+    const dial = harness.dials[0]!;
+    expect(dial.to).toBe("+16135550199");
+    expect(dial.from).toBe("+16135550100");
+    // The two ceilings a capture leg carries: how long it rings, and how long
+    // it may live once answered. The voice spending cap counts seconds off the
+    // calls table and this leg writes no row there, so these are the bound.
+    expect(dial.timeout_secs).toBe(GREETING_CAPTURE_RING_SECS);
+    expect(dial.time_limit_secs).toBe(GREETING_CAPTURE_TIME_LIMIT_SECS);
+
+    const parsed = await parseGreetingCaptureState(
+      harness.env,
+      dial.client_state as string,
+      Date.now(),
+    );
+    expect(parsed).toEqual({ companyId: COMPANY_ID, name: "After hours" });
+  });
+
+  it("VG-C5: the tag is not something a caller could have written", async () => {
+    // THE ONE THAT MATTERS. A `vgc` tag is the only thing standing between an
+    // outgoing PSTN leg and the gate that hangs one up, and the company id
+    // inside it decides whose greeting gets overwritten. So take the tag we
+    // just minted, change the one field an attacker would change, and confirm
+    // it stops verifying.
+    const harness = buildHarness();
+    await harness.request(
+      "/v1/voicemail-greetings/capture-call",
+      captureCall("After hours", "+16135550199"),
+    );
+    const tag = harness.dials[0]!.client_state as string;
+    const forged = btoa(
+      atob(tag).replace(COMPANY_ID, "dddddddd-0000-4000-8000-00000000000d"),
+    );
+    expect(
+      await parseGreetingCaptureState(harness.env, forged, Date.now()),
+    ).toBeNull();
+  });
+
+  it("VG-C2: a name already in the list is refused before anything is dialed", async () => {
+    // Refused HERE rather than after the call, where the owner has already
+    // spoken and there is nobody on the line left to tell.
+    const harness = buildHarness({
+      greetings: [{ id: "g-1", name: "After hours" }],
+    });
+    const res = await harness.request(
+      "/v1/voicemail-greetings/capture-call",
+      captureCall("After hours", "+16135550199"),
+    );
+    expect(res.status).toBe(422);
+    expect(await res.text()).toContain("already have a greeting");
+    expect(harness.dials).toHaveLength(0);
+  });
+
+  it("VG-C3: the daily ceiling stops a client stuck in a loop", async () => {
+    // The audit rows ARE the count: a capture leg writes no calls row, so the
+    // voice spending cap — which counts seconds off that table — structurally
+    // cannot see this dial.
+    const harness = buildHarness({
+      captureCallsToday: GREETING_CAPTURE_DAILY_CAP,
+    });
+    const res = await harness.request(
+      "/v1/voicemail-greetings/capture-call",
+      captureCall("Holiday", "+16135550199"),
+    );
+    expect(await res.text()).toContain("usage_cap_reached");
+    expect(harness.dials).toHaveLength(0);
+  });
+
+  it("VG-C3b: one call under the ceiling still goes through", async () => {
+    // The other half of VG-C3, and the reason it is a separate test: a cap
+    // that refuses everything passes the test above and is an outage.
+    const harness = buildHarness({
+      captureCallsToday: GREETING_CAPTURE_DAILY_CAP - 1,
+    });
+    const res = await harness.request(
+      "/v1/voicemail-greetings/capture-call",
+      captureCall("Holiday", "+16135550199"),
+    );
+    expect(res.status).toBe(202);
+    expect(harness.dials).toHaveLength(1);
+  });
+
+  it("VG-C4: a number we do not call never reaches the carrier", async () => {
+    const harness = buildHarness();
+    // A Caribbean +1 code — what a bare `+1[2-9]` regex would admit, and the
+    // destination toll-pumping actually uses.
+    const res = await harness.request(
+      "/v1/voicemail-greetings/capture-call",
+      captureCall("After hours", "+18765550199"),
+    );
+    expect(res.status).toBe(422);
+    expect(harness.dials).toHaveLength(0);
+  });
+
+  it("VG-C6: a workspace with no active line is told so, not 500'd", async () => {
+    const harness = buildHarness({ noActiveNumber: true });
+    const res = await harness.request(
+      "/v1/voicemail-greetings/capture-call",
+      captureCall("After hours", "+16135550199"),
+    );
+    expect(res.status).toBe(409);
+    expect(harness.dials).toHaveLength(0);
+  });
+
+  it("VG-C7: a lapsed subscription does not get to place calls", async () => {
+    const harness = buildHarness({ subscriptionStatus: "past_due" });
+    const res = await harness.request(
+      "/v1/voicemail-greetings/capture-call",
+      captureCall("After hours", "+16135550199"),
+    );
+    expect(res.status).toBe(402);
+    expect(harness.dials).toHaveLength(0);
   });
 });

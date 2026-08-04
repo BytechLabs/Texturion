@@ -96,6 +96,10 @@ describe("recordAudit", () => {
     const sb = stub({ insertFails: true });
     stubFetch(sb.route);
 
+    // False, not a throw. Almost every caller ignores this and is right to —
+    // the mutation already happened. The one that does not is #309's capture
+    // call, where the audit row IS the daily dial ceiling, so a write that
+    // silently failed would be a cost control that fails open.
     await expect(
       recordAudit(getDb(env), {
         companyId: COMPANY_ID,
@@ -103,7 +107,7 @@ describe("recordAudit", () => {
         action: "member.deactivated",
         targetType: "member",
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
 
     expect(Sentry.captureMessage).toHaveBeenCalledWith(
       expect.stringContaining("audit_log write failed"),

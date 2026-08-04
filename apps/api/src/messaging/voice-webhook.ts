@@ -26,6 +26,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { reportVoiceSeconds } from "../billing/meter";
 import { requiresUnauthorizedHangup } from "../calls/outbound-leg-gate";
+import { GREETING_CAPTURE_STATE } from "../calls/greeting-capture";
+import { handleGreetingCaptureEvent } from "../calls/greeting-capture-leg";
 import {
   dialCeilings,
   PLAN_VOICE_MINUTES,
@@ -263,7 +265,9 @@ export type CallLeg =
   | "vm_inbound" // the INBOUND leg once it entered voicemail ('vmi')
   // D43 phase 3 — live-call handling:
   | "transfer_target" // a transfer's new member leg ('brt')
-  | "consult"; // an announce-transfer consult leg ('brc')
+  | "consult" // an announce-transfer consult leg ('brc')
+  // #309: the leg that rings an owner so they can record a greeting ('vgc').
+  | "greeting_capture";
 
 function classifyLeg(payload: CallPayload): CallLeg {
   const decoded = decodeClientState(payload.client_state);
@@ -277,6 +281,10 @@ function classifyLeg(payload: CallPayload): CallLeg {
   if (tag === VOICEMAIL_INBOUND_STATE) return "vm_inbound";
   if (tag === TRANSFER_TARGET_STATE) return "transfer_target";
   if (tag === CONSULT_LEG_STATE) return "consult";
+  // Prefix only — a `vgc` tag is not TRUSTED here, it is merely recognised.
+  // The signature that decides whether this leg is really ours is checked in
+  // the handler, and a tag that fails it falls back to the ordinary rules.
+  if (tag === GREETING_CAPTURE_STATE) return "greeting_capture";
   return "inbound_untagged";
 }
 
@@ -442,6 +450,23 @@ export async function handleCallEvent(
       );
     }
     return;
+  }
+
+  // #309: the greeting-capture leg — the one leg this server dials to a PSTN
+  // number on purpose, so it is the one leg the gate below cannot clear on the
+  // dial target alone. Its authorization rides the tag instead: a signature
+  // over the company and the greeting name, minted by the capture route and
+  // valid for five minutes. `handleGreetingCaptureEvent` returns false when
+  // that signature does not verify, and an unverified leg then falls straight
+  // through to the gate and is hung up — a forged `vgc` tag buys nothing.
+  if (leg === "greeting_capture") {
+    const handled = await handleGreetingCaptureEvent(
+      env,
+      db,
+      eventType,
+      payload,
+    );
+    if (handled) return;
   }
 
   // Outbound-leg authorization gate (the D43 nonce gate's PSTN enforcement).
@@ -800,10 +825,14 @@ export async function handleTerminalCallEvent(
         : // 'browser_member'/'transfer_target'/'consult' are routed away
           // before this handler; the mapping only satisfies the pure
           // classifier's narrower leg vocabulary.
+          // #309's 'greeting_capture' is likewise routed away before this
+          // handler — an unverified one is hung up by the outgoing-leg gate,
+          // and neither shape ever reaches a terminal merge.
           leg === "vm_inbound" ||
             leg === "browser_member" ||
             leg === "transfer_target" ||
-            leg === "consult"
+            leg === "consult" ||
+            leg === "greeting_capture"
           ? "inbound_untagged"
           : leg,
   });

@@ -151,6 +151,14 @@ export type AuditAction =
   // #309: who recorded the voice a caller hears, and who took it away.
   | "voicemail_greeting.recorded"
   | "voicemail_greeting.deleted"
+  /**
+   * #309: somebody asked us to ring a phone so a greeting could be recorded
+   * over it. Recorded for two reasons at once — it is a call this product
+   * places to a number a member typed, which is worth a name against it; and
+   * the rows themselves ARE the daily ceiling on that dial, since a capture
+   * leg writes no `calls` row and the voice cap can therefore never see it.
+   */
+  | "voicemail_greeting.capture_call"
   // The departing-employee signature (#231: "bulk-export alarm")
   | "contacts.imported"
   | "contacts.exported"
@@ -211,7 +219,7 @@ const MAX_AGENT_CHARS = 400;
 export async function recordAudit(
   db: SupabaseClient,
   entry: AuditEntry,
-): Promise<void> {
+): Promise<boolean> {
   const { error } = await db.from("audit_log").insert({
     company_id: entry.companyId,
     actor_user_id: entry.actorUserId,
@@ -230,7 +238,9 @@ export async function recordAudit(
       `audit_log write failed for ${entry.action} on ${entry.targetType}: ${error.message}`,
       "error",
     );
+    return false;
   }
+  return true;
 }
 
 /**

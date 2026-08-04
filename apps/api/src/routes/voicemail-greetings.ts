@@ -18,13 +18,23 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { recordAuditFromRequest } from "../audit/log";
+import { recordAudit, recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
+import {
+  buildGreetingCaptureState,
+  GREETING_CAPTURE_AUDIT_ACTION,
+  GREETING_CAPTURE_DAILY_CAP,
+  GREETING_CAPTURE_RING_SECS,
+  GREETING_CAPTURE_TIME_LIMIT_SECS,
+} from "../calls/greeting-capture";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
+import { isKilled } from "../flags/evaluate";
 import { ApiError, errorResponse } from "../http/errors";
-import { assertBodyWithinLimit, pathUuid } from "./core/http";
+import { TelnyxApiError, telnyxRequest } from "../telnyx/client";
+import { assertBodyWithinLimit, parseJsonBody, pathUuid } from "./core/http";
+import { normalizeNanpPhone } from "./core/phone";
 
 export const voicemailGreetingsRoutes = new Hono<AppEnv>();
 
@@ -227,6 +237,212 @@ voicemailGreetingsRoutes.post(
     });
 
     return c.json((data ?? [])[0] as GreetingRow, 201);
+  },
+);
+
+const captureBodySchema = z.object({
+  name: nameSchema,
+  /** The phone to ring. Typed by the owner — we store nobody's mobile. */
+  to: z.string().trim().min(1).max(32),
+});
+
+/**
+ * POST /v1/voicemail-greetings/capture-call — record a greeting BY PHONE (O/A).
+ *
+ * #309's last Scope item, inverted: we ring the owner rather than publishing a
+ * number for them to ring. The reasoning is in calls/greeting-capture.ts, and
+ * the short version is that an inbound record-this line is a number anyone can
+ * call, and identifying the workspace by caller ID means a spoofed caller ID
+ * rewrites a business's greeting.
+ *
+ * Everything this route does before dialing is a gate, and the ORDER is the
+ * cost posture: the free checks first, the audit row (which is also the daily
+ * ceiling) next, and the dial — the only thing that spends money — last.
+ */
+voicemailGreetingsRoutes.post(
+  "/voicemail-greetings/capture-call",
+  requireCapability("numbers.manage"),
+  async (c) => {
+    const env = getEnv(c.env);
+    const db = getDb(env);
+    const companyId = c.get("companyId");
+    const body = await parseJsonBody(c, captureBodySchema);
+
+    // The same switch that stops calls being placed or accepted. A capture call
+    // is a call we place, so an owner who hit the switch during an incident
+    // gets the containment they asked for.
+    if (await isKilled(env, "kill:calls", companyId, db)) {
+      return errorResponse(
+        c,
+        "service_unavailable",
+        "Calling is paused while we deal with an issue. You can still record a greeting in the app.",
+      );
+    }
+
+    // US/CA only, the same table every other dial target goes through — it
+    // excludes the Caribbean +1 codes a bare `+1[2-9]` regex would admit.
+    const to = normalizeNanpPhone(body.to);
+    if (!to) {
+      return errorResponse(
+        c,
+        "validation_failed",
+        "Enter a valid US or Canada number for us to call.",
+      );
+    }
+
+    const { data: companyRows, error: companyError } = await db
+      .from("companies")
+      .select("subscription_status")
+      .eq("id", companyId)
+      .limit(1);
+    if (companyError) {
+      throw new Error(`company lookup failed: ${companyError.message}`);
+    }
+    const company = companyRows?.[0] as
+      | { subscription_status: string }
+      | undefined;
+    if (!company || company.subscription_status !== "active") {
+      return errorResponse(
+        c,
+        "subscription_inactive",
+        "Your subscription isn't active.",
+      );
+    }
+
+    // Refused HERE rather than after the call, where the owner has already
+    // spoken and there is nobody left on the line to tell. The insert is still
+    // the authority — two capture calls racing on the same name is a real
+    // sequence, and the one that loses is discarded rather than overwriting.
+    const { data: clash, error: clashError } = await db
+      .from("voicemail_greetings")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("name", body.name)
+      .limit(1);
+    if (clashError) {
+      throw new Error(`voicemail_greetings lookup failed: ${clashError.message}`);
+    }
+    if (clash && clash.length > 0) {
+      throw new ApiError(
+        "validation_failed",
+        `You already have a greeting called "${body.name}".`,
+      );
+    }
+
+    // The daily ceiling. A capture leg writes no `calls` row, so the voice
+    // spending cap — which counts seconds off that table — structurally cannot
+    // see it; these audit rows are the only count there is.
+    const since = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
+    const { count, error: countError } = await db
+      .from("audit_log")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", companyId)
+      .eq("action", GREETING_CAPTURE_AUDIT_ACTION)
+      .gte("occurred_at", since);
+    if (countError) {
+      throw new Error(`capture-call count failed: ${countError.message}`);
+    }
+    if ((count ?? 0) >= GREETING_CAPTURE_DAILY_CAP) {
+      return errorResponse(
+        c,
+        "usage_cap_reached",
+        "That's a lot of recording calls for one day. Record in the app, or try again tomorrow.",
+      );
+    }
+
+    // Any active number of the workspace's own: this call presents the business
+    // to its own owner, so which line it comes from carries no meaning — but it
+    // must be a number we hold, because Telnyx will not originate from one we
+    // do not.
+    const { data: numbers, error: numbersError } = await db
+      .from("phone_numbers")
+      .select("id,number_e164")
+      .eq("company_id", companyId)
+      .eq("status", "active")
+      .order("created_at", { ascending: true })
+      .limit(1);
+    if (numbersError) {
+      throw new Error(`active number lookup failed: ${numbersError.message}`);
+    }
+    const from = (numbers?.[0] as { number_e164: string } | undefined)
+      ?.number_e164;
+    if (!from) {
+      return errorResponse(
+        c,
+        "conflict",
+        "You have no active number to call from yet.",
+      );
+    }
+
+    // BEFORE the dial, and a failure here refuses the call.
+    //
+    // Everywhere else in this codebase the audit write is best-effort, because
+    // refusing an action over a log write is the worse failure. Here the row IS
+    // the ceiling: a write that silently failed would make the cap under-count,
+    // which is a cost control that fails open. So this one is fail-closed, and
+    // the cost of that is a capture call refused during a database blip.
+    const nowMs = Date.now();
+    const logged = await recordAudit(db, {
+      companyId,
+      actorUserId: c.get("userId"),
+      action: GREETING_CAPTURE_AUDIT_ACTION,
+      targetType: "voicemail_greeting",
+      targetId: null,
+      actorIp:
+        c.req.header("CF-Connecting-IP") ??
+        c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() ??
+        null,
+      actorAgent: c.req.header("User-Agent") ?? null,
+      // The greeting's name and the line it rang. Never the recording.
+      after: { name: body.name, to },
+    });
+    if (!logged) {
+      return errorResponse(
+        c,
+        "service_unavailable",
+        "We couldn't start the call just now. Try again in a moment.",
+      );
+    }
+
+    const clientState = await buildGreetingCaptureState(
+      env,
+      companyId,
+      body.name,
+      nowMs,
+    );
+
+    try {
+      await telnyxRequest(env, {
+        method: "POST",
+        path: "/v2/calls",
+        body: {
+          connection_id: env.TELNYX_VOICE_CONNECTION_ID,
+          to,
+          from,
+          timeout_secs: GREETING_CAPTURE_RING_SECS,
+          // The ceiling the recording cap cannot enforce: a leg that answers
+          // and then does nothing at all.
+          time_limit_secs: GREETING_CAPTURE_TIME_LIMIT_SECS,
+          client_state: clientState,
+        },
+      });
+    } catch (cause) {
+      if (cause instanceof TelnyxApiError && cause.status < 500) {
+        // A definite carrier refusal — an unreachable number, a blocked
+        // destination. Say so plainly instead of a 500: the owner mistyped, and
+        // the fix is theirs.
+        return errorResponse(
+          c,
+          "conflict",
+          "We couldn't ring that number. Check it and try again.",
+        );
+      }
+      throw cause instanceof Error
+        ? cause
+        : new Error("greeting capture dial failed");
+    }
+
+    return c.json({ to, from, name: body.name }, 202);
   },
 );
 

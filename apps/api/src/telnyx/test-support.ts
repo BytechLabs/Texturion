@@ -16,6 +16,13 @@ type Row = Record<string, unknown>;
 interface TableSpec {
   rows: Row[];
   defaults: Row;
+  /**
+   * Column sets the real table declares UNIQUE. Without these, a route whose
+   * behaviour on a duplicate is the whole point — "you already have a greeting
+   * called X" — passes its test against a fake that happily writes the second
+   * row.
+   */
+  unique: string[][];
 }
 
 const RESERVED_PARAMS = new Set([
@@ -35,6 +42,10 @@ function applyFilter(row: Row, column: string, expr: string): boolean {
   if (expr.startsWith("neq.")) return String(value) !== expr.slice(4);
   if (expr.startsWith("lt.")) return String(value) < expr.slice(3);
   if (expr.startsWith("gt.")) return String(value) > expr.slice(3);
+  // Inclusive bounds. Lexicographic like their strict siblings above, which is
+  // exact for the ISO timestamps every since-window in this codebase uses.
+  if (expr.startsWith("lte.")) return String(value) <= expr.slice(4);
+  if (expr.startsWith("gte.")) return String(value) >= expr.slice(4);
   if (expr.startsWith("in.(") && expr.endsWith(")")) {
     const list = expr
       .slice(4, -1)
@@ -91,8 +102,8 @@ export class FakeRest {
   constructor(private env: Env) {}
 
   /** Register a table with column defaults applied to every insert. */
-  table(name: string, defaults: Row = {}): this {
-    this.tables.set(name, { rows: [], defaults });
+  table(name: string, defaults: Row = {}, unique: string[][] = []): this {
+    this.tables.set(name, { rows: [], defaults, unique });
     return this;
   }
 
@@ -247,6 +258,23 @@ export class FakeRest {
                   ),
                 )
               : undefined;
+          // A UNIQUE constraint the real table declares, and the caller did
+          // not name in on_conflict: PostgREST answers 23505, and so must this.
+          if (
+            !existing &&
+            spec.unique.some((columns) =>
+              spec.rows.some((row) =>
+                columns.every(
+                  (column) => String(row[column]) === String(candidate[column]),
+                ),
+              ),
+            )
+          ) {
+            return Response.json(
+              { code: "23505", message: "duplicate key value" },
+              { status: 409 },
+            );
+          }
           if (existing) {
             if (prefer.ignoreDuplicates) continue;
             if (prefer.mergeDuplicates) {

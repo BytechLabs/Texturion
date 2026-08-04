@@ -141,17 +141,30 @@ describe("the registry is the roster", () => {
       ).toBe(true);
     });
 
-    it("gates kill:calls at BOTH places a call can start", () => {
+    it("gates kill:calls at every place a call can start", () => {
       // The defect this test was written for. Refusing the token is necessary
       // and not sufficient — an issued token outlives the switch by up to a
       // day, so the route that actually places the call needs its own gate.
+      //
+      // Asserted as a SUBSET rather than as the whole list. An exact list makes
+      // this a ceiling on how many routes may place calls, so the next one to
+      // be written correctly gated fails the guard that exists to demand it —
+      // which is a test that has stopped catching drift and started blocking
+      // the fix. Adding an ungated route is still caught, by the roster test
+      // above and by this file's own reason for existing.
       const files = enforcedIn("kill:calls");
-      expect(
-        files.sort(),
-        "kill:calls must gate the token mint AND the place-a-call route. With " +
-          "only the mint, a softphone holding a 24h token keeps calling after " +
-          "the switch is thrown.",
-      ).toEqual(["routes/calls.ts", "routes/webrtc.ts"]);
+      for (const required of [
+        "routes/webrtc.ts", // the token mint
+        "routes/calls.ts", // placing an outbound call
+        "routes/voicemail-greetings.ts", // #309's record-by-phone dial
+      ]) {
+        expect(
+          files,
+          `kill:calls must gate ${required}. A call this product can place ` +
+            `without consulting the switch is an incident the switch does not ` +
+            `contain.`,
+        ).toContain(required);
+      }
     });
   });
 });
