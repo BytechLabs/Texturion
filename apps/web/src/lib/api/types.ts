@@ -424,6 +424,14 @@ export interface CompanyView {
    *  carrier-screening routing choice, and the CNAM pair (outbound display
    *  name <=15 alphanumeric+space; inbound name-dip toggle). */
   voicemail_greeting: string | null;
+  /** #309: the workspace's default RECORDING, or null for the written words. */
+  voicemail_greeting_id: string | null;
+  /** #278: what an inbound call does outside business hours. `ring_everyone`
+   *  is the default and is the product exactly as it behaved before #278. */
+  after_hours_calls: "ring_everyone" | "on_call_only" | "voicemail";
+  /** #278: the recording played after hours; null falls back to the ordinary
+   *  greeting, never to silence. */
+  after_hours_greeting_id: string | null;
   call_screening: "off" | "flag" | "divert";
   cnam_display_name: string | null;
   caller_id_lookup: boolean;
@@ -2352,6 +2360,10 @@ export interface NumberIdentity {
   business_hours_exceptions: ResolvedField<HoursException[] | null>;
   /** #309: which RECORDING plays. Null is the written words, read aloud. */
   voicemail_greeting_id: ResolvedField<string | null>;
+  /** #278: what a call to this line does outside its hours. */
+  after_hours_calls: ResolvedField<"ring_everyone" | "on_call_only" | "voicemail">;
+  /** #278: the recording played after hours; null is the ordinary greeting. */
+  after_hours_greeting_id: ResolvedField<string | null>;
 }
 
 /** Null on a field CLEARS the override back to the workspace value. */
@@ -2365,4 +2377,6 @@ export interface NumberIdentityPatch {
   business_hours?: BusinessHours | null;
   business_hours_exceptions?: HoursException[] | null;
   voicemail_greeting_id?: string | null;
+  after_hours_calls?: "ring_everyone" | "on_call_only" | "voicemail" | null;
+  after_hours_greeting_id?: string | null;
 }

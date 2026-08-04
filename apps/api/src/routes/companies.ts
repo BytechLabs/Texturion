@@ -214,6 +214,29 @@ const patchSchema = z
     // "default to the company name" (the effective value is resolved
     // server-side and pushed to the carrier side either way).
     voicemail_greeting: z.string().trim().max(500).nullable().optional(),
+    /**
+     * #309: which RECORDING the workspace's lines play by default.
+     *
+     * The column has existed since the greetings migration and the call
+     * runtime has always read it as the inherit source — but nothing could
+     * ever SET it, so it was a fallback permanently stuck on null. Found by
+     * reading the runtime for #278; fixed here rather than filed, because a
+     * column the product reads and no surface can write is a gap, not a
+     * feature. Null is the written words, which is what every line does until
+     * somebody chooses otherwise.
+     */
+    voicemail_greeting_id: z.string().uuid().nullable().optional(),
+    /**
+     * #278: what an inbound call does outside business hours, workspace-wide.
+     *
+     * NOT nullable, unlike its per-number twin: this IS the value a line
+     * inherits, so there is nothing above it to fall back to.
+     */
+    after_hours_calls: z
+      .enum(["ring_everyone", "on_call_only", "voicemail"])
+      .optional(),
+    /** #278: the recording played after hours. Null = the ordinary greeting. */
+    after_hours_greeting_id: z.string().uuid().nullable().optional(),
     call_screening: z.enum(["off", "flag", "divert"]).optional(),
     cnam_display_name: z
       .string()
@@ -277,6 +300,9 @@ const patchSchema = z
       body.mctb_enabled !== undefined ||
       "mctb_message" in body ||
       "voicemail_greeting" in body ||
+      "voicemail_greeting_id" in body ||
+      body.after_hours_calls !== undefined ||
+      "after_hours_greeting_id" in body ||
       body.call_screening !== undefined ||
       "cnam_display_name" in body ||
       body.caller_id_lookup !== undefined ||
@@ -286,6 +312,36 @@ const patchSchema = z
       body.tags_locked !== undefined,
     { message: "Provide at least one field to update." },
   );
+
+/**
+ * #309/#278 — a greeting id must belong to the workspace selecting it.
+ *
+ * The foreign key only says the row exists. Without this, a member could point
+ * their line at ANOTHER business's recorded voice by pasting an id, and the
+ * caller would hear it — which is the one failure a recorded greeting can
+ * produce that is worse than the robot it replaced. Lives here and is called
+ * from both selection surfaces (this route and the per-number identity route)
+ * for the reason `resolveNumberIdentity` exists at all: a rule this small gets
+ * re-derived slightly differently in each place until one of them is wrong.
+ */
+export async function assertOwnGreeting(
+  c: { get: (key: "companyId") => string; env: unknown },
+  greetingId: string,
+): Promise<void> {
+  const db = getDb(getEnv(c.env as never));
+  const { data, error } = await db
+    .from("voicemail_greetings")
+    .select("id")
+    .eq("company_id", c.get("companyId"))
+    .eq("id", greetingId)
+    .limit(1);
+  if (error) {
+    throw new Error(`voicemail_greetings lookup failed: ${error.message}`);
+  }
+  if (!data || data.length === 0) {
+    throw new ApiError("validation_failed", "No such greeting.");
+  }
+}
 
 /** D15: reject anything the runtime's IANA database does not know. */
 function assertValidTimezone(timezone: string): void {
@@ -556,6 +612,12 @@ const AUDITED_COMPANY_SETTINGS = [
   "mctb_message",
   "emergency_message",
   "voicemail_greeting",
+  "voicemail_greeting_id",
+  // #278: which calls reach a person after hours is exactly the kind of change
+  // an incident timeline is made of — "why did nobody's phone ring on Saturday"
+  // has one honest answer only if the log says who changed it.
+  "after_hours_calls",
+  "after_hours_greeting_id",
   "voicemail_enabled",
   "caller_id_name",
   "caller_id_lookup",
@@ -809,6 +871,22 @@ companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c
   }
   if (body.call_screening !== undefined) {
     patch.call_screening = body.call_screening;
+  }
+  // #309/#278: the two greeting SELECTIONS and the after-hours routing.
+  //
+  // Each id is checked against this workspace's own greetings before it is
+  // stored. The FK only requires the row to exist, so without this a member
+  // could point their line at another business's recorded voice by pasting an
+  // id — and the caller would hear it. That is the one failure a recorded
+  // greeting can produce that is worse than TTS.
+  for (const key of ["voicemail_greeting_id", "after_hours_greeting_id"] as const) {
+    if (!(key in body)) continue;
+    const id = body[key] ?? null;
+    if (id !== null) await assertOwnGreeting(c, id);
+    patch[key] = id;
+  }
+  if (body.after_hours_calls !== undefined) {
+    patch.after_hours_calls = body.after_hours_calls;
   }
   if ("cnam_display_name" in body) {
     patch.cnam_display_name = body.cnam_display_name ?? null;

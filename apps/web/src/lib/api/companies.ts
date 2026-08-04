@@ -117,6 +117,10 @@ export interface CompanyPatch {
    *  default to the company name, never "no listing"), inbound caller-name
    *  lookup. */
   voicemail_greeting?: string | null;
+  voicemail_greeting_id?: string | null;
+  /** #278 (O/A): what a call does outside hours, and which recording says so. */
+  after_hours_calls?: "ring_everyone" | "on_call_only" | "voicemail";
+  after_hours_greeting_id?: string | null;
   call_screening?: "off" | "flag" | "divert";
   cnam_display_name?: string | null;
   caller_id_lookup?: boolean;

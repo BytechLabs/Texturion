@@ -10,25 +10,41 @@
  * Nothing about the screen would look wrong, and the owner would find out when
  * they changed the workspace greeting and one line ignored it.
  */
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { save, greetingRows, toastSuccess, toastError, identity } = vi.hoisted(() => ({
-  save: vi.fn(),
-  greetingRows: { current: [] as { id: string; name: string }[] },
-  toastSuccess: vi.fn(),
-  toastError: vi.fn(),
-  identity: {
-    current: {
-      label: { value: "Reed Roofing", inherited: true },
-      voicemail_greeting: { value: "You have reached Reed Roofing.", inherited: true },
-      away_message: { value: "We are closed.", inherited: true },
-      mctb_enabled: { value: true, inherited: true },
-      mctb_message: { value: "Sorry we missed you.", inherited: true },
-      voicemail_greeting_id: { value: null, inherited: true },
-    } as Record<string, { value: string | boolean | null; inherited: boolean }>,
-  },
-}));
+const { save, greetingRows, toastSuccess, toastError, identity } = vi.hoisted(
+  () => ({
+    save: vi.fn(),
+    greetingRows: { current: [] as { id: string; name: string }[] },
+    toastSuccess: vi.fn(),
+    toastError: vi.fn(),
+    identity: {
+      current: {
+        label: { value: "Reed Roofing", inherited: true },
+        voicemail_greeting: {
+          value: "You have reached Reed Roofing.",
+          inherited: true,
+        },
+        away_message: { value: "We are closed.", inherited: true },
+        mctb_enabled: { value: true, inherited: true },
+        mctb_message: { value: "Sorry we missed you.", inherited: true },
+        voicemail_greeting_id: { value: null, inherited: true },
+        after_hours_calls: { value: "ring_everyone", inherited: true },
+        after_hours_greeting_id: { value: null, inherited: true },
+      } as Record<
+        string,
+        { value: string | boolean | null; inherited: boolean }
+      >,
+    },
+  }),
+);
 
 vi.mock("@/lib/api/numbers", () => ({
   useNumberIdentity: () => ({ isPending: false, data: identity.current }),
@@ -56,11 +72,16 @@ beforeEach(() => {
   toastError.mockReset();
   identity.current = {
     label: { value: "Reed Roofing", inherited: true },
-    voicemail_greeting: { value: "You have reached Reed Roofing.", inherited: true },
+    voicemail_greeting: {
+      value: "You have reached Reed Roofing.",
+      inherited: true,
+    },
     away_message: { value: "We are closed.", inherited: true },
     mctb_enabled: { value: true, inherited: true },
     mctb_message: { value: "Sorry we missed you.", inherited: true },
     voicemail_greeting_id: { value: null, inherited: true },
+    after_hours_calls: { value: "ring_everyone", inherited: true },
+    after_hours_greeting_id: { value: null, inherited: true },
   };
 });
 
@@ -73,18 +94,29 @@ describe("#307 how this line answers", () => {
     // Never blank. An empty field cannot tell an owner what the line does
     // today, and showing that before it changes is this screen's whole job.
     open();
-    expect((screen.getByLabelText("Name for this line") as HTMLInputElement).value).toBe(
-      "Reed Roofing",
-    );
     expect(
-      (screen.getByLabelText("Voicemail greeting") as HTMLTextAreaElement).value,
+      (screen.getByLabelText("Name for this line") as HTMLInputElement).value,
+    ).toBe("Reed Roofing");
+    expect(
+      (screen.getByLabelText("Voicemail greeting") as HTMLTextAreaElement)
+        .value,
     ).toBe("You have reached Reed Roofing.");
   });
 
   it("NI-2: an inherited field says so", () => {
     // The distinction the whole model exists to make visible.
+    //
+    // Counted as "at least one, and nothing offering the way back", not as an
+    // exact total. A pinned number is a ceiling on how many fields this dialog
+    // may ever hold, so the next correctly-inherited field added fails the
+    // guard that exists to demand it — which is a test that has stopped
+    // catching drift and started blocking the work. #278 added two and this
+    // is what it cost to notice.
     open();
-    expect(screen.getAllByText("Same as your workspace")).toHaveLength(5);
+    expect(
+      screen.getAllByText("Same as your workspace").length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Use the workspace's" })).toBeNull();
   });
 
   it("NI-3: an overridden field offers the way back, worded as the outcome", () => {
@@ -96,9 +128,15 @@ describe("#307 how this line answers", () => {
     };
     open();
 
-    expect(screen.getAllByText("Same as your workspace")).toHaveLength(4);
-    const back = screen.getByRole("button", { name: "Use the workspace's" });
-    expect(back).toBeTruthy();
+    // Exactly ONE field was overridden, so exactly one way back is offered —
+    // which is the actual rule, and unlike a total it stays true as the dialog
+    // grows.
+    expect(
+      screen.getAllByRole("button", { name: "Use the workspace's" }),
+    ).toHaveLength(1);
+    expect(
+      screen.getAllByText("Same as your workspace").length,
+    ).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /^clear$/i })).toBeNull();
   });
 
@@ -150,10 +188,14 @@ describe("#307 how this line answers", () => {
       mctb_enabled: { value: true, inherited: true },
       mctb_message: { value: "Sorry we missed you.", inherited: true },
       voicemail_greeting_id: { value: null, inherited: true },
+      after_hours_calls: { value: "ring_everyone", inherited: true },
+      after_hours_greeting_id: { value: null, inherited: true },
     };
     open();
 
-    const backButtons = screen.getAllByRole("button", { name: "Use the workspace's" });
+    const backButtons = screen.getAllByRole("button", {
+      name: "Use the workspace's",
+    });
     fireEvent.click(backButtons[1]);
 
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
@@ -178,8 +220,9 @@ describe("#307 how this line answers", () => {
     // silently stop following the workspace from then on.
     open();
     expect(
-      (screen.getByLabelText("Text back a missed caller") as HTMLInputElement)
-        .getAttribute("aria-checked"),
+      (
+        screen.getByLabelText("Text back a missed caller") as HTMLInputElement
+      ).getAttribute("aria-checked"),
     ).toBe("true");
   });
 

@@ -231,6 +231,74 @@ export function NumberIdentityDialog({
                 </p>
               </div>
             )}
+            {/*
+              #278: what THIS line does after hours.
+
+              Per number because a service line and a sales line are two
+              businesses, and the one that must reach somebody at 3am is rarely
+              the one taking invoice questions. "Same as your workspace" is
+              first and is the default position — every line inherits until
+              somebody says otherwise, and the option that is always correct is
+              the one that needs no thought. *Applying: Smart Defaults.*
+            */}
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <Label htmlFor="identity-after-hours">After-hours calls</Label>
+                {identity.data.after_hours_calls.inherited ? (
+                  <span className="text-[12px] text-app-muted-2">
+                    Same as your workspace
+                  </span>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto px-1.5 py-0.5 text-[12px]"
+                    disabled={save.isPending}
+                    onClick={() =>
+                      void restoreWorkspaceValue("after_hours_calls")
+                    }
+                  >
+                    Use the workspace&apos;s
+                  </Button>
+                )}
+              </div>
+              <Select
+                value={
+                  identity.data.after_hours_calls.inherited
+                    ? INHERIT
+                    : identity.data.after_hours_calls.value
+                }
+                onValueChange={(next) =>
+                  void save.mutateAsync({
+                    after_hours_calls:
+                      next === INHERIT
+                        ? null
+                        : (next as NumberIdentity["after_hours_calls"]["value"]),
+                  })
+                }
+              >
+                <SelectTrigger id="identity-after-hours">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={INHERIT}>
+                    Same as your workspace
+                  </SelectItem>
+                  <SelectItem value="ring_everyone">
+                    Ring everyone, day or night
+                  </SelectItem>
+                  <SelectItem value="on_call_only">
+                    Ring only whoever&apos;s on call
+                  </SelectItem>
+                  <SelectItem value="voicemail">Take a message</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-[12px] text-app-muted-2">
+                Outside this line&apos;s hours. With nobody on call, the last
+                two still differ — one rings the crew anyway, the other takes a
+                message.
+              </p>
+            </div>
             {FIELDS.map((field) => {
               const resolved = identity.data![field.key];
               return (
@@ -301,7 +369,14 @@ export function NumberIdentityDialog({
 type Field = "label" | "voicemail_greeting" | "away_message" | "mctb_message";
 
 /** Every field the dialog can clear, including the one that is not text. */
-type ClearableField = Field | "mctb_enabled" | "voicemail_greeting_id";
+type ClearableField =
+  | Field
+  | "mctb_enabled"
+  | "voicemail_greeting_id"
+  // #278: null is INHERIT here too, and it is a value an owner sets on purpose
+  // — a line that was set to take messages after hours has to be able to go
+  // back to following the workspace.
+  | "after_hours_calls";
 
 /**
  * The select's stand-in for "no recording".
@@ -311,6 +386,9 @@ type ClearableField = Field | "mctb_enabled" | "voicemail_greeting_id";
  * translated back to null on the way out, which is what the column means.
  */
 const WRITTEN = "__written__";
+
+/** The select's "follow the workspace" sentinel — Radix cannot hold null. */
+const INHERIT = "__inherit__";
 
 const FIELDS: { key: Field; label: string; hint: string; multiline?: boolean }[] = [
   {

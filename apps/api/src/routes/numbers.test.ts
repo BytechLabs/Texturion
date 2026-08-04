@@ -123,6 +123,20 @@ function buildHarness(
   // lives (supabase/tests/member_number_level.test.sql).
   rest.rpc("member_number_levels", () => []);
   rest.table("messaging_registrations");
+  // #309/#278: the selection routes check that a greeting id belongs to the
+  // workspace choosing it, so the table has to exist here — and ID-13 needs a
+  // greeting owned by SOMEBODY ELSE to have something to refuse.
+  rest.table("voicemail_greetings");
+  rest.insert("voicemail_greetings", {
+    id: "eeeeeeee-0000-4000-8000-0000000000e1",
+    company_id: COMPANY_ID,
+    name: "After hours",
+  });
+  rest.insert("voicemail_greetings", {
+    id: "eeeeeeee-0000-4000-8000-0000000000e9",
+    company_id: "99999999-0000-4000-8000-000000000099",
+    name: "Someone else's voice",
+  });
   rest.user(OWNER_ID, "owner@acme.example");
   rest.insert("companies", {
     id: COMPANY_ID,
@@ -1629,6 +1643,71 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
       await harness.request(`/v1/numbers/${ID}/identity`)
     ).json()) as Record<string, { value: unknown; inherited: boolean }>;
     expect(back.voicemail_greeting_id).toEqual({ value: null, inherited: true });
+  });
+
+  it("ID-13: a line cannot play another workspace's recorded voice", async () => {
+    // The bug this test was written for, found by reading the route rather
+    // than by anything failing. The company scope on the UPDATE decides which
+    // phone_numbers ROW is written, not which id lands in it, and the FK only
+    // asks that the greeting exist somewhere — so a pasted id from another
+    // workspace was stored and shown as selected.
+    //
+    // Nothing ever played it, because the runtime re-scopes its own read and
+    // falls back to TTS on a miss. That is precisely why it went unnoticed:
+    // the only symptom was an owner seeing a greeting chosen that their
+    // callers never heard.
+    const harness = buildHarness(COMPANY_IDENTITY);
+    withNumber(harness);
+
+    for (const field of ["voicemail_greeting_id", "after_hours_greeting_id"]) {
+      const res = await harness.request(`/v1/numbers/${ID}/identity`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          [field]: "eeeeeeee-0000-4000-8000-0000000000e9",
+        }),
+      });
+      expect(res.status, `${field} accepted another workspace's greeting`).toBe(422);
+    }
+
+    // And the line was left alone rather than half-written.
+    const row = harness.rest
+      .rows("phone_numbers")
+      .find((r) => r.id === ID) as Record<string, unknown>;
+    expect(row.voicemail_greeting_id ?? null).toBeNull();
+    expect(row.after_hours_greeting_id ?? null).toBeNull();
+  });
+
+  it("ID-14: after-hours routing is per line, and null goes back to the workspace's", async () => {
+    // #278. Tri-state for the same reason mctb_enabled is: "this line takes
+    // messages after hours" and "this line does whatever the workspace does"
+    // are different answers, and a two-state field cannot say the second — so
+    // a line could never go back to following the workspace once touched.
+    const harness = buildHarness(COMPANY_IDENTITY);
+    withNumber(harness);
+
+    const set = await harness.request(`/v1/numbers/${ID}/identity`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ after_hours_calls: "on_call_only" }),
+    });
+    expect(set.status).toBe(200);
+
+    const cleared = await harness.request(`/v1/numbers/${ID}/identity`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ after_hours_calls: null }),
+    });
+    expect(cleared.status).toBe(200);
+
+    // A value the runtime has no branch for would fall through to whichever
+    // side its `if` chain ends on — a routing decision made by a typo.
+    const nonsense = await harness.request(`/v1/numbers/${ID}/identity`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ after_hours_calls: "send_to_the_moon" }),
+    });
+    expect(nonsense.status).toBe(422);
   });
 
   it("ID-13: a selection that is not a uuid is refused", async () => {

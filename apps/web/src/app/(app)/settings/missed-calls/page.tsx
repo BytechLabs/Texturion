@@ -12,6 +12,7 @@ import { DEFAULT_MCTB_MESSAGE } from "@loonext/shared";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { AfterHoursCallsCard } from "@/components/settings/after-hours-calls-card";
 import { VoiceGreetingCard } from "@/components/settings/voice-greeting-card";
 
 import {
@@ -806,6 +807,10 @@ export default function CallingSettingsPage() {
           the same question in a better way. The written one stays as the
           zero-setup default and the fallback. */}
       <VoiceGreetingCard canEdit={canEdit} />
+          {/* #278: after the voicemail cards, before screening — it is a
+              routing decision about the SAME calls the cards above describe,
+              and it reads as a qualifier on them rather than a new subject. */}
+          <AfterHoursCallsCard company={company.data} canEdit={canEdit} />
           <ScreeningCard company={company.data} canEdit={canEdit} />
           <CallerIdCard company={company.data} canEdit={canEdit} />
           {/* D36/D38 fair use, one quiet line — the detail lives in Usage. */}

@@ -9,6 +9,8 @@ import { z } from "zod";
 
 import { resolveNumberIdentity, type AfterHoursCalls } from "@loonext/shared";
 
+import { assertOwnGreeting } from "./companies";
+
 import { isValidIanaTimezone } from "./core/timezone";
 
 import { recordAuditFromRequest } from "../audit/log";
@@ -870,13 +872,33 @@ numbersRoutes.patch("/:id/identity", requireCapability("numbers.manage"), async 
     }
     patch.business_hours = body.business_hours ?? null;
   }
-  if ("voicemail_greeting_id" in body) {
-    // No existence check here, deliberately. The column's FK rejects an id
-    // that is not a greeting, and a greeting belonging to another workspace
-    // is unreachable anyway — this row is already scoped by company_id below.
-    // A read-then-write would add a round trip to re-learn what the constraint
-    // already enforces, and would still race the delete it was meant to catch.
-    patch.voicemail_greeting_id = body.voicemail_greeting_id ?? null;
+  // #309/#278 — the two greeting SELECTIONS, each checked against this
+  // workspace's own recordings.
+  //
+  // This USED to say the check was unnecessary because "this row is already
+  // scoped by company_id below". That reasoning was wrong, and finding out why
+  // is worth writing down: the company scope decides which phone_numbers ROW
+  // is updated, not which id is stored in it. The FK only requires the
+  // greeting to exist somewhere. So a member could store another workspace's
+  // greeting id on their own line, and the identity screen would show it
+  // selected.
+  //
+  // Nothing ever PLAYED, because `greetingAudioUrl` re-scopes its own read by
+  // company and falls back to TTS on a miss — which is exactly why this went
+  // unnoticed: the only symptom was an owner seeing a greeting chosen that
+  // their callers never heard. Refused here now, at the one door that writes
+  // it, rather than relying on a downstream read to keep being careful.
+  for (const key of ["voicemail_greeting_id", "after_hours_greeting_id"] as const) {
+    if (!(key in body)) continue;
+    const greetingId = body[key] ?? null;
+    if (greetingId !== null) await assertOwnGreeting(c, greetingId);
+    patch[key] = greetingId;
+  }
+  // `?? null` for the same reason mctb_enabled uses it: null is INHERIT, and
+  // it is a value an owner sets on purpose when they want a line to go back to
+  // following the workspace.
+  if ("after_hours_calls" in body) {
+    patch.after_hours_calls = body.after_hours_calls ?? null;
   }
   if ("business_hours_exceptions" in body) {
     if (
