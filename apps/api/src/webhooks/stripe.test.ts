@@ -804,6 +804,12 @@ describe("§9 event → state table", () => {
       endpoint("GET", /\/rest\/v1\/companies/, () => [
         { cancel_at_period_end: false },
       ]),
+      // #252: being the MOMENT means the notice fires, and the notice now
+      // pushes as well as emails — which reads the owner/admin audience.
+      // Scoped to this test rather than to ledgerEndpoints(), because that
+      // list is spread FIRST and a company_members stub in it shadows the
+      // real member fixture five other tests depend on (first match wins).
+      endpoint("GET", /\/rest\/v1\/company_members/, () => []),
       endpoint("PATCH", /\/rest\/v1\/companies/, () => [
         { id: COMPANY_ID, name: "Acme Plumbing", owner_user_id: OWNER_ID },
       ]),

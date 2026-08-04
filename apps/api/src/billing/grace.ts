@@ -4,7 +4,7 @@ import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { deliverPush } from "../notifications/deliver";
+import { pushConsequentialNotice } from "./consequential-push";
 import type { Env } from "../env";
 import { deactivateCampaign } from "../telnyx/registration";
 import { releaseCompanyNumbers } from "../telnyx/provisioning";
@@ -229,44 +229,13 @@ async function pushGraceWarning(
   thresholdDay: GraceThresholdDay,
   subject: string,
 ): Promise<void> {
-  try {
-    const { data, error } = await db
-      .from("company_members")
-      .select("user_id")
-      .eq("company_id", company.id)
-      .is("deactivated_at", null)
-      .in("role", ["owner", "admin"]);
-    if (error) throw new Error(`grace push audience failed: ${error.message}`);
-    const userIds = ((data ?? []) as { user_id: string }[]).map(
-      (row) => row.user_id,
-    );
-    if (userIds.length === 0) return;
-
-    const failures: unknown[] = [];
-    await deliverPush(env, db, {
-      category: "operational",
-      companyId: company.id,
-      userIds,
-      content: { written: "us" },
-      web: {
-        title: subject,
-        body: "Open Loonext to keep your number.",
-        url: `${env.APP_ORIGIN}/settings/billing`,
-      },
-      // One warning per rung, so day 15 does not erase day 27 — each is a
-      // different deadline and the later one is the one that matters most.
-      collapseKey: `grace:${company.id}:${thresholdDay}`,
-      failures,
-    });
-    if (failures.length > 0) {
-      throw new AggregateError(failures, "grace warning push failed");
-    }
-  } catch (cause) {
-    console.error(
-      `grace warning push failed for ${company.id} day ${thresholdDay}:`,
-      cause instanceof Error ? (cause.stack ?? cause.message) : String(cause),
-    );
-  }
+  await pushConsequentialNotice(env, db, {
+    companyId: company.id,
+    title: subject,
+    body: "Open Loonext to keep your number.",
+    path: "/settings/billing",
+    collapseKey: `grace:${company.id}:${thresholdDay}`,
+  });
 }
 
 /**
@@ -406,6 +375,18 @@ async function releaseExpiredCompany(
   if (to.length === 0) return;
   const { subject, text } = releasedCopy(company);
   await sendEmail(env, { to, subject, text, html: renderEmailHtml(text) });
+
+  // #252: the last of the consequential notices, and the only one that is
+  // already true when it arrives. Nobody should learn their business number is
+  // gone by noticing it stopped working — least of all through the one channel
+  // whose deliverability this issue exists because we could not vouch for.
+  await pushConsequentialNotice(env, db, {
+    companyId: company.id,
+    title: subject,
+    body: "Open Loonext to see what this means and what you can still do.",
+    path: "/settings/billing",
+    collapseKey: `grace:${company.id}:released`,
+  });
 }
 
 /**

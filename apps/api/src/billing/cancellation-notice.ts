@@ -18,6 +18,7 @@ import type Stripe from "stripe";
 import { recordAudit } from "../audit/log";
 import { emailLayout } from "../email/html";
 import { sendEmail } from "../email/resend";
+import { pushConsequentialNotice } from "./consequential-push";
 import type { Env } from "../env";
 
 interface CancellingCompany {
@@ -136,6 +137,22 @@ export async function noticeCancellation(
           `<p style="font-size:14px;color:#6E7163;">You are getting this because you own this workspace. ` +
           `Admins can manage billing, so it may not have been you.</p>`,
       ),
+    });
+
+    // #252: the FIRST warning, and the one with thirty days of runway still on
+    // it — every later notice is a shorter deadline. If this is the one that
+    // gets filtered, the customer's next contact with the subject is a number
+    // that already belongs to somebody else.
+    //
+    // Deliberately not collapsed with the day-1/15/27 rungs: this is a
+    // different deadline from every one of them, and a shared key would let a
+    // later warning erase the notice that still had time to act on.
+    await pushConsequentialNotice(env, db, {
+      companyId: company.id,
+      title: "Your subscription was cancelled — your number goes in 30 days",
+      body: "You can undo this yourself. Open Loonext to keep your number.",
+      path: "/settings/billing",
+      collapseKey: `cancellation:${company.id}`,
     });
   } catch (cause) {
     console.error(`cancellation notice failed for ${company.id}: ${String(cause)}`);

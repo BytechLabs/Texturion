@@ -34,6 +34,8 @@ const subscription = {
 function priorState(row: Record<string, unknown> | null) {
   const sb = supabaseStub(env);
   sb.on("GET", "/rest/v1/companies", () => (row ? [row] : []));
+  // #252: the notice now also pushes, which reads the owner/admin audience.
+  sb.on("GET", "/rest/v1/company_members", () => []);
   return sb;
 }
 
@@ -86,8 +88,18 @@ describe("is this the moment, or a restatement of it?", () => {
 });
 
 describe("the notice itself", () => {
-  function world() {
+  function world(options: { audienceFails?: boolean } = {}) {
     const sb = supabaseStub(env);
+    // #252: the audience read the push does. Recorded HERE rather than
+    // overridden per test — the harness is first-match-wins, so a second
+    // handler for this path registered later never runs.
+    const audiences: URL[] = [];
+    sb.on("GET", "/rest/v1/company_members", (call) => {
+      audiences.push(call.url);
+      return options.audienceFails
+        ? new Response(JSON.stringify({ message: "boom" }), { status: 500 })
+        : [];
+    });
     const audits: Record<string, unknown>[] = [];
     sb.on("POST", "/rest/v1/audit_log", (call) => {
       audits.push(call.body as Record<string, unknown>);
@@ -103,10 +115,53 @@ describe("the notice itself", () => {
       emails.push((await request.clone().json()) as Record<string, unknown>);
       return Response.json({ id: "email_1" });
     };
-    return { sb, audits, emails, routes: [sb.route, resend] };
+    return { sb, audits, audiences, emails, routes: [sb.route, resend] };
   }
 
   const company = { id: COMPANY_ID, name: "Acme Plumbing", owner_user_id: OWNER_ID };
+
+  /**
+   * #252 — belt and braces on the notice with the most runway left.
+   *
+   * CP-2 is the one to read twice. The push runs AFTER the email and swallows
+   * its own failure, because the email has already gone: throwing would tell
+   * the caller a delivered warning was undelivered, and on the ledgered grace
+   * paths it would refuse to resend on the next sweep too.
+   */
+  it("CP-1: it pushes to the people who can act on it", async () => {
+    const w = world();
+    stubFetch(...w.routes);
+
+    await noticeCancellation(env, getDb(env), company, subscription);
+
+    expect(w.audiences).toHaveLength(1);
+    // Owners and admins only. A member cannot undo a cancellation, and waking
+    // somebody at a job about a deadline they cannot resolve is how a crew
+    // learns to swipe our notifications away.
+    expect(w.audiences[0].search).toContain("role=in.%28owner%2Cadmin%29");
+    expect(w.audiences[0].search).toContain("deactivated_at=is.null");
+  });
+
+  it("CP-2: a push failure never claims the email did not go", async () => {
+    const w = world({ audienceFails: true });
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    stubFetch(...w.routes);
+
+    await expect(
+      noticeCancellation(env, getDb(env), company, subscription),
+    ).resolves.not.toThrow();
+    // And the email still went, which is the claim the resolve is standing in
+    // for — a silently swallowed email would also "not throw".
+    expect(w.emails).toHaveLength(1);
+
+    // SWALLOWED IS NOT SILENT. Found by breaking it: deleting the audience
+    // read's error check left `data` empty, so the push simply never happened
+    // and nothing said so. A push that stops working for every workspace, with
+    // no log, is indistinguishable from one nobody has needed yet.
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(String(logged.mock.calls[0][0])).toMatch(/consequential push failed/);
+    logged.mockRestore();
+  });
 
   it("tells the owner what release actually means", async () => {
     // #413: "your subscription ends" does not convey that the number goes to
