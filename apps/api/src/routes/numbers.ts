@@ -3,6 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { resolveNumberIdentity } from "@loonext/shared";
+
 import { recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
 import { resolveNumberAccess } from "../auth/number-access";
@@ -636,6 +638,153 @@ const accessBodySchema = z.discriminatedUnion("access", [
     level: z.enum(["text", "note"]),
   }),
 ]);
+
+/**
+ * #307 — this line's own identity, and what it inherits.
+ *
+ * GET returns every field RESOLVED plus whether each came from the workspace,
+ * because a screen showing resolved text in a box cannot otherwise tell an
+ * owner whether editing it changes one line or all of them — the difference
+ * between fixing a sales greeting and rewriting the one their customers
+ * already know.
+ *
+ * PATCH takes null to CLEAR an override back to inherit. That is the whole
+ * shape of the feature: a cleared box restores the workspace value rather
+ * than silencing the line, so an owner can always get back to where they
+ * started without knowing what they started with.
+ */
+const identityBodySchema = z
+  .strictObject({
+    label: z.string().trim().max(60).nullable().optional(),
+    voicemail_greeting: z.string().max(1000).nullable().optional(),
+    away_message: z.string().max(1000).nullable().optional(),
+  })
+  .refine((body) => Object.keys(body).length > 0, {
+    message: "give at least one field to change",
+  });
+
+/** Blank is CLEAR, never an empty override — the resolver's rule, at the door. */
+function overrideValue(value: string | null | undefined): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  return value.trim() === "" ? null : value;
+}
+
+/** The number's identity, resolved against its workspace. */
+async function loadIdentity(
+  db: ReturnType<typeof getDb>,
+  companyId: string,
+  numberId: string,
+) {
+  const [numberRes, companyRes] = await Promise.all([
+    db
+      .from("phone_numbers")
+      .select("id,label,voicemail_greeting,away_message")
+      .eq("company_id", companyId)
+      .eq("id", numberId)
+      .limit(1),
+    db
+      .from("companies")
+      .select("name,timezone,voicemail_greeting,away_message,away_enabled")
+      .eq("id", companyId)
+      .limit(1),
+  ]);
+  if (numberRes.error) {
+    throw new Error(`phone_numbers lookup failed: ${numberRes.error.message}`);
+  }
+  if (companyRes.error) {
+    throw new Error(`companies lookup failed: ${companyRes.error.message}`);
+  }
+  const number = (numberRes.data ?? [])[0] as
+    | {
+        id: string;
+        label: string | null;
+        voicemail_greeting: string | null;
+        away_message: string | null;
+      }
+    | undefined;
+  if (!number) return null;
+
+  const company = (companyRes.data ?? [])[0] as {
+    name: string;
+    timezone: string;
+    voicemail_greeting: string | null;
+    away_message: string | null;
+    away_enabled: boolean;
+  };
+
+  const identity = resolveNumberIdentity(
+    {
+      name: company.name,
+      timezone: company.timezone,
+      voicemailGreeting: company.voicemail_greeting,
+      awayMessage: company.away_message,
+      awayEnabled: company.away_enabled,
+      businessHours: null,
+      businessHoursExceptions: null,
+    },
+    {
+      label: number.label,
+      voicemailGreeting: number.voicemail_greeting,
+      awayMessage: number.away_message,
+    },
+  );
+
+  return {
+    label: identity.label,
+    voicemail_greeting: identity.voicemailGreeting,
+    away_message: identity.awayMessage,
+  };
+}
+
+/** GET /v1/numbers/:id/identity — resolved, with what is inherited (O/A). */
+numbersRoutes.get("/:id/identity", requireCapability("numbers.manage"), async (c) => {
+  const db = getDb(getEnv(c.env));
+  const identity = await loadIdentity(db, c.get("companyId"), pathUuid(c, "id"));
+  if (!identity) return errorResponse(c, "not_found", "No such number.");
+  return c.json(identity);
+});
+
+/** PATCH /v1/numbers/:id/identity — set or CLEAR this line's overrides (O/A). */
+numbersRoutes.patch("/:id/identity", requireCapability("numbers.manage"), async (c) => {
+  const db = getDb(getEnv(c.env));
+  const companyId = c.get("companyId");
+  const id = pathUuid(c, "id");
+  const body = await parseJsonBody(c, identityBodySchema);
+
+  const patch: Record<string, string | null> = {};
+  if ("label" in body) patch.label = overrideValue(body.label) ?? null;
+  if ("voicemail_greeting" in body) {
+    patch.voicemail_greeting = overrideValue(body.voicemail_greeting) ?? null;
+  }
+  if ("away_message" in body) {
+    patch.away_message = overrideValue(body.away_message) ?? null;
+  }
+
+  const { data, error } = await db
+    .from("phone_numbers")
+    .update(patch)
+    .eq("company_id", companyId)
+    .eq("id", id)
+    .select("id");
+  if (error) throw new Error(`phone_numbers update failed: ${error.message}`);
+  if ((data ?? []).length === 0) {
+    return errorResponse(c, "not_found", "No such number.");
+  }
+
+  // #231: an identity change is what a CALLER meets, and "who changed how we
+  // answer the phone" is asked after somebody complains about the greeting.
+  await recordAuditFromRequest(db, c, {
+    companyId,
+    action: "number.identity_changed",
+    targetType: "phone_number",
+    targetId: id,
+    after: patch,
+  });
+
+  const identity = await loadIdentity(db, companyId, id);
+  return c.json(identity);
+});
 
 /** GET /v1/numbers/:id/access — the number's current access shape (O/A). */
 numbersRoutes.get("/:id/access", requireCapability("numbers.manage"), async (c) => {

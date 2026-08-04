@@ -141,6 +141,13 @@ export type AuditAction =
   | "number.port_out.rejected-pending"
   | "number.port_out.canceled"
   | "opt_out.revoked"
+  /**
+   * #307: how a line answers the phone changed — its name, greeting or away
+   * reply. Recorded because it is what a CALLER meets, and "who changed how
+   * we answer" is asked after somebody complains about the greeting rather
+   * than at the time.
+   */
+  | "number.identity_changed"
   // The departing-employee signature (#231: "bulk-export alarm")
   | "contacts.imported"
   | "contacts.exported"

@@ -1459,3 +1459,183 @@ describe("GET /v1/numbers/access/explain/:userId (#348)", () => {
     expect(body.numbers.map((n) => n.phone_number_id)).toEqual([NUMBER_ID]);
   });
 });
+
+/**
+ * #307 — a line's own identity, and what it inherits.
+ *
+ * ID-2 is the one the whole feature rests on: null CLEARS an override back to
+ * inherit. An owner who empties a greeting box must get their workspace
+ * greeting back, not silence on a live call — and must be able to get there
+ * without knowing what they started with.
+ */
+describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
+  const ID = "aaaaaaaa-0000-4000-8000-0000000000f1";
+
+  /** The harness seeds the company; these are the identity fields it needs. */
+  const COMPANY_IDENTITY = {
+    timezone: "America/Toronto",
+    voicemail_greeting: "You have reached Acme Plumbing.",
+    away_message: "We are closed.",
+    away_enabled: true,
+  };
+
+  function withNumber(
+    harness: ReturnType<typeof buildHarness>,
+    overrides: Record<string, unknown> = {},
+  ) {
+    harness.rest.insert("phone_numbers", {
+      id: ID,
+      company_id: COMPANY_ID,
+      status: "active",
+      country: "US",
+      number_e164: "+12125557000",
+      label: null,
+      voicemail_greeting: null,
+      away_message: null,
+      ...overrides,
+    });
+  }
+
+  it("ID-1: a line with no overrides reads as fully inherited", async () => {
+    const harness = buildHarness(COMPANY_IDENTITY);
+    withNumber(harness);
+
+    const res = await harness.request(`/v1/numbers/${ID}/identity`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, { value: unknown; inherited: boolean }>;
+
+    expect(body.label).toEqual({ value: "Acme Plumbing", inherited: true });
+    expect(body.voicemail_greeting.inherited).toBe(true);
+    expect(body.away_message.inherited).toBe(true);
+  });
+
+  it("ID-2: null CLEARS an override back to inherit", async () => {
+    // THE ONE THAT MATTERS. An owner who empties the box gets the workspace
+    // value back, not silence — and gets there without knowing what the
+    // workspace value was.
+    const harness = buildHarness(COMPANY_IDENTITY);
+    withNumber(harness, { voicemail_greeting: "Sales line." });
+
+    const res = await harness.request(`/v1/numbers/${ID}/identity`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ voicemail_greeting: null }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, { value: unknown; inherited: boolean }>;
+
+    expect(body.voicemail_greeting).toEqual({
+      value: "You have reached Acme Plumbing.",
+      inherited: true,
+    });
+  });
+
+  it("ID-3: a blank string clears too, rather than storing an empty override", async () => {
+    // The same failure arriving through a form that posts "" when a box is
+    // cleared. Stored as-is it is a real override, and the line goes silent
+    // while the workspace still has a greeting.
+    const harness = buildHarness(COMPANY_IDENTITY);
+    withNumber(harness, { voicemail_greeting: "Sales line.", label: "Sales" });
+
+    const res = await harness.request(`/v1/numbers/${ID}/identity`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ voicemail_greeting: "   ", label: "" }),
+    });
+    const body = (await res.json()) as Record<string, { value: unknown; inherited: boolean }>;
+
+    expect(body.voicemail_greeting.inherited).toBe(true);
+    expect(body.label).toEqual({ value: "Acme Plumbing", inherited: true });
+
+    // And it was STORED as null, not as "". The resolver trims too, so a
+    // stored empty string still READS as inherited — which is why the route's
+    // own trim looked untested until the sweep. A blank in the column is a
+    // lie in the database even when every read papers over it, and the next
+    // consumer to skip the resolver finds a line with no greeting.
+    const stored = harness.rest.rows("phone_numbers")[0] as Record<string, unknown>;
+    expect(stored.voicemail_greeting).toBeNull();
+    expect(stored.label).toBeNull();
+  });
+
+  it("ID-4: setting one field leaves the others alone", async () => {
+    // A PATCH is not a replace. An owner naming the line must not silently
+    // clear the greeting they set last week.
+    const harness = buildHarness(COMPANY_IDENTITY);
+    withNumber(harness, { voicemail_greeting: "Sales line." });
+
+    const res = await harness.request(`/v1/numbers/${ID}/identity`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: "Acme Plumbing Sales" }),
+    });
+    const body = (await res.json()) as Record<string, { value: unknown; inherited: boolean }>;
+
+    expect(body.label.value).toBe("Acme Plumbing Sales");
+    expect(body.voicemail_greeting).toEqual({ value: "Sales line.", inherited: false });
+
+    // The MIRROR, because one direction proves nothing: a PATCH that always
+    // wrote every field would pass the check above while silently clearing
+    // whatever the owner did not mention.
+    const second = await harness.request(`/v1/numbers/${ID}/identity`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ away_message: "Sales is closed." }),
+    });
+    const after = (await second.json()) as Record<
+      string,
+      { value: unknown; inherited: boolean }
+    >;
+    expect(after.away_message.value).toBe("Sales is closed.");
+    expect(after.label.value).toBe("Acme Plumbing Sales");
+    expect(after.voicemail_greeting.value).toBe("Sales line.");
+  });
+
+  it("ID-5: a member cannot change how the line answers", async () => {
+    const harness = buildHarness(COMPANY_IDENTITY);
+    harness.state.role = "member";
+    withNumber(harness);
+
+    const res = await harness.request(`/v1/numbers/${ID}/identity`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: "Mine now" }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("ID-6: another company's number is not found", async () => {
+    // The tenant boundary on a route keyed by a UUID somebody could guess at.
+    const harness = buildHarness(COMPANY_IDENTITY);
+    harness.rest.insert("phone_numbers", {
+      id: ID,
+      company_id: "99999999-0000-4000-8000-000000000099",
+      status: "active",
+      country: "US",
+      number_e164: "+12125557001",
+    });
+
+    const res = await harness.request(`/v1/numbers/${ID}/identity`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: "Not mine" }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("ID-7: the change is recorded", async () => {
+    // "Who changed how we answer the phone" is asked after a complaint about
+    // the greeting, not at the time.
+    const harness = buildHarness(COMPANY_IDENTITY);
+    harness.rest.table("audit_log");
+    withNumber(harness);
+
+    await harness.request(`/v1/numbers/${ID}/identity`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: "Acme Plumbing Sales" }),
+    });
+
+    const audits = harness.rest.rows("audit_log");
+    expect(JSON.stringify(audits)).toContain("number.identity_changed");
+  });
+});
