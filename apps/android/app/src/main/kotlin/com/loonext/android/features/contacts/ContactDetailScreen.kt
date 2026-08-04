@@ -126,14 +126,33 @@ internal fun ContactDetailScreen(
     callerIdName: String = "",
     /**
      * #228: the workspace's own language, so the inherit option can NAME what
-     * it inherits. Defaulted rather than required because the shell reads it
-     * from a hydration that can be a beat behind; the fallback is the language
-     * the product sends when nobody has said otherwise, which is what the
-     * server would resolve too.
+     * it inherits. The shell's value seeds it; see [liveCompanyLocale] below for
+     * why this screen does not simply trust it.
      */
     companyLocale: String = MessageLocale.DEFAULT,
 ) {
     BackHandler(onBack = onBack)
+
+    /*
+     * #228: re-read the workspace language when this screen opens, rather than
+     * trusting the value the shell passed in.
+     *
+     * The shell hydrates `/v1/me` on a nav-count tick, not on navigation, so an
+     * owner who changes the workspace language in Settings and then opens a
+     * contact is shown the PREVIOUS language as the inherited one - naming a
+     * default the server would no longer resolve. The send is unaffected (that
+     * is resolved server-side), but a label that states a fact confidently and
+     * wrongly is worse than one that says less.
+     *
+     * Seeded from the shell so the row paints immediately with a plausible
+     * answer, then corrected. A failed read keeps the seed: this is a label,
+     * and no label at all is a worse answer than a slightly old one.
+     */
+    var liveCompanyLocale by remember(companyId) { mutableStateOf(companyLocale) }
+    LaunchedEffect(companyId) {
+        runCatching { graph.meRepo.me(companyId) }
+            .onSuccess { me -> me.company?.locale?.let { liveCompanyLocale = it } }
+    }
 
     var members by remember(companyId) { mutableStateOf<List<Member>>(emptyList()) }
     var conversation by remember(contactId) { mutableStateOf<ConversationListItem?>(null) }
@@ -225,7 +244,7 @@ internal fun ContactDetailScreen(
                 mutations = mutations,
                 companyId = companyId,
                 callerIdName = callerIdName,
-                companyLocale = companyLocale,
+                companyLocale = liveCompanyLocale,
                 contact = current.value,
                 members = members,
                 conversation = conversation,
@@ -715,7 +734,10 @@ private fun ContactDetailBody(
                     graph.storeCache.put(CacheKeys.contact(companyId, contact.id), updated)
                 },
             )
-            RowDivider()
+            // Conditional, because the clock row above renders NOTHING for a
+            // contact whose timezone could not be inferred. An unconditional
+            // divider there sits directly under the previous one.
+            if (contact.timezone_resolved != null) RowDivider()
             // #228: directly under the clock, because the two are the same kind
             // of thing: a workspace default this one customer overrides.
             ContactLanguageRow(
