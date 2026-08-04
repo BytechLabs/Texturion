@@ -859,6 +859,8 @@ teamRoutes.post("/invites/accept", async (c) => {
     expires_at: string;
     accepted_at: string | null;
     revoked_at: string | null;
+    /** #521: why the owner said they were adding this person, or null. */
+    note: string | null;
   }
   const invites = unwrap<InviteRow[]>(
     await db.from("invites").select(INVITE_COLUMNS).eq("id", body.invite_id).limit(1),
@@ -922,6 +924,11 @@ teamRoutes.post("/invites/accept", async (c) => {
       company_id: invite.company_id,
       user_id: userId,
       role: invite.role,
+      // #521: carried onto the membership rather than read back off the invite
+      // later. The invite records a message that was sent; this records what
+      // THIS member was told, and that has to stay true after the invite is
+      // revoked, re-sent to the same address, or tidied away.
+      joining_note: invite.note ?? null,
     })
     .select(MEMBER_COLUMNS);
 

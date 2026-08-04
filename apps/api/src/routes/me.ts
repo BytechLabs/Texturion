@@ -64,6 +64,59 @@ meRoutes.get("/me/firsts", requireCapability("workspace.access"), async (c) => {
 });
 
 /**
+ * GET /v1/me/joining-note — #521. What this member was told about why they were
+ * added, in the words of whoever added them.
+ *
+ * Its own route for the same reason `/me/firsts` has one: `/v1/me` is the
+ * hottest route in the product, and this answers a question that matters on
+ * exactly one screen, once, for a few minutes of one person's life.
+ *
+ * Returns `{ note: null, from: null }` for the ordinary case - an owner who
+ * made their own workspace, a membership predating this, or an invite sent
+ * without a note. The orientation shows the screen only when there is something
+ * to show, so "nothing to say" has to be an ordinary answer rather than a 404.
+ *
+ * The note is read off the MEMBERSHIP rather than the invite: see the migration
+ * for why the copy is deliberate. `from` is resolved separately because a
+ * display name can change after the invite was written, and the name a new
+ * member should see is the one their colleague goes by now.
+ */
+meRoutes.get(
+  "/me/joining-note",
+  requireCapability("workspace.access"),
+  async (c) => {
+    const db = getDb(getEnv(c.env));
+    const rows = unwrap<{ joining_note: string | null }[]>(
+      await db
+        .from("company_members")
+        .select("joining_note")
+        .eq("company_id", c.get("companyId"))
+        .eq("user_id", c.get("userId"))
+        .limit(1),
+      "joining note lookup",
+    );
+    const note = rows[0]?.joining_note ?? null;
+    if (!note) return c.json({ note: null, from: null });
+
+    // Who to attribute it to: the workspace owner, because that is who the
+    // invite came from in every case this feature covers. Best-effort - an
+    // unattributed note still reads as a person's words, and failing the whole
+    // orientation screen over a missing name would be the wrong trade.
+    const owners = unwrap<{ profiles: { display_name: string | null } | null }[]>(
+      await db
+        .from("company_members")
+        .select("profiles!inner(display_name)")
+        .eq("company_id", c.get("companyId"))
+        .eq("role", "owner")
+        .limit(1),
+      "inviter name lookup",
+    );
+    const from = owners[0]?.profiles?.display_name?.trim() || null;
+    return c.json({ note, from });
+  },
+);
+
+/**
  * POST /v1/me/oriented — #286. The member finished, or skipped, the joining
  * orientation.
  *

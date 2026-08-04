@@ -551,6 +551,10 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
       company_id: COMPANY_ID,
       user_id: auth.subject,
       role: "member",
+      // #521: explicit null, not absent. An invite with no note produces the
+      // same membership shape as one with a note, so orientation asks the
+      // column rather than asking whether the column is there.
+      joining_note: null,
     });
     // notification_prefs row, defaults true/true (SPEC §7).
     expect(sb.find("POST", "/rest/v1/notification_prefs")[0].body).toEqual({
@@ -563,6 +567,38 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
     expect(
       typeof (stamp.body as Record<string, unknown>).accepted_at,
     ).toBe("string");
+  });
+
+  it("#521 carries the inviter's note onto the membership", async () => {
+    // Copied at accept rather than read back off the invite later. The invite
+    // records a message that was sent; this records what THIS member was told,
+    // and it has to stay true after the invite is revoked, re-sent to the same
+    // address, or tidied away.
+    const sb = acceptStub(
+      pendingInvite({ note: "Dave covers the north side while Priya is away." }),
+      authUser(),
+      { plan: "pro", active: 2, pending: 1 },
+    );
+    sb.on("POST", "/rest/v1/company_members", (call) => [
+      { ...(call.body as Record<string, unknown>), id: "m-1" },
+    ]);
+    sb.on("POST", "/rest/v1/notification_prefs", () => new Response(null, { status: 201 }));
+    sb.on("PATCH", "/rest/v1/invites", () => new Response(null, { status: 204 }));
+    sb.on("POST", "/rest/v1/rpc/api_claim_backup_owner_prompt", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/invites/accept",
+      { method: "POST", companyId: null, body: { invite_id: INVITE_ID } },
+    );
+    expect(res.status).toBe(201);
+    expect(
+      (sb.find("POST", "/rest/v1/company_members")[0].body as Record<string, unknown>)
+        .joining_note,
+    ).toBe("Dave covers the north side while Priya is away.");
   });
 
   // #332: the moment the workspace stops being a one-person operation is the
