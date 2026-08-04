@@ -533,7 +533,7 @@ export function MessageList({
           <button
             type="button"
             onClick={() => scrollToBottom("smooth")}
-            className="app-motion-message-in flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors duration-150 ease-out hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="app-motion-message-in flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors duration-150 ease-out hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             New message <ArrowDown className="size-3.5" strokeWidth={1.75} />
           </button>

@@ -77,7 +77,7 @@ export function PinnedBanner({
               type="button"
               onClick={() => onJump(message.id)}
               aria-label={`Jump to pinned message: ${pinnedSnippet(message)}`}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             >
               <span className="min-w-0 flex-1 truncate text-[13px] text-app-ink">
                 {pinnedSnippet(message)}
@@ -118,7 +118,7 @@ export function MobilePinnedDisclosure({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="tap-target flex w-full items-center gap-1.5 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+        className="tap-target flex w-full items-center gap-1.5 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
         <Pin className="size-3" strokeWidth={2} aria-hidden />
         <span className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
@@ -141,7 +141,7 @@ export function MobilePinnedDisclosure({
                 type="button"
                 onClick={() => onJump(message.id)}
                 aria-label={`Jump to pinned message: ${pinnedSnippet(message)}`}
-                className="tap-target flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+                className="tap-target flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 <span className="min-w-0 flex-1 truncate text-[13px] text-app-ink">
                   {pinnedSnippet(message)}

@@ -83,7 +83,7 @@ export function InviteBanner() {
         type="button"
         aria-label="Dismiss invite"
         onClick={dismiss}
-        className="tap-target shrink-0 rounded-full p-1 text-app-muted-2 transition-colors hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="tap-target shrink-0 rounded-full p-1 text-app-muted-2 transition-colors hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <X className="size-4" strokeWidth={1.75} aria-hidden />
       </button>

@@ -79,6 +79,18 @@ function CommandInput({
         data-slot="command-input"
         className={cn(
           "flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",
+          // #238 — the palette's search field had `outline-hidden` and nothing
+          // in its place: focus arrived and there was no indicator at all
+          // (2.4.7). Easy to miss by eye, because the palette opens with focus
+          // already here, so the state nobody sees is the one where a reader
+          // has Tabbed down into the results and back up again.
+          //
+          // INSET, because this input fills a 36px header row that already has
+          // a bottom border: an outset ring would be clipped by the row and
+          // collide with that border. `ring-inset` is the established answer
+          // here — five other controls in this codebase use it for the same
+          // reason — and the ring is opaque for the reason FA-11 exists.
+          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
           className
         )}
         {...props}

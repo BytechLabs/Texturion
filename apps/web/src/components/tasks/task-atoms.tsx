@@ -44,7 +44,7 @@ export function TaskDoneCheckbox({
         });
       }}
       className={cn(
-        "tap-target flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50",
+        "tap-target flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
         task.done
           ? "border-primary bg-primary text-primary-foreground"
           : "border-input text-transparent hover:border-primary/60",

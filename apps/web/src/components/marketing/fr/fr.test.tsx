@@ -56,9 +56,18 @@ describe("fr primitives — the FIRST RESPONSE component kit", () => {
     // brand fill, not the ink accent that carries links and focus rings. The
     // two are separate tokens because a colour is a fill OR a label (D100), and
     // lime can only ever be the former.
-    expect(primary).toContain("--fr-brand");
+    //
+    // The rule is about the FILL, so the assertion is about the fill. It used
+    // to be `not.toContain("--fr-olive)")` anywhere in the markup, which
+    // contradicted the sentence directly above it: ink is what carries focus
+    // rings, so the moment #238 gave this button the ink ring it needed to
+    // clear 1.4.11, a correct change failed a test whose stated intent it
+    // honoured. Pinning the substring pinned the wrong thing — a guard that
+    // blocks the fix rather than catching the drift.
+    expect(primary).toContain("bg-[color:var(--fr-brand)]");
     expect(primary).toContain("--fr-on-brand");
-    expect(primary).not.toContain("--fr-olive)");
+    expect(primary).not.toContain("bg-[color:var(--fr-olive)]");
+    expect(primary).not.toContain("--fr-on-olive)");
     expect(primary).toContain("rounded-full");
     expect(primary).toContain('href="/signup"');
     expect(primary).toContain("Get your number");

@@ -83,8 +83,12 @@ describe("#238/#285 the accessibility statement is backed by real tests", () => 
     // Rows rather than paths, because one file can enforce several criteria —
     // `theme-audit.mjs` covers three — so a row can vanish while its path
     // survives in another row.
-    expect(verifiedRows().length).toBeGreaterThanOrEqual(8);
-    expect(citedPaths().length).toBeGreaterThanOrEqual(5);
+    // Raised from 8/5 to 11/6 when #238's focus work landed 2.4.7, 1.4.11 and
+    // 2.4.11. Raising it is not bookkeeping: left at 8, the three new rows
+    // could each be deleted in silence, and the comment above would be a lie
+    // the next reader trusts.
+    expect(verifiedRows().length).toBeGreaterThanOrEqual(11);
+    expect(citedPaths().length).toBeGreaterThanOrEqual(6);
   });
 
   it("AS-3: it still states what it has NOT verified", () => {

@@ -52,7 +52,22 @@ export function CtaButton({
     primary: cn(
       "bg-[color:var(--fr-brand)] text-[color:var(--fr-on-brand)]",
       "hover:bg-[color:var(--fr-brand-hover)]",
-      "focus-visible:outline-[color:var(--fr-brand)]",
+      // #238 — the ring is INK, not the button's own lime.
+      //
+      // Ringing the button in its own fill read as tidy and measured 1.78:1 on
+      // the ground and 1.94:1 on a card: lime is the one colour on the page
+      // chosen to be loud against ink, which is exactly what makes it quiet
+      // against paper. The ring is drawn at 2px OFFSET, so it never touches the
+      // lime — it sits on the page, and the page is what it has to be seen
+      // against (1.4.11 Non-text Contrast, AA).
+      //
+      // D100 is the rule that already covers this: a colour is a fill or a
+      // label, never both. A fill asked to do a stroke's job is the same
+      // mistake in a third role. Ink is also what the other forty-five focus
+      // sites on this site already use, so this converges on the system instead
+      // of adding a case to it — and it inverts to paper in dark mode for free,
+      // because --fr-olive is ink on light and near-paper on dark.
+      "focus-visible:outline-[color:var(--fr-olive)]",
     ),
     secondary: cn(
       "border-[1.5px] border-[color:var(--fr-ink)] bg-transparent text-[color:var(--fr-ink)]",

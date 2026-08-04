@@ -313,7 +313,7 @@ function TaskDetailLoaded({
             maxLength={500}
             className={cn(
               "w-full rounded-app-ctrl bg-transparent px-1 py-0.5 text-lg font-semibold text-app-ink outline-none",
-              "focus-visible:bg-app-inset focus-visible:ring-2 focus-visible:ring-ring/50",
+              "focus-visible:bg-app-inset focus-visible:ring-2 focus-visible:ring-ring",
               task.done && "text-app-muted line-through opacity-70",
             )}
           />
@@ -323,7 +323,7 @@ function TaskDetailLoaded({
             <button
               type="button"
               aria-label="Task actions"
-              className="tap-target mt-0.5 shrink-0 rounded-full p-1 text-app-muted-2 transition-colors hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              className="tap-target mt-0.5 shrink-0 rounded-full p-1 text-app-muted-2 transition-colors hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden />
             </button>
@@ -925,7 +925,7 @@ function TaskAddressSection({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center justify-between rounded-md text-sm font-medium text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="flex items-center justify-between rounded-md text-sm font-medium text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-expanded={open}
       >
         <span className="flex items-center gap-2">

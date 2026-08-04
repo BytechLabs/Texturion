@@ -459,7 +459,7 @@ export function ThreadHeader({
             <button
               type="button"
               aria-label={`Status: ${conversation.status}. Change status`}
-              className="flex min-h-11 items-center gap-0.5 rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 md:min-h-0"
+              className="flex min-h-11 items-center gap-0.5 rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring md:min-h-0"
               disabled={update.isPending}
             >
               <StatusPill status={conversation.status} />
@@ -497,7 +497,7 @@ export function ThreadHeader({
               aria-label={
                 assigneeName ? `Assigned to ${assigneeName}. Reassign` : "Assign"
               }
-              className="flex min-h-11 min-w-11 items-center justify-center rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 md:min-h-0 md:min-w-0"
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring md:min-h-0 md:min-w-0"
               disabled={update.isPending}
             >
               {assigneeName ? (

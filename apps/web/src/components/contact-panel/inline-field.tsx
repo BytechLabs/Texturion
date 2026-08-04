@@ -107,7 +107,7 @@ export function InlineTextField({
       }}
       aria-label={label}
       className={cn(
-        "w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+        "w-full rounded-md border border-input bg-transparent px-2 py-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring",
         className,
       )}
     />
@@ -197,7 +197,7 @@ export function AutoSaveNotes({
         // field-sizing-content (the shared ui/textarea idiom): the box grows
         // with the note instead of clipping it mid-word at the fixed 3 rows;
         // max-h keeps a runaway note scrollable, not panel-swallowing.
-        className="field-sizing-content max-h-40 w-full resize-none overflow-y-auto rounded-md border border-input bg-transparent px-2 py-1.5 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="field-sizing-content max-h-40 w-full resize-none overflow-y-auto rounded-md border border-input bg-transparent px-2 py-1.5 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring"
       />
       <p
         aria-live="polite"

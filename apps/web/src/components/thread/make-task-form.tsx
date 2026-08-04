@@ -339,7 +339,7 @@ export function MakeTaskForm({
           <button
             type="button"
             onClick={() => setAddrOpen((o) => !o)}
-            className="flex flex-1 items-center gap-2 rounded-md text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            className="flex flex-1 items-center gap-2 rounded-md text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-expanded={addrOpen}
           >
             <MapPin className="size-4 text-muted-foreground" strokeWidth={1.75} />
@@ -417,7 +417,7 @@ export function MakeTaskForm({
                   type="button"
                   onClick={clearAddress}
                   aria-label="Clear address"
-                  className="rounded-md px-1.5 py-0.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                  className="rounded-md px-1.5 py-0.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   Clear address
                 </button>

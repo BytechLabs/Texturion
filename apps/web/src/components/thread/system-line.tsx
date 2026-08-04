@@ -262,7 +262,7 @@ function ActionableLine({
         className={cn(
           "tap-target rounded-full px-1 underline decoration-dotted underline-offset-[3px] transition-colors",
           "decoration-app-line hover:text-app-olive hover:decoration-solid hover:decoration-current",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         )}
       >
         {children}

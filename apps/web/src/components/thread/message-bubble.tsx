@@ -77,7 +77,7 @@ export function DeliveryState({
               onClick={() => retry.mutate(message.id)}
               disabled={retry.isPending}
               // tap-target: ≥44px hit area on mobile (G11) without visual bloat.
-              className="tap-target rounded-sm font-medium underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
+              className="tap-target rounded-sm font-medium underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
               {retry.isPending ? "Retrying…" : "Retry"}
             </button>
@@ -163,7 +163,7 @@ function DoneBadge({ message }: { message: Message }) {
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          className="inline-flex items-center gap-1 rounded-full bg-primary/12 px-1.5 py-0.5 text-[11px] font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="inline-flex items-center gap-1 rounded-full bg-primary/12 px-1.5 py-0.5 text-[11px] font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           tabIndex={0}
         >
           <CircleCheck aria-hidden className="size-3" strokeWidth={2.25} />
@@ -191,7 +191,7 @@ function TaskIndicator({ task }: { task: MessageTaskLink }) {
       type="button"
       onClick={() => openTask(task.id)}
       aria-label={`Open the task: ${task.title}`}
-      className="tap-target inline-flex items-center gap-1 rounded-full bg-app-line-soft px-1.5 py-0.5 text-[11px] font-medium text-app-muted transition-colors duration-150 ease-out hover:bg-app-line hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      className="tap-target inline-flex items-center gap-1 rounded-full bg-app-line-soft px-1.5 py-0.5 text-[11px] font-medium text-app-muted transition-colors duration-150 ease-out hover:bg-app-line hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <ListChecks aria-hidden className="size-3" strokeWidth={2} />
       Task
@@ -210,7 +210,7 @@ function NoteTaskChip({ task }: { task: { id: string; title: string } }) {
     <button
       type="button"
       onClick={() => openTask(task.id)}
-      className="tap-target mb-1 inline-flex max-w-full items-center gap-1 rounded-full border border-app-amber-line bg-app-paper/60 px-2 py-0.5 text-[11px] font-medium text-app-amber-ink transition-colors hover:bg-app-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      className="tap-target mb-1 inline-flex max-w-full items-center gap-1 rounded-full border border-app-amber-line bg-app-paper/60 px-2 py-0.5 text-[11px] font-medium text-app-amber-ink transition-colors hover:bg-app-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <ListChecks className="size-3 shrink-0" strokeWidth={2} aria-hidden />
       <span className="truncate">on: {task.title}</span>

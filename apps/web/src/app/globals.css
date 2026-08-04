@@ -254,7 +254,19 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    /* #238 — the DEFAULT outline colour, opaque. It was `outline-ring/50`,
+       shadcn's stock softening, and the 50% was the whole bug: `--ring` is
+       #3f3f3f, and half of it composited over a #fdfdfd card lands on
+       rgb(158,158,158) — 2.63:1, under 1.4.11's 3:1 floor for a focus
+       indicator. Nothing here is decorative, so a translucent default only ever
+       makes a ring harder to see; opaque, the same token clears 10:1.
+
+       Invisible in the common case, which is why it survived so long: this only
+       paints where something also sets an outline WIDTH and STYLE, and Chrome
+       ignores it entirely for the `outline-style: auto` ring it draws itself.
+       It is fixed anyway so the default a new component inherits is compliant
+       rather than one it has to remember to override. */
+    @apply border-border outline-ring;
   }
   body {
     @apply bg-background text-foreground;

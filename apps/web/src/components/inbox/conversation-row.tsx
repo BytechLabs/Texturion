@@ -201,7 +201,7 @@ export const ConversationRow = memo(function ConversationRow({
       }${attachmentNote}${previewText ? `. ${previewText}` : ""}`}
       style={{ height: ROW_HEIGHT }}
       className={cn(
-        "relative flex items-start gap-[11px] rounded-app-card border p-[11px] transition-[background,box-shadow,border-color] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+        "relative flex items-start gap-[11px] rounded-app-card border p-[11px] transition-[background,box-shadow,border-color] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         active
           ? "border-app-line bg-app-paper"
           : "border-transparent hover:border-app-line-soft hover:bg-app-hover",

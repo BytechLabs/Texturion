@@ -30,7 +30,7 @@ function PasswordInput({
         onClick={() => setVisible((v) => !v)}
         aria-label={visible ? "Hide password" : "Show password"}
         aria-pressed={visible}
-        className="tap-target absolute inset-y-0 right-0 flex items-center rounded-r-md px-2.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="tap-target absolute inset-y-0 right-0 flex items-center rounded-r-md px-2.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {visible ? (
           <EyeOff className="size-4" strokeWidth={1.75} aria-hidden />

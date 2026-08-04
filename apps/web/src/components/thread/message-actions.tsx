@@ -124,7 +124,7 @@ function DoneToggle({
         // tap-target: the 16px icon + p-1 is 24px; extend the hit area to
         // ≥44px on mobile (§7), where this is the subtle-always action.
         "tap-target shrink-0 rounded-full p-1 transition-[color,opacity] duration-150 ease-out",
-        "hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+        "hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         done ? "text-primary" : "text-foreground-tertiary",
         // Mobile: subtle-always. Desktop: revealed on hover/focus of the group.
         !done &&
@@ -189,7 +189,7 @@ function MessageOverflow({
               aria-label="More actions"
               className={cn(
                 "tap-target shrink-0 rounded-full p-1 text-foreground-tertiary transition-[color,opacity] duration-150 ease-out",
-                "hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                "hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 // Match the done toggle's reveal — subtle-always mobile, hover desktop.
                 "data-[state=open]:opacity-100 md:opacity-0 md:group-hover/message:opacity-100 md:group-focus-within/message:opacity-100 md:focus-visible:opacity-100",
               )}

@@ -153,7 +153,7 @@ export default function CompanyNamePage() {
                           // The radio is visually hidden, so the chip has to
                           // wear its focus ring. Without this a keyboard user
                           // arrowing through the row sees nothing move.
-                          "focus-within:ring-[3px] focus-within:ring-ring/50",
+                          "focus-within:ring-[3px] focus-within:ring-ring",
                           field.value === bucket
                             ? "border-primary bg-primary/5"
                             : "border-border bg-card hover:bg-accent",

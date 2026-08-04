@@ -42,6 +42,8 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "playwright";
 
+import { classifyFocusStop } from "./focus-classify.mjs";
+
 const EMAIL = "dev@loonext.local";
 const PASSWORD = "loonext-dev-1234";
 const STATE_DIR = join("node_modules", ".cache", "theme-audit");
@@ -499,11 +501,341 @@ const A11Y = (checkTapSize) => {
   return faults;
 };
 
+/**
+ * #238 — the focus indicator, measured on the rendered page.
+ *
+ * §7 requires visible focus. The statement listed this as SPECIFIED BUT
+ * UNVERIFIED with an accurate reason: it needs a rendered ring measured against
+ * its surround, which reading source cannot do and which the contrast pass
+ * deliberately excludes.
+ *
+ * WHICH CRITERIA, precisely — the first draft of this file said "2.4.11" for
+ * all of it, and that is wrong in a way that matters, because
+ * `docs/ACCESSIBILITY.md` cites these numbers to buyers and an auditor checks
+ * them. In WCAG 2.2 the ring is governed by three different criteria:
+ *
+ *   2.4.7  Focus Visible          AA   2.0   there is an indicator at all
+ *   1.4.11 Non-text Contrast      AA   2.1   the indicator clears 3:1
+ *   2.4.11 Focus Not Obscured     AA   2.2   nothing covers the focused control
+ *
+ * Only the third is new in 2.2, and it is the one this repository was most
+ * exposed to: the marketing shell has a STICKY header, and a sticky header
+ * sliding over the control a reader just tabbed to is the textbook 2.4.11
+ * failure. 2.4.13 Focus Appearance is AAA and adds area rules this does not
+ * measure — so it is not claimed.
+ *
+ * WHY A REAL TAB WALK AND NOT `el.focus()`.
+ *
+ * `:focus-visible` is a heuristic the browser owns: a programmatic `.focus()`
+ * on a button does not match it, so a check built that way would measure the
+ * un-ringed state of every correct control and report the whole app as broken —
+ * or, worse, be "fixed" by asserting nothing. Pressing Tab is the interaction
+ * the criteria are about, so it is the interaction the check performs.
+ *
+ * It also answers the OTHER §7 rule nothing verified: the tab order. Walking
+ * the sequence is the only way to see focus leave the page, land on something
+ * invisible, or loop back to where it started before the end.
+ */
+const FOCUS_WALK = (maxStops) => {
+  /**
+   * Resolve ANY CSS colour to sRGB by making the browser paint it.
+   *
+   * The first version of this matched /rgba?\(...\)/ and nothing else, which is
+   * the single biggest thing it got wrong. Tailwind v4 emits `oklab()` and
+   * `oklch()` — shadcn's base layer puts `outline-ring/50` on every element in
+   * the product — so the regex returned null for a perfectly good ring, the
+   * colour list came back empty, and the walk reported NO-FOCUS-RING on 54
+   * controls that all had one. A check that fails clean code is worse than no
+   * check, because the first person to see it turns it off.
+   *
+   * A 1×1 canvas has the whole colour parser behind it and needs no per-space
+   * maths here: oklab, oklch, lab, lch, color(), hsl, and any future space work
+   * for free. `getImageData` is un-premultiplied, so alpha survives the round
+   * trip. The transparent reset means an unparseable value reads as alpha 0
+   * rather than silently inheriting the previous fill.
+   */
+  const canvas = document.createElement("canvas");
+  canvas.width = 1;
+  canvas.height = 1;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  const parse = (css) => {
+    const text = String(css || "").trim();
+    if (!text || text === "none" || text === "transparent") return null;
+    ctx.clearRect(0, 0, 1, 1);
+    ctx.fillStyle = "rgba(0, 0, 0, 0)";
+    ctx.fillStyle = text;
+    ctx.fillRect(0, 0, 1, 1);
+    const d = ctx.getImageData(0, 0, 1, 1).data;
+    return { r: d[0], g: d[1], b: d[2], a: d[3] / 255 };
+  };
+  const lum = ({ r, g, b }) => {
+    const ch = (c) => {
+      const v = c / 255;
+      return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b);
+  };
+  const ratio = (a, b) => {
+    const x = lum(a);
+    const y = lum(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+  };
+  /**
+   * A translucent ring is the colour you get AFTER it is composited, not the
+   * colour it was declared in. Skipping this overstated every ring in the
+   * product: shadcn's base `outline-ring/50` is 50% alpha, and scoring #3f3f3f
+   * as if it were opaque reports 8.9:1 for something the eye receives at 2.6:1.
+   * That is the difference between a passing gate and the real failure.
+   */
+  const over = (fg, bg) => ({
+    r: fg.r * fg.a + bg.r * (1 - fg.a),
+    g: fg.g * fg.a + bg.g * (1 - fg.a),
+    b: fg.b * fg.a + bg.b * (1 - fg.a),
+    a: 1,
+  });
+  const backdrop = (el) => {
+    let node = el.parentElement;
+    while (node) {
+      const bg = parse(getComputedStyle(node).backgroundColor);
+      if (bg && bg.a >= 0.999) return bg;
+      node = node.parentElement;
+    }
+    return { r: 255, g: 255, b: 255, a: 1 };
+  };
+  const describe = (el) => {
+    const cls = (el.className || "").toString().split(/\s+/).filter(Boolean).slice(0, 2);
+    return `${el.tagName.toLowerCase()}${cls.length ? "." + cls.join(".") : ""}`;
+  };
+
+  const el = document.activeElement;
+  if (!el || el === document.body || el === document.documentElement) {
+    return { kind: "left-page" };
+  }
+  const style = getComputedStyle(el);
+  const box = el.getBoundingClientRect();
+  const behind = backdrop(el);
+
+  // EVERY colour the indicator is drawn in, not the first one found.
+  //
+  // Tailwind's `ring-*` compiles to a box-shadow, and the common recipe is TWO
+  // layers — a paper offset ring against the element, then the coloured ring
+  // outside it. Reading the first colour in the string measured the paper one
+  // against a paper page and reported 1.13:1 on controls whose focus treatment
+  // was perfectly visible. A ring is visible if ANY of its layers is, so the
+  // best layer is the honest measurement.
+  const colours = [];
+  const outlineWidth = parseFloat(style.outlineWidth) || 0;
+  // `outline-style: auto` is the browser's OWN focus ring, and Chrome paints it
+  // two-tone specifically so it stays visible on any ground — it ignores
+  // `outline-color` entirely when drawing it. Measuring that inherited colour
+  // would score the UA's accessible default against a value it never uses. It
+  // counts as an indicator and is exempt from the contrast arithmetic, which is
+  // a statement about the browser, not a loophole for us: nothing in this
+  // product sets `outline: auto` deliberately, so it only ever appears where a
+  // control declares no focus style at all and the UA steps in.
+  const uaRing = style.outlineStyle === "auto";
+  const hasOutline = style.outlineStyle !== "none" && outlineWidth > 0;
+  if (hasOutline && !uaRing) {
+    const c = parse(style.outlineColor);
+    // A fully transparent layer is not an indicator, it is a placeholder for
+    // one — which is exactly what an un-focused Tailwind ring compiles to.
+    if (c && c.a > 0.05) colours.push(c);
+  }
+  const shadow = style.boxShadow && style.boxShadow !== "none" ? style.boxShadow : "";
+  if (shadow) {
+    // Split on commas that separate SHADOW LAYERS, not the ones inside a
+    // colour function: `oklab(0.4 0 0 / 0.5)` has none, but `rgba(0, 0, 0, .5)`
+    // and `color-mix(in oklab, a, b)` do, and a naive split shatters them.
+    let depth = 0;
+    let start = 0;
+    const layers = [];
+    for (let i = 0; i < shadow.length; i += 1) {
+      const ch = shadow[i];
+      if (ch === "(") depth += 1;
+      else if (ch === ")") depth -= 1;
+      else if (ch === "," && depth === 0) {
+        layers.push(shadow.slice(start, i));
+        start = i + 1;
+      }
+    }
+    layers.push(shadow.slice(start));
+    for (const layer of layers) {
+      // Chrome serialises a layer as `<colour> <x> <y> <blur> <spread>`, so the
+      // lengths come off in that order and `spread` may be absent.
+      const lengths = (layer.match(/-?[\d.]+px/g) || []).map(parseFloat);
+      const [, , blur = 0, spread = 0] = lengths;
+
+      // A RING, not any shadow that happens to be there.
+      //
+      // Proven by deleting the input's focus ring outright: the check still
+      // reported a fault, but as a 1.12:1 DIM ring rather than a MISSING one —
+      // it had picked up `shadow-xs`, the resting drop shadow every input
+      // carries, and called it the focus indicator. Right answer, wrong
+      // reasoning, and the wrong reasoning is the dangerous half: a control
+      // with a dark decorative shadow and no focus ring at all would have
+      // cleared 3:1 on the shadow and PASSED.
+      //
+      // A focus ring is drawn hard — `ring-*` compiles to `0 0 0 Npx colour`,
+      // no blur and positive spread — and a drop shadow is drawn soft. That is
+      // the whole distinction, and it is a shape rather than a guess. A blurred
+      // glow used as an indicator would be missed here; nothing in this product
+      // uses one, and 1.4.11 is hard to meet with a blur anyway.
+      if (blur !== 0 || spread <= 0) continue;
+
+      // The colour is whatever is left once the lengths and keywords are gone.
+      const colour = layer
+        .replace(/\b-?[\d.]+(px|em|rem|%)\b/g, " ")
+        .replace(/\binset\b/g, " ")
+        .trim();
+      const c = parse(colour);
+      if (c && c.a > 0.05) colours.push(c);
+    }
+  }
+
+  const contrast = colours.reduce(
+    (best, c) => Math.max(best, ratio(over(c, behind), behind)),
+    0,
+  );
+
+  /**
+   * 2.4.11 Focus Not Obscured (Minimum), the one criterion that is actually new
+   * in 2.2 — is the control the reader just landed on still on screen and not
+   * covered by something?
+   *
+   * Sampled rather than computed from rectangles, because "what is on top here"
+   * is a question only the compositor can answer: stacking contexts, transforms
+   * and `pointer-events` all decide it. Five points, and ALL of them have to be
+   * covered before this reports — 2.4.11 Minimum is about the component being
+   * ENTIRELY hidden, so a sticky header clipping one corner is conformant and
+   * must not fail the gate.
+   */
+  const inset = 2;
+  const points = [
+    [box.left + inset, box.top + inset],
+    [box.right - inset, box.top + inset],
+    [box.left + inset, box.bottom - inset],
+    [box.right - inset, box.bottom - inset],
+    [box.left + box.width / 2, box.top + box.height / 2],
+  ];
+  let visiblePoints = 0;
+  let sampledPoints = 0;
+  for (const [x, y] of points) {
+    if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) continue;
+    sampledPoints += 1;
+    const hit = document.elementFromPoint(x, y);
+    // An ancestor counts: a point over the control's own padding resolves to
+    // the wrapper, and that is the control being visible, not covered.
+    if (hit && (el === hit || el.contains(hit) || hit.contains(el))) visiblePoints += 1;
+  }
+
+  // A stable identity for loop detection. Coordinates are VIEWPORT-relative and
+  // tabbing scrolls, so two different accordion headers land at the same x,y
+  // and read as a loop — which is how the first version of this reported one on
+  // a page that has none.
+  const already = el.hasAttribute("data-audit-stop");
+  el.setAttribute("data-audit-stop", "1");
+
+  return {
+    kind: "stop",
+    tag: describe(el),
+    // Something focused but invisible is a trap of a different kind: the
+    // reader's caret is somewhere they cannot see.
+    offscreen: box.width < 1 || box.height < 1,
+    hasIndicator: colours.length > 0 || uaRing,
+    uaRing,
+    // NOT IN THE TAB SEQUENCE. Radix gives its dropdown and dialog content a
+    // `tabindex="-1"` and focuses it on open, so the reader hears the container
+    // announced before landing on its first item. The walk sees that as a stop
+    // and asked why a `<div>` had no focus ring — but `tabindex="-1"` means
+    // Tab can never reach it, so 2.4.7 has nothing to say about it, and putting
+    // a ring on a menu's outer box to satisfy this check would be inventing
+    // visual noise to answer a question nobody asked.
+    programmatic: el.getAttribute("tabindex") === "-1",
+    // A modal is SUPPOSED to cycle. See the classifier for why this is here.
+    inModal: el.closest('[aria-modal="true"],[role="dialog"],[role="menu"]') !== null,
+    contrast,
+    // Only a claim when at least one point was inside the viewport. Zero
+    // sampled points means the browser had not finished scrolling the control
+    // into view, which is a timing artefact and not an obscured control.
+    obscured: sampledPoints > 0 && visiblePoints === 0,
+    revisited: already,
+    hidden: el.closest('[aria-hidden="true"]') !== null,
+    maxStops,
+  };
+};
+
 /* ------------------------------------------------------------------------- */
 
 if (!existsSync(STATE_DIR)) mkdirSync(STATE_DIR, { recursive: true });
 
 const browser = await chromium.launch();
+
+/**
+ * #238 — press Tab through a page and report what focus does.
+ *
+ * Bounded at MAX_TAB_STOPS: a long thread has hundreds of focusable rows and
+ * the criterion is about the CHROME — the controls a reader traverses to get
+ * anywhere. Forty stops covers every surface's navigation and then some, and an
+ * unbounded walk would turn a 40-second gate into a five-minute one.
+ */
+const MAX_TAB_STOPS = 40;
+
+/**
+ * Settle every transition before measuring, because otherwise this measures the
+ * UNFOCUSED colour and calls it the ring.
+ *
+ * Tailwind v4 added `outline-color` to what `transition-colors` animates, and
+ * the marketing buttons all carry `transition-colors duration-200`. Reading
+ * `getComputedStyle` on the tick after a Tab press therefore samples t≈0 of that
+ * 200ms ramp — the colour the control had while it was NOT focused. That is how
+ * the selected country pill measured 1.13:1 in one run and 2.4:1 in the next off
+ * the same markup: the number was a stopwatch reading, not a colour.
+ *
+ * Zeroing durations is the deterministic fix and costs nothing in fidelity: the
+ * criteria are about the state focus settles into, not the ramp toward it. The
+ * alternative — sleeping past the longest transition at every stop — would add
+ * minutes to the gate and still be a race.
+ */
+const SETTLE_TRANSITIONS = `
+*, *::before, *::after {
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+}
+`;
+
+async function focusFaults(page) {
+  const faults = [];
+  await page.addStyleTag({ content: SETTLE_TRANSITIONS });
+  // Start from a known place, so the walk is the same on every run.
+  await page.evaluate(() => document.body.focus());
+  for (let stop = 0; stop < MAX_TAB_STOPS; stop += 1) {
+    await page.keyboard.press("Tab");
+    let info;
+    try {
+      info = await page.evaluate(FOCUS_WALK, MAX_TAB_STOPS);
+    } catch {
+      break;
+    }
+    // Focus left the document for the browser chrome — the end of the page,
+    // and a normal way for the walk to finish.
+    if (info.kind === "left-page") break;
+
+    // The verdict lives in `focus-classify.mjs`, with no browser in it, so
+    // every branch below is reachable from a unit test rather than only from a
+    // page staged to be broken. See that file for why the order matters.
+    const verdict = classifyFocusStop(info, stop);
+    if (!verdict) continue;
+    const { stopWalk, ...fault } = verdict;
+    // A verdict can end the walk WITHOUT being a fault — a modal cycling back
+    // to its first control means there is nothing further to see, and is
+    // correct behaviour rather than something to report.
+    if (fault.kind) faults.push(fault);
+    if (stopWalk) break;
+  }
+  return faults;
+}
 
 async function login(context) {
   const page = await context.newPage();
@@ -598,6 +930,24 @@ for (const theme of ["light", "dark"]) {
       // theme-independent and measured in the phone pass below instead.
       const a11y = await page.evaluate(A11Y, false);
       for (const fault of a11y) problems.push({ theme, surface: surface.label, ...fault });
+      // #238: walk the tab sequence and measure the indicator that appears. Per
+      // theme, because a ring is a colour and a colour can be legal in one
+      // scheme and invisible in the other — which is the whole premise of this
+      // file.
+      //
+      // This ran behind a --focus flag for exactly one commit, on the stated
+      // belief that "the marketing site spells its focus colour a dozen
+      // different ways" and the gate would fail on unfinished work rather than
+      // on a regression. That belief was wrong, and the flag is gone with it:
+      // forty-five of the fifty focus sites already name the same ink token.
+      // What the walk actually found was two REAL failures — shadcn's stock
+      // `ring-ring/50` at 2.63:1 across every control in the app, and the
+      // marketing CTA ringed in its own lime fill at 1.78:1 — plus four bugs in
+      // its own first draft. It is on by default because it is now measuring
+      // what it claims to.
+      for (const fault of await focusFaults(page)) {
+        problems.push({ theme, surface: surface.label, ...fault });
+      }
     } catch (error) {
       problems.push({
         theme,
@@ -689,6 +1039,14 @@ for (const kind of [
   "NO-NAME",
   "SMALL-TAP",
   "NO-ALT",
+  // #238 — the focus walk. Listed here for the reason two comments above say
+  // out loud: a fault collected and never printed arrives as a nonzero exit
+  // nobody can explain, which is worse than not checking.
+  "NO-FOCUS-RING",
+  "DIM-FOCUS-RING",
+  "FOCUS-OBSCURED",
+  "FOCUS-INVISIBLE",
+  "FOCUS-LOOP",
 ]) {
   const group = problems.filter((p) => p.kind === kind);
   if (!group.length) continue;

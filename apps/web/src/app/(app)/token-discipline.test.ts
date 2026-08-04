@@ -57,6 +57,25 @@ function withoutShadows(line: string): string {
 }
 
 /**
+ * A comment line is prose, not a colour decision.
+ *
+ * Same narrowing as the shadow exemption above, for the same stated reason: a
+ * guard with false positives gets switched off. #238 hit this documenting why
+ * the destructive focus ring became opaque — the comment quoted the token's hex
+ * so the contrast figure beside it could be checked, and the guard read the
+ * explanation as the offence. That leaves an author choosing between saying
+ * what they did and passing the check, and the wrong one of those is easier.
+ *
+ * Line-based, matching the scan it serves: `//` and `/*` openers, and the `*`
+ * continuation of a block. It does NOT strip trailing comments, so a literal on
+ * a line of real code is still caught however it is annotated — the direction
+ * that matters, since a false pass here is a theming bug shipped.
+ */
+function isComment(line: string): boolean {
+  return /^\s*(\/\/|\/\*|\*)/.test(line);
+}
+
+/**
  * Files that may hold a literal, each with the reason it is not a theming bug.
  *
  * Every entry is a claim that the file draws somewhere the app's tokens do not
@@ -150,6 +169,7 @@ describe("#320 app components take their colours from tokens", () => {
       if (ALLOWED.has(rel)) continue;
       const text = readFileSync(file, "utf8");
       text.split(/\r?\n/).forEach((line, index) => {
+        if (isComment(line)) return;
         if (LITERAL.test(withoutShadows(line))) offenders.push(`${rel}:${index + 1}`);
       });
     }

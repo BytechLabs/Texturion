@@ -122,7 +122,7 @@ export function MobileAccountSheetBody({
   // 13.5px semibold ink, gap-3, px-4 py-3, hover fill — inside a grouped
   // hairline card, not floating menu items.
   const rowClass =
-    "flex w-full items-center gap-3 px-4 py-3 text-left text-[13.5px] font-semibold text-app-ink transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50";
+    "flex w-full items-center gap-3 px-4 py-3 text-left text-[13.5px] font-semibold text-app-ink transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
   // The For You section label recipe, verbatim.
   const labelClass =
     "flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2";
@@ -293,7 +293,7 @@ export function MobileAccountSheetBody({
                   aria-checked={selected}
                   onClick={() => setTheme(option.value)}
                   className={cn(
-                    "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] transition-[color,background] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                    "flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] transition-[color,background] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     selected
                       ? "bg-app-paper font-semibold text-app-ink"
                       : "font-medium text-app-muted hover:text-app-ink",

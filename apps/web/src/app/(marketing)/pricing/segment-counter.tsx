@@ -53,7 +53,7 @@ export function SegmentCounter() {
         value={text}
         onChange={(e) => setText(e.target.value)}
         spellCheck={false}
-        className="mt-3 w-full resize-y rounded-md border border-input bg-background px-3 py-2.5 text-[15px] leading-relaxed text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="mt-3 w-full resize-y rounded-md border border-input bg-background px-3 py-2.5 text-[15px] leading-relaxed text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       />
 
       <div
