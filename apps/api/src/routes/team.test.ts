@@ -213,6 +213,9 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       company_id: COMPANY_ID,
       email: "new@crew.example",
       role: "member",
+      // #521: explicit null, not absent. An invite with no note is the
+      // ordinary case and must write the same row shape as one with a note.
+      note: null,
       invited_by: auth.subject,
     });
     const email = sb.find("POST", "/auth/v1/invite")[0];
@@ -227,6 +230,70 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     expect(inviteCount.url.searchParams.get("accepted_at")).toBe("is.null");
     expect(inviteCount.url.searchParams.get("revoked_at")).toBe("is.null");
     expect(inviteCount.url.searchParams.get("expires_at")).toMatch(/^gt\./);
+  });
+
+  it("#521 carries the inviter's note onto the invite row", async () => {
+    const sb = stubWithRole("owner");
+    seatStub(sb, "pro", 2, 0);
+    sb.on("POST", "/rest/v1/invites", (call) => [
+      pendingInvite(call.body as Record<string, unknown>),
+    ]);
+    sb.on("POST", "/auth/v1/invite", () => authUser());
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: {
+        email: "dave@crew.example",
+        role: "member",
+        note: "Dave covers the north side while Priya is on leave.",
+      },
+    });
+    expect(res.status).toBe(201);
+    expect(
+      (sb.find("POST", "/rest/v1/invites")[0].body as Record<string, unknown>).note,
+    ).toBe("Dave covers the north side while Priya is on leave.");
+  });
+
+  it("#521 treats a blank note as no note at all", async () => {
+    // "Left blank" and "typed spaces" have to be the same thing downstream:
+    // the email decides whether to render a paragraph by asking whether there
+    // IS a note, and an empty string would answer yes and print an empty quote.
+    for (const note of ["", "   ", null]) {
+      const sb = stubWithRole("owner");
+      seatStub(sb, "pro", 2, 0);
+      sb.on("POST", "/rest/v1/invites", (call) => [
+        pendingInvite(call.body as Record<string, unknown>),
+      ]);
+      sb.on("POST", "/auth/v1/invite", () => authUser());
+      stubFetch(jwksRoute(auth), sb.route);
+      const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { email: "blank@crew.example", role: "member", note },
+      });
+      expect(res.status, JSON.stringify(note)).toBe(201);
+      expect(
+        (sb.find("POST", "/rest/v1/invites")[0].body as Record<string, unknown>).note,
+        JSON.stringify(note),
+      ).toBeNull();
+    }
+  });
+
+  it("#521 422s a note past the column's cap", async () => {
+    // The check constraint would refuse it anyway, but as a 500 nobody can act
+    // on. 422 names the field while the owner still has what they typed.
+    const sb = stubWithRole("owner");
+    seatStub(sb, "pro", 2, 0);
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { email: "long@crew.example", role: "member", note: "x".repeat(501) },
+    });
+    expect(res.status).toBe(422);
+    expect(sb.find("POST", "/rest/v1/invites")).toHaveLength(0);
   });
 
   /** Capture route for the direct Resend send (#109 existing-account branch). */

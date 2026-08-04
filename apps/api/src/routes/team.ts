@@ -54,7 +54,10 @@ import { seatLimit } from "./core/plans";
 
 const MEMBER_COLUMNS = "id,user_id,role,deactivated_at,created_at";
 const INVITE_COLUMNS =
-  "id,company_id,email,role,invited_by,expires_at,accepted_at,revoked_at,created_at";
+  "id,company_id,email,role,invited_by,expires_at,accepted_at,revoked_at,created_at," +
+  // #521: the inviter's own words. Read by the team list so an owner can see
+  // what they said, and by the accept path so it can reach the new member.
+  "note";
 
 /**
  * #315: the roles an owner or admin may hand out.
@@ -77,6 +80,25 @@ const ASSIGNABLE_ROLES = [
 const inviteSchema = z.object({
   email: z.email(),
   role: z.enum(ASSIGNABLE_ROLES),
+  /**
+   * #521: why this person is being added, in the inviter's own words.
+   *
+   * Trimmed to null rather than kept as an empty string, so "left blank" and
+   * "typed spaces" are the same thing to everything downstream - the email
+   * decides whether to render a paragraph by asking whether there is a note,
+   * and `''` would answer yes.
+   *
+   * 500 matches the column's check constraint. Enforced here too so an
+   * over-long note is a 422 naming the field rather than a constraint
+   * violation arriving as a 500.
+   */
+  note: z
+    .string()
+    .trim()
+    .max(500)
+    .nullable()
+    .optional()
+    .transform((value) => (value ? value : null)),
 });
 
 const acceptSchema = z.object({
@@ -601,6 +623,7 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
         company_id: companyId,
         email: body.email,
         role: body.role,
+        note: body.note ?? null,
         invited_by: c.get("userId"),
       })
       .select(INVITE_COLUMNS),
@@ -638,6 +661,8 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
       email: body.email,
       inviteId: invite.id as string,
       companyId,
+      note: body.note ?? null,
+      invitedBy: c.get("userId"),
     });
   }
 
@@ -671,7 +696,15 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
 async function sendExistingAccountInvite(
   db: Db,
   env: Env,
-  args: { email: string; inviteId: string; companyId: string },
+  args: {
+    email: string;
+    inviteId: string;
+    companyId: string;
+    /** #521: the inviter's own words, or null when they left it blank. */
+    note: string | null;
+    /** Whose words they are, looked up below so the note reads as a person. */
+    invitedBy: string;
+  },
 ): Promise<boolean> {
   try {
     const rows = unwrap<{ name: string | null }[]>(
@@ -684,8 +717,34 @@ async function sendExistingAccountInvite(
     );
     const company = rows[0]?.name?.trim() || "a Loonext workspace";
     const link = `${env.APP_ORIGIN}/invite/${args.inviteId}`;
+
+    // #521: the inviter's own words, ABOVE the link and attributed. Below it
+    // the reader has already decided whether to click, and an unattributed
+    // sentence in an invite email reads as more product copy — the whole point
+    // is that a person wrote this one. The name is looked up only when there is
+    // a note to sign, so an ordinary blank invite costs no extra read.
+    let note = "";
+    let noteHtml = "";
+    if (args.note) {
+      const inviter = unwrap<{ display_name: string | null }[]>(
+        await db
+          .from("profiles")
+          .select("display_name")
+          .eq("user_id", args.invitedBy)
+          .limit(1),
+        "inviter name lookup",
+      );
+      const from = inviter[0]?.display_name?.trim();
+      const said = from ? `${from} says` : "They said";
+      note = `${said}: "${args.note}"\n\n`;
+      noteHtml =
+        `<p style="border-left:3px solid #66801F;padding-left:12px;margin:16px 0;">` +
+        `${escapeHtml(said)}: ${escapeHtml(args.note)}</p>`;
+    }
+
     const text =
       `You've been invited to join ${company} on Loonext.\n\n` +
+      note +
       `You already have a Loonext account — log in and accept here:\n` +
       `${link}\n\n` +
       `This invite expires in 7 days.\n`;
@@ -695,6 +754,7 @@ async function sendExistingAccountInvite(
       text,
       html: emailLayout(
         `<p>You've been invited to join <strong>${escapeHtml(company)}</strong> on Loonext.</p>` +
+          noteHtml +
           `<p>You already have a Loonext account — log in and accept here:</p>` +
           `<p><a href="${link}" style="color:#66801F;text-decoration:underline;">Accept the invite</a></p>` +
           `<p style="font-size:14px;color:#6E7163;">This invite expires in 7 days.</p>`,
