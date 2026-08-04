@@ -73,7 +73,13 @@ function awayCompanyStub(overrides: {
 
 /** The conversation lookup the away branch does (from number + contact). */
 function convStub(
-  numberOverrides?: { label?: string | null; away_message?: string | null },
+  numberOverrides?: {
+    label?: string | null;
+    away_message?: string | null;
+    away_enabled?: boolean | null;
+    timezone?: string | null;
+    business_hours?: unknown;
+  },
 ): Stub {
   return stubRoute(
     restMatch(
@@ -88,9 +94,14 @@ function convStub(
         phone_numbers: {
           number_e164: NUMBER,
           status: "active",
-          // #307: null on both is every number until somebody overrides one.
+          // #307: null on every one is every number until somebody
+          // overrides one, and null must resolve to the company's value.
           label: null,
           away_message: null,
+          away_enabled: null,
+          timezone: null,
+          business_hours: null,
+          business_hours_exceptions: null,
           ...(numberOverrides ?? {}),
         },
         contacts: { name: "Dana Whitfield", phone_e164: CONTACT },
@@ -217,20 +228,64 @@ describe("maybeSendAwayReply — fires after hours", () => {
 });
 
 describe("maybeSendAwayReply — skips", () => {
-  it("does nothing when away is disabled (no further lookups)", async () => {
+  it("does nothing when away is disabled", async () => {
+    // #307 changed WHERE this is decided: the toggle is now resolved per
+    // number, so the conversation is read alongside the company rather than
+    // after it. The company read can no longer short-circuit on its own, and
+    // this test no longer asserts that it does — the two reads are issued
+    // together, which is one round trip where the old order paid two.
     const company = awayCompanyStub({ away_enabled: false });
+    const conv = convStub();
     const claim = stubRoute(rpcMatch(env, "claim_auto_reply"), () => ({}));
-    serve(company, claim);
+    serve(company, conv, claim);
     await call();
     expect(claim.calls).toHaveLength(0);
   });
 
   it("does nothing during business hours (company-local clock)", async () => {
     const company = awayCompanyStub();
+    const conv = convStub();
     const claim = stubRoute(rpcMatch(env, "claim_auto_reply"), () => ({}));
-    serve(company, claim);
+    serve(company, conv, claim);
     await call("no hot water", OPEN_HOURS);
     expect(claim.calls).toHaveLength(0);
+  });
+
+  it("AW-N1: a line that switched away OFF stays silent while the workspace is on", async () => {
+    // The service line runs an after-hours reply and the sales line does not.
+    // Before #307 the toggle was company-wide, so the sales line answered at
+    // 9pm with the service line's text and there was no setting that stopped
+    // it. This is the case the per-number toggle exists for.
+    const company = awayCompanyStub({ away_enabled: true });
+    const conv = convStub({ away_enabled: false });
+    const claim = stubRoute(rpcMatch(env, "claim_auto_reply"), () => ({}));
+    serve(company, conv, claim);
+    await call();
+    expect(claim.calls).toHaveLength(0);
+  });
+
+  it("AW-N2: a line keeps its OWN hours, not the workspace's", async () => {
+    // OPEN_HOURS is inside the company's schedule, so the company clock says
+    // "open" and no reply is due. The line is configured closed all week, so
+    // its own clock says after-hours and the reply IS due. Resolving the
+    // message but not the clock would have sent the sales line's text on the
+    // service line's schedule — worse than not supporting it, because it looks
+    // configured.
+    const company = awayCompanyStub();
+    const conv = convStub({ business_hours: {} });
+    const gates = sendGateStubs();
+    const telnyx = telnyxStub();
+    const claim = stubRoute(rpcMatch(env, "claim_auto_reply"), () => ({
+      message: messageRow({ status: "queued" }),
+    }));
+    const persist = stubRoute(
+      (url, request) =>
+        request.method === "PATCH" && url.pathname === "/rest/v1/messages",
+      () => [messageRow({ telnyx_message_id: "telnyx-away-n2" })],
+    );
+    serve(company, conv, ...gates, claim, telnyx, persist);
+    await call("no hot water", OPEN_HOURS);
+    expect(claim.calls).toHaveLength(1);
   });
 
   it("does not fire on a STOP keyword even after-hours (guard blocks)", async () => {

@@ -97,7 +97,25 @@ function serve(...routes: (Stub | { route: FetchRoute })[]) {
   // block lookup is needed — these fixtures are ordinary customer texts, which
   // score no content signals and so never reach the relationship queries.
   const blockedSenders = stubRoute(restMatch(env, "GET", "blocked_senders"), () => []);
-  stubFetch(...[...routes, blockedSenders].map((stub) => stub.route));
+  // #307: the away-reply resolves the LINE's toggle, zone and hours, so it
+  // reads the conversation alongside the company rather than after it — on
+  // every inbound, not only after-hours ones. These fixtures are about
+  // threading and opt-out, not away; an empty row set ends the away path
+  // exactly where the old company-first short-circuit used to end it. LAST, so
+  // a test that stubs conversations itself still wins.
+  const awayConversation = stubRoute(
+    restMatch(
+      env,
+      "GET",
+      "conversations",
+      (url) =>
+        url.searchParams.get("select")?.includes("phone_numbers(number_e164") ?? false,
+    ),
+    () => [],
+  );
+  stubFetch(
+    ...[...routes, blockedSenders, awayConversation].map((stub) => stub.route),
+  );
 }
 
 async function deliver(event: unknown, options?: { timestamp?: number; tamper?: boolean }) {

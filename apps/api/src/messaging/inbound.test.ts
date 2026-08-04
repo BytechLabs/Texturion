@@ -41,6 +41,18 @@ afterEach(() => {
 });
 
 /**
+ * #307: the away-reply reads the conversation with the LINE's own toggle, zone
+ * and hours embedded. A test that stubs `conversations` for the §8 notify read
+ * would otherwise swallow that request too and answer it with a row shaped for
+ * a different query. This predicate keeps the two apart.
+ */
+function notAwaySelect(url: URL): boolean {
+  return !(
+    url.searchParams.get("select")?.includes("phone_numbers(number_e164") ?? false
+  );
+}
+
+/**
  * #250: the classifier's reads, appended AFTER every test's own stubs so a
  * test that cares can still override them.
  *
@@ -56,6 +68,23 @@ function spamDefaults(): Stub[] {
     // customer text scores no content signals, so the classifier never
     // reaches its relationship queries.
     stubRoute(restMatch(env, "GET", "blocked_senders"), () => []),
+    // #307: the away-reply now resolves the LINE's toggle, zone and hours, so
+    // it reads the conversation alongside the company instead of after it —
+    // on every inbound, not only after-hours ones. These tests are about media,
+    // notifications and refusals, not away; an empty row set ends the away path
+    // exactly where the old company-first short-circuit used to end it. LAST in
+    // the list, so a test that stubs conversations itself still wins.
+    stubRoute(
+      restMatch(
+        env,
+        "GET",
+        "conversations",
+        (url) =>
+          url.searchParams.get("select")?.includes("phone_numbers(number_e164") ??
+          false,
+      ),
+      () => [],
+    ),
   ];
 }
 
@@ -371,7 +400,7 @@ describe("handleInboundMessage — notify runs before media download", () => {
       () => new Response("upstream boom", { status: 500 }),
     );
     const conversations = stubRoute(
-      restMatch(env, "GET", "conversations"),
+      restMatch(env, "GET", "conversations", notAwaySelect),
       () => [
         {
           id: CONVERSATION_ID,
@@ -420,7 +449,7 @@ describe("handleInboundMessage — notify runs before media download", () => {
 describe("handleInboundMessage — #39 notification budget", () => {
   it("sends the 100% owner alert and skips the member fan-out on a capped claim", async () => {
     const resend = resendStub();
-    const conversations = stubRoute(restMatch(env, "GET", "conversations"));
+    const conversations = stubRoute(restMatch(env, "GET", "conversations", notAwaySelect));
     serve(
       numberStub(),
       // The RPC dropped the claim (past the ceiling) and reported the
@@ -459,7 +488,7 @@ describe("handleInboundMessage — #39 notification budget", () => {
     // §8 pipeline reads; prefs disable both channels so the fan-out is a
     // no-op and the ONE Resend call below is provably the #39 warning.
     const conversations = stubRoute(
-      restMatch(env, "GET", "conversations"),
+      restMatch(env, "GET", "conversations", notAwaySelect),
       () => [
         {
           id: CONVERSATION_ID,

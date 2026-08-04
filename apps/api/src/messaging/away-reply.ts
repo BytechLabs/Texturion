@@ -3,9 +3,11 @@
  * pipeline after threading, only on the FIRST delivery of a new inbound message
  * (threaded.created). It sends ONE owner-authored away message when:
  *   - away_enabled is on AND a non-empty away_message is authored, AND
- *   - the inbound arrived OUTSIDE the company's business hours (company-local
- *     via companies.timezone — a DIFFERENT clock than per-contact quiet hours,
- *     FEATURE-GAPS §2), AND
+ *   - the inbound arrived OUTSIDE THE RECEIVING LINE's business hours, in that
+ *     line's own timezone — a DIFFERENT clock than per-contact quiet hours
+ *     (FEATURE-GAPS §2). #307: the toggle, the zone and the hours all resolve
+ *     per number, falling back to the company's, so a service line and a sales
+ *     line in one workspace can keep different schedules, AND
  *   - the shared auto-send guard passes (not opted out, not a STOP/HELP keyword,
  *     not throttled — the guard's per-conversation throttle is what enforces
  *     "one away reply per burst / per conversation window").
@@ -66,68 +68,45 @@ export async function maybeSendAwayReply(
     atUtc: Date;
   },
 ): Promise<void> {
-  // Company away settings — one small read. away_enabled short-circuits before
-  // any other work so companies without the feature pay nothing.
-  const { data: companyRows, error: companyError } = await db
-    .from("companies")
-    .select(
-      // One literal, deliberately: splitting it with `+` defeats the client's
-      // literal-type inference and the row stops being assignable.
-      "timezone,business_hours,business_hours_exceptions,away_enabled,away_message,name",
-    )
-    .eq("id", args.companyId)
-    .limit(1);
-  if (companyError) {
-    throw new Error(`away settings lookup failed: ${companyError.message}`);
+  // #307: the company read no longer decides anything ALONE, so it can no
+  // longer short-circuit ahead of the number. Both reads are independent, so
+  // they go together — one round trip where the old order paid two, which is
+  // what buys back the read a company with away switched off used to skip.
+  const [company, conversation] = await Promise.all([
+    db
+      .from("companies")
+      .select(
+        // One literal, deliberately: splitting it with `+` defeats the client's
+        // literal-type inference and the row stops being assignable.
+        "timezone,business_hours,business_hours_exceptions,away_enabled,away_message,name",
+      )
+      .eq("id", args.companyId)
+      .limit(1),
+    db
+      .from("conversations")
+      .select(
+        // #291: `contact_phone_e164` is the number this THREAD is with. The
+        // contact is still read for the name that goes in the merge.
+        // #307: the LINE's own hours, zone, toggle and message ride the embed
+        // we already make, so per-number away costs no extra read.
+        "id,contact_phone_e164," +
+          "phone_numbers(number_e164,status,label,away_message,away_enabled," +
+          "timezone,business_hours,business_hours_exceptions)," +
+          "contacts(name)",
+      )
+      .eq("company_id", args.companyId)
+      .eq("id", args.conversationId)
+      .limit(1),
+  ]);
+  if (company.error) {
+    throw new Error(`away settings lookup failed: ${company.error.message}`);
   }
-  const settings = (companyRows ?? [])[0] as AwaySettings | undefined;
-  if (!settings || !settings.away_enabled) return;
-
-  // #414 ask 5: blank no longer means silence. The toggle decides WHETHER an
-  // away reply happens; the message always exists, resolving to the product
-  // default — the same contract MCTB has had since #192. Before this, an owner
-  // who switched away replies on without writing anything got a Preview of the
-  // default on all three clients and a customer who got nothing.
-  const { message } = effectiveAwayMessage(settings.away_message);
-
-  // The away CLOCK: outside business hours in the COMPANY timezone (not the
-  // contact's — FEATURE-GAPS §2). An unresolvable zone returns "open" so we
-  // never auto-send when we cannot place the instant.
-  // #402: a date exception replaces the weekday entirely, so a shop closed for
-  // Christmas is after-hours on a Thursday the weekly loop calls a working day.
-  // This is the case the away-reply matters MOST for — on an ordinary evening
-  // the customer knows why nobody replied; on a holiday, silence is ambiguous
-  // and they resolve it by calling somebody else.
-  if (
-    !isAfterHours(
-      settings.timezone,
-      settings.business_hours ?? {},
-      args.atUtc,
-      settings.business_hours_exceptions,
-    )
-  ) {
-    return;
+  if (conversation.error) {
+    throw new Error(`away conversation lookup failed: ${conversation.error.message}`);
   }
-
-  // Resolve the sending number + destination + contact name for the merge.
-  const { data: convRows, error: convError } = await db
-    .from("conversations")
-    .select(
-      // #291: `contact_phone_e164` is the number this THREAD is with. The
-      // contact is still read for the name that goes in the merge.
-      // #307: the LINE's own identity rides the embed we already make, so a
-      // per-number away message costs no extra read.
-      "id,contact_phone_e164," +
-        "phone_numbers(number_e164,status,label,away_message)," +
-        "contacts(name)",
-    )
-    .eq("company_id", args.companyId)
-    .eq("id", args.conversationId)
-    .limit(1);
-  if (convError) {
-    throw new Error(`away conversation lookup failed: ${convError.message}`);
-  }
-  const conv = (convRows ?? [])[0] as unknown as
+  const settings = (company.data ?? [])[0] as AwaySettings | undefined;
+  if (!settings) return;
+  const conv = (conversation.data ?? [])[0] as unknown as
     | {
         contact_phone_e164: string | null;
         phone_numbers: {
@@ -135,6 +114,10 @@ export async function maybeSendAwayReply(
           status: string;
           label: string | null;
           away_message: string | null;
+          away_enabled: boolean | null;
+          timezone: string | null;
+          business_hours: BusinessHours | null;
+          business_hours_exceptions: HoursException[] | null;
         } | null;
         contacts: { name: string | null } | null;
       }
@@ -149,40 +132,73 @@ export async function maybeSendAwayReply(
     contactName: conv.contacts?.name ?? null,
   };
 
-  // §7 send gates (subscription active, US/CA destination registration-clear).
-  // These are per-destination and would 403/402 a not-ready send; a throw here
-  // is caught by the caller and the inbound ingest is unaffected.
-  const clearance = await runPreSendGates(env, args.companyId, slice.to);
-
   /**
-   * #307 — the LINE's away reply and the LINE's name.
+   * #307 — the LINE's identity, with the company's as the default.
    *
-   * Resolved from the embed above, so this costs no extra read. A number with
-   * no overrides resolves to exactly the company values used before, which is
-   * every number until somebody sets one.
+   * A number with no overrides resolves to exactly the company values used
+   * before, which is every number until somebody sets one.
    *
-   * NOT away_enabled, deliberately. That is checked far above, before the
-   * conversation is read, so a company with away off pays for nothing —
-   * honouring a per-number toggle would mean reading the conversation on every
-   * inbound message for every workspace, including the majority who have this
-   * feature off entirely. The column exists and this consumer does not yet use
-   * it; a line cannot currently turn away replies on or off by itself.
+   * The toggle, the zone and the hours are all resolved HERE rather than read
+   * off the company, because the whole point of the issue is that a service
+   * line and a sales line keep different hours. Resolving the message but not
+   * the clock would send the sales line's after-hours text on the service
+   * line's schedule — worse than not supporting it at all, because it looks
+   * configured.
    */
   const identity = resolveNumberIdentity(
     {
       name: settings.name,
       timezone: settings.timezone,
       voicemailGreeting: null,
-      awayMessage: message,
+      awayMessage: settings.away_message,
       awayEnabled: settings.away_enabled,
-      businessHours: null,
-      businessHoursExceptions: null,
+      businessHours: settings.business_hours,
+      businessHoursExceptions: settings.business_hours_exceptions,
     },
     {
       label: conv.phone_numbers?.label ?? null,
       awayMessage: conv.phone_numbers?.away_message ?? null,
+      awayEnabled: conv.phone_numbers?.away_enabled ?? null,
+      timezone: conv.phone_numbers?.timezone ?? null,
+      businessHours: conv.phone_numbers?.business_hours ?? null,
+      businessHoursExceptions:
+        conv.phone_numbers?.business_hours_exceptions ?? null,
     },
   );
+
+  // The toggle decides WHETHER an away reply happens at all — for this line.
+  if (!identity.awayEnabled.value) return;
+
+  // #414 ask 5: blank no longer means silence. The message always exists,
+  // resolving to the product default — the same contract MCTB has had since
+  // #192. Before this, an owner who switched away replies on without writing
+  // anything got a Preview of the default on all three clients and a customer
+  // who got nothing.
+  const { message } = effectiveAwayMessage(identity.awayMessage.value);
+
+  // The away CLOCK: outside THIS LINE's business hours in THIS LINE's timezone
+  // (not the contact's — FEATURE-GAPS §2). An unresolvable zone returns "open"
+  // so we never auto-send when we cannot place the instant.
+  // #402: a date exception replaces the weekday entirely, so a shop closed for
+  // Christmas is after-hours on a Thursday the weekly loop calls a working day.
+  // This is the case the away-reply matters MOST for — on an ordinary evening
+  // the customer knows why nobody replied; on a holiday, silence is ambiguous
+  // and they resolve it by calling somebody else.
+  if (
+    !isAfterHours(
+      identity.timezone.value,
+      (identity.businessHours.value as BusinessHours | null) ?? {},
+      args.atUtc,
+      identity.businessHoursExceptions.value as HoursException[] | null,
+    )
+  ) {
+    return;
+  }
+
+  // §7 send gates (subscription active, US/CA destination registration-clear).
+  // These are per-destination and would 403/402 a not-ready send; a throw here
+  // is caught by the caller and the inbound ingest is unaffected.
+  const clearance = await runPreSendGates(env, args.companyId, slice.to);
 
   // Merge fields into the owner-authored away message at send time.
   const body = applySendMergeFields(identity.awayMessage.value ?? message, {
