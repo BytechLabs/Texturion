@@ -20,6 +20,7 @@
 import {
   isValidBusinessHours,
   isValidHoursExceptions,
+  LOCALES,
   NANP_AREA_CODES,
   screenBusinessName,
   RING_SECONDS_MAX,
@@ -193,6 +194,11 @@ const patchSchema = z
     // and is deliberately NOT stored here, so an owner cannot remove it by
     // editing this field (#414 ask 4).
     emergency_message: z.string().trim().max(1000).nullable().optional(),
+    // #228: the language this business works in. NOT nullable - a business
+    // always works in one, and a null here would mean "ask again later", which
+    // nothing would. Every contact without a language of its own inherits it,
+    // so changing this moves the whole customer list.
+    locale: z.enum(LOCALES).optional(),
     // #388: the unanswered-lead ladder. Two switches rather than one because
     // they carry different risks — the first reaches only people who were
     // already told once, the second reaches people who were not.
@@ -308,6 +314,7 @@ const patchSchema = z
       body.emergency_keyword_enabled !== undefined ||
       "emergency_keywords" in body ||
       "emergency_message" in body ||
+      body.locale !== undefined ||
       body.lead_chase_enabled !== undefined ||
       body.lead_chase_crew_enabled !== undefined ||
       body.push_include_content !== undefined ||
@@ -839,6 +846,12 @@ companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c
     const words = body.emergency_keywords;
     patch.emergency_keywords =
       words && words.length > 0 ? [...new Set(words)] : null;
+  }
+  if (body.locale !== undefined) {
+    // #228. Only the PRODUCT DEFAULTS follow this: an owner who wrote their own
+    // away message or text-back keeps the sentence they wrote, in whatever
+    // language they wrote it.
+    patch.locale = body.locale;
   }
   if ("emergency_message" in body) {
     // Empty string clears to null, so the product default comes back rather

@@ -486,6 +486,56 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
     expect(body.opt_out_source).toBe("stop_keyword");
   });
 
+  it("#228 sets a per-contact language, and null hands them back to the company", async () => {
+    // The null is the whole design. It means "follow the company", not
+    // English, so an owner who switches the workspace to French moves every
+    // customer who never chose - and "actually, treat them like everyone else"
+    // has to stay sayable after an override is set.
+    for (const [locale, expected] of [
+      ["fr-CA", "fr-CA"],
+      [null, null],
+    ] as const) {
+      const sb = stubWithRole("member");
+      sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+      sb.on("PATCH", "/rest/v1/contacts", (call) => [
+        { ...contactRow(), ...(call.body as Record<string, unknown>) },
+      ]);
+      sb.on("GET", "/rest/v1/opt_outs", () => []);
+      sb.on("GET", "/rest/v1/conversations", () => []);
+      stubFetch(jwksRoute(auth), sb.route);
+
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        `/v1/contacts/${CONTACT_ID}`,
+        { method: "PATCH", companyId: COMPANY_ID, body: { locale } },
+      );
+      expect(res.status, String(locale)).toBe(200);
+      expect(
+        (sb.find("PATCH", "/rest/v1/contacts")[0].body as Record<string, unknown>)
+          .locale,
+        String(locale),
+      ).toBe(expected);
+    }
+  });
+
+  it("#228 422s a language nothing is written in", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    stubFetch(jwksRoute(auth), sb.route);
+    for (const locale of ["fr", "FR-CA", "de"]) {
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        `/v1/contacts/${CONTACT_ID}`,
+        { method: "PATCH", companyId: COMPANY_ID, body: { locale } },
+      );
+      expect(res.status, locale).toBe(422);
+    }
+  });
+
   it("PATCH consent_attested stamps consent fields and writes a consent_attested event", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);

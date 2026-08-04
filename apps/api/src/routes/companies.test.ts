@@ -1005,6 +1005,54 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
   });
 });
 
+describe("PATCH /v1/company — the language automated texts go out in (#228)", () => {
+  it("saves a supported locale", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("PATCH", "/rest/v1/companies", () => [{ id: COMPANY_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { locale: "fr-CA" },
+    });
+    expect(res.status).toBe(200);
+    expect(sb.find("PATCH", "/rest/v1/companies")[0].body).toEqual({
+      locale: "fr-CA",
+    });
+  });
+
+  it("422s a locale nothing is written in", async () => {
+    // The check constraint would refuse it anyway, but a 422 names the field
+    // while a constraint violation arrives as a 500 nobody can act on. And a
+    // locale that reached the send path unrecognised would silently fall back
+    // to English, which looks like the feature not working.
+    const sb = stubWithRole("admin");
+    stubFetch(jwksRoute(auth), sb.route);
+    for (const locale of ["fr", "FR-CA", "fr_CA", "de", ""]) {
+      const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+        method: "PATCH",
+        companyId: COMPANY_ID,
+        body: { locale },
+      });
+      expect(res.status, locale).toBe(422);
+    }
+  });
+
+  it("refuses to null it: a business always works in some language", async () => {
+    // Unlike the per-contact override, where null means "follow the company",
+    // there is nothing above a company to follow.
+    const sb = stubWithRole("admin");
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/company", {
+      method: "PATCH",
+      companyId: COMPANY_ID,
+      body: { locale: null },
+    });
+    expect(res.status).toBe(422);
+  });
+});
+
 describe("PATCH /v1/company — send-features settings (FEATURE-GAPS Steps 1 & 2)", () => {
   it("admin saves business_hours, away_enabled and away_message (Step 1)", async () => {
     const sb = stubWithRole("admin");

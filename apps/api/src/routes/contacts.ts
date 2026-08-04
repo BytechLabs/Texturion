@@ -66,6 +66,7 @@ import {
   type ContactFieldKind,
   contactFieldValueError,
   detectContactColumns,
+  LOCALES,
 } from "@loonext/shared";
 
 import { capture } from "../analytics/posthog";
@@ -151,6 +152,11 @@ const patchSchema = z
     // cannot empty is a field they stop trusting.
     email: emailField.nullable().optional(),
     business_name: z.string().trim().min(1).max(200).nullable().optional(),
+    // #228: the language THIS customer reads. NULLABLE, and the null is the
+    // point: it means "follow the company", not English. Without it an override
+    // would be permanent once set, and "actually, treat them like everyone
+    // else" would be unsayable.
+    locale: z.enum(LOCALES).nullable().optional(),
     // #292/D49: the correction to the area-code inference. NULL clears it and
     // goes back to inferring — which is a real thing to want, so it is
     // nullable rather than write-once.
@@ -185,6 +191,7 @@ const patchSchema = z
       // it, and the request is refused before either runs.
       "email" in body ||
       "business_name" in body ||
+      "locale" in body ||
       "custom_fields" in body ||
       body.consent_attested === true,
     { message: "Provide at least one field to update." },
@@ -1174,6 +1181,10 @@ contactsRoutes.patch("/contacts/:id", requireCapability("conversations.note"), a
   if ("business_name" in body) {
     patch.business_name = body.business_name ?? null;
   }
+  // #228: `in` rather than `!== undefined`, for the reason above. An explicit
+  // null hands this contact back to the company default, which is a different
+  // instruction from "leave the override alone" and has to stay sayable.
+  if ("locale" in body) patch.locale = body.locale ?? null;
   if ("custom_fields" in body) {
     patch.custom_fields = await validateCustomFields(
       db,

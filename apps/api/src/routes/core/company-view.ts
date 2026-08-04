@@ -4,10 +4,12 @@
  * registration snapshot (brand and campaign rows).
  */
 import {
+  copyFor,
   effectiveAwayMessage,
   effectiveEmergencyKeywords,
   effectiveEmergencyMessage,
   effectiveMctbMessage,
+  resolveLocale,
   emergencyReplyBody,
   identificationSuffix,
   roleHasCapability,
@@ -44,6 +46,10 @@ export const COMPANY_COLUMNS =
   // and leaves the other making an offer nobody answers.
   "business_hours,business_hours_exceptions,away_enabled,away_message," +
   "emergency_keyword_enabled,emergency_keywords,emergency_message," +
+  // #388: the unanswered-lead ladder switches.
+  // #228: the language automated texts go out in, and the default every
+  // contact without one of its own inherits.
+  "locale," +
   // #388: the unanswered-lead ladder switches.
   "lead_chase_enabled,lead_chase_crew_enabled," +
   // #430: whether a push may carry words a person typed. Workspace-wide on
@@ -153,6 +159,20 @@ export function billingWritesEnabled(env: Env): boolean {
 }
 
 /**
+ * #228: the language a company's PRODUCT DEFAULTS are previewed in.
+ *
+ * The previews below exist so three settings screens show what will actually be
+ * sent (#414 ask 5, #192). A French workspace shown the English default is that
+ * same defect in a second dimension, so every preview resolves the language the
+ * send path will resolve.
+ */
+function companyCopy(company: Record<string, unknown>) {
+  return copyFor(
+    resolveLocale(null, typeof company.locale === "string" ? company.locale : null),
+  );
+}
+
+/**
  * #192: stamp the derived text-back fields on a raw companies row — the
  * EFFECTIVE template (owner's non-blank text, else the product default) and
  * whether it is custom. Applied to every surface that returns company
@@ -164,6 +184,7 @@ export function withMctbDerived<T extends Record<string, unknown>>(
 ): T & { mctb_effective_message: string; mctb_message_is_custom: boolean } {
   const effective = effectiveMctbMessage(
     typeof company.mctb_message === "string" ? company.mctb_message : null,
+    companyCopy(company).missedCallTextBack,
   );
   return {
     ...company,
@@ -208,6 +229,7 @@ export function withAwayDerived<T extends Record<string, unknown>>(
 ): T & { away_effective_message: string; away_message_is_custom: boolean } {
   const effective = effectiveAwayMessage(
     typeof company.away_message === "string" ? company.away_message : null,
+    companyCopy(company).awayReply,
   );
   return {
     ...company,
@@ -243,14 +265,22 @@ export function withEmergencyDerived<T extends Record<string, unknown>>(
     typeof company.emergency_message === "string"
       ? company.emergency_message
       : null;
-  const effective = effectiveEmergencyMessage(owner);
+  // #228: the preview has to be in the language the send will use. The whole
+  // reason this is composed server-side is that three settings screens must
+  // show what will ACTUALLY be sent; a French workspace shown the English
+  // default would be the same defect in a second dimension.
+  const copy = companyCopy(company);
+  const effective = effectiveEmergencyMessage(owner, copy.emergencyAck);
   const stored = Array.isArray(company.emergency_keywords)
     ? (company.emergency_keywords as string[])
     : null;
   return {
     ...company,
     // What lands on the customer's phone, safety line included.
-    emergency_effective_message: emergencyReplyBody(owner),
+    emergency_effective_message: emergencyReplyBody(owner, {
+      fallback: copy.emergencyAck,
+      safetyLine: copy.emergencySafetyLine,
+    }),
     emergency_effective_keywords: [...effectiveEmergencyKeywords(stored)],
     emergency_message_is_custom: effective.custom,
     emergency_keywords_are_custom: (stored ?? []).length > 0,
