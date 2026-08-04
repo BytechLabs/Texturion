@@ -27,6 +27,7 @@
  *          the same formula; creates the membership AND a notification_prefs
  *          row (defaults true/true).
  */
+import { shouldShowOrientation, type MemberRole } from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -1026,11 +1027,93 @@ teamRoutes.post("/invites/accept", async (c) => {
   // cannot produce two emails.
   await promptForBackupOwner(env, db, invite.company_id);
 
+  // #521: the note, to the people the joining orientation will never show it
+  // to. See the function for why this is narrow rather than "email everybody".
+  await emailNoteIfOrientationWillNotShowIt(env, db, {
+    companyId: invite.company_id,
+    role: invite.role,
+    note: invite.note,
+    to: user.email,
+  });
+
   return c.json(
     { ...memberRows[0], company_id: invite.company_id },
     201,
   );
 });
+
+/**
+ * #521 — deliver the inviter's note to somebody the orientation will not show
+ * it to.
+ *
+ * The note reaches a new member on the joining orientation's first screen. That
+ * orientation is deliberately NOT shown to anybody holding `settings.manage`:
+ * `shouldShowOrientation` in `packages/shared` argues that its four screens are
+ * about answering customers, and that somebody who runs the workspace was not
+ * "told to use it" the way a tech was. That reasoning is sound and this does
+ * not weaken it.
+ *
+ * But the invite form offers Admin, and an owner adding an admin has exactly as
+ * much reason to say "you are covering the north side while Priya is away".
+ * Without this, the note on an Admin invite was written to the membership row
+ * and read by nobody: not in the app, because the orientation never opens, and
+ * not in the invite mail either, because a brand-new address is emailed by
+ * Supabase Auth from a template this repo does not control.
+ *
+ * So the fix is neither to widen the orientation nor to take the field away
+ * from the owner. It is to use the one surface we fully control for exactly the
+ * people the in-app path misses.
+ *
+ * NARROW ON PURPOSE. It sends only when there IS a note and only when the role
+ * would not have been shown one, so nobody who is about to read it on screen
+ * one gets a duplicate in their inbox.
+ *
+ * Best-effort and never throws, like the backup-owner prompt beside it: a
+ * Resend outage must not turn a successful join into a failed one.
+ */
+async function emailNoteIfOrientationWillNotShowIt(
+  env: Env,
+  db: Db,
+  args: {
+    companyId: string;
+    role: string;
+    note: string | null;
+    to: string | undefined;
+  },
+): Promise<void> {
+  if (!args.note || !args.to) return;
+  // `false` here means the orientation WOULD show it, so we must not.
+  // `oriented: false` is the joiner's state at this exact moment.
+  if (shouldShowOrientation(args.role as MemberRole, false)) return;
+
+  try {
+    const rows = unwrap<{ name: string | null }[]>(
+      await db.from("companies").select("name").eq("id", args.companyId).limit(1),
+      "company name lookup",
+    );
+    const company = rows[0]?.name?.trim() || "your new workspace";
+    await sendEmail(env, {
+      to: [args.to],
+      subject: `You've joined ${company}`,
+      text:
+        `You've joined ${company} on Loonext.
+
+` +
+        `They said: "${args.note}"
+`,
+      html: emailLayout(
+        `<p>You've joined <strong>${escapeHtml(company)}</strong> on Loonext.</p>` +
+          `<p style="border-left:3px solid #66801F;padding-left:12px;margin:16px 0;">` +
+          `They said: ${escapeHtml(args.note)}</p>`,
+      ),
+    });
+  } catch (cause) {
+    // Never-silent (D3), non-fatal: the membership stands either way.
+    console.error(
+      `joining-note email failed (${args.companyId}): ${String(cause)}`,
+    );
+  }
+}
 
 /**
  * Best-effort and never throws: somebody has just joined a workspace, and a

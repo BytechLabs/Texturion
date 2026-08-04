@@ -569,6 +569,85 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
     ).toBe("string");
   });
 
+  it("#521 emails the note to a role the orientation will never show it to", async () => {
+    // An admin holds settings.manage, so `shouldShowOrientation` refuses them
+    // deliberately: the four screens are about answering customers. Without
+    // this the note on an Admin invite was written to the membership row and
+    // read by nobody - not in the app, and not in the invite mail either,
+    // because a brand-new address is emailed by Supabase Auth from a template
+    // this repo does not control.
+    const resend: Record<string, unknown>[] = [];
+    const resendRoute: FetchRoute = async (url, request) => {
+      if (url.href !== "https://api.resend.com/emails") return undefined;
+      resend.push((await request.clone().json()) as Record<string, unknown>);
+      return Response.json({ id: "email_1" });
+    };
+    const sb = acceptStub(
+      pendingInvite({ role: "admin", note: "You are covering the north side." }),
+      authUser(),
+      { plan: "pro", active: 2, pending: 1 },
+    );
+    sb.on("POST", "/rest/v1/company_members", (call) => [
+      { ...(call.body as Record<string, unknown>), id: "m-1" },
+    ]);
+    sb.on("POST", "/rest/v1/notification_prefs", () => new Response(null, { status: 201 }));
+    sb.on("PATCH", "/rest/v1/invites", () => new Response(null, { status: 204 }));
+    sb.on("POST", "/rest/v1/rpc/api_claim_backup_owner_prompt", () => []);
+    sb.on("GET", "/rest/v1/companies", () => [{ plan: "pro", name: "Ace Plumbing" }]);
+    stubFetch(jwksRoute(auth), resendRoute, sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/invites/accept",
+      { method: "POST", companyId: null, body: { invite_id: INVITE_ID } },
+    );
+    expect(res.status).toBe(201);
+    const note = resend.find((mail) =>
+      String(mail.text ?? "").includes("covering the north side"),
+    );
+    expect(note, "the admin was never sent the note").toBeTruthy();
+  });
+
+  it("#521 does NOT email a member, who reads it on screen one instead", async () => {
+    // The whole point of the narrowing. A member IS shown the note by the
+    // orientation, so mailing it too would be the same words twice.
+    const resend: Record<string, unknown>[] = [];
+    const resendRoute: FetchRoute = async (url, request) => {
+      if (url.href !== "https://api.resend.com/emails") return undefined;
+      resend.push((await request.clone().json()) as Record<string, unknown>);
+      return Response.json({ id: "email_1" });
+    };
+    const sb = acceptStub(
+      pendingInvite({ role: "member", note: "You are covering the north side." }),
+      authUser(),
+      { plan: "pro", active: 2, pending: 1 },
+    );
+    sb.on("POST", "/rest/v1/company_members", (call) => [
+      { ...(call.body as Record<string, unknown>), id: "m-1" },
+    ]);
+    sb.on("POST", "/rest/v1/notification_prefs", () => new Response(null, { status: 201 }));
+    sb.on("PATCH", "/rest/v1/invites", () => new Response(null, { status: 204 }));
+    sb.on("POST", "/rest/v1/rpc/api_claim_backup_owner_prompt", () => []);
+    sb.on("GET", "/rest/v1/companies", () => [{ plan: "pro", name: "Ace Plumbing" }]);
+    stubFetch(jwksRoute(auth), resendRoute, sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/invites/accept",
+      { method: "POST", companyId: null, body: { invite_id: INVITE_ID } },
+    );
+    expect(res.status).toBe(201);
+    expect(
+      resend.filter((mail) =>
+        String(mail.text ?? "").includes("covering the north side"),
+      ),
+    ).toHaveLength(0);
+  });
+
   it("#521 carries the inviter's note onto the membership", async () => {
     // Copied at accept rather than read back off the invite later. The invite
     // records a message that was sent; this records what THIS member was told,
