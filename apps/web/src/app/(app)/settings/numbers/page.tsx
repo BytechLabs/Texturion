@@ -1,6 +1,7 @@
 "use client";
 
 import { partitionNumbers } from "@/components/porting/port-ui-state";
+import { LeadSourcesCard } from "@/components/settings/lead-sources-card";
 import { NumberCard } from "@/components/settings/number-card";
 import { PortSection } from "@/components/settings/port-section";
 import { ProvisionNumberDialog } from "@/components/settings/provision-number-dialog";
@@ -116,6 +117,11 @@ export default function NumbersSettingsPage() {
 
           return (
             <div className="space-y-6">
+              {/* #301: ABOVE the numbers, because it is the vocabulary the
+                  per-number picker below chooses from — a list somebody meets
+                  after being asked to pick from it is a list they have to go
+                  and find. *Applying: Prioritize Intent.* */}
+              <LeadSourcesCard canEdit={role === "owner" || role === "admin"} />
               {hasAnyNumber ? (
                 provisioned.map((number) => (
                   <NumberCard key={number.id} number={number} />

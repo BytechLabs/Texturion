@@ -34,6 +34,7 @@ import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
 import { callOutcomeLabel } from "@/lib/format/call";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatRelativeTime } from "@/lib/format/time";
+import { LeadSourcesCard } from "@/components/for-you/lead-sources-card";
 import { PipelineCard } from "@/components/for-you/pipeline-card";
 import { ResponseTimeCard } from "@/components/for-you/response-time-card";
 import { SatisfactionCard } from "@/components/for-you/satisfaction-card";
@@ -841,6 +842,12 @@ function ForYouSections({ data }: { data: ForYou }) {
             separating them onto two screens is how a business optimises the
             first while the second quietly slides. */}
         <SatisfactionCard />
+        {/* #301: last of the four, because it answers a slower question than
+            the three above it. Response time and satisfaction are about this
+            week's work; where the customers came from is about next month's
+            spending, and it is the one an owner opens deliberately rather than
+            glances at. */}
+        <LeadSourcesCard />
       </div>
 
       {/* #416/D53: shown to EVERY member, not owners and admins only. The

@@ -16,6 +16,16 @@ const state = {
   numbers: [] as PhoneNumberSummary[],
 };
 
+// #301: the numbers page now mounts the lead-source list. Mocked like every
+// other data hook here — this file's subject is the number cards, and the
+// source card has its own suite.
+vi.mock("@/lib/api/lead-sources", () => ({
+  useLeadSources: () => ({ data: { data: [] } }),
+  useCreateLeadSource: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  useUpdateLeadSource: () => ({ isPending: false, mutateAsync: vi.fn() }),
+  activeSources: () => [],
+}));
+
 vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ role: state.role }),
 }));

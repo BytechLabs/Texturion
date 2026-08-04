@@ -53,6 +53,7 @@ vi.mock("@/lib/api/reports", () => ({
     isError: false,
     refetch: vi.fn(),
   }),
+  useLeadSourceReport: () => ({ isLoading: false, data: null }),
 }));
 vi.mock("@/lib/api/for-you", () => ({
   useForYou: () => ({

@@ -25,6 +25,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api/error";
 import { ringsIn } from "@/components/settings/ring-card";
+import { activeSources, useLeadSources } from "@/lib/api/lead-sources";
 import { useNumberIdentity, useSetNumberIdentity } from "@/lib/api/numbers";
 import { useVoicemailGreetings } from "@/lib/api/voicemail-greetings";
 import type { NumberIdentity, NumberIdentityPatch } from "@/lib/api/types";
@@ -74,6 +75,7 @@ export function NumberIdentityDialog({
   // #309: only fetched while the dialog is open, and only to put NAMES on
   // the ids the identity already carries.
   const greetings = useVoicemailGreetings(open);
+  const sources = useLeadSources(open);
 
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
 
@@ -393,6 +395,47 @@ export function NumberIdentityDialog({
                 </SelectContent>
               </Select>
             </div>
+            {/*
+              #301: where calls and texts to THIS line come from.
+
+              The one field here that does NOT inherit, and the copy says so
+              rather than offering "same as your workspace": a lead source is a
+              fact about a specific line — the number on the truck, the number
+              in the ad — and a workspace default would attribute every line to
+              the same place, which is the opposite of what tracking numbers
+              are for. Hidden entirely until the workspace has a vocabulary,
+              because a picker with one option reading "None" teaches nothing.
+            */}
+            {activeSources(sources.data?.data).length > 0 && (
+              <div className="space-y-1.5">
+                <Label htmlFor="identity-lead-source">Where this line is advertised</Label>
+                <Select
+                  value={identity.data.lead_source_id ?? UNTRACKED}
+                  onValueChange={(next) =>
+                    void save.mutateAsync({
+                      lead_source_id: next === UNTRACKED ? null : next,
+                    })
+                  }
+                >
+                  <SelectTrigger id="identity-lead-source">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={UNTRACKED}>Not advertised anywhere</SelectItem>
+                    {activeSources(sources.data?.data).map((row) => (
+                      <SelectItem key={row.id} value={row.id}>
+                        {row.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[12px] text-app-muted-2">
+                  Every new conversation on this line is counted here, with
+                  nobody tapping anything. Changing it later does not relabel
+                  the customers you already have.
+                </p>
+              </div>
+            )}
             {FIELDS.map((field) => {
               const resolved = identity.data![field.key];
               return (
@@ -485,6 +528,10 @@ const WRITTEN = "__written__";
 
 /** The select's "follow the workspace" sentinel — Radix cannot hold null. */
 const INHERIT = "__inherit__";
+
+/** #301's own sentinel, and deliberately NOT the inherit one: an untracked
+ *  line follows nothing, it simply is not advertised. */
+const UNTRACKED = "__untracked__";
 
 /** The same four the workspace card offers, so the two never disagree about
  *  what a reasonable ring length is. */

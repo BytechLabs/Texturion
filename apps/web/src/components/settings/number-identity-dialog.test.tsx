@@ -40,16 +40,29 @@ const { save, greetingRows, toastSuccess, toastError, identity } = vi.hoisted(
         after_hours_greeting_id: { value: null, inherited: true },
         ring_strategy: { value: "all", inherited: true },
         ring_seconds: { value: 45, inherited: true },
+      lead_source_id: null,
       } as Record<
         string,
-        // #278 widened this: ring_seconds is a NUMBER, and pinning the union
-        // to the three types that happened to exist made the fixture reject
-        // the next field rather than describe it.
-        { value: string | number | boolean | null; inherited: boolean }
+        // #278 widened this once and #301 widened it again, which is the
+        // lesson: the identity is NOT uniformly `{ value, inherited }`. #301's
+        // lead_source_id is a bare value because it does not inherit, so the
+        // fixture describes both shapes rather than pinning the one that
+        // happened to exist.
+        | { value: string | number | boolean | null; inherited: boolean }
+        | string
+        | null
       >,
     },
   }),
 );
+
+// #301: the dialog now offers a per-line source. Mocked like the greeting
+// list beside it — an empty list hides the picker, which is every workspace
+// until somebody names one.
+vi.mock("@/lib/api/lead-sources", () => ({
+  useLeadSources: () => ({ data: { data: [] } }),
+  activeSources: () => [],
+}));
 
 vi.mock("@/lib/api/numbers", () => ({
   useNumberIdentity: () => ({ isPending: false, data: identity.current }),
@@ -201,6 +214,7 @@ describe("#307 how this line answers", () => {
       after_hours_greeting_id: { value: null, inherited: true },
       ring_strategy: { value: "all", inherited: true },
       ring_seconds: { value: 45, inherited: true },
+      lead_source_id: null,
     };
     open();
 

@@ -2372,6 +2372,16 @@ export interface NumberIdentity {
   /** #278: how this line's phones ring, and for how long. */
   ring_strategy: ResolvedField<"all" | "in_turn">;
   ring_seconds: ResolvedField<number>;
+  /**
+   * #301: where calls and texts to this line come from.
+   *
+   * A bare value, NOT a ResolvedField — this is the one field on the identity
+   * route that does not inherit. A workspace default would attribute every
+   * line to the same place, which is the opposite of what tracking numbers are
+   * for, so null means "not advertised anywhere" rather than "follow the
+   * workspace".
+   */
+  lead_source_id: string | null;
 }
 
 /** Null on a field CLEARS the override back to the workspace value. */
@@ -2389,4 +2399,5 @@ export interface NumberIdentityPatch {
   after_hours_greeting_id?: string | null;
   ring_strategy?: "all" | "in_turn" | null;
   ring_seconds?: number | null;
+  lead_source_id?: string | null;
 }

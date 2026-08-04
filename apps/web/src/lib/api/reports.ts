@@ -97,6 +97,48 @@ export interface PipelineReportResponse {
   stages: PipelineStageTag[];
 }
 
+/**
+ * #301 — GET /v1/reports/lead-sources: where these customers came from.
+ *
+ * `coverage` and `note` are computed SERVER-side, like every other number on
+ * this page and for the same reason: three clients deciding independently how
+ * much of a thin ranking to believe is three chances to show an owner a
+ * confidence the others would not.
+ */
+export interface LeadSourceCount {
+  lead_source_id: string;
+  name: string;
+  /** Attributed automatically, by which line rang. */
+  by_number: number;
+  /** A person said so. */
+  by_person: number;
+  total: number;
+}
+
+export interface LeadSourceReport {
+  days: number;
+  sources: LeadSourceCount[];
+  /** Conversations with no source at all. A row, never an omission. */
+  unknown: number;
+  total: number;
+  /** 0–1, or null when the window held no conversations at all. */
+  coverage: number | null;
+  /** The caveat to print above the table, or null when there is none. */
+  note: string | null;
+}
+
+export function useLeadSourceReport(days: ResponseTimeWindow = 30) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: [...keys.pipeline(companyId, days), "lead-sources"] as const,
+    queryFn: () =>
+      apiFetch<LeadSourceReport>("/v1/reports/lead-sources", {
+        companyId,
+        searchParams: { days: String(days) },
+      }),
+  });
+}
+
 export function usePipelineReport(days: ResponseTimeWindow = 30) {
   const companyId = useCompanyId();
   return useQuery({
