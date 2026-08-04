@@ -15,9 +15,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api/error";
 import { useNumberIdentity, useSetNumberIdentity } from "@/lib/api/numbers";
+import { useVoicemailGreetings } from "@/lib/api/voicemail-greetings";
 import type { NumberIdentity, NumberIdentityPatch } from "@/lib/api/types";
 
 /**
@@ -62,6 +70,9 @@ export function NumberIdentityDialog({
 }) {
   const identity = useNumberIdentity(numberId, open);
   const save = useSetNumberIdentity(numberId);
+  // #309: only fetched while the dialog is open, and only to put NAMES on
+  // the ids the identity already carries.
+  const greetings = useVoicemailGreetings(open);
 
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
 
@@ -159,6 +170,67 @@ export function NumberIdentityDialog({
                 />
               </div>
             </div>
+            {/*
+              #309: which voice, before which words.
+
+              A select rather than a list of radios: a workspace can hold
+              several greetings and this is one line in a dialog about five
+              other things. The written-words option is FIRST and is the
+              default position, because it is what every line does until
+              somebody chooses otherwise — and because it is the only option
+              that is guaranteed to exist. *Applying: Zen of Clarity, and
+              Smart Defaults on the option that is always available.*
+            */}
+            {(greetings.data?.data.length ?? 0) > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <Label htmlFor="identity-greeting">Voicemail voice</Label>
+                  {identity.data.voicemail_greeting_id.inherited ? (
+                    <span className="text-[12px] text-app-muted-2">
+                      Same as your workspace
+                    </span>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto px-1.5 py-0.5 text-[12px]"
+                      disabled={save.isPending}
+                      onClick={() =>
+                        void restoreWorkspaceValue("voicemail_greeting_id")
+                      }
+                    >
+                      Use the workspace&apos;s
+                    </Button>
+                  )}
+                </div>
+                <Select
+                  value={identity.data.voicemail_greeting_id.value ?? WRITTEN}
+                  onValueChange={(next) =>
+                    void save.mutateAsync({
+                      voicemail_greeting_id: next === WRITTEN ? null : next,
+                    })
+                  }
+                >
+                  <SelectTrigger id="identity-greeting">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={WRITTEN}>
+                      The written greeting, read aloud
+                    </SelectItem>
+                    {greetings.data?.data.map((row) => (
+                      <SelectItem key={row.id} value={row.id}>
+                        {row.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[12px] text-app-muted-2">
+                  A recording that will not play falls back to the words below,
+                  so a caller never hears silence.
+                </p>
+              </div>
+            )}
             {FIELDS.map((field) => {
               const resolved = identity.data![field.key];
               return (
@@ -229,7 +301,16 @@ export function NumberIdentityDialog({
 type Field = "label" | "voicemail_greeting" | "away_message" | "mctb_message";
 
 /** Every field the dialog can clear, including the one that is not text. */
-type ClearableField = Field | "mctb_enabled";
+type ClearableField = Field | "mctb_enabled" | "voicemail_greeting_id";
+
+/**
+ * The select's stand-in for "no recording".
+ *
+ * A Radix Select cannot hold an empty-string value, and null is not a value it
+ * can carry at all — so the written-words option needs a sentinel. It is
+ * translated back to null on the way out, which is what the column means.
+ */
+const WRITTEN = "__written__";
 
 const FIELDS: { key: Field; label: string; hint: string; multiline?: boolean }[] = [
   {

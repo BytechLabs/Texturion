@@ -2350,6 +2350,8 @@ export interface NumberIdentity {
   timezone: ResolvedField<string>;
   business_hours: ResolvedField<BusinessHours | null>;
   business_hours_exceptions: ResolvedField<HoursException[] | null>;
+  /** #309: which RECORDING plays. Null is the written words, read aloud. */
+  voicemail_greeting_id: ResolvedField<string | null>;
 }
 
 /** Null on a field CLEARS the override back to the workspace value. */
@@ -2362,4 +2364,5 @@ export interface NumberIdentityPatch {
   timezone?: string | null;
   business_hours?: BusinessHours | null;
   business_hours_exceptions?: HoursException[] | null;
+  voicemail_greeting_id?: string | null;
 }

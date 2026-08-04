@@ -13,8 +13,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { save, toastSuccess, toastError, identity } = vi.hoisted(() => ({
+const { save, greetingRows, toastSuccess, toastError, identity } = vi.hoisted(() => ({
   save: vi.fn(),
+  greetingRows: { current: [] as { id: string; name: string }[] },
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   identity: {
@@ -24,6 +25,7 @@ const { save, toastSuccess, toastError, identity } = vi.hoisted(() => ({
       away_message: { value: "We are closed.", inherited: true },
       mctb_enabled: { value: true, inherited: true },
       mctb_message: { value: "Sorry we missed you.", inherited: true },
+      voicemail_greeting_id: { value: null, inherited: true },
     } as Record<string, { value: string | boolean | null; inherited: boolean }>,
   },
 }));
@@ -31,6 +33,12 @@ const { save, toastSuccess, toastError, identity } = vi.hoisted(() => ({
 vi.mock("@/lib/api/numbers", () => ({
   useNumberIdentity: () => ({ isPending: false, data: identity.current }),
   useSetNumberIdentity: () => ({ isPending: false, mutateAsync: save }),
+}));
+// #309: the dialog puts NAMES on the ids the identity carries. An empty
+// list is every workspace until somebody records something, and it hides
+// the picker — which is what these tests are about.
+vi.mock("@/lib/api/voicemail-greetings", () => ({
+  useVoicemailGreetings: () => ({ data: { data: greetingRows.current } }),
 }));
 vi.mock("sonner", () => ({
   toast: { success: toastSuccess, error: toastError },
@@ -52,6 +60,7 @@ beforeEach(() => {
     away_message: { value: "We are closed.", inherited: true },
     mctb_enabled: { value: true, inherited: true },
     mctb_message: { value: "Sorry we missed you.", inherited: true },
+    voicemail_greeting_id: { value: null, inherited: true },
   };
 });
 
@@ -140,6 +149,7 @@ describe("#307 how this line answers", () => {
       away_message: { value: "We are closed.", inherited: true },
       mctb_enabled: { value: true, inherited: true },
       mctb_message: { value: "Sorry we missed you.", inherited: true },
+      voicemail_greeting_id: { value: null, inherited: true },
     };
     open();
 
@@ -209,6 +219,23 @@ describe("#307 how this line answers", () => {
     expect(
       screen.getAllByRole("button", { name: "Use the workspace's" }).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("NI-12: no recordings means no picker at all", () => {
+    // #309. A select whose only option is "the written greeting" is a control
+    // that cannot do anything, in a dialog that already has five. Every
+    // workspace is in this state until somebody records something.
+    open();
+    expect(screen.queryByLabelText("Voicemail voice")).toBeNull();
+  });
+
+  it("NI-13: the picker appears once there is something to pick, and offers the way out", () => {
+    greetingRows.current = [{ id: "g1", name: "After hours" }];
+    open();
+    expect(screen.getByLabelText("Voicemail voice")).toBeTruthy();
+    // The written words are always an option, because they are the one thing
+    // guaranteed to exist and the fallback the runtime uses anyway.
+    expect(screen.getByText("The written greeting, read aloud")).toBeTruthy();
   });
 
   it("NI-8: shows the server's reason when it refuses", async () => {
