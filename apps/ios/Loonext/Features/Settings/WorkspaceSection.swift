@@ -310,7 +310,8 @@ private struct TimezoneCard: View {
     }
 }
 
-private struct TimezonePickerSheet: View {
+/// #307 reuses this for a single line's timezone, so it is no longer private.
+struct TimezonePickerSheet: View {
     let current: String
     let onPick: @MainActor (String) -> Void
     let onDismiss: @MainActor () -> Void

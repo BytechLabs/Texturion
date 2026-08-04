@@ -193,6 +193,7 @@ private fun NumberCard(
     var releasing by remember { mutableStateOf(false) }
     var managingAccess by remember { mutableStateOf(false) }
     var managingIdentity by remember { mutableStateOf(false) }
+    var managingHours by remember { mutableStateOf(false) }
     var choosing by remember { mutableStateOf(false) }
 
     val display = number.number_e164?.let(::formatPhone)
@@ -313,6 +314,12 @@ private fun NumberCard(
                     LinkButton(onClick = { managingIdentity = true }) {
                         Text("How this line answers")
                     }
+                    // #307: a SECOND entry rather than more rows in the first
+                    // dialog — when the line is open is a different question,
+                    // asked at a different time.
+                    LinkButton(onClick = { managingHours = true }) {
+                        Text("When this line is open")
+                    }
                     LinkButton(onClick = { managingAccess = true }) {
                         Text("Who can use this number")
                     }
@@ -348,6 +355,14 @@ private fun NumberCard(
             scope = scope,
             number = number,
             onDismiss = { managingIdentity = false },
+            onChanged = onChanged,
+        )
+    }
+    if (managingHours) {
+        NumberHoursDialog(
+            scope = scope,
+            number = number,
+            onDismiss = { managingHours = false },
             onChanged = onChanged,
         )
     }

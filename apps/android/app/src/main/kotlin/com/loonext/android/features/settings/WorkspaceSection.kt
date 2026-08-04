@@ -353,7 +353,7 @@ private fun TimezoneCard(
 }
 
 @Composable
-private fun TimezonePickerDialog(
+internal fun TimezonePickerDialog(
     current: String,
     now: ZonedDateTime,
     onDismiss: () -> Unit,

@@ -449,6 +449,20 @@ struct NumberIdentity: Codable, Sendable {
     var away_message = ResolvedField()
     var mctb_enabled = ResolvedBool()
     var mctb_message = ResolvedField()
+    var timezone = ResolvedField()
+    var business_hours = ResolvedHours()
+}
+
+/// The week, resolved.
+///
+/// #307: `business_hours` is ONE column, so a line either keeps its own week
+/// or follows the workspace's — inheritance is per week, never per day.
+///
+/// Both properties are `var` with defaults, per the rule a red build taught
+/// this repo: an optional `let` is a REQUIRED argument of the memberwise init.
+struct ResolvedHours: Codable, Sendable {
+    var value: [String: DayHours?]? = nil
+    var inherited = true
 }
 
 /// The same shape for the one field that is not text.

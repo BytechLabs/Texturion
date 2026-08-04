@@ -1,5 +1,6 @@
 package com.loonext.android.features.settings
 
+import com.loonext.android.core.model.DayHours
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
@@ -386,6 +387,19 @@ data class NumberIdentity(
     val away_message: ResolvedField = ResolvedField(),
     val mctb_enabled: ResolvedBool = ResolvedBool(),
     val mctb_message: ResolvedField = ResolvedField(),
+    val timezone: ResolvedField = ResolvedField(),
+    val business_hours: ResolvedHours = ResolvedHours(),
+)
+
+/**
+ * The week, resolved. #307: `business_hours` is ONE column, so a line either
+ * keeps its own week or follows the workspace's — inheritance is per week,
+ * never per day.
+ */
+@Serializable
+data class ResolvedHours(
+    val value: Map<String, DayHours?>? = null,
+    val inherited: Boolean = true,
 )
 
 /**

@@ -87,28 +87,7 @@ private struct BusinessHoursCard: View {
                 + "separate from each customer's texting quiet hours."
         ) {
             ForEach($days, id: \.weekday) { $day in
-                HStack(spacing: 10) {
-                    Toggle("", isOn: $day.enabled)
-                        .labelsHidden()
-                        .tint(BrandColor.olive)
-                        .disabled(!canEdit || saving)
-                    Text(weekdayLabels[day.weekday] ?? day.weekday)
-                        .font(.callout)
-                        .frame(width: 86, alignment: .leading)
-                    if day.enabled {
-                        TimeField(label: "Open", value: $day.open, enabled: canEdit && !saving)
-                        Text("to")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                        TimeField(label: "Close", value: $day.close, enabled: canEdit && !saving)
-                    } else {
-                        Text("Closed")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                    }
-                }
-                .padding(.vertical, 4)
+                WeekdayRow(day: $day, enabled: canEdit && !saving)
             }
             if !allValid {
                 ReadOnlyLine("Times are 24-hour HH:MM, and open and close can't match.")
@@ -336,5 +315,40 @@ private struct AwayReplyCard: View {
             }
             saving = false
         }
+    }
+}
+
+/// One weekday, shared by the workspace's hours and a single line's (#307).
+///
+/// Extracted rather than copied: a second grid would have drifted from this
+/// one the first time either was touched, and the two would have disagreed
+/// about what "closed" looks like.
+struct WeekdayRow: View {
+    @Binding var day: DayForm
+    let enabled: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Toggle("", isOn: $day.enabled)
+                .labelsHidden()
+                .tint(BrandColor.olive)
+                .disabled(!enabled)
+            Text(weekdayLabels[day.weekday] ?? day.weekday)
+                .font(.callout)
+                .frame(width: 86, alignment: .leading)
+            if day.enabled {
+                TimeField(label: "Open", value: $day.open, enabled: enabled)
+                Text("to")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                TimeField(label: "Close", value: $day.close, enabled: enabled)
+            } else {
+                Text("Closed")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+        }
+        .padding(.vertical, 4)
     }
 }

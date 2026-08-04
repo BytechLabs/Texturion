@@ -121,6 +121,7 @@ private struct NumberCard: View {
     @State private var releasing = false
     @State private var managingAccess = false
     @State private var managingIdentity = false
+    @State private var managingHours = false
     @State private var choosing = false
 
     private var canManage: Bool { SettingsRoleGate.canManageNumbers(scope.role) }
@@ -162,6 +163,10 @@ private struct NumberCard: View {
                 HStack(spacing: 12) {
                     if canManage {
                         Button("How this line answers") { managingIdentity = true }
+                        // #307: a SECOND entry rather than more rows in the
+                        // first sheet — when the line is open is a different
+                        // question, asked at a different time.
+                        Button("When this line is open") { managingHours = true }
                         Button("Who can use this number") { managingAccess = true }
                             .font(.subheadline)
                             .buttonStyle(.borderless)
@@ -197,6 +202,11 @@ private struct NumberCard: View {
         .sheet(isPresented: $managingIdentity) {
             NumberIdentitySheet(scope: scope, number: number) {
                 managingIdentity = false
+            }
+        }
+        .sheet(isPresented: $managingHours) {
+            NumberHoursSheet(scope: scope, number: number) {
+                managingHours = false
             }
         }
         .sheet(isPresented: $choosing) {

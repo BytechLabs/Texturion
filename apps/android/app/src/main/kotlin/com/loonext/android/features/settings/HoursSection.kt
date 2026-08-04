@@ -3,6 +3,7 @@ package com.loonext.android.features.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,10 +35,21 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 
-/** One weekday row's editable state. */
-private data class DayForm(val weekday: String, val enabled: Boolean, val open: String, val close: String)
+/**
+ * One weekday row's editable state.
+ *
+ * `internal`, not private: #307 gives a single NUMBER its own week, and a
+ * second copy of this would have drifted from the workspace's the first time
+ * either was touched.
+ */
+internal data class DayForm(
+    val weekday: String,
+    val enabled: Boolean,
+    val open: String,
+    val close: String,
+)
 
-private fun toFormState(hours: Map<String, DayHours?>): List<DayForm> =
+internal fun toFormState(hours: Map<String, DayHours?>): List<DayForm> =
     WEEKDAY_KEYS.map { key ->
         val window = hours[key]
         DayForm(
@@ -114,47 +126,11 @@ private fun BusinessHoursCard(
                     .padding(vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Switch(
-                    checked = day.enabled,
-                    onCheckedChange = { enabled ->
-                        patchDay(day.weekday) { it.copy(enabled = enabled) }
-                    },
+                WeekdayRow(
+                    day = day,
                     enabled = canEdit && !saving,
+                    onChange = { updated -> patchDay(day.weekday) { updated } },
                 )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    WEEKDAY_LABELS[day.weekday] ?: day.weekday,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.width(86.dp),
-                )
-                if (day.enabled) {
-                    TimeField(
-                        value = day.open,
-                        onValueChange = { patchDay(day.weekday) { d -> d.copy(open = it) } },
-                        label = "Open",
-                        enabled = canEdit && !saving,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(
-                        "to",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 6.dp),
-                    )
-                    TimeField(
-                        value = day.close,
-                        onValueChange = { patchDay(day.weekday) { d -> d.copy(close = it) } },
-                        label = "Close",
-                        enabled = canEdit && !saving,
-                        modifier = Modifier.weight(1f),
-                    )
-                } else {
-                    Text(
-                        "Closed",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
             }
         }
         if (!allValid) {
@@ -397,6 +373,60 @@ fun PreviewBubble(label: String, text: String, modifier: Modifier = Modifier) {
                     RoundedCornerShape(12.dp),
                 )
                 .padding(12.dp),
+        )
+    }
+}
+
+/**
+ * One weekday, shared by the workspace's hours and a single line's (#307).
+ *
+ * Stateless on purpose: the caller owns the list and decides what saving
+ * means, because the workspace saves through the company route and a line
+ * saves through its own. This only knows how to show a day.
+ */
+@Composable
+internal fun RowScope.WeekdayRow(
+    day: DayForm,
+    enabled: Boolean,
+    onChange: (DayForm) -> Unit,
+) {
+    Switch(
+        checked = day.enabled,
+        onCheckedChange = { onChange(day.copy(enabled = it)) },
+        enabled = enabled,
+    )
+    Spacer(Modifier.width(10.dp))
+    Text(
+        WEEKDAY_LABELS[day.weekday] ?: day.weekday,
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier.width(86.dp),
+    )
+    if (day.enabled) {
+        TimeField(
+            value = day.open,
+            onValueChange = { onChange(day.copy(open = it)) },
+            label = "Open",
+            enabled = enabled,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "to",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 6.dp),
+        )
+        TimeField(
+            value = day.close,
+            onValueChange = { onChange(day.copy(close = it)) },
+            label = "Close",
+            enabled = enabled,
+            modifier = Modifier.weight(1f),
+        )
+    } else {
+        Text(
+            "Closed",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
