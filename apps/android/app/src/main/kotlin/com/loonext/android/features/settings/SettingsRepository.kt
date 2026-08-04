@@ -377,6 +377,29 @@ class SettingsRepository(
     suspend fun numberIdentity(companyId: String, numberId: String): NumberIdentity =
         api.get("/v1/numbers/$numberId/identity", companyId = companyId)
 
+    // -- #309 recorded voicemail greetings ----------------------------------
+
+    /** What this workspace has recorded. */
+    suspend fun voicemailGreetings(companyId: String): List<VoicemailGreeting> =
+        api.get<Page<VoicemailGreeting>>("/v1/voicemail-greetings", companyId = companyId).data
+
+    /**
+     * Record one. Multipart, so it goes through [GreetingUploader] rather than
+     * the JSON client — the same door the wrap-up dictation uses.
+     */
+    suspend fun recordGreeting(
+        companyId: String,
+        name: String,
+        durationMs: Int,
+        audio: ByteArray,
+    ): VoicemailGreeting =
+        GreetingUploader(api, baseUrl).upload(companyId, name, durationMs, audio)
+
+    /** Delete one. Every line using it goes back to the written words. */
+    suspend fun deleteGreeting(companyId: String, id: String) {
+        api.delete("/v1/voicemail-greetings/$id", companyId)
+    }
+
     /**
      * #307: set or CLEAR this line's overrides.
      *

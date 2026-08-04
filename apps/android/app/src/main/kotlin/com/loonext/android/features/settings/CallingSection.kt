@@ -77,6 +77,10 @@ fun CallingSection(
     }
     TextBackCard(scope, company, onCompanyUpdated)
     VoicemailCard(scope, company, onCompanyUpdated)
+    // #309: directly under the written greeting, because it answers the
+    // same question in a better way. The written one stays as the
+    // zero-setup default and the runtime fallback.
+    VoiceGreetingCard(scope, canEdit = SettingsRoleGate.canEditWorkspace(scope.role))
     ScreeningCard(scope, company, onCompanyUpdated)
     CallerIdCard(scope, company, onCompanyUpdated)
     MinutesFooter(scope)
