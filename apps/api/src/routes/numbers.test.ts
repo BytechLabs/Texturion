@@ -1481,6 +1481,7 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
     mctb_message: "Sorry we missed your call.",
     business_hours: { mon: { open: "08:00", close: "17:00" } },
     business_hours_exceptions: [],
+    voicemail_greeting_id: null,
   };
 
   function withNumber(
@@ -1501,6 +1502,7 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
       timezone: null,
       business_hours: null,
       business_hours_exceptions: null,
+      voicemail_greeting_id: null,
       ...overrides,
     });
   }
@@ -1592,6 +1594,50 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
       body: JSON.stringify({
         business_hours: { mon: { open: "25:00", close: "17:00" } },
       }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it("ID-12: a line can play its own recording, and null puts back the written words", async () => {
+    // #309. Null here is not "no greeting" — it is the written words spoken
+    // aloud, which is what every line does until somebody chooses otherwise.
+    const harness = buildHarness(COMPANY_IDENTITY);
+    withNumber(harness);
+    const RECORDING = "eeeeeeee-0000-4000-8000-0000000000e1";
+
+    const set = await harness.request(`/v1/numbers/${ID}/identity`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ voicemail_greeting_id: RECORDING }),
+    });
+    expect(set.status).toBe(200);
+
+    const after = (await (
+      await harness.request(`/v1/numbers/${ID}/identity`)
+    ).json()) as Record<string, { value: unknown; inherited: boolean }>;
+    expect(after.voicemail_greeting_id).toEqual({
+      value: RECORDING,
+      inherited: false,
+    });
+
+    await harness.request(`/v1/numbers/${ID}/identity`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ voicemail_greeting_id: null }),
+    });
+    const back = (await (
+      await harness.request(`/v1/numbers/${ID}/identity`)
+    ).json()) as Record<string, { value: unknown; inherited: boolean }>;
+    expect(back.voicemail_greeting_id).toEqual({ value: null, inherited: true });
+  });
+
+  it("ID-13: a selection that is not a uuid is refused", async () => {
+    const harness = buildHarness(COMPANY_IDENTITY);
+    withNumber(harness);
+    const res = await harness.request(`/v1/numbers/${ID}/identity`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ voicemail_greeting_id: "after-hours" }),
     });
     expect(res.status).toBe(422);
   });

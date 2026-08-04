@@ -25,9 +25,34 @@ const company: CompanyIdentity = {
   businessHoursExceptions: [],
   mctbEnabled: true,
   mctbMessage: "Sorry we missed your call.",
+  voicemailGreetingId: null,
 };
 
 describe("#307 resolving a number's identity", () => {
+  it("NI-0b: #309 — a line can play its own recording, or the workspace's", () => {
+    // Null is not "no greeting": it is the WRITTEN words, spoken aloud, which
+    // is what every line does until somebody records something. The runtime
+    // falls back to those words anyway when a recording will not play, so this
+    // is a preference rather than a switch.
+    const inherited = resolveNumberIdentity(
+      { ...company, voicemailGreetingId: "workspace-greeting" },
+      {},
+    );
+    expect(inherited.voicemailGreetingId).toEqual({
+      value: "workspace-greeting",
+      inherited: true,
+    });
+
+    const own = resolveNumberIdentity(
+      { ...company, voicemailGreetingId: "workspace-greeting" },
+      { voicemailGreetingId: "sales-line-greeting" },
+    );
+    expect(own.voicemailGreetingId).toEqual({
+      value: "sales-line-greeting",
+      inherited: false,
+    });
+  });
+
   it("NI-0: the missed-call toggle and text inherit like everything else", () => {
     // The last two behaviours in #307's Scope. A tracked number on a yard sign
     // is missed for a different reason than the office line, and the owner may

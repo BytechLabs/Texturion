@@ -670,6 +670,9 @@ const identityBodySchema = z
     // to following the workspace once it had been touched.
     mctb_enabled: z.boolean().nullable().optional(),
     mctb_message: z.string().max(1000).nullable().optional(),
+    // #309: which RECORDING plays. Null is the written words, which is
+    // what a line does until somebody chooses otherwise.
+    voicemail_greeting_id: z.string().uuid().nullable().optional(),
     // The clock this line keeps. Structural validity is checked below with
     // the SAME validators the workspace route uses — a second near-identical
     // rule here is how two surfaces end up disagreeing about what a valid
@@ -704,7 +707,7 @@ async function loadIdentity(
       // ONE literal, deliberately: splitting it with `+` defeats the client's
       // literal-type inference and the row stops being assignable.
       .select(
-        "id,label,voicemail_greeting,away_message,mctb_enabled,mctb_message,timezone,business_hours,business_hours_exceptions",
+        "id,label,voicemail_greeting,away_message,mctb_enabled,mctb_message,timezone,business_hours,business_hours_exceptions,voicemail_greeting_id",
       )
       .eq("company_id", companyId)
       .eq("id", numberId)
@@ -712,7 +715,7 @@ async function loadIdentity(
     db
       .from("companies")
       .select(
-        "name,timezone,voicemail_greeting,away_message,away_enabled,mctb_enabled,mctb_message,business_hours,business_hours_exceptions",
+        "name,timezone,voicemail_greeting,away_message,away_enabled,mctb_enabled,mctb_message,business_hours,business_hours_exceptions,voicemail_greeting_id",
       )
       .eq("id", companyId)
       .limit(1),
@@ -734,6 +737,7 @@ async function loadIdentity(
         timezone: string | null;
         business_hours: unknown;
         business_hours_exceptions: unknown;
+        voicemail_greeting_id: string | null;
       }
     | undefined;
   if (!number) return null;
@@ -748,6 +752,7 @@ async function loadIdentity(
     mctb_message: string | null;
     business_hours: unknown;
     business_hours_exceptions: unknown;
+    voicemail_greeting_id: string | null;
   };
 
   const identity = resolveNumberIdentity(
@@ -761,6 +766,7 @@ async function loadIdentity(
       businessHoursExceptions: company.business_hours_exceptions,
       mctbEnabled: company.mctb_enabled,
       mctbMessage: company.mctb_message,
+      voicemailGreetingId: company.voicemail_greeting_id,
     },
     {
       label: number.label,
@@ -771,6 +777,7 @@ async function loadIdentity(
       timezone: number.timezone,
       businessHours: number.business_hours,
       businessHoursExceptions: number.business_hours_exceptions,
+      voicemailGreetingId: number.voicemail_greeting_id,
     },
   );
 
@@ -783,6 +790,7 @@ async function loadIdentity(
     timezone: identity.timezone,
     business_hours: identity.businessHours,
     business_hours_exceptions: identity.businessHoursExceptions,
+    voicemail_greeting_id: identity.voicemailGreetingId,
   };
 }
 
@@ -841,6 +849,14 @@ numbersRoutes.patch("/:id/identity", requireCapability("numbers.manage"), async 
       );
     }
     patch.business_hours = body.business_hours ?? null;
+  }
+  if ("voicemail_greeting_id" in body) {
+    // No existence check here, deliberately. The column's FK rejects an id
+    // that is not a greeting, and a greeting belonging to another workspace
+    // is unreachable anyway — this row is already scoped by company_id below.
+    // A read-then-write would add a round trip to re-learn what the constraint
+    // already enforces, and would still race the delete it was meant to catch.
+    patch.voicemail_greeting_id = body.voicemail_greeting_id ?? null;
   }
   if ("business_hours_exceptions" in body) {
     if (

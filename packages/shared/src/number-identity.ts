@@ -41,6 +41,8 @@ export interface CompanyIdentity {
   businessHoursExceptions: unknown;
   mctbEnabled: boolean;
   mctbMessage: string | null;
+  /** #309: the RECORDED greeting selected, or null for the written words. */
+  voicemailGreetingId: string | null;
 }
 
 /** A number's overrides. Every field null means "follow the workspace". */
@@ -54,6 +56,7 @@ export interface NumberOverrides {
   businessHoursExceptions?: unknown;
   mctbEnabled?: boolean | null;
   mctbMessage?: string | null;
+  voicemailGreetingId?: string | null;
 }
 
 /** A resolved value, and whether it came from the workspace. */
@@ -82,6 +85,15 @@ export interface NumberIdentity {
    */
   mctbEnabled: Resolved<boolean>;
   mctbMessage: Resolved<string | null>;
+  /**
+   * #309 — which RECORDING plays, if any.
+   *
+   * Null is not "no greeting": it means the written words, spoken by TTS,
+   * which is what every line does until somebody records something. The
+   * runtime falls back to those words anyway when a recording cannot be
+   * played, so this is a preference rather than a switch.
+   */
+  voicemailGreetingId: Resolved<string | null>;
 }
 
 /**
@@ -119,6 +131,10 @@ export function resolveNumberIdentity(
     ),
     mctbEnabled: pick(overrides.mctbEnabled, company.mctbEnabled),
     mctbMessage: pick(blankToNull(overrides.mctbMessage), company.mctbMessage),
+    voicemailGreetingId: pick(
+      overrides.voicemailGreetingId,
+      company.voicemailGreetingId,
+    ),
   };
 }
 

@@ -88,7 +88,7 @@ Contacts is the one Play requires a written justification for; it is in
 
 | Key | String |
 |---|---|
-| `NSMicrophoneUsageDescription` | "Loonext uses the microphone for phone calls, and to write down the wrap-up you speak after one." |
+| `NSMicrophoneUsageDescription` | "Loonext uses the microphone for phone calls, to write down the wrap-up you speak after one, and to record your voicemail greeting in your own voice." |
 | `NSLocationWhenInUseUsageDescription` | "Loonext shows where you are on the job map so you can see which jobs are nearby." |
 | `NSContactsUsageDescription` | "Loonext shows your phone's contacts alongside your crew's, so you can text someone without adding them first. Your contacts stay on your phone." |
 | `UIBackgroundModes` | `audio`, `voip`, `remote-notification` — a call has to survive the screen locking |

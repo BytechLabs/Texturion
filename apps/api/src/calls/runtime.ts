@@ -658,6 +658,10 @@ export function createSessionRuntime(env: Env): SessionRuntime {
       // optional halves would let a caller forget the half it does need.
       mctbEnabled: false,
       mctbMessage: null,
+      // Not read on this path — the recording is resolved where the greeting
+      // actually plays (greetingAudioUrl). Passed because CompanyIdentity is
+      // one shape.
+      voicemailGreetingId: null,
         },
         { label: number.label, voicemailGreeting: number.voicemail_greeting },
       );
