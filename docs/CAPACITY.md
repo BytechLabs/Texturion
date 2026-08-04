@@ -72,38 +72,68 @@ changes to the product:
 
 **Three of the four are indexed and flat.** The one that is not:
 
-### Contact search cannot use its own indexes
+### Contact search seq-scans, and the reason is NOT the one first published here
 
-`api_search`'s contact half sequential-scans **all 50,000 contacts, ~123 ms,
-even when nothing matches**. The trigram indexes it needs already exist
-(`contacts_name_trgm`, `contacts_phone_trgm`) and it does not use them.
+**Retraction.** The first version of this section, committed 2026-08-04, said
+the cause was one OR branch — `coalesce(name, '') % q` — because
+`contacts_name_trgm` indexes `name` and cannot serve a wrapped expression. That
+was measured, it was reproducible, and it was **the wrong conclusion**, for two
+reasons found by carrying it through to a fix.
 
-Its predicate is three branches OR'd together:
+**First, it was measured against the wrong function.** `api_search` still exists
+with a six-argument signature and nothing calls it: `apps/api/src/routes/
+search.ts` calls `api_search_v2`. The contact predicate is identical in both, so
+the numbers were real, but the 159 ms figure quoted for "api_search" was the
+dead one. The live function measures **262 ms** for a term that matches nothing,
+which agrees with the 282 ms in the table above rather than contradicting it.
+The earlier row was right and the retraction of it was wrong.
 
-```sql
-   ct.name ilike ('%' || p_q || '%')
-or ct.phone_e164 ilike ('%' || p_q || '%')
-or coalesce(ct.name, '') operator(extensions.%) p_q
-```
+**Second, removing the branch does not fix it.** With the wrapper dropped and
+the migration applied, the contacts arm measured 254 ms, 433 ms, 454 ms and 507
+ms across runs: no improvement, and possibly worse. The change was reverted
+rather than shipped.
 
-Measured separately, the cause is unambiguous:
+### What is actually happening
 
-| Predicate | Plan |
-|---|---|
-| the two `ilike` branches alone | **BitmapOr** over both trigram indexes |
-| the `coalesce(...)` branch alone | **Seq Scan** |
+The 260× improvement is real and reproducible — with a **literal**:
 
-`contacts_name_trgm` indexes `name`. It cannot serve `coalesce(name, '')`, which
-is a different expression, so that branch has no index available — and because
-it is OR'd with the other two, the planner cannot use the indexes for any of
-them. **One unindexable branch costs the whole predicate its index.**
+| Query shape | Plan | Time |
+|---|---|---|
+| predicate with literal `'Zzzqqxx'`, coalesce present | Seq Scan | 142 ms |
+| predicate with literal `'Zzzqqxx'`, coalesce removed | BitmapOr over both trigram indexes | 0.5 ms |
+| the same, as a **prepared statement with a parameter** | **Seq Scan** | 130 ms |
 
-The `coalesce` is not earning that: `NULL % 'x'` is NULL, which an `OR` treats
-as false, so `ct.name operator(%) p_q` returns the same rows. Dropping the
-wrapper is better than adding an index to support a wrapper nothing needs.
+That last row is the finding. `api_search_v2` is `LANGUAGE sql` and `p_q` is a
+parameter, so its body plans generically: Postgres does not know the pattern,
+cannot estimate trigram selectivity for `'%' || $1 || '%'`, and chooses a
+sequential scan **whether or not the coalesce branch is there**.
 
-Left unfixed here per #251's own instruction that the resulting index work goes
-in its own change rather than in the analysis.
+So the wrapper is a real wart and worth removing on its own merits, but it is
+not why contact search is slow. The cause is that the pattern is not a constant
+at plan time.
+
+**What would actually fix it**, in rough order of how much they disturb:
+
+1. Build the contact arm as dynamic SQL in a `plpgsql` function, so the pattern
+   is a literal by the time the planner sees it and a custom plan can pick the
+   trigram indexes.
+2. Split the contact search into its own function called with the term, so at
+   least the planner has one small statement to specialise rather than a
+   200-line body.
+3. Leave it and accept a full scan of the contacts table on every fruitless
+   search, which is the current state.
+
+Not attempted here. The lesson of the retraction above is that a plausible,
+measured cause is still worth carrying through to a working fix before it is
+written down as the answer.
+
+### One more thing worth knowing: only the FRUITLESS search is slow
+
+A term that matches costs 1.7 ms, because `limit 25` stops the scan as soon as
+it has twenty-five rows. A term that matches nothing reads all 50,000 contacts.
+So the slow case is the typo, the wrong spelling, and the customer who turns out
+not to be in the book — which is a worse distribution than it sounds, because
+those are exactly the searches somebody repeats.
 
 ### The fixture taught a lesson worth keeping
 
