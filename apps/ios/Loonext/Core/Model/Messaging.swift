@@ -84,6 +84,21 @@ struct Conversation: Codable, Sendable {
     /// `var … = nil` rather than `let`: a `let` optional becomes a REQUIRED
     /// memberwise-init parameter and breaks every existing construction site.
     var emergency_at: String? = nil
+    /**
+     #301: where this customer came from, and how we came to believe it.
+
+     `var … = nil` for the same reason `emergency_at` above is: a `let`
+     optional becomes a REQUIRED memberwise-init parameter and breaks every
+     existing construction site.
+
+     On the ROW as well as the detail, because the picker reads the origin back
+     off the PATCH response — the server decides that a person's answer is
+     'manual', and a client that assumed it would be inventing the one
+     distinction the report depends on. CI caught the omission; Swift compiles
+     nowhere else.
+     */
+    var lead_source_id: String? = nil
+    var lead_source_origin: String? = nil
     let created_at: String
     let updated_at: String
 }
