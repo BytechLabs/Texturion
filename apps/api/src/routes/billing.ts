@@ -463,6 +463,12 @@ billingRoutes.post("/confirm-checkout", async (c) => {
  * giving one reason, not three, and three rows would triple-count them in every
  * report. The partial unique index on `(company_id) where confirmed_at is null`
  * is what makes that true in the database rather than in this handler.
+ *
+ * THROUGH AN RPC, because that index cannot be named over PostgREST. A
+ * `.upsert(..., { onConflict: "company_id" })` sends a bare `ON CONFLICT
+ * (company_id)`, Postgres will not match a bare column list to a PARTIAL index,
+ * and every call raised 42P10 and 500ed. `api_record_cancellation_reason`
+ * repeats the predicate, which is the one spelling Postgres accepts.
  */
 billingRoutes.post("/cancellation-reason", async (c) => {
   const body = await parseJsonBody(c, cancellationReasonSchema);
@@ -470,16 +476,12 @@ billingRoutes.post("/cancellation-reason", async (c) => {
   const db = getDb(env);
 
   expectOk(
-    await db.from("cancellation_reasons").upsert(
-      {
-        company_id: c.get("companyId"),
-        user_id: c.get("userId"),
-        reason: body.reason ?? null,
-        detail: body.detail ?? null,
-        confirmed_at: null,
-      },
-      { onConflict: "company_id", ignoreDuplicates: false },
-    ),
+    await db.rpc("api_record_cancellation_reason", {
+      p_company_id: c.get("companyId"),
+      p_user_id: c.get("userId"),
+      p_reason: body.reason ?? null,
+      p_detail: body.detail ?? null,
+    }),
     "cancellation reason",
   );
   return c.body(null, 204);

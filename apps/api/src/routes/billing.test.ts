@@ -596,24 +596,30 @@ describe("POST /v1/billing/confirm-checkout (webhook-independent activation)", (
 });
 
 describe("POST /v1/billing/cancellation-reason (#277)", () => {
+  // THROUGH AN RPC, not a PostgREST upsert, and the reason is worth keeping in
+  // front of whoever edits this next. The table's unique index is PARTIAL
+  // (`(company_id) where confirmed_at is null`), a `.upsert()` can only send a
+  // bare `on_conflict=company_id`, and Postgres will not match a bare column
+  // list to a partial index: every call raised 42P10 and 500ed.
+  //
+  // These tests could not see that, because they stub the HTTP layer and the
+  // request WAS sent, faithfully, on the way to an error. The suite that can
+  // fail is supabase/tests/cancellation_reason_upsert.test.sql, which calls the
+  // function against a real database. What is pinned here is only what this
+  // layer owns: the shape of the call and the validation in front of it.
+  const RPC = /rest\/v1\/rpc\/api_record_cancellation_reason/;
+
   it("accepts a reason and their own words", async () => {
-    const harness = makeHarness([
-      endpoint("POST", /rest\/v1\/cancellation_reasons/, () => []),
-    ]);
+    const harness = makeHarness([endpoint("POST", RPC, () => null)]);
     const response = await post(
       "/v1/billing/cancellation-reason",
       { reason: "seasonal", detail: "Quiet until spring, back in March." },
       harness,
     );
     expect(response.status).toBe(204);
-    const body = harness.callsTo("POST", /cancellation_reasons/)[0].json() as
-      Record<string, unknown>;
-    expect(body).toMatchObject({
-      reason: "seasonal",
-      detail: "Quiet until spring, back in March.",
-      // Not confirmed: saying why is not leaving. The webhook stamps this if
-      // the subscription actually ends.
-      confirmed_at: null,
+    expect(harness.callsTo("POST", RPC)[0].json()).toMatchObject({
+      p_reason: "seasonal",
+      p_detail: "Quiet until spring, back in March.",
     });
   });
 
@@ -621,40 +627,34 @@ describe("POST /v1/billing/cancellation-reason (#277)", () => {
     // #277's own devil's advocate is binding here: cancelling must never take
     // more steps than subscribing did. An empty body is a valid record that
     // somebody declined to answer, not a 422.
-    const harness = makeHarness([
-      endpoint("POST", /rest\/v1\/cancellation_reasons/, () => []),
-    ]);
+    const harness = makeHarness([endpoint("POST", RPC, () => null)]);
     const response = await post("/v1/billing/cancellation-reason", {}, harness);
     expect(response.status).toBe(204);
-    expect(
-      harness.callsTo("POST", /cancellation_reasons/)[0].json(),
-    ).toMatchObject({ reason: null, detail: null });
+    expect(harness.callsTo("POST", RPC)[0].json()).toMatchObject({
+      p_reason: null,
+      p_detail: null,
+    });
   });
 
-  it("upserts on the open row, so reopening the screen is not a second reason", async () => {
-    // Somebody who opens the cancel screen three times has given one reason.
-    // Three rows would triple-count them in every report, which is exactly the
-    // pattern the table exists to make readable.
-    const harness = makeHarness([
-      endpoint("POST", /rest\/v1\/cancellation_reasons/, () => []),
-    ]);
+  it("records the statement through the function that can name the partial index", async () => {
+    // Naming the RPC is the point. A future edit back to
+    // `.upsert(..., { onConflict: "company_id" })` reads like a simplification
+    // and is the exact 500 this route already shipped once.
+    const harness = makeHarness([endpoint("POST", RPC, () => null)]);
     await post("/v1/billing/cancellation-reason", { reason: "cost" }, harness);
-    const call = harness.callsTo("POST", /cancellation_reasons/)[0];
-    expect(call.url.searchParams.get("on_conflict")).toBe("company_id");
-    expect(call.headers.get("prefer") ?? "").toContain("resolution=merge-duplicates");
+    expect(harness.callsTo("POST", RPC)).toHaveLength(1);
+    expect(harness.callsTo("POST", /rest\/v1\/cancellation_reasons/)).toHaveLength(0);
   });
 
   it("422s a reason code longer than the column allows", async () => {
-    const harness = makeHarness([
-      endpoint("POST", /rest\/v1\/cancellation_reasons/, () => []),
-    ]);
+    const harness = makeHarness([endpoint("POST", RPC, () => null)]);
     const response = await post(
       "/v1/billing/cancellation-reason",
       { reason: "x".repeat(41) },
       harness,
     );
     expect(response.status).toBe(422);
-    expect(harness.callsTo("POST", /cancellation_reasons/)).toHaveLength(0);
+    expect(harness.callsTo("POST", RPC)).toHaveLength(0);
   });
 });
 

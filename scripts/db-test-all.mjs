@@ -145,6 +145,7 @@ const SUITES = [
   "member_orientation",
   "attachment_previews",
   "locale",
+  "cancellation_reason_upsert",
 
 ];
 
