@@ -243,12 +243,21 @@ function exitElement(file: TS.SourceFile, marker: string): JsxNode {
           other.getEnd() <= candidate.getEnd(),
       ),
   );
-  if (innermost.length !== 1) {
-    throw new Error(
-      `#524: expected exactly one exit in ${file.fileName} carrying "${marker}", found ${innermost.length}. ` +
-        `The guard cannot check a path it cannot find.`,
-    );
-  }
+  // A LOCATOR MISS IS A FAILED ASSERTION, NOT A THROWN ERROR.
+  //
+  // Throwing here took both tests down with a stack trace pointing at this
+  // file, so a reader saw the guard crash rather than the reason. And the
+  // reason is usually legitimate: an edit that gives the exit a second
+  // rendering (a dialog trigger beside the button) is a real change to review,
+  // not a broken test. `expect` says which, and says it about their code.
+  expect(
+    innermost.length,
+    `#524: the exit carrying "${marker}" in ${file.fileName} is no longer a ` +
+      "single element, so this guard cannot follow the path to it. If that is " +
+      "deliberate, teach the locator the new shape rather than deleting it - " +
+      "the walk below is what proves nothing on the way to the exit reads the " +
+      "pause.",
+  ).toBe(1);
   return innermost[0];
 }
 
@@ -430,9 +439,23 @@ describe("#524 nothing on the way to the exit reads the pause", () => {
       );
       const exit = exitElement(file, marker);
       expect(tagNameOf(exit)).toBe(tag);
-      // More than the exit's own attributes: the walk reached the wrappers, the
-      // conditions and the statements above it.
-      expect(gatesAbove(exit).length).toBeGreaterThan(3);
+      // The walk reached PAST the exit's own attributes.
+      //
+      // This asserted a count over three, which is a proxy for "it found
+      // something" and fails on correct code: extracting the exit block into a
+      // component with no pause dependency at all shortens the chain and trips
+      // it. A guard that is wrong about a harmless refactor is a guard somebody
+      // deletes, which costs more than the escape it was watching for.
+      //
+      // What actually has to hold is that the walk sees more than the element
+      // itself - at least one enclosing thing, whatever the shape above it.
+      // gatesAbove seeds with the exit's own attributes, so anything past one
+      // is the path above it.
+      expect(
+        gatesAbove(exit).length - 1,
+        "the walk found nothing above the exit, so it is reading one element " +
+          "rather than the path to it",
+      ).toBeGreaterThan(0);
 
       const derived = pauseDerivedNames(file);
       expect(derived.has("usePauseOffer")).toBe(true);
