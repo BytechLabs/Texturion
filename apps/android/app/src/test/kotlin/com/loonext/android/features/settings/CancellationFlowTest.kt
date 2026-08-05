@@ -1,0 +1,449 @@
+package com.loonext.android.features.settings
+
+import com.loonext.android.core.model.MemberRole
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
+import org.junit.Test
+import java.io.File
+
+/**
+ * #277 — the cancel screen, and the rule it is built against.
+ *
+ * The rule is that cancelling must never take more steps or more time than
+ * subscribing did, the reason must be skippable, and a broken analytics write
+ * must never be able to stop somebody leaving. Every one of those is a WIRING
+ * property of a composable, which a unit test cannot raise — so the half of
+ * this file that matters is source lints, in the
+ * [com.loonext.android.ImeContractLintTest] idiom that
+ * [PortRejectionWiringTest] also uses.
+ *
+ * Each lint below fails if the specific dark pattern it names is introduced,
+ * which is the only reason a lint of this kind earns its place.
+ *
+ * One of them is load-bearing in a way the others are not. A lint that scans
+ * for one shape of blocker proves nothing about a blocker of another shape:
+ * the `enabled =` scan below stayed green through a version of this card whose
+ * exit was two taps away, because the blocker was an early return rather than
+ * a disabled control. `the way out is on the card from the first frame` reads
+ * the card's structure instead, and it is the one to extend when a new way of
+ * standing in front of the exit is invented.
+ */
+class CancellationFlowTest {
+
+    private val billingSection = "features/settings/BillingSection.kt"
+    private val repository = "features/settings/SettingsRepository.kt"
+
+    // -- the reason codes, which are a cross-client contract ------------------
+
+    /**
+     * The codes land in the database and every count is grouped by them, so all
+     * three clients must send the same six strings. A client that invented
+     * `too-expensive` would not error anywhere; it would quietly open a seventh
+     * bucket that nobody notices until a report is read out loud.
+     */
+    @Test
+    fun `the six reasons are the agreed codes, in the agreed order`() {
+        assertEquals(
+            listOf(
+                "too_expensive",
+                "seasonal",
+                "missing_feature",
+                "switched",
+                "not_using",
+                "other",
+            ),
+            CANCELLATION_REASONS.map { it.code },
+        )
+        assertEquals(
+            listOf(
+                "Too expensive",
+                "Quiet season, I'll be back",
+                "Missing something I need",
+                "Going with something else",
+                "Not using it",
+                "Something else",
+            ),
+            CANCELLATION_REASONS.map { it.label },
+        )
+    }
+
+    /** The API trims then caps `reason` at 40; a longer code is a silent 422. */
+    @Test
+    fun `every code fits the API ceiling and is a distinct snake_case token`() {
+        val codes = CANCELLATION_REASONS.map { it.code }
+        assertEquals("codes must be distinct", codes.size, codes.toSet().size)
+        codes.forEach { code ->
+            assertTrue("$code is over the API's 40-char ceiling", code.length <= 40)
+            assertTrue("$code is not snake_case", Regex("^[a-z][a-z_]*$").matches(code))
+        }
+    }
+
+    // -- the statement -------------------------------------------------------
+
+    @Test
+    fun `skipping the question is a real statement with nothing in it`() {
+        // The body this produces is `{}`, which the API documents as "they were
+        // asked and did not answer" rather than as a malformed call. It is still
+        // worth sending: silence is a measurement.
+        val skipped = cancellationStatement(null, "")
+        assertNull(skipped.reason)
+        assertNull(skipped.detail)
+    }
+
+    @Test
+    fun `a box opened and left alone stores the same row as one never touched`() {
+        assertNull(cancellationStatement("other", "   ").detail)
+        assertEquals("too much", cancellationStatement("other", "  too much  ").detail)
+    }
+
+    /**
+     * Over-length is a 422, and the record is deliberately never awaited — so an
+     * unclamped body would fail INVISIBLY. The person cancels, the screen
+     * behaves perfectly, and the paragraph they took the trouble to write is
+     * simply never stored.
+     */
+    @Test
+    fun `detail is clamped to the ceiling rather than being refused at it`() {
+        val long = "x".repeat(CANCELLATION_DETAIL_MAX + 500)
+        assertEquals(CANCELLATION_DETAIL_MAX, cancellationStatement(null, long).detail!!.length)
+        assertEquals(2000, CANCELLATION_DETAIL_MAX)
+        assertEquals(40, CANCELLATION_REASON_MAX)
+    }
+
+    // -- who is actually offered it ------------------------------------------
+
+    /**
+     * POST /v1/billing/portal mints the full portal for an owner and a
+     * `payment_method_update` session for everybody else, and that flow has no
+     * cancellation surface. Offering the button to a bookkeeper would send them
+     * to a page with no such button on it.
+     */
+    @Test
+    fun `only the owner is offered the cancellation`() {
+        assertTrue(SettingsRoleGate.canCancelSubscription(MemberRole.OWNER))
+        assertFalse(SettingsRoleGate.canCancelSubscription(MemberRole.ADMIN))
+        assertFalse(SettingsRoleGate.canCancelSubscription(MemberRole.BOOKKEEPER))
+        assertFalse(SettingsRoleGate.canCancelSubscription(MemberRole.MEMBER))
+        assertFalse(SettingsRoleGate.canCancelSubscription(null))
+        // The bookkeeper still holds billing generally — the two questions are
+        // different, and collapsing them is what would hide the card entirely.
+        assertTrue(SettingsRoleGate.canManageBilling(MemberRole.BOOKKEEPER))
+    }
+
+    // -- the wiring the rule actually lives in --------------------------------
+
+    @Test
+    fun `nothing on the screen may disable the way out`() {
+        val body = cancelCard()
+        // The trap this pins is "Continue" greyed out until a reason is picked.
+        // Only the request already in flight may ever disable a control here.
+        Regex("enabled\\s*=\\s*([^,\n]*)").findAll(body).forEach { match ->
+            val expression = match.groupValues[1]
+            assertFalse(
+                "a control in CancelCard is gated on the reason ($expression) - " +
+                    "the way through must never depend on answering",
+                expression.contains("reason") || expression.contains("detail"),
+            )
+        }
+        assertTrue(
+            "the continue button must be enabled except while opening",
+            body.contains("enabled = !opening"),
+        )
+    }
+
+    /**
+     * THE guard for this card, and the one the shipped defect walked straight
+     * past.
+     *
+     * What blocked the exit was never a disabled button. It was an early
+     * `return@SettingsCard` behind an `expanded` flag: one tap to open the card,
+     * a second to leave. Every `enabled =` lint in this file was green the whole
+     * time it was there, because there was nothing wrong with any `enabled =`.
+     * A regex hunting for the wrong shape of blocker is not a guard, it is
+     * reassurance.
+     *
+     * So this one reads the card's SHAPE instead. From the point the owner's
+     * half begins, nothing may stand between the card rendering and the button
+     * that leaves: no second early return, no conditional statement, no flag
+     * that has to be flipped first. The number that has to hold is one action
+     * from landing on the billing screen, which is what the "Manage payment &
+     * invoices" button beside it costs.
+     */
+    @Test
+    fun `the way out is on the card from the first frame, with nothing tapped first`() {
+        val body = cancelCard()
+
+        // Everything after the owner check, which is the one legitimate early
+        // return here: a bookkeeper is told who can cancel instead, because the
+        // portal their role mints has no cancellation surface on it at all.
+        val gate = body.indexOf("!SettingsRoleGate.canCancelSubscription")
+        assertTrue("the owner check must still open the card", gate > 0)
+        val gateReturn = body.indexOf("return@SettingsCard", gate)
+        assertTrue("the owner check must still return early", gateReturn > gate)
+        val confirm = body.indexOf("Continue to cancel")
+        assertTrue("the card must still carry the button that leaves", confirm > gateReturn)
+
+        val toTheExit = body.substring(gateReturn + "return@SettingsCard".length, confirm)
+
+        assertFalse(
+            "a second early return between the owner check and the way out is the " +
+                "collapse trigger come back: one tap to reveal the card, another to " +
+                "leave",
+            toTheExit.contains("return@SettingsCard"),
+        )
+        listOf("expanded", "showSheet", "ModalBottomSheet", "AnimatedVisibility").forEach { word ->
+            assertFalse(
+                "`$word` in CancelCard means the way out sits behind something that " +
+                    "has to be opened first",
+                body.contains(word),
+            )
+        }
+        toTheExit.lines().forEach { line ->
+            val statement = line.trim()
+            assertFalse(
+                "a conditional statement stands between the card rendering and the " +
+                    "way out: `$statement`. Everything down to the button must paint " +
+                    "on the first frame",
+                statement.startsWith("if (") || statement.startsWith("if(") ||
+                    statement.startsWith("when (") || statement.startsWith("when(") ||
+                    statement.startsWith("} else"),
+            )
+        }
+
+        // And the button is a direct statement of the card, not a child of
+        // something wrapped around it. Brace depth is the property that holds
+        // here: a lambda that opens and closes on the way to the button nets
+        // zero, while anything still open when the button is reached nets one
+        // or more, and that open brace is what a re-introduced trigger is.
+        //
+        // The indentation check below says the same thing and is easier to read
+        // in a failure message, but it can be walked past by wrapping the button
+        // without re-indenting its body, and nothing in this module's Gradle
+        // config would force the re-indent: there is no ktlint, detekt or
+        // spotless here. So the brace count is the one that has to be right.
+        val depth = withoutStringsOrComments(toTheExit)
+            .fold(0) { acc, ch -> if (ch == '{') acc + 1 else if (ch == '}') acc - 1 else acc }
+        assertEquals(
+            "the way out is nested $depth level(s) inside something that opens " +
+                "between the card and the button. It has to be a direct child of " +
+                "the card, painted on the first frame",
+            0,
+            depth,
+        )
+
+        val cardIndent = Regex("(?m)^([ \\t]*)if \\(!SettingsRoleGate").find(body)
+            ?.groupValues?.get(1)?.length ?: -1
+        assertTrue("could not read the card's own statement indentation", cardIndent > 0)
+        val leaveButton = Regex("(?m)^([ \\t]*)Button\\(").findAll(body)
+            .lastOrNull { it.range.first < confirm }
+        assertTrue(
+            "could not find the leave button's declaration. If it was reformatted, " +
+                "teach this guard the new shape rather than deleting it",
+            leaveButton != null,
+        )
+        assertEquals(
+            "the button that leaves is nested inside something. It has to be a direct " +
+                "child of the card, rendered unconditionally",
+            cardIndent,
+            leaveButton!!.groupValues[1].length,
+        )
+    }
+
+    @Test
+    fun `no reason is pre-selected`() {
+        assertTrue(
+            "a default answer is not an answer anybody gave",
+            cancelCard()
+                .contains("var reason by rememberSaveable { mutableStateOf<String?>(null) }"),
+        )
+    }
+
+    /**
+     * A rotation, a switch to dark mode, or the system reclaiming the activity
+     * recreates this screen. Plain `remember` is gone by then, so the paragraph
+     * somebody wrote at us on their way out would vanish mid-sentence with
+     * nothing on screen to explain it. `rememberSaveable` is house style in this
+     * codebase for exactly this.
+     */
+    @Test
+    fun `what somebody typed survives the screen being recreated`() {
+        assertTrue(
+            "the free-text note must be saveable, not merely remembered",
+            cancelCard().contains("var detail by rememberSaveable { mutableStateOf(\"\") }"),
+        )
+    }
+
+    /**
+     * The comment on the field says it stops at the ceiling. A length check that
+     * drops the edit does the opposite: paste a long paragraph and the whole
+     * thing is refused, with no counter and no message to say why.
+     */
+    @Test
+    fun `the note truncates a long paste rather than refusing it`() {
+        val body = cancelCard()
+        assertTrue(
+            "house shape is `.take(MAX)`, the same as the contact and address fields",
+            body.contains("detail = it.take(CANCELLATION_DETAIL_MAX)"),
+        )
+        assertFalse(
+            "a length guard that assigns nothing throws away everything somebody " +
+                "pasted and says nothing about it",
+            body.contains("if (it.length <="),
+        )
+    }
+
+    /**
+     * Six `selectable` rows with `RadioButton(onClick = null)` and nothing else
+     * are announced as six unrelated tappable lines: no "1 of 6", no group. This
+     * is the one card in the app being judged on how hard it is to leave, so it
+     * is the last place a screen-reader user should have to guess.
+     */
+    @Test
+    fun `the six rows are announced as one group of radio buttons`() {
+        val body = cancelCard()
+        assertTrue(
+            "without selectableGroup the rows are not a group to TalkBack",
+            body.contains("Modifier.selectableGroup()"),
+        )
+        assertTrue(
+            "without the role each row is announced as a generic selectable item",
+            body.contains("role = Role.RadioButton"),
+        )
+    }
+
+    @Test
+    fun `there is no second dialog between the screen and Stripe`() {
+        val body = cancelCard()
+        assertFalse(
+            "an 'are you sure' step here is the friction the rule forbids",
+            body.contains("AlertDialog") || body.contains("ConfirmDialog"),
+        )
+    }
+
+    /**
+     * The load-bearing lint. If the reason POST is ever awaited on the path to
+     * the portal, a dead endpoint or a slow one becomes a person who cannot
+     * cancel — which is the exact failure this whole screen exists to avoid.
+     */
+    @Test
+    fun `the reason is recorded off the handoff path, and started before it`() {
+        val body = cancelCard()
+        val calls = Regex("recordCancellationReason").findAll(body).count()
+        assertEquals("exactly one call site in the card", 1, calls)
+
+        val record = body.indexOf("recordCancellationReason")
+        val preceding = body.substring(maxOf(0, record - 300), record)
+        assertTrue(
+            "the record must be fired on the process-lifetime scope: a screen-" +
+                "scoped one dies when the browser comes forward, and awaiting it " +
+                "would put an analytics write in front of a cancellation",
+            preceding.contains("appScope.launch"),
+        )
+        assertTrue(
+            "and it must be started before the handoff, not after it - the " +
+                "browser takes the screen away",
+            record < body.indexOf("billingPortal"),
+        )
+    }
+
+    @Test
+    fun `the export offer and the confirm button are on the same card`() {
+        val body = cancelCard()
+        val export = body.indexOf("exportLauncher.launch(")
+        val confirm = body.indexOf("Continue to cancel")
+        assertTrue("the cancel card must offer the contacts export", export > 0)
+        assertTrue("and the confirm button lives on the same card", confirm > 0)
+        assertTrue(
+            "the export is offered before the way out, so the last thing somebody " +
+                "sees before the handoff is their own customer list rather than a " +
+                "link they will never come back for",
+            export < confirm,
+        )
+    }
+
+    @Test
+    fun `the rows come from the shared list rather than a second copy`() {
+        assertTrue(
+            "a hardcoded list here would drift from the codes the API stores",
+            cancelCard().contains("CANCELLATION_REASONS.forEach"),
+        )
+    }
+
+    /**
+     * The route answers 204 No Content. A typed helper would try to decode an
+     * empty body and throw on a call that had in fact succeeded.
+     */
+    @Test
+    fun `the 204 route is called through raw, not a decoding helper`() {
+        val src = readMainSource(repository)
+        val fn = src.substringAfter("suspend fun recordCancellationReason")
+            .substringBefore("\n    /**")
+        assertTrue(
+            "recordCancellationReason must go through ApiClient.raw",
+            fn.contains("api.raw("),
+        )
+        assertTrue(fn.contains("\"/v1/billing/cancellation-reason\""))
+    }
+
+    // -- helpers -------------------------------------------------------------
+
+    /** The CancelCard composable's source, from its signature to its brace. */
+    private fun cancelCard(): String {
+        val src = readMainSource(billingSection)
+        val start = src.indexOf("private fun CancelCard(")
+        if (start < 0) fail("CancelCard not found in $billingSection")
+        val end = src.indexOf("\n}\n", start)
+        if (end < 0) fail("CancelCard has no closing brace at column 0")
+        return src.substring(start, end)
+    }
+
+    /**
+     * Kotlin source with string literals and line comments blanked out, so a
+     * brace inside copy or inside a `${'$'}{...}` template does not read as a block
+     * that opened. Only the braces the compiler sees are left behind.
+     */
+    private fun withoutStringsOrComments(source: String): String {
+        val out = StringBuilder(source.length)
+        var inString = false
+        var inComment = false
+        var i = 0
+        while (i < source.length) {
+            val ch = source[i]
+            when {
+                inComment -> if (ch == '\n') { inComment = false; out.append(ch) }
+                inString -> {
+                    // A backslash escape cannot end the literal, so step over it.
+                    if (ch == '\\') i++ else if (ch == '"') inString = false
+                }
+                ch == '/' && i + 1 < source.length && source[i + 1] == '/' -> inComment = true
+                ch == '"' -> inString = true
+                else -> out.append(ch)
+            }
+            i++
+        }
+        return out.toString()
+    }
+
+    private fun mainRoot(): File {
+        val bases = listOf(
+            "src/main/kotlin/com/loonext/android",
+            "app/src/main/kotlin/com/loonext/android",
+            "apps/android/app/src/main/kotlin/com/loonext/android",
+        )
+        for (base in bases) {
+            val dir = File(base)
+            if (dir.exists()) return dir
+        }
+        fail("main source root not found (cwd=${File(".").absolutePath})")
+        error("unreachable")
+    }
+
+    private fun readMainSource(relative: String): String {
+        val f = File(mainRoot(), relative)
+        if (!f.exists()) fail("source not found: $relative")
+        return f.readText()
+    }
+}

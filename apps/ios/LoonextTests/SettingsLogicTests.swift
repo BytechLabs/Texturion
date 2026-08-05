@@ -152,6 +152,357 @@ final class SettingsLogicTests: XCTestCase {
         XCTAssertEqual(inviteNoteLength(cut), inviteNoteMax - 1)
     }
 
+    // MARK: - Why a workspace is leaving (#277)
+
+    func testTheSixReasonCodesAreTheOnesEveryClientOffers() {
+        // The codes are what the report groups by, so a client that spelled one
+        // differently would split the same answer into two buckets and neither
+        // number would mean anything. The order is the order they are offered.
+        XCTAssertEqual(
+            cancellationReasons.map(\.code),
+            ["too_expensive", "seasonal", "missing_feature", "switched", "not_using", "other"]
+        )
+        XCTAssertEqual(
+            cancellationReasons.map(\.label),
+            [
+                "Too expensive",
+                "Quiet season, I'll be back",
+                "Missing something I need",
+                "Going with something else",
+                "Not using it",
+                "Something else",
+            ]
+        )
+    }
+
+    func testEveryOfferedCodeFitsTheColumnItIsStoredIn() {
+        // `reason text check (char_length(reason) <= 40)`, and the route's zod
+        // says the same. A code that outgrew it would 422 the whole record.
+        for reason in cancellationReasons {
+            XCTAssertFalse(reason.code.isEmpty, reason.label)
+            XCTAssertLessThanOrEqual(reason.code.utf16.count, 40, reason.code)
+            XCTAssertFalse(reason.label.isEmpty, reason.code)
+        }
+    }
+
+    func testSkippingTheQuestionStillPostsARecord() {
+        // `{}` is the whole point rather than an edge case: it records that
+        // somebody was asked and went straight through, which is the only thing
+        // that makes "how many answered" a fraction of anything.
+        XCTAssertEqual(cancellationReasonBody(reason: nil, detail: ""), .object([:]))
+        XCTAssertEqual(cancellationReasonBody(reason: nil, detail: "   \n  "), .object([:]))
+    }
+
+    func testTheBodyCarriesOnlyWhatWasActuallySaid() {
+        XCTAssertEqual(
+            cancellationReasonBody(reason: "seasonal", detail: ""),
+            .object(["reason": .string("seasonal")])
+        )
+        XCTAssertEqual(
+            cancellationReasonBody(reason: nil, detail: "  too many texts  "),
+            .object(["detail": .string("too many texts")])
+        )
+        XCTAssertEqual(
+            cancellationReasonBody(reason: "other", detail: "moving to a landline"),
+            .object([
+                "reason": .string("other"),
+                "detail": .string("moving to a landline"),
+            ])
+        )
+    }
+
+    func testAnOverLongDetailIsCutRatherThanRejected() {
+        // The POST is never waited on, so a 422 would throw the words away with
+        // nobody told. Truncating keeps the first 2000 of them.
+        let pasted = String(repeating: "a", count: cancellationDetailMax + 100)
+        XCTAssertEqual(truncatedCancellationDetail(pasted).utf16.count, cancellationDetailMax)
+        let exact = String(repeating: "a", count: cancellationDetailMax)
+        XCTAssertEqual(truncatedCancellationDetail(exact), exact)
+        XCTAssertEqual(truncatedCancellationDetail("plumbing is quiet in January"),
+                       "plumbing is quiet in January")
+    }
+
+    func testTheDetailCutLandsBetweenCharactersAndNotInsideOne() {
+        // Same measure as the invite note's cap: the server counts UTF-16 units
+        // and one emoji is two of them, so cutting on Swift Characters would
+        // send 2000 clusters into a field that takes 2000 units.
+        let emoji = String(repeating: "\u{1F600}", count: cancellationDetailMax)
+        let cut = truncatedCancellationDetail(emoji)
+        XCTAssertEqual(cut.utf16.count, cancellationDetailMax)
+        XCTAssertEqual(cut.count, cancellationDetailMax / 2)
+        XCTAssertEqual(cut, String(repeating: "\u{1F600}", count: cancellationDetailMax / 2))
+    }
+
+    /// POST /v1/billing/portal mints the full portal for an owner and a
+    /// `payment_method_update` session for everybody else, and that Stripe flow
+    /// has no cancellation surface on it. Offering the button to an admin or a
+    /// bookkeeper walks them to a page where the thing they were promised does
+    /// not exist, and files a reason against a cancellation that can never be
+    /// confirmed.
+    func testOnlyTheOwnerIsOfferedTheCancellation() {
+        XCTAssertTrue(SettingsRoleGate.canCancelSubscription(MemberRole.owner))
+        XCTAssertFalse(SettingsRoleGate.canCancelSubscription(MemberRole.admin))
+        XCTAssertFalse(SettingsRoleGate.canCancelSubscription(MemberRole.bookkeeper))
+        XCTAssertFalse(SettingsRoleGate.canCancelSubscription(MemberRole.member))
+        XCTAssertFalse(SettingsRoleGate.canCancelSubscription(MemberRole.readOnly))
+        XCTAssertFalse(SettingsRoleGate.canCancelSubscription(nil))
+        // The bookkeeper still holds billing generally. The two questions are
+        // different, and collapsing them into one would hide the whole card
+        // from the role that exists to read it.
+        XCTAssertTrue(SettingsRoleGate.canManageBilling(MemberRole.bookkeeper))
+    }
+
+    // MARK: - The cancel card, as it is first seen (#277)
+    //
+    // Every rule below is a WIRING property of a SwiftUI view, which no amount
+    // of arithmetic can raise. They are pinned by reading the source, in the
+    // idiom `ColorLiteralLintTests` already uses here and `CancellationFlowTest`
+    // uses on the Android side. Each one fails if the specific dark pattern it
+    // names is introduced, which is the only thing that earns a lint of this
+    // kind its place.
+
+    /// THE guarantee: from arriving at the billing screen, one action reaches
+    /// Stripe.
+    ///
+    /// The card was built collapsed once, copying the neighbouring delete
+    /// control, and that made leaving cost two actions against a "Manage
+    /// payment & invoices" button beside it that costs one. Deliberate friction
+    /// belongs on deleting an account, which cannot be undone; on a
+    /// subscription it is a regulatory problem in several of the markets this
+    /// sells into. A collapse arrives as a new piece of view state, so pinning
+    /// the whole set of it is what makes this fail when one is added back.
+    func testTheLeaveControlIsOnTheCardBeforeAnythingIsTapped() throws {
+        let card = try cancelCardSource()
+        XCTAssertTrue(
+            card.contains("\"Continue to cancel\""),
+            "the cancel card must carry the control that leaves"
+        )
+        XCTAssertEqual(
+            Set(declaredState(card)),
+            Set(["chosen", "detail", "opening", "error", "exporting", "exportError", "exported"]),
+            "the cancel card grew or lost view state. If this is a new flag that "
+                + "hides the card behind a trigger (expanded, showing, cancelling), it "
+                + "is the two-step funnel this card exists to not be: render open."
+        )
+    }
+
+    /// The order the contract asks for: what happens, then the quiet question,
+    /// then the export that serves the person leaving, then the way out. The
+    /// export comes before the button because it is the half that is theirs.
+    func testTheQuestionTheExportAndTheWayOutAreAllOnTheOneCard() throws {
+        let card = try cancelCardSource()
+        let rendered = try section(of: card, from: "private var leaving: some View {")
+        guard let question = rendered.range(of: "reasonQuestion"),
+              let export = rendered.range(of: "exportOffer"),
+              let leave = rendered.range(of: "\"Continue to cancel\"") else {
+            return XCTFail("the cancel card no longer renders all three parts together")
+        }
+        XCTAssertTrue(
+            question.lowerBound < export.lowerBound && export.lowerBound < leave.lowerBound,
+            "the question, then the export, then the button that leaves"
+        )
+        XCTAssertTrue(
+            card.contains("\"Take your contacts with you\""),
+            "somebody leaving still needs their customer list"
+        )
+    }
+
+    /// The trap this pins is a greyed-out "Continue to cancel" waiting for an
+    /// answer. Only the request already in flight may ever disable a control
+    /// here.
+    func testNothingOnTheCardMayDisableTheWayOut() throws {
+        let card = try cancelCardSource()
+        for expression in disabledExpressions(card) {
+            XCTAssertFalse(
+                expression.contains("chosen") || expression.contains("detail"),
+                "a control on the cancel card is gated on the answer "
+                    + "(.disabled(\(expression))): the way through must never depend on "
+                    + "answering the question"
+            )
+        }
+        XCTAssertTrue(
+            card.contains(".disabled(opening)"),
+            "the button that leaves is disabled by the in-flight request and nothing else"
+        )
+    }
+
+    func testNothingStandsBetweenTheCardAndStripe() throws {
+        let card = try cancelCardSource()
+        XCTAssertFalse(
+            card.contains("ConfirmSheet"),
+            "an 'are you sure' step here is the friction the rule forbids"
+        )
+        XCTAssertFalse(
+            card.contains(".sheet(isPresented:"),
+            "a sheet presented from this card is the second screen under another name "
+                + "(the share sheet is .sheet(item:), and only opens after an export)"
+        )
+        XCTAssertFalse(
+            card.contains("Never mind"),
+            "a second button beside the confirm invites the asymmetry this card avoids: "
+                + "with nothing expanded there is nothing to back out of"
+        )
+    }
+
+    func testNoReasonIsPreSelected() throws {
+        let card = try cancelCardSource()
+        // The trailing newline is the assertion: `chosen: String?` on its own
+        // is nil, and `chosen: String? = "too_expensive"` reads as the same
+        // declaration until you notice the rest of the line.
+        XCTAssertTrue(
+            card.contains("@State private var chosen: String?\n"),
+            "declared with no value: a default answer is a reason nobody gave, and every "
+                + "count built on it is wrong in the direction we chose"
+        )
+        XCTAssertTrue(
+            card.contains("ForEach(cancellationReasons)"),
+            "the rows come from the shared list; a second copy here would drift from the "
+                + "codes the API stores"
+        )
+    }
+
+    /// The load-bearing one. If the reason POST ever moves onto the path to the
+    /// portal, a dead endpoint of ours becomes a person who cannot cancel.
+    func testTheReasonRidesBesideTheHandoffAndNeverInFrontOfIt() throws {
+        let card = try cancelCardSource()
+        XCTAssertEqual(
+            card.components(separatedBy: "recordCancellationReason").count - 1, 1,
+            "exactly one call site on the card"
+        )
+        let handOff = try section(of: card, from: "private func handOff() {")
+        XCTAssertTrue(
+            handOff.contains("guard canCancel else { return }"),
+            "no reason is posted for somebody who cannot cancel: that row could never be "
+                + "confirmed, and it would sit in the report as somebody who said why and stayed"
+        )
+        guard let record = handOff.range(of: "recordCancellationReason"),
+              let portal = handOff.range(of: "billingPortal") else {
+            return XCTFail("the handoff no longer records a reason or no longer opens the portal")
+        }
+        XCTAssertTrue(
+            record.lowerBound < portal.lowerBound,
+            "the record is started first; the browser takes this screen away"
+        )
+        XCTAssertTrue(
+            String(handOff[..<record.lowerBound]).suffix(40).contains("try? await"),
+            "the record's failure is discarded where it is made. A plain `try await` here "
+                + "hands a rejection back to the code on its way to the portal"
+        )
+        XCTAssertTrue(
+            String(handOff[record.lowerBound ..< portal.lowerBound]).contains("Task {"),
+            "and the portal runs on a task of its own. Sharing one with the record puts "
+                + "our bookkeeping in front of somebody's cancellation, which is the exact "
+                + "failure this screen exists to avoid"
+        )
+    }
+
+    /// "Cancel anytime." is false for two of the three roles that can open this
+    /// screen. Each reader is told what is true for them, and the branch has to
+    /// stay pointing the right way round.
+    func testTheConsequenceCopyIsTrueForWhoeverIsReadingIt() throws {
+        let card = try cancelCardSource()
+        let copy = try section(of: card, from: "private var consequence: String {")
+        guard let owner = copy.range(of: "\"Cancel anytime."),
+              let other = copy.range(of: "\"Only the owner can cancel this plan.") else {
+            return XCTFail("the cancel card no longer says something different to a non-owner")
+        }
+        // The gate itself, not just a mention of it. `!canCancel ? …` reads
+        // identically at a glance and promises an admin the one thing they
+        // cannot do.
+        XCTAssertTrue(
+            copy.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("canCancel"),
+            "the branch has to stay pointing this way round: canCancel ? owner : everybody else"
+        )
+        XCTAssertTrue(
+            owner.lowerBound < other.lowerBound,
+            "the owner reads 'Cancel anytime', everybody else reads who can"
+        )
+        XCTAssertTrue(
+            card.contains("The payment portal above is for cards and invoices and has no ")
+                && card.contains(
+                    "cancellation on it, so this is not something to go looking for there."
+                ),
+            "and is told the portal they can reach has no cancel button on it, in the "
+                + "same words the other clients use"
+        )
+    }
+
+    // MARK: - Reading the card's source
+
+    /// Walk up to the repo's own copy of the sources. The test bundle lives in
+    /// DerivedData, so a working directory is not something to guess at.
+    private func iosSourceRoot() throws -> URL {
+        var dir = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // LoonextTests
+            .deletingLastPathComponent() // ios
+        dir.appendPathComponent("Loonext")
+        guard FileManager.default.fileExists(atPath: dir.path) else {
+            throw XCTSkip("iOS sources not present at \(dir.path)")
+        }
+        return dir
+    }
+
+    /// `CancelCard`'s source, from its declaration to the brace that closes it
+    /// at column 0.
+    private func cancelCardSource() throws -> String {
+        let path = try iosSourceRoot()
+            .appendingPathComponent("Features")
+            .appendingPathComponent("Settings")
+            .appendingPathComponent("BillingSection.swift")
+        // Normalised, because every brace-matching pattern below is written
+        // with LF and a checkout on a Windows machine can hand back CRLF.
+        let text = try String(contentsOf: path, encoding: .utf8)
+            .replacingOccurrences(of: "\r\n", with: "\n")
+        guard let start = text.range(of: "private struct CancelCard: View {") else {
+            throw CardSourceMissing.declaration
+        }
+        let rest = text[start.lowerBound...]
+        guard let end = rest.range(of: "\n}\n") else {
+            throw CardSourceMissing.closingBrace
+        }
+        return String(rest[..<end.upperBound])
+    }
+
+    private enum CardSourceMissing: Error {
+        case declaration
+        case closingBrace
+        case member(String)
+    }
+
+    /// One member of the card, from its declaration to the brace that closes it
+    /// at the card's indentation.
+    private func section(of card: String, from declaration: String) throws -> String {
+        guard let start = card.range(of: declaration) else {
+            throw CardSourceMissing.member(declaration)
+        }
+        let rest = card[start.upperBound...]
+        guard let end = rest.range(of: "\n    }\n") else {
+            throw CardSourceMissing.member(declaration)
+        }
+        return String(rest[..<end.lowerBound])
+    }
+
+    /// Every `@State` the card holds, by name.
+    private func declaredState(_ source: String) -> [String] {
+        source.split(separator: "\n").compactMap { line -> String? in
+            guard let marker = line.range(of: "@State private var ") else { return nil }
+            let name = line[marker.upperBound...].prefix {
+                $0.isLetter || $0.isNumber || $0 == "_"
+            }
+            return name.isEmpty ? nil : String(name)
+        }
+    }
+
+    /// What each `.disabled(…)` on the card is asking about.
+    private func disabledExpressions(_ source: String) -> [String] {
+        source.split(separator: "\n").compactMap { line -> String? in
+            guard let marker = line.range(of: ".disabled(") else { return nil }
+            let rest = line[marker.upperBound...]
+            guard let close = rest.lastIndex(of: ")") else { return nil }
+            return String(rest[..<close])
+        }
+    }
+
     // MARK: - Role-gate matrix
 
     func testAdminLevelGatesAdmitOwnerAndAdminRefuseMemberAndUnknown() {
@@ -178,6 +529,7 @@ final class SettingsLogicTests: XCTestCase {
             SettingsRoleGate.canCancelPort,
             SettingsRoleGate.canCancelTextEnablement,
             SettingsRoleGate.canEnableUsTexting,
+            SettingsRoleGate.canCancelSubscription,
         ]
         for gate in ownerGates {
             XCTAssertTrue(gate(MemberRole.owner))

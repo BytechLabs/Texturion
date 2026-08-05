@@ -46,6 +46,19 @@ object SettingsRoleGate {
     fun canManageBilling(role: String?): Boolean =
         MemberRole.has(role, Capability.BILLING_MANAGE)
 
+    /**
+     * End the subscription — OWNER only, because that is what the hosted
+     * portal actually offers.
+     *
+     * POST /v1/billing/portal mints a full portal session for an owner and a
+     * `payment_method_update` one for everybody else, and the card-update flow
+     * has no cancellation surface at all. A bookkeeper told to "cancel from the
+     * payment portal" arrives at a page with no such button and no explanation,
+     * which is the worst version of this screen: it reads as friction we put
+     * there on purpose.
+     */
+    fun canCancelSubscription(role: String?): Boolean = role == MemberRole.OWNER
+
     /** Overage cap — OWNER only. */
     fun canChangeOverageCap(role: String?): Boolean = role == MemberRole.OWNER
 
@@ -539,6 +552,64 @@ fun planIncludedSegments(plan: String?): Long = when (plan) {
     "starter" -> 500L
     else -> 0L
 }
+
+// ---------------------------------------------------------------------------
+// #277 — why a workspace is leaving, asked once, before the Stripe handoff
+// ---------------------------------------------------------------------------
+
+/** One answer: the code the API stores, and the words the owner reads. */
+data class CancellationReason(val code: String, val label: String)
+
+/**
+ * The six answers, in this order, identical on every client.
+ *
+ * Order is not ranking and must not become one: it runs from the reason we can
+ * do something about to the reason we cannot, and reordering it to put a
+ * "winnable" answer first would be tuning the question to flatter the report.
+ *
+ * The codes are what land in the database and what every count is grouped by,
+ * so they are frozen. Change a LABEL freely; changing a code silently splits
+ * one reason into two in every report that spans the change.
+ */
+val CANCELLATION_REASONS: List<CancellationReason> = listOf(
+    CancellationReason("too_expensive", "Too expensive"),
+    CancellationReason("seasonal", "Quiet season, I'll be back"),
+    CancellationReason("missing_feature", "Missing something I need"),
+    CancellationReason("switched", "Going with something else"),
+    CancellationReason("not_using", "Not using it"),
+    CancellationReason("other", "Something else"),
+)
+
+/** The API's ceiling on the free-text half (`detail`, trimmed then max 2000). */
+const val CANCELLATION_DETAIL_MAX = 2000
+
+/** The API's ceiling on the code (`reason`, trimmed then max 40). */
+const val CANCELLATION_REASON_MAX = 40
+
+/**
+ * What POST /v1/billing/cancellation-reason should carry. Both halves nullable:
+ * neither is required, and a statement with nothing in it is the honest record
+ * that somebody was asked and chose not to answer.
+ */
+data class CancellationStatement(val reason: String?, val detail: String?)
+
+/**
+ * Normalise what the screen holds into what the wire should carry.
+ *
+ * Blank collapses to null so "opened the box and typed nothing" and "never
+ * touched the box" store the same row — otherwise every report has to know that
+ * `""` means nothing, forever.
+ *
+ * The clamp matters more than it looks. Over-length is a 422, and this call is
+ * deliberately never awaited, so a rejected body would fail INVISIBLY: the
+ * person cancels, the screen behaves perfectly, and the sentence they took the
+ * trouble to write is simply never stored.
+ */
+fun cancellationStatement(code: String?, typedDetail: String?): CancellationStatement =
+    CancellationStatement(
+        reason = code?.trim()?.ifEmpty { null }?.take(CANCELLATION_REASON_MAX),
+        detail = typedDetail?.trim()?.ifEmpty { null }?.take(CANCELLATION_DETAIL_MAX),
+    )
 
 // ---------------------------------------------------------------------------
 // #414 emergency keyword — mirror of packages/shared/src/emergency.ts

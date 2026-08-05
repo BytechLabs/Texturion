@@ -1,4 +1,7 @@
 import SwiftUI
+// #277: the export offer on the cancel screen hands a real file to the real
+// system share sheet, which is UIKit's.
+import UIKit
 
 private let fairUseUrl = "https://loonext.com/legal/fair-use"
 
@@ -66,15 +69,7 @@ struct BillingSectionView: View {
                 PortalButton(scope: scope, label: "Manage payment & invoices")
             }
             if company.subscriptionActive {
-                SettingsCard(title: "Cancel") {
-                    Text(
-                        "Cancel anytime from the payment portal. Texting stops at the end "
-                            + "of your billing period, and we hold your number for 30 days in "
-                            + "case you change your mind. After that it's released for good."
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                }
+                CancelCard(scope: scope, company: company)
             }
         } else {
             SettingsCard(title: "Billing") {
@@ -669,4 +664,367 @@ private struct OffRampCard: View {
             scope.showMessage("Couldn't save that. Try again.")
         }
     }
+}
+
+// MARK: - Cancelling (#277)
+
+/// The whole cancellation, rendered OPEN on the billing screen.
+///
+/// WHY IT EXISTS. Ten cancellations for ten different reasons are noise; ten for
+/// the same reason are a roadmap, and until this card both looked identical from
+/// here, because the only thing that ever reached us was a webhook. The question
+/// has to be asked BEFORE the handoff: afterwards the person is gone, and nobody
+/// answers a survey about a product they have just left.
+///
+/// WHY IT IS NOT A TRIGGER. There is no expand, no sheet, no "are you sure". A
+/// control that reveals the screen holding the cancel button is itself a step,
+/// and it makes leaving cost two taps where "Manage payment & invoices" directly
+/// above costs one. Deliberate friction belongs on deleting an account, which
+/// cannot be undone; a subscription can be restarted in a minute, and friction
+/// there is a regulatory problem in several of the markets this sells into
+/// rather than a kindness. Do not copy the collapse from a destructive control
+/// into this card: they are opposite cases.
+///
+/// ONE TAP THROUGH. From landing on the billing screen, somebody who answers
+/// nothing reaches Stripe with a single press of "Continue to cancel". Nothing
+/// is pre-selected, and the ONLY thing that may ever disable that button is the
+/// request already in flight: never the reason, never the note. A default answer
+/// would be a reason nobody gave, and every count built on it would be wrong in
+/// the direction we chose.
+///
+/// THE QUESTION IS QUIET. It sits under the consequence copy in the same muted
+/// voice as the rest of the supporting text here. A billing screen should not
+/// shout "why are you leaving?" at somebody who came to check their plan, and it
+/// must not hide the exit either.
+///
+/// NO "NEVER MIND" BESIDE IT. With nothing expanded there is nothing to back out
+/// of, and a second button next to the confirm is where the asymmetry creeps in:
+/// a loud stay and a quiet leave is the pattern this card exists to avoid.
+///
+/// NOTHING WAITS ON US. The reason is posted on its own task that is never
+/// awaited, so a slow, failing or entirely dead endpoint of ours cannot stop
+/// somebody cancelling.
+///
+/// OWNER ONLY, SAID OUT LOUD. POST /v1/billing/portal mints the full portal for
+/// an owner and a `payment_method_update` session for everybody else, and that
+/// Stripe flow carries no cancellation surface at all. An admin or a bookkeeper
+/// offered this button would be walked to a page where the promised thing does
+/// not exist, and the reason they typed on the way would be filed against a
+/// cancellation that could never be confirmed. They are told who can instead,
+/// and nothing is recorded for them.
+///
+/// The export offer is here because somebody leaving still needs their customer
+/// list, and "they made it hard to leave with our data" is a story a trade tells
+/// about a supplier for years.
+@MainActor
+private struct CancelCard: View {
+    let scope: SettingsScope
+    let company: CompanyView
+
+    @State private var chosen: String?
+    @State private var detail = ""
+    @State private var opening = false
+    @State private var error: String?
+    @State private var exporting = false
+    @State private var exportError: String?
+    @State private var exported: StagedContactsCsv?
+
+    private var canCancel: Bool { SettingsRoleGate.canCancelSubscription(scope.role) }
+
+    /// Already scheduled to end. The notice at the top of this screen says so
+    /// and offers the way back, so a second set of controls starting the same
+    /// journey would read as though the first one had not worked.
+    private var alreadyEnding: Bool { company.cancel_at_period_end }
+
+    /// What is true FOR THE READER, which is not the same sentence for
+    /// everybody. "Cancel anytime" is a promise an admin or a bookkeeper cannot
+    /// keep, and making it and then withdrawing it one line later reads as a
+    /// runaround. The three facts are identical either way; only the person
+    /// they happen to changes.
+    private var consequence: String {
+        canCancel
+            ? "Cancel anytime. Texting stops at the end of your billing period, and we "
+                + "hold your number for 30 days in case you change your mind. After that "
+                + "it is released for good."
+            : "Only the owner can cancel this plan. When they do, texting stops at the "
+                + "end of the billing period, and we hold the number for 30 days in case "
+                + "they change their mind. After that it is released for good."
+    }
+
+    var body: some View {
+        SettingsCard(title: "Cancel", description: consequence) {
+            if !canCancel {
+                // Said out loud rather than by omission: being sent to hunt for
+                // a button that is not on that page is worse than being told.
+                // "above", not "an admin reaches": a bookkeeper reads this line
+                // too, and lands on the same card-only portal an admin does.
+                ReadOnlyLine(
+                    "The payment portal above is for cards and invoices and has no "
+                        + "cancellation on it, so this is not something to go looking for there."
+                )
+            } else if alreadyEnding {
+                EmptyView()
+            } else {
+                leaving
+            }
+        }
+        .sheet(item: $exported) { file in
+            ContactsCsvShareSheet(url: file.url) { exported = nil }
+        }
+    }
+
+    /// The question, the export offer and the way out, all visible at once and
+    /// in that order, because the half that serves us comes after the halves
+    /// that serve them.
+    private var leaving: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            reasonQuestion
+            Spacer().frame(height: 20)
+            exportOffer
+            Spacer().frame(height: 20)
+            Text("Nothing above has to be filled in. This opens the secure Stripe portal "
+                + "in your browser, where you finish cancelling.")
+                .font(.golos(11.5))
+                .foregroundStyle(BrandColor.muted600)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(opening ? "Opening…" : "Continue to cancel") { handOff() }
+                .buttonStyle(.borderedProminent)
+                .tint(BrandColor.olive)
+                // The request already in flight, and nothing else, ever.
+                .disabled(opening)
+                .padding(.top, 10)
+            InlineError(error)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Asked in the supporting voice rather than as a heading. This card is on
+    /// the screen somebody opens to look at their plan, so the question is the
+    /// quietest thing on it; a bold "Why are you leaving?" printed above a
+    /// button reads as a gate until it says otherwise, and it says otherwise
+    /// on the very next line.
+    private var reasonQuestion: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // 12, not larger: SettingsCard renders its description at 12, and a
+            // question subordinate to that copy cannot be set above it. Colour
+            // alone was carrying the hierarchy while the type contradicted it.
+            Text("If you want to say why, it helps us fix it.")
+                .font(.golos(12))
+                .foregroundStyle(BrandColor.muted600)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Optional, and it changes nothing about cancelling.")
+                .font(.golos(11.5))
+                .foregroundStyle(BrandColor.muted500)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 2)
+            Spacer().frame(height: 4)
+            ForEach(cancellationReasons) { reason in
+                CancellationReasonRow(reason: reason, selected: chosen == reason.code) {
+                    // Tapping the chosen one CLEARS it. An answer given by a
+                    // stray thumb has to be removable, or "optional" stops
+                    // being true the moment the list is touched.
+                    chosen = chosen == reason.code ? nil : reason.code
+                }
+                .disabled(opening)
+            }
+            Spacer().frame(height: 8)
+            TextField(
+                "Anything you want to add (optional)",
+                text: Binding(
+                    get: { detail },
+                    // Capped where the server caps it, the same way the invite
+                    // note is: an over-long paste stops taking characters
+                    // rather than coming back as a 422 with the words lost.
+                    set: { detail = truncatedCancellationDetail($0) }
+                ),
+                axis: .vertical
+            )
+            .textFieldStyle(.roundedBorder)
+            .lineLimit(2 ... 4)
+            .font(.golos(13))
+            .disabled(opening)
+        }
+    }
+
+    private var exportOffer: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Take your contacts with you")
+                .font(.golos(13.5, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
+            // The columns are named because this is a promise to somebody who is
+            // leaving and cannot come back to check it. GET /v1/contacts/export
+            // carries name, phone, tags, consent source and dates. Custom fields
+            // are not in it, so nothing here may imply they are.
+            Text("Every contact in this workspace as a CSV: names, numbers, tags and when "
+                + "they opted in. AirDrop it, mail it, or save it to Files. Yours either way.")
+                .font(.golos(11.5))
+                .foregroundStyle(BrandColor.muted600)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 2)
+            Button(exporting ? "Preparing…" : "Export contacts") { exportContacts() }
+                .buttonStyle(.bordered)
+                .disabled(exporting)
+                .padding(.top, 10)
+            InlineError(exportError)
+        }
+    }
+
+    /// Record what they said, then go, in that order and without ever waiting
+    /// for the first to finish.
+    ///
+    /// The reason rides an UNSTRUCTURED task deliberately: `.task` would be
+    /// cancelled the moment the browser comes forward and takes this screen
+    /// with it, which is the very next thing that happens. Its failure is
+    /// swallowed for the same reason the caller does not wait on it: there is
+    /// nothing a person cancelling their subscription can usefully do about our
+    /// own bookkeeping being down.
+    ///
+    /// A retry after a failed handoff posts again. The route upserts the open
+    /// row, so that stays one statement rather than becoming three.
+    ///
+    /// Nothing is recorded for somebody who cannot cancel. The button is not
+    /// rendered for them, and the guard says so here as well, because a row
+    /// written for a walk that ends on a Stripe page with no cancel button on
+    /// it can never be confirmed, and it would sit in the report as somebody
+    /// who said why and stayed.
+    private func handOff() {
+        guard canCancel else { return }
+        opening = true
+        error = nil
+        let saidReason = chosen
+        let saidDetail = detail
+        Task {
+            try? await scope.repo.recordCancellationReason(
+                scope.companyId,
+                reason: saidReason,
+                detail: saidDetail
+            )
+        }
+        Task {
+            do {
+                let hosted = try await scope.repo.billingPortal(scope.companyId)
+                openExternal(hosted.url)
+            } catch {
+                self.error = error.userMessage
+            }
+            opening = false
+        }
+    }
+
+    private func exportContacts() {
+        exporting = true
+        exportError = nil
+        Task {
+            do {
+                let csv = try await scope.repo.contactsCsvExport(scope.companyId)
+                exported = StagedContactsCsv(url: try stageContactsCsv(csv))
+            } catch {
+                exportError = error.userMessage
+            }
+            exporting = false
+        }
+    }
+}
+
+/// One reason, offered as a radio row: the shape the after-hours and voicemail
+/// pickers already use on this screen, so a choice looks like a choice.
+private struct CancellationReasonRow: View {
+    let reason: CancellationReason
+    let selected: Bool
+    let onTap: @MainActor () -> Void
+
+    var body: some View {
+        Button {
+            onTap()
+        } label: {
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                    .foregroundStyle(selected ? BrandColor.olive : Color.secondary)
+                Text(reason.label)
+                    .font(.body)
+                    .foregroundStyle(Color.primary)
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 7)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        // SwiftUI reads a plain Button as a button, which says nothing about
+        // whether this one is currently the answer.
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+}
+
+// MARK: - Handing the export to the phone
+
+/// One finished export, staged on disk for the share sheet.
+private struct StagedContactsCsv: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+/// Stage the CSV as `contacts.csv` in a unique temp folder so the share sheet
+/// offers a well-named file rather than a wall of text.
+///
+/// The server emits a UTF-8 BOM so Excel round-trips accents; it is re-attached
+/// defensively here in case a transport layer stripped it, which is the same
+/// thing the contacts screen does with the same bytes.
+private func stageContactsCsv(_ text: String) throws -> URL {
+    var data = Data([0xEF, 0xBB, 0xBF])
+    var body = text
+    if body.hasPrefix("\u{FEFF}") { body.removeFirst() }
+    data.append(Data(body.utf8))
+
+    let folder = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    let url = folder.appendingPathComponent("contacts.csv")
+    try data.write(to: url)
+    return url
+}
+
+/// The real system share sheet (AirDrop, Messages, Mail, Save to Files), where
+/// a file exporter could only save.
+private struct ContactsCsvShareSheet: UIViewControllerRepresentable {
+    let url: URL
+    let onFinish: @MainActor () -> Void
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        let onFinish = onFinish
+        controller.completionWithItemsHandler = { _, _, _, _ in
+            // UIKit calls this on the main thread.
+            MainActor.assumeIsolated { onFinish() }
+        }
+        return controller
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+}
+
+// MARK: - Previews
+
+/// The reason list as it is first seen: six choices, NOTHING pre-selected.
+/// A default here would be a reason we invented on somebody's behalf and then
+/// counted, so the empty state is the one worth being able to look at.
+#Preview("Cancellation reasons · nothing chosen") {
+    VStack(alignment: .leading, spacing: 0) {
+        ForEach(cancellationReasons) { reason in
+            CancellationReasonRow(reason: reason, selected: false) {}
+        }
+    }
+    .padding(20)
+    .frame(width: 390)
+    .background(BrandColor.paper)
+}
+
+#Preview("Cancellation reasons · one chosen") {
+    VStack(alignment: .leading, spacing: 0) {
+        ForEach(cancellationReasons) { reason in
+            CancellationReasonRow(reason: reason, selected: reason.code == "seasonal") {}
+        }
+    }
+    .padding(20)
+    .frame(width: 390)
+    .background(BrandColor.paper)
 }

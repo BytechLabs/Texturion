@@ -1,5 +1,7 @@
 package com.loonext.android.features.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -10,11 +12,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -25,16 +30,20 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.loonext.android.BuildConfig
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.BillingModule
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.SubscriptionStatus
+import com.loonext.android.features.contacts.ContactMutations
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.userMessage
@@ -42,7 +51,9 @@ import com.loonext.android.ui.theme.BrandColor
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -113,15 +124,7 @@ fun BillingSection(
             PortalButton(scope, label = "Manage payment & invoices")
         }
         if (company.subscriptionActive) {
-            SettingsCard(title = "Cancel") {
-                Text(
-                    "Cancel anytime from the payment portal. Texting stops at the end " +
-                        "of your billing period, and we hold your number for 30 days in " +
-                        "case you change your mind. After that it's released for good.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            CancelCard(scope)
         }
     } else {
         SettingsCard(title = "Billing") {
@@ -168,6 +171,289 @@ private fun PortalButton(
         }
         InlineError(error)
     }
+}
+
+/**
+ * #277: the one screen somebody leaving sees.
+ *
+ * THE RULE THIS SCREEN IS BUILT AGAINST. Cancelling must never take more steps
+ * or more time than subscribing did, and regulators in several of the markets
+ * we sell into enforce against exactly that. So: one card, nothing hidden
+ * behind a second tap, no confirmation dialog, and no control that stays
+ * disabled until a question is answered. Where any of that would have improved
+ * a save rate, the save rate loses.
+ *
+ * NOTHING IS COLLAPSED, AND THAT IS THE POINT. The card renders open. No
+ * trigger, no sheet, no expand: a control that reveals the screen holding the
+ * cancel button IS a step, and it makes leaving cost two taps where the
+ * "Manage payment & invoices" button directly above costs one. Do not copy the
+ * collapse out of DeleteAccountCard into this file. The two are opposite cases.
+ * Deleting an account cannot be undone, so a deliberate pause is a kindness
+ * there; a subscription can be restarted in a minute, and the same pause here
+ * is the thing the rule forbids.
+ *
+ * THE WAY THROUGH IS ONE TAP. From landing on the billing screen, somebody who
+ * answers nothing reaches Stripe with a single press. There is deliberately no
+ * "Never mind" beside it: with nothing hidden there is nothing to back out of,
+ * and a second button there invites the styling asymmetry (a loud stay, a quiet
+ * leave) this card exists to avoid.
+ *
+ * THE QUESTION IS SUBORDINATE. It sits under the consequence copy in the same
+ * muted voice as the supporting text everywhere else in settings, because a
+ * billing screen should not shout "why are you leaving?" at somebody who came
+ * to check their plan. Quiet question, plain exit: the button that leaves is
+ * the only filled control on the card.
+ *
+ * WHY THE QUESTION IS HERE AT ALL. Afterwards they are gone, and nobody answers
+ * a survey about a product they have just left. But saying why is not leaving.
+ * The API records a statement and the Stripe webhook confirms it later, so a
+ * person who reads this screen and stays is counted separately from one who
+ * goes, and that second number is the only honest measure of anything we might
+ * put on this screen.
+ *
+ * THE DATA LEAVES WITH THEM. The export sits between the question and the
+ * button, so the last thing offered before the handoff is their own customer
+ * list. Somebody winding down a business still needs it, and "they made it hard
+ * to leave with their own data" is the story told about a company afterwards.
+ * It is offered whether they go through with the cancellation or not.
+ *
+ * NO SAVE OFFER. Not because one would be forbidden (a single dismissible offer
+ * on this same card would be within the rule) but because we do not yet have
+ * one that is true. A discount invented at the moment of leaving tells every
+ * customer who did not threaten to leave what their loyalty was worth.
+ */
+@Composable
+private fun CancelCard(scope: SettingsScope) {
+    val context = LocalContext.current
+    val coroutines = rememberCoroutineScope()
+    // NOTHING IS PRE-SELECTED. A default answer is not an answer anybody gave,
+    // and every count built on it would be wrong in the direction we chose.
+    //
+    // Saveable rather than remembered, for both halves: a rotation, a switch to
+    // dark mode, or the system reclaiming the activity recreates this screen,
+    // and plain `remember` would drop the paragraph somebody had just taken the
+    // trouble to write at us. Losing it silently is a second grievance handed to
+    // a person already on their way out.
+    var reason by rememberSaveable { mutableStateOf<String?>(null) }
+    var detail by rememberSaveable { mutableStateOf("") }
+    var opening by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var exporting by remember { mutableStateOf(false) }
+
+    val contacts = remember(scope.graph) {
+        ContactMutations(scope.graph.api, BuildConfig.API_URL)
+    }
+    // The same save-as-file path the contacts list uses: a 50k-row CSV through
+    // a share-sheet intent would blow the binder transaction limit.
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv"),
+    ) { uri ->
+        if (uri != null) {
+            exporting = true
+            coroutines.launch {
+                try {
+                    val csv = contacts.exportCsv(scope.companyId, null)
+                    withContext(Dispatchers.IO) {
+                        context.contentResolver.openOutputStream(uri, "wt")?.use { stream ->
+                            // Re-attach the UTF-8 BOM the exporter emits (OkHttp
+                            // strips it) so Excel round-trips accents correctly.
+                            stream.write(byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()))
+                            stream.write(csv.removePrefix("\uFEFF").toByteArray(Charsets.UTF_8))
+                        } ?: throw IllegalStateException("no stream")
+                    }
+                    scope.showMessage("Contacts exported.")
+                } catch (cause: Exception) {
+                    scope.showMessage(cause.userMessage())
+                } finally {
+                    exporting = false
+                }
+            }
+        }
+    }
+
+    SettingsCard(title = "Cancel") {
+        if (!SettingsRoleGate.canCancelSubscription(scope.role)) {
+            // The same three facts as the owner's version above, but never in
+            // the second person, because none of it is theirs to do. "Cancel
+            // anytime, your number" followed by "only the owner can cancel"
+            // makes a promise and withdraws it one line later, which reads as a
+            // runaround rather than as information.
+            ReadOnlyLine(
+                "Only the owner can cancel this plan. When they do, texting stops at " +
+                    "the end of the billing period, and we hold the number for 30 days " +
+                    "in case they change their mind. After that it is released for good.",
+            )
+            Spacer(Modifier.height(8.dp))
+            // Said plainly rather than by omission. The portal an admin or a
+            // bookkeeper can open is the card-update flow, which has no cancel
+            // button in it, so being sent there to hunt for one is worse than
+            // being told there is nothing to find.
+            ReadOnlyLine(
+                "The payment portal above is for cards and invoices and has no " +
+                    "cancellation on it, so this is not something to go looking for there.",
+            )
+            return@SettingsCard
+        }
+
+        // The consequence first, in the second person, because from here down
+        // every word is addressed to the one person who can act on it.
+        ReadOnlyLine(
+            "Cancel anytime. Texting stops at the end of your billing period, and we " +
+                "hold your number for 30 days in case you change your mind. After that " +
+                "it is released for good.",
+        )
+
+        // Spacing is what tells the four groups apart. A divider or an inner
+        // panel would draw a box inside a box, and a box that appeared is
+        // exactly what this card must never look like.
+        Spacer(Modifier.height(20.dp))
+
+        // The ask and the reassurance are read as one thing, so they are one
+        // muted paragraph in the same voice as the sentence above rather than a
+        // heading with a caption under it. A title here would make the survey
+        // the loudest thing on a card whose subject is leaving.
+        ReadOnlyLine(
+            "If you want to say why, it helps us fix it. Optional, and it changes " +
+                "nothing about cancelling.",
+        )
+        Spacer(Modifier.height(6.dp))
+        // Announced as one group of six rather than as six unrelated tappable
+        // lines: without the group and the role below, a screen reader never
+        // says "1 of 6", and this is the card being judged on how hard it is to
+        // leave.
+        Column(Modifier.selectableGroup()) {
+            CANCELLATION_REASONS.forEach { choice ->
+                val selected = reason == choice.code
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .selectable(
+                            selected = selected,
+                            enabled = !opening,
+                            role = Role.RadioButton,
+                            // Tapping the chosen row clears it. Without this
+                            // there is no way back to "I would rather not say"
+                            // once a thumb has landed on the wrong line, and
+                            // adding a seventh "prefer not to say" row would
+                            // make silence look like something you have to opt
+                            // into.
+                            onClick = { reason = if (selected) null else choice.code },
+                        )
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    RadioButton(selected = selected, onClick = null, enabled = !opening)
+                    Spacer(Modifier.width(10.dp))
+                    Text(choice.label, style = MaterialTheme.typography.bodyLarge)
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = detail,
+            // Truncates at the API's ceiling instead of refusing the edit. Two
+            // reasons: the record is fired and never awaited, so an over-length
+            // body would 422 in silence; and a box that drops a whole pasted
+            // paragraph without a word looks broken rather than full.
+            onValueChange = { detail = it.take(CANCELLATION_DETAIL_MAX) },
+            enabled = !opening,
+            minLines = 2,
+            label = { Text("Anything you want to tell us (optional)") },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        DetailCounter(detail.length)
+
+        Spacer(Modifier.height(20.dp))
+        Text("Take your contacts with you", style = MaterialTheme.typography.titleSmall)
+        // The columns are named, and named accurately, because this is a promise
+        // made to somebody who is leaving and will not be back to check it.
+        // GET /v1/contacts/export carries name, phone, tags, consent source and
+        // dates. Custom fields are NOT in the file, so "every field you added"
+        // would send somebody off with less than they were told they had, and no
+        // way left to ask us about it.
+        Text(
+            "Every contact in this workspace as a CSV: names, numbers, tags and when " +
+                "they opted in. Save it, send it, or open it in a spreadsheet. Yours " +
+                "either way.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = { exportLauncher.launch("contacts.csv") },
+            enabled = !exporting,
+        ) { Text(if (exporting) "Exporting…" else "Export contacts") }
+
+        Spacer(Modifier.height(20.dp))
+        ReadOnlyLine(
+            "Nothing above has to be filled in. This takes you to the secure Stripe " +
+                "portal either way, where you finish cancelling. It opens in your browser.",
+        )
+        Spacer(Modifier.height(8.dp))
+        Button(
+            // Enabled on the first frame the billing screen draws. `opening` is
+            // the request already in flight, and it is the ONLY thing that may
+            // ever disable this button: never the reason, never the detail. One
+            // tap reaches Stripe whether or not a single word was typed.
+            enabled = !opening,
+            onClick = {
+                opening = true
+                error = null
+                val statement = cancellationStatement(reason, detail)
+                // Fired on the PROCESS scope and never awaited. Two reasons: the
+                // handoff below must not wait on it, because a slow or dead
+                // analytics write cannot be allowed to stop somebody
+                // cancelling; and this composition goes away when the browser
+                // comes forward, which would cancel a screen-scoped request
+                // mid-flight. A body with neither half is still worth sending —
+                // it is the record that somebody was asked and skipped.
+                scope.graph.appScope.launch {
+                    runCatching {
+                        scope.repo.recordCancellationReason(scope.companyId, statement)
+                    }
+                }
+                coroutines.launch {
+                    try {
+                        val hosted = scope.repo.billingPortal(scope.companyId)
+                        openExternal(context, hosted.url)
+                    } catch (cause: Exception) {
+                        error = cause.userMessage()
+                    } finally {
+                        opening = false
+                    }
+                }
+            },
+        ) { Text(if (opening) "Opening…" else "Continue to cancel") }
+        InlineError(error)
+    }
+}
+
+/** How close to the ceiling the note has to be before the count appears. */
+private const val CANCELLATION_DETAIL_COUNTDOWN_FROM = 200
+
+/**
+ * What is left of the free-text note, shown only once the end is in sight.
+ *
+ * The box truncates rather than rejecting, which is the right behaviour and
+ * also an invisible one: past the ceiling the keystrokes simply stop landing.
+ * This is the sentence that explains it, and it arrives before the stop rather
+ * than after. From the first character it would be nagging, on a card that is
+ * meant to be quiet.
+ *
+ * Lives outside CancelCard on purpose. Nothing between that card opening and
+ * the button that leaves may be conditional, and a counter that renders itself
+ * or nothing is the one exception worth keeping out of the way of that rule.
+ */
+@Composable
+private fun DetailCounter(length: Int) {
+    val remaining = CANCELLATION_DETAIL_MAX - length
+    if (remaining >= CANCELLATION_DETAIL_COUNTDOWN_FROM) return
+    Text(
+        "$remaining characters left.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 4.dp),
+    )
 }
 
 /**

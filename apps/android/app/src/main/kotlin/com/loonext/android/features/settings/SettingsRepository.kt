@@ -611,6 +611,40 @@ class SettingsRepository(
             companyId = companyId,
         )
 
+    /**
+     * #277 — why this workspace is leaving, recorded before the handoff.
+     *
+     * BOTH HALVES ARE OPTIONAL, and a body of `{}` is a real record rather than
+     * a malformed one: it says somebody was asked and skipped. So there is
+     * nothing to validate here and nothing to refuse to send.
+     *
+     * Goes through [ApiClient.raw] because the route answers 204 No Content.
+     * The typed `post` helpers decode a body, and an empty one is not JSON —
+     * they would throw [com.loonext.android.core.net.ApiDecodeException] on a
+     * call that had in fact succeeded.
+     *
+     * Callers MUST NOT await this before handing off to Stripe. It is a
+     * statement about a cancellation, not part of one, and a slow or broken
+     * analytics write must never be able to stop somebody leaving.
+     */
+    suspend fun recordCancellationReason(companyId: String, statement: CancellationStatement) {
+        api.raw(
+            "POST",
+            "/v1/billing/cancellation-reason",
+            body = api.json.encodeToString(
+                JsonObject.serializer(),
+                buildJsonObject {
+                    // Omitted rather than sent null: an absent key and an
+                    // explicit null store the same row, but `"reason": null` on
+                    // the wire reads as an answer that was cleared.
+                    statement.reason?.let { put("reason", it) }
+                    statement.detail?.let { put("detail", it) }
+                },
+            ),
+            companyId = companyId,
+        )
+    }
+
     /** Hosted Stripe Billing Portal URL — open in an EXTERNAL browser. */
     suspend fun billingPortal(companyId: String): HostedUrl =
         api.post("/v1/billing/portal", companyId = companyId)

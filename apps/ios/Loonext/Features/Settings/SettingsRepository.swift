@@ -712,6 +712,45 @@ struct SettingsRepository: Sendable {
         )
     }
 
+    /// #277: why this workspace says it is leaving, recorded BEFORE the
+    /// handoff to Stripe. Afterwards they are gone, and nobody answers a
+    /// survey about a product they have just left.
+    ///
+    /// Both halves are optional and an empty body is a valid record that the
+    /// question was skipped, so this never refuses to send. Callers must not
+    /// wait on it: a dead endpoint of ours cannot be allowed to stop somebody
+    /// cancelling.
+    ///
+    /// 204 No Content, so nothing is decoded. A typed `post` here would throw
+    /// on the empty body of a SUCCESSFUL call.
+    func recordCancellationReason(
+        _ companyId: String,
+        reason: String?,
+        detail: String
+    ) async throws {
+        let body = try JSONEncoder().encode(
+            cancellationReasonBody(reason: reason, detail: detail)
+        )
+        _ = try await api.raw(
+            "POST",
+            "/v1/billing/cancellation-reason",
+            body: body,
+            companyId: companyId
+        )
+    }
+
+    /// #227's CSV of the whole customer list, for the cancel screen.
+    ///
+    /// Here as well as on the contacts repository, for the same reason
+    /// `contactFields` is: this screen holds the settings repository and
+    /// nothing else, and a call reached for through the wrong one compiles on
+    /// Android and fails only in CI here. No `q`, because somebody leaving
+    /// wants all of it rather than whatever a search box was filtered to.
+    func contactsCsvExport(_ companyId: String) async throws -> String {
+        let data = try await api.raw("GET", "/v1/contacts/export", companyId: companyId)
+        return String(decoding: data, as: UTF8.self)
+    }
+
     /// Hosted Stripe Billing Portal URL — open in an EXTERNAL browser.
     func billingPortal(_ companyId: String) async throws -> HostedUrl {
         try await api.post("/v1/billing/portal", companyId: companyId)

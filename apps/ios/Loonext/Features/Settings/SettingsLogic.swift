@@ -38,6 +38,18 @@ enum SettingsRoleGate {
         MemberRole.has(role, Capability.billingManage)
     }
 
+    /// Ending the subscription: OWNER only, and deliberately a DIFFERENT
+    /// question from `canManageBilling`.
+    ///
+    /// POST /v1/billing/portal mints the full Stripe portal for an owner and a
+    /// `payment_method_update` session for everybody else, and that flow has no
+    /// cancellation surface on it at all. So `billing.manage` is the wrong gate
+    /// here: it would offer an admin or a bookkeeper a "Cancel subscription"
+    /// button, walk them to a Stripe page where cancelling is structurally
+    /// impossible, and file the reason they typed on the way against a
+    /// cancellation that can never be confirmed.
+    static func canCancelSubscription(_ role: String?) -> Bool { role == MemberRole.owner }
+
     /// #214 AI enrichment opt-in writes — admin+ (it spends money). Reads are
     /// member-visible; only the toggles are gated.
     static func canManageAiSettings(_ role: String?) -> Bool {
@@ -852,4 +864,87 @@ func handoverPromptCancelLabel(_ kind: String) -> String? {
     default:
         return nil
     }
+}
+
+// MARK: - Why a workspace is leaving (#277)
+
+/// One answer to "why are you leaving": what goes on the wire, and what a
+/// person reads.
+///
+/// The code is stored as free text rather than a database enum, precisely so
+/// the list can change as we learn what people say, which makes the list
+/// itself the only thing keeping the report readable. Ten workspaces leaving
+/// for the same reason have to land in the same bucket, so a client that
+/// invented its own spelling would quietly split them.
+struct CancellationReason: Equatable, Sendable, Identifiable {
+    /// The short code the API stores. Max 40 characters, server-side.
+    let code: String
+    /// What the person choosing it reads.
+    let label: String
+
+    var id: String { code }
+}
+
+/// The six, in the order they are offered, identical on all three clients.
+///
+/// There is no default and there is no "prefer not to say" row: the way to not
+/// answer is to not answer, and the button that leaves works either way.
+let cancellationReasons: [CancellationReason] = [
+    CancellationReason(code: "too_expensive", label: "Too expensive"),
+    CancellationReason(code: "seasonal", label: "Quiet season, I'll be back"),
+    CancellationReason(code: "missing_feature", label: "Missing something I need"),
+    CancellationReason(code: "switched", label: "Going with something else"),
+    CancellationReason(code: "not_using", label: "Not using it"),
+    CancellationReason(code: "other", label: "Something else"),
+]
+
+/// The server's ceiling on the free-text half. Over-length is a 422.
+let cancellationDetailMax = 2000
+
+/// As much of `text` as the server's ceiling holds.
+///
+/// Measured and cut exactly the way the invite note is (`truncatedInviteNote`
+/// in TeamSection.swift) and for the same reason: the route's zod counts UTF-16
+/// units, the column's `char_length` counts code points, and `String.count`
+/// counts grapheme clusters, which is never the smallest of the three. A cap
+/// counted in clusters therefore waves a note past the client that the route
+/// then refuses.
+///
+/// It matters more here than it does there. This call is deliberately never
+/// waited on, so a rejected body would lose somebody's words with nobody told.
+///
+/// Whole characters only, re-measuring each one, so the cut cannot land inside
+/// an emoji and leave half of it behind.
+func truncatedCancellationDetail(_ text: String) -> String {
+    guard text.utf16.count > cancellationDetailMax else { return text }
+    var kept = ""
+    var length = 0
+    for character in text {
+        let next = length + String(character).utf16.count
+        if next > cancellationDetailMax { break }
+        kept.append(character)
+        length = next
+    }
+    return kept
+}
+
+/// The POST /v1/billing/cancellation-reason body.
+///
+/// An EMPTY OBJECT is the point of this function, not an edge case: both fields
+/// are optional server-side, and `{}` is the honest record that somebody was
+/// asked and went straight through. Sending it is what makes the two numbers
+/// comparable, how many were asked against how many said anything, and a client
+/// that skipped the call when there was nothing to say would leave the
+/// denominator unknowable.
+func cancellationReasonBody(reason: String?, detail: String) -> JSONValue {
+    var object: [String: JSONValue] = [:]
+    if let reason, !reason.isEmpty {
+        object["reason"] = .string(reason)
+    }
+    // Trimmed first, then capped, because the server trims before it measures.
+    let written = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !written.isEmpty {
+        object["detail"] = .string(truncatedCancellationDetail(written))
+    }
+    return .object(object)
 }

@@ -4,6 +4,7 @@ import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import { CancelSubscriptionCard } from "@/components/settings/cancel-subscription-card";
 import { ChangePlanDialog } from "@/components/settings/change-plan-dialog";
 import { MissedWhileOff } from "@/components/settings/missed-while-off";
 import { OffRampCard } from "@/components/settings/off-ramp-card";
@@ -295,16 +296,22 @@ export default function BillingSettingsPage() {
                 <PortalButton />
               </SettingsCard>
 
-              {company.data.subscription_status === "active" && (
-                <SettingsCard title="Cancel">
-                  <p className="text-sm text-muted-foreground">
-                    Cancel anytime from the payment portal. Texting stops at
-                    the end of your billing period, and we hold your number
-                    for 30 days in case you change your mind. After that
-                    it&apos;s released for good.
-                  </p>
-                </SettingsCard>
-              )}
+              {/* #277: the cancel path used to be a sentence pointing at the
+                  portal button above. It now asks why on this card, alongside
+                  the export offer and the button that leaves.
+
+                  The card renders open, and that is load-bearing rather than a
+                  styling choice: the sentence it replaced cost one press to
+                  reach Stripe, so anything here that has to be expanded first
+                  would make leaving more expensive than it was.
+
+                  Hidden once the cancellation is already scheduled: the notice
+                  at the top of this screen says so and offers "Keep my plan",
+                  and a second Cancel button beside it would do nothing. */}
+              {company.data.subscription_status === "active" &&
+                !company.data.cancel_at_period_end && (
+                  <CancelSubscriptionCard isOwner={role === "owner"} />
+                )}
             </>
           ) : (
             <p className="text-sm text-muted-foreground">

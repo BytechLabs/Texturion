@@ -170,6 +170,39 @@ export function useBillingPortal() {
 }
 
 /**
+ * POST /v1/billing/cancellation-reason (#277): why this workspace is leaving,
+ * asked before the handoff to the portal above. Afterwards they are gone, and
+ * nobody answers a survey about a product they have already left.
+ *
+ * BOTH FIELDS ARE OPTIONAL, and a body with neither is a valid record meaning
+ * "they skipped the question". There is nothing to validate here and nothing
+ * that can refuse to send.
+ *
+ * DO NOT AWAIT IT. This is a note to us; cancelling is theirs. Callers fire it
+ * alongside the portal call rather than in front of it, so an endpoint that is
+ * slow, down, or answering 500 cannot add a second to somebody leaving, let
+ * alone stop them. The route does not gate the portal on having been called
+ * either, so the two really are independent.
+ *
+ * `reason` is one of the short codes the asking screen owns; the route caps it
+ * at 40 characters and `detail` at 2,000, and over-length is a 422 rather than
+ * a truncation.
+ */
+export function useRecordCancellationReason() {
+  const companyId = useCompanyId();
+  return useMutation({
+    mutationFn: (input: { reason: string | null; detail: string | null }) =>
+      // 204 No Content: apiFetch resolves to undefined, which is the whole
+      // answer: there is nothing to show for it and nothing to invalidate.
+      apiFetch<void>("/v1/billing/cancellation-reason", {
+        method: "POST",
+        companyId,
+        body: input,
+      }),
+  });
+}
+
+/**
  * POST /v1/billing/change-plan — upgrade prorates now; downgrade applies at
  * period end and is blocked (409) until numbers/seats fit Starter (SPEC §9).
  */
