@@ -4,6 +4,7 @@ import { partitionNumbers } from "@/components/porting/port-ui-state";
 import { LeadSourcesCard } from "@/components/settings/lead-sources-card";
 import { MyAccessCard } from "@/components/settings/my-access-card";
 import { NumberCard } from "@/components/settings/number-card";
+import { numberHoldState } from "@/components/settings/number-hold";
 import { PortSection } from "@/components/settings/port-section";
 import { ProvisionNumberDialog } from "@/components/settings/provision-number-dialog";
 import { RegistrationSection } from "@/components/settings/registration-section";
@@ -11,12 +12,13 @@ import { LoadError, SettingsPage } from "@/components/settings/section";
 import { TextEnableSection } from "@/components/settings/text-enable-section";
 import { splitHostedNumbers } from "@/components/settings/text-enable-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useHeldNumbers } from "@/lib/api/billing";
 import { useCompany } from "@/lib/api/companies";
 import { useNumbers } from "@/lib/api/numbers";
 import { usePortRequests } from "@/lib/api/porting";
 import { useActiveCompany } from "@/lib/company/provider";
 import {
-  extraNumberBlockedReason } from "@loonext/shared";
+  extraNumberBlockedReason, roleHasCapability } from "@loonext/shared";
 
 /** SPEC §2: Pro includes 2 numbers, Starter 1. */
 const PLAN_NUMBER_LIMIT = { starter: 1, pro: 2 } as const;
@@ -28,10 +30,30 @@ export default function NumbersSettingsPage() {
   // Also read the ports so a ported number is rendered ONCE — through the port
   // stepper (PortSection), never additionally as a "Setting up… under a minute"
   // NumberCard (a flat contradiction of the multi-day transfer window,
-  // PORTING.md §2.3/§8.2). Ports load independently: the partition's primary
-  // discriminator (no requested_area_code) needs no port data, so an empty/
-  // loading ports list still separates transfer rows correctly.
+  // PORTING.md §2.3/§8.2). Ports load independently: the partition decides on
+  // the row's own `source`, which needs no port data, so an empty/loading ports
+  // list still separates transfer rows correctly.
   const ports = usePortRequests();
+  /**
+   * #523: why any suspended number here is suspended.
+   *
+   * Asked ONLY when there is a suspended row to explain, and only by a reader
+   * who can read the route at all (it is behind `billing.manage`, so a member
+   * gets a 403). A healthy workspace — which is nearly all of them, nearly all
+   * the time — never spends this request, the same discipline `useMissedWhileOff`
+   * and `usePauseOffer` follow on the billing screen.
+   *
+   * `numbers.data` is undefined while the list is still loading, so this starts
+   * disabled and enables itself once there is something to ask about.
+   */
+  const hasSuspended = (numbers.data?.data ?? []).some(
+    (n) => n.status === "suspended",
+  );
+  const held = useHeldNumbers(
+    hasSuspended &&
+      roleHasCapability(role, "billing.manage") &&
+      company.data?.subscription_status === "active",
+  );
 
   const pending = company.isPending || numbers.isPending;
   const error = company.isError || numbers.isError;
@@ -116,7 +138,23 @@ export default function NumbersSettingsPage() {
               <LeadSourcesCard canEdit={role === "owner" || role === "admin"} />
               {hasAnyNumber ? (
                 provisioned.map((number) => (
-                  <NumberCard key={number.id} number={number} />
+                  <NumberCard
+                    key={number.id}
+                    number={number}
+                    hold={numberHoldState({
+                      status: number.status,
+                      numberId: number.id,
+                      subscriptionActive:
+                        company.data.subscription_status === "active",
+                      held: held.data,
+                    })}
+                    // #523: half of the release rule (`mayReleaseNumber`) — a
+                    // held number may be given up, but not while the problem is
+                    // the payment rather than the plan.
+                    subscriptionActive={
+                      company.data.subscription_status === "active"
+                    }
+                  />
                 ))
               ) : canProvision ? null : (
                 // No number AND no open slot to fill in-app (e.g. pre-checkout):
@@ -157,7 +195,17 @@ export default function NumbersSettingsPage() {
                 </div>
               )}
 
-              <PortSection company={company.data} />
+              {/* #523: the numbers and the billing answer go DOWN to the port
+                  section, because a transferred-in line is drawn only by its
+                  stepper — so the stepper is the only place its hold can be
+                  said. Both are already loaded and already gated here; asking
+                  again inside the section would be a second copy of the rule
+                  about who may ask. */}
+              <PortSection
+                company={company.data}
+                numbers={numbers.data.data}
+                held={held.data}
+              />
 
               <TextEnableSection company={company.data} />
 

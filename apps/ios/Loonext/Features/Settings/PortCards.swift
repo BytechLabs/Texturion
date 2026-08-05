@@ -138,13 +138,24 @@ struct PortsBlock: View {
     let scope: SettingsScope
     let company: CompanyView
     let ports: [PortRequest]
+    /// #523 — the numbers list, so a FINISHED transfer can find out whether the
+    /// line it delivered still works. A port row knows the transfer completed
+    /// and nothing at all about a hold, which is how this block came to say
+    /// "Ported, all done" an inch under a number card saying "On hold".
+    /// `portedLineIsOnHold` is the whole of the matching rule.
+    let numbers: [PhoneNumberSummary]
     let onChanged: @MainActor () -> Void
 
     @State private var starting = false
 
     var body: some View {
         ForEach(ports.filter { $0.status != PortStatus.cancelled }, id: \.id) { port in
-            PortCard(scope: scope, port: port, onChanged: onChanged)
+            PortCard(
+                scope: scope,
+                port: port,
+                onHold: portedLineIsOnHold(port, in: numbers),
+                onChanged: onChanged
+            )
         }
 
         if SettingsRoleGate.canManageNumbers(scope.role) && company.subscriptionActive {
@@ -172,6 +183,15 @@ struct PortsBlock: View {
 private struct PortCard: View {
     let scope: SettingsScope
     let port: PortRequest
+    /// #523 — the line this finished transfer delivered is SUSPENDED. Resolved
+    /// by `PortsBlock` from the numbers list, false on every ordinary transfer.
+    ///
+    /// It changes two things and deliberately not a third: the pill stops
+    /// celebrating, and a sentence says which of the two things is held. The
+    /// STEPPER is left fully filled, because it reports the transfer's own story
+    /// and that story is true — the number did move to us. Dimming it would
+    /// replace one wrong claim with another.
+    let onHold: Bool
     let onChanged: @MainActor () -> Void
 
     @State private var fixing = false
@@ -210,12 +230,34 @@ private struct PortCard: View {
             Spacer().frame(height: 8)
             PortStepper(status: port.status)
 
+            // #523: the line is on hold, said in the app's one sentence for a
+            // hold rather than a second copy of it. Directly under the stepper
+            // and above every other note on this card, because it is the only
+            // thing here that decides whether the number works today — the
+            // switch date, the temporary number and the registration note all
+            // describe a transfer, and this describes the line.
+            if onHold {
+                Text(
+                    portedLineOnHoldLine(
+                        canManageBilling: SettingsRoleGate.canManageBilling(scope.role)
+                    )
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 8)
+            }
+
             // Grouped for one mechanical reason: a ViewBuilder block takes ten
             // children and this card was already at ten, so #319's checklist
             // below had nowhere to go. These four are the card's context lines
             // — what the carriers have said about THIS transfer — so they group
             // without inventing a relationship. Group flattens into the
             // enclosing stack, so nothing about the layout changes.
+            //
+            // The block stands at NINE children after #523's hold note above.
+            // The tenth is the last one that fits; the eleventh does not
+            // compile, and the error it produces names none of this.
             Group {
                 if let foc = port.foc_date {
                     Text("The carriers agreed on a switch date: \(foc).")
@@ -325,19 +367,34 @@ private struct PortCard: View {
 
     @ViewBuilder
     private var statusPill: some View {
-        switch port.status {
-        case PortStatus.cancelPending:
-            StatusPill(label: "Cancelling", tone: .neutral)
-        case PortStatus.exception:
-            StatusPill(label: "Needs attention", tone: .warn)
-        case PortStatus.ported:
-            StatusPill(label: "Ported", tone: .positive)
-        default:
-            let index = portStepIndex(port.status)
-            StatusPill(
-                label: (portSteps.indices.contains(index) ? portSteps[index] : port.status),
-                tone: .warn
-            )
+        if onHold {
+            // #523: FIRST, so it can only ever replace the completed "Ported"
+            // pill — `portedLineIsOnHold` is false for every other status.
+            //
+            // "On hold" in the amber tone, the same three words and the same
+            // tone the number card's pill uses for this row: one line, one
+            // status word, whichever of its two cards the owner looks at. The
+            // pill it displaces was "Ported" in the POSITIVE (lime) tone, which
+            // is the loudest claim on the card and reads as "all done" — over a
+            // number that can neither send nor answer. The sentence under the
+            // stepper says which of the transfer and the line is held, so the
+            // shorter label cannot be read as the transfer stalling.
+            StatusPill(label: "On hold", tone: .warn)
+        } else {
+            switch port.status {
+            case PortStatus.cancelPending:
+                StatusPill(label: "Cancelling", tone: .neutral)
+            case PortStatus.exception:
+                StatusPill(label: "Needs attention", tone: .warn)
+            case PortStatus.ported:
+                StatusPill(label: "Ported", tone: .positive)
+            default:
+                let index = portStepIndex(port.status)
+                StatusPill(
+                    label: (portSteps.indices.contains(index) ? portSteps[index] : port.status),
+                    tone: .warn
+                )
+            }
         }
     }
 

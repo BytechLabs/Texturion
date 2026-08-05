@@ -5,8 +5,10 @@ import com.loonext.android.core.auth.await
 import com.loonext.android.core.model.BillingModules
 import com.loonext.android.core.model.ChangePlanResult
 import com.loonext.android.core.model.CompanyView
+import com.loonext.android.core.model.HeldNumbers
 import com.loonext.android.core.model.HostedUrl
 import com.loonext.android.core.model.Invite
+import com.loonext.android.core.model.ReinstateResult
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberNumberAccess
 import com.loonext.android.core.model.Page
@@ -689,6 +691,47 @@ class SettingsRepository(
             buildJsonObject { put("plan", plan) },
             companyId = companyId,
         )
+
+    // -- #523 numbers the plan does not cover ---------------------------------
+
+    /**
+     * What this workspace holds that its plan does not cover, and both ways back.
+     *
+     * ASKED ONLY WHEN A SUSPENDED ROW EXISTS. The company view already carries
+     * every number's status, so the caller can tell for free whether the answer
+     * could be anything but empty — and a workspace with nothing on hold must
+     * never pay for the query. Same rule [missedWhileOff] and
+     * [statedCancellationReason] beside it follow, and the route's own docblock
+     * gives the same reason for not folding this into `company_view`.
+     *
+     * Behind `billing.manage` like every /v1/billing route, so a member cannot
+     * call it at all — which is why the numbers screen explains a hold from
+     * [CompanyView.subscription_status] instead of from this.
+     */
+    suspend fun heldNumbers(companyId: String): HeldNumbers =
+        api.get("/v1/billing/held-numbers", companyId = companyId)
+
+    /**
+     * Buy the capacity for ONE held number and bring it back.
+     *
+     * The Idempotency-Key is REQUIRED — the route 422s without it — and it must
+     * be one key per intent, reused across retries of the same press. The route
+     * raises the extra-number quantity with `always_invoice`, so a second key
+     * for the same decision is a second charge.
+     *
+     * A [ReinstateResult] with `already_active` is a SUCCESS: the number was
+     * back before the press landed, and nothing was billed.
+     */
+    suspend fun reinstateHeldNumber(
+        companyId: String,
+        numberId: String,
+        idempotencyKey: String,
+    ): ReinstateResult = api.post(
+        "/v1/billing/held-numbers/$numberId/reinstate",
+        buildJsonObject { },
+        companyId = companyId,
+        idempotencyKey = idempotencyKey,
+    )
 
     // -- #277 the paid pause --------------------------------------------------
 

@@ -49,6 +49,7 @@ import com.loonext.android.core.model.numberAccessReason
 import com.loonext.android.core.model.numberAccessSelfNote
 import com.loonext.android.core.model.sortedForOwner
 import com.loonext.android.core.model.CompanyView
+import com.loonext.android.core.model.HeldNumbers
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.NumberHealth
@@ -126,6 +127,35 @@ fun NumbersSection(
     // foreground.
     ResyncOnResume(scope.companyId) { refreshKey++ }
 
+    // #523: which numbers this workspace holds that its plan does not cover, and
+    // both ways back. Owner/admin only — every /v1/billing route is behind
+    // `billing.manage` — which is why [suspendedNumberNote] explains the hold
+    // from `subscription_status` for everybody else and needs no read at all.
+    //
+    // ASKED ONLY WHEN THE ANSWER COULD BE ANYTHING BUT EMPTY. The company view
+    // already carries every number's status, so "is anything suspended" is free,
+    // and a workspace holding nothing must never pay for the round trip. Same
+    // discipline as `missed-while-off` and the pause read on the billing screen.
+    //
+    // The COUNT is the re-ask key rather than a boolean: an upgrade to Pro
+    // reinstates what the bigger allowance fits and can leave a third number
+    // held, and a boolean would still read `true` afterwards while this screen
+    // went on quoting the Starter allowance over a Pro subscription.
+    val suspendedCount = company.numbers.count { it.status == NumberStatus.SUSPENDED }
+    val canManageBilling = SettingsRoleGate.canManageBilling(scope.role)
+    var held by remember(scope.companyId) { mutableStateOf<HeldNumbers?>(null) }
+    LaunchedEffect(suspendedCount, canManageBilling, refreshKey, scope.companyId) {
+        // A FAILED READ DRAWS NOTHING, and that is not the PauseRead hazard: the
+        // note under the number still says it is on hold and still says it has
+        // not been given up. Silence here claims nothing — it is the state that
+        // existed before this route did.
+        held = if (suspendedCount == 0 || !canManageBilling) {
+            null
+        } else {
+            runCatching { scope.repo.heldNumbers(scope.companyId) }.getOrNull()
+        }
+    }
+
     when (val current = state) {
         is LoadState.Loading -> SettingsSectionSkeleton(cards = 3)
         is LoadState.Failed -> CenteredError(
@@ -142,8 +172,19 @@ fun NumbersSection(
             }
             // Ported/hosted rows in flight render ONLY through their tracker
             // cards below — never as a fake "under a minute" number card.
+            //
+            // #523 ADDED THE SUSPENDED ARM. A ported line that goes on hold is
+            // `source == "ported"` and no longer `active`, so it fell through
+            // both arms and rendered nowhere at all — no card, and the tracker
+            // below only covers a port still in flight. The oldest-first restore
+            // makes this the likely case rather than a corner: the number a
+            // workspace ported in most recently is exactly the one held. A row
+            // that is suspended was live once, so it is never an in-flight port
+            // and the reason for the original filter does not reach it.
             val cards = data.numbers.filter { number ->
-                number.source == "provisioned" || number.status == NumberStatus.ACTIVE
+                number.source == "provisioned" ||
+                    number.status == NumberStatus.ACTIVE ||
+                    number.status == NumberStatus.SUSPENDED
             }
             if (cards.isEmpty() && company.plan == null) {
                 SettingsCard(title = "Your number") {
@@ -156,7 +197,7 @@ fun NumbersSection(
                 }
             }
             cards.forEach { number ->
-                NumberCard(scope, company, number, onChanged = refresh)
+                NumberCard(scope, company, number, held, onChanged = refresh)
             }
             // #286: what this member cannot reach, and WHY. Below the
             // cards, because it explains the shape of the list rather than
@@ -170,7 +211,12 @@ fun NumbersSection(
             // of three rules they set months ago produced it.
             MyAccessCard(scope)
             AddNumberCard(scope, company, data.numbers, onChanged = refresh)
-            PortsBlock(scope, company, data.ports, onChanged = refresh)
+            // #523: the trackers read the SAME rows the cards above were built
+            // from. A transfer's card and its number's card describe one line, so
+            // they may not disagree about whether it works — and the only way to
+            // guarantee that is one list, not two reads that can land a moment
+            // apart.
+            PortsBlock(scope, company, data.ports, data.numbers, onChanged = refresh)
             TextEnableBlock(scope, company, data.textEnablements, onChanged = refresh)
             RegistrationBlock(scope, company, data.registration, onChanged = refresh)
         }
@@ -186,6 +232,8 @@ private fun NumberCard(
     scope: SettingsScope,
     company: CompanyView,
     number: PhoneNumberSummary,
+    /** #523: null for a member, for a failed read, and for nothing on hold. */
+    held: HeldNumbers?,
     onChanged: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -193,6 +241,11 @@ private fun NumberCard(
     val canManage = SettingsRoleGate.canManageNumbers(scope.role)
     val canRelease = SettingsRoleGate.canReleaseNumber(scope.role)
     val released = number.status == NumberStatus.RELEASED
+    // #523: the hold this card may be about, worked out once. The control and
+    // the confirmation both read it, and the one thing worse than no Release
+    // button on a held number is one whose dialog describes a different number.
+    val heldOverAllowance =
+        number.status == NumberStatus.SUSPENDED && company.subscriptionActive
     var releasing by remember { mutableStateOf(false) }
     var managingAccess by remember { mutableStateOf(false) }
     var managingIdentity by remember { mutableStateOf(false) }
@@ -280,12 +333,26 @@ private fun NumberCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            number.status == NumberStatus.SUSPENDED -> Text(
-                "This number is suspended. Update your payment method under " +
-                    "Settings › Billing to bring it back.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            // #523: WHY it is on hold, which used to be one sentence for four
+            // different causes — the payment-method one, which for an
+            // over-allowance hold is false twice over: the card on file is fine,
+            // and the billing portal it sent you to cannot fix an allowance.
+            //
+            // The note is drawn for EVERY role off the company view. The routes
+            // and the button under it need `billing.manage` and the server's
+            // answer, so they are simply absent for anybody else rather than
+            // being a control that refuses. See [HeldNumberActions].
+            number.status == NumberStatus.SUSPENDED -> {
+                Text(
+                    suspendedNumberNote(
+                        company.subscription_status,
+                        SettingsRoleGate.canManageBilling(scope.role),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                HeldNumberActions(scope, company, number, held, onChanged)
+            }
 
             number.status == NumberStatus.PROVISIONING -> Text(
                 provisioningWaitCopy(number.created_at, System.currentTimeMillis()),
@@ -308,9 +375,30 @@ private fun NumberCard(
             }
         }
 
-        if (!released && number.status == NumberStatus.ACTIVE) {
+        // #523: RELEASE IS NOT AN ACTIVE-ONLY ACTION, and gating the whole row on
+        // `active` meant a held number could not be given up from this phone at
+        // all. Releasing it is the only way to stop us paying its carrier rent,
+        // the only way to free the Starter slot, and the only way to satisfy the
+        // Pro-to-Starter downgrade gate — so a mobile-only owner was stuck with a
+        // line they could neither use nor end. The route has always allowed it:
+        // `DELETE /v1/numbers/:id` refuses only a row that is already released.
+        //
+        // ONLY WHILE THE SUBSCRIPTION IS LIVE, which is the #523 hold exactly.
+        // The other thing that suspends a number is a failed payment, and the
+        // answer there is the card — offering to give a number up for good as
+        // the way out of a card problem is a button somebody presses in a panic
+        // and cannot undo. `suspendedNumberNote` already tells them what to fix.
+        //
+        // Configuring is still active-only. "How this line answers", "When this
+        // line is open" and "Who can use this number" all describe a line that
+        // is answering, and a held one is not.
+        val configurable = !released && number.status == NumberStatus.ACTIVE
+        val releasable =
+            mayReleaseNumber(number.status, number.number_e164, company.subscriptionActive)
+
+        if ((configurable && canManage) || (releasable && canRelease)) {
             Row(modifier = Modifier.padding(top = 6.dp)) {
-                if (canManage) {
+                if (configurable && canManage) {
                     // #307: how the line ANSWERS, beside who can use it. The
                     // same kind of question about one number, and a second
                     // number is a second business.
@@ -327,7 +415,7 @@ private fun NumberCard(
                         Text("Who can use this number")
                     }
                 }
-                if (canRelease && number.number_e164 != null) {
+                if (releasable && canRelease) {
                     LinkButton(onClick = { releasing = true }) {
                         Text(
                             "Release",
@@ -336,9 +424,12 @@ private fun NumberCard(
                     }
                 }
             }
-            if (!canManage) {
-                ReadOnlyLine("Only owners and admins can manage numbers.")
-            }
+        }
+        // Still only under a working number. Under a held one the note above has
+        // already named who can act on it, and a second sentence saying the same
+        // thing a different way reads as a runaround.
+        if (configurable && !canManage) {
+            ReadOnlyLine("Only owners and admins can manage numbers.")
         }
     }
 
@@ -346,6 +437,11 @@ private fun NumberCard(
         ReleaseNumberDialog(
             scope = scope,
             number = number,
+            // Told, never re-derived here: the dialog's words and the control
+            // that opens it have to be about the same state, and the one thing
+            // worse than no Release button on a held number is one whose
+            // confirmation describes a different number.
+            heldOverAllowance = heldOverAllowance,
             onDismiss = { releasing = false },
             onReleased = {
                 releasing = false
@@ -414,10 +510,29 @@ private fun NumberStatusPill(number: PhoneNumberSummary) {
 // Release (owner-only, type-the-number confirmation)
 // ---------------------------------------------------------------------------
 
+/**
+ * Giving a number up, with the words that are true of THIS number.
+ *
+ * #523 SPLIT THE BODY IN TWO, because the one that shipped is false in both
+ * directions for a held line. "A number is included, so you can set up a new one
+ * here afterward" is the worst of it: a workspace on hold is over its allowance
+ * by definition, so releasing brings it back TO the allowance — somebody who
+ * followed that sentence would try to add a number and be charged for an extra
+ * or refused at the Starter cap, having given up the number they already had.
+ *
+ * The held branch also says the thing the reader most needs to hear before an
+ * irreversible press: this is not the only way out. Bringing it back leaves the
+ * line working, and it is one screen tap away on the same card. Naming the
+ * alternative in front of the destructive control is the honest shape of
+ * *Ethical Friction* — the type-to-confirm below is the pause, this is the
+ * reason somebody might use it.
+ */
 @Composable
 private fun ReleaseNumberDialog(
     scope: SettingsScope,
     number: PhoneNumberSummary,
+    /** #523: this number is on hold because the plan does not cover it. */
+    heldOverAllowance: Boolean,
     onDismiss: () -> Unit,
     onReleased: () -> Unit,
 ) {
@@ -435,10 +550,7 @@ private fun ReleaseNumberDialog(
 
     ConfirmDialog(
         title = "Release $display?",
-        body = "This gives the number up for good. Customers who text it won't reach " +
-            "you, and you can't get the same number back. It doesn't change your plan " +
-            "or what you pay. A number is included, so you can set up a new one here " +
-            "afterward. Type the number to confirm.",
+        body = releaseNumberBody(heldOverAllowance),
         confirmLabel = "Release number",
         destructive = true,
         pending = pending,
@@ -778,7 +890,14 @@ private fun AddNumberCard(
         }
         return
     }
-    val extraPrice = if (company.plan == "pro") "$4/mo" else "$5/mo"
+    // #523 rule 2 / #522: this was `if (plan == "pro") "$4/mo" else "$5/mo"` —
+    // two prices typed into the one card that asks for consent to the charge,
+    // in a currency the workspace may not be billed in. The extra-number book is
+    // filed in USD only, so a Canadian owner was quoted "$5" (which reads as
+    // CA$5) for a line their card takes US$5 for. [extraNumberMonthly] resolves
+    // the audience the same way the plan price and the registration fee do, and
+    // `ExtraNumberPriceTest` pins the figures against the TypeScript.
+    val extraPrice = extraNumberMonthly(company.plan, company.billing_currency, company.country)
 
     var picking by remember { mutableStateOf(false) }
     var idempotencyKey by remember { mutableStateOf("") }
@@ -789,12 +908,22 @@ private fun AddNumberCard(
 
     SettingsCard(
         title = "Add a number",
-        description = if (nextIsExtra) {
-            "An extra number is $extraPrice, billed today. Your message allowance is " +
-                "shared, so an extra number doesn't add messages."
-        } else {
-            "Choose the number your customers will text. It's included in your plan " +
-                "at no extra cost."
+        description = when {
+            !nextIsExtra ->
+                "Choose the number your customers will text. It's included in your " +
+                    "plan at no extra cost."
+
+            extraPrice != null ->
+                "An extra number is $extraPrice, billed today. Your message allowance " +
+                    "is shared, so an extra number doesn't add messages."
+
+            // No figure to name — [extraNumberMonthly] does not guess a price
+            // book for a plan it does not recognise. Says the shape of the
+            // charge instead of inventing an amount, which is the one thing a
+            // consent surface must never do.
+            else ->
+                "An extra number is billed to your plan today. Your message allowance " +
+                    "is shared, so an extra number doesn't add messages."
         },
     ) {
         OutlinedButton(onClick = {
@@ -921,6 +1050,91 @@ internal fun numberHealthCopy(health: NumberHealth): String {
         " Carriers sometimes start filtering a number — often one that was " +
         "reused from a previous business. We've been alerted and we're on it; " +
         "you don't need to do anything yet."
+}
+
+/**
+ * #523 — may this number be given up right now?
+ *
+ * ── THIS IS THE AGREED RULE FOR ALL THREE CLIENTS ──────────────────────────
+ *
+ * It was written here first and the other two adopted it, so the argument is
+ * recorded here in full for whoever reads their copy next. One irreversible
+ * control must not answer differently depending on which device is in the
+ * owner's hand: web offered Release on ANY unreleased row with digits (a
+ * past-due suspension included), iOS offered it on active-or-suspended with no
+ * subscription term, and Android on the three terms below. The strictest of the
+ * three is the one with a reason, so it won:
+ *
+ *   status is ACTIVE                          — a working line can be given up
+ *   or status is SUSPENDED and the
+ *     subscription is live                    — the #523 hold, and only that
+ *   and the row has digits to type back       — the confirmation demands them
+ *
+ * Everything else — a released row, one still provisioning, one whose
+ * provisioning failed — is refused, and each of those has its own control: a
+ * released number is already gone, and a failed one is answered by "Choose a
+ * number", which keeps the slot rather than burning it.
+ *
+ * ACTIVE, or ON HOLD WHILE THE SUBSCRIPTION IS LIVE. The second half is the fix:
+ * this was gated on `active` alone, so a held number could not be released from
+ * the phone at all — and releasing it is the only way to stop us paying its
+ * carrier rent, the only way to free the Starter slot, and the only way to
+ * satisfy the Pro-to-Starter downgrade gate. A mobile-only owner had a line they
+ * could neither use nor end. `DELETE /v1/numbers/:id` has always allowed it; it
+ * refuses only a row that is already released.
+ *
+ * AND NOT WHILE THE PAYMENT IS THE PROBLEM. `subscriptionActive` is the same
+ * field the server splits `over_plan_allowance` from `subscription_inactive` on,
+ * so this admits exactly the #523 hold. A past-due workspace has every number
+ * suspended and the answer is the card — putting an irreversible "give it up for
+ * good" in front of somebody whose real problem is a declined payment is a press
+ * made in a panic that nothing can undo.
+ *
+ * A NUMBER WITH NO DIGITS IS NOT RELEASABLE either, and that is not only a
+ * cosmetic point about the confirmation box: the dialog asks the reader to type
+ * the number back, which nobody can do for a row that has none.
+ */
+internal fun mayReleaseNumber(
+    status: String?,
+    numberE164: String?,
+    subscriptionActive: Boolean,
+): Boolean {
+    if (numberE164 == null) return false
+    return when (status) {
+        NumberStatus.ACTIVE -> true
+        NumberStatus.SUSPENDED -> subscriptionActive
+        else -> false
+    }
+}
+
+/**
+ * #523 — what giving this number up actually does, which is not the same
+ * sentence for a working line and a held one.
+ *
+ * THE SHIPPED COPY IS FALSE FOR A HOLD, and the last clause is the expensive
+ * part: "a number is included, so you can set up a new one here afterward". A
+ * workspace on hold is over its allowance by definition, so releasing brings it
+ * back TO the allowance and no further — somebody who believed that sentence
+ * would give up the number they had and then be charged for an extra, or refused
+ * outright at the Starter cap.
+ *
+ * THE HELD BRANCH NAMES THE ALTERNATIVE FIRST. Bringing the number back leaves
+ * the line working and the control for it is on the same card, so a reader who
+ * has arrived at the irreversible button by process of elimination should be
+ * told there was no elimination to do. That is what the friction is for; the
+ * type-the-number box below is the pause, this is the reason to use it.
+ */
+internal fun releaseNumberBody(heldOverAllowance: Boolean): String = if (heldOverAllowance) {
+    "This is a number your plan doesn't cover, and releasing it is the other way " +
+        "out of that hold — it ends the hold by giving the number up rather than " +
+        "by bringing it back. Customers who text it won't reach you afterward, and " +
+        "you can't get the same number back. Your plan stops being over its " +
+        "allowance, and what you pay doesn't change. Type the number to confirm."
+} else {
+    "This gives the number up for good. Customers who text it won't reach you, " +
+        "and you can't get the same number back. It doesn't change your plan or " +
+        "what you pay. A number is included, so you can set up a new one here " +
+        "afterward. Type the number to confirm."
 }
 
 /**

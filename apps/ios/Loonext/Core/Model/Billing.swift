@@ -223,10 +223,148 @@ struct BillingModule: Codable, Sendable {
 }
 
 /// POST /v1/billing/change-plan result.
+///
+/// `reinstated` / `held` arrive with #523: an upgrade raises the allowance, and
+/// the API claims against the new one in the same call — so a switch to Pro can
+/// bring numbers back, and the client is told which rather than having to
+/// refetch and diff.
 struct ChangePlanResult: Codable, Sendable {
     let plan: String
     let effective: String
     let effective_at: String?
+    @Default<DefaultEmptyList<HeldNumber>> var reinstated: [HeldNumber]
+    @Default<DefaultEmptyList<HeldNumber>> var held: [HeldNumber]
+}
+
+// MARK: - Numbers the plan does not cover (#523)
+
+/// One number this workspace holds that its plan does not currently cover.
+///
+/// It is NOT released and it is not gone: the row is intact, texts and calls
+/// still land on it, and its history is untouched. What it cannot do is send or
+/// answer. The whole point of the surface this feeds is that the state is
+/// visible and has a way out, because before #523 a resubscribe onto a smaller
+/// plan un-suspended everything and we paid the carrier rent forever.
+struct HeldNumber: Codable, Sendable, Identifiable {
+    let id: String
+    let number_e164: String?
+    /// When the hold started. Decoded because it is part of the contract, and
+    /// deliberately not rendered — see `HeldNumbersCard`.
+    var suspended_at: String? = nil
+
+    init(id: String, number_e164: String?, suspended_at: String? = nil) {
+        self.id = id
+        self.number_e164 = number_e164
+        self.suspended_at = suspended_at
+    }
+}
+
+/// Why a workspace's numbers are suspended — the server's word for it, not the
+/// client's inference.
+///
+/// The two states look identical in `phone_numbers.status` and mean opposite
+/// things: one is "your plan is smaller than your workspace", the other is "your
+/// subscription is over and the 30-day hold is running". `GET
+/// /v1/billing/held-numbers` decides between them so three clients do not each
+/// derive it from two fields and describe the same state three ways.
+enum HeldNumbersReason {
+    static let overPlanAllowance = "over_plan_allowance"
+    static let subscriptionInactive = "subscription_inactive"
+}
+
+/// GET /v1/billing/held-numbers (#523) — what this workspace holds beyond what
+/// its plan covers, and both ways back.
+///
+/// EVERY FIGURE THIS SCREEN PRINTS IS IN HERE. The allowance, the plan's hard
+/// cap, the price of buying one back and the currency that price is denominated
+/// in are all served rather than derived, because a client that renders "$5" out
+/// of its own head at a workspace billed in CAD is #522 happening again.
+struct HeldNumbers: Codable, Sendable {
+    /// "starter" | "pro", or nil when the workspace has never checked out.
+    let plan: String?
+    /// Numbers the plan itself covers. Nil when `plan` is.
+    let included: Int?
+    /// Extra numbers actually billed on the subscription right now.
+    @Default<DefaultZero> var paid_extras: Int
+    /// `included + paid_extras` — what may be active at once.
+    let allowance: Int?
+    /// The plan's hard TOTAL cap (#80), or nil when it has none (Pro).
+    let max_total: Int?
+    /// `HeldNumbersReason`, or nil when nothing is held.
+    let reason: String?
+    @Default<DefaultEmptyList<HeldNumber>> var held: [HeldNumber]
+    /// What buying capacity for ONE held number costs, from the price book.
+    let extra_number_cents: Int?
+    /// The currency `extra_number_cents` is denominated in. OPTIONAL and with
+    /// no default: an absent currency means the figure cannot be labelled
+    /// honestly, and an unlabelled price is the defect #522 was.
+    let extra_number_currency: String?
+    /// Whether POST …/reinstate would be accepted right now. Served so the
+    /// button can be ABSENT rather than fail — being told "no" after pressing
+    /// it is how somebody concludes the product is broken.
+    @Default<DefaultFalse> var can_reinstate: Bool
+    /// Starter only: the other way back, and it buys no extra number.
+    @Default<DefaultFalse> var can_upgrade: Bool
+
+    init(
+        plan: String? = nil,
+        included: Int? = nil,
+        paid_extras: Int = 0,
+        allowance: Int? = nil,
+        max_total: Int? = nil,
+        reason: String? = nil,
+        held: [HeldNumber] = [],
+        extra_number_cents: Int? = nil,
+        extra_number_currency: String? = nil,
+        can_reinstate: Bool = false,
+        can_upgrade: Bool = false
+    ) {
+        self.plan = plan
+        self.included = included
+        self.paid_extras = paid_extras
+        self.allowance = allowance
+        self.max_total = max_total
+        self.reason = reason
+        self.held = held
+        self.extra_number_cents = extra_number_cents
+        self.extra_number_currency = extra_number_currency
+        self.can_reinstate = can_reinstate
+        self.can_upgrade = can_upgrade
+    }
+}
+
+/// POST /v1/billing/held-numbers/:id/reinstate (#523).
+///
+/// THREE OUTCOMES, and they are not the same sentence:
+///
+///   `reinstated`                  paid, and the number is back.
+///   `already_active`              nothing was bought — it was already back.
+///                                 A double-press, or an upgrade beat us to it.
+///   neither                       the charge landed and the un-hold did not
+///                                 (the #110 raise fence refused a capacity
+///                                 raise formed against a stale epoch). The
+///                                 caller must not invite an immediate retry:
+///                                 the money has moved.
+struct ReinstatedNumber: Codable, Sendable {
+    @Default<DefaultFalse> var reinstated: Bool
+    @Default<DefaultFalse> var already_active: Bool
+    let paid_extras: Int?
+    let allowance: Int?
+    @Default<DefaultEmptyList<HeldNumber>> var held: [HeldNumber]
+
+    init(
+        reinstated: Bool = false,
+        already_active: Bool = false,
+        paid_extras: Int? = nil,
+        allowance: Int? = nil,
+        held: [HeldNumber] = []
+    ) {
+        self.reinstated = reinstated
+        self.already_active = already_active
+        self.paid_extras = paid_extras
+        self.allowance = allowance
+        self.held = held
+    }
 }
 
 /// #426 — carrier-reported delivery, split by where the message was going.

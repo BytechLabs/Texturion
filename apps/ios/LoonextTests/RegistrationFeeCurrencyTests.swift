@@ -310,7 +310,8 @@ final class RegistrationFeeCurrencyTests: XCTestCase {
             .deletingLastPathComponent() // ios
         dir.appendPathComponent("Loonext")
         guard FileManager.default.fileExists(atPath: dir.path) else {
-            throw XCTSkip("iOS sources not present at \(dir.path)")
+            // Fails rather than skips — see `MissingSource`.
+            throw missingSource(dir.path)
         }
         return dir
     }

@@ -130,6 +130,13 @@ sealed interface DeepLink {
     data class Calls(val sessionId: String? = null) : DeepLink
 
     /**
+     * #523: a settings screen the server pointed somebody at. [section] is null
+     * for the hub — see [settingsSectionFor] for why an unrecognised one lands
+     * there rather than nowhere.
+     */
+    data class Settings(val section: SettingsSection? = null) : DeepLink
+
+    /**
      * #183 part 3 (Connected Apps): "Call with Loonext" on a system-Contacts
      * contact — open the dialer prefilled with [number] on the Calls tab.
      */
@@ -176,6 +183,58 @@ fun deepLinkFor(
                 ?: callParam?.takeIf { it.isNotBlank() },
         )
 
+    // #523: four server pushes point at `/settings/billing` — the #523 hold,
+    // the cancellation notice and both grace warnings — and every one of them
+    // resolved to null here, so tapping any of them opened the inbox. The hold
+    // notice is the one that makes it a defect rather than an untidiness: its
+    // whole body is "open Loonext to see which number, and how to bring it
+    // back", and the screen it names was two navigations away from where the
+    // tap landed.
+    segments.firstOrNull() == "settings" ->
+        DeepLink.Settings(settingsSectionFor(segments.getOrNull(1)))
+
+    else -> null
+}
+
+/**
+ * Which settings section a `/settings/<slug>` link opens.
+ *
+ * THE SLUGS ARE THE WEB'S ROUTE FOLDERS, not a vocabulary invented here. The
+ * server builds these links out of `APP_ORIGIN`, so what it can send is exactly
+ * what exists under `apps/web/src/app/(app)/settings/` — and [DeepLinkTest]
+ * checks each one against that directory, so a web rename fails a Kotlin test
+ * instead of quietly becoming a tap that goes to the wrong screen.
+ *
+ * AN UNRECOGNISED SLUG OPENS THE HUB rather than resolving to nothing, and that
+ * is a deliberate change to the "resolves to nothing rather than guessing" rule
+ * one line above. It is not a guess: every one of these links IS a settings
+ * link, so the hub is a true answer to it, one tap from the section and with the
+ * section list in front of the reader. Nothing is the alternative, and nothing
+ * means the inbox — a screen with no relationship to what the notification said.
+ * The same reasoning `parsePush` gives for an unknown `kind`: a slug this build
+ * does not know is a newer server, not a bad link.
+ */
+fun settingsSectionFor(slug: String?): SettingsSection? = when (slug?.trim()) {
+    "billing" -> SettingsSection.Billing
+    "numbers" -> SettingsSection.Numbers
+    "usage" -> SettingsSection.Usage
+    "team" -> SettingsSection.Team
+    "workspace" -> SettingsSection.Workspace
+    "templates" -> SettingsSection.Templates
+    "notifications" -> SettingsSection.Notifications
+    "devices" -> SettingsSection.Devices
+    "help" -> SettingsSection.Help
+    "ai" -> SettingsSection.Ai
+    "whats-new" -> SettingsSection.WhatsNew
+    // Two web routes, one Android section: "Profile & account" is a single
+    // screen here, so both land on it rather than one of them landing nowhere.
+    "profile", "account" -> SettingsSection.Profile
+    // The web names these after the setting somebody went looking for; this
+    // client names them after the screen that holds it. Both pairs are the same
+    // screen — Hours is "Business hours & away reply", Calling is "Missed-call
+    // text-back, voicemail, screening, caller ID".
+    "away-reply" -> SettingsSection.Hours
+    "missed-calls" -> SettingsSection.Calling
     else -> null
 }
 
@@ -532,6 +591,21 @@ private fun ReadyShell(
                     }
                 }
 
+                // #523: settings is ONE routed surface whose open section is
+                // hoisted here (#200), so a second copy pushed on top of one
+                // already open is an identical screen the reader has to press
+                // back through twice — and a bookkeeper always has one open,
+                // because it is seeded for them by the effect above. Replace it
+                // instead. The section state is keyed on the route's own
+                // section, so replacing really does re-seed rather than leaving
+                // the reader wherever they already were.
+                is DeepLink.Settings -> {
+                    if (routeStack.lastOrNull() is Overlay.Settings) {
+                        routeStack.removeAt(routeStack.lastIndex)
+                    }
+                    push(Overlay.Settings(link.section))
+                }
+
                 // #183 part 3: "Call with Loonext" — land on the Calls tab and
                 // hand the number to CallsScreen via the pendingDial bus, which
                 // opens the dialer prefilled.
@@ -857,7 +931,15 @@ private fun ReadyShell(
                         // header slot can carry the section title. SettingsHome
                         // renders zero chrome, so the second stacked header
                         // (hub back + section back) is not constructible.
-                        var section by rememberSaveable(companyId) {
+                        // #523: KEYED ON THE ROUTE'S OWN SECTION, not on the
+                        // workspace alone. Only the top of the stack renders and
+                        // nothing here is keyed by route, so every Settings
+                        // route shares this composition slot — which meant a
+                        // deep link that arrived while somebody was reading
+                        // Settings › Team pushed a Billing route and then drew
+                        // Team, because the retained state won. The reader was
+                        // told a number was on hold and taken to the team list.
+                        var section by rememberSaveable(companyId, active.section) {
                             mutableStateOf<SettingsSection?>(active.section)
                         }
                         // Composed AFTER the host's pop BackHandler, so system

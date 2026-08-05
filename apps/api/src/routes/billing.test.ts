@@ -87,6 +87,12 @@ function companyRow(overrides: Record<string, unknown> = {}) {
     // and not undefined, exactly as PostgREST would answer.
     paused_at: null,
     paused_price_cents: null,
+    // #110/#523: the paid extra-number capacity and its raise fence. Present
+    // for the same reason `paused_at` above is — PostgREST answers the columns
+    // the select asks for, and a route reading `undefined` where the database
+    // would give a number is testing something that cannot happen.
+    paid_extra_numbers: 0,
+    paid_capacity_epoch: 0,
     ...overrides,
   };
 }
@@ -120,6 +126,29 @@ function completeRegistrationRows() {
 
 function companyEndpoint(row: Record<string, unknown>): StubEndpoint {
   return endpoint("GET", /\/rest\/v1\/companies/, () => [row]);
+}
+
+/**
+ * #523: the allowance claim (`claim_number_allowance`). An upgrade raises the
+ * included count, so change-plan settles the workspace's numbers against the
+ * new allowance — a Starter workspace with a number on hold is exactly what
+ * upgrading is supposed to fix. The default answers "nothing was on hold",
+ * which is every ordinary upgrade; a test that wants the reinstatement
+ * prepends its own.
+ */
+function allowanceRpc(
+  result: Record<string, unknown> = {},
+): StubEndpoint {
+  return endpoint("POST", /\/rest\/v1\/rpc\/claim_number_allowance/, () => ({
+    applied: true,
+    plan_known: true,
+    allowance: 2,
+    capacity: 0,
+    capacity_fenced: false,
+    restored: [],
+    held: [],
+    ...result,
+  }));
 }
 
 function checkoutSessionEndpoint(): StubEndpoint {
@@ -950,6 +979,7 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
       endpoint("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
         proSubscription(),
       ),
+      allowanceRpc(),
       endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
     ]);
     const response = await post(
@@ -958,7 +988,12 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
       harness,
     );
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ plan: "pro", effective: "now" });
+    expect(await response.json()).toEqual({
+      plan: "pro",
+      effective: "now",
+      reinstated: [],
+      held: [],
+    });
 
     const form = harness.callsTo("POST", /subscriptions\/sub_1/)[0].form();
     expect(form.get("items[0][id]")).toBe("si_licensed");
@@ -970,6 +1005,51 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     const patches = harness.callsTo("PATCH", /companies/);
     expect(patches).toHaveLength(1);
     expect(patches[0].json()).toEqual({ plan: "pro" });
+  });
+
+  it("#523 upgrading brings a HELD number back, and says which one", async () => {
+    // The other way out of a hold. A workspace that came back on Starter
+    // holding two numbers has one suspended; Pro includes two, so the upgrade
+    // has to settle the numbers against the new allowance. Without this the
+    // owner pays $79 and their second line is still dead, which reads as the
+    // upgrade not having worked.
+    const back = {
+      id: "b1f1f6a1-2c3d-4e5f-8a9b-0c1d2e3f4a5b",
+      number_e164: "+14155550102",
+    };
+    const harness = makeHarness([
+      companyEndpoint(activeStarter()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        proSubscription(),
+      ),
+      allowanceRpc({ restored: [back] }),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+    ]);
+    const response = await post("/v1/billing/change-plan", { plan: "pro" }, harness);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      plan: "pro",
+      effective: "now",
+      reinstated: [back],
+      held: [],
+    });
+
+    const claims = harness.callsTo("POST", /rpc\/claim_number_allowance/);
+    expect(claims).toHaveLength(1);
+    expect(claims[0].json()).toEqual({
+      p_company_id: COMPANY_ID,
+      // PLAN_LIMITS.pro.numbers — the allowance they just bought.
+      p_included: 2,
+      // The upgrade migrates the extra item's price, never its quantity.
+      p_paid_extras: 0,
+      p_expected_epoch: 0,
+      // An upgrade settles the WHOLE workspace against the bigger allowance,
+      // oldest-first. Only the paid reinstate names one number.
+      p_prefer_id: null,
+    });
   });
 
   it("upgrade swaps the voice metered item to the Pro tiering too (D36)", async () => {
@@ -987,6 +1067,7 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
       endpoint("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
         proSubscription(),
       ),
+      allowanceRpc(),
       endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
     ]);
     const response = await post(

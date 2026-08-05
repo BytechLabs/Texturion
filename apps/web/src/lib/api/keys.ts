@@ -32,6 +32,16 @@ export const keys = {
   /** #490: calls that reached a line which could not take them. */
   missedWhileOff: (companyId: string) =>
     [companyId, "missed-while-off"] as const,
+  /**
+   * #523: numbers this workspace holds that its plan does not cover.
+   *
+   * Its own root rather than a segment under `company`, because it is read on
+   * TWO screens (billing and numbers) that must agree, and both a reinstate and
+   * a plan upgrade change it. A key under `company` would be swept by every
+   * routine company invalidation — a module toggle, a dismissed win-back — and
+   * this is a question only a workspace with a suspended number ever asks.
+   */
+  heldNumbers: (companyId: string) => [companyId, "held-numbers"] as const,
   numbers: (companyId: string) => [companyId, "numbers"] as const,
   /** #106: one number's access shape (who can use it, at what level). */
   numberAccess: (companyId: string, numberId: string) =>

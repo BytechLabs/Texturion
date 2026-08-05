@@ -377,6 +377,11 @@ fun SettingsHome(
                                 // something I need" is the help screen, and
                                 // only the host can move between sections.
                                 onOpenHelp = { onOpenSection(SettingsSection.Help) },
+                                // #523: the plan card explains a held number;
+                                // the controls that end the hold live on the
+                                // number's own card. Same contract as help —
+                                // only the host moves between sections.
+                                onOpenNumbers = { onOpenSection(SettingsSection.Numbers) },
                             )
 
                             SettingsSection.Notifications -> NotificationsSection(

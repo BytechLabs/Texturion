@@ -36,7 +36,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { extraNumberBlockedReason } from "@loonext/shared";
+import { extraNumberBlockedReason, type BillingCurrency } from "@loonext/shared";
 
 import type { Env } from "../env";
 import { idempotencyKey } from "./idempotency";
@@ -48,6 +48,18 @@ export const EXTRA_NUMBER_MONTHLY_CENTS: Record<PlanId, number> = {
   starter: 500,
   pro: 400,
 };
+
+/**
+ * The currency {@link EXTRA_NUMBER_MONTHLY_CENTS} is denominated in.
+ *
+ * #328/#522: a figure on the wire without its currency is how a card came to
+ * promise CA$39 for a fee Stripe invoiced at US$29. The extra-number prices are
+ * filed in USD only — same as the module catalog, and for the same reason — so
+ * a client billed in CAD renders this with `formatMoney(cents, "usd", "cad")`
+ * and gets "US$5/mo", which is what a US-priced line honestly is. What must not
+ * happen is a bare "$5", which to a Canadian reader means CAD.
+ */
+export const EXTRA_NUMBER_PRICE_CURRENCY: BillingCurrency = "usd";
 
 /** Starter's hard TOTAL number cap: 1 included + at most 1 extra (#80). */
 export { STARTER_MAX_TOTAL_NUMBERS } from "@loonext/shared";
@@ -126,6 +138,28 @@ export async function countNonReleasedNumbers(
     .eq("company_id", companyId)
     .neq("status", "released");
   if (error) throw new Error(`phone_numbers count failed: ${error.message}`);
+  return count ?? 0;
+}
+
+/**
+ * #523: the company's numbers that are on HOLD — non-released, so we still pay
+ * rent on them, and non-working, so the workspace cannot send or answer from
+ * them. On a live subscription this only ever means "more numbers than the plan
+ * covers"; on a cancelled one it is the grace window, and this counter is only
+ * ever consulted from the live-subscription convergence.
+ */
+export async function countSuspendedNumbers(
+  db: SupabaseClient,
+  companyId: string,
+): Promise<number> {
+  const { count, error } = await db
+    .from("phone_numbers")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", companyId)
+    .eq("status", "suspended");
+  if (error) {
+    throw new Error(`suspended phone_numbers count failed: ${error.message}`);
+  }
   return count ?? 0;
 }
 
@@ -212,7 +246,25 @@ export type ConvergeOutcome =
   /** The count exceeds what's billed — NEVER auto-charged (a legitimate free
    *  over-included state, e.g. a D16 port bridge, or a data anomaly). The
    *  caller flags it for a human. */
-  | { kind: "over_included_unbilled"; billed: number; desired: number };
+  | { kind: "over_included_unbilled"; billed: number; desired: number }
+  /**
+   * #523: the count exceeds what's billed AND the whole difference is numbers
+   * we are deliberately HOLDING (`status = 'suspended'` on a live subscription
+   * — a resubscribe onto a plan smaller than the one the workspace left).
+   *
+   * A separate outcome because it is a separate FACT. `over_included_unbilled`
+   * means "we cannot explain this", and the caller pages a human about it every
+   * day until somebody does. A hold is explained: the owner was emailed and
+   * pushed about it, the billing screen names the number, and there are two
+   * priced routes out of it. Reporting the two the same way would have made one
+   * win-back produce a permanent daily warning, and a daily warning nobody can
+   * act on is how the ones that matter stop being read.
+   *
+   * It is still a real cost — $1.10/mo of Telnyx rent per held number — so the
+   * caller counts them and says so once per run, in aggregate, rather than
+   * saying nothing.
+   */
+  | { kind: "held_unbilled"; billed: number; desired: number; held: number };
 
 /**
  * CONVERGE the extra-number billing toward the formula for one company (used
@@ -335,6 +387,15 @@ export async function convergeExtraNumberQuantity(args: {
     // More numbers than paid capacity — a human decides (see docblock).
     // Capacity stays at what's actually billed (fail-closed).
     await syncPaidExtraCapacity(args.db, args.companyId, billed, epoch);
+    // #523: is the whole difference numbers we are deliberately HOLDING? A
+    // suspended row on a live subscription is a resubscribe onto a smaller
+    // plan, and the owner has already been told about it by name. Asked here
+    // rather than in the caller because the formula's inputs live here — the
+    // caller would have to re-count to ask the same question.
+    const held = await countSuspendedNumbers(args.db, args.companyId);
+    if (held >= desired - billed) {
+      return { kind: "held_unbilled", billed, desired, held };
+    }
     return { kind: "over_included_unbilled", billed, desired };
   }
 

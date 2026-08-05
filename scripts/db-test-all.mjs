@@ -148,6 +148,7 @@ const SUITES = [
   "cancellation_reason_upsert",
   "winback_dismissal",
   "paid_pause",
+  "number_allowance",
 ];
 
 const args = process.argv.slice(2);

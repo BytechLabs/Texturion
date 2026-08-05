@@ -245,6 +245,25 @@ function ledgerEndpoints(seen = new Set<string>()): StubEndpoint[] {
     // #52 default: one-shot email claims succeed (fresh ledger). Tests that
     // need a conflict register their own endpoint BEFORE this one.
     endpoint("POST", /\/rest\/v1\/email_ledger/, (call) => [call.json()]),
+    // #110/#523: the raise fence, read BEFORE the subscription snapshot it
+    // fences. Matched on the SELECT LIST rather than on the table, so it cannot
+    // shadow a test's own `GET companies` stub.
+    endpoint("GET", /\/rest\/v1\/companies\?select=paid_capacity_epoch/, () => [
+      { paid_capacity_epoch: 0 },
+    ]),
+    // #523: the allowance claim that replaced the unfiltered un-suspend. The
+    // ambient answer is what every checkout test written before #523 assumed —
+    // the plan covers everything this workspace holds, so nothing comes back
+    // held. A test that exercises the hold prepends its own stub.
+    endpoint("POST", /\/rest\/v1\/rpc\/claim_number_allowance/, () => ({
+      applied: true,
+      plan_known: true,
+      allowance: 1,
+      capacity: 0,
+      capacity_fenced: false,
+      restored: [],
+      held: [],
+    })),
     // #134/D42: every LIVE-subscription mirror pass voice-binds the
     // workspace's numbers (enableVoiceForCompany). No active numbers in the
     // billing suites — a quiet no-op.
@@ -462,11 +481,35 @@ describe("§9 event → state table", () => {
       registration_fee_paid_at: expect.any(String),
     });
 
-    // Resubscribe-within-grace: suspended numbers get un-suspended.
-    const unsuspend = harness.callsTo("PATCH", /phone_numbers/);
-    expect(unsuspend).toHaveLength(1);
-    expect(unsuspend[0].url.searchParams.get("status")).toBe("eq.suspended");
-    expect(unsuspend[0].json()).toEqual({ status: "active", suspended_at: null });
+    // Resubscribe-within-grace: suspended numbers come back — through the
+    // allowance claim, bounded by the plan that was just paid for.
+    //
+    // #523 REPLACED A CEILING HERE. This used to assert the exact PATCH the
+    // handler sent: `status=eq.suspended` with `{status: 'active', suspended_at:
+    // null}` and no other term. That is what an unfiltered un-suspend looks
+    // like, and pinning it made the assertion a ceiling rather than a check —
+    // it would have failed the moment the un-suspend became plan-aware, and its
+    // failure would have been the correct behaviour arriving. What is pinned now
+    // is the DECISION (which plan, how much capacity, which fence), because that
+    // is the thing a regression would get wrong.
+    expect(harness.callsTo("PATCH", /phone_numbers/)).toHaveLength(0);
+    const allowanceClaims = harness.callsTo(
+      "POST",
+      /rpc\/claim_number_allowance/,
+    );
+    expect(allowanceClaims).toHaveLength(1);
+    expect(allowanceClaims[0].json()).toEqual({
+      p_company_id: COMPANY_ID,
+      // PLAN_LIMITS.starter.numbers — the session bought Starter.
+      p_included: 1,
+      // A fresh checkout session carries no extra-number line, so the capacity a
+      // DEAD subscription left behind is cleared rather than inherited.
+      p_paid_extras: 0,
+      p_expected_epoch: 0,
+      // Nobody named a number here: a resubscribe settles the WHOLE workspace,
+      // oldest-first. Naming one is the paid reinstate's business.
+      p_prefer_id: null,
+    });
 
     expect(provisionCompanyNumber).toHaveBeenCalledExactlyOnceWith(env, {
       companyId: COMPANY_ID,
@@ -475,6 +518,170 @@ describe("§9 event → state table", () => {
     // §4.1 step 5c / §9: the paid checkout submits the 10DLC registration
     // (R1, or the §4.4 post-grace campaign reactivation) — never manual.
     expect(submitRegistration).toHaveBeenCalledExactlyOnceWith(env, COMPANY_ID);
+  });
+
+  it("#523 the win-back onto a SMALLER plan: what the plan covers comes back, the rest is HELD, and the owner is told once", async () => {
+    // The issue, end to end. A Pro workspace holding two numbers cancelled, sat
+    // in the grace window, and pressed "Come back on Starter". Starter includes
+    // one, and the session bought no extras, so the second number stays
+    // suspended — never released — and the owner gets an email and a push
+    // saying which one and how to get it back.
+    const held = {
+      id: "b1f1f6a1-2c3d-4e5f-8a9b-0c1d2e3f4a5b",
+      number_e164: "+14155550102",
+      suspended_at: "2026-07-30T00:00:00.000Z",
+    };
+    const harness = makeHarness([
+      // Prepended so it wins the ambient nothing-held default.
+      endpoint("POST", /\/rest\/v1\/rpc\/claim_number_allowance/, () => ({
+        applied: true,
+        plan_known: true,
+        allowance: 1,
+        capacity: 0,
+        capacity_fenced: false,
+        restored: [{ id: "a0e0e5a0-1b2c-4d5e-8f9a-0b1c2d3e4f5a", number_e164: "+14155550101" }],
+        held: [held],
+      })),
+      endpoint("GET", /\/rest\/v1\/companies\?select=name/, () => [
+        { name: "523 Roofing" },
+      ]),
+      ...ledgerEndpoints(),
+      ...recipientEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint(
+        "GET",
+        /api\.stripe\.com\/v1\/checkout\/sessions\/cs_1\/line_items/,
+        () => ({ object: "list", data: [] }),
+      ),
+    ]);
+    const response = await deliver(
+      eventOf("checkout.session.completed", checkoutSessionFixture()),
+      harness,
+    );
+    expect(response.status).toBe(200);
+
+    // NOTHING was released. The only write to phone_numbers is the claim's, and
+    // the claim never releases — that is the property the whole answer rests on.
+    expect(harness.callsTo("DELETE", /phone_numbers/)).toHaveLength(0);
+    expect(harness.callsTo("PATCH", /phone_numbers/)).toHaveLength(0);
+
+    // One email, claimed against the CHECKOUT SESSION so the webhook, the
+    // confirm-checkout poller and a sweeper replay cannot tell them three times.
+    const claims = harness.callsTo("POST", /email_ledger/);
+    expect(claims).toHaveLength(1);
+    expect(claims[0].json()).toMatchObject({
+      company_id: COMPANY_ID,
+      email_key: "numbers_held:cs_1",
+    });
+
+    const emails = harness.callsTo("POST", /api\.resend\.com\/emails/);
+    expect(emails).toHaveLength(1);
+    const email = emails[0].json() as { subject: string; text: string };
+    expect(email.subject).toBe("One of your numbers is on hold");
+    // It names the number, says the plan's figure, and never says "released" —
+    // because nothing was.
+    expect(email.text).toContain("+14155550102");
+    expect(email.text).toContain("Your plan covers 1 number");
+    expect(email.text).not.toMatch(/released|given up to|gone/i);
+    // And it names both ways back on Starter.
+    expect(email.text).toContain("Move to Pro");
+    expect(email.text).toContain("paid extra number");
+  });
+
+  it("#523 an email outage cannot stop a returning customer's provisioning", async () => {
+    // The notice used to be awaited with no guard, ahead of the port start, the
+    // number provisioning AND the §4.4 campaign reactivation — so a Resend
+    // outage left the one customer who had just paid to come back unable to
+    // text at all. A notice is how somebody LEARNS about the hold; it is not
+    // how the hold is applied.
+    const held = {
+      id: "b1f1f6a1-2c3d-4e5f-8a9b-0c1d2e3f4a5b",
+      number_e164: "+14155550102",
+      suspended_at: "2026-07-30T00:00:00.000Z",
+    };
+    const harness = makeHarness([
+      endpoint("POST", /\/rest\/v1\/rpc\/claim_number_allowance/, () => ({
+        applied: true,
+        plan_known: true,
+        allowance: 1,
+        capacity: 0,
+        capacity_fenced: false,
+        restored: [],
+        held: [held],
+      })),
+      endpoint("GET", /\/rest\/v1\/companies\?select=name/, () => [
+        { name: "523 Roofing" },
+      ]),
+      // Resend is down.
+      endpoint(
+        "POST",
+        /api\.resend\.com\/emails/,
+        () => new Response("service unavailable", { status: 503 }),
+      ),
+      // The released claim (see below) is a DELETE on the same ledger.
+      endpoint("DELETE", /\/rest\/v1\/email_ledger/, () => []),
+      ...ledgerEndpoints(),
+      ...recipientEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint(
+        "GET",
+        /api\.stripe\.com\/v1\/checkout\/sessions\/cs_1\/line_items/,
+        () => ({ object: "list", data: [] }),
+      ),
+    ]);
+    const response = await deliver(
+      eventOf("checkout.session.completed", checkoutSessionFixture()),
+      harness,
+    );
+    expect(response.status).toBe(200);
+
+    // Everything the customer actually paid for still happened.
+    expect(provisionCompanyNumber).toHaveBeenCalledExactlyOnceWith(env, {
+      companyId: COMPANY_ID,
+      checkoutSessionId: "cs_1",
+    });
+    expect(submitRegistration).toHaveBeenCalledExactlyOnceWith(env, COMPANY_ID);
+    // And the event is marked processed rather than left for the sweeper to
+    // replay for a reason it can never fix.
+    const stamps = harness.callsTo("PATCH", /webhook_events/);
+    expect(stamps).toHaveLength(1);
+    expect(stamps[0].json()).toEqual({ processed_at: expect.any(String) });
+
+    // The one-shot key is GIVEN BACK. Insert-first is what makes a replay
+    // unable to send twice; leaving it spent after a send that never left the
+    // building is what made the hold silent — nobody billed and nobody told.
+    const released = harness.callsTo("DELETE", /email_ledger/);
+    expect(released).toHaveLength(1);
+    expect(released[0].url.searchParams.get("email_key")).toBe("eq.numbers_held:cs_1");
+  });
+
+  it("#523 an ordinary first checkout is told nothing: no hold, no email", async () => {
+    // The ambient claim answers "nothing held", which is every signup. The
+    // notice must be a consequence of the hold, not of the resubscribe — a new
+    // customer being emailed about numbers on hold would be nonsense.
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      ...recipientEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint(
+        "GET",
+        /api\.stripe\.com\/v1\/checkout\/sessions\/cs_1\/line_items/,
+        () => ({ object: "list", data: [] }),
+      ),
+    ]);
+    const response = await deliver(
+      eventOf("checkout.session.completed", checkoutSessionFixture()),
+      harness,
+    );
+    expect(response.status).toBe(200);
+    expect(harness.callsTo("POST", /email_ledger/)).toHaveLength(0);
+    expect(harness.callsTo("POST", /api\.resend\.com\/emails/)).toHaveLength(0);
   });
 
   it("checkout.session.completed (DUPLICATE): cancels the orphan subscription and does NOT provision", async () => {

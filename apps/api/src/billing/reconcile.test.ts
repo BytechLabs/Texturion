@@ -117,6 +117,9 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
       orphanSubscriptionsFlagged: 0,
       retiredModuleItemsRemoved: 0,
       extraNumberQuantitiesConverged: 0,
+      // #523: nothing on hold — the ordinary state.
+      numbersHeldOverAllowance: 0,
+      workspacesHoldingNumbers: 0,
     });
     // #12: the re-mirror scan excludes terminal canceled tenants (which keep
     // their sub id forever → unbounded churn growth) and is bounded per run.
@@ -207,6 +210,9 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
       orphanSubscriptionsFlagged: 0,
       retiredModuleItemsRemoved: 0,
       extraNumberQuantitiesConverged: 0,
+      // #523: nothing on hold — the ordinary state.
+      numbersHeldOverAllowance: 0,
+      workspacesHoldingNumbers: 0,
     });
     expect(harness.callsTo("GET", /api\.stripe\.com/)).toHaveLength(0);
     // Report only — no invite row was mutated (§11: acceptance already checks).

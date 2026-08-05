@@ -1,6 +1,6 @@
 "use client";
 
-import { explainRejection } from "@loonext/shared";
+import { explainRejection, roleHasCapability } from "@loonext/shared";
 import { AlertTriangle, Check, CircleDashed, Loader2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -14,8 +14,12 @@ import {
   derivePortUiState,
   type PortStep,
 } from "@/components/porting/port-ui-state";
+import type { NumberHoldState } from "@/components/settings/number-hold";
+import { NumberHoldNote } from "@/components/settings/number-hold-note";
 import { PortDocumentsForm } from "@/components/settings/port-documents-form";
 import { PortFixForm } from "@/components/settings/port-fix-form";
+import { mayReleaseNumber } from "@/components/settings/release-number";
+import { ReleaseNumberDialog } from "@/components/settings/release-number-dialog";
 import { RejectionNotice } from "@/components/settings/rejection-notice";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,7 +36,11 @@ import {
   useCancelPortRequest,
   useSubmitPortRequest,
 } from "@/lib/api/porting";
-import type { Country, PortRequest } from "@/lib/api/types";
+import type {
+  Country,
+  PhoneNumberSummary,
+  PortRequest,
+} from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
@@ -51,9 +59,12 @@ function switchDate(iso: string | null): string {
 function StepRow({
   step,
   last,
+  /** #523: false under a hold — see the tracker's comment in `PortCard`. */
+  describe = true,
 }: {
   step: PortStep;
   last: boolean;
+  describe?: boolean;
 }) {
   const { label, meaning } = PORT_STEP_COPY[step.key];
   return (
@@ -96,7 +107,9 @@ function StepRow({
                 : ", upcoming"}
           </span>
         </p>
-        <p className="text-[13px] text-muted-foreground">{meaning}</p>
+        {describe ? (
+          <p className="text-[13px] text-muted-foreground">{meaning}</p>
+        ) : null}
       </div>
     </li>
   );
@@ -203,14 +216,52 @@ function CancelPortDialog({ port }: { port: PortRequest }) {
 export function PortCard({
   port,
   country,
+  number,
+  hold,
+  subscriptionActive = false,
 }: {
   port: PortRequest;
   country: Country;
+  /**
+   * #523: the `phone_numbers` row this transfer delivered, or null while the
+   * number has not arrived (`PortSection` resolves it with `numberForPort`).
+   *
+   * It carries the two things this card could not otherwise know. It is the row
+   * a release acts on — a ported number is de-duplicated out of the `NumberCard`
+   * list on purpose, so this card is the only place an owner can give the line
+   * up, and without one there was no way to do it in a browser at all. And its
+   * mere existence is the fact that decides which destructive control belongs
+   * here: no row means the number is still with the old carrier and the transfer
+   * can be called off; a row means the number is HERE and the transfer cannot.
+   */
+  number?: PhoneNumberSummary | null;
+  /** Whether the subscription is live — half of the release rule. */
+  subscriptionActive?: boolean;
+  /**
+   * #523: the line this transfer delivered is SUSPENDED, and why — resolved by
+   * `PortSection` from the numbers list, null on every ordinary transfer.
+   *
+   * A ported number is de-duplicated out of the `NumberCard` list on purpose
+   * (see `port-ui-state.ts`), so this card is the ONLY place its state is drawn.
+   * Without this it went on saying "Live on Loonext" over a number that can
+   * neither send nor answer, which is the one claim a card about a phone line
+   * must never get wrong.
+   */
+  hold?: NumberHoldState | null;
 }) {
   const { role, companyId, membership } = useActiveCompany();
   const company = useCompany().data;
   const submit = useSubmitPortRequest(port.id);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [releasing, setReleasing] = useState(false);
+  // #523: the same rule the number card applies, deliberately imported rather
+  // than restated — a line that arrived by transfer must not be releasable on
+  // different terms from one that was bought.
+  const canRelease =
+    number !== null &&
+    number !== undefined &&
+    roleHasCapability(role, "workspace.own") &&
+    mayReleaseNumber(number.status, number.number_e164, subscriptionActive);
   // The fix form below, so the rejection notice can focus the flagged field
   // without a global query (#319, same wiring as the registration surface).
   const fixFormRef = useRef<HTMLDivElement | null>(null);
@@ -272,35 +323,65 @@ export function PortCard({
 
   return (
     <div className="rounded-lg border bg-card px-5 py-5 sm:px-6">
-      {/* Heading: the number + a one-line state summary (no jargon). */}
+      {/* Heading: the number + a one-line state summary (no jargon).
+          #523: a held line is neither live nor transferring, and the success
+          green under "Live on Loonext" is the loudest claim on the card — so a
+          hold takes both, rather than being appended as a footnote under a
+          heading that already said the opposite. */}
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <p
           className={cn(
             "text-xl font-medium tabular-nums",
-            ui.live && "text-success",
+            ui.live && !hold && "text-success",
           )}
         >
           {display}
         </p>
         <span className="text-[13px] text-muted-foreground">
-          {ui.live ? "Live on Loonext" : "Transferring to Loonext"}
+          {hold
+            ? "On hold"
+            : ui.live
+              ? "Live on Loonext"
+              : "Transferring to Loonext"}
         </span>
       </div>
 
-      {/* The 4-step tracker (§8.2). */}
+      {/* The 4-step tracker (§8.2).
+
+          #523: under a hold the milestones stay and their DESCRIPTIONS go. The
+          labels name things that really happened, in order, and deleting them
+          would erase a true account of the transfer to correct a false one. The
+          descriptions are written in the present tense about what the line is
+          doing now - "Turning on texting now", "Text your customers straight
+          from Loonext" - and neither is true of a number nobody can send from.
+          The hold note directly below says what IS true, which is why the
+          milestones can stand without them. */}
       <ol className="mt-5">
         {ui.steps.map((step, index) => (
           <StepRow
             key={step.key}
             step={step}
             last={index === ui.steps.length - 1}
+            describe={!hold}
           />
         ))}
       </ol>
 
       {/* One plain state banner (§9). */}
       <div className="mt-4 space-y-4">
-        {ui.live ? (
+        {/* #523: a hold REPLACES the transfer banner rather than joining it.
+            Every branch below reports where the transfer is, and every one of
+            them reads as good news or as patience; under a line that cannot
+            send, all of them are wrong in the same direction. The stepper above
+            still tells the transfer's own story truthfully — it did complete.
+
+            Safe as an early exit because a hold and an in-flight transfer
+            cannot coexist: `numberForPort` matches on the E.164, and a
+            `phone_numbers` row only carries one after cutover. A transfer still
+            with the carrier has no number to be suspended. */}
+        {hold ? (
+          <NumberHoldNote hold={hold} />
+        ) : ui.live ? (
           <p className="rounded-md bg-success/10 px-3 py-2 text-sm text-success">
             {PORT_STATE_COPY.textingLive}
           </p>
@@ -359,6 +440,21 @@ export function PortCard({
           </p>
         ) : null}
 
+        {/* #523: EVERY banner below this line predicts the number is about to
+            work, and a held line is not about to work. They were gated one at a
+            time and the next one was always missed: the pill was fixed, then
+            the heading, then the state banner, while the bridge line still said
+            "you can text today" and the blocked-assignment line still promised
+            texting "switches on automatically". A reader who does what those
+            sentences ask still cannot send, and now distrusts the note that
+            told them so.
+            So the gate is on the GROUP, not on the sentence. Anything that
+            belongs to a transfer in motion goes here; a hold suppresses the
+            lot, and the hold note plus the stepper are what remain. The stepper
+            stays filled deliberately - the transfer really did complete, and
+            emptying it would delete the true half to correct the false one. */}
+        {hold ? null : (
+          <>
         {/* D16: the opt-in temporary number is live — quiet good news
             alongside the state banner, so "you can text today" never gets
             lost while the real number is still transferring. */}
@@ -387,6 +483,8 @@ export function PortCard({
         {/* #319: what to do before the switch — under the state banner (which
             reports where the transfer *is*), above the cancel row. */}
         {beforeCutover ? <PreCutoverChecklist /> : null}
+          </>
+        )}
 
         {/* Draft: upload documents, then submit (documents-gated, §8.2). */}
         {port.status === "draft" && canEdit ? (
@@ -430,8 +528,50 @@ export function PortCard({
           </p>
         ) : null}
 
-        {/* Owner-only cancel while pre-completion. */}
-        {role === "owner" && !ui.live && !ui.cancelled ? (
+        {/* #523: ONE destructive control at a time, and which one is decided by
+            whether the number has arrived — not by taste.
+
+            BEFORE IT ARRIVES the number is still the old carrier's, and calling
+            the transfer off is the only thing to do with it; there is nothing to
+            release. AFTER IT ARRIVES the reverse holds on both halves, and the
+            server says so: `POST /v1/port-requests/:id/cancel` answers 409 on a
+            `ported` order ("can no longer be cancelled"). So the cancel this
+            card kept offering after cutover — voice switched, messaging still
+            activating, `ui.live` therefore still false — was an action the API
+            would have refused, and under a held line it additionally read as the
+            way to get rid of it, which it is not.
+
+            `port.status !== "ported"` is the server's own condition rather than
+            a proxy for it. It subsumes both guards it replaces (`ui.live` needs
+            a ported messaging track, and a hold needs a delivered row, which
+            needs cutover) and it covers the one case a proxy misses: an owner
+            who RELEASES the transferred number leaves a completed port with no
+            number row at all, and a gate reasoning about the row would put
+            "Cancel this transfer" back on it. */}
+        {canRelease && number ? (
+          <div className="border-t border-border-subtle pt-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="px-0 text-muted-foreground hover:bg-transparent hover:text-destructive"
+              onClick={() => setReleasing(true)}
+            >
+              Release this number…
+            </Button>
+            <ReleaseNumberDialog
+              number={number}
+              hold={hold}
+              open={releasing}
+              onOpenChange={setReleasing}
+            />
+          </div>
+        ) : /* `workspace.own` rather than `role === "owner"`, matching the
+               branch above and the capability the cancel route itself requires.
+               The two are the same set today; asking one question two ways in
+               adjacent branches is how they stop being. */
+          roleHasCapability(role, "workspace.own") &&
+          !ui.cancelled &&
+          port.status !== "ported" ? (
           <div className="border-t border-border-subtle pt-3">
             <CancelPortDialog port={port} />
           </div>

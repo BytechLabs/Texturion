@@ -188,7 +188,8 @@ final class WrapUpDictationTests: XCTestCase {
         guard FileManager.default.fileExists(atPath: dir.path, isDirectory: &isDir),
               isDir.boolValue
         else {
-            throw XCTSkip("iOS sources not present at \(dir.path)")
+            // Fails rather than skips — see `MissingSource`.
+            throw missingSource(dir.path)
         }
         return dir
     }

@@ -1210,6 +1210,80 @@ describe("suspend / release", () => {
     expect(telnyx.calls).toHaveLength(0);
   });
 
+  it("#523 closes out a failed order that never became a number, so it cannot eat the allowance on the way back", async () => {
+    // The proved defect: a `provision_failed` row with no number in it survived
+    // cancellation in its own status, and every slot claim counts anything that
+    // is not `released`. A Starter workspace resubscribing with one of these
+    // and one real number on hold had its whole allowance filled by the row
+    // with no phone number, and its only working number stayed held.
+    const { env, rest, telnyx } = setup();
+    const real = rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "active",
+      provisioning_key: "k-real",
+      country: "US",
+      number_e164: "+12125550123",
+      telnyx_phone_number_id: "pn-1",
+    });
+    const ghost = rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provision_failed",
+      provisioning_key: "k-ghost",
+      country: "US",
+      last_provision_error: "no_inventory",
+    });
+
+    const suspended = await suspendCompanyNumbers(env, COMPANY_ID);
+
+    // The real number is HELD, not released — that part is untouched.
+    expect(suspended).toHaveLength(1);
+    const rows = rest.rows("phone_numbers");
+    expect(rows.find((r) => r.id === real.id)?.status).toBe("suspended");
+    // The row that is not a number is closed out. Nothing was handed back to a
+    // carrier: the three columns that could name a number are all null.
+    const closed = rows.find((r) => r.id === ghost.id);
+    expect(closed?.status).toBe("released");
+    expect(closed?.released_at).toBeTruthy();
+    expect(telnyx.calls).toHaveLength(0);
+  });
+
+  it("#523 an order that might still land keeps its slot", async () => {
+    // The mirror image, and the reason the close-out is so narrowly scoped. A
+    // row with a live Telnyx order, a ported row mid-transfer, or one a saga is
+    // holding a lease on could all still become a working number — closing any
+    // of them out would orphan a number we are paying for, or strand a
+    // multi-week transfer.
+    const { env, rest } = setup();
+    const ordering = rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provision_failed",
+      provisioning_key: "k-ordering",
+      country: "US",
+      telnyx_order_id: "order-1",
+    });
+    const porting = rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      source: "ported",
+      provisioning_key: "k-port",
+      country: "US",
+    });
+    const leased = rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      provisioning_key: "k-leased",
+      country: "US",
+      provisioning_lease_until: "2099-01-01T00:00:00.000Z",
+    });
+
+    await suspendCompanyNumbers(env, COMPANY_ID);
+
+    const rows = rest.rows("phone_numbers");
+    expect(rows.find((r) => r.id === ordering.id)?.status).toBe("provision_failed");
+    expect(rows.find((r) => r.id === porting.id)?.status).toBe("provisioning");
+    expect(rows.find((r) => r.id === leased.id)?.status).toBe("provisioning");
+  });
+
   it("releases every non-released number, tolerating Telnyx 404", async () => {
     const { env, rest, telnyx } = setup();
     rest.insert("phone_numbers", {

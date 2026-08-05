@@ -82,8 +82,19 @@ const {
   toasted,
   activeRole,
   companyQuery,
+  heldNumbers,
 } = vi.hoisted(() => ({
   portal: { mutate: vi.fn(), isPending: false },
+  /**
+   * #523 GET /v1/billing/held-numbers. `asked` records the caller's `enabled`
+   * for the same reason `pause.asked` below does: whether this screen spends an
+   * authenticated billing read on a workspace that has nothing to show is a
+   * property under test, not decoration.
+   */
+  heldNumbers: {
+    data: undefined as unknown,
+    asked: undefined as boolean | undefined,
+  },
   record: { mutate: vi.fn() },
   exportContacts: { mutate: vi.fn(), isPending: false },
   checkout: { mutate: vi.fn(), isPending: false },
@@ -146,6 +157,14 @@ const {
 }));
 
 vi.mock("@/lib/api/billing", () => ({
+  // #523: the held-numbers card. This file's subject is the page's gating, and
+  // the card has its own suite — but the ENABLEMENT is the page's decision, so
+  // the flag is recorded rather than thrown away.
+  useHeldNumbers: (enabled: boolean) => {
+    heldNumbers.asked = enabled;
+    return { data: heldNumbers.data };
+  },
+  useReinstateHeldNumber: () => ({ isPending: false, mutate: vi.fn() }),
   useBillingPortal: () => portal,
   useRecordCancellationReason: () => record,
   useCheckout: () => checkout,

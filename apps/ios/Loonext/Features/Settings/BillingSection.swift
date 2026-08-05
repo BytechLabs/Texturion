@@ -147,6 +147,23 @@ struct BillingSectionView: View {
             },
             onRefreshCompany: onRefreshCompany
         )
+        // #523 — directly under the plan card, because it finishes that card's
+        // sentence: "your plan covers 1 phone number", then "and you have more
+        // than that". The upgrade route it names is the control on the card
+        // immediately above, which is the one place a plan change is offered in
+        // every state this screen has — a second button here would be a copy to
+        // keep in step with that one.
+        //
+        // THE PAUSE READ IS HANDED DOWN, not re-fetched. A paused workspace
+        // cannot be sold an extra number (`POST …/reinstate` refuses it by
+        // design), and neither may one whose read has not landed — the same
+        // rule, from the same one read, as the add-ons card below.
+        HeldNumbersCard(
+            scope: scope,
+            company: company,
+            read: pauseKnown,
+            onRefreshCompany: onRefreshCompany
+        )
         // #277 — a module toggle INVOICES IMMEDIATELY, and
         // `POST /v1/billing/modules` refuses a paused workspace, so the card is
         // offered only on an answer that came back and said "not paused".
@@ -721,10 +738,17 @@ private struct ChangePlanSheet: View {
         company.numbers.filter { $0.status != NumberStatus.released }.count
     }
 
-    private var numbersOk: Bool { activeNumbers <= 1 }
-    // #392: the Starter allowance, not a literal. A downgrade gate that
-    // disagrees with the API blocks a plan change the server would allow.
+    // #392's rule, applied to the half it missed: the Starter allowance, not a
+    // literal. A downgrade gate that disagrees with the API blocks a plan
+    // change the server would allow. The API counts the same rows — every
+    // non-released number, held ones included — in `countNonReleasedNumbers`.
+    private var numbersOk: Bool { activeNumbers <= starterNumbers }
     private var seatsOk: Bool { (activeMembers ?? Int.max) <= starterSeats }
+    /// "1 phone number" — plural-safe, the way the plan card's bullet is, so
+    /// raising the allowance cannot leave "2 phone number" on a checklist.
+    private var starterNumberWord: String {
+        "\(starterNumbers) phone number" + (starterNumbers == 1 ? "" : "s")
+    }
     private var downgradeBlocked: Bool { !upgrading && (!numbersOk || !seatsOk || membersFailed) }
 
     var body: some View {
@@ -747,9 +771,9 @@ private struct ChangePlanSheet: View {
                     Text(
                         (numbersOk ? "✓" : "✗")
                             + (numbersOk
-                                ? " 1 phone number. You're set."
-                                : " Starter includes 1 phone number; you have \(activeNumbers). "
-                                    + "Release under Settings › Numbers first.")
+                                ? " \(starterNumberWord). You're set."
+                                : " Starter includes \(starterNumberWord); you have "
+                                    + "\(activeNumbers). Release under Settings › Numbers first.")
                     )
                     .font(.footnote)
                     Text(checklistMembersLine)
@@ -788,11 +812,11 @@ private struct ChangePlanSheet: View {
         Task {
             do {
                 let result = try await scope.repo.changePlan(scope.companyId, plan: targetPlan)
-                scope.showMessage(
-                    result.effective == "now"
-                        ? "You're on Pro now."
-                        : "Switch to Starter scheduled for the end of this period."
-                )
+                // #523: through the shared copy, because an upgrade now has a
+                // second effect — the bigger allowance can bring held numbers
+                // back — and the sentence has to read it off the RESPONSE
+                // rather than assume it from the plan.
+                scope.showMessage(changePlanMessage(result))
                 onChanged()
             } catch {
                 self.error = error.userMessage
@@ -1786,13 +1810,22 @@ private struct WinbackNote: View {
         // THIS BUTTON ENFORCES NOTHING, and the copy above it is written to
         // that. It opens Stripe checkout, whose only gates are "one live
         // subscription" and the US registration draft — no seat count, no
-        // number count — and `checkout.session.completed` then un-suspends
-        // every suspended number with no plan filter. So a Pro workspace with
-        // two numbers and eight members can land on Starter holding two and
-        // eight. The shared grace copy therefore names the PRICE and nothing
-        // else; a caption promising "3 people and 1 business number" here would
-        // be a ceiling nobody applies. The under-enforcement is an API bug and
-        // belongs in the API — do not paper it over from this file.
+        // number count. Coming back is never refused, and #523 did not change
+        // that: what changed is what happens AFTERWARDS. The completion handler
+        // now claims the allowance, so a Pro workspace with two numbers lands on
+        // Starter with one active and one HELD — not released, still receiving,
+        // named on the billing screen with two priced routes back. Seats are
+        // still not enforced anywhere but the invite and its acceptance, so
+        // eight members stay eight.
+        //
+        // The shared grace copy therefore still names the PRICE and nothing
+        // else. A caption promising "3 people and 1 business number" here would
+        // be false about the seats in either direction, and about the numbers it
+        // would describe a refusal that does not happen — the second number is
+        // held rather than turned away. Whether that copy should now mention the
+        // hold is a decision for the shared module, not for this file: the same
+        // sentence is hand-ported to three clients and one of them editing it
+        // alone is the drift the module exists to prevent.
         //
         // The button stays regardless: change-plan 409s a canceled subscription
         // outright, so checkout is the only way back, and removing this would

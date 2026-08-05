@@ -171,10 +171,107 @@ data class BillingModule(
     val available: Boolean = false,
 )
 
+/**
+ * #523 — a number this workspace holds that its plan does not currently cover.
+ *
+ * NOT RELEASED, and the word is chosen: the row is still ours, still receiving,
+ * and its history is untouched. It simply cannot send or answer. Every surface
+ * that renders one of these has to carry that distinction, because "suspended"
+ * on its own reads as "gone" to the person whose van has the number on it.
+ */
+@Serializable
+data class HeldNumber(
+    val id: String,
+    val number_e164: String? = null,
+    /** When it went on hold. Null for a row suspended before #523 shipped. */
+    val suspended_at: String? = null,
+)
+
+/**
+ * #523 — why a number is on hold, as the SERVER decides it.
+ *
+ * Two values, not three, and the split is the one thing this client must not
+ * re-derive: `over_plan_allowance` means the subscription is live and the
+ * workspace simply holds more numbers than it pays for, which is the state with
+ * a way out; `subscription_inactive` means the suspension belongs to the
+ * cancellation or the failed payment, which other cards on the same screen
+ * already own. Rendering both from one card would be two explanations of one
+ * suspension sitting an inch apart.
+ */
+object HeldNumberReason {
+    const val OVER_PLAN_ALLOWANCE = "over_plan_allowance"
+    const val SUBSCRIPTION_INACTIVE = "subscription_inactive"
+}
+
+/**
+ * GET /v1/billing/held-numbers (#523) — owner/admin only (`billing.manage`).
+ *
+ * EVERY FIGURE ON THIS CARD ARRIVES HERE. The allowance, the plan's hard cap
+ * and the price of un-holding one are served rather than derived, and
+ * [extra_number_cents] carries [extra_number_currency] beside it because the
+ * extra-number price book is filed in USD only — a bare "$5" in front of a
+ * Canadian reader means CAD and is the #522 defect verbatim.
+ *
+ * Defaults everywhere, so a client talking to a Worker that predates the route
+ * decodes an empty state and draws nothing rather than failing the read.
+ */
+@Serializable
+data class HeldNumbers(
+    /** "starter" | "pro" | null (no checkout yet). */
+    val plan: String? = null,
+    /** Numbers the plan itself covers. Null when [plan] is null. */
+    val included: Int? = null,
+    /** Extra-number capacity actually billed today. */
+    val paid_extras: Int = 0,
+    /** included + paid_extras — what may be live at once. Null with no plan. */
+    val allowance: Int? = null,
+    /** The plan's hard TOTAL cap (#80), or null when it has none (Pro). */
+    val max_total: Int? = null,
+    /** [HeldNumberReason], or null when nothing is held. */
+    val reason: String? = null,
+    val held: List<HeldNumber> = emptyList(),
+    /** What buying capacity for ONE held number costs. */
+    val extra_number_cents: Int? = null,
+    /** The currency [extra_number_cents] is denominated in ("usd"). */
+    val extra_number_currency: String? = null,
+    /**
+     * Whether the reinstate route would be accepted right now. Served so the
+     * button can be ABSENT rather than fail — being told "no" after pressing it
+     * is how somebody concludes the product is broken.
+     */
+    val can_reinstate: Boolean = false,
+    /** Starter only: the other way back, which buys no extra number. */
+    val can_upgrade: Boolean = false,
+)
+
+/** POST /v1/billing/held-numbers/:id/reinstate (#523). */
+@Serializable
+data class ReinstateResult(
+    val reinstated: Boolean = false,
+    /**
+     * It was already back — a double-press, or an upgrade reinstated it between
+     * the card painting and the button being pressed. Not an error, and
+     * emphatically not a second charge.
+     */
+    val already_active: Boolean = false,
+    val paid_extras: Int? = null,
+    val allowance: Int? = null,
+    val held: List<HeldNumber> = emptyList(),
+)
+
 /** POST /v1/billing/change-plan result. */
 @Serializable
 data class ChangePlanResult(
     val plan: String,
     val effective: String,
     val effective_at: String? = null,
+    /**
+     * #523: what the bigger allowance brought back with it. Pro includes two
+     * numbers, so an upgrade is one of the two routes out of a hold — and an
+     * owner who pays $79 to get their second line back needs to be told it
+     * worked rather than left to go and look. Empty on every ordinary upgrade.
+     */
+    val reinstated: List<HeldNumber> = emptyList(),
+    /** Still on hold after the upgrade — a Pro workspace can hold three. */
+    val held: List<HeldNumber> = emptyList(),
 )

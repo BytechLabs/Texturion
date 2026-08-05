@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.model.CompanyView
+import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.core.model.RejectionDomain
 import com.loonext.android.ui.common.assertAboveIme
 import com.loonext.android.ui.common.formatPhone
@@ -212,13 +213,25 @@ fun PortsBlock(
     scope: SettingsScope,
     company: CompanyView,
     ports: List<PortRequest>,
+    /**
+     * #523: the same numbers the cards above are drawn from, so a tracker can
+     * tell whether the line its transfer delivered still works. Passed in rather
+     * than fetched here because the two surfaces describing one line must read
+     * one list — see [portLineIsHeld].
+     */
+    numbers: List<PhoneNumberSummary>,
     onChanged: () -> Unit,
 ) {
     val canManage = SettingsRoleGate.canManageNumbers(scope.role)
     var starting by remember { mutableStateOf(false) }
 
     ports.filter { it.status != PortStatus.CANCELLED }.forEach { port ->
-        PortCard(scope, port, onChanged)
+        PortCard(
+            scope = scope,
+            port = port,
+            heldLine = portLineIsHeld(port.phone_e164, numbers),
+            onChanged = onChanged,
+        )
     }
 
     if (canManage && company.subscriptionActive) {
@@ -245,8 +258,40 @@ fun PortsBlock(
     }
 }
 
+/**
+ * #523 — the tracker's status pill, which is about the TRANSFER until the line
+ * it delivered stops working, and about the line from then on.
+ *
+ * THE HELD BRANCH IS FIRST, and that ordering is the whole fix. A completed
+ * transfer used to draw "Ported" in the positive tone whatever had since become
+ * of the number, so a held ported line carried a green all-clear on one card and
+ * "you can't send or answer from it" on the card above. One line, two verdicts,
+ * and the pleasant one wins every reading.
+ *
+ * WARN RATHER THAN BAD, matching the number card's own "Suspended" pill. Nothing
+ * has been lost — the number is still ours and still receiving — and a red pill
+ * on a card whose note says "it hasn't been given up" would contradict its own
+ * paragraph, which is the class of defect this function exists to end.
+ *
+ * Extracted from the composable so it can be proven: a unit test cannot render a
+ * card, and the property that matters here is a decision, not a pixel.
+ */
+internal fun portPill(status: String, heldLine: Boolean): Pair<String, PillTone> = when {
+    heldLine -> "On hold" to PillTone.Warn
+    status == PortStatus.CANCEL_PENDING -> "Cancelling" to PillTone.Neutral
+    status == PortStatus.EXCEPTION -> "Needs attention" to PillTone.Warn
+    status == PortStatus.PORTED -> "Ported" to PillTone.Positive
+    else -> (PORT_STEPS.getOrNull(portStepIndex(status)) ?: status) to PillTone.Warn
+}
+
 @Composable
-private fun PortCard(scope: SettingsScope, port: PortRequest, onChanged: () -> Unit) {
+private fun PortCard(
+    scope: SettingsScope,
+    port: PortRequest,
+    /** #523: the number this transfer delivered is suspended — see [portLineIsHeld]. */
+    heldLine: Boolean,
+    onChanged: () -> Unit,
+) {
     val canManage = SettingsRoleGate.canManageNumbers(scope.role)
     val canCancel = SettingsRoleGate.canCancelPort(scope.role)
     var fixing by remember { mutableStateOf(false) }
@@ -258,17 +303,25 @@ private fun PortCard(scope: SettingsScope, port: PortRequest, onChanged: () -> U
     val coroutines = rememberCoroutineScope()
 
     SettingsCard(title = "Transfer: ${formatPhone(port.phone_e164)}") {
-        when (port.status) {
-            PortStatus.CANCEL_PENDING -> StatusPill("Cancelling", PillTone.Neutral)
-            PortStatus.EXCEPTION -> StatusPill("Needs attention", PillTone.Warn)
-            PortStatus.PORTED -> StatusPill("Ported", PillTone.Positive)
-            else -> StatusPill(
-                PORT_STEPS.getOrNull(portStepIndex(port.status)) ?: port.status,
-                PillTone.Warn,
+        val (pillLabel, pillTone) = portPill(port.status, heldLine)
+        StatusPill(pillLabel, pillTone)
+        Spacer(Modifier.height(8.dp))
+        // THE STEPPER STAYS FILLED UNDER A HOLD, deliberately. The transfer did
+        // complete, and emptying it to make the card look consistent would delete
+        // the true half of the story in order to fix the false one. What was
+        // wrong was reading a finished transfer as a verdict on the line, so the
+        // pill above and the note below say which is which — in that order,
+        // because somebody who reads only the top of a card has to leave with the
+        // half that changes what they do next.
+        PortStepper(port.status)
+        if (heldLine) {
+            Text(
+                portHoldNote(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp),
             )
         }
-        Spacer(Modifier.height(8.dp))
-        PortStepper(port.status)
 
         port.foc_date?.let { foc ->
             Text(

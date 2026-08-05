@@ -16,6 +16,12 @@ const state = {
   numbers: [] as PhoneNumberSummary[],
 };
 
+/** #523: was the held-numbers route enabled, and what did it answer. */
+const held = vi.hoisted(() => ({
+  asked: false,
+  data: undefined as unknown,
+}));
+
 // #301: the numbers page now mounts the lead-source list. Mocked like every
 // other data hook here — this file's subject is the number cards, and the
 // source card has its own suite.
@@ -55,16 +61,54 @@ vi.mock("@/lib/api/numbers", () => ({
 vi.mock("@/lib/api/porting", () => ({
   usePortRequests: () => ({ isPending: false, data: { data: [] } }),
 }));
+/**
+ * #523: the page asks WHY a suspended number is suspended — but only when it
+ * has one and only when the reader can read the billing route at all. `asked`
+ * records the enablement flag so that discipline is assertable rather than
+ * assumed; the route is an authenticated billing read, and a healthy workspace
+ * must never spend it.
+ */
+vi.mock("@/lib/api/billing", () => ({
+  useHeldNumbers: (enabled: boolean) => {
+    held.asked = enabled;
+    return { data: held.data };
+  },
+}));
+/**
+ * #523: the card is stubbed (its copy has its own suites) but its props are
+ * recorded — `subscriptionActive` is half the release rule and defaults FALSE,
+ * so forgetting to pass it does not fail loudly, it silently withholds the
+ * release control from every held number on the screen.
+ */
+const numberCard = vi.hoisted(() => ({
+  props: [] as { subscriptionActive?: boolean }[],
+}));
 vi.mock("@/components/settings/number-card", () => ({
-  NumberCard: ({ number }: { number: PhoneNumberSummary }) => (
-    <div>card:{number.status}</div>
-  ),
+  NumberCard: (props: {
+    number: PhoneNumberSummary;
+    subscriptionActive?: boolean;
+  }) => {
+    numberCard.props.push(props);
+    return <div>card:{props.number.status}</div>;
+  },
 }));
 vi.mock("@/components/settings/provision-number-dialog", () => ({
   ProvisionNumberDialog: () => <button type="button">Add a number</button>,
 }));
+/**
+ * #523: the port section is the ONLY card a transferred-in number gets, so it
+ * has to be handed the numbers list and the billing answer or a held ported
+ * line has nowhere to be explained. Recorded rather than rendered — the card's
+ * own copy has its own suite; what this file owns is the wiring.
+ */
+const portSection = vi.hoisted(() => ({
+  props: null as { numbers?: unknown[]; held?: unknown } | null,
+}));
 vi.mock("@/components/settings/port-section", () => ({
-  PortSection: () => null,
+  PortSection: (props: { numbers?: unknown[]; held?: unknown }) => {
+    portSection.props = props;
+    return null;
+  },
 }));
 vi.mock("@/components/settings/text-enable-section", () => ({
   TextEnableSection: () => null,
@@ -98,10 +142,90 @@ function activeNumber(): PhoneNumberSummary {
 
 const render = () => renderToStaticMarkup(<NumbersSettingsPage />);
 
+function suspendedNumber(): PhoneNumberSummary {
+  return {
+    id: "00000000-0000-4000-8000-000000000002",
+    status: "suspended",
+    number_e164: "+12125550101",
+    country: "US",
+    requested_area_code: null,
+    source: "provisioned",
+    created_at: "2026-07-01T00:00:00Z",
+  } as unknown as PhoneNumberSummary;
+}
+
 beforeEach(() => {
   state.role = "owner";
   state.company = company();
   state.numbers = [];
+  held.asked = false;
+  held.data = undefined;
+  portSection.props = null;
+  numberCard.props = [];
+});
+
+describe("#523 asking why a number is on hold", () => {
+  it("does not ask on a workspace with nothing suspended", () => {
+    // The overwhelming majority of loads. An authenticated billing read on
+    // every visit to the numbers screen, to answer a question nobody asked,
+    // is the cost this gate exists to avoid.
+    state.numbers = [activeNumber()];
+    render();
+    expect(held.asked).toBe(false);
+  });
+
+  it("asks once there is a suspended number to explain", () => {
+    state.numbers = [suspendedNumber()];
+    render();
+    expect(held.asked).toBe(true);
+  });
+
+  it("does not ask on behalf of a reader who would get a 403", () => {
+    // `GET /v1/billing/held-numbers` is behind `billing.manage`. A member's
+    // request could only ever fail, and the card copes with the missing answer
+    // by declining to name a cause.
+    state.role = "member";
+    state.numbers = [suspendedNumber()];
+    render();
+    expect(held.asked).toBe(false);
+  });
+
+  it("hands the transfer stepper what it needs to explain a held ported line", () => {
+    // A ported row is de-duplicated OUT of the number cards on purpose, so the
+    // stepper is the only surface it has. Without both of these it goes on
+    // saying "Live on Loonext" over a number that cannot send — which is the
+    // whole D4 defect, and it is invisible from inside the port card.
+    const held523 = { reason: "over_plan_allowance", held: [], allowance: 1 };
+    held.data = held523;
+    state.numbers = [suspendedNumber()];
+    render();
+    expect(portSection.props?.numbers).toEqual(state.numbers);
+    expect(portSection.props?.held).toBe(held523);
+  });
+
+  it("tells each card whether the plan is live, so a held one can be released", () => {
+    // The release rule refuses a suspended number on a dead subscription — the
+    // problem there is the card, not the plan, and an irreversible control in
+    // front of somebody in that state is a press made in a panic. The page is
+    // the only place that fact is known.
+    state.numbers = [suspendedNumber()];
+    render();
+    expect(numberCard.props.map((p) => p.subscriptionActive)).toEqual([true]);
+
+    numberCard.props = [];
+    state.company = company({ subscription_status: "past_due" });
+    render();
+    expect(numberCard.props.map((p) => p.subscriptionActive)).toEqual([false]);
+  });
+
+  it("does not ask during the grace window", () => {
+    // A cancelled workspace's numbers are suspended for a different reason,
+    // and the billing screen's win-back card owns that state.
+    state.company = company({ subscription_status: "canceled" });
+    state.numbers = [suspendedNumber()];
+    render();
+    expect(held.asked).toBe(false);
+  });
 });
 
 describe("/settings/numbers provisioning affordance (#74)", () => {

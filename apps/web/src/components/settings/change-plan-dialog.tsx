@@ -25,6 +25,7 @@ import { useChangePlan } from "@/lib/api/billing";
 import { ApiError } from "@/lib/api/error";
 import { useMembers } from "@/lib/api/team";
 import { PLAN_PRICING, type CompanyView } from "@/lib/api/types";
+import { formatPhone } from "@/lib/format/phone";
 
 /** SPEC §2 Starter limits — what a downgrade must fit into. Derived from the
  *  shared PLAN_PRICING so a seat retune (e.g. #83) can't leave this stale. */
@@ -146,6 +147,38 @@ function DowngradeBody({
 }
 
 /**
+ * What to say after an upgrade lands (#523).
+ *
+ * Pro's bigger allowance reinstates numbers that were on hold, and the server
+ * reports which ones. Saying so matters more than it looks: the owner pressed
+ * Upgrade because a line was dead, and a generic "You're on Pro" leaves them to
+ * go and check whether the thing they actually paid to fix is fixed. Naming the
+ * number closes that loop in the same breath as the charge.
+ *
+ * An ORDINARY upgrade — nothing held, which is almost all of them — keeps the
+ * original sentence exactly. A reader with no numbers on hold must never be
+ * told anything about holds; that is how a feature for a rare state becomes
+ * noise on a common one.
+ */
+export function upgradeToast(
+  reinstated: readonly { number_e164: string | null }[],
+): string {
+  if (reinstated.length === 0) {
+    return "You're on Pro. The extra allowance starts now.";
+  }
+  const named = reinstated
+    .map((row) => row.number_e164)
+    .filter((value): value is string => typeof value === "string" && value !== "");
+  // One held number is the overwhelmingly common case and deserves its name —
+  // "(415) 555-0102 is back" is a fact the reader can verify at a glance. Past
+  // one, the list stops being readable in a toast and the count carries it.
+  if (reinstated.length === 1 && named.length === 1) {
+    return `You're on Pro, and ${formatPhone(named[0])} is back.`;
+  }
+  return `You're on Pro, and ${reinstated.length} numbers are back.`;
+}
+
+/**
  * Change-plan dialog (G8 Billing, SPEC §9): upgrade is immediate with a
  * proration note; downgrade lists exactly what must be released and blocks
  * until it fits — the API's 409 message is surfaced verbatim if it still
@@ -224,7 +257,7 @@ export function ChangePlanDialog({ company }: { company: CompanyView }) {
                   reset(false);
                   toast.success(
                     result.effective === "now"
-                      ? "You're on Pro. The extra allowance starts now."
+                      ? upgradeToast(result.reinstated ?? [])
                       : `Starter starts ${new Date(result.effective_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}. You keep Pro until then.`,
                   );
                 },

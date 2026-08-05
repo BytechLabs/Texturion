@@ -61,7 +61,8 @@ final class CancelOneActionTests: XCTestCase {
             .appendingPathComponent("Settings")
             .appendingPathComponent("SettingsLogic.swift")
         guard let text = try? String(contentsOf: file, encoding: .utf8) else {
-            throw XCTSkip("iOS sources not present at \(file.path)")
+            // Fails rather than skips — see `MissingSource`.
+            throw missingSource(file.path)
         }
         return text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
     }
@@ -78,7 +79,8 @@ final class CancelOneActionTests: XCTestCase {
             .appendingPathComponent("Settings")
             .appendingPathComponent("BillingSection.swift")
         guard let text = try? String(contentsOf: file, encoding: .utf8) else {
-            throw XCTSkip("iOS sources not present at \(file.path)")
+            // Fails rather than skips — see `MissingSource`.
+            throw missingSource(file.path)
         }
         return text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
     }

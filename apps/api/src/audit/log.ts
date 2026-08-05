@@ -110,6 +110,11 @@ export type AuditAction =
   // on.
   | "billing.paused"
   | "billing.resumed"
+  // #523: somebody paid to bring a held number back. Recorded because it moves
+  // money on a recurring line AND changes which numbers the business can work
+  // from — the two facts a "why are we paying $5 more" conversation turns on,
+  // and the row is the only place they are written down together.
+  | "billing.number_reinstated"
   // The end of the account (#341). The most consequential thing anyone does
   // here, and the one an owner is most likely to ask us about afterwards.
   | "workspace.closed"

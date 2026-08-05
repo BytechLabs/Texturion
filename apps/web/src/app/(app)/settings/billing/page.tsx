@@ -16,6 +16,7 @@ import {
   WinbackAnswer,
 } from "@/components/settings/cancellation-answer";
 import { ChangePlanDialog } from "@/components/settings/change-plan-dialog";
+import { HeldNumbersCard } from "@/components/settings/held-numbers-card";
 import { MissedWhileOff } from "@/components/settings/missed-while-off";
 import { OffRampCard } from "@/components/settings/off-ramp-card";
 import {
@@ -442,6 +443,28 @@ export default function BillingSettingsPage() {
               </div>
             </SettingsCard>
           )}
+
+          {/* #523: numbers held back because the plan they resubscribed onto
+              covers fewer than they hold. DIRECTLY UNDER the plan card, because
+              it is a consequence of the allowance stated on it and one of its
+              two routes back is the "Upgrade to Pro" control inside it —
+              putting it further down would separate the problem from the
+              button that solves it. *Applying: Prioritize Intent.*
+
+              Gated on `billing.manage` because the route is: a member gets a
+              403 from it, and enabling the query for them would spend a request
+              to render nothing.
+
+              Gated on an ACTIVE subscription for a sharper reason than saving a
+              request. `over_plan_allowance` is the only reason this card
+              renders for, and the server can only produce it on a live
+              subscription — a cancelled workspace's numbers are suspended for
+              the grace window instead, which the win-back card above owns. So
+              this predicate is the client half of the same distinction, not a
+              second opinion about it. */}
+          <HeldNumbersCard
+            show={canManage && company.data.subscription_status === "active"}
+          />
 
           {/* Add-ons wait for the read, the same as the plan switch above. A
               pause leaves `subscription_status` genuinely "active" (it is a

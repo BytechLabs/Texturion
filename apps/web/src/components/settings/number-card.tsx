@@ -1,28 +1,20 @@
 "use client";
 
+import { roleHasCapability } from "@loonext/shared";
 import { Copy } from "lucide-react";
-import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ApiError } from "@/lib/api/error";
 import { NumberAccessDialog } from "@/components/settings/number-access-dialog";
 import { NumberHoursDialog } from "@/components/settings/number-hours-dialog";
 import { NumberIdentityDialog } from "@/components/settings/number-identity-dialog";
-import { useReleaseNumber } from "@/lib/api/numbers";
 import { NumberHealthNotice } from "@/components/settings/number-health-notice";
+import type { NumberHoldState } from "@/components/settings/number-hold";
+import { NumberHoldNote } from "@/components/settings/number-hold-note";
+import { mayReleaseNumber } from "@/components/settings/release-number";
+import { ReleaseNumberDialog } from "@/components/settings/release-number-dialog";
 import type { PhoneNumberSummary } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatPhone } from "@/lib/format/phone";
@@ -99,98 +91,34 @@ function StatusBadge({ number }: { number: PhoneNumberSummary }) {
   }
 }
 
-/** Typed-confirmation release (G8): the owner types the number to confirm. */
-function ReleaseNumberDialog({
-  number,
-  open,
-  onOpenChange,
-}: {
-  number: PhoneNumberSummary;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const release = useReleaseNumber();
-  const [typed, setTyped] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const display = number.number_e164 ? formatPhone(number.number_e164) : "";
-  const expectedDigits = (number.number_e164 ?? "").replace(/\D/g, "");
-  const typedDigits = typed.replace(/\D/g, "");
-  const matches =
-    expectedDigits !== "" &&
-    (typedDigits === expectedDigits ||
-      `1${typedDigits}` === expectedDigits);
-
-  function close(next: boolean) {
-    if (!next) {
-      setTyped("");
-      setError(null);
-    }
-    onOpenChange(next);
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={close}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Release {display}?</DialogTitle>
-          <DialogDescription>
-            This gives the number up for good. Customers who text it won&apos;t
-            reach you, and you can&apos;t get the same number back. It
-            doesn&apos;t change your plan or what you pay — a number is included,
-            so you can set up a new one here afterward. Type the number to
-            confirm.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-1.5">
-          <Label htmlFor="release-confirm">Type {display} to confirm</Label>
-          <Input
-            id="release-confirm"
-            value={typed}
-            onChange={(event) => setTyped(event.target.value)}
-            placeholder={display}
-            autoComplete="off"
-            inputMode="tel"
-          />
-        </div>
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => close(false)}>
-            Keep the number
-          </Button>
-          <Button
-            variant="destructive"
-            disabled={!matches || release.isPending}
-            onClick={() =>
-              release.mutate(number.id, {
-                onSuccess: () => {
-                  close(false);
-                  toast.success(`${display} released.`);
-                },
-                onError: (cause) =>
-                  setError(
-                    cause instanceof ApiError
-                      ? cause.message
-                      : "Couldn't release the number. Try again.",
-                  ),
-              })
-            }
-          >
-            {release.isPending ? "Releasing…" : "Release number"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 import { ringCeilingLine } from "./ring-ceiling";
 
-export function NumberCard({ number }: { number: PhoneNumberSummary }) {
+export function NumberCard({
+  number,
+  hold,
+  subscriptionActive = false,
+}: {
+  number: PhoneNumberSummary;
+  /**
+   * #523: why this number is suspended, when the caller was able to find out.
+   *
+   * Optional so a caller that never renders a suspended row does not have to
+   * resolve it, and so the numbers screen stays the one place that decides
+   * whether the billing route may be asked at all.
+   */
+  hold?: NumberHoldState | null;
+  /**
+   * #523: whether the subscription is live, which is half of the release rule —
+   * see `mayReleaseNumber` for why a past-due workspace is not offered an
+   * irreversible control.
+   *
+   * Defaulted FALSE rather than true, so a caller that has not been taught the
+   * rule withholds the destructive control on a held line instead of offering
+   * one it should not. It costs nothing on a working number: `active` releases
+   * regardless of this flag, which is every ordinary card on the screen.
+   */
+  subscriptionActive?: boolean;
+}) {
   const { role } = useActiveCompany();
   const [releasing, setReleasing] = useState(false);
   const [choosing, setChoosing] = useState(false);
@@ -200,6 +128,9 @@ export function NumberCard({ number }: { number: PhoneNumberSummary }) {
   const now = useNow();
   const released = number.status === "released";
   const canManage = role === "owner" || role === "admin";
+  const canRelease =
+    roleHasCapability(role, "workspace.own") &&
+    mayReleaseNumber(number.status, number.number_e164, subscriptionActive);
 
   return (
     <div className="rounded-lg border bg-card px-4 py-4 sm:px-5">
@@ -269,17 +200,16 @@ export function NumberCard({ number }: { number: PhoneNumberSummary }) {
       {number.status === "active" && number.health && (
         <NumberHealthNotice health={number.health} />
       )}
+      {/* #523: a suspended number has TWO causes now, and they need opposite
+          advice. `hold` carries which one applies — see `number-hold.ts` for
+          why the third answer is "we don't know" and why that is not guessed
+          at. Absent `hold` (a caller that has not been taught the difference)
+          falls through to the same neutral sentence as "unknown", which asserts
+          no cause rather than picking the wrong one. The sentence itself lives
+          in `NumberHoldNote` because the port stepper has to say the SAME thing
+          about a transferred line that went on hold. */}
       {number.status === "suspended" && (
-        <p className="mt-2 text-sm text-muted-foreground">
-          Texting is paused.{" "}
-          <Link
-            href="/settings/billing"
-            className="font-medium text-primary underline-offset-4 hover:underline"
-          >
-            Update your payment method
-          </Link>{" "}
-          to turn it back on.
-        </p>
+        <NumberHoldNote hold={hold} className="mt-2" />
       )}
       {released && number.released_at && (
         <p className="mt-2 text-sm text-muted-foreground">
@@ -357,7 +287,13 @@ export function NumberCard({ number }: { number: PhoneNumberSummary }) {
           />
         </div>
       )}
-      {role === "owner" && !released && number.number_e164 && (
+      {/* #523: ONE release rule across the three clients — see
+          `release-number.ts` for the three answers this replaces and why
+          Android's won. Two independent gates on purpose: `workspace.own` is
+          the same capability `DELETE /v1/numbers/:id` requires, and the
+          lifecycle question is asked separately so a role change can never
+          quietly become a lifecycle change. */}
+      {canRelease && (
         <div className="mt-3 border-t pt-3">
           <Button
             variant="ghost"
@@ -369,6 +305,10 @@ export function NumberCard({ number }: { number: PhoneNumberSummary }) {
           </Button>
           <ReleaseNumberDialog
             number={number}
+            /* The words and the control have to be about the same state — a
+               held number's confirmation promises a free replacement it cannot
+               deliver unless this is passed. */
+            hold={hold}
             open={releasing}
             onOpenChange={setReleasing}
           />

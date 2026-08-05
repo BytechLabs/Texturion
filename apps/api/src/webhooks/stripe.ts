@@ -28,9 +28,18 @@ import {
   isPauseLicensedPrice,
   mirrorSubscriptionStatus,
   planForLicensedPrice,
+  PLAN_LIMITS,
   type LocalSubscriptionStatus,
   type PlanId,
 } from "../billing/plans";
+import { readPaidCapacityEpoch } from "../billing/extra-numbers";
+import {
+  billedExtraQuantity,
+  claimNumberAllowance,
+  heldNumbersCopy,
+  type HeldNumber,
+} from "../billing/number-allowance";
+import { pushConsequentialNotice } from "../billing/consequential-push";
 import { grantPrepaidYear, isPrepayCheckout } from "../billing/prepay";
 import { billingRecipients } from "../billing/recipients";
 import { getStripe, stripeCryptoProvider, type Stripe } from "../billing/stripe";
@@ -427,6 +436,128 @@ async function claimEmailOnce(
 }
 
 /**
+ * Give a claimed key back when the send it was claiming never left the building.
+ *
+ * The insert-first ledger is what makes a sweeper replay unable to send an email
+ * twice, and that is exactly right for a send that HAPPENED. It is exactly wrong
+ * for one that did not: Resend has an outage, the send throws, and the key is
+ * already spent — so every later replay skips the notice and the owner is never
+ * told. At-most-once quietly became never.
+ *
+ * Releasing the key trades a guarantee we cannot keep for one we can. The worst
+ * case is a duplicate notice about a number that really is on hold; the case it
+ * prevents is silence about it. And the trade is cheaper than it looks: the
+ * push never throws (`pushConsequentialNotice` swallows its own failures), so
+ * everything that reaches this point failed BEFORE Resend accepted anything —
+ * bar the one narrow case of a send that landed and whose response was lost.
+ *
+ * Best-effort by construction — the send has already failed, and a failed
+ * clean-up must not become the caller's error.
+ */
+async function releaseEmailClaim(
+  db: SupabaseClient,
+  companyId: string,
+  emailKey: string,
+): Promise<void> {
+  try {
+    const { error } = await db
+      .from("email_ledger")
+      .delete()
+      .eq("company_id", companyId)
+      .eq("email_key", emailKey);
+    if (error) throw new Error(error.message);
+  } catch (cause) {
+    console.error(
+      `email_ledger release failed for ${companyId} (${emailKey}):`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+  }
+}
+
+/**
+ * #523: tell the owner that a number came back HELD rather than live.
+ *
+ * A held number is the weakest part of this whole answer and it is only
+ * defensible if the owner is told at the moment it happens. It keeps receiving
+ * texts and answering calls with the #490 unavailable notice, so the customer's
+ * customers keep reaching a number the business cannot work — and without this
+ * they find out before the owner does.
+ *
+ * Both channels, for the same reason the grace warnings use both (#252): this
+ * is a consequential notice about the phone number their business runs on, and
+ * an email that lands in spam is a warning nobody saw. The push is best-effort
+ * and never throws.
+ *
+ * Ledgered on the CHECKOUT SESSION, not the company: the webhook, the
+ * confirm-checkout poller and a sweeper replay of a half-finished handler all
+ * reach this for the same session, and only one of them may send. A LATER
+ * resubscribe is a different session and is told again, which is right — it is
+ * a different decision with a different set of numbers.
+ *
+ * The push goes out only when the email was claimed by THIS call, so the two
+ * channels can never disagree about how many times the owner was told.
+ *
+ * A FAILED SEND GIVES THE KEY BACK. See {@link releaseEmailClaim}: without it a
+ * Resend outage spends the one chance to tell somebody their number is on hold.
+ */
+async function noticeHeldNumbers(
+  env: Env,
+  db: SupabaseClient,
+  args: {
+    companyId: string;
+    plan: PlanId;
+    allowance: number;
+    held: HeldNumber[];
+    emailKey: string;
+  },
+): Promise<void> {
+  if (!(await claimEmailOnce(db, args.companyId, args.emailKey))) return;
+
+  try {
+    const { data, error } = await db
+      .from("companies")
+      .select("name")
+      .eq("id", args.companyId)
+      .limit(1);
+    if (error) throw new Error(`company name lookup failed: ${error.message}`);
+    const companyName =
+      (data?.[0] as { name?: string } | undefined)?.name ?? "your workspace";
+
+    const billing = `${env.APP_ORIGIN}/settings/billing`;
+    const { subject, text } = heldNumbersCopy({
+      companyName,
+      plan: args.plan,
+      allowance: args.allowance,
+      held: args.held,
+    });
+    const to = await billingRecipients(env, args.companyId, db);
+    if (to.length > 0) {
+      await sendEmail(env, {
+        to,
+        subject,
+        // The copy ends on the routes back; the link is appended here because the
+        // billing screen is where both of them start.
+        text: `${text}${billing}\n\nLoonext`,
+        // renderEmailHtml escapes — companyName is customer-controlled input.
+        html: renderEmailHtml(`${text}${billing}\n\nLoonext`),
+        critical: true,
+      });
+    }
+
+    await pushConsequentialNotice(env, db, {
+      companyId: args.companyId,
+      title: subject,
+      body: "Open Loonext to see which number, and how to bring it back.",
+      path: "/settings/billing",
+      collapseKey: `numbers_held:${args.companyId}`,
+    });
+  } catch (cause) {
+    await releaseEmailClaim(db, args.companyId, args.emailKey);
+    throw cause;
+  }
+}
+
+/**
  * A completed Checkout session that should provision the company: a real
  * payment ('paid'), OR a $0 session from a 100%-off coupon, which Stripe
  * reports as 'no_payment_required' (comp / free accounts). Both create the
@@ -492,6 +623,13 @@ export async function handleCheckoutCompleted(
   }
 
   const stripe = getStripe(env);
+  const db = getDb(env);
+  // #110/#523 ORDER MATTERS: the raise fence is read BEFORE the subscription
+  // snapshot below, because that snapshot is the billed conclusion it fences.
+  // Any capacity credit that lands in between bumps the epoch, and the
+  // allowance claim then refuses to raise capacity from a figure that predates
+  // it — holding one number more rather than handing out a free one.
+  const capacityEpoch = await readPaidCapacityEpoch(db, companyId);
   // Re-fetch guard: mirror the subscription's CURRENT truth, not the event's.
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
   const status = mirrorSubscriptionStatus(subscription.status) ?? "active";
@@ -512,7 +650,6 @@ export async function handleCheckoutCompleted(
   // ?checkout=success URL.
   if (status === "canceled") return;
 
-  const db = getDb(env);
   // §9 double-charge fail-safe: attach EXACTLY ONE live subscription per company,
   // atomically (row-locked conditional claim). Two checkout completions — a raced
   // second checkout — used to both run this activation as an UNCONDITIONAL
@@ -616,13 +753,73 @@ export async function handleCheckoutCompleted(
 
     // Resubscribe-within-grace: un-suspend instead of provisioning (§9) —
     // the saga then skips because a non-released number exists.
-    const { error: unsuspendError } = await db
-      .from("phone_numbers")
-      .update({ status: "active", suspended_at: null })
-      .eq("company_id", companyId)
-      .eq("status", "suspended");
-    if (unsuspendError) {
-      throw new Error(`number un-suspend failed: ${unsuspendError.message}`);
+    //
+    // #523: bounded by the plan they just bought. This used to be one
+    // unfiltered UPDATE, so a Pro workspace holding two numbers that came back
+    // on Starter came back holding two — never billed for the second (the
+    // convergence is down-only by design, #105) and never reclaimed (the grace
+    // job only scans cancelled companies), so we paid its rent forever.
+    //
+    // Nothing here can refuse the resubscribe: the money has already moved and
+    // this claim has no failing branch. What it decides is only which of the
+    // numbers come back now, and it releases none of them — see
+    // billing/number-allowance.ts.
+    const allowance = await claimNumberAllowance(db, {
+      companyId,
+      // Null when the licensed price is not in this deploy's catalog. The claim
+      // then restores everything, exactly as the old statement did: a price id
+      // we cannot read is not a statement about how many numbers a paying
+      // customer may hold.
+      included: plan ? PLAN_LIMITS[plan].numbers : null,
+      // What this subscription actually bills for extras. A fresh checkout
+      // session carries no extra-number line today, so this is the write that
+      // finally clears the capacity a DEAD subscription left behind — spendable
+      // for free on the port and text-enablement paths until now.
+      paidExtras: plan ? billedExtraQuantity(env, subscription, plan) : 0,
+      expectedEpoch: capacityEpoch,
+    });
+    if (allowance.capacityFenced) {
+      Sentry.captureMessage(
+        `checkout ${session.id}: paid-extra capacity raise fenced for company ${companyId} — a credit landed mid-activation; the next reconcile re-mirrors`,
+        "warning",
+      );
+    }
+    if (allowance.held.length > 0 && plan) {
+      // BEST-EFFORT, like every other side effect on this path that is not the
+      // provisioning itself (the voice-metered convergence above, the duplicate
+      // subscription cancel below). A notice is how somebody LEARNS about the
+      // hold; it is not how the hold is applied, and it must never be the reason
+      // a customer who just paid to come back is left without a working number.
+      //
+      // It sits before the port start, the number provisioning and the §4.4
+      // campaign reactivation — so an unguarded throw here meant a Resend outage
+      // stopped a post-grace resubscriber from being able to text at all, and
+      // the sweeper's replay skipped the notice anyway (the ledger key was
+      // already spent), which is how the hold ended up costing us silently.
+      //
+      // Loud, though. The claim is given back so a replay can try again, and
+      // Sentry hears about it either way.
+      try {
+        await noticeHeldNumbers(env, db, {
+          companyId,
+          plan,
+          allowance: allowance.allowance ?? PLAN_LIMITS[plan].numbers,
+          held: allowance.held,
+          // One notice per checkout session: the webhook, the confirm-checkout
+          // poller and a sweeper replay all reach this line for the same session.
+          emailKey: `numbers_held:${session.id}`,
+        });
+      } catch (cause) {
+        Sentry.captureException(cause);
+        Sentry.captureMessage(
+          `checkout ${session.id}: company ${companyId} came back holding ${allowance.held.length} number(s) and could NOT be told — the hold is applied and unannounced`,
+          "error",
+        );
+        console.error(
+          `held-number notice failed for ${companyId} (${session.id}):`,
+          cause instanceof Error ? cause.message : String(cause),
+        );
+      }
     }
 
     // PORTING.md §0/§4/D16: a port is a PARALLEL branch of this same paid

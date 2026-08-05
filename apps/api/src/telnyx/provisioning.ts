@@ -935,6 +935,24 @@ export async function provisionCompanyNumber(
  * Cancellation → suspension (SPEC §1 rule 2, §9): app-side only — inbound
  * keeps flowing and being stored; outbound is blocked by the subscription
  * gate. Returns the suspended rows.
+ *
+ * #523: it also closes out the rows that are NOT numbers. An order that failed
+ * or never finished — no `number_e164`, no Telnyx number, no order to recover
+ * from — used to survive cancellation in its own status, and every slot claim
+ * counts anything that is not `released`. So on the way back in it occupied the
+ * plan's allowance: a Starter workspace resubscribing with one such row and one
+ * real number on hold got its allowance filled by the row with no phone number
+ * in it, and its only working number stayed held. Nothing would have fixed that
+ * either — the un-hold is bounded by the allowance, and remediation is the one
+ * thing that could revive the dead row, which the owner has no reason to expect.
+ *
+ * Closing it out is not releasing a number. There is provably no number: the
+ * three columns that could name one are null, so this is the same `released`
+ * marker {@link releaseNumberRow} would write for such a row at grace expiry,
+ * minus the carrier call it would not make. It is scoped to `source =
+ * 'provisioned'` (a ported or hosted row is fulfilled by its own saga, and an
+ * open port sits exactly like this for weeks) and to rows nobody holds a lease
+ * on, so a saga running right now is never stomped.
  */
 export async function suspendCompanyNumbers(
   env: Env,
@@ -948,6 +966,21 @@ export async function suspendCompanyNumbers(
     .eq("status", "active")
     .select(NUMBER_COLUMNS);
   if (error) throw new Error(`number suspension failed: ${error.message}`);
+
+  const { error: deadError } = await db
+    .from("phone_numbers")
+    .update({ status: "released", released_at: new Date().toISOString() })
+    .eq("company_id", companyId)
+    .eq("source", "provisioned")
+    .in("status", ["provisioning", "provision_failed"])
+    .is("number_e164", null)
+    .is("telnyx_phone_number_id", null)
+    .is("telnyx_order_id", null)
+    .is("provisioning_lease_until", null);
+  if (deadError) {
+    throw new Error(`dead provisioning close-out failed: ${deadError.message}`);
+  }
+
   return (data ?? []) as unknown as PhoneNumberRow[];
 }
 

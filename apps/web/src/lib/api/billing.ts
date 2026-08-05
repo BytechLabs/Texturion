@@ -171,6 +171,137 @@ export function useMissedWhileOff(enabled: boolean) {
   });
 }
 
+/** One number this workspace holds but its plan does not currently cover. */
+export interface HeldNumber {
+  id: string;
+  number_e164: string | null;
+  /** When it went on hold. Null only for a row suspended before #523 shipped. */
+  suspended_at: string | null;
+}
+
+/**
+ * Why this workspace's numbers are suspended. The two reasons are DIFFERENT
+ * states with different answers, and the server decides which one applies
+ * rather than leaving three clients to infer it from `plan` and
+ * `subscription_status`:
+ *
+ *   over_plan_allowance   they resubscribed onto a plan smaller than the one
+ *                         they left. The answer is this card's two routes back.
+ *   subscription_inactive the grace window. The answer is the win-back card,
+ *                         and this surface must stay out of its way.
+ */
+export type HeldNumbersReason = "over_plan_allowance" | "subscription_inactive";
+
+export interface HeldNumbersView {
+  plan: PlanId | null;
+  /** What the plan itself covers, before anything bought on top. */
+  included: number | null;
+  /** Extra-number capacity actually billed today. */
+  paid_extras: number;
+  /** `included + paid_extras` — the line the hold is measured against. */
+  allowance: number | null;
+  /** The plan's hard TOTAL cap (#80), or null when it has none (Pro). */
+  max_total: number | null;
+  /** Null when nothing is held. */
+  reason: HeldNumbersReason | null;
+  held: HeldNumber[];
+  /**
+   * #522: what ONE held number costs to bring back, and the currency that
+   * figure is denominated in. Both are served rather than derived here — a
+   * client that renders "$5" out of its own head on a workspace billed in CAD
+   * is the exact bug #522 was.
+   */
+  extra_number_cents: number | null;
+  extra_number_currency: BillingCurrency;
+  /**
+   * Whether POST .../reinstate would be accepted right now. The button is
+   * ABSENT when this is false rather than present-and-failing: being told "no"
+   * after pressing something is how somebody concludes the product is broken.
+   */
+  can_reinstate: boolean;
+  /** Starter only: the other way back, which needs no extra-number purchase. */
+  can_upgrade: boolean;
+}
+
+/**
+ * GET /v1/billing/held-numbers (#523) — which numbers this workspace holds that
+ * its plan does not cover, and both ways to bring them back.
+ *
+ * A number goes on hold when a resubscribe lands on a plan smaller than the one
+ * the workspace left: coming back is never refused, so the plan is respected
+ * AFTER checkout instead. Nothing is released — the row still receives texts
+ * and calls — but it cannot send or answer, and until this route there was
+ * nowhere in the product that said why.
+ *
+ * `enabled` is the caller's, the same way `useMissedWhileOff` and
+ * `usePauseOffer` beside it are. It is behind `billing.manage`, so a member
+ * gets a 403 from it, and a healthy workspace must never pay for a question it
+ * is not asking.
+ */
+export function useHeldNumbers(enabled: boolean) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: keys.heldNumbers(companyId),
+    queryFn: () =>
+      apiFetch<HeldNumbersView>("/v1/billing/held-numbers", { companyId }),
+    enabled,
+  });
+}
+
+/** POST /v1/billing/held-numbers/:id/reinstate — what the route answers. */
+export interface ReinstatedNumber {
+  reinstated: boolean;
+  /** True when it was already back — a double-press, never a second charge. */
+  already_active?: boolean;
+  paid_extras?: number;
+  allowance?: number | null;
+  held?: HeldNumber[];
+}
+
+/**
+ * POST /v1/billing/held-numbers/:id/reinstate (#523) — buy the capacity for one
+ * held number and bring it back.
+ *
+ * THIS SPENDS MONEY THE MOMENT IT IS CALLED. The server raises the
+ * extra-number quantity with `always_invoice`, so the charge lands now rather
+ * than surfacing on a later invoice. No caller may fire it without the customer
+ * having read the amount first — that consent is the whole difference between
+ * this and adding a line to the checkout session, which #523 rejected.
+ *
+ * THE IDEMPOTENCY KEY IS REQUIRED and is minted ONCE PER NUMBER, not once per
+ * press. A lost response is the dangerous case here: the charge may well have
+ * landed, and a retry carrying a fresh key would buy a second unit of capacity
+ * for a number that only ever needed one. Reusing the key means the retry
+ * resolves to the same Stripe operation. Same rule, same reasoning, as the
+ * composer's `idempotencyKeyFor`.
+ *
+ * ONE AT A TIME, each with its own consent — a workspace holding three numbers
+ * buys them back one by one.
+ */
+export function useReinstateHeldNumber() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { numberId: string; idempotencyKey: string }) =>
+      apiFetch<ReinstatedNumber>(
+        `/v1/billing/held-numbers/${input.numberId}/reinstate`,
+        {
+          method: "POST",
+          companyId,
+          idempotencyKey: input.idempotencyKey,
+        },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: keys.heldNumbers(companyId) });
+      // The number's own status changed, and the numbers screen renders it
+      // from a different query than this one — without this the card says it
+      // came back while the list beside it still reads "On hold".
+      queryClient.invalidateQueries({ queryKey: keys.numbers(companyId) });
+      queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
+    },
+  });
+}
+
 /** POST /v1/billing/modules — turn an add-on on/off on the live subscription. */
 export function useSetModule() {
   const companyId = useCompanyId();
@@ -445,6 +576,12 @@ export function useChangePlan() {
         refetchType: "active",
       });
       queryClient.invalidateQueries({ queryKey: keys.me });
+      // #523: an upgrade RAISES the allowance, and the server reinstates what
+      // now fits inside it. Both the held-numbers card and the numbers list are
+      // stale the instant that happens — without this the owner pays for Pro
+      // and the screen still shows the line they just bought back as on hold.
+      queryClient.invalidateQueries({ queryKey: keys.heldNumbers(companyId) });
+      queryClient.invalidateQueries({ queryKey: keys.numbers(companyId) });
     },
   });
 }

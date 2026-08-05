@@ -1746,7 +1746,22 @@ export interface HostedUrl {
 
 /** POST /v1/billing/change-plan. */
 export type ChangePlanResult =
-  | { plan: "pro"; effective: "now" }
+  | {
+      plan: "pro";
+      effective: "now";
+      /**
+       * #523: numbers the BIGGER allowance just brought back with it.
+       *
+       * Pro includes two numbers, so a workspace that came back on Starter
+       * holding more than one has a number on hold waiting for exactly this
+       * upgrade. Optional because a cached pre-#523 response has no such field,
+       * and empty on every ordinary upgrade — the reader who has nothing held
+       * must not be told anything about holds.
+       */
+      reinstated?: { id: string; number_e164: string | null }[];
+      /** Still on hold afterwards. Only ever non-empty above two numbers. */
+      held?: { id: string; number_e164: string | null }[];
+    }
   | { plan: "starter"; effective: "period_end"; effective_at: string };
 
 /**

@@ -1,13 +1,19 @@
 import { describe, expect, it } from "vitest";
 
 import type {
+  PhoneNumberSummary,
   PortMessagingStatus,
   PortRequest,
   PortStatus,
 } from "@/lib/api/types";
 
 import { PORT_STATE_COPY } from "./copy";
-import { derivePortUiState, type PortStepKey } from "./port-ui-state";
+import {
+  derivePortUiState,
+  numberForPort,
+  partitionNumbers,
+  type PortStepKey,
+} from "./port-ui-state";
 
 /** Minimal port row factory — only the fields the deriver reads matter. */
 function port(overrides: Partial<PortRequest> = {}): PortRequest {
@@ -244,5 +250,134 @@ describe("derivePortUiState — the §8.2 4-step tracker", () => {
       const active = ui.steps.filter((s) => s.state === "active");
       expect(active).toHaveLength(1);
     }
+  });
+});
+
+/**
+ * #523 — the partition, which had no tests at all and one real hole.
+ *
+ * A row this function calls "ported" is DROPPED by the numbers page: the caller
+ * keeps only `provisioned`, because the stepper renders from the PORT list
+ * rather than from this one. So a misclassification here is not a cosmetic
+ * mistake, it is a phone number that appears on no surface — no status, no
+ * access controls, no release. That is the shape of the #523 iOS defect, and web
+ * had its own version of it hiding behind an inference the server has not needed
+ * for a long time.
+ */
+function numberRow(
+  overrides: Partial<PhoneNumberSummary> = {},
+): PhoneNumberSummary {
+  return {
+    id: "num-1",
+    status: "active",
+    number_e164: "+13035550000",
+    country: "US",
+    requested_area_code: "303",
+    source: "provisioned",
+    created_at: "2026-07-01T00:00:00Z",
+    ...overrides,
+  } as unknown as PhoneNumberSummary;
+}
+
+describe("partitionNumbers — which surface owns a row", () => {
+  it("routes by the row's own `source`, not by an inference beside it", () => {
+    const { provisioned, ported } = partitionNumbers(
+      [
+        numberRow({ id: "bought", source: "provisioned" }),
+        numberRow({
+          id: "transferred",
+          source: "ported",
+          requested_area_code: null,
+          number_e164: "+13035551111",
+        }),
+      ],
+      [],
+    );
+    expect(provisioned.map((n) => n.id)).toEqual(["bought"]);
+    expect(ported.map((n) => n.id)).toEqual(["transferred"]);
+  });
+
+  it("keeps a bought number with no area code on a surface that draws it", () => {
+    // THE HOLE. `requested_area_code === null` used to mean "ported"
+    // unconditionally, so a provisioned row that reached the client without one
+    // was handed to a stepper that never draws it — and the number vanished from
+    // the product while still being billed for. `source` says what it is.
+    const { provisioned, ported } = partitionNumbers(
+      [numberRow({ source: "provisioned", requested_area_code: null })],
+      [],
+    );
+    expect(ported).toEqual([]);
+    expect(provisioned).toHaveLength(1);
+  });
+
+  it("still reads the old signals when the row predates `source`", () => {
+    // The field is optional on the client type because a cached pre-wave shape
+    // lacks it. Dropping the fallback would push every one of those rows onto
+    // the card surface mid-transfer, with the "under a minute" provisioning
+    // copy over a multi-day carrier window.
+    const legacy = numberRow({ requested_area_code: null, number_e164: null });
+    delete (legacy as { source?: string }).source;
+    expect(partitionNumbers([legacy], []).ported).toHaveLength(1);
+
+    const byNumber = numberRow({ number_e164: "+14165550142" });
+    delete (byNumber as { source?: string }).source;
+    expect(
+      partitionNumbers([byNumber], [port({ phone_e164: "+14165550142" })])
+        .ported,
+    ).toHaveLength(1);
+  });
+
+  it("does not let an abandoned transfer claim a number back", () => {
+    // A cancelled port left the number where it was. Matching on it would hide
+    // a perfectly ordinary bought number behind a stepper that says the transfer
+    // is off.
+    const byNumber = numberRow({ number_e164: "+14165550142" });
+    delete (byNumber as { source?: string }).source;
+    const { provisioned } = partitionNumbers(
+      [byNumber],
+      [port({ phone_e164: "+14165550142", status: "cancelled" })],
+    );
+    expect(provisioned).toHaveLength(1);
+  });
+});
+
+describe("numberForPort — the line a transfer delivered", () => {
+  const transferred = port({ phone_e164: "+14165550142", status: "ported" });
+
+  it("finds the row the transfer produced, by the number they share", () => {
+    const row = numberRow({
+      id: "ported-row",
+      source: "ported",
+      status: "suspended",
+      requested_area_code: null,
+      number_e164: "+14165550142",
+    });
+    expect(numberForPort(transferred, [numberRow(), row])?.id).toBe(
+      "ported-row",
+    );
+  });
+
+  it("answers null while the number has not arrived yet", () => {
+    // Mid-transfer the `phone_numbers` row carries no E.164 at all, so there is
+    // nothing to be suspended and nothing for the card to say. This is why the
+    // hold branch can replace the transfer banner outright.
+    const inFlight = numberRow({
+      source: "ported",
+      status: "provisioning",
+      requested_area_code: null,
+      number_e164: null,
+    });
+    expect(numberForPort(transferred, [inFlight])).toBeNull();
+  });
+
+  it("does not resolve a number that has been given up", () => {
+    // A released row is not held; putting a hold note on it would offer a way
+    // back to a number nobody has.
+    const released = numberRow({
+      source: "ported",
+      status: "released",
+      number_e164: "+14165550142",
+    });
+    expect(numberForPort(transferred, [released])).toBeNull();
   });
 });

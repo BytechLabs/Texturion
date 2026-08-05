@@ -24,6 +24,7 @@ import { getDb } from "../db";
 import type { Env } from "../env";
 import { subscriptionPause, syncSubscription } from "../webhooks/stripe";
 import { idempotencyKey } from "./idempotency";
+import { FIXED_MONTHLY_COST_CENTS } from "./costs";
 import { convergeExtraNumberQuantity } from "./extra-numbers";
 import { retiredModulePrices } from "./modules";
 import { ensureVoiceMeteredItem } from "../webhooks/stripe";
@@ -85,6 +86,14 @@ export interface SubscriptionReconcileSummary {
   retiredModuleItemsRemoved: number;
   /** #105: extra-number quantities converged onto the count formula. */
   extraNumberQuantitiesConverged: number;
+  /**
+   * #523: numbers held over the plan's allowance across every workspace this
+   * run touched — deliberate, owner-notified, and costing us Telnyx rent.
+   * Reported in aggregate rather than one warning per company per day.
+   */
+  numbersHeldOverAllowance: number;
+  /** Workspaces those held numbers belong to. */
+  workspacesHoldingNumbers: number;
 }
 
 export async function runSubscriptionReconcileJob(
@@ -99,6 +108,8 @@ export async function runSubscriptionReconcileJob(
     orphanSubscriptionsFlagged: 0,
     retiredModuleItemsRemoved: 0,
     extraNumberQuantitiesConverged: 0,
+    numbersHeldOverAllowance: 0,
+    workspacesHoldingNumbers: 0,
   };
 
   const { data, error } = await db
@@ -244,6 +255,26 @@ export async function runSubscriptionReconcileJob(
   if (summary.staleInvites > 0) {
     console.log(
       `subscription reconcile: ${summary.staleInvites} pending invite(s) past expires_at (report only)`,
+    );
+  }
+
+  // #523: the standing cost of every number we are holding over a plan's
+  // allowance, in one line, once per run.
+  //
+  // Held numbers are a deliberate choice — releasing one hands a business's
+  // phone number back to the carrier, which reassigns it (#413) — but the rent
+  // is real and it accrues for as long as the owner leaves the hold in place.
+  // Stated in MONEY rather than in rows because the cost-protection question is
+  // "what is this costing us", and a count of rows is not an answer to it. The
+  // price comes from FIXED_MONTHLY_COST_CENTS so it cannot drift from what
+  // Telnyx actually charges.
+  if (summary.numbersHeldOverAllowance > 0) {
+    const cents =
+      summary.numbersHeldOverAllowance * FIXED_MONTHLY_COST_CENTS.perNumber;
+    console.log(
+      `subscription reconcile: ${summary.numbersHeldOverAllowance} number(s) on hold across ` +
+        `${summary.workspacesHoldingNumbers} workspace(s) — about $${(cents / 100).toFixed(2)}/mo ` +
+        `of number rent we carry until each owner upgrades, buys the extra, or releases it (#523).`,
     );
   }
 
@@ -441,6 +472,14 @@ async function sweepOrphanSubscriptions(
               `subscription reconcile: company ${row.id} holds ${converged.desired - converged.billed} more number(s) than its billed extras (billed ${converged.billed}, formula ${converged.desired}) — NOT auto-charging (#105 down-only rule; likely a D16 port bridge or mid-port row). Review manually if it persists past the port window.`,
               "warning",
             );
+          } else if (converged?.kind === "held_unbilled") {
+            // #523: the shortfall is entirely numbers on HOLD. Counted, not
+            // paged: this is a state we chose, the owner was told about it by
+            // name, and the two ways out of it are on their billing screen.
+            // The arm above exists to say "we cannot explain this"; firing it
+            // daily for a state we CAN explain is how it stops being read.
+            summary.numbersHeldOverAllowance += converged.desired - converged.billed;
+            summary.workspacesHoldingNumbers += 1;
           }
         } catch (cause) {
           Sentry.captureException(cause);

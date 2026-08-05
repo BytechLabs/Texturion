@@ -1,5 +1,6 @@
 import { checkoutCurrency } from "../billing/checkout-currency";
 import { billingCurrencyOf, PLAN_PRICE_CENTS } from "@loonext/shared";
+import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -28,9 +29,18 @@ import {
 import { enabledModules, isSellableModule } from "../billing/company-modules";
 import {
   allExtraNumberPrices,
+  EXTRA_NUMBER_MONTHLY_CENTS,
+  EXTRA_NUMBER_PRICE_CURRENCY,
   extraNumberPrice,
   findExtraNumberItem,
+  setExtraNumberQuantity,
 } from "../billing/extra-numbers";
+import {
+  billedExtraQuantity,
+  canBuyMoreCapacity,
+  claimNumberAllowance,
+  maxTotalNumbers,
+} from "../billing/number-allowance";
 import { cartSignature, idempotencyKey } from "../billing/idempotency";
 import {
   PREPAY_METADATA_FIELD,
@@ -119,6 +129,10 @@ interface BillingCompany {
   paused_at: string | null;
   /** #277: what the pause bills per month, USD cents, mirrored from Stripe. */
   paused_price_cents: number | null;
+  /** #110: paid extra-number capacity, mirroring the live Stripe quantity. */
+  paid_extra_numbers: number;
+  /** #110 raise fence — read BEFORE any billed conclusion is formed. */
+  paid_capacity_epoch: number;
 }
 
 async function fetchCompany(
@@ -135,7 +149,11 @@ async function fetchCompany(
         // #277: the pause. Read on EVERY billing path rather than only the
         // pause routes — change-plan, prepay and checkout each break in their
         // own way against a subscription whose licensed line is the pause price.
-        "paused_at,paused_price_cents",
+        "paused_at,paused_price_cents," +
+        // #523: what the plan's included numbers are topped up by, and the
+        // #110 fence that makes raising it safe. Read HERE, before any route
+        // touches Stripe, which is the order the fence requires.
+        "paid_extra_numbers,paid_capacity_epoch",
     )
     .eq("id", companyId)
     // A soft-deleted company is not billable — match usage.ts + the billing
@@ -829,6 +847,27 @@ billingRoutes.post("/change-plan", async (c) => {
       .update({ plan: "pro" })
       .eq("id", company.id);
     if (error) throw new Error(`companies plan update failed: ${error.message}`);
+    // #523: Pro includes two numbers, so the allowance just grew — and a
+    // workspace that came back on Starter holding more than one has a number on
+    // hold waiting for exactly this. Without the claim, upgrading raises the
+    // ceiling and nothing acts on it: the owner pays $79 and their second line
+    // is still dead, which makes the upgrade look like it did not work.
+    //
+    // The extra-number quantity is unchanged by the upgrade (the item is
+    // migrated to the Pro price at the same quantity above), so this is never a
+    // raise and the fence is satisfied by construction; the epoch is passed
+    // anyway because it was read before the Stripe work, which is the only
+    // ordering that makes it meaningful.
+    //
+    // `?? 1` mirrors the quantity the item swap above writes to Stripe — an
+    // item with no quantity field bills one, and understating it here would
+    // hold a number the customer is paying for.
+    const upgraded = await claimNumberAllowance(db, {
+      companyId: company.id,
+      included: PLAN_LIMITS.pro.numbers,
+      paidExtras: extraItem ? (extraItem.quantity ?? 1) : 0,
+      expectedEpoch: company.paid_capacity_epoch,
+    });
     // #345: the plan is what the workspace is billed and limited by, so "who
     // moved us to Pro, and when" is a question with a real answer attached to
     // it. Recorded after the mirror, so the row only exists for a change that
@@ -841,7 +880,15 @@ billingRoutes.post("/change-plan", async (c) => {
       before: { plan: "starter" },
       after: { plan: "pro", effective: "now" },
     });
-    return c.json({ plan: "pro", effective: "now" });
+    return c.json({
+      plan: "pro",
+      effective: "now",
+      // #523: what the bigger allowance brought back with it, so the client can
+      // say "your second number is live again" rather than leaving the owner to
+      // notice. Empty on every ordinary upgrade.
+      reinstated: upgraded.restored,
+      held: upgraded.held,
+    });
   }
 
   // DOWNGRADE: blocked until the tenant fits Starter limits (SPEC §9).
@@ -1625,6 +1672,439 @@ billingRoutes.get("/missed-while-off", async (c) => {
   last_at: latest?.[0]?.started_at ?? null,
   });
 });
+
+/**
+ * GET /v1/billing/held-numbers (#523) — which numbers this workspace holds that
+ * its plan does not cover, and both ways to bring them back.
+ *
+ * A number goes on hold when a resubscribe lands on a plan smaller than the one
+ * the workspace left. Nothing is released, so the row is still there and still
+ * receiving; it simply cannot send or answer. That state is only defensible if
+ * the owner can see it and act on it, and until this route there was nowhere in
+ * the product that said WHY a number was suspended.
+ *
+ * WHY NOT `company_view`. The numbers list already carries `status`, so a client
+ * can see THAT a number is suspended — what it cannot see is why, or what the
+ * plan covers, or what un-holding one costs. Putting that on `loadCompanyView`
+ * would run the arithmetic on the hottest hydration path in the product (every
+ * GET /v1/company and GET /v1/me, every role, every app boot) to answer a
+ * question only a workspace with a held number ever asks. Same trade, same
+ * reasoning, as `missed-while-off` and `cancellation-reason` above.
+ *
+ * EVERY FIGURE COMES FROM HERE. The price of un-holding one, the currency it is
+ * denominated in, the allowance and the plan's hard cap are all served rather
+ * than left for four clients to derive — the drift #392 and #464 both came down
+ * to. A client that renders "$5" out of its own head on a workspace billed in
+ * CAD is #522 happening again.
+ */
+billingRoutes.get("/held-numbers", async (c) => {
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  const company = await fetchCompany(db, c.get("companyId"));
+
+  const { data, error } = await db
+    .from("phone_numbers")
+    .select("id,number_e164,suspended_at,created_at")
+    .eq("company_id", company.id)
+    .eq("status", "suspended")
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(`held numbers lookup failed: ${error.message}`);
+  const held = (data ?? []) as unknown as {
+    id: string;
+    number_e164: string | null;
+    suspended_at: string | null;
+  }[];
+
+  const plan = company.plan;
+  const included = plan === null ? null : PLAN_LIMITS[plan].numbers;
+  const allowance = included === null ? null : included + company.paid_extra_numbers;
+
+  // A cancelled workspace's numbers are suspended for a DIFFERENT reason — the
+  // grace window — and the answer there is the win-back card, not this. Said
+  // plainly rather than left for the client to infer from two fields, because
+  // inferring it is exactly how the same state gets described three ways.
+  const reason: "over_plan_allowance" | "subscription_inactive" | null =
+    held.length === 0
+      ? null
+      : company.subscription_status === "active"
+        ? "over_plan_allowance"
+        : "subscription_inactive";
+
+  return c.json({
+    plan,
+    included,
+    paid_extras: company.paid_extra_numbers,
+    allowance,
+    /** The plan's hard TOTAL cap (#80), or null when it has none. */
+    max_total: plan === null ? null : maxTotalNumbers(plan),
+    reason,
+    held,
+    /** What buying capacity for ONE held number costs, from the price book. */
+    extra_number_cents: plan === null ? null : EXTRA_NUMBER_MONTHLY_CENTS[plan],
+    extra_number_currency: EXTRA_NUMBER_PRICE_CURRENCY,
+    /**
+     * Whether POST .../reinstate would be accepted right now. Sent so the
+     * button can be absent rather than fail — being told "no" after pressing it
+     * is how somebody concludes the product is broken.
+     */
+    can_reinstate:
+      reason === "over_plan_allowance" &&
+      plan !== null &&
+      (company.paused_at ?? null) === null &&
+      extraNumberPrice(env, plan) !== null &&
+      company.stripe_subscription_id !== null &&
+      canBuyMoreCapacity(plan, company.paid_extra_numbers),
+    /** Starter only: the other way back, and it needs no extra-number purchase. */
+    can_upgrade: plan === "starter",
+  });
+});
+
+/**
+ * POST /v1/billing/held-numbers/:id/reinstate (#523) — buy the capacity for one
+ * held number and bring it back.
+ *
+ * THE POINT OF THE WHOLE ISSUE. Holding a number is only honest if there is a
+ * way out of the hold that is not "give it up". There are two: move to Pro,
+ * which raises the included count (and `change-plan` reinstates what fits), or
+ * this — pay for the number as a plan extra, at the price already in the book,
+ * at a moment the customer chose. That last clause is what separates it from
+ * adding an extra-number line to the checkout session: a charge above the number
+ * on the button somebody just pressed is the shape of dishonesty #277 exists to
+ * prevent, while a $5 line the owner presses a button for is a purchase.
+ *
+ * ONE AT A TIME. A workspace holding three numbers buys them back one by one,
+ * each with its own consent. The quantity moves from what is billed today to one
+ * more, never to the whole surplus.
+ *
+ * ── ORDER: CLAIM, THEN CHARGE. WHY. ───────────────────────────────────────
+ *
+ * This used to charge first and claim after, and that order had one outcome it
+ * could not survive: the claim's #110 raise fence refusing the capacity AFTER
+ * Stripe had been told to bill for it. Money taken, number still held, response
+ * saying `restored: 0` — and nothing downstream repaired it, because the daily
+ * reconcile mirrors the capacity column but never un-suspends a number.
+ *
+ * So the claim goes first, and it is all-or-nothing (`preferId`): under the
+ * company-row lock it either brings THAT number back — before anything is
+ * charged — or writes nothing whatsoever and says `applied: false`. The charge
+ * then follows what the claim actually did. Every way this can fail now fails
+ * on the side of not taking money:
+ *
+ *   fence fired / no budget    nothing written, nothing charged, retryable
+ *   claim ok, charge refused   the number is put back on hold and the capacity
+ *                              lowered again — but ONLY after Stripe confirms
+ *                              the change did not land (see the catch)
+ *   claim ok, Stripe unclear   the number STAYS with the customer and we page
+ *                              ourselves; taking a number back from somebody
+ *                              who may have paid for it is the one outcome
+ *                              worth more than the $5 it might cost us
+ *
+ * The idempotency key still derives from the request's, so a retry of the
+ * charge itself can never double-bill. What a retry after a lost RESPONSE finds
+ * is a number that is already active, which returns `already_active` without
+ * charging — deliberately: a second charge for a number that is already back is
+ * worse than the unbilled capacity the daily converge reports to us.
+ */
+billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  // Validated rather than passed through: a non-UUID reaches PostgREST as a
+  // malformed uuid filter and comes back a 500, which reads as our fault for
+  // what is a bad request.
+  const parsedId = z.uuid().safeParse(c.req.param("id"));
+  if (!parsedId.success) {
+    return errorResponse(c, "validation_failed", "That isn't a number id.");
+  }
+  const numberId = parsedId.data;
+
+  const rawKey = c.req.header("Idempotency-Key");
+  const parsedKey = z.uuid().safeParse(rawKey);
+  if (!parsedKey.success) {
+    return errorResponse(
+      c,
+      "validation_failed",
+      "Idempotency-Key header (a client-generated UUID) is required.",
+    );
+  }
+
+  // Read the company BEFORE Stripe: `paid_capacity_epoch` is the #110 raise
+  // fence and is only sound if it predates the billed conclusion below.
+  const company = await fetchCompany(db, c.get("companyId"));
+
+  if (
+    company.plan === null ||
+    company.stripe_subscription_id === null ||
+    !hasLiveSubscription(company.subscription_status)
+  ) {
+    return errorResponse(
+      c,
+      "conflict",
+      "Start your subscription again first — then you can bring this number back.",
+    );
+  }
+  // #277: a paused workspace cannot be sold anything. Same gate, same reasoning,
+  // as POST /v1/numbers/provision: the pause is a licensed-PRICE swap, so
+  // `subscription_status` is genuinely active and the test above cannot see it.
+  if ((company.paused_at ?? null) !== null) {
+    return errorResponse(
+      c,
+      "workspace_paused",
+      "Your plan is paused. Resume it in billing and you can bring this number back.",
+    );
+  }
+
+  // `suspended_at` rides along so the undo below can put the hold back exactly
+  // as it was rather than restarting its clock — the billing screen tells the
+  // owner how long a number has been held, and a failed purchase must not
+  // rewrite that history.
+  const { data: rows, error } = await db
+    .from("phone_numbers")
+    .select("id,status,number_e164,suspended_at")
+    .eq("company_id", company.id)
+    .eq("id", numberId)
+    .limit(1);
+  if (error) throw new Error(`phone_numbers lookup failed: ${error.message}`);
+  const row = (rows?.[0] ?? null) as unknown as {
+    id: string;
+    status: string;
+    number_e164: string | null;
+    suspended_at: string | null;
+  } | null;
+  if (!row) return errorResponse(c, "not_found", "That number isn't on this workspace.");
+  if (row.status !== "suspended") {
+    // Already back — a double-press, or a change-plan upgrade reinstated it
+    // between the screen loading and the button being pressed. Not an error and
+    // emphatically not a second charge.
+    return c.json({ reinstated: false, already_active: row.status === "active" });
+  }
+
+  if (!canBuyMoreCapacity(company.plan, company.paid_extra_numbers)) {
+    return errorResponse(
+      c,
+      "conflict",
+      `Starter tops out at ${maxTotalNumbers("starter")} numbers. Move to Pro to bring this one back.`,
+    );
+  }
+  const price = extraNumberPrice(env, company.plan);
+  if (!price) {
+    // Fail CLOSED, like the provision route: no provisioned price means extras
+    // are not sellable here, and a free extra is never the answer.
+    return errorResponse(
+      c,
+      "conflict",
+      "Extra numbers aren't available yet. Contact support.",
+    );
+  }
+
+  const stripe = getStripe(env);
+  const subscription = await stripe.subscriptions.retrieve(
+    company.stripe_subscription_id,
+  );
+  if (subscription.schedule) {
+    // #18: a pending plan change owns the items — a quantity bump would be
+    // rejected or undone at rollover.
+    return errorResponse(
+      c,
+      "conflict",
+      "A plan change is scheduled on your account. Bring this number back after it takes effect at the period end.",
+    );
+  }
+
+  // What Stripe bills TODAY, not what the column says: the column mirrors it,
+  // and mirroring can lag. One more than that is what this purchase buys.
+  const billed = billedExtraQuantity(env, subscription, company.plan);
+  const quantity = billed + 1;
+
+  // THE CLAIM DECIDES, AND IT DECIDES FIRST (see the ordering note above).
+  const allowance = await claimNumberAllowance(db, {
+    companyId: company.id,
+    included: PLAN_LIMITS[company.plan].numbers,
+    paidExtras: quantity,
+    expectedEpoch: company.paid_capacity_epoch,
+    preferId: row.id,
+  });
+  // Both halves are checked, not just `applied`: the field says the claim wrote
+  // something, and the list says WHAT. Charging on the strength of the first
+  // alone would trust a contract instead of an outcome, which is how "we took
+  // the money and the card still says on hold" happens.
+  const delivered =
+    allowance.applied && allowance.restored.some((entry) => entry.id === row.id);
+  if (!delivered) {
+    if (allowance.capacityFenced) {
+      // #110: a capacity decision landed between our read and this claim, so the
+      // figure we were about to bill for is stale. Nothing was written and
+      // nothing was charged — pressing again forms a fresh conclusion.
+      return errorResponse(
+        c,
+        "conflict",
+        "Another change to your numbers just landed. Try again in a moment.",
+      );
+    }
+    // The plan's numbers are all spoken for by rows that are not on hold — a
+    // port mid-transfer, a number mid-provision. Said plainly, because the
+    // alternative is charging for a slot we cannot hand over.
+    return errorResponse(
+      c,
+      "conflict",
+      "Another of your numbers is still being set up, so there's no room to bring this one back yet. Try again once it's finished.",
+    );
+  }
+
+  try {
+    await setExtraNumberQuantity({
+      stripe,
+      subscription,
+      price,
+      quantity,
+      // The charge lands NOW — the customer pays as they bring it back, never
+      // a surprise on the next invoice.
+      proration: "always_invoice",
+      idempotencyKey: idempotencyKey(
+        company.id,
+        "held_number_reinstate",
+        parsedKey.data,
+      ),
+    });
+  } catch (cause) {
+    const settled = await undoUnpaidReinstate(env, db, {
+      stripe,
+      subscriptionId: company.stripe_subscription_id,
+      plan: company.plan,
+      companyId: company.id,
+      row,
+      billed,
+      quantity,
+      cause,
+    });
+    if (!settled) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      if (/same price|duplicate/i.test(message)) {
+        // A raced concurrent buy: the loser's item CREATE hits Stripe's
+        // one-item-per-price rule. A clean conflict, not a 500 — a retry sees the
+        // winner's quantity and updates instead.
+        return errorResponse(
+          c,
+          "conflict",
+          "Another change to your numbers is in flight. Try again in a moment.",
+        );
+      }
+      throw cause;
+    }
+    // Stripe had the change after all — the error was on the way back, not on
+    // the way in. This is also how two simultaneous presses settle: the loser's
+    // item CREATE is refused because the winner's already exists, the re-read
+    // shows the quantity the winner bought, and both numbers are back inside the
+    // allowance that one unit pays for. Either way the customer is billed for
+    // what they hold; saying anything else would send them to press again.
+  }
+
+  await recordAuditFromRequest(db, c, {
+    companyId: company.id,
+    action: "billing.number_reinstated",
+    targetType: "phone_number",
+    targetId: row.id,
+    before: { status: "suspended", paid_extra_numbers: billed },
+    after: { status: "active", paid_extra_numbers: allowance.capacity },
+  });
+
+  return c.json({
+    // Pinned to what the claim actually did, not to having reached this line.
+    reinstated: delivered,
+    paid_extras: allowance.capacity,
+    allowance: allowance.allowance,
+    held: allowance.held,
+  });
+});
+
+/**
+ * The charge for a just-restored number did not come back clean. Decide what
+ * the workspace is left holding.
+ *
+ * ASK STRIPE BEFORE UNDOING ANYTHING. A thrown error covers two different
+ * worlds: the change was refused (nothing billed) and the change landed but the
+ * response was lost (billed). Re-reading the subscription tells them apart, and
+ * the difference matters more than anything else in this route — putting a
+ * number back on hold that somebody was charged for is precisely the defect the
+ * claim-first ordering exists to prevent.
+ *
+ * Returns TRUE when Stripe shows the quantity we asked for: the purchase
+ * settled and the caller should treat the request as successful.
+ *
+ * Returns FALSE having put the workspace back where it started: the number
+ * returns to the hold it was in a moment ago — with its original `suspended_at`,
+ * so its clock is not restarted — and the paid capacity is lowered again so the
+ * unbilled slot cannot be spent by a port or an enablement claim. That is an
+ * undo of an unpaid change, not a release: nothing is handed back to a carrier,
+ * no history is touched, and inbound keeps landing exactly as it did while the
+ * number was held.
+ *
+ * When Stripe cannot be re-read at all we do NOT undo. The number stays with
+ * the customer, Sentry gets paged, and the daily converge reports the unbilled
+ * number until a human settles it — a bounded, visible cost we can eat, unlike
+ * taking a working number away from somebody who paid for it.
+ */
+async function undoUnpaidReinstate(
+  env: Env,
+  db: SupabaseClient,
+  args: {
+    stripe: Stripe;
+    subscriptionId: string;
+    plan: PlanId;
+    companyId: string;
+    row: { id: string; suspended_at: string | null };
+    billed: number;
+    quantity: number;
+    cause: unknown;
+  },
+): Promise<boolean> {
+  Sentry.captureException(args.cause);
+  try {
+    const fresh = await args.stripe.subscriptions.retrieve(args.subscriptionId);
+    if (billedExtraQuantity(env, fresh, args.plan) >= args.quantity) return true;
+  } catch (readError) {
+    Sentry.captureException(readError);
+    Sentry.captureMessage(
+      `reinstate ${args.row.id}: the extra-number charge failed and Stripe could not be re-read — the number is staying with the customer, unbilled, until somebody settles it`,
+      "error",
+    );
+    return true;
+  }
+
+  // Stripe never took the change. Undo ours, in this order: the number goes
+  // back on hold first, so there is never a window in which a working number
+  // sits outside a shrunken allowance.
+  try {
+    const { error: holdError } = await db
+      .from("phone_numbers")
+      .update({
+        status: "suspended",
+        suspended_at: args.row.suspended_at ?? new Date().toISOString(),
+      })
+      .eq("id", args.row.id)
+      .eq("company_id", args.companyId)
+      // Only the row this request restored, and only if nothing else has moved
+      // it since — a change-plan upgrade that reinstated it for real must not
+      // be undone by our failed purchase.
+      .eq("status", "active");
+    if (holdError) throw new Error(holdError.message);
+
+    await claimNumberAllowance(db, {
+      companyId: args.companyId,
+      included: PLAN_LIMITS[args.plan].numbers,
+      // A LOWER back to what is actually billed. Lowers need no epoch — the
+      // fence only guards raises.
+      paidExtras: args.billed,
+    });
+  } catch (undoError) {
+    // Never silent: an undo that fails leaves paid capacity nobody paid for.
+    Sentry.captureException(undoError);
+    console.error(
+      `reinstate ${args.row.id}: unpaid capacity could not be undone:`,
+      undoError instanceof Error ? undoError.message : String(undoError),
+    );
+  }
+  return false;
+}
 
 /**
  * POST /v1/billing/modules (#12 plan builder) — turn a module on/off on an

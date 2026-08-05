@@ -417,6 +417,31 @@ func formatCents(_ cents: Int) -> String {
     "$" + String(format: "%.2f", locale: settingsPosixLocale, Double(cents) / 100.0)
 }
 
+/// Money whose currency is not necessarily the reader's — `formatMoney`'s twin
+/// (packages/shared/src/billing-currency.ts).
+///
+/// WHEN THE TWO AGREE THE PREFIX IS WRONG. "$39" to a Canadian reading their own
+/// CAD invoice is right; "CA$39" reads as though we expect them to be confused
+/// about their own money. That is why `formatMonthlyCents` stays the formatter
+/// for a plan price and this one exists beside it rather than replacing it.
+///
+/// WHEN THEY DISAGREE THE PREFIX IS THE WHOLE POINT. Some figures are filed in
+/// ONE currency and quoted to everybody — the add-on catalog and the #523
+/// extra-number price are both USD-only, so a workspace billed in CAD is being
+/// quoted a US price. A bare "$5" there means CAD to the reader and we would
+/// charge US$5, which is the exact shape of #522. The server states the currency
+/// of every such figure; this renders that statement.
+func formatMoneyIn(
+    _ cents: Int,
+    _ currency: BillingCurrency,
+    audience: BillingCurrency
+) -> String {
+    let amount = formatMonthlyCents(cents)
+    if currency == audience { return amount }
+    // "US$5" / "CA$5" — the prefix goes before the sign, matching web.
+    return (currency == .usd ? "US" : "CA") + amount
+}
+
 /// Human bytes: "0 B", "412 KB", "1.2 GB".
 func formatBytes(_ bytes: Int) -> String {
     if bytes < 1024 { return "\(bytes) B" }
@@ -1354,11 +1379,18 @@ func cancellationOffer(
 ///           members exceed the Starter seats. The allowances are real there,
 ///           so they are stated.
 ///   grace   Stripe checkout. Its only gates are "one live subscription" and
-///           the US registration draft — no seat count, no number count — and
-///           `checkout.session.completed` then un-suspends EVERY suspended
-///           number with no plan filter. A Pro workspace with two numbers and
-///           eight members can come back on Starter holding two and eight, so
-///           the seat and number allowances are NOT stated there.
+///           the US registration draft — no seat count, no number count — so
+///           nothing there refuses a Pro workspace with two numbers and eight
+///           members, and the allowances are NOT stated.
+///
+///           #523 changed what happens after that checkout, not whether it is
+///           allowed: the completion handler claims the allowance, so the
+///           second number comes back HELD rather than active — suspended, not
+///           released, still receiving, and named on the billing screen with
+///           two priced routes back. Seats are unchanged; the only gates on
+///           them are at invite and at acceptance, so the eight stay eight.
+///           Neither figure has become a ceiling this path applies, so neither
+///           is quoted here.
 ///
 /// Dropping the grace control instead was rejected: change-plan 409s a canceled
 /// subscription outright ("resubscribe to change plans"), so checkout is the
@@ -2012,4 +2044,503 @@ func cancellationOffer(
             actionLabel: nil
         )
     }
+}
+
+// MARK: - Numbers the plan does not cover (#523)
+
+/// What the billing screen may OFFER about a held number, once it knows enough
+/// to say anything.
+///
+/// A separate type from the copy because the two answer different questions —
+/// "what can be pressed" and "what does it say" — and only the first of them is
+/// allowed to depend on facts this screen has not read yet.
+enum HeldNumbersOffer: Equatable, Sendable {
+    /// Buy the capacity for one held number, at this price, right now.
+    case buy(price: String)
+    /// The plan is paused. Nothing may be added to it until it resumes, and
+    /// `POST …/reinstate` says exactly that back (`workspace_paused`).
+    case resumeFirst
+    /// The plan will not sell another number at ANY price — Starter's hard
+    /// total cap (#80). Named rather than left as a missing button, because an
+    /// owner who has already bought one extra and sees no way to buy a second
+    /// otherwise concludes the button is broken.
+    case planIsFull(maxTotal: Int)
+    /// No purchase is offered here. Either the screen may not sell anything
+    /// (the #163 store-rules kill-switch), or it has not read enough to know.
+    ///
+    /// NOT `none`: `HeldNumbersOffer?` and `.none` in one expression is a coin
+    /// toss over which of the two a leading dot means.
+    case noPurchase
+}
+
+/// Everything the held-numbers card says, in one value a test can read.
+///
+/// THE COPY LIVES HERE AND NOT IN THE VIEW, for the reason `enableUsTextingCopy`
+/// gives: a sentence only a screenshot can check is a sentence nothing checks.
+///
+/// THE WORDS TRACK THE EMAIL. `heldNumbersCopy` in
+/// apps/api/src/billing/number-allowance.ts writes the mail and the push about
+/// this exact state, and the whole reason it is one function there is that the
+/// same state must not be described three different ways by a Worker, a browser
+/// and two phones. This is the iOS end of that agreement — the title IS the
+/// mail's subject line, so somebody arriving from it lands on a card they
+/// recognise.
+struct HeldNumbersCopy: Equatable, Sendable {
+    /// The card's title, and the subject of the mail that announced this.
+    let title: String
+    /// Why: the plan's allowance, from the server's figure.
+    let lead: String
+    /// What a hold is NOT. First, before anything that can be pressed.
+    let kept: String
+    /// The route back that is not a button on a row — nil when the row's own
+    /// button is the whole answer.
+    let routes: String?
+    /// True when the only honest route left is a person. The card then draws
+    /// the way to Help rather than ending on a sentence with nothing behind it.
+    let offerHelp: Bool
+}
+
+/// The whole card, decided once: what it says and what it offers.
+///
+/// A NAMED TYPE AND NOT A TUPLE. It is compared whole in the tests, and an
+/// `Optional<(A, B)>` is not `Equatable` however Equatable its members are — so
+/// the tuple version pushed every assertion down to one field at a time, which
+/// is the shape that lets a second field regress unnoticed.
+struct HeldNumbersState: Equatable, Sendable {
+    let copy: HeldNumbersCopy
+    let offer: HeldNumbersOffer
+}
+
+/// The card, decided — or nil, meaning draw nothing at all.
+///
+/// # Why one function and not a chain of `if`s in the view
+///
+/// Three separate facts decide this — the server's answer, the pause read and
+/// the store-rules kill-switch — and every one of them has a state that means
+/// "not yet". A view that asks them one at a time inside `body` reaches a
+/// different answer depending on which it asked first, and the failure mode is a
+/// purchase offered against a plan nobody has read. That is the defect
+/// `planCardShape` exists to prevent one card higher up this same screen.
+///
+/// # Nothing is drawn for a cancelled workspace
+///
+/// `subscription_inactive` is a different state with a different answer: those
+/// numbers are suspended because the subscription is over and the 30-day hold is
+/// running, and the surface for that is the win-back inside the Subscription
+/// card above. Two cards about one suspended number giving different reasons is
+/// the drift this route exists to stop, so the server names the reason and this
+/// trusts it rather than re-deriving it from two fields.
+func heldNumbersState(
+    _ view: HeldNumbers,
+    read: PauseRead,
+    billingWritesEnabled: Bool,
+    audience: BillingCurrency
+) -> HeldNumbersState? {
+    guard view.reason == HeldNumbersReason.overPlanAllowance,
+          !view.held.isEmpty,
+          // No allowance means the server could not read the plan. There is
+          // nothing honest to say about a limit we cannot name, and inventing
+          // one is worse than staying quiet.
+          let allowance = view.allowance
+    else { return nil }
+
+    let offer = heldNumbersOffer(
+        view,
+        read: read,
+        billingWritesEnabled: billingWritesEnabled,
+        audience: audience
+    )
+    return HeldNumbersState(
+        copy: heldNumbersCopy(
+            allowance: allowance,
+            heldCount: view.held.count,
+            offer: offer,
+            canUpgrade: view.can_upgrade
+        ),
+        offer: offer
+    )
+}
+
+/// What may be pressed, in the order the reasons actually override each other.
+func heldNumbersOffer(
+    _ view: HeldNumbers,
+    read: PauseRead,
+    billingWritesEnabled: Bool,
+    audience: BillingCurrency
+) -> HeldNumbersOffer {
+    // A pause outranks everything below it: it is the one state with its own
+    // one-press way out, and that press is on the card directly above this one.
+    if planCardShape(read) == .paused { return .resumeFirst }
+
+    // The hard cap is a FACT about the plan rather than a state of this screen,
+    // so it is named even where nothing could be sold anyway. `max_total` is
+    // served precisely so that no client has to know Starter stops at two.
+    if let maxTotal = view.max_total, let included = view.included,
+       included + view.paid_extras >= maxTotal {
+        return .planIsFull(maxTotal: maxTotal)
+    }
+
+    // #163: the store-rules kill-switch hides every in-app billing WRITE. A
+    // button that adds a priced line to a subscription is exactly that, so it
+    // goes; the reading half of this card is untouched.
+    guard billingWritesEnabled else { return .noPurchase }
+
+    // The pause read has not landed. `mayBuyAddOns` is false for loading, for
+    // failed and for a reader who may not ask — the same gate the add-ons card
+    // uses, and for the same reason: a purchase is never offered against a fact
+    // nobody has read.
+    guard mayBuyAddOns(read) else { return .noPurchase }
+
+    // The server's own answer to "would the POST be accepted". Trusted rather
+    // than re-derived: it knows about a scheduled plan change and about an
+    // unprovisioned price, and this screen knows about neither.
+    guard view.can_reinstate else { return .noPurchase }
+
+    // A price we cannot label is a price we do not print. #522: a bare "$5" at
+    // a workspace billed in CAD reads as CAD and bills US$5.
+    guard let cents = view.extra_number_cents,
+          let currency = view.extra_number_currency.flatMap(BillingCurrency.init(rawValue:))
+    else { return .noPurchase }
+
+    return .buy(price: formatMoneyIn(cents, currency, audience: audience) + "/mo")
+}
+
+/// The sentences, given what is on offer.
+func heldNumbersCopy(
+    allowance: Int,
+    heldCount: Int,
+    offer: HeldNumbersOffer,
+    canUpgrade: Bool
+) -> HeldNumbersCopy {
+    let one = heldCount == 1
+    let title = one
+        ? "One of your numbers is on hold"
+        : "\(heldCount) of your numbers are on hold"
+    let lead = "Your plan covers \(allowance) number\(allowance == 1 ? "" : "s"), "
+        + "and you have more than that."
+    // The mail's own sentence, in the same order. It leads with what a hold is
+    // NOT, because the reader's first question is whether they have lost the
+    // number on the side of their van, and the answer is no.
+    let kept = "A number on hold hasn't been given up. We're still holding it, "
+        + "texts and calls still reach it, and nothing in its history has been "
+        + "touched — you just can't send or answer from it while it's on hold."
+
+    let them = one ? "it" : "them"
+    switch offer {
+    case .buy:
+        return HeldNumbersCopy(
+            title: title,
+            lead: lead,
+            kept: kept,
+            // Only the OTHER route. The paid one is a button on the row an inch
+            // below with its own price on it, and restating it here would give
+            // one figure two homes on one card.
+            routes: canUpgrade
+                ? "Or move to Pro from the plan card above: that brings back "
+                    + "everything that fits, with no extra number to buy."
+                : nil,
+            offerHelp: false
+        )
+    case .resumeFirst:
+        return HeldNumbersCopy(
+            title: title,
+            lead: lead,
+            kept: kept,
+            // The API's 409 names the two steps in this order — resume first,
+            // then bring it back — and a client that put them the other way
+            // round would be walking somebody into that refusal.
+            routes: "Your plan is paused, so nothing can be added to it yet. "
+                + "Resume it from the plan card above, then you can bring \(them) back.",
+            offerHelp: false
+        )
+    case .planIsFull(let maxTotal):
+        return HeldNumbersCopy(
+            title: title,
+            lead: lead,
+            kept: kept,
+            routes: "Starter tops out at \(maxTotal) numbers, so there's no extra "
+                + "to buy here. Move to Pro from the plan card above and everything "
+                + "that fits comes back.",
+            offerHelp: false
+        )
+    case .noPurchase:
+        return HeldNumbersCopy(
+            title: title,
+            lead: lead,
+            kept: kept,
+            routes: canUpgrade
+                ? "Move to Pro from the plan card above and everything that fits "
+                    + "comes back."
+                : "Get in touch and we'll bring \(them) back.",
+            // Pro, with nothing to sell and nothing to upgrade to. A person is
+            // the only honest route left.
+            offerHelp: !canUpgrade
+        )
+    }
+}
+
+/// What a plan change is told to have done.
+///
+/// #523 GAVE THE UPGRADE A SECOND EFFECT. Moving to Pro raises the allowance and
+/// the API claims against the new one in the same call, so the switch can bring
+/// held numbers back — and until it says so, the owner presses "Upgrade to Pro"
+/// to fix a held number and is told only that they are on Pro. They then have to
+/// go and check whether the thing they upgraded FOR actually happened.
+///
+/// The reinstated list comes off the response rather than being guessed from the
+/// plan: an ordinary upgrade reinstates nothing and must not claim otherwise.
+func changePlanMessage(_ result: ChangePlanResult) -> String {
+    guard result.effective == "now" else {
+        return "Switch to Starter scheduled for the end of this period."
+    }
+    let back = result.reinstated.count
+    if back == 0 { return "You're on Pro now." }
+    // One number gets named. A suspended row has always been active so it has a
+    // number, but the nil branch is here rather than force-unwrapped: a toast
+    // reading "and () is back" would be worse than the count.
+    if back == 1, let e164 = result.reinstated[0].number_e164, !e164.isEmpty {
+        return "You're on Pro now, and \(formatPhone(e164)) is back."
+    }
+    return "You're on Pro now, and \(back) number\(back == 1 ? " is" : "s are") back."
+}
+
+/// The sheet that takes consent for the charge.
+struct ReinstateNumberCopy: Equatable, Sendable {
+    let title: String
+    let message: String
+    let confirmLabel: String
+}
+
+/// Buying one number back, in the voice the add-on toggle already uses for the
+/// same shape of charge: a priced line added to the subscription, prorated and
+/// invoiced today.
+///
+/// IT NAMES BOTH HALVES OF THE MONEY. `POST …/reinstate` sends
+/// `proration: always_invoice`, so the customer pays now for the rest of this
+/// period and then the full price monthly. A sheet that said only "a month"
+/// would be taking consent for a charge whose timing it never mentioned.
+func reinstateNumberCopy(number: String, price: String) -> ReinstateNumberCopy {
+    ReinstateNumberCopy(
+        title: "Bring back \(number)?",
+        message: "\(price) is added to your plan. You're charged a prorated amount "
+            + "for the rest of this period today, then the full price each month. "
+            + "The number can send and answer again as soon as it goes through.",
+        confirmLabel: "Bring it back"
+    )
+}
+
+/// What to say after pressing "Bring it back", for each of the three things
+/// that can actually have happened.
+///
+/// THE THIRD ONE IS THE POINT. `reinstated == false` with `already_active ==
+/// false` means the Stripe write landed and the un-hold did not — the #110
+/// raise fence refused a capacity raise formed against an epoch that moved
+/// underneath it. The money HAS moved, so the one thing this must never do is
+/// invite an immediate retry: pressing again reads a fresh billed quantity and
+/// buys a SECOND unit of capacity for a number the customer has already paid
+/// for. It sends them to a person instead, and says the charge went through so
+/// nobody has to wonder.
+///
+/// `already_active` is not a failure and gets no apology. It is a double-press,
+/// or an upgrade that reinstated the number between this screen loading and the
+/// button being pressed, and nothing was bought either way.
+func reinstateOutcomeMessage(_ result: ReinstatedNumber, number: String) -> String {
+    if result.already_active { return "\(number) was already back." }
+    if result.reinstated {
+        return "\(number) is back. You can send and answer from it again."
+    }
+    return "Your plan covers \(number) now, and the charge went through — but it "
+        + "hasn't come back yet. Get in touch and we'll finish it; you won't be "
+        + "charged again."
+}
+
+/// What the NUMBERS screen says about a suspended row.
+///
+/// # It used to name a cause it could not know
+///
+/// The line was "This number is suspended. Update your payment method under
+/// Settings › Billing to bring it back." That is one of TWO reasons a number is
+/// suspended, and since #523 it is the less likely one: a resubscribe onto a
+/// smaller plan holds the surplus, and the workspace reading this is paid up.
+/// Sending them to fix a payment method that is working is a dead end they only
+/// discover after going to look.
+///
+/// # And it does not guess the other one either
+///
+/// The reason is decided by `GET /v1/billing/held-numbers`, which sits behind
+/// `billing.manage` — so a tech reading this card cannot be told which of the
+/// two it is, and deriving it here from `subscription_status` would put a second
+/// opinion about one state into the product. This says what is true in BOTH
+/// cases and points at the one screen that says which.
+func suspendedNumberLine(canManageBilling: Bool) -> String {
+    "This number is on hold. " + heldNumberTail(canManageBilling: canManageBilling)
+}
+
+/// What is true of EVERY hold, and where the reader goes next.
+///
+/// Extracted because Settings › Numbers draws one held line on TWO cards. A
+/// transferred-in number gets a `NumberCard` (since #523 admitted `suspended`
+/// to the filter) AND a completed transfer tracker directly below it, and both
+/// have to describe the same line. Two hand-kept copies of a sentence whose
+/// whole job is to be exactly true drift, and the one that drifts is always the
+/// one on the surface nobody tests — which is precisely how the tracker went on
+/// saying "Ported" over a line that cannot send.
+///
+/// Neither caller names a CAUSE. `GET /v1/billing/held-numbers` decides that and
+/// sits behind `billing.manage`, so a tech reading either card cannot be told
+/// which of the two reasons applies, and re-deriving it from
+/// `subscription_status` would put a second opinion about one state into the
+/// product. Both sentences are true of an allowance hold and of a past-due one.
+func heldNumberTail(canManageBilling: Bool) -> String {
+    "Texts and calls still reach it, but you can't send or answer from it. "
+        + (canManageBilling
+            ? "Settings › Billing says why, and how to bring it back."
+            : "Your account owner can bring it back from Billing.")
+}
+
+/// #523 — has this COMPLETED transfer delivered a line that is now on hold?
+///
+/// # The contradiction this closes
+///
+/// #523 admitted `suspended` rows to the number-card filter, so a held ported
+/// line finally gets a card saying it is on hold. The transfer tracker beside it
+/// was left alone, and a completed one draws "Ported" in the POSITIVE tone over
+/// a fully filled olive stepper. One screen then said both "this line is on hold
+/// and cannot send" and "Ported, all done" — two stories about one line, which
+/// is worse than the single wrong story it replaced. The oldest-first restore
+/// makes it the likely pairing rather than an exotic one: the number a workspace
+/// ported in most recently is exactly the one left held.
+///
+/// # Why it is gated on the transfer being FINISHED
+///
+/// The pill it overrides is the completed one, and only that one. A transfer
+/// still with the carriers has its own true story — where the order has got to —
+/// and replacing that with "On hold" would be a fresh wrong story rather than a
+/// fix. The gate also keeps one real collision out: a landline that was
+/// text-enabled first (a `hosted` row, live, with this E.164 on it) and is being
+/// ported for voice afterwards would otherwise let a hold on the hosted row
+/// silence the in-flight tracker.
+///
+/// # Why it matches on the E.164
+///
+/// It is the one identifier the two rows are guaranteed to agree on after
+/// cutover; `phone_numbers.porting_status` is never sent to a client. A row that
+/// is `suspended` is by definition not `released`, so a number somebody gave up
+/// cannot resolve here and put a hold note on a line nobody holds.
+func portedLineIsOnHold(_ port: PortRequest, in numbers: [PhoneNumberSummary]) -> Bool {
+    guard port.status == PortStatus.ported else { return false }
+    return numbers.contains { number in
+        number.number_e164 == port.phone_e164 && number.status == NumberStatus.suspended
+    }
+}
+
+/// What the TRANSFER tracker says once the line it delivered is on hold.
+///
+/// It leads by naming which of the two things is held, because the card is
+/// titled "Transfer: …" and the pill above now reads "On hold" — the same three
+/// words the number card uses, so one line has one status word on this screen.
+/// Without this sentence those words could be read as the transfer itself
+/// stalling, which is a third wrong story and the one this card is least
+/// entitled to tell: the stepper below it is fully filled and correct, because
+/// the transfer genuinely did complete.
+///
+/// The rest is `heldNumberTail`, byte-identical to the number card's, so the two
+/// cards about one line cannot disagree about what a hold is.
+func portedLineOnHoldLine(canManageBilling: Bool) -> String {
+    "The transfer finished — it's the line that's on hold. "
+        + heldNumberTail(canManageBilling: canManageBilling)
+}
+
+/// #523 — may this number be given up right now? ONE RULE, THREE CLIENTS.
+///
+/// This control answered differently depending on which device was in the
+/// owner's hand: web drew it for any row that was not released (a past-due
+/// suspension included), iOS for active-or-suspended with no subscription check,
+/// and Android for suspended only while the subscription was live. An
+/// irreversible control that behaves three ways is three products. Android's is
+/// the rule all three now share, and its argument is written out below.
+///
+/// ACTIVE, OR ON HOLD WHILE THE SUBSCRIPTION IS LIVE. The second half is the
+/// #523 fix: gated on `active` alone, a held number could not be released from a
+/// phone at all — and releasing it is the only way to stop us renting it from
+/// the carrier for a workspace that has decided against it, the only way to free
+/// the Starter slot, and the only way to clear the Pro-to-Starter downgrade
+/// checklist, which counts every row that is not released. A mobile-only owner
+/// had a line they could neither use nor end. `DELETE /v1/numbers/:id` has always
+/// allowed it; it refuses only a row that is already released.
+///
+/// AND NOT WHILE THE PAYMENT IS THE PROBLEM. `subscriptionActive` is the same
+/// field the server splits `over_plan_allowance` from `subscription_inactive` on,
+/// so this admits exactly the #523 hold. A past-due workspace has every number
+/// suspended at once, the real problem is the card, and offering "give it up for
+/// good" to somebody in that state is a press made in a panic that nothing can
+/// undo. `suspendedNumberLine` already tells them where the answer is.
+///
+/// A NUMBER WITH NO DIGITS IS NOT RELEASABLE either, and that is not cosmetic:
+/// the sheet asks the reader to type the number back, which nobody can do for a
+/// row that has not got one.
+func mayReleaseNumber(
+    status: String,
+    numberE164: String?,
+    subscriptionActive: Bool
+) -> Bool {
+    guard numberE164 != nil else { return false }
+    switch status {
+    case NumberStatus.active: return true
+    case NumberStatus.suspended: return subscriptionActive
+    default: return false
+    }
+}
+
+/// What giving this number up MEANS — which is two different things.
+///
+/// # The held row is not the ordinary one
+///
+/// The ordinary sentence ends "It doesn't change your plan or what you pay — a
+/// number is included, so you can set up a new one here afterward", and for a
+/// line on hold the second half of that is false. A workspace is holding a
+/// number precisely because the one its plan includes is already in use: release
+/// the held row and the replacement it just promised is a paid extra. It is also
+/// answering the wrong question. Somebody releasing a held number is not
+/// swapping a working line for another one — they are choosing between the two
+/// ways a hold can end, and the one this sheet performs is the permanent one.
+///
+/// # What the held sentence says instead
+///
+/// That the hold is not the loss — texts and calls still arrive today, and this
+/// is what ends that — and that the other way out closes with it.
+///
+/// # It is `heldOverAllowance`, not `onHold`
+///
+/// The parameter used to be `status == suspended`, which cannot tell an
+/// allowance hold from a past-due suspension — and the held sentence is written
+/// for exactly one of those. "Bringing it back from Settings › Billing stops
+/// being an option" describes a choice between two ways to end an allowance
+/// hold; said to somebody whose card was declined it frames a billing failure as
+/// a decision they are making, and the route it says is closing is one they
+/// never had. Two things now keep them apart: `mayReleaseNumber` refuses to draw
+/// the control at all while the subscription is down, so that reader cannot
+/// reach this sheet, and the parameter names the state rather than the status,
+/// so a future caller has to think about which one it means.
+///
+/// It still names no CAUSE beyond that. Whether an allowance hold came from a
+/// win-back onto a smaller plan or from a plan change is decided by
+/// `GET /v1/billing/held-numbers`, which this screen may not read.
+///
+/// # No figure appears in either branch
+///
+/// The price of the alternative belongs to the served answer on the billing
+/// screen (`HeldNumbersCard`). A number typed here would be a second price book,
+/// on a screen taking consent for something irreversible.
+func releaseNumberMessage(heldOverAllowance: Bool) -> String {
+    if heldOverAllowance {
+        return "This gives the number up for good. It's on hold, not gone — texts "
+            + "and calls still reach it, and releasing ends that too. You can't get "
+            + "the same number back, and bringing it back from Settings › Billing "
+            + "stops being an option. Type the number to confirm."
+    }
+    return "This gives the number up for good. Customers who text it won't reach "
+        + "you, and you can't get the same number back. It doesn't change your plan "
+        + "or what you pay — a number is included, so you can set up a new one here "
+        + "afterward. Type the number to confirm."
 }

@@ -40,8 +40,21 @@ struct NumbersSectionView: View {
                 }
                 // Ported/hosted rows in flight render ONLY through their tracker
                 // cards below — never as a fake "under a minute" number card.
+                //
+                // #523 ADDED THE SUSPENDED ARM, and it is not a corner case. A
+                // ported line that goes on hold is `source == "ported"` and no
+                // longer `active`, so it matched neither arm and rendered
+                // nowhere at all: no card, no pill, no hold note, and the port
+                // tracker below only speaks about a transfer still in flight.
+                // The restore is oldest-first, so the number a workspace ported
+                // in most recently is exactly the one left held — the likely
+                // case, not the exotic one. A row that is suspended was live
+                // once, so it is never an in-flight port and the reason for the
+                // original filter does not reach it.
                 let cards = data.numbers.filter { number in
-                    number.source == "provisioned" || number.status == NumberStatus.active
+                    number.source == "provisioned"
+                        || number.status == NumberStatus.active
+                        || number.status == NumberStatus.suspended
                 }
                 if cards.isEmpty && company.plan == nil {
                     SettingsCard(title: "Your number") {
@@ -66,7 +79,17 @@ struct NumbersSectionView: View {
                 // produced it.
                 MyAccessCard(scope: scope)
                 AddNumberCard(scope: scope, company: company, numbers: data.numbers, onChanged: refresh)
-                PortsBlock(scope: scope, company: company, ports: data.ports, onChanged: refresh)
+                // The numbers go down with the ports on purpose (#523): a
+                // finished transfer's tracker sits directly under that line's
+                // own card, and until it could read the numbers list the two
+                // disagreed about whether the line worked.
+                PortsBlock(
+                    scope: scope,
+                    company: company,
+                    ports: data.ports,
+                    numbers: data.numbers,
+                    onChanged: refresh
+                )
                 TextEnableBlock(scope: scope, company: company, orders: data.textEnablements, onChanged: refresh)
                 RegistrationBlock(scope: scope, company: company, registration: data.registration, onChanged: refresh)
             }
@@ -129,6 +152,62 @@ private struct NumberCard: View {
     private var canRelease: Bool { SettingsRoleGate.canReleaseNumber(scope.role) }
     private var released: Bool { number.status == NumberStatus.released }
 
+    /// #523 — which rows carry the action row at all.
+    ///
+    /// A LINE ON HOLD IS STILL THIS WORKSPACE'S LINE, and it used to be
+    /// excluded here. That made Release unreachable from this app for the one
+    /// row it matters most for: giving a held number up is the only way to stop
+    /// us renting it from the carrier for a workspace that has decided not to
+    /// pay for it, and the only way to clear the Pro-to-Starter checklist,
+    /// which counts every row that is not released — held ones included. An
+    /// owner with a phone and no laptop could do neither.
+    ///
+    /// The three settings entries come with it rather than Release alone.
+    /// A held number still receives, so how the line answers, when it is open
+    /// and who may use it all still describe something that is happening — and
+    /// a workspace about to buy the number back should be able to set it up
+    /// before it comes back rather than after.
+    ///
+    /// Still excluded: `released` (there is nothing to configure or give up),
+    /// and `provisioning` / `provision_failed`, which have no line yet —
+    /// `statusBody` offers "Choose a number" there instead.
+    ///
+    /// IT NO LONGER DECIDES RELEASE. Every control here is reversible — a
+    /// greeting, a schedule, an access list — and one is not, so the
+    /// irreversible one answers to `releasable` instead. Widening this
+    /// condition can no longer widen who is offered "give it up for good".
+    private var manageable: Bool {
+        !released
+            && (number.status == NumberStatus.active
+                || number.status == NumberStatus.suspended)
+    }
+
+    /// #523 — may this row be given up, by the one rule all three clients share?
+    ///
+    /// The reasoning lives on `mayReleaseNumber`, next to the copy it decides.
+    /// The short version is that iOS was the only client offering "give it up
+    /// for good" to a workspace whose real problem is a declined card, and the
+    /// only client with no subscription check on the control at all.
+    private var releasable: Bool {
+        mayReleaseNumber(
+            status: number.status,
+            numberE164: number.number_e164,
+            subscriptionActive: company.subscriptionActive
+        )
+    }
+
+    /// #523 — the hold this card may be about, worked out ONCE.
+    ///
+    /// The confirmation sheet reads it too, and the one thing worse than no
+    /// Release button on a held number is a Release button whose sheet describes
+    /// a different situation. It is the allowance hold specifically — suspended
+    /// while the subscription is live — which is the same split
+    /// `mayReleaseNumber` makes, so a sheet that opens is always a sheet whose
+    /// paragraph is true.
+    private var heldOverAllowance: Bool {
+        number.status == NumberStatus.suspended && company.subscriptionActive
+    }
+
     private var display: String {
         if let e164 = number.number_e164 { return formatPhone(e164) }
         if let code = number.requested_area_code { return "Area code \(code)" }
@@ -160,7 +239,7 @@ private struct NumberCard: View {
 
             statusBody
 
-            if !released && number.status == NumberStatus.active {
+            if manageable {
                 HStack(spacing: 12) {
                     if canManage {
                         Button("How this line answers") { managingIdentity = true }
@@ -172,7 +251,7 @@ private struct NumberCard: View {
                             .font(.subheadline)
                             .buttonStyle(.borderless)
                     }
-                    if canRelease && number.number_e164 != nil {
+                    if canRelease && releasable {
                         Button("Release") { releasing = true }
                             .font(.subheadline)
                             .foregroundStyle(BrandColor.destructive)
@@ -186,8 +265,16 @@ private struct NumberCard: View {
             }
         }
         .sheet(isPresented: $releasing) {
-            if number.number_e164 != nil {
-                ReleaseNumberSheet(scope: scope, number: number) {
+            // `releasable` rather than a bare digits check: the sheet is the
+            // thing that performs the release, so it answers to the same rule
+            // as the control that opens it. Nothing can present it while the
+            // subscription is down, whichever way it was reached.
+            if releasable {
+                ReleaseNumberSheet(
+                    scope: scope,
+                    number: number,
+                    heldOverAllowance: heldOverAllowance
+                ) {
                     releasing = false
                     onChanged()
                 } onDismiss: {
@@ -236,7 +323,11 @@ private struct NumberCard: View {
         case NumberStatus.provisioning:
             StatusPill(label: "Setting up", tone: .warn)
         case NumberStatus.suspended:
-            StatusPill(label: "Suspended", tone: .warn)
+            // "On hold", not the database's word for it. #523's mail, push and
+            // billing card all say a number is on hold; a pill that said
+            // "Suspended" would be a fourth name for one state, on the screen
+            // somebody opens straight after reading the other three.
+            StatusPill(label: "On hold", tone: .warn)
         case NumberStatus.released:
             StatusPill(label: "Released", tone: .neutral)
         case NumberStatus.provisionFailed:
@@ -274,6 +365,28 @@ private struct NumberCard: View {
             Text(numberHealthCopy(health))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+        } else if number.status == NumberStatus.suspended {
+            // #523: this line used to name ONE of the two reasons a number is
+            // suspended — "update your payment method" — and since a resubscribe
+            // onto a smaller plan started holding the surplus, it is the less
+            // likely one. The workspace reading it is paid up. See
+            // `suspendedNumberLine` for why it does not guess the other one
+            // either.
+            //
+            // ABOVE THE RING-CEILING ARM, which it used to sit under. This
+            // chain is exclusive — whichever arm matches first is the only
+            // thing the card says about the row's state — and "nobody is rung
+            // on every call" in place of "this line is on hold" answers a
+            // question nobody asked while dropping the one fact that matters.
+            // Nothing renders differently today: `GET /v1/numbers` resolves
+            // `ring_targets` only for rows whose status is `active`
+            // (apps/api/src/routes/numbers.ts), so the ceiling is nil for a
+            // held row. The order is here so this card does not depend on that
+            // staying true.
+            Text(suspendedNumberLine(canManageBilling: SettingsRoleGate.canManageBilling(scope.role)))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         } else if let ceiling = ringCeilingLine(number) {
             // #366: a crew bigger than one call can ring. Shown to EVERY
             // member, not only owners, because the person who most needs it is
@@ -283,13 +396,6 @@ private struct NumberCard: View {
             Text(ceiling)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-        } else if number.status == NumberStatus.suspended {
-            Text(
-                "This number is suspended. Update your payment method under "
-                    + "Settings › Billing to bring it back."
-            )
-            .font(.footnote)
-            .foregroundStyle(.secondary)
         } else if number.status == NumberStatus.provisioning {
             Text(provisioningWaitCopy(number.created_at))
                 .font(.footnote)
@@ -312,6 +418,12 @@ private struct NumberCard: View {
 private struct ReleaseNumberSheet: View {
     let scope: SettingsScope
     let number: PhoneNumberSummary
+    /// #523 — this row is held because the plan covers fewer numbers than the
+    /// workspace has, decided by the card that opened this sheet. Handed down
+    /// rather than re-derived from `status`, which cannot tell that hold from a
+    /// past-due suspension and would put the wrong paragraph in front of
+    /// somebody whose card was declined.
+    let heldOverAllowance: Bool
     let onReleased: @MainActor () -> Void
     let onDismiss: @MainActor () -> Void
 
@@ -330,10 +442,11 @@ private struct ReleaseNumberSheet: View {
     var body: some View {
         ConfirmSheet(
             title: "Release \(display)?",
-            message: "This gives the number up for good. Customers who text it won't reach "
-                + "you, and you can't get the same number back. It doesn't change your plan "
-                + "or what you pay — a number is included, so you can set up a new one here "
-                + "afterward. Type the number to confirm.",
+            // #523: the ordinary sentence promises a free replacement, which is
+            // false for a row on hold — see `releaseNumberMessage`. The sheet
+            // asks which row this is rather than carrying one paragraph for two
+            // different decisions.
+            message: releaseNumberMessage(heldOverAllowance: heldOverAllowance),
             confirmLabel: "Release number",
             destructive: true,
             pending: pending,

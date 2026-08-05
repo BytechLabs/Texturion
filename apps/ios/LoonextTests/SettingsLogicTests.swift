@@ -741,12 +741,18 @@ final class SettingsLogicTests: XCTestCase {
     func testTheGraceAnswerNamesNoSeatOrNumberLimitNothingWillApply() {
         // THE DEFECT THIS PAIR EXISTS FOR. The grace action opens Stripe
         // checkout, whose only gates are "one live subscription" and the US
-        // registration draft — it counts neither members nor numbers — and
-        // `checkout.session.completed` then un-suspends every suspended number
-        // with no plan filter. A Pro workspace with two numbers and eight
-        // members can press a button captioned "covers 3 people and 1 business
-        // number" and land on Starter holding two and eight, so that caption
-        // may not be printed here. The price still is: checkout charges it.
+        // registration draft — it counts neither members nor numbers. A Pro
+        // workspace with two numbers and eight members can press a button
+        // captioned "covers 3 people and 1 business number" and be refused
+        // neither, so that caption may not be printed here.
+        //
+        // #523 changed the AFTERMATH, not the gate, and neither figure became a
+        // ceiling this path applies. The second number now comes back HELD —
+        // suspended, not released, still receiving, named on the billing screen
+        // with two priced routes back — so "1 business number" would describe a
+        // refusal that does not happen. The eight members simply stay eight:
+        // seats are gated at invite and at acceptance and nowhere else. The
+        // price still prints: checkout charges it.
         guard let grace = proOffer(reason: "too_expensive", phase: .grace) else {
             return XCTFail("no offer")
         }
@@ -1659,7 +1665,8 @@ final class SettingsLogicTests: XCTestCase {
             .deletingLastPathComponent() // ios
         dir.appendPathComponent("Loonext")
         guard FileManager.default.fileExists(atPath: dir.path) else {
-            throw XCTSkip("iOS sources not present at \(dir.path)")
+            // Fails rather than skips — see `MissingSource`.
+            throw missingSource(dir.path)
         }
         return dir
     }

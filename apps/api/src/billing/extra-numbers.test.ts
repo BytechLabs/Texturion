@@ -346,6 +346,14 @@ describe("convergeExtraNumberQuantity (down-only; release + reconcile backstop)"
     // unconsented charge. The formula says 1; the item says 0; converge must
     // only report.
     const harness = makeHarness([
+      // #523: BOTH rows are live, so none of them is on hold. That is what
+      // separates a port bridge (unexplained, worth paging about) from a
+      // resubscribe hold (explained, and the owner has already been told).
+      endpoint(
+        "HEAD",
+        /\/rest\/v1\/phone_numbers\?[^"]*status=eq\.suspended/,
+        () => countResponse(0),
+      ),
       endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () => countResponse(2)),
       ...convergeWorld(subscription([])),
     ]);
@@ -362,6 +370,39 @@ describe("convergeExtraNumberQuantity (down-only; release + reconcile backstop)"
       harness.calls.filter(
         (call) =>
           call.url.host === "api.stripe.com" && call.method !== "GET",
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("#523 a surplus that is entirely ON HOLD is counted, not paged about", async () => {
+    // Same arithmetic as the test above — Starter, 2 non-released rows, nothing
+    // billed — and a completely different fact: the second row is `suspended`
+    // because the workspace came back on a smaller plan. The owner was emailed
+    // and pushed about it by name and their billing screen offers both ways
+    // out, so a daily "we cannot explain this" warning would be false. Still
+    // never charged: the down-only rule is untouched.
+    const harness = makeHarness([
+      endpoint(
+        "HEAD",
+        /\/rest\/v1\/phone_numbers\?[^"]*status=eq\.suspended/,
+        () => countResponse(1),
+      ),
+      endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () => countResponse(2)),
+      ...convergeWorld(subscription([])),
+    ]);
+    stubFetch(harness.route);
+
+    const result = await converge({ plan: "starter" });
+    expect(result).toEqual({
+      kind: "held_unbilled",
+      billed: 0,
+      desired: 1,
+      held: 1,
+    });
+    // No Stripe WRITE of any kind — a hold is not a charge.
+    expect(
+      harness.calls.filter(
+        (call) => call.url.host === "api.stripe.com" && call.method !== "GET",
       ),
     ).toHaveLength(0);
   });

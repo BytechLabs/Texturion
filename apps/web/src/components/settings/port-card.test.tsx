@@ -22,12 +22,20 @@
 import {
   explainRejection,
   RESUBMISSION_WAIT,
+  roleHasCapability,
 } from "@loonext/shared";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { PORT_STATE_COPY } from "@/components/porting/copy";
-import type { PortRequest } from "@/lib/api/types";
+import { formatPhone } from "@/lib/format/phone";
+import type {
+  NumberStatus,
+  PhoneNumberSummary,
+  PortRequest,
+} from "@/lib/api/types";
+
+import type { NumberHoldState } from "./number-hold";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/company/provider", () => ({
@@ -52,6 +60,11 @@ vi.mock("@/lib/api/porting", () => {
     useUploadPortDocuments: () => idle,
   };
 });
+// #523: the card can now give the delivered line up, so it mounts the shared
+// release dialog and its mutation.
+vi.mock("@/lib/api/numbers", () => ({
+  useReleaseNumber: () => ({ mutate: vi.fn(), isPending: false }),
+}));
 
 import { PortCard } from "./port-card";
 
@@ -80,8 +93,54 @@ function rejected(reason: string | null, submissionCount = 1): PortRequest {
   } as unknown as PortRequest;
 }
 
-const render = (port: PortRequest) =>
-  renderToStaticMarkup(<PortCard port={port} country="CA" />);
+/**
+ * #523: the `phone_numbers` row a completed transfer delivered. Its E.164 is the
+ * port's, because that is how `numberForPort` resolves it — a row only carries
+ * one after cutover, which is what makes "has the number arrived" answerable.
+ */
+function delivered(status: NumberStatus = "suspended"): PhoneNumberSummary {
+  return {
+    id: "n_ported",
+    status,
+    country: "CA",
+    number_e164: "+14165550142",
+    requested_area_code: null,
+    created_at: "2026-07-01T00:00:00Z",
+    source: "ported",
+  } as unknown as PhoneNumberSummary;
+}
+
+const render = (
+  port: PortRequest,
+  hold?: NumberHoldState | null,
+  /**
+   * The delivered row and the plan state — both null/live by default, which is
+   * the ordinary in-flight transfer every test above is about.
+   */
+  extra: {
+    number?: PhoneNumberSummary | null;
+    subscriptionActive?: boolean;
+  } = {},
+) =>
+  renderToStaticMarkup(
+    <PortCard
+      port={port}
+      country="CA"
+      hold={hold}
+      number={extra.number ?? null}
+      subscriptionActive={extra.subscriptionActive ?? true}
+    />,
+  );
+
+/** The transfer that worked: number moved, texting live. */
+function completed(): PortRequest {
+  return {
+    ...rejected(null),
+    status: "ported",
+    messaging_port_status: "ported",
+    rejection_reason: null,
+  } as PortRequest;
+}
 
 /**
  * React escapes quotes and ampersands on render, so copy holding an apostrophe
@@ -191,5 +250,236 @@ describe("PortCard rejection guidance — #319", () => {
     const html = render(inFlight);
     expect(html).toContain(esc(PORT_STATE_COPY.submitted));
     expect(html).not.toContain(esc(RESUBMISSION_WAIT.port));
+  });
+});
+
+/**
+ * #523 — a transferred-in number that went on hold.
+ *
+ * THE STATE. Coming back is never refused, so a Pro workspace holding two
+ * numbers can resubscribe on Starter and land on a plan that covers one. The
+ * surplus stays suspended: still receiving, nothing released, and unable to send
+ * or answer. The restore is oldest-first, which makes the most recently
+ * TRANSFERRED line the likely one held.
+ *
+ * WHY THIS CARD. A ported number is de-duplicated out of the `NumberCard` list
+ * on purpose, so this stepper is the only card it has — and the stepper reads
+ * the port row, which knows the transfer completed and nothing about whether the
+ * line still works. Untouched, it answered a held number with four green ticks,
+ * "Live on Loonext", and "Text your customers straight from here".
+ */
+describe("PortCard on a held line — #523", () => {
+  it("does not call a held number live", () => {
+    const html = render(completed(), { kind: "over_allowance", allowance: 1 });
+    expect(html).not.toContain("Live on Loonext");
+    expect(html).not.toContain(esc(PORT_STATE_COPY.textingLive));
+    expect(html).toContain("On hold");
+  });
+
+  it("says why, and where the way back is", () => {
+    const html = render(completed(), { kind: "over_allowance", allowance: 1 });
+    expect(html).toContain("covers 1 number");
+    // The reassurance before the route, same order and same words as the card a
+    // BOUGHT number gets — one workspace must not be told two stories about one
+    // plan because one of its lines arrived by transfer.
+    expect(html).toContain("nothing has been given up");
+    expect(html).toContain('href="/settings/billing"');
+  });
+
+  it("keeps the grace-window answer distinct from an allowance hold", () => {
+    // A cancelled workspace's numbers are suspended for a different reason with
+    // a different fix; the payment-method sentence is true of exactly this one.
+    const html = render(completed(), { kind: "subscription_inactive" });
+    expect(html).toContain("Update your payment method");
+    expect(html).not.toContain("On hold —");
+  });
+
+  it("promises nothing about the line working, whatever else is set", () => {
+    // THE CLASS, not the sentence. This defect was fixed three times running -
+    // the pill, then the heading, then the state banner - and each round the
+    // next forward-looking sentence was missed. So this drives every state that
+    // carries one AT ONCE and asserts none survives a hold. A banner added to
+    // this card without a hold arm fails here rather than on somebody's screen.
+    //
+    // Asserted against the shipped copy constants rather than against phrases
+    // typed here: my first version of this test looked for Android's wording
+    // ("switches on automatically") where web says "retry automatically", so it
+    // passed with the defect fully present. A guard that quotes a string nobody
+    // renders is a guard that cannot fail.
+    const held: NumberHoldState = { kind: "over_allowance", allowance: 1 };
+
+    // 1. The transfer completed and the plan then held the line. Both the
+    //    blocked-assignment chore and the stepper's present-tense descriptions
+    //    live here.
+    const done = {
+      ...completed(),
+      assignment_blocked: true,
+    } as PortRequest;
+    const doneHtml = render(done, held);
+    for (const promise of [
+      esc(PORT_STATE_COPY.assignmentBlocked(formatPhone(done.phone_e164))),
+      esc(PORT_STATE_COPY.textingLive),
+      "Turning on texting now",
+      "Text your customers straight from Loonext",
+    ]) {
+      expect(doneHtml, promise).not.toContain(promise);
+    }
+    expect(doneHtml).toContain("On hold");
+
+    // 2. Voice cut over, messaging still activating, so the card is not `live`
+    //    and the temporary-number line renders. A held row is reachable here:
+    //    the phone_numbers row exists from cutover, which is what a hold needs.
+    const activating = {
+      ...completed(),
+      messaging_port_status: "activating",
+      bridge_number_e164: "+14165559999",
+    } as PortRequest;
+    const midHtml = render(activating, held);
+    expect(midHtml).not.toContain(
+      esc(PORT_STATE_COPY.bridgeAvailable(formatPhone("+14165559999"))),
+    );
+    expect(midHtml).not.toContain("you can text today");
+    expect(midHtml).toContain("On hold");
+  });
+
+  it("still celebrates a transfer that actually finished", () => {
+    // The other direction, which is the common one: no hold, no change.
+    const html = render(completed());
+    expect(html).toContain("Live on Loonext");
+    expect(html).toContain(esc(PORT_STATE_COPY.textingLive));
+    expect(html).not.toContain("On hold");
+  });
+
+  it("offers no 'cancel this transfer' on a number that already moved", () => {
+    // The voice cutover happened and texting is still being switched on, so the
+    // card is not `live` and the owner cancel would normally still be offered.
+    // The number is HERE, though — there is nothing left to call off. The server
+    // agrees and always has: `POST /v1/port-requests/:id/cancel` 409s a `ported`
+    // order, so this was an action the API would have refused. Under a held line
+    // it reads as the way to get rid of it, which it is not.
+    const switched = {
+      ...completed(),
+      messaging_port_status: "activating",
+    } as PortRequest;
+    expect(render(switched, null, { number: delivered("active") })).not.toContain(
+      "Cancel this transfer",
+    );
+    expect(
+      render(switched, { kind: "over_allowance", allowance: 1 }, { number: delivered() }),
+    ).not.toContain("Cancel this transfer");
+  });
+
+  it("still offers it while the number is genuinely still elsewhere", () => {
+    // The other side of the same rule, and the guard that stops the one above
+    // being satisfied by deleting the cancel outright: no delivered row means
+    // the line is still the old carrier's, and calling the transfer off is the
+    // only thing there is to do with it.
+    const inFlight = {
+      ...completed(),
+      status: "in-process",
+      messaging_port_status: "pending",
+    } as PortRequest;
+    expect(render(inFlight)).toContain("Cancel this transfer");
+  });
+
+  it("lets the owner give a held ported line up — C2", () => {
+    // THE DEFECT. Both phones could release a held number; web could not, and
+    // web is where it matters most — the restore is oldest-first, so the most
+    // recently TRANSFERRED line is the likeliest one held. A ported row is
+    // de-duplicated out of the number cards on purpose, so this stepper is the
+    // only card that line has, and the release had nowhere else to go.
+    const html = render(
+      completed(),
+      { kind: "over_allowance", allowance: 1 },
+      { number: delivered() },
+    );
+    expect(html).toContain("Release this number");
+  });
+
+  it("withholds the release while the payment is the problem", () => {
+    // The same rule the number card applies (`mayReleaseNumber`): a past-due
+    // workspace has every number suspended and the answer is the card.
+    const html = render(
+      completed(),
+      { kind: "subscription_inactive" },
+      { number: delivered(), subscriptionActive: false },
+    );
+    expect(html).not.toContain("Release this number");
+  });
+
+  it("offers the release to an owner only", () => {
+    // `workspace.own`, the capability `DELETE /v1/numbers/:id` itself requires.
+    // The whole file renders as an owner, so this asserts through the rule the
+    // card calls rather than by re-mocking the provider mid-suite.
+    expect(roleHasCapability("owner", "workspace.own")).toBe(true);
+    for (const role of ["admin", "member"] as const) {
+      expect(roleHasCapability(role, "workspace.own"), role).toBe(false);
+    }
+  });
+
+  it("never offers both destructive controls at once", () => {
+    // One card, one irreversible thing to do, decided by whether the number has
+    // arrived. Two of them side by side is the reader choosing between actions
+    // whose difference nobody explained.
+    const cases: [string, string][] = [
+      ["arrived", render(completed(), null, { number: delivered("active") })],
+      ["arrived, held", render(completed(), { kind: "over_allowance", allowance: 1 }, { number: delivered() })],
+      ["in flight", render({ ...completed(), status: "submitted" } as PortRequest)],
+    ];
+    for (const [label, html] of cases) {
+      const both =
+        html.includes("Release this number") &&
+        html.includes("Cancel this transfer");
+      expect(both, label).toBe(false);
+    }
+  });
+
+  it("offers no cancel on an arrived number even where the release is refused", () => {
+    // The release branch winning is not what hides the cancel — this is the
+    // case where it does not win. A past-due workspace is refused the release
+    // (`mayReleaseNumber`), and the cancel must not step into the gap: the
+    // number is already ours and the order is `ported`, which the API 409s.
+    const switched = {
+      ...completed(),
+      messaging_port_status: "activating",
+    } as PortRequest;
+    const html = render(
+      switched,
+      { kind: "subscription_inactive" },
+      { number: delivered(), subscriptionActive: false },
+    );
+    expect(html).not.toContain("Release this number");
+    expect(html).not.toContain("Cancel this transfer");
+  });
+
+  it("offers no cancel once the transferred number has been released", () => {
+    // The case a gate reasoning about the NUMBER misses. `numberForPort`
+    // deliberately ignores released rows, so an owner who gives the transferred
+    // line up leaves a completed port with no row at all — and a card that asked
+    // "is there a number?" instead of "did the transfer finish?" would answer by
+    // offering to cancel a transfer that completed months ago.
+    //
+    // Messaging is still activating on purpose, so `ui.live` is false and the
+    // old gate would wave the cancel straight through.
+    const switched = {
+      ...completed(),
+      messaging_port_status: "activating",
+    } as PortRequest;
+    expect(render(switched, null, { number: null })).not.toContain(
+      "Cancel this transfer",
+    );
+  });
+
+  it("says nothing about a hold on a transfer still in flight", () => {
+    // `PortSection` cannot resolve one either — a `phone_numbers` row carries no
+    // E.164 until cutover, so there is nothing to be suspended. This pins the
+    // card's half of that: no hold, no change to what the customer is told.
+    const inFlight = {
+      ...completed(),
+      status: "in-process",
+      messaging_port_status: "pending",
+    } as PortRequest;
+    expect(render(inFlight)).toContain(esc(PORT_STATE_COPY.submitted));
+    expect(render(inFlight)).not.toContain("On hold");
   });
 });

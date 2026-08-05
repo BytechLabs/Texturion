@@ -767,24 +767,91 @@ fun currencyForCountry(country: String?): BillingCurrency =
     if (country?.trim()?.uppercase() == "CA") BillingCurrency.CAD else BillingCurrency.USD
 
 /**
- * "$29" / "$109" — mirror of `formatMoney` with `audience === currency`.
+ * "$29" / "$109" / "US$5" — mirror of `formatMoney` in
+ * packages/shared/src/billing-currency.ts, including its [audience] rule.
  *
  * Whole dollars stay whole: a trailing ".00" on a plan price reads as machine
  * output and takes up space on a phone.
  *
- * BARE "$" IS CORRECT HERE and is not an oversight. The shared function only
- * prefixes `US$`/`CA$` when the amount is being shown to somebody billed in the
- * OTHER currency; a workspace reading its own plan price is always its own
- * audience. [currency] is still taken, because the caller has to have decided
- * which price book the cents came out of before it can call this at all.
+ * BARE "$" IS CORRECT WHEN THE TWO MATCH and is not an oversight. A workspace
+ * reading its own plan price is its own audience, and "US$29" to somebody
+ * billed in US dollars is noise. [currency] was still taken before [audience]
+ * existed, because the caller has to have decided which price book the cents
+ * came out of before it can call this at all.
+ *
+ * [audience] IS THE HALF #523 NEEDED. The extra-number price book
+ * ([EXTRA_NUMBER_MONTHLY_CENTS]) is filed in USD only — there is no CAD amount
+ * to quote — so a Canadian workspace bringing a held number back is genuinely
+ * charged US$5. Printing a bare "$5" at that reader means CA$5 to them, which
+ * is the #522 defect with a different figure: a consent button naming a price
+ * lower than the one the card takes.
  */
-@Suppress("UNUSED_PARAMETER")
-fun formatMoney(cents: Int, currency: BillingCurrency): String =
-    if (cents % 100 == 0) {
-        "$" + String.format(Locale.CANADA, "%,d", cents / 100)
+fun formatMoney(
+    cents: Int,
+    currency: BillingCurrency,
+    audience: BillingCurrency = currency,
+): String {
+    val amount = if (cents % 100 == 0) {
+        String.format(Locale.CANADA, "%,d", cents / 100)
     } else {
-        "$" + String.format(Locale.CANADA, "%,.2f", cents / 100.0)
+        String.format(Locale.CANADA, "%,.2f", cents / 100.0)
     }
+    if (currency == audience) return "\$$amount"
+    return if (currency == BillingCurrency.USD) "US\$$amount" else "CA\$$amount"
+}
+
+// ---------------------------------------------------------------------------
+// #523 — the extra-number price book
+// ---------------------------------------------------------------------------
+
+/**
+ * Mirror of `EXTRA_NUMBER_MONTHLY_CENTS` in apps/api/src/billing/extra-numbers.ts.
+ *
+ * THIS CLIENT ALREADY PRINTED THESE TWO FIGURES, typed, as `"$4/mo"` and
+ * `"$5/mo"` on the add-a-number card. That is the shape rule 2 of #523 forbids
+ * and the shape #522 was: a price written into a sentence, in a currency the
+ * workspace may not be billed in, on the surface that asks for consent to the
+ * charge.
+ *
+ * The held-numbers card does NOT read this — it prints the server's
+ * `extra_number_cents`, because that route quotes the figure it is about to
+ * charge and a served figure always beats a hand-port. The mirror exists for
+ * the add-a-number card, which has no route to ask before its picker opens.
+ * `ExtraNumberPriceTest` pins both entries against the TypeScript.
+ */
+internal val EXTRA_NUMBER_MONTHLY_CENTS: Map<String, Int> = mapOf(
+    "starter" to 500,
+    "pro" to 400,
+)
+
+/**
+ * The currency [EXTRA_NUMBER_MONTHLY_CENTS] is denominated in — mirror of
+ * `EXTRA_NUMBER_PRICE_CURRENCY`.
+ *
+ * USD ONLY, and it is not an oversight to be tidied up later. There is no CAD
+ * extra-number price filed in Stripe, so a Canadian workspace's extra number is
+ * genuinely billed in US dollars — which is exactly why every surface quoting it
+ * has to pass this as the [formatMoney] `currency` and the WORKSPACE's currency
+ * as the audience.
+ */
+internal val EXTRA_NUMBER_PRICE_CURRENCY: BillingCurrency = BillingCurrency.USD
+
+/**
+ * "US$5/mo" for a Canadian workspace, "$5/mo" for a US one — what one extra
+ * number costs on [plan].
+ *
+ * Null when the plan is not one we sell extras on, so a caller renders no price
+ * rather than a zero. Same resolution as [planFacts] and [usRegistrationFee]:
+ * the stored currency wins, the country is only consulted when there is none.
+ */
+fun extraNumberMonthly(plan: String?, billingCurrency: String?, country: String?): String? {
+    // Looked up STRICTLY rather than defaulted to Starter. A workspace with no
+    // plan is not a Starter workspace, and quoting it Starter's extra-number
+    // price would be naming a figure for a purchase that cannot happen.
+    val cents = EXTRA_NUMBER_MONTHLY_CENTS[plan] ?: return null
+    val audience = resolveBillingCurrency(billingCurrency, country)
+    return formatMoney(cents, EXTRA_NUMBER_PRICE_CURRENCY, audience) + "/mo"
+}
 
 // ---------------------------------------------------------------------------
 // #277 follow-up — answering the reason somebody gave for leaving, once.

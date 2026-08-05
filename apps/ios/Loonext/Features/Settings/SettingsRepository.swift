@@ -714,6 +714,45 @@ struct SettingsRepository: Sendable {
         )
     }
 
+    // MARK: - Numbers the plan does not cover (#523)
+
+    /// What this workspace holds beyond its allowance, and both ways back.
+    ///
+    /// A ROUTE OF ITS OWN rather than fields on the company view, and the API
+    /// says why in full: `GET /v1/company` and `GET /v1/me` run on every app
+    /// boot for every role, and this answers a question only a workspace with a
+    /// held number ever asks. Same trade as `missedWhileOff` above.
+    ///
+    /// Behind the router's `billing.manage` gate like everything else in this
+    /// section, so it is only ever asked by somebody who can act on the answer —
+    /// asking on a tech's behalf would 403 on every visit to the billing screen.
+    func heldNumbers(_ companyId: String) async throws -> HeldNumbers {
+        try await api.get("/v1/billing/held-numbers", companyId: companyId)
+    }
+
+    /// Buy the capacity for ONE held number and bring it back.
+    ///
+    /// ONE AT A TIME, because each one is its own purchase and its own consent.
+    /// The server raises the extra-number quantity by exactly one and invoices
+    /// the prorated amount now.
+    ///
+    /// THE KEY IS REQUIRED — the route refuses a request without a UUID
+    /// `Idempotency-Key`, and it is what makes a retry after a lost response
+    /// safe: the Stripe write is keyed on it, so the same key can never charge
+    /// twice. Callers must mint one per INTENT and reuse it across retries of
+    /// that intent, the way the number picker does.
+    func reinstateHeldNumber(
+        _ companyId: String,
+        numberId: String,
+        idempotencyKey: String
+    ) async throws -> ReinstatedNumber {
+        try await api.post(
+            "/v1/billing/held-numbers/\(numberId)/reinstate",
+            companyId: companyId,
+            idempotencyKey: idempotencyKey
+        )
+    }
+
     /// #277: why this workspace says it is leaving, recorded BEFORE the
     /// handoff to Stripe. Afterwards they are gone, and nobody answers a
     /// survey about a product they have just left.

@@ -106,6 +106,11 @@ fun BillingSection(
     // so a caller that has not been taught about it still compiles; the button
     // is simply not offered rather than doing nothing when pressed.
     onOpenHelp: (() -> Unit)? = null,
+    // #523: the same #200 contract as [onOpenHelp] — a section does not own the
+    // section stack, the host does. The hold explained on the plan card is acted
+    // on under Numbers, and a pointer somebody has to navigate to by hand is
+    // most of the way back to the defect this exists to fix.
+    onOpenNumbers: (() -> Unit)? = null,
 ) {
     val canManage = SettingsRoleGate.canManageBilling(scope.role)
 
@@ -171,7 +176,27 @@ fun BillingSection(
         pause,
         onPauseChanged,
         onRetryPause = { pauseReads++ },
+        onOpenNumbers = onOpenNumbers,
     )
+    // #523 IS STILL NOT A CARD HERE, and the reason is the rule directly above
+    // [CancelCard]: nothing new renders between landing on this screen and the
+    // button that leaves. A held-number card would be exactly what that rule
+    // forbids — height between a thumb and the exit, carrying an upsell ("move
+    // to Pro", "buy an extra number") whatever its intent.
+    //
+    // WHAT CHANGED IS THAT THE SCREEN NO LONGER SAYS NOTHING. `noticeHeldNumbers`
+    // mails and pushes `/settings/billing`, so this is where an owner who was
+    // told a number is on hold arrives — and a plan card listing an allowance
+    // without mentioning that the workspace is over it was the tap landing
+    // nowhere. The hold now rides ON that card, the way #277 put the paused state
+    // there: it is a fact about the plan, and the sentence it finishes ("· 1
+    // phone number") is already printed three lines above it. No card, no price,
+    // no second button — see [heldNumbersPlanNote].
+    //
+    // The CONTROLS stay on the numbers screen, attached to the card for the
+    // number they act on: that is where somebody goes when a line is not
+    // working, and every role can read the explanation there where
+    // /v1/billing/held-numbers is owner-only. See [suspendedNumberNote].
     // NOT WHILE PAUSED, AND NOT WHILE WE DO NOT KNOW. Enabling a module invoices
     // immediately (`always_invoice`), so an owner on a paused workspace would be
     // charged on the spot for the voice module on a line that cannot dial. The
@@ -1228,6 +1253,7 @@ private fun PlanCard(
     pause: PauseRead = PauseRead.Unasked,
     onPauseChanged: (PauseState) -> Unit = {},
     onRetryPause: () -> Unit = {},
+    onOpenNumbers: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val coroutines = rememberCoroutineScope()
@@ -1316,6 +1342,51 @@ private fun PlanCard(
             Spacer(Modifier.height(6.dp))
             LinkButton(onClick = { openExternal(context, FAIR_USE_URL) }) {
                 Text("Allowances reflect fair use. See the policy")
+            }
+        }
+        // #523: WHICH LINE IS DOWN, AND WHY — directly under the allowance it is
+        // the consequence of.
+        //
+        // NO READ. `GET /v1/billing/held-numbers` is a round trip, and everything
+        // this sentence needs is already on the company view the screen was drawn
+        // from. `suspendedNumberNote` on the numbers screen makes the same call
+        // for the same reason, so the two cannot disagree about how many numbers
+        // are on hold — they count the same field.
+        //
+        // `subscriptionActive` IS THE SERVER'S OWN SPLIT, not a second opinion
+        // about it: the route decides `over_plan_allowance` vs
+        // `subscription_inactive` from `subscription_status === "active"`, and
+        // this is that field. A suspension while the subscription is past due or
+        // unpaid belongs to the payment, and the amber banner at the top of this
+        // screen has already said so — blaming the allowance there would be the
+        // screen inventing a second cause for one state.
+        //
+        // Owner/admin only, because a member cannot reach this screen from the
+        // hub at all (`Capability.BILLING_MANAGE` gates the row) and the one who
+        // arrives by link is answered by "Only owners and admins can change
+        // billing" below. Their copy of this sentence is on the numbers screen,
+        // where it ends by naming who to ask.
+        if (canManage && company.subscriptionActive) {
+            heldNumbersPlanNote(
+                company.numbers
+                    .filter { it.status == NumberStatus.SUSPENDED }
+                    .map { it.number_e164 },
+            )?.let { note ->
+                Spacer(Modifier.height(10.dp))
+                Text(note, style = MaterialTheme.typography.bodyMedium)
+                // A door rather than a treasure hunt. Everywhere else in settings
+                // this would be the words "Settings › Numbers", because no
+                // navigation callback exists at those call sites; one exists
+                // here, and the whole defect being fixed is somebody following a
+                // notification to a screen and finding nothing to press.
+                //
+                // A LINK, not a filled or outlined control: the one control with
+                // weight on this card is the plan switch below, which is also one
+                // of the two routes out of this state. A louder button here would
+                // out-rank it.
+                onOpenNumbers?.let { open ->
+                    LinkButton(onClick = open) { Text("Open your numbers") }
+                }
             }
         }
         // Asked and not answered. One sentence for the failure and a way to ask
@@ -1515,10 +1586,10 @@ private fun ChangePlanDialog(
             coroutines.launch {
                 try {
                     val result = scope.repo.changePlan(scope.companyId, targetPlan)
-                    scope.showMessage(
-                        if (result.effective == "now") "You're on Pro now."
-                        else "Switch to Starter scheduled for the end of this period.",
-                    )
+                    // #523: an upgrade is one of the two routes out of a hold,
+                    // so the sentence names what the bigger allowance brought
+                    // back rather than leaving the owner to go and look.
+                    scope.showMessage(changePlanMessage(result))
                     onChanged()
                 } catch (cause: Exception) {
                     error = cause.userMessage()
