@@ -110,42 +110,94 @@ class CancellationOfferTest {
     }
 
     /**
-     * THERE IS NO PAUSE FEATURE. The seasonal answer is about the 30-day hold
-     * that already exists and nothing more, and a heading like "Pause your
-     * plan" would be a feature promise made by a copy edit.
+     * A PAUSE IS NAMED ONLY TO A WORKSPACE THAT IS IN ONE.
      *
-     * READS THE COMPOSABLES TOO, and that is the half that was missing. This
-     * guard used to walk [everyOffer] and stop there, so it proved something
-     * only about `SettingsLogic.kt` — a "Pause your plan for the winter"
-     * written straight into [CancellationOfferNote] renders on the same card,
-     * in the same paragraph position, and passed this file untouched. The
-     * module is where the copy SHOULD live, not where a reader can tell it
-     * came from.
+     * This guard used to be absolute — "there is no pause feature", the word
+     * banned from every answer. #277 built one and this module was then told
+     * about it, so the absolute form is now a fact about last quarter. A guard
+     * pinning a literal that has since moved is a ceiling rather than a catch,
+     * and the honest move is to say what is still true rather than to delete it.
      *
-     * The three composables are the ones that render cancellation copy.
-     * `StatusNotices` is deliberately not among them: it says "Sending is
-     * paused until your payment method is updated", which is true, is about an
-     * unpaid subscription rather than a plan the owner chose to park, and
-     * banning the word there would be banning a fact.
+     * WHAT IS STILL TRUE, and it is the whole of the original worry:
+     * [cancellationOffer] is a hand-port of a pure shared module. It is told the
+     * FACT that a workspace is paused; it can never be told whether a pause is
+     * AVAILABLE, because that is eight server-side gates and a live Stripe price
+     * lookup per workspace (a prepaid year, a referral month, a pending plan
+     * change, an unhealthy card, an unprovisioned price — any one of them says
+     * no). So a pause named in an answer given to somebody who is NOT in one is
+     * a promise made to every reader of that answer, including all the ones the
+     * API would refuse: the exact "button that is not there" this guard was
+     * written against, reached by a different route.
+     *
+     * THE POSITIVE HALF IS NOT DECORATION. Without it, an implementation that
+     * simply never mentions a pause to anybody — which is the shipped defect,
+     * the paused reader being handed the unpaused words — satisfies this test
+     * completely. Silence must not be able to pass a guard about what is said.
+     *
+     * The screen's own pause copy is guarded in [PauseOfferTest], where it can
+     * be checked against the thing that actually decides it.
      */
     @Test
-    fun `no offer claims a pause feature exists`() {
+    fun `a pause is named only to a workspace that is actually in one`() {
         val banned = listOf("paus", "freeze", "frozen", "suspend your", "put it on ice")
-        val surfaces = everyCopy() + cancellationComposables().map { (name, source) ->
-            "$name in $billingSection" to source
-        }
 
-        surfaces.forEach { (where, text) ->
-            val lower = text.lowercase()
+        everyCase().forEach { case ->
+            val offer = case.offer ?: return@forEach
+            val lower = "${offer.heading} ${offer.body}".lowercase()
+            if (case.inPause) return@forEach
             banned.forEach { word ->
                 assertFalse(
-                    "\"$word\" in $where promises a feature that does not exist. " +
-                        "There is no pause, freeze or park-my-plan control in this " +
-                        "product, and copy implying one sends somebody looking for a " +
-                        "button that is not there",
+                    "\"$word\" in ${case.label} names a pause to a workspace that is " +
+                        "not in one. This module is told whether a pause EXISTS for " +
+                        "this workspace and can never be told whether one is on " +
+                        "OFFER — that is GET /v1/billing/pause, and nowhere else",
                     lower.contains(word),
                 )
             }
+        }
+
+        // And the two answers that ARE for a paused reader say so out loud, so
+        // the sweep above is a rule about where the word may appear rather than
+        // a ban satisfied by never writing it.
+        listOf("seasonal", "too_expensive").forEach { reason ->
+            val offer = cancellationOffer(reason, "pro", paused = true)!!
+            assertTrue(
+                "the $reason answer for a paused workspace must say the plan is " +
+                    "paused: ${offer.heading} ${offer.body}",
+                "${offer.heading} ${offer.body}".lowercase().contains("paused"),
+            )
+        }
+    }
+
+    /**
+     * ...AND THE CARD THAT LEAVES STILL MAY NOT, above the button.
+     *
+     * [CancelCard]'s own copy is the consequence line, the question, the export
+     * and the exit — all of it above the button that leaves, all of it rendered
+     * unconditionally. A pause sentence written into any of it would be a
+     * feature promise made to every reader of the cancel screen, including the
+     * workspaces the API refuses, and it would sit in front of the exit rather
+     * than under it.
+     *
+     * The pause belongs to [CancellationOfferNote], BELOW the button, gated on
+     * the API's own `eligible`. That composable is deliberately not scanned
+     * here; [PauseOfferTest] checks it against its gate instead.
+     */
+    @Test
+    fun `the cancel card itself never mentions a pause above the exit`() {
+        val banned = listOf("paus", "freeze", "frozen", "suspend your", "put it on ice")
+        // The SENTENCES only. The card threads a `pause` parameter down to the
+        // note below the button, so a scan of raw source would fail on the
+        // wiring that puts the offer in the one place it is allowed to be.
+        val card = spokenCopy(cancelCard()).lowercase()
+
+        banned.forEach { word ->
+            assertFalse(
+                "\"$word\" in CancelCard sits above the button that leaves and is " +
+                    "rendered for everybody. Whatever it promises has to move below " +
+                    "the exit and behind the API's `eligible`",
+                card.contains(word),
+            )
         }
     }
 
@@ -502,6 +554,14 @@ class CancellationOfferTest {
      * you are gone", over a body that said 30 days, to a reader who had just
      * chosen "Quiet season, I'll be back". A trades quiet season is months, the
      * hold is 30 days, and the heading is the louder line.
+     *
+     * SCOPED TO THE UNPAUSED HEADING, DELIBERATELY. The ban exists because the
+     * hold is 30 days and the heading promised more; a pause has no clock at
+     * all, so "held for as long as you stay paused" is simply true for the
+     * reader who gets it. Extending this over the paused heading would be the
+     * guard outliving the fact that justified it — the ceiling this file's other
+     * rewrite was about. The paused heading has its own guard below, and it is
+     * the opposite property: it must say there is NO deadline.
      */
     @Test
     fun `the seasonal heading never promises cover for the whole absence`() {
@@ -553,6 +613,358 @@ class CancellationOfferTest {
             assertFalse(
                 "a workspace that has not paid the fee must be told nothing about it",
                 offer.body.contains("registration fee"),
+            )
+        }
+    }
+
+    // -- the answers for a workspace that has already paused ------------------
+
+    /**
+     * THE 409 THIS SCREEN USED TO DRAW A BUTTON FOR.
+     *
+     * While paused, GET /v1/billing/pause answers `eligible: false,
+     * already_paused`, so the pause offer is over and the cancel card falls
+     * through to this module. A Pro workspace answering "too expensive" then got
+     * `ChangePlan` and a "Switch to Starter" control — and POST
+     * /v1/billing/change-plan refuses a paused workspace outright, in a sentence
+     * it wrote for the customer: "Your plan is paused. Resume it first, then
+     * switch plans." The plan card's own switch was gated on the pause; this
+     * second one, an inch below it, was not.
+     *
+     * THE WORDS STAY AND THE BUTTON GOES. Returning null for the whole answer
+     * was the wrong fix — somebody cancelling over $79 would then be told
+     * nothing about the $29 plan they can have. What the API refuses is the
+     * click, not the fact.
+     */
+    @Test
+    fun `a paused workspace is told about Starter and offered no control for it`() {
+        val offer = cancellationOffer("too_expensive", "pro", paused = true)!!
+
+        assertNull(
+            "the plan switch is refused while paused, so a control here is a button " +
+                "whose only possible outcome is an error: ${offer.actionLabel}",
+            offer.action,
+        )
+        assertNull(offer.actionLabel)
+        assertFalse(
+            "and the words on that control may not survive it either",
+            "${offer.heading} ${offer.body}".contains("Switch to Starter"),
+        )
+
+        // The facts about the cheaper plan are still stated, because they are
+        // still true — the price, the allowances, and what comes with them.
+        assertTrue(offer.body.contains("Starter is \$29 a month instead of \$79,"))
+        assertTrue(offer.body.contains("It covers 3 people and 1 business number."))
+        // ...and the heading does not change, because it is a fact about the two
+        // plans that a pause does not touch.
+        assertEquals(
+            cancellationOffer("too_expensive", "pro")!!.heading,
+            offer.heading,
+        )
+    }
+
+    /**
+     * The order matters and it is the API's own. "Resume it first, then switch
+     * plans" is what the 409 says, so somebody who goes and does it reads the
+     * same sentence twice rather than a contradiction.
+     *
+     * NO RESUME ACTION EITHER, and that is not an oversight: Resume already sits
+     * on the paused card at the top of this same screen. A second one down here
+     * would be this module growing a control — the thing the header forbids.
+     */
+    @Test
+    fun `the paused answer names the two steps in the order the API asks for them`() {
+        val body = cancellationOffer("too_expensive", "pro", paused = true)!!.body
+        assertTrue(
+            "the answer must say the plan is paused, or the missing button reads as " +
+                "a bug: $body",
+            body.contains("Your plan is paused"),
+        )
+        assertTrue(
+            "and it must name both steps, in the order change-plan asks for: $body",
+            body.contains("resume first, then switch plans"),
+        )
+    }
+
+    /**
+     * THE PROPERTY, not the one example. `too_expensive` is the answer that
+     * carries [CancellationOfferAction.ChangePlan] today, and a second reason
+     * given that action later would re-create the same button in a place nobody
+     * thought to re-check.
+     *
+     * Runs over every input this module takes, which is why the pause is an axis
+     * of [everyCase] rather than a fixture in one test.
+     */
+    @Test
+    fun `no answer names a control the product refuses in the state it answered for`() {
+        everyCase().forEach { case ->
+            val offer = case.offer ?: return@forEach
+            if (!case.inPause) return@forEach
+            assertFalse(
+                "${case.label} returns ChangePlan to a paused workspace. POST " +
+                    "/v1/billing/change-plan 409s while `companies.paused_at` is set, " +
+                    "so this control's only possible outcome is that error",
+                offer.action == CancellationOfferAction.ChangePlan,
+            )
+        }
+        // The action still exists for the workspace it was written for, so the
+        // sweep above is about the pause rather than about a dead enum.
+        assertEquals(
+            CancellationOfferAction.ChangePlan,
+            cancellationOffer("too_expensive", "pro")!!.action,
+        )
+    }
+
+    /**
+     * THE TWO SENTENCES THAT WERE ON SCREEN TOGETHER.
+     *
+     * The unpaused seasonal answer ends "a quiet season longer than that outruns
+     * the hold and the number goes back to the phone company". Twelve lines
+     * above it, the paused card on the same screen says pausing starts no clock
+     * at all. Both true of somebody deciding whether to cancel; the first is
+     * simply FALSE for somebody who already paused instead, and it is the more
+     * frightening of the two.
+     */
+    @Test
+    fun `a paused workspace is not told the hold it is in is running out`() {
+        val offer = cancellationOffer("seasonal", "pro", paused = true)!!
+        val copy = "${offer.heading} ${offer.body}"
+
+        assertFalse(
+            "the pause has no fuse, so nothing may say this one is running down: $copy",
+            copy.contains("outruns the hold"),
+        )
+        assertTrue(
+            "and it must say so positively, because that is the fact the reader " +
+                "cannot get anywhere else on this screen: $copy",
+            copy.contains("no deadline") && copy.contains("nothing expires"),
+        )
+        assertTrue(
+            "including that there is no date to be back by, which is the whole " +
+                "difference from the 30-day hold: $copy",
+            copy.contains("no date you have to be back by"),
+        )
+    }
+
+    /**
+     * ...AND THE DEADLINE IT DOES NAME BELONGS TO CANCELLING.
+     *
+     * The paused answer still prints [CANCELLATION_GRACE_DAYS], because that is
+     * the trade it exists to describe: an open-ended hold for a 30-day one. What
+     * it may never do is attach that number to the pause. The clock is measured
+     * by `runGraceJob` as `now - canceled_at`, and a paused workspace has no
+     * `canceled_at` — so there is genuinely nothing counting until they cancel.
+     */
+    @Test
+    fun `every deadline the paused answer names is attached to cancelling`() {
+        val offer = cancellationOffer("seasonal", "pro", paused = true)!!
+        val copy = "${offer.heading} ${offer.body}"
+
+        Regex("\\b$CANCELLATION_GRACE_DAYS days\\b").findAll(copy).forEach { hit ->
+            val window = copy.substring(
+                maxOf(0, hit.range.first - 60),
+                minOf(copy.length, hit.range.last + 60),
+            )
+            assertTrue(
+                "the paused answer counts days without saying they are the price of " +
+                    "cancelling, so a reader takes them for a limit on the pause they " +
+                    "are already in: `$window`",
+                window.contains("Cancelling instead") || window.contains("starts a clock"),
+            )
+            assertTrue(
+                "and the day that clock starts on comes with it: `$window`",
+                window.contains("from the day you cancel"),
+            )
+        }
+        assertTrue(
+            "the trade has to be named at all, or the answer is only the reassuring " +
+                "half: $copy",
+            copy.contains("$CANCELLATION_GRACE_DAYS days"),
+        )
+    }
+
+    /**
+     * THE DEFAULT IS THE OLD BEHAVIOUR, BYTE FOR BYTE.
+     *
+     * Three clients hand-port these strings and their tests compare them, so a
+     * caller that has not been taught about the pause has to read exactly what
+     * it read before #277 — not something close to it. This is also the guard
+     * that fails if the default is ever flipped to `true`, which is the single
+     * edit that would hand every unpaused workspace the paused answers.
+     */
+    @Test
+    fun `omitting the pause answers what this module answered before it existed`() {
+        CANCELLATION_REASONS.forEach { reason ->
+            CancellationOfferPhase.entries.forEach { phase ->
+                listOf(null, "starter", "pro").forEach { plan ->
+                    listOf(null, "2026-01-01T00:00:00Z").forEach { fee ->
+                        assertEquals(
+                            "omitting `paused` must answer exactly what `paused = " +
+                                "false` answers, for ${reason.code} ($phase, $plan)",
+                            cancellationOffer(
+                                reason.code, plan, phase,
+                                registrationFeePaidAt = fee, paused = false,
+                            ),
+                            cancellationOffer(
+                                reason.code, plan, phase, registrationFeePaidAt = fee,
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+        // Named rather than implied, so the equality above cannot be satisfied
+        // by both sides having moved together.
+        val before = cancellationOffer("too_expensive", "pro")!!
+        assertEquals(CancellationOfferAction.ChangePlan, before.action)
+        assertEquals("Switch to Starter", before.actionLabel)
+        assertTrue(
+            cancellationOffer("seasonal", "pro")!!.body
+                .contains("longer than that outruns the hold"),
+        )
+    }
+
+    /**
+     * A PAUSE FLAG IS STALE IN THE GRACE PHASE, so it is ignored there.
+     *
+     * `paused_at` outlives the subscription it belonged to: nothing clears it on
+     * cancellation — the reconcile skips cancelled tenants, and
+     * `claim_checkout_activation` clears it only on the way back in. So a
+     * grace-phase caller reading a company row can hand this module a `true` for
+     * a workspace whose pause died with its subscription and whose 30-day clock
+     * is running right now. Honouring it would answer "nothing expires" to the
+     * one reader for whom something is expiring, on a date the same card prints
+     * two lines further down.
+     */
+    @Test
+    fun `a stale pause flag is ignored in the grace phase, where the pause is over`() {
+        listOf("seasonal", "too_expensive").forEach { reason ->
+            assertEquals(
+                "$reason in the grace phase must answer the cancelled workspace it " +
+                    "is actually being read by, whatever `paused_at` still says",
+                cancellationOffer(reason, "pro", CancellationOfferPhase.Grace),
+                cancellationOffer(
+                    reason, "pro", CancellationOfferPhase.Grace, paused = true,
+                ),
+            )
+        }
+        // And the grace answer still says the clock is running, which is the
+        // sentence the stale flag would have replaced.
+        val grace = cancellationOffer(
+            "seasonal", "pro", CancellationOfferPhase.Grace, paused = true,
+        )!!
+        assertTrue(
+            "the one reader whose number is genuinely on a clock must still be told " +
+                "so: ${grace.body}",
+            grace.body.contains("$CANCELLATION_GRACE_DAYS days from the day you cancelled"),
+        )
+    }
+
+    /**
+     * The support promise does not change because the plan is paused, for the
+     * same reason it does not change between the two phases: it is a promise
+     * about US answering, not about their subscription. Asserted as object
+     * equality rather than clause by clause, because "identical" is the property.
+     */
+    @Test
+    fun `the missing-feature answer is the same answer paused or not`() {
+        CancellationOfferPhase.entries.forEach { phase ->
+            assertEquals(
+                cancellationOffer("missing_feature", "pro", phase),
+                cancellationOffer("missing_feature", "pro", phase, paused = true),
+            )
+        }
+    }
+
+    /**
+     * A pause invents nothing. There is still no plan below Starter, and a pause
+     * still does not tell us what somebody switched to — so the answers that
+     * were silence stay silence, which is the case a "the paused reader must be
+     * answered somehow" instinct would quietly fill in.
+     */
+    @Test
+    fun `a pause does not invent an answer for the reasons that have none`() {
+        assertNull(
+            "there is nothing below Starter, paused or not",
+            cancellationOffer("too_expensive", "starter", paused = true),
+        )
+        assertNull(cancellationOffer("too_expensive", null, paused = true))
+        listOf("switched", "not_using", "other").forEach { reason ->
+            assertNull(
+                "$reason must still render nothing for a paused workspace",
+                cancellationOffer(reason, "pro", paused = true),
+            )
+        }
+    }
+
+    /**
+     * THE PAUSED SENTENCES, PINNED AGAINST THE TYPESCRIPT THEY WERE PORTED FROM.
+     *
+     * This is the cross-language half applied to the new copy, and it is the
+     * only thing standing between three hand-ported clients and three different
+     * paragraphs about the same pause. The other pins in this file compare
+     * NUMBERS; these compare the sentences, because that is what was ported.
+     *
+     * Compared after normalising the TypeScript's own seams — a template literal
+     * broken across five lines with `+` between the pieces is one string at
+     * runtime, and a guard reading raw source would see a sentence that ends
+     * mid-clause. The two interpolations that survive into the text are resolved
+     * to the values this client prints, which is exactly what makes a drift in
+     * either one fail here.
+     *
+     * FAILS RATHER THAN SKIPS when the shared file cannot be read — [sharedSource]
+     * sees to that.
+     */
+    @Test
+    fun `pins the paused sentences against the TypeScript they were ported from`() {
+        val ts = tsCopy(sharedSource("cancellation-offers.ts"))
+
+        val seasonal = cancellationOffer("seasonal", "pro", paused = true)!!
+        assertTrue(
+            "the paused seasonal heading has drifted from the shared module: " +
+                "`${seasonal.heading}`",
+            ts.contains(seasonal.heading),
+        )
+        assertTrue(
+            "the paused seasonal body has drifted from the shared module: " +
+                "`${seasonal.body}`",
+            ts.contains(seasonal.body),
+        )
+
+        // The fee sentence is shared by the paused and unpaused answers, and it
+        // is a promise about money — so it is pinned as the difference the flag
+        // makes rather than as a literal typed in twice.
+        val withFee = cancellationOffer(
+            "seasonal", "pro",
+            registrationFeePaidAt = "2026-01-04T00:00:00Z", paused = true,
+        )!!
+        val fee = withFee.body.removePrefix(seasonal.body)
+        assertTrue("the fee sentence must be appended, not folded in", fee.isNotBlank())
+        assertTrue(
+            "the registration-fee sentence has drifted from the shared module: `$fee`",
+            ts.contains(fee),
+        )
+
+        // Both `too_expensive` bodies, split at the point they diverge: the
+        // shared half is the price and the allowances, and each tail is the
+        // answer's own. Pinning both is what says the paused branch was ADDED
+        // rather than typed over the one that was already shipping.
+        val running = cancellationOffer("too_expensive", "pro")!!.body
+        val paused = cancellationOffer("too_expensive", "pro", paused = true)!!.body
+        val shared = running.commonPrefixWith(paused)
+        assertTrue(
+            "the two answers must still open with the same price and allowances",
+            shared.contains("\$29") && shared.contains("business number"),
+        )
+        listOf(
+            "the unpaused" to running.removePrefix(shared),
+            "the paused" to paused.removePrefix(shared),
+        ).forEach { (which, tail) ->
+            assertTrue("$which tail must not be empty", tail.isNotBlank())
+            assertTrue(
+                "$which too_expensive answer has drifted from the shared module: " +
+                    "`$tail`",
+                ts.contains(tail),
             )
         }
     }
@@ -740,9 +1152,14 @@ class CancellationOfferTest {
             "the offer must come from the shared decision, not from copy chosen here",
             note.contains("cancellationOffer("),
         )
+        // The shape used to be `?: return` on one nullable answer. #277 added a
+        // second — the pause — so the early return now has to cover both, and a
+        // guard still looking for the old spelling would pass on a note that
+        // rendered an empty paragraph for every reason that answers nothing.
         assertTrue(
-            "and a null answer must render nothing rather than a substitute",
-            note.contains("?: return"),
+            "and NEITHER answer having anything to say must render nothing rather " +
+                "than a substitute or an empty heading",
+            note.contains("if (pauseAnswer == null && offer == null) return"),
         )
     }
 
@@ -928,9 +1345,25 @@ class CancellationOfferTest {
 
     // -- helpers -------------------------------------------------------------
 
+    /**
+     * One input to [cancellationOffer] and what it answered.
+     *
+     * [inPause] rather than the raw flag, because they are not the same
+     * question: the module honours a pause only in the `before` phase, since
+     * `paused_at` outlives the subscription it belonged to and a grace-phase
+     * `true` describes a workspace whose 30-day clock is running right now. The
+     * copy guards below ask "is this reader IN a pause", which is [inPause], and
+     * a guard reading the raw flag would license pause words in the one answer
+     * that must never carry them.
+     */
+    private data class OfferCase(
+        val label: String,
+        val inPause: Boolean,
+        val offer: CancellationOffer?,
+    )
+
     /** Every offer this module can produce, across reasons, plans and phases. */
-    private fun everyOffer(): List<CancellationOffer> =
-        everyInput().mapNotNull { (_, offer) -> offer }
+    private fun everyOffer(): List<CancellationOffer> = everyCase().mapNotNull { it.offer }
 
     /**
      * The same offers, each labelled with the input that produced it, as one
@@ -948,23 +1381,41 @@ class CancellationOfferTest {
      * reader to the wrong one.
      */
     private fun everyCopy(): List<Pair<String, String>> =
-        everyInput().mapNotNull { (label, offer) ->
-            offer?.let { label to "${it.heading} ${it.body}" }
+        everyCase().mapNotNull { case ->
+            case.offer?.let { case.label to "${it.heading} ${it.body}" }
         }
 
-    private fun everyInput(): List<Pair<String, CancellationOffer?>> =
+    /**
+     * THE PAUSE IS AN AXIS NOW, and adding it is half the value of this helper.
+     *
+     * Every property guard in this file runs over this list, so a paused answer
+     * that quietly contradicted one of them — a deadline with no anchor, a
+     * label on a null action, a promise made to a reader who cannot have it —
+     * would ship without a guard being edited. The default (`paused` omitted) is
+     * still in here as its own row, which is what pins the byte-for-byte
+     * behaviour every other client's hand-port compares against.
+     */
+    private fun everyCase(): List<OfferCase> =
         CANCELLATION_REASONS.flatMap { reason ->
             CancellationOfferPhase.entries.flatMap { phase ->
                 listOf(null, "starter", "pro").flatMap { plan ->
-                    listOf(null, "2026-01-01T00:00:00Z").map { fee ->
-                        val paid = if (fee == null) "unpaid" else "fee paid"
-                        "the ${reason.code} answer ($phase, plan=$plan, $paid)" to
-                            cancellationOffer(
-                                reason = reason.code,
-                                plan = plan,
-                                phase = phase,
-                                registrationFeePaidAt = fee,
+                    listOf(null, "2026-01-01T00:00:00Z").flatMap { fee ->
+                        listOf(false, true).map { paused ->
+                            val paid = if (fee == null) "unpaid" else "fee paid"
+                            val state = if (paused) "paused" else "running"
+                            OfferCase(
+                                label = "the ${reason.code} answer " +
+                                    "($phase, plan=$plan, $paid, $state)",
+                                inPause = paused && phase == CancellationOfferPhase.Before,
+                                offer = cancellationOffer(
+                                    reason = reason.code,
+                                    plan = plan,
+                                    phase = phase,
+                                    registrationFeePaidAt = fee,
+                                    paused = paused,
+                                ),
                             )
+                        }
                     }
                 }
             }
@@ -1026,18 +1477,48 @@ class CancellationOfferTest {
     ).associateWith { readableCopy(composable(it)) }
 
     /**
-     * The three composables a pause promise could hide in.
+     * Only what a person can READ: every double-quoted literal in the source,
+     * joined.
      *
-     * Not `StatusNotices`: it says "Sending is paused until your payment method
-     * is updated", which is true, is about an unpaid subscription rather than a
-     * plan somebody chose to park, and banning the word there would be banning
-     * a fact.
+     * The difference from [readableCopy] is identifiers. A composable that
+     * threads a `pause` parameter through to a child contains the word "pause"
+     * in its wiring, and a copy guard that cannot tell that from a sentence
+     * would either fail on correct code or be softened until it catches
+     * nothing. Escapes are stepped over so a `\"` inside copy does not look
+     * like the end of the literal.
      */
-    private fun cancellationComposables(): Map<String, String> = listOf(
-        "CancelCard",
-        "CancellationOfferNote",
-        "CanceledSubscriptionCard",
-    ).associateWith { composable(it) }
+    private fun spokenCopy(source: String): String {
+        val out = StringBuilder()
+        var inString = false
+        var inLineComment = false
+        var inBlockComment = false
+        var i = 0
+        while (i < source.length) {
+            val ch = source[i]
+            when {
+                // Comments go FIRST, and they are the reason this is a machine
+                // rather than a regex: they quote the old copy in order to
+                // explain why it went, so a scan that reads them fails on its
+                // own footnotes.
+                inLineComment -> if (ch == '\n') inLineComment = false
+                inBlockComment ->
+                    if (ch == '*' && i + 1 < source.length && source[i + 1] == '/') {
+                        inBlockComment = false
+                        i++
+                    }
+
+                inString -> {
+                    if (ch == '\\') i++ else if (ch == '"') inString = false else out.append(ch)
+                }
+
+                ch == '/' && i + 1 < source.length && source[i + 1] == '/' -> inLineComment = true
+                ch == '/' && i + 1 < source.length && source[i + 1] == '*' -> inBlockComment = true
+                ch == '"' -> inString = true
+            }
+            i++
+        }
+        return out.toString()
+    }
 
     /**
      * A file from `packages/shared/src`, from wherever Gradle started.
@@ -1061,6 +1542,32 @@ class CancellationOfferTest {
         )
         error("unreachable")
     }
+
+    /**
+     * TypeScript source as the RUNTIME sees its strings.
+     *
+     * Four normalisations, and every one of them is the difference between a
+     * cross-language pin and a guard that fails on correct code:
+     *
+     *   comments go        the shared module explains its copy at length and
+     *                      quotes the wording it replaced, so a `contains` over
+     *                      raw source could match a footnote instead of a string.
+     *   seams close        `"…two steps in " + "this order…"` is ONE sentence at
+     *                      runtime and two literals in the file.
+     *   the interpolations the two that reach the reader are resolved to what
+     *   resolve            this client prints — which is what makes a drift in
+     *                      the grace window or the seat count fail here rather
+     *                      than pass quietly.
+     *   whitespace flattens a literal wrapped across five indented lines is one
+     *                      run of spaces to a reader and five newlines on disk.
+     */
+    private fun tsCopy(source: String): String = source
+        .replace(Regex("/\\*.*?\\*/", RegexOption.DOT_MATCHES_ALL), "")
+        .replace(Regex("(?m)//.*$"), "")
+        .replace(Regex("[`\"]\\s*\\+\\s*[`\"]"), "")
+        .replace("\${CANCELLATION_GRACE_DAYS}", CANCELLATION_GRACE_DAYS.toString())
+        .replace("\${PLAN_SEATS.starter}", STARTER_SEATS.toString())
+        .replace(Regex("\\s+"), " ")
 
     /**
      * One exported declaration's text, up to the `};` that closes it.

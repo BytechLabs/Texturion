@@ -487,9 +487,13 @@ final class SettingsLogicTests: XCTestCase {
     //   1. SILENCE IS A RESULT. Four of the seven reason/plan combinations
     //      return nil, each for a stated reason. An edit that fills one of them
     //      in with something invented fails here.
-    //   2. NO PAUSE EXISTS. Copy saying "pause", "freeze" or "suspend your
-    //      plan" describes a feature this product does not have, and would be
-    //      discovered as a lie by somebody who went looking for the button.
+    //   2. A PAUSE IS NAMED ONLY TO A WORKSPACE THAT IS IN ONE. The paid pause
+    //      exists now, so the old flat ban on the word is gone — but whether one
+    //      is on OFFER is a Stripe read this module cannot see (a prepaid year,
+    //      a referral month, a pending plan change, an unhealthy card or an
+    //      unprovisioned price all refuse it), so copy about pausing shown to
+    //      somebody who is not already paused sends them looking for a button
+    //      the API will not give them.
     //   3. THE FIGURES ARE READ, NOT TYPED. Every price and count has to come
     //      from the price book and the plan limits.
     //   4. THE OFFER IS NEVER A STEP. Nothing returns a route, and the
@@ -497,13 +501,18 @@ final class SettingsLogicTests: XCTestCase {
     //      handed a button it has to invent.
 
     /// A US Pro workspace — the case with the most to say.
+    ///
+    /// `paused` defaults to nil, which is how every client called this before
+    /// #277 and is the answer for a workspace that is not paused. The tests about
+    /// the paused answers say so explicitly, so the two are never mixed up here.
     private func proOffer(
         reason: String?,
         plan: String? = "pro",
         phase: CancellationOfferPhase = .before,
         billingCurrency: String? = "usd",
         country: String? = "US",
-        registrationFeePaidAt: String? = nil
+        registrationFeePaidAt: String? = nil,
+        paused: Bool? = nil
     ) -> CancellationOffer? {
         cancellationOffer(
             reason: reason,
@@ -511,36 +520,59 @@ final class SettingsLogicTests: XCTestCase {
             phase: phase,
             billingCurrency: billingCurrency,
             country: country,
-            registrationFeePaidAt: registrationFeePaidAt
+            registrationFeePaidAt: registrationFeePaidAt,
+            paused: paused
         )
     }
 
-    /// Every renderable string this module can produce, across every input.
-    private func everyRenderableOfferString() -> [String] {
+    /// One offer and the inputs that produced it — for the properties that have
+    /// to name the STATE a control was returned for.
+    private struct SweptOffer {
+        let reason: String
+        let plan: String?
+        let phase: CancellationOfferPhase
+        let paused: Bool?
+        let offer: CancellationOffer
+    }
+
+    /// Every offer this module can produce, over every input that shapes one.
+    ///
+    /// `pauseStates` narrows the sweep to the workspaces a property is about; the
+    /// default is all three, which is what a property that must hold everywhere
+    /// wants. `nil` sits beside `false` deliberately — an omitted flag is how all
+    /// three clients called this before #277, and it is the case a regression
+    /// lands on.
+    private func everyOffer(pauseStates: [Bool?] = [nil, false, true]) -> [SweptOffer] {
         let plans: [String?] = ["starter", "pro", nil]
         let phases: [CancellationOfferPhase] = [.before, .grace]
         let currencies: [String?] = ["usd", "cad", nil]
         let countries: [String?] = ["US", "CA"]
         let fees: [String?] = [nil, "2026-01-05T00:00:00Z"]
-        var out: [String] = []
+        var out: [SweptOffer] = []
         for reason in cancellationReasons.map(\.code) {
             for plan in plans {
                 for phase in phases {
-                    for currency in currencies {
-                        for country in countries {
-                            for fee in fees {
-                                guard let offer = cancellationOffer(
-                                    reason: reason,
-                                    plan: plan,
-                                    phase: phase,
-                                    billingCurrency: currency,
-                                    country: country,
-                                    registrationFeePaidAt: fee
-                                ) else { continue }
-                                out.append(
-                                    [offer.heading, offer.body, offer.actionLabel ?? ""]
-                                        .joined(separator: " ")
-                                )
+                    for paused in pauseStates {
+                        for currency in currencies {
+                            for country in countries {
+                                for fee in fees {
+                                    guard let offer = cancellationOffer(
+                                        reason: reason,
+                                        plan: plan,
+                                        phase: phase,
+                                        billingCurrency: currency,
+                                        country: country,
+                                        registrationFeePaidAt: fee,
+                                        paused: paused
+                                    ) else { continue }
+                                    out.append(SweptOffer(
+                                        reason: reason,
+                                        plan: plan,
+                                        phase: phase,
+                                        paused: paused,
+                                        offer: offer
+                                    ))
+                                }
                             }
                         }
                     }
@@ -548,6 +580,16 @@ final class SettingsLogicTests: XCTestCase {
             }
         }
         return out
+    }
+
+    /// Every renderable string this module can produce, across every input.
+    private func everyRenderableOfferString(
+        pauseStates: [Bool?] = [nil, false, true]
+    ) -> [String] {
+        everyOffer(pauseStates: pauseStates).map { swept in
+            [swept.offer.heading, swept.offer.body, swept.offer.actionLabel ?? ""]
+                .joined(separator: " ")
+        }
     }
 
     func testSaysNothingToAStarterWorkspaceThatFindsItTooExpensive() {
@@ -754,6 +796,80 @@ final class SettingsLogicTests: XCTestCase {
         )
     }
 
+    // MARK: - too expensive, on Pro, while paused (#277)
+
+    /// OFFER-P1 — THE DEFECT. While paused the pause offer itself is over
+    /// (`GET /v1/billing/pause` answers `already_paused`), so the cancel card
+    /// falls through to this module — and it drew "Switch to Starter" an inch
+    /// under the answer, on a workspace whose `POST /v1/billing/change-plan`
+    /// returns 409 "Your plan is paused. Resume it first, then switch plans".
+    /// The plan card's own switcher was gated on the same fact; this one was
+    /// not, which made it the only pressable route to that refusal on the screen.
+    func testOfferP1APausedWorkspaceIsOfferedNoControlItCannotUse() {
+        let paused = proOffer(reason: "too_expensive", paused: true)
+        XCTAssertNotNil(paused)
+        XCTAssertNil(paused?.action)
+        XCTAssertNil(paused?.actionLabel)
+    }
+
+    func testThePausedAnswerKeepsTheCheaperPlanBecauseThatIsStillTheAnswer() {
+        // Dropping to nil here was the other option and it is worse: somebody
+        // cancelling over $79 would be told nothing about the $29 plan they can
+        // have. What the API refuses is the click, not the fact.
+        for currency in [BillingCurrency.usd, .cad] {
+            guard let body = proOffer(
+                reason: "too_expensive",
+                billingCurrency: currency.rawValue,
+                paused: true
+            )?.body else { return XCTFail("no offer for \(currency.rawValue)") }
+            XCTAssertTrue(body.contains(formatMonthlyCents(planPriceCents("starter", currency))))
+            XCTAssertTrue(body.contains(formatMonthlyCents(planPriceCents("pro", currency))))
+        }
+    }
+
+    func testThePausedAnswerNamesTheTwoStepsInTheOrderTheApiInsistsOn() {
+        // The same order the 409 names, deliberately: somebody who goes and does
+        // it reads one sentence twice rather than two that disagree. There is no
+        // `resume` control to press — Resume is already on the paused card at the
+        // top of this screen, and a second one here would be this module growing
+        // a control, which the header forbids.
+        guard let body = proOffer(reason: "too_expensive", paused: true)?.body else {
+            return XCTFail("no offer")
+        }
+        XCTAssertTrue(body.contains("Your plan is paused"), body)
+        XCTAssertTrue(body.contains("resume first, then switch plans"), body)
+    }
+
+    func testThePausedAnswerStillNamesTheLimitsChangePlanWillRefuseOver() {
+        // The route this copy points at is still change-plan — after a resume —
+        // and it still 409s over both. "A figure may only be printed on the path
+        // that enforces it" cuts the other way here: the path is unchanged, so
+        // the figures stay.
+        guard let body = proOffer(reason: "too_expensive", paused: true)?.body else {
+            return XCTFail("no offer")
+        }
+        XCTAssertTrue(body.contains("\(starterSeats) people"), body)
+        let plural = starterNumbers == 1 ? "" : "s"
+        XCTAssertTrue(body.contains("\(starterNumbers) business number\(plural)."), body)
+        XCTAssertTrue(body.contains("back inside \(starterSeats) seats"), body)
+    }
+
+    func testThePausedAnswerIsHeadedExactlyAsTheUnpausedOneIs() {
+        // One string, not two: the heading is a fact about the two plans and the
+        // pause does not touch it. Three clients hand-port these, and a second
+        // heading is a second thing to drift.
+        XCTAssertEqual(
+            proOffer(reason: "too_expensive")?.heading,
+            proOffer(reason: "too_expensive", paused: true)?.heading
+        )
+    }
+
+    func testAPausedStarterWorkspaceIsStillToldNothing() {
+        // There is still nothing below Starter, and a pause does not invent one.
+        XCTAssertNil(proOffer(reason: "too_expensive", plan: "starter", paused: true))
+        XCTAssertNil(proOffer(reason: "too_expensive", plan: nil, paused: true))
+    }
+
     func testSeasonalStatesTheHoldReadFromTheConstantTheJobUses() {
         XCTAssertEqual(cancellationGraceDays, 30)
         XCTAssertTrue(
@@ -818,6 +934,11 @@ final class SettingsLogicTests: XCTestCase {
         // "Your number is held while you are gone" over a body that said 30
         // days, to somebody who had just chosen "Quiet season, I'll be back".
         // The heading is the louder line and a trades quiet season is months.
+        //
+        // THE UNPAUSED HEADING ONLY, and deliberately: this ban exists because
+        // the hold is 30 days, while a pause has no clock at all — "held for as
+        // long as you stay paused" is simply true there. A guard kept past the
+        // fact that justified it stops being a guard and becomes a ceiling.
         for phase in [CancellationOfferPhase.before, .grace] {
             guard let heading = proOffer(reason: "seasonal", phase: phase)?.heading else {
                 return XCTFail("no offer")
@@ -838,6 +959,10 @@ final class SettingsLogicTests: XCTestCase {
         // 30 days does not cover a winter, and #413 is what happens at the end
         // of it. Leaving it implied is how the old heading got away with
         // promising the opposite.
+        //
+        // UNPAUSED ONLY, and the paused case below is why: for somebody already
+        // paused this sentence is false — nothing of theirs is running out — and
+        // it would sit on screen with a card that says exactly that.
         guard let body = proOffer(reason: "seasonal", phase: .before)?.body else {
             return XCTFail("no offer")
         }
@@ -886,6 +1011,85 @@ final class SettingsLogicTests: XCTestCase {
         }
     }
 
+    // MARK: - seasonal, while paused (#277)
+
+    /// OFFER-P2 — THE DEFECT, and it was a contradiction rather than a subtlety.
+    /// The paused card twelve lines up says nothing expires while you are
+    /// paused, and this answer ended "...a quiet season longer than that outruns
+    /// the hold and the number goes back to the phone company". Both sentences
+    /// were on one screen. The 30-day hold is not what is holding their number —
+    /// the pause is, and it has no clock. If this ever falls back to the unpaused
+    /// copy, the first assertion is the one that fires.
+    func testOfferP2APausedWorkspaceIsNotToldItsHoldIsRunningOut() {
+        guard let paused = proOffer(reason: "seasonal", paused: true) else {
+            return XCTFail("no offer")
+        }
+        XCTAssertTrue(paused.body.contains("nothing expires while your plan is paused"))
+        XCTAssertFalse(paused.body.contains("outruns the hold"), paused.body)
+        XCTAssertNotEqual(proOffer(reason: "seasonal")?.heading, paused.heading)
+    }
+
+    func testThePausedSeasonalAnswerAttachesEveryDeadlineToCancelling() {
+        // The property behind the assertion above, sentence by sentence: the only
+        // countdown in this product starts at `canceled_at`, so a paused reader
+        // may only meet a number of days inside a sentence about cancelling.
+        // "Your pause ends in 30 days" would pass a `contains` check on the whole
+        // body and fail here.
+        guard let body = proOffer(reason: "seasonal", paused: true)?.body else {
+            return XCTFail("no offer")
+        }
+        for sentence in body.components(separatedBy: ". ") {
+            if sentence.contains("\(cancellationGraceDays) days") {
+                XCTAssertTrue(sentence.lowercased().contains("cancel"), sentence)
+            }
+        }
+        // ...and it does name the hold, so the loop above checked something.
+        XCTAssertTrue(body.contains("\(cancellationGraceDays) days"))
+    }
+
+    func testThePausedSeasonalAnswerAnchorsThatClockToTheCancellation() {
+        // Same fact, same reason: runGraceJob measures now - canceled_at, so a
+        // period-end anchor is about a month of somebody else's arithmetic.
+        guard let paused = proOffer(reason: "seasonal", paused: true) else {
+            return XCTFail("no offer")
+        }
+        let copy = "\(paused.heading) \(paused.body)"
+        XCTAssertNotNil(
+            copy.range(
+                of: "\(cancellationGraceDays) days .{0,20}from the day you cancel",
+                options: .regularExpression
+            ),
+            copy
+        )
+        XCTAssertTrue(copy.contains("not from the end of your"), copy)
+        XCTAssertTrue(paused.body.contains("goes back to the phone company"), copy)
+    }
+
+    func testThePausedSeasonalAnswerOffersNoControlEither() {
+        // Resume lives on the paused card on this same screen. A second one here
+        // would make the answer a step, which is the thing the whole card refuses.
+        XCTAssertNil(proOffer(reason: "seasonal", paused: true)?.action)
+        XCTAssertNil(proOffer(reason: "seasonal", paused: true)?.actionLabel)
+    }
+
+    func testThePausedSeasonalAnswerPromisesTheFeeOnTheSameGate() {
+        // "What does coming back cost" survives the pause unchanged, and so does
+        // the answer: at most once per workspace, ever.
+        XCTAssertTrue(
+            proOffer(
+                reason: "seasonal",
+                registrationFeePaidAt: "2026-01-05T00:00:00Z",
+                paused: true
+            )?.body.contains("once per workspace, ever") ?? false
+        )
+        for unpaid in [nil, "", "   "] as [String?] {
+            XCTAssertFalse(
+                proOffer(reason: "seasonal", registrationFeePaidAt: unpaid, paused: true)?
+                    .body.contains("registration fee") ?? true
+            )
+        }
+    }
+
     func testMissingFeatureQuotesTheSupportConstantsRatherThanRestatingThem() {
         guard let body = proOffer(reason: "missing_feature")?.body else {
             return XCTFail("no offer")
@@ -900,26 +1104,104 @@ final class SettingsLogicTests: XCTestCase {
         XCTAssertEqual(result?.actionLabel, "Get help")
     }
 
-    func testMissingFeatureSaysTheSameThingInBothPhases() {
-        // The promise does not change because they have already gone.
+    func testMissingFeatureSaysTheSameThingInBothPhasesAndWhilePaused() {
+        // The promise does not change because they have already gone, and it does
+        // not change because their plan is paused: it is a promise about US
+        // answering, not about the state of their subscription.
         XCTAssertEqual(
             proOffer(reason: "missing_feature", phase: .before),
             proOffer(reason: "missing_feature", phase: .grace)
         )
+        XCTAssertEqual(
+            proOffer(reason: "missing_feature"),
+            proOffer(reason: "missing_feature", paused: true)
+        )
     }
 
-    func testNoOfferEverClaimsAPauseFeatureExists() {
+    func testNoOfferNamesAPauseToAWorkspaceThatIsNotInOne() {
         // THE PROPERTY, not a spot check: every renderable string over every
-        // input. There is no pause, freeze or hold-my-plan control in this
-        // product, and copy implying one sends somebody looking for a button
-        // that is not there.
+        // input that does not say `paused: true` — including the omitted flag,
+        // which is how this was called before #277 and where a regression lands.
+        //
+        // The pause exists now, so the old absolute ban is gone; what replaced it
+        // is narrower and still load-bearing. Whether a pause is on OFFER is a
+        // Stripe read `GET /v1/billing/pause` owns, and it refuses a workspace
+        // with a prepaid year, an unconsumed referral month, a pending plan
+        // change, an unhealthy card or an unprovisioned price. This module sees
+        // none of that, so a sentence here mentioning a pause to somebody who is
+        // not in one sends them looking for a button the API will not give them.
         let forbidden = "\\bpause[sd]?\\b|\\bpausing\\b|\\bfreeze\\b|\\bfrozen\\b"
             + "|\\bon hold\\b|\\bsuspend your\\b"
-        for copy in everyRenderableOfferString() {
+        for copy in everyRenderableOfferString(pauseStates: [nil, false]) {
             XCTAssertNil(
                 copy.lowercased().range(of: forbidden, options: .regularExpression),
                 copy
             )
+        }
+        // ...and it is not satisfied by silence: the paused answers DO say it.
+        XCTAssertTrue(
+            everyRenderableOfferString(pauseStates: [true])
+                .contains { $0.lowercased().contains("paused") },
+            "no paused answer names the pause, so the ban above is proving nothing"
+        )
+    }
+
+    func testNoOfferReturnsAControlTheProductRefusesInTheStateItWasReturnedFor() {
+        // `changePlan` names the plan switcher, and POST /v1/billing/change-plan
+        // 409s while `companies.paused_at` is set. Every other action is
+        // reachable in the state it is offered in: `resubscribeStarter` is
+        // grace-only checkout, `openHelp` is a screen. So the whole of this
+        // property is "nothing hands a paused workspace the plan switcher", swept
+        // over every reason, plan and phase rather than spot-checked on the one
+        // that had it.
+        for swept in everyOffer(pauseStates: [true]) where swept.phase == .before {
+            XCTAssertNotEqual(
+                swept.offer.action, .changePlan,
+                "\(swept.reason)/\(swept.plan ?? "nil") was handed the plan switcher "
+                    + "while paused, and that POST answers 409"
+            )
+        }
+    }
+
+    func testAPausedFlagIsIgnoredInTheGracePhaseWhereThePauseIsOver() {
+        // `paused_at` OUTLIVES the subscription it belonged to — nothing clears
+        // it on cancellation, deliberately (the daily reconcile skips cancelled
+        // tenants; claim_checkout_activation clears it only if they come back,
+        // see 20260805080000_resubscribe_clears_pause.sql). `isPaused` in
+        // scripts/ops/pricing-report.mjs draws this same line, after the stale
+        // fact named a churned workspace as a paying paused one in a founder
+        // report.
+        //
+        // Here a stale `true` would answer "nothing expires" to the one reader
+        // for whom the 30-day clock is genuinely running, two lines above the
+        // date it runs out on.
+        for reason in cancellationReasons.map(\.code) {
+            for plan in ["starter", "pro", nil] as [String?] {
+                XCTAssertEqual(
+                    proOffer(reason: reason, plan: plan, phase: .grace),
+                    proOffer(reason: reason, plan: plan, phase: .grace, paused: true),
+                    "\(reason)/\(plan ?? "nil")"
+                )
+            }
+        }
+    }
+
+    func testAnUnpausedWorkspaceIsAnsweredExactlyWhatItWasBeforeThePauseExisted() {
+        // The flag is optional so that three clients and their hand-ported tests
+        // read word-for-word what they read before #277. Omitted, false and nil
+        // are one behaviour, and this is what pins it: an edit that makes the
+        // paused branch the default fails on the first reason it touches.
+        for reason in cancellationReasons.map(\.code) {
+            for plan in ["starter", "pro", nil] as [String?] {
+                for phase in [CancellationOfferPhase.before, .grace] {
+                    let base = proOffer(reason: reason, plan: plan, phase: phase)
+                    XCTAssertEqual(
+                        base,
+                        proOffer(reason: reason, plan: plan, phase: phase, paused: false),
+                        "\(reason)/\(plan ?? "nil")"
+                    )
+                }
+            }
         }
     }
 

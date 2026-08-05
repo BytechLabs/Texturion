@@ -688,6 +688,40 @@ class SettingsRepository(
             companyId = companyId,
         )
 
+    // -- #277 the paid pause --------------------------------------------------
+
+    /**
+     * May this workspace pause, what would it cost, and is it paused already?
+     *
+     * ASKED BEFORE ANYTHING IS OFFERED, because the price comes from Stripe and
+     * a pause control with no figure beside it would ask somebody to agree to a
+     * recurring charge we declined to name. [PauseState.eligible] already has
+     * that folded in server-side, so the caller's whole job is to render nothing
+     * when it is false.
+     *
+     * Costs a Stripe round trip, so callers ask only where an answer could
+     * matter: a workspace with no plan, or one already cancelled, can neither
+     * pause nor be paused.
+     */
+    suspend fun pauseState(companyId: String): PauseState =
+        api.get("/v1/billing/pause", companyId = companyId)
+
+    /**
+     * Hold the number, stop the texting.
+     *
+     * The route re-reads the database mirror after the Stripe swap and answers
+     * 409 — with a sentence written for the customer — rather than reporting a
+     * success it cannot see. So a returned [PauseResult] is the pause that
+     * exists, and the caller must render THAT rather than assuming the request
+     * did what it asked. On failure show [ApiException.message] as it arrives.
+     */
+    suspend fun pausePlan(companyId: String): PauseResult =
+        api.post("/v1/billing/pause", companyId = companyId)
+
+    /** Come back in the spring. Re-read and 409'd the same way as [pausePlan]. */
+    suspend fun resumePlan(companyId: String): ResumeResult =
+        api.post("/v1/billing/resume", companyId = companyId)
+
     // -- multipart ------------------------------------------------------------
 
     /**

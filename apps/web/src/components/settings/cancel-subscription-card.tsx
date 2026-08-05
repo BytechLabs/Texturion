@@ -5,6 +5,15 @@ import { Download, ExternalLink } from "lucide-react";
 import { useState } from "react";
 
 import { CancellationAnswer } from "@/components/settings/cancellation-answer";
+import {
+  pauseQueryEnabled,
+  SeasonalPauseAnswer,
+} from "@/components/settings/pause-plan";
+import {
+  pauseReadOf,
+  readAllowsPlanChange,
+  readSaysPaused,
+} from "@/components/settings/pause-read";
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -12,6 +21,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import {
   useBillingPortal,
+  usePauseOffer,
   useRecordCancellationReason,
 } from "@/lib/api/billing";
 import { useExportContacts } from "@/lib/api/contacts-export-hook";
@@ -206,12 +216,64 @@ export function CancelSubscriptionCard({
   const [exportError, setExportError] = useState<string | null>(null);
 
   /**
+   * #277's paid pause, when there is one to offer — the better answer to
+   * "quiet season".
+   *
+   * ASKED ONLY FOR THE OWNER, because only the owner branch of this card can
+   * render it, and the route costs two Stripe round trips on a screen that is
+   * visited to check a plan. The non-owner branch returns above without ever
+   * having a use for it.
+   *
+   * AND ONLY FOR A WORKSPACE THAT COULD PAUSE, which is `pauseQueryEnabled`'s
+   * half of the gate and is not this card's opinion to hold. The billing page
+   * enables the SAME query key, so react-query fires the request if either
+   * caller says yes: when this card asked for any owner while the page asked
+   * only for a workspace with a plan and a live subscription, the wider answer
+   * won and an owner who never finished checkout bought two Stripe round trips
+   * for an answer that could only be `no_subscription`.
+   *
+   * `eligible` IS THE WHOLE GATE, and it is the server's word: it already means
+   * "may pause AND we can quote it", so a price we cannot read reports false and
+   * nothing appears. The `monthly_cents` check is not a second opinion — it is
+   * what narrows the type, and it means a future response that says yes without
+   * a figure renders nothing rather than a control with a hole in it. Never
+   * render Pause when this is null; never invent the number.
+   *
+   * NOTHING ABOUT LEAVING WAITS FOR THIS. While the query is loading, in flight,
+   * failed, or disabled, `pauseOffer` is null and there is no Pause control —
+   * the shared seasonal answer stands in its place, the same six reasons are
+   * there, and `Continue to cancel` is one press away, exactly as it was before
+   * the pause existed. The one thing an unanswered read DOES withhold is the
+   * plan switch, and only that: see `answer` below for why a control the API
+   * would refuse is worse than no control.
+   */
+  const pauseAsked = pauseQueryEnabled(isOwner, company);
+  const pauseQuery = usePauseOffer(pauseAsked);
+  const pause = pauseReadOf(pauseAsked, pauseQuery);
+  const pauseOffer =
+    reason === "seasonal" &&
+    pauseQuery.data?.eligible === true &&
+    pauseQuery.data.monthly_cents !== null
+      ? pauseQuery.data.monthly_cents
+      : null;
+
+  /**
    * What we can honestly say about the reason they just picked, or null.
    *
    * Computed from the LOCAL selection rather than read back from the server:
    * the answer belongs to the click, and a round trip would put a spinner in
    * the middle of a cancel screen. Null for four of the six reasons — see the
    * shared module for why each one has nothing worth saying.
+   *
+   * `paused` IS A FACT WE HAVE READ, never the absence of one. It changes two
+   * of the six answers at the source: a paused workspace cannot switch plans
+   * (`POST /v1/billing/change-plan` answers 409 while `companies.paused_at` is
+   * set, and names the order instead), and it has already taken the option the
+   * seasonal answer exists to describe — that answer's load-bearing clause, "a
+   * quiet season longer than that outruns the hold", is false for somebody
+   * whose hold has no clock on it, and it would sit twelve lines under a card
+   * on this same screen saying exactly that. See `readSaysPaused`: an unread
+   * pause is not a "no".
    */
   const offer = cancellationOffer({
     reason,
@@ -219,7 +281,32 @@ export function CancelSubscriptionCard({
     billingCurrency: company.billing_currency,
     country: company.country,
     registrationFeePaidAt: company.registration_fee_paid_at,
+    paused: readSaysPaused(pause),
   });
+
+  /**
+   * The same answer, with nothing to press that the product would refuse.
+   *
+   * THE BOOLEAN ABOVE CANNOT CARRY THIS, and that is why it is done here. A
+   * single flag cannot tell "not paused" apart from "not read yet", so the
+   * shared module answers the unread case with the unpaused words — right, since
+   * most workspaces are not paused and those words are what they have always
+   * read — and `change_plan` rides along with them. On a workspace that IS
+   * paused and whose read has not landed, that control is a "Switch to Starter"
+   * drawn an inch under an answer somebody volunteered, whose only outcome is a
+   * 409. The words stay (the cheaper plan is still the true answer to "this
+   * costs too much"); the control waits for the read.
+   *
+   * Only `change_plan` is withheld. `open_help` is the same route whether the
+   * plan is paused or not, and taking it away would charge somebody a help link
+   * for our network being slow.
+   */
+  const answer =
+    offer !== null &&
+    offer.action === "change_plan" &&
+    !readAllowsPlanChange(pause)
+      ? { ...offer, action: null, actionLabel: null }
+      : offer;
 
   function leave() {
     setError(null);
@@ -373,8 +460,20 @@ export function CancelSubscriptionCard({
 
         {/* Last, and after the exit on purpose — see the docblock. It appears
             only once a reason has been picked, so a plain arrival on this
-            screen is byte-for-byte the screen it was before this shipped. */}
-        {offer && <CancellationAnswer offer={offer} company={company} />}
+            screen is byte-for-byte the screen it was before this shipped.
+
+            ONE ANSWER TO ONE REASON. #277's paid pause REPLACES the shared
+            seasonal offer rather than joining it: that offer describes the
+            30-day hold, which is true and was the best thing we had, but it is
+            the wrong answer to somebody who has just said they will be back in
+            the spring. Two notes stacked here would be the retention funnel this
+            card refuses to become — and they would push nothing, because both
+            sit below the exit either way. */}
+        {pauseOffer !== null ? (
+          <SeasonalPauseAnswer monthlyCents={pauseOffer} />
+        ) : (
+          answer && <CancellationAnswer offer={answer} company={company} />
+        )}
       </div>
     </SettingsCard>
   );

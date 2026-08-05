@@ -274,6 +274,123 @@ export function useDismissWinback() {
 }
 
 /**
+ * GET /v1/billing/pause (#277) — the paid pause, in one answer.
+ *
+ * A crew that goes quiet for the winter keeps its number and its history, stops
+ * texting, and pays a small monthly fee instead of the plan. No 30-day fuse.
+ *
+ * `eligible` IS THE ONLY THING THAT MAY PUT A PAUSE CONTROL ON SCREEN. The
+ * route computes it as `eligibility.eligible && offer !== null`, so a pause we
+ * cannot quote — an unset, archived, $0 or tiered Stripe price — reports false
+ * and the offer is simply absent. There is no greyed-out state and no "why not"
+ * on any surface here: a billing screen that explains our unprovisioned catalog
+ * to a customer is noise, and one that explains it on the CANCEL screen is noise
+ * standing between somebody and the exit.
+ *
+ * `monthly_cents` IS THE REAL PRICE, read from Stripe before anybody presses
+ * anything, and it is why `reason` is never rendered. Every surface below either
+ * has the figure and shows it on the control, or shows nothing at all — nobody
+ * agrees to a recurring charge whose amount we did not state.
+ *
+ * `paused_at` NON-NULL MEANS PAUSED RIGHT NOW, and it is the reason this is a
+ * query rather than something read off the company. It is deliberately NOT on
+ * `company_view`: that shape loads on every app boot for every role, and this is
+ * a billing fact behind `billing.manage`. So `enabled` is the caller's, the same
+ * way `useMissedWhileOff` and `usePrepayOffer` beside it are — and it matters
+ * more here, because this route round-trips to Stripe twice (the subscription,
+ * then the price) on a screen that renders on every visit.
+ *
+ * Two surfaces share this one query by key: the seasonal answer on the cancel
+ * card and the paused state at the top of the billing screen. One request
+ * answers both, which is the shape the route was built for.
+ */
+export interface PauseOffer {
+  eligible: boolean;
+  /**
+   * Why not, when `eligible` is false.
+   *
+   * Read by nothing on this client, on purpose — see above. Typed because the
+   * response carries it and a shape that hides a field is a shape that invites
+   * somebody to re-derive it.
+   */
+  reason: string | null;
+  /** ISO. Non-null means paused RIGHT NOW. */
+  paused_at: string | null;
+  /** The pause fee while paused, the quote while eligible. Null otherwise. */
+  monthly_cents: number | null;
+  /** What they come back to. The pause never touches `plan`. */
+  resume_plan: PlanId | null;
+}
+
+export function usePauseOffer(enabled: boolean) {
+  const companyId = useCompanyId();
+  return useQuery({
+    // Its own root rather than a segment under `company`, so the routine
+    // company invalidations (a plan change, a module toggle, a dismissed
+    // win-back) do not each buy two Stripe round trips.
+    queryKey: [companyId, "billing-pause"],
+    queryFn: () => apiFetch<PauseOffer>("/v1/billing/pause", { companyId }),
+    enabled,
+  });
+}
+
+/** POST /v1/billing/pause — what the route answers once the swap has landed. */
+export interface PausedPlan {
+  paused_at: string;
+  monthly_cents: number | null;
+  resume_plan: PlanId | null;
+}
+
+/** POST /v1/billing/resume — the plan, re-read after the swap back. */
+export interface ResumedPlan {
+  plan: PlanId | null;
+  paused_at: string | null;
+}
+
+/**
+ * POST /v1/billing/pause and POST /v1/billing/resume (#277).
+ *
+ * BOTH ROUTES RE-READ THE DATABASE MIRROR AFTER THE STRIPE SWAP AND 409 IF IT
+ * DISAGREES, rather than reporting a success they cannot see. So a caller may
+ * trust the response and may never assume the request worked: on a 409 the
+ * `ApiError` message is written for the customer ("Your plan hasn't paused yet.
+ * If you resumed earlier today, try again tomorrow — you won't be charged twice
+ * for pausing.") and is shown as-is.
+ *
+ * Neither is idempotent-by-accident on our side: the route keys Stripe on the
+ * pause being taken or lifted, which is what stops a double proration. Nothing
+ * here retries.
+ */
+export function usePausePlan() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<PausedPlan>("/v1/billing/pause", { method: "POST", companyId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [companyId, "billing-pause"] });
+      queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
+    },
+  });
+}
+
+export function useResumePlan() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<ResumedPlan>("/v1/billing/resume", {
+        method: "POST",
+        companyId,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [companyId, "billing-pause"] });
+      queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
+    },
+  });
+}
+
+/**
  * POST /v1/billing/change-plan — upgrade prorates now; downgrade applies at
  * period end and is blocked (409) until numbers/seats fit Starter (SPEC §9).
  */

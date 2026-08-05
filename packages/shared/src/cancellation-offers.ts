@@ -31,9 +31,52 @@
  *   not_using / other         The export and the exit are already on the card
  *                             and are what those answers actually need.
  *
- * There is NO pause feature. Do not write copy that implies one exists; the
- * seasonal answer is about the 30-day hold that already exists and nothing more.
- * `cancellation-offers.test.ts` asserts that.
+ * # #277's paid pause, and the two answers it changes
+ *
+ * The pause exists now, and this file predates it: a licensed-price swap that
+ * holds the number and the whole history for a small monthly fee, with no clock
+ * on it (`apps/api/src/billing/pause.ts`).
+ *
+ * WHETHER A PAUSE IS ON OFFER IS NOT KNOWABLE HERE. Eligibility is a Stripe read
+ * `GET /v1/billing/pause` owns, and it refuses a workspace with a prepaid year,
+ * an unconsumed referral month, a pending plan change, an unhealthy card or an
+ * unprovisioned price — so no answer below may mention a pause to a workspace
+ * that is not already in one. That would be inventing an offer, which is the one
+ * thing this module refuses to do; the client renders the real offer from the
+ * real response, beside these answers.
+ *
+ * `paused` is the other question, and it is a FACT the client has read rather
+ * than an offer we are guessing at. It changes exactly two answers:
+ *
+ *   too_expensive  the CONTROL goes, the words stay. POST /v1/billing/change-plan
+ *                  answers 409 while `companies.paused_at` is set, so "Switch to
+ *                  Starter" is a button whose only outcome is a refusal — and a
+ *                  refusal reached by pressing something we drew is worse than
+ *                  no button, because we drew it. The cheaper plan is still the
+ *                  true answer to "this costs too much", so the copy keeps it and
+ *                  names the order the API's own refusal names: resume, then
+ *                  switch.
+ *   seasonal       the 30-day hold is not what is holding their number — the
+ *                  pause is, and it has no deadline. The unpaused answer's whole
+ *                  argument is that a long quiet season outruns the hold, which
+ *                  is false for somebody who has already taken the option that
+ *                  argument exists to compare against, and it contradicts the
+ *                  paused card sitting on the same screen.
+ *
+ * The other four are unchanged, each for its own reason: missing_feature is a
+ * support promise, which a paused plan does not change; too_expensive on Starter
+ * still has no cheaper plan to name; and switched / not_using / other still have
+ * nothing honest to add — a pause does not make us know what they switched to.
+ *
+ * A CANCELLED WORKSPACE IS NOT PAUSED, whatever its row still says, so the flag
+ * is honoured in the BEFORE phase only. `paused_at` survives cancellation on
+ * purpose — the daily reconcile skips cancelled tenants and
+ * `claim_checkout_activation` clears it only if they come back (see
+ * 20260805080000_resubscribe_clears_pause.sql) — so a stale `true` would reach
+ * the grace answers and deny the 30-day clock that is, by then, genuinely
+ * running. `isPaused` in scripts/ops/pricing-report.mjs draws this same line
+ * after the same fact reached a founder report and named a churned workspace as
+ * a paying paused one.
  *
  * # A figure may only be printed on the path that enforces it
  *
@@ -233,6 +276,26 @@ export interface CancellationOfferInput {
    * seasonal business is actually asking: what does coming back cost.
    */
   registrationFeePaidAt?: string | null;
+  /**
+   * #277 — is this workspace's plan paused RIGHT NOW? `companies.paused_at !==
+   * null`, as `GET /v1/billing/pause` reports it.
+   *
+   * OMITTED MEANS NOT PAUSED, and that is deliberate rather than lazy: every
+   * answer this module gave before the pause existed is the answer for an
+   * unpaused workspace, so a caller that does not pass this reads exactly what
+   * it read before, byte for byte. Three clients hand-port these strings and
+   * their tests compare them.
+   *
+   * PASS THE FACT YOU HAVE READ, not the absence of one. A client whose pause
+   * read has not landed or has failed knows nothing, and `false` is not nothing
+   * — it is a claim, and on a paused workspace it is the claim that puts a
+   * "Switch to Starter" button in front of a 409. Each client models that
+   * unread state on its own billing screen (it decides a badge and a plan
+   * switcher there too); the rule those clients follow is to withhold the
+   * control until the read answers, and this module cannot enforce it from
+   * here — a single boolean cannot tell "no" apart from "not yet".
+   */
+  paused?: boolean | null;
 }
 
 /**
@@ -288,10 +351,26 @@ function resolvePlan(plan: string | null | undefined): SeatPlan {
  * and a conditional is already true for everybody: the tenant who fits reads
  * past it, and the tenant who does not is warned before the 409 rather than by
  * it.
+ *
+ * WHY THE PAUSED ANSWER HAS NOTHING TO PRESS. `change_plan` names the plan
+ * switcher, and POST /v1/billing/change-plan refuses outright while
+ * `companies.paused_at` is set — a plan change during a pause is ambiguous in a
+ * way only the customer can settle (resume onto the new plan now, or land on it
+ * in spring?), so the API asks for the two steps in order rather than guessing.
+ * The plan card's own switcher is gated on the same fact, so a button here would
+ * be the ONLY pressable route to that 409 on the whole screen, drawn by us, an
+ * inch under an answer somebody volunteered.
+ *
+ * There is no `resume` action either, and that is not an oversight: Resume
+ * already sits on the paused card at the top of this same screen, and a second
+ * one down here would be a retention funnel growing a control — see the header.
+ * The words name the order instead, in the API's own words, so somebody who goes
+ * and does it reads the same sentence twice rather than a contradiction.
  */
 function tooExpensiveOffer(
   input: CancellationOfferInput,
   phase: CancellationOfferPhase,
+  paused: boolean,
 ): CancellationOffer | null {
   if (resolvePlan(input.plan) !== "pro") return null;
 
@@ -314,6 +393,27 @@ function tooExpensiveOffer(
   const limits =
     `It covers ${PLAN_SEATS.starter} people and ${numbers} business ` +
     `number${numbers === 1 ? "" : "s"}.`;
+
+  /**
+   * Same heading as the unpaused answer, on purpose. It is a fact about the two
+   * plans and the pause does not touch it; a second heading would be a second
+   * string for three clients to hand-port and drift.
+   */
+  if (paused) {
+    return {
+      reason: "too_expensive",
+      heading: "Starter is the same product, priced for a smaller crew",
+      body:
+        `${price} ${limits} Your plan is paused, so this takes two steps in ` +
+        `this order: resume first, then switch plans. The switch takes effect ` +
+        `at the end of your current billing period. Your message history ` +
+        `comes with you, and so does the number you text from — a second ` +
+        `number does not: the downgrade is refused until you release it, and ` +
+        `until the crew is back inside ${PLAN_SEATS.starter} seats.`,
+      action: null,
+      actionLabel: null,
+    };
+  }
 
   return phase === "grace"
     ? {
@@ -340,12 +440,94 @@ function tooExpensiveOffer(
 }
 
 /**
+ * The fee sentence, only for a workspace that has actually paid it.
+ *
+ * Gated on the timestamp rather than on country, because the timestamp is the
+ * exact thing checkout tests: the $29 line is added only when
+ * `registration_fee_paid_at IS NULL`, and the webhook stamps it once per company
+ * ever. A workspace that has not paid it WILL be charged on return, so for them
+ * this sentence is simply absent rather than softened.
+ *
+ * SAID TO THE PAUSED READER TOO. It answers "what does coming back cost", and
+ * that question survives the pause unchanged: the fee is charged at most once per
+ * workspace ever, so neither resuming nor cancelling-and-returning charges it
+ * again. Lifted out of `seasonalOffer` when the paused answer needed the same
+ * sentence — one copy, because two would be one promise about money typed twice.
+ */
+function registrationFeeSentence(input: CancellationOfferInput): string {
+  return typeof input.registrationFeePaidAt === "string" &&
+    input.registrationFeePaidAt.trim() !== ""
+    ? " You have already paid the one-time registration fee, and it is " +
+        "charged at most once per workspace, ever — coming back does not " +
+        "charge it again."
+    : "";
+}
+
+/**
+ * The seasonal answer for somebody who ALREADY PAUSED, and is cancelling anyway.
+ *
+ * They are not choosing between leaving and a 30-day hold; they are choosing
+ * between the thing they already have and giving it up, and only one of those
+ * two has a deadline. So this answer states both sides of exactly that:
+ *
+ *   what they have   the number and the history are held, and nothing expires
+ *                    while the plan is paused. The pause is a licensed-price
+ *                    swap with no clock attached — `runGraceJob` measures
+ *                    `now - canceled_at` and a paused workspace has no
+ *                    `canceled_at`, so there is genuinely nothing counting.
+ *   what they lose   cancelling ends the pause and starts the hold, and the hold
+ *                    is the only countdown in this product. Anchored to the
+ *                    cancellation for the reason `seasonalOffer` gives at length.
+ *
+ * NO CONTROL, same as every other seasonal answer. Resume is already on the
+ * paused card on this screen, and the point of the paragraph is not to press
+ * anything — it is that somebody about to trade an open-ended hold for a 30-day
+ * one should know that is the trade.
+ *
+ * IT IS NOT AN ARGUMENT. Two facts, in the order they matter, and no sentence
+ * telling them which to pick. The cancel card records an answer and does not
+ * argue with the decision; what makes this worth printing is that the fact is not
+ * available anywhere else on the screen, not that we would rather they stayed.
+ *
+ * IT SAYS "PAUSED" OUT LOUD, which every other string in this file may not. Safe
+ * here and only here: they are in a pause, so it is a description of their
+ * account rather than an offer we cannot see the eligibility of.
+ */
+function pausedSeasonalOffer(input: CancellationOfferInput): CancellationOffer {
+  return {
+    reason: "seasonal",
+    heading: "Your plan is already paused, and that hold has no deadline",
+    body:
+      "Your number and your whole message history are held for as long as you " +
+      "stay paused — nothing expires while your plan is paused, and there is " +
+      "no date you have to be back by. Cancelling instead ends the pause and " +
+      `starts a clock: ${CANCELLATION_GRACE_DAYS} days from the day you ` +
+      "cancel, not from the end of your billing period, and at the end of it " +
+      "the number goes back to the phone company." +
+      registrationFeeSentence(input),
+    action: null,
+    actionLabel: null,
+  };
+}
+
+/**
  * The seasonal answer: what is already true about going quiet and coming back.
  *
- * THERE IS NO PAUSE, and this copy must never imply one. What exists is the
- * 30-day hold, and for a business that goes quiet for a winter the useful facts
- * are that the number keeps receiving, the history survives, and the one-time
- * registration fee is not charged twice.
+ * THIS COPY IS FOR SOMEBODY WHO HAS NOT PAUSED. What it describes is the 30-day
+ * hold, and for a business that goes quiet for a winter the useful facts are
+ * that the number keeps receiving, the history survives, and the one-time
+ * registration fee is not charged twice. It must not mention the pause: whether
+ * one is on offer is the API's read, not ours (see the header).
+ *
+ * THE PAUSED READER GETS A DIFFERENT ANSWER, because every load-bearing clause
+ * below is either wrong or beside the point for them. Their number is not being
+ * held by the 30-day hold, it is being held by the pause; they CAN already plan a
+ * quiet season longer than 30 days, so the sentence about a season outrunning the
+ * hold — the whole reason this answer is worth showing — is false for them; and
+ * the paused card on the same screen says in as many words that nothing expires
+ * while they are paused, so the two sentences would be on screen together,
+ * disagreeing. What they are actually deciding is pause-versus-cancel, so that is
+ * what {@link pausedSeasonalOffer} answers.
  *
  * "You will not be able to reply" is in there on purpose. `runPreSendGates`
  * requires an active subscription and answers 402 otherwise, so a cancelled
@@ -374,22 +556,7 @@ function seasonalOffer(
   input: CancellationOfferInput,
   phase: CancellationOfferPhase,
 ): CancellationOffer {
-  /**
-   * The fee sentence, only for a workspace that has actually paid it.
-   *
-   * Gated on the timestamp rather than on country, because the timestamp is the
-   * exact thing checkout tests: the $29 line is added only when
-   * `registration_fee_paid_at IS NULL`, and the webhook stamps it once per
-   * company ever. A workspace that has not paid it WILL be charged on return,
-   * so for them this sentence is simply absent rather than softened.
-   */
-  const fee =
-    typeof input.registrationFeePaidAt === "string" &&
-    input.registrationFeePaidAt.trim() !== ""
-      ? " You have already paid the one-time registration fee, and it is " +
-        "charged at most once per workspace, ever — coming back does not " +
-        "charge it again."
-      : "";
+  const fee = registrationFeeSentence(input);
 
   return phase === "grace"
     ? {
@@ -456,15 +623,31 @@ export function cancellationOffer(
 ): CancellationOffer | null {
   if (!isCancellationReasonCode(input.reason)) return null;
   const phase = input.phase ?? "before";
+  /**
+   * The pause fact, narrowed to the phase it can be true in.
+   *
+   * `paused_at` outlives the subscription it belonged to — see the header — so a
+   * grace-phase caller reading a company row can hand us a `true` for a
+   * workspace whose pause died with its subscription and whose 30-day clock is
+   * running right now. Honouring it there would answer "nothing expires" to the
+   * one reader for whom something is expiring, on a date we print two lines
+   * further down. `=== true` rather than truthiness because the field is
+   * `boolean | null` and a client that has nothing to say says null.
+   */
+  const paused = input.paused === true && phase === "before";
 
   switch (input.reason) {
     case "too_expensive":
-      return tooExpensiveOffer(input, phase);
+      return tooExpensiveOffer(input, phase, paused);
     case "seasonal":
-      return seasonalOffer(input, phase);
+      return paused ? pausedSeasonalOffer(input) : seasonalOffer(input, phase);
+    // The support promise does not change because the plan is paused, for the
+    // same reason it does not change between the two phases: it is a promise
+    // about us, not about their subscription.
     case "missing_feature":
       return missingFeatureOffer();
-    // switched / not_using / other: nothing honest to add. See the header.
+    // switched / not_using / other: nothing honest to add, paused or not — a
+    // pause does not tell us what they switched to. See the header.
     default:
       return null;
   }

@@ -212,17 +212,28 @@ function OfferControl({
 }
 
 /**
- * One offer, rendered. `children` is for controls the surface owns rather than
- * the offer (today: the win-back's "No thanks"), so they sit on the same row as
- * the action instead of below it.
+ * The block every answer on this screen is drawn as: an icon, a heading, a body,
+ * and at most one row of controls.
+ *
+ * Exported because #277's paid pause answers the seasonal reason in the SAME
+ * place, in place of the offer below, and it has to be the same object visually
+ * — the reader is looking at one answer to one question they just gave, and two
+ * slightly different bordered notes in that slot would read as two competing
+ * things. It is a layout and nothing else: no words, no controls, no decision
+ * about when to appear. See `pause-plan.tsx` for the other caller.
+ *
+ * Muted and bordered, matching `MissedWhileOff` further up the same screen —
+ * the cards are the workspace's own state, and these are things we know that the
+ * reader does not. A SettingsCard here would read as a competing offer.
  */
-export function CancellationAnswer({
-  offer,
-  company,
+export function AnswerNote({
+  heading,
+  body,
   children,
 }: {
-  offer: CancellationOffer;
-  company: CompanyView;
+  heading: string;
+  body: string;
+  /** The control row, or null when the words are the whole answer. */
   children?: React.ReactNode;
 }) {
   return (
@@ -237,18 +248,42 @@ export function CancellationAnswer({
             a separate move, so it gets the wider gap. */}
         <div className="space-y-3">
           <div className="space-y-1">
-            <p className="text-sm font-medium">{offer.heading}</p>
-            <p className="text-sm text-muted-foreground">{offer.body}</p>
+            <p className="text-sm font-medium">{heading}</p>
+            <p className="text-sm text-muted-foreground">{body}</p>
           </div>
-          {(offer.action !== null || children) && (
-            <div className="flex flex-wrap items-center gap-2">
-              <OfferControl offer={offer} company={company} />
-              {children}
-            </div>
+          {children && (
+            <div className="flex flex-wrap items-center gap-2">{children}</div>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * One offer, rendered. `children` is for controls the surface owns rather than
+ * the offer (today: the win-back's "No thanks"), so they sit on the same row as
+ * the action instead of below it.
+ */
+export function CancellationAnswer({
+  offer,
+  company,
+  children,
+}: {
+  offer: CancellationOffer;
+  company: CompanyView;
+  children?: React.ReactNode;
+}) {
+  const controls = offer.action !== null || Boolean(children);
+  return (
+    <AnswerNote heading={offer.heading} body={offer.body}>
+      {controls ? (
+        <>
+          <OfferControl offer={offer} company={company} />
+          {children}
+        </>
+      ) : null}
+    </AnswerNote>
   );
 }
 

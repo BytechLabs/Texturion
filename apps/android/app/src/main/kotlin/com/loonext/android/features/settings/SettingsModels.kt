@@ -358,6 +358,86 @@ data class StatedCancellationReason(
 )
 
 // ---------------------------------------------------------------------------
+// #277 — the paid pause (GET/POST /v1/billing/pause, POST /v1/billing/resume)
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /v1/billing/pause — may this workspace pause, what would it cost, and is
+ * it paused already?
+ *
+ * One read answers all three because the billing screen needs all three: the
+ * offer renders only when eligible, a workspace already paused should be told
+ * since when rather than offered it again, and the price has to be on screen
+ * before anybody presses anything.
+ *
+ * Its OWN route rather than a field on the company view, for the reason
+ * [MissedWhileOff] above is one too: `loadCompanyView` runs on every app boot
+ * for every role, and this is a billing fact that costs a Stripe round trip.
+ */
+@Serializable
+data class PauseState(
+    /**
+     * THE ONLY THING THAT MAY PUT A PAUSE CONTROL ON SCREEN.
+     *
+     * The server has already folded the price into it — the route answers
+     * `eligibility.eligible && offer !== null` — so a pause we cannot QUOTE
+     * reports false here rather than arriving as an offer with no figure beside
+     * it. A client that ORs anything into this, or that renders the control
+     * while working out what to charge, has re-opened the one hole the route
+     * closes.
+     */
+    val eligible: Boolean = false,
+    /**
+     * Why not, when [eligible] is false. `not_provisioned`, `no_subscription`,
+     * `already_paused`, `subscription_unhealthy`, `plan_change_pending`,
+     * `referral_month_pending`, `already_prepaid`, `prepaid_coupon_orphaned`.
+     *
+     * DELIBERATELY NEVER RENDERED. `not_provisioned` means the offer does not
+     * exist, and the whole block is absent rather than greyed out; the rest are
+     * conditions on a thing that was never offered, and a screen that explains
+     * why an absent control is absent has invented a control. Modelled so a
+     * failure can be read in a bug report, not so it can be shown.
+     */
+    val reason: String? = null,
+    /** ISO. Non-null means paused RIGHT NOW — the whole of the paused state. */
+    val paused_at: String? = null,
+    /**
+     * The REAL monthly figure, in cents: the Stripe catalog price while the
+     * offer is being made, and the mirror of what this workspace is actually
+     * charged once it is paused. Null is "we cannot say", and nothing may
+     * substitute a figure for it.
+     */
+    val monthly_cents: Long? = null,
+    /**
+     * What they come back to. The pause never touches `companies.plan` — that
+     * is the whole reason it is a price swap rather than a third plan — so this
+     * is a real answer months into a quiet season.
+     */
+    val resume_plan: String? = null,
+)
+
+/**
+ * POST /v1/billing/pause.
+ *
+ * Every field is RE-READ from the database mirror after the Stripe swap, and
+ * the route answers 409 rather than success when the mirror disagrees. So this
+ * is what happened, not what was asked for.
+ */
+@Serializable
+data class PauseResult(
+    val paused_at: String? = null,
+    val monthly_cents: Long? = null,
+    val resume_plan: String? = null,
+)
+
+/** POST /v1/billing/resume — re-read the same way, so `paused_at` is null. */
+@Serializable
+data class ResumeResult(
+    val plan: String? = null,
+    val paused_at: String? = null,
+)
+
+// ---------------------------------------------------------------------------
 // Two-factor authentication (#314 — routes/mfa.ts)
 // ---------------------------------------------------------------------------
 

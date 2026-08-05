@@ -109,6 +109,48 @@ fun BillingSection(
 ) {
     val canManage = SettingsRoleGate.canManageBilling(scope.role)
 
+    // #277: the pause, read ONCE for the whole screen and threaded down.
+    //
+    // NOT ON `company_view`, deliberately — that read runs on every app boot for
+    // every role and this is a billing fact that costs a Stripe round trip. So
+    // it is asked here, and only where an answer could change what is drawn: a
+    // workspace with no plan cannot pause, and a cancelled one is answered by
+    // the card that has already taken over the plan slot.
+    //
+    // WHAT IS HELD IS THE READ, NOT THE ANSWER, and that is the fix for the
+    // worst thing this screen has done. A nullable `PauseState` meant "not
+    // asked", "asked and told no" and "the ask failed" with the same value, and
+    // all three rendered as an ordinary running plan — so a paused workspace
+    // whose read failed was shown a green Active pill, allowances for a plan
+    // that is not running, and a plan-switch button that 409s by design. See
+    // [PauseRead]: only an answer licenses a claim in either direction.
+    var pauseReads by remember { mutableIntStateOf(0) }
+    var pause by remember(scope.companyId) { mutableStateOf<PauseRead>(PauseRead.Unasked) }
+    val asksAboutPause = canManage &&
+        company.plan != null &&
+        company.subscription_status != SubscriptionStatus.CANCELED
+    LaunchedEffect(asksAboutPause, pauseReads, scope.companyId) {
+        if (!asksAboutPause) return@LaunchedEffect
+        // "Asked, nothing back yet" only while there is genuinely nothing. A
+        // revalidation after a pause or a resume already HAS an answer — the
+        // route's own re-read of the mirror — and blanking it here would flip
+        // the card out of Paused and back on every refresh.
+        if (pause !is PauseRead.Answered) pause = PauseRead.Loading
+        pause = runCatching { PauseRead.Answered(scope.repo.pauseState(scope.companyId)) }
+            // A FAILED READ IS NOT AN ANSWER, and it is certainly not "not
+            // paused". Where an answer is already in hand it stands — it came
+            // from this same route and nothing newer has contradicted it — and
+            // where there is none the card says so rather than guessing.
+            .getOrElse { pause as? PauseRead.Answered ?: PauseRead.Failed }
+    }
+    // What a pause or a resume actually DID, told from the API's own re-read of
+    // the mirror rather than assumed from the fact that a button was pressed.
+    // The re-read that follows is revalidation, not the source of truth.
+    val onPauseChanged: (PauseState) -> Unit = { settled ->
+        pause = PauseRead.Answered(settled)
+        pauseReads++
+    }
+
     StatusNotices(scope, company, canManage)
     // #490: directly under the notice that says the line is off, because it is
     // the consequence of that sentence rather than a separate topic.
@@ -116,8 +158,27 @@ fun BillingSection(
     // #481: only for a workspace on its way out. Directly under the count of
     // customers who rang into nothing, because this is what to DO about that.
     OffRampCard(scope, company)
-    PlanCard(scope, company, canManage, onRefreshCompany, onOpenHelp)
-    if (canManage && company.plan != null && company.subscriptionActive) {
+    // #277: the paused state rides ON the plan card rather than arriving as a
+    // card of its own. Being paused IS a plan fact, and a new card here would
+    // be new content above the button that leaves — which is the one thing this
+    // screen's layout rule forbids.
+    PlanCard(
+        scope,
+        company,
+        canManage,
+        onRefreshCompany,
+        onOpenHelp,
+        pause,
+        onPauseChanged,
+        onRetryPause = { pauseReads++ },
+    )
+    // NOT WHILE PAUSED, AND NOT WHILE WE DO NOT KNOW. Enabling a module invoices
+    // immediately (`always_invoice`), so an owner on a paused workspace would be
+    // charged on the spot for the voice module on a line that cannot dial. The
+    // API refuses it, and a control whose only outcome is a refusal is a control
+    // that should not have been drawn. `isRunning` rather than `!isPaused`: an
+    // unanswered read is not permission to sell something.
+    if (canManage && company.plan != null && company.subscriptionActive && pause.isRunning) {
         ModulesCard(scope)
     }
     if (canManage) {
@@ -129,7 +190,7 @@ fun BillingSection(
             PortalButton(scope, label = "Manage payment & invoices")
         }
         if (company.subscriptionActive) {
-            CancelCard(scope, company, onRefreshCompany, onOpenHelp)
+            CancelCard(scope, company, onRefreshCompany, onOpenHelp, pause, onPauseChanged)
         }
     } else {
         SettingsCard(title = "Billing") {
@@ -234,6 +295,13 @@ private fun PortalButton(
  * question pushes the way out away from your thumb. Below the button, the exit
  * sits exactly where it did before a word was said, and the answer is the first
  * thing under it.
+ *
+ * AND THE PAUSE IS AN ANSWER, NOT A STEP (#277). It arrives through the same
+ * [CancellationOfferNote] under the same button, for a workspace that has said
+ * "quiet season" and that the API says may pause. It is never a confirmation in
+ * front of the exit, never a reason the exit is unavailable, and it does not
+ * move the exit by a pixel: from landing on the billing screen, one press still
+ * reaches Stripe having answered nothing.
  */
 @Composable
 private fun CancelCard(
@@ -241,6 +309,8 @@ private fun CancelCard(
     company: CompanyView,
     onRefreshCompany: () -> Unit,
     onOpenHelp: (() -> Unit)?,
+    pause: PauseRead,
+    onPauseChanged: (PauseState) -> Unit,
 ) {
     val context = LocalContext.current
     val coroutines = rememberCoroutineScope()
@@ -462,8 +532,10 @@ private fun CancelCard(
             scope = scope,
             company = company,
             reason = reason,
+            pause = pause,
             onRefreshCompany = onRefreshCompany,
             onOpenHelp = onOpenHelp,
+            onPauseChanged = onPauseChanged,
         )
     }
 }
@@ -471,11 +543,11 @@ private fun CancelCard(
 /**
  * #277 follow-up — the answer to the reason, in place, on the cancel card.
  *
- * WHAT IT MAY SAY is decided by [cancellationOffer] and nowhere else. Four of
- * the six answers get NULL from it and render nothing, and null is a real
- * answer rather than copy nobody has written yet: there is no plan cheaper than
- * Starter, we do not know what somebody switched to, and "not using it" is
- * already served by the export and the exit above.
+ * WHAT IT MAY SAY is decided by [cancellationOffer] and, for the one reason the
+ * pause answers better, by the API. Four of the six answers get NULL and render
+ * nothing, and null is a real answer rather than copy nobody has written yet:
+ * there is no plan cheaper than Starter, we do not know what somebody switched
+ * to, and "not using it" is already served by the export and the exit above.
  *
  * LIVES OUTSIDE CancelCard for the same reason [DetailCounter] does. Nothing
  * between that card opening and the button that leaves may be conditional, and
@@ -488,40 +560,92 @@ private fun CancelCard(
  * and seats — so the offer cannot promise a switch the API would refuse. Help
  * is the help section. Neither is a new path invented for people on their way
  * out.
+ *
+ * THE PAUSE REPLACES THE SEASONAL WORDS RATHER THAN JOINING THEM (#277). Both
+ * answer "quiet season, I'll be back": the words explain that a season longer
+ * than the hold outruns it, and the pause makes that stop being the answer.
+ * Rendering both would be one card telling somebody their number is on a clock
+ * and, in the next paragraph, that it is not. So when the API says this
+ * workspace may pause — and only then, and only with the price it quoted —
+ * [pauseOfferCopy] answers and [cancellationOffer] is not consulted.
  */
 @Composable
 private fun CancellationOfferNote(
     scope: SettingsScope,
     company: CompanyView,
     reason: String?,
+    pause: PauseRead,
     onRefreshCompany: () -> Unit,
     onOpenHelp: (() -> Unit)?,
+    onPauseChanged: (PauseState) -> Unit,
 ) {
-    val offer = cancellationOffer(
-        reason = reason,
-        plan = company.plan,
-        phase = CancellationOfferPhase.Before,
-        billingCurrency = company.billing_currency,
-        country = company.country,
-        registrationFeePaidAt = company.registration_fee_paid_at,
-    ) ?: return
+    // `eligible` is the ONLY thing that may put a pause control on screen, and
+    // this is where that rule is enforced on this client: no local guess at
+    // eligibility, no price of our own, and nothing at all for the five other
+    // reasons.
+    //
+    // [PauseRead.answer] is null for a read that has not landed or has failed,
+    // and that is exactly right here: an unanswered read is not an offer, so
+    // the seasonal words render instead — which is a whole answer on its own.
+    val pauseAnswer = if (reason == PAUSE_ANSWERS_REASON) pauseOfferCopy(pause.answer) else null
+    val offer = if (pauseAnswer == null) {
+        cancellationOffer(
+            reason = reason,
+            plan = company.plan,
+            phase = CancellationOfferPhase.Before,
+            billingCurrency = company.billing_currency,
+            country = company.country,
+            registrationFeePaidAt = company.registration_fee_paid_at,
+            // THE ANSWER HAS TO KNOW. A paused workspace reading the unpaused
+            // answers gets two false things on one screen: a "Switch to Starter"
+            // button the plan-change route 409s by design, and a seasonal
+            // paragraph ending "a quiet season longer than that outruns the
+            // hold" twelve lines under a card saying the pause starts no clock
+            // at all. `isPaused` is true only on an ANSWERED read, so this says
+            // "paused" only when we were told so.
+            paused = pause.isPaused,
+        )
+    } else {
+        null
+    }
+    if (pauseAnswer == null && offer == null) return
 
-    var changingPlan by remember(offer.reason) { mutableStateOf(false) }
+    var changingPlan by remember(offer?.reason) { mutableStateOf(false) }
+    var pausing by remember(pauseAnswer?.heading) { mutableStateOf(false) }
+    var pausePending by remember { mutableStateOf(false) }
+    var pauseError by remember { mutableStateOf<String?>(null) }
+    val coroutines = rememberCoroutineScope()
 
     Spacer(Modifier.height(20.dp))
-    Text(offer.heading, style = MaterialTheme.typography.titleSmall)
+    Text(
+        pauseAnswer?.heading ?: offer!!.heading,
+        style = MaterialTheme.typography.titleSmall,
+    )
     Spacer(Modifier.height(4.dp))
     Text(
-        offer.body,
+        pauseAnswer?.body ?: offer!!.body,
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 
     // Outlined, never filled. The only filled control on this card is the one
     // that leaves, and an offer that out-weighed it would be the styling
-    // asymmetry — a loud stay, a quiet leave — this whole screen avoids.
-    val label = offer.actionLabel
-    when (offer.action) {
+    // asymmetry — a loud stay, a quiet leave — this whole screen avoids. The
+    // pause carries its price on the label for the same reason it is stated in
+    // the dialog: nobody may agree to a recurring charge they have not read.
+    if (pauseAnswer != null) {
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = { pauseError = null; pausing = true }) {
+            Text(pauseAnswer.actionLabel)
+        }
+    }
+    // The words above came from a boolean, which cannot say "we have not asked
+    // yet" — see [mayDrawOfferControl]. Until the read answers, the answer is
+    // still printed and its switch is not: the sentences about the two plans are
+    // true either way, and the button is the only part that would be a claim.
+    val action = offer?.action?.takeIf { mayDrawOfferControl(it, pause) }
+    val label = offer?.actionLabel
+    when (action) {
         CancellationOfferAction.ChangePlan -> if (label != null) {
             Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = { changingPlan = true }) { Text(label) }
@@ -548,6 +672,50 @@ private fun CancellationOfferNote(
             onChanged = {
                 changingPlan = false
                 onRefreshCompany()
+            },
+        )
+    }
+
+    if (pausing && pauseAnswer != null) {
+        ConfirmDialog(
+            title = pauseAnswer.confirmTitle,
+            body = pauseAnswer.confirmBody,
+            confirmLabel = pauseAnswer.confirmLabel,
+            pending = pausePending,
+            error = pauseError,
+            onDismiss = { pausing = false },
+            onConfirm = {
+                pausePending = true
+                pauseError = null
+                coroutines.launch {
+                    try {
+                        // TOLD FROM THE RESPONSE, never assumed from the press.
+                        // The route re-reads the mirror after the Stripe swap
+                        // and answers 409 when it disagrees, so this is the
+                        // pause that exists — and on 409 the message below is
+                        // the one the API wrote for the customer.
+                        val settled = scope.repo.pausePlan(scope.companyId)
+                        onPauseChanged(
+                            // Not eligible any more, because it has happened.
+                            // The refusal code the route would send back with
+                            // that is deliberately not carried: it is a wire
+                            // code for a bug report, and nothing on screen may
+                            // ever be built out of one.
+                            PauseState(
+                                eligible = false,
+                                paused_at = settled.paused_at,
+                                monthly_cents = settled.monthly_cents,
+                                resume_plan = settled.resume_plan,
+                            ),
+                        )
+                        pausing = false
+                        scope.showMessage("Paused. Your number and your history are safe.")
+                    } catch (cause: Exception) {
+                        pauseError = cause.userMessage()
+                    } finally {
+                        pausePending = false
+                    }
+                }
             },
         )
     }
@@ -1035,6 +1203,21 @@ private fun CanceledSubscriptionCard(
     }
 }
 
+/**
+ * The plan, and — since #277 — whether it is paused.
+ *
+ * THE PAUSED STATE LIVES HERE rather than in a card of its own, for two
+ * reasons. Being paused is a fact about the plan, so this is where somebody
+ * looks for it; and a new card would be new content between the top of this
+ * screen and the button that leaves, which is the one thing the layout rule on
+ * [CancelCard] forbids. The exit stays exactly where it was.
+ *
+ * AND IT SAYS NOTHING IT HAS NOT READ. Three of this card's claims — the pill,
+ * the allowance lines, and the plan switch — are true only of a plan that is
+ * actually running, so all three hang off [PauseRead.isRunning] rather than off
+ * "we have no pause in hand". Before the read lands, and after one that failed,
+ * the card is quiet about the state instead of green about it.
+ */
 @Composable
 private fun PlanCard(
     scope: SettingsScope,
@@ -1042,6 +1225,9 @@ private fun PlanCard(
     canManage: Boolean,
     onRefreshCompany: () -> Unit,
     onOpenHelp: (() -> Unit)? = null,
+    pause: PauseRead = PauseRead.Unasked,
+    onPauseChanged: (PauseState) -> Unit = {},
+    onRetryPause: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val coroutines = rememberCoroutineScope()
@@ -1068,6 +1254,21 @@ private fun PlanCard(
         return
     }
 
+    // #277: what they come back to, named by the API rather than inferred from
+    // `plan` — the pause never touches that column, which is what makes
+    // `resume_plan` a real answer months into a quiet season.
+    val answer = pause.answer
+    val paused = pausedStateCopy(
+        answer,
+        planFacts(answer?.resume_plan, company.billing_currency, company.country)?.name,
+    )
+    // The plan's own terms, which are only true of a plan that is running. The
+    // pause read decides, and it decides POSITIVELY: `isRunning` is false for a
+    // read that has not landed and for one that failed, where `paused == null`
+    // was true of both.
+    val running = pause.isRunning
+    val badge = planBadge(pause, company.subscriptionActive, company.cancel_at_period_end)
+
     SettingsCard(title = "Plan") {
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text(
@@ -1075,28 +1276,54 @@ private fun PlanCard(
                 style = MaterialTheme.typography.titleLarge,
             )
             Spacer(Modifier.width(10.dp))
-            if (company.subscriptionActive && !company.cancel_at_period_end) {
-                StatusPill("Active", PillTone.Positive)
+            when (badge) {
+                // Amber, not the positive green: the plan above is not what is
+                // being charged today, and the line under says what is.
+                PlanBadge.Paused -> StatusPill("Paused", PillTone.Warn)
+                PlanBadge.Active -> StatusPill("Active", PillTone.Positive)
+                // Says only that we are asking, which is all that is true yet.
+                PlanBadge.Checking -> StatusPill("Checking…", PillTone.Neutral)
+                null -> Unit
             }
         }
         Spacer(Modifier.height(8.dp))
-        listOf(
-            "Texting for your crew, bound by fair use",
-            "Calling included on every plan, never an add-on",
-            "Extra texts bill under fair use, up to a cap you control",
-            "${facts.seats} team members",
-            "${facts.numbers} phone number" + if (facts.numbers == 1) "" else "s",
-        ).forEach { line ->
-            Text(
-                "· $line",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 1.dp),
-            )
+        if (paused != null) {
+            // The allowances below describe a plan that is not running. Saying
+            // "texting for your crew" over "you cannot send texts" would be the
+            // card contradicting itself, so while paused this IS the plan copy.
+            PausedPlanNote(scope, paused, answer, canManage, onPauseChanged)
+        } else if (running || pause is PauseRead.Unasked) {
+            // `Unasked` is here on purpose, and it is the one carve-out. Nobody
+            // asked because nobody could: GET /v1/billing/pause is behind
+            // `billing.manage`, so for a member this client cannot learn about a
+            // pause at all. Blanking the plan's own terms would punish the one
+            // reader who has no control on this card to be misled about, and the
+            // pill — the only thing that CLAIMS a state — is already withheld.
+            listOf(
+                "Texting for your crew, bound by fair use",
+                "Calling included on every plan, never an add-on",
+                "Extra texts bill under fair use, up to a cap you control",
+                "${facts.seats} team members",
+                "${facts.numbers} phone number" + if (facts.numbers == 1) "" else "s",
+            ).forEach { line ->
+                Text(
+                    "· $line",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 1.dp),
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            LinkButton(onClick = { openExternal(context, FAIR_USE_URL) }) {
+                Text("Allowances reflect fair use. See the policy")
+            }
         }
-        Spacer(Modifier.height(6.dp))
-        LinkButton(onClick = { openExternal(context, FAIR_USE_URL) }) {
-            Text("Allowances reflect fair use. See the policy")
+        // Asked and not answered. One sentence for the failure and a way to ask
+        // again; nothing at all while it is still in flight, because the pill
+        // above already says so and narrating a request is not information.
+        planStateUnknownNote(pause)?.let { note ->
+            ReadOnlyLine(note)
+            LinkButton(onClick = onRetryPause) { Text("Try again") }
         }
         fullDate(company.current_period_end)?.let { date ->
             Text(
@@ -1105,9 +1332,104 @@ private fun PlanCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        if (canManage && company.subscriptionActive) {
+        // Only on a plan we have been TOLD is running. POST /v1/billing/change-plan
+        // answers 409 for a paused workspace on purpose ("resume it first, then
+        // switch plans"), so a switch control here would be a button whose only
+        // outcome is an error — and that was equally true of the window before
+        // the read landed, which is why the gate is `running` rather than "no
+        // pause in hand". The paused note says the same thing in advance.
+        if (canManage && company.subscriptionActive && running) {
             ChangePlanControl(scope, company, onRefreshCompany)
         }
+    }
+}
+
+/**
+ * #277 — the paused state, said plainly, with the way back.
+ *
+ * THREE FACTS AND A BUTTON. What stopped, what did not (inbound still arrives,
+ * and that is the half somebody could plan a winter around being wrong about),
+ * what it costs, and Resume. The copy is [pausedStateCopy]'s so the phone and
+ * the web say the same thing about the same state.
+ *
+ * THE FIGURE IS THE MIRROR'S. `monthly_cents` while paused is what this
+ * workspace is being charged, read back off the company row — not the catalog
+ * price, which is next winter's. Where the mirror has none, the heading names
+ * no amount rather than inventing one.
+ *
+ * RESUME IS CONFIRMED, and that is not friction for its own sake: resuming
+ * bills the rest of the period back up to the plan price on the spot, and the
+ * same-day idempotency key means somebody who resumes by accident cannot pause
+ * again until tomorrow. The dialog states the charge; the sentence somebody
+ * reads afterwards is the API's own, whatever it answers.
+ */
+@Composable
+private fun PausedPlanNote(
+    scope: SettingsScope,
+    copy: PausedStateCopy,
+    answer: PauseState?,
+    canManage: Boolean,
+    onPauseChanged: (PauseState) -> Unit,
+) {
+    var confirming by remember { mutableStateOf(false) }
+    var pending by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val coroutines = rememberCoroutineScope()
+
+    Text(copy.heading, style = MaterialTheme.typography.titleSmall)
+    Spacer(Modifier.height(4.dp))
+    Text(
+        copy.body,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    fullDate(answer?.paused_at)?.let { since ->
+        Text(
+            "Paused since $since.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+    if (canManage) {
+        Spacer(Modifier.height(10.dp))
+        Button(onClick = { error = null; confirming = true }) { Text(copy.resumeLabel) }
+    }
+
+    if (confirming) {
+        ConfirmDialog(
+            title = copy.confirmTitle,
+            body = copy.confirmBody,
+            confirmLabel = copy.confirmLabel,
+            pending = pending,
+            error = error,
+            onDismiss = { confirming = false },
+            onConfirm = {
+                pending = true
+                error = null
+                coroutines.launch {
+                    try {
+                        // Re-read from the mirror by the route itself, which
+                        // 409s rather than reporting a resume it cannot see.
+                        // So this is the state, not the intention.
+                        val settled = scope.repo.resumePlan(scope.companyId)
+                        onPauseChanged(
+                            PauseState(
+                                eligible = false,
+                                paused_at = settled.paused_at,
+                                resume_plan = settled.plan,
+                            ),
+                        )
+                        confirming = false
+                        scope.showMessage("You're back. Texting and calls work again.")
+                    } catch (cause: Exception) {
+                        error = cause.userMessage()
+                    } finally {
+                        pending = false
+                    }
+                }
+            },
+        )
     }
 }
 

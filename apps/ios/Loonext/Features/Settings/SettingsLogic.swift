@@ -973,13 +973,20 @@ struct CancellationReason: Equatable, Sendable, Identifiable {
     var id: String { code }
 }
 
+/// "Quiet season, I'll be back" — the one reason the paid pause answers.
+///
+/// Named rather than spelled out at each site: the reason list, the answer the
+/// cancel card renders and the pause substitution all have to agree about this
+/// string, and a third spelling of it would silently split them.
+let cancellationReasonSeasonal = "seasonal"
+
 /// The six, in the order they are offered, identical on all three clients.
 ///
 /// There is no default and there is no "prefer not to say" row: the way to not
 /// answer is to not answer, and the button that leaves works either way.
 let cancellationReasons: [CancellationReason] = [
     CancellationReason(code: "too_expensive", label: "Too expensive"),
-    CancellationReason(code: "seasonal", label: "Quiet season, I'll be back"),
+    CancellationReason(code: cancellationReasonSeasonal, label: "Quiet season, I'll be back"),
     CancellationReason(code: "missing_feature", label: "Missing something I need"),
     CancellationReason(code: "switched", label: "Going with something else"),
     CancellationReason(code: "not_using", label: "Not using it"),
@@ -1070,8 +1077,13 @@ func cancellationReasonBody(reason: String?, detail: String) -> JSONValue {
 ///   not_using / other         The export and the exit are already on the card
 ///                             and are what those answers actually need.
 ///
-/// There is NO pause feature. Copy implying one sends somebody looking for a
-/// button that is not there.
+/// A PAUSE IS NAMED ONLY TO A WORKSPACE THAT IS IN ONE. The paid pause exists
+/// now, so the old flat ban on the word is gone — but whether one is on OFFER is
+/// a Stripe read that `GET /v1/billing/pause` owns, and it refuses a workspace
+/// with a prepaid year, an unconsumed referral month, a pending plan change, an
+/// unhealthy card or an unprovisioned price. This function sees none of that, so
+/// a sentence here mentioning a pause to somebody who is not already in one
+/// sends them looking for a button the API will not give them.
 ///
 /// # Why the figures are read rather than typed
 ///
@@ -1188,35 +1200,69 @@ struct CancellationOffer: Equatable, Sendable {
 ///     unlocks one extra sentence in the seasonal answer, and it is the
 ///     sentence a seasonal business is actually asking about: what coming back
 ///     costs.
+///   - paused: `companies.paused_at != nil`, as `GET /v1/billing/pause` reports
+///     it. OMITTED MEANS NOT PAUSED, deliberately: every answer this function
+///     gave before the pause existed is the answer for an unpaused workspace, so
+///     a caller that does not pass this reads exactly what it read before, word
+///     for word. PASS THE FACT YOU HAVE READ, never the absence of one — `false`
+///     is a claim, and on a paused workspace it is the claim that puts a "Switch
+///     to Starter" button in front of a 409. A client whose read has not landed
+///     has `cancellationOffer(read:reason:plan:…)` for exactly that.
 func cancellationOffer(
     reason: String?,
     plan: String?,
     phase: CancellationOfferPhase = .before,
     billingCurrency: String? = nil,
     country: String? = nil,
-    registrationFeePaidAt: String? = nil
+    registrationFeePaidAt: String? = nil,
+    paused: Bool? = nil
 ) -> CancellationOffer? {
     // The shared list is the contract, so a code this build has never heard of
     // renders nothing instead of falling through to a guessed answer.
     guard let reason, cancellationReasons.contains(where: { $0.code == reason }) else {
         return nil
     }
+    // The pause fact, narrowed to the phase it can be true in.
+    //
+    // `paused_at` OUTLIVES THE SUBSCRIPTION IT BELONGED TO: nothing clears it on
+    // cancellation (the daily reconcile skips cancelled tenants, and
+    // `claim_checkout_activation` clears it only if they come back — see
+    // 20260805080000_resubscribe_clears_pause.sql). So a grace-phase caller
+    // reading a company row can hand over a `true` for a workspace whose pause
+    // died with its subscription and whose 30-day clock is running right now,
+    // and honouring it there would answer "nothing expires" to the one reader
+    // for whom something is. `isPaused` in scripts/ops/pricing-report.mjs draws
+    // the same line, after the same stale fact named a churned workspace as a
+    // paying paused one in a founder report.
+    //
+    // `== true` rather than a truthiness test because the parameter is `Bool?`
+    // and a client with nothing to say says nil.
+    let isPaused = paused == true && phase == .before
     switch reason {
     case "too_expensive":
         return tooExpensiveCancellationOffer(
             plan: plan,
             phase: phase,
             billingCurrency: billingCurrency,
-            country: country
+            country: country,
+            paused: isPaused
         )
     case "seasonal":
-        return seasonalCancellationOffer(
-            phase: phase,
-            registrationFeePaidAt: registrationFeePaidAt
-        )
+        return isPaused
+            ? pausedSeasonalCancellationOffer(
+                registrationFeePaidAt: registrationFeePaidAt
+            )
+            : seasonalCancellationOffer(
+                phase: phase,
+                registrationFeePaidAt: registrationFeePaidAt
+            )
+    // The support promise does not change because the plan is paused, for the
+    // same reason it does not change between the two phases: it is a promise
+    // about us answering, not about the state of their subscription.
     case "missing_feature":
         return missingFeatureCancellationOffer()
-    // switched / not_using / other: nothing honest to add. See the header.
+    // switched / not_using / other: nothing honest to add, paused or not — a
+    // pause does not tell us what they switched to. See the header.
     default:
         return nil
     }
@@ -1264,12 +1310,25 @@ func cancellationOffer(
 /// The smaller allowances are named without a figure, matching the plan card on
 /// this same screen: #85 and #121 put the concrete numbers only in the fair-use
 /// policy, and a count quoted here would be a second home for them.
+///
+/// WHY THE PAUSED ANSWER KEEPS THE WORDS AND DROPS THE BUTTON. While paused, the
+/// pause offer itself is over (`GET /v1/billing/pause` answers
+/// `already_paused`), so the cancel card falls through to this function — and it
+/// used to hand a paused Pro workspace "Switch to Starter", whose
+/// `POST /v1/billing/change-plan` answers 409 "Your plan is paused. Resume it
+/// first, then switch plans". Returning nil for the whole offer was the other
+/// option and it is worse: somebody cancelling over $79 would be told nothing
+/// about the $29 plan they can have. What the API refuses is the CLICK, not the
+/// fact — so the sentences stay, the control goes, and the copy names the two
+/// steps in the order the 409 itself names them.
 private func tooExpensiveCancellationOffer(
     plan: String?,
     phase: CancellationOfferPhase,
     billingCurrency: String?,
-    country: String?
+    country: String?,
+    paused: Bool
 ) -> CancellationOffer? {
+    // Still nothing below Starter, and a pause does not invent one.
     guard plan == "pro" else { return nil }
 
     let currency = billingCurrencyFor(stored: billingCurrency, country: country)
@@ -1284,6 +1343,34 @@ private func tooExpensiveCancellationOffer(
     // Seats and numbers, and so only for the phase whose route refuses them.
     let limits = "It covers \(starterSeats) people and \(starterNumbers) business "
         + "number\(starterNumbers == 1 ? "" : "s")."
+
+    // Same heading as the unpaused answer, on purpose: it is a fact about the
+    // two plans and the pause does not touch it. A second heading would be a
+    // second string for three clients to hand-port and drift.
+    //
+    // Answered BEFORE the phase, which is safe because `cancellationOffer`
+    // narrows `paused` to the `before` phase before calling in: a paused
+    // workspace in the grace phase is a stale flag, not a state, and this branch
+    // never sees one.
+    if paused {
+        return CancellationOffer(
+            reason: "too_expensive",
+            heading: "Starter is the same product, priced for a smaller crew",
+            body: price + " " + limits
+                + " Your plan is paused, so this takes two steps in this order: "
+                + "resume first, then switch plans. The switch takes effect at "
+                + "the end of your current billing period. Your message history "
+                + "comes with you, and so does the number you text from — a "
+                + "second number does not: the downgrade is refused until you "
+                + "release it, and until the crew is back inside "
+                + "\(starterSeats) seats.",
+            // No `resume` control either: Resume is already on the paused card
+            // at the top of this same screen, and a second one here would be
+            // this module growing a control.
+            action: nil,
+            actionLabel: nil
+        )
+    }
 
     if phase == .grace {
         return CancellationOffer(
@@ -1310,12 +1397,81 @@ private func tooExpensiveCancellationOffer(
     )
 }
 
+/// The fee sentence, only for a workspace that has actually paid it.
+///
+/// Gated on the TIMESTAMP rather than on country, because the timestamp is the
+/// exact thing checkout tests: the $29 line is added only when
+/// `registration_fee_paid_at IS NULL`, and the webhook stamps it once per
+/// company ever. A workspace that has not paid it WILL be charged on return, so
+/// for them this sentence is simply absent rather than softened.
+///
+/// SAID TO THE PAUSED READER TOO. It answers "what does coming back cost", and
+/// that question survives the pause unchanged: the fee is charged at most once
+/// per workspace ever, so neither resuming nor cancelling-and-returning charges
+/// it again. Lifted out of `seasonalCancellationOffer` when the paused answer
+/// needed the same sentence — one copy, because two would be one promise about
+/// money typed twice.
+private func registrationFeeSentence(_ registrationFeePaidAt: String?) -> String {
+    let paid = !(registrationFeePaidAt ?? "")
+        .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    guard paid else { return "" }
+    return " You have already paid the one-time registration fee, and it is "
+        + "charged at most once per workspace, ever — coming back does not "
+        + "charge it again."
+}
+
+/// The seasonal answer for somebody who ALREADY PAUSED, and is cancelling anyway.
+///
+/// They are not choosing between leaving and a 30-day hold; they are choosing
+/// between the thing they already have and giving it up, and only one of those
+/// two has a deadline. So this answer states both sides of exactly that:
+///
+///   what they have   the number and the history are held, and nothing expires
+///                    while the plan is paused. The pause is a licensed-price
+///                    swap with no clock attached — `runGraceJob` measures
+///                    `now - canceled_at`, and a paused workspace has no
+///                    `canceled_at`, so there is genuinely nothing counting.
+///   what they lose   cancelling ends the pause and starts the hold, which is
+///                    the only countdown in this product. Anchored to the
+///                    cancellation for the reason the unpaused answer below
+///                    gives at length.
+///
+/// THE UNPAUSED COPY IS FALSE HERE, which is why this exists rather than a
+/// tweak. It has to end by admitting that "a quiet season longer than that
+/// outruns the hold and the number goes back to the phone company" — and twelve
+/// lines above it on the same screen, the paused card says pausing starts no
+/// clock at all. Both sentences were on screen together.
+///
+/// NO CONTROL, same as every other seasonal answer. Resume is already on the
+/// paused card on this screen, and the point of the paragraph is not to press
+/// anything — it is that somebody about to trade an open-ended hold for a 30-day
+/// one should know that is the trade. It is not an argument either: two facts,
+/// in the order they matter, and no sentence telling them which to pick.
+private func pausedSeasonalCancellationOffer(
+    registrationFeePaidAt: String?
+) -> CancellationOffer {
+    CancellationOffer(
+        reason: "seasonal",
+        heading: "Your plan is already paused, and that hold has no deadline",
+        body: "Your number and your whole message history are held for as long as "
+            + "you stay paused — nothing expires while your plan is paused, and "
+            + "there is no date you have to be back by. Cancelling instead ends "
+            + "the pause and starts a clock: \(cancellationGraceDays) days from "
+            + "the day you cancel, not from the end of your billing period, and "
+            + "at the end of it the number goes back to the phone company."
+            + registrationFeeSentence(registrationFeePaidAt),
+        action: nil,
+        actionLabel: nil
+    )
+}
+
 /// The seasonal answer: what is already true about going quiet and coming back.
 ///
-/// THERE IS NO PAUSE, and this copy must never imply one. What exists is the
+/// THIS COPY IS FOR SOMEBODY WHO HAS NOT PAUSED. What it describes is the
 /// 30-day hold, and for a business that goes quiet for a winter the useful
 /// facts are that the number keeps receiving, the history survives, and the
-/// one-time registration fee is not charged twice.
+/// one-time registration fee is not charged twice. It must not mention the
+/// pause: whether one is on offer is the API's read, not ours (see the header).
 ///
 /// "You cannot reply" is in there on purpose. `runPreSendGates` requires an
 /// active subscription and answers 402 otherwise, so a cancelled workspace can
@@ -1345,18 +1501,8 @@ private func seasonalCancellationOffer(
     phase: CancellationOfferPhase,
     registrationFeePaidAt: String?
 ) -> CancellationOffer {
-    // Gated on the TIMESTAMP rather than on country, because the timestamp is
-    // the exact thing checkout tests: the $29 line is added only when
-    // `registration_fee_paid_at IS NULL`, and the webhook stamps it once per
-    // company ever. A workspace that has not paid it WILL be charged on return,
-    // so for them this sentence is simply absent rather than softened.
-    let paid = !(registrationFeePaidAt ?? "")
-        .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    let fee = paid
-        ? " You have already paid the one-time registration fee, and it is "
-            + "charged at most once per workspace, ever — coming back does not "
-            + "charge it again."
-        : ""
+    // The same sentence the paused answer above uses, from the same gate.
+    let fee = registrationFeeSentence(registrationFeePaidAt)
 
     if phase == .grace {
         return CancellationOffer(
@@ -1403,4 +1549,399 @@ private func missingFeatureCancellationOffer() -> CancellationOffer {
         action: .openHelp,
         actionLabel: "Get help"
     )
+}
+
+// MARK: - The paid pause (#277)
+
+/// A quiet season, priced: the number and the whole message history stay, the
+/// texting stops, and there is no fuse on any of it.
+///
+/// # THE ONE RULE THIS SECTION EXISTS TO KEEP
+///
+/// `eligible` is the ONLY thing that may put a Pause control on screen. The API
+/// computes it as `eligibility.eligible && offer !== null`, so a pause it cannot
+/// QUOTE already reports false, and nothing below re-derives it from `reason`.
+/// There are eight refusal reasons and a client that tried to interpret them
+/// would be a ninth opinion about whether somebody may be charged monthly.
+///
+/// # Why no figure is typed here
+///
+/// The pause price is not in this repository at all: the founder provisions a
+/// Stripe price and the API reads it back before the offer is ever rendered. A
+/// number typed into this file would be a recurring charge a client invented,
+/// and the customer would find out about the real one on the invoice. So every
+/// price below arrives as cents from the API, and a nil renders no sentence at
+/// all rather than a plausible-looking default.
+///
+/// # What a pause means, which is what this copy has to be right about
+///
+/// Cannot send (`runPreSendGates` refuses with `workspace_paused`), cannot dial
+/// in or out, inbound texts still ARRIVE, and scheduled sends are HELD rather
+/// than failed. The number and the history are untouched. Leaving out "you
+/// cannot reply" would let somebody plan a whole quiet season around a product
+/// that answers their customers, and find out otherwise from a customer.
+
+/// The price to print on a Pause OFFER, or nil when there is nothing to offer.
+///
+/// The second gate is not redundant with the first. `eligible` already folds in
+/// "we could read a price" — but this client is the last thing standing between
+/// an amount and a person agreeing to pay it every month, and the specific
+/// failure it refuses is a button that says "Pause" with no number on it. A
+/// missing figure therefore renders exactly what `not_provisioned` renders:
+/// nothing at all, because the offer does not exist.
+///
+/// A workspace already paused gets nil too. The offer is over for them, and what
+/// they have instead is `pausedMonthlyPrice`.
+func pauseOfferPrice(_ pause: BillingPause?) -> String? {
+    guard let pause, pause.isEligible, !pauseIsActive(pause),
+          let cents = pause.monthly_cents else { return nil }
+    return formatMonthlyCents(cents)
+}
+
+/// Is this workspace paused RIGHT NOW?
+///
+/// `paused_at` and nothing else. Never `reason == "already_paused"`: the reason
+/// says why an OFFER was refused, and seven of its eight values mean something
+/// other than this. A blank string is treated as absent for the reason
+/// `numberReleaseAt` treats one that way — an empty timestamp is a serialisation
+/// artefact, not a moment in time.
+func pauseIsActive(_ pause: BillingPause?) -> Bool {
+    guard let stamp = pause?.paused_at else { return false }
+    return !stamp.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+}
+
+/// What a paused workspace is REALLY charged, or nil when no figure came with
+/// the pause.
+///
+/// Nil prints no sentence rather than falling back to the plan price. The plan
+/// price is the one number that is certainly wrong here: a paused subscription's
+/// licensed line IS the holding fee, so printing the plan's own price over it
+/// would be this screen telling somebody they are paying many times what they
+/// are — about their own money, on the billing screen.
+func pausedMonthlyPrice(_ pause: BillingPause?) -> String? {
+    guard pauseIsActive(pause), let cents = pause?.monthly_cents else { return nil }
+    return formatMonthlyCents(cents)
+}
+
+/// The pause price to answer `seasonal` with, or nil to leave the shared answer
+/// exactly where it was.
+///
+/// ONE FUNCTION returning the price rather than a Bool beside a second lookup,
+/// so "is the answer the pause" and "what does the pause cost" cannot come apart
+/// at the call site.
+///
+/// ONLY `seasonal`. `too_expensive` keeps the smaller-plan answer even on a
+/// workspace that could pause, because "your number survives the winter" is not
+/// an answer to "this costs too much" — it is a different offer wearing the
+/// same slot. The three reasons that answer nothing still answer nothing.
+func pauseAnswerPrice(reason: String?, pause: BillingPause?) -> String? {
+    reason == cancellationReasonSeasonal ? pauseOfferPrice(pause) : nil
+}
+
+/// The offer, in the same voice the cancel card's other answers use.
+///
+/// It leads with what the money buys and names what STOPS in the same breath,
+/// because a seasonal crew can be wrong about that at their customers' expense.
+/// The hold is named only to say the pause does not have one — the shared
+/// seasonal copy this replaces has to end with "a quiet season longer than that
+/// outruns the hold and the number goes back to the phone company", and the
+/// whole point of the pause is that this sentence stops being true.
+func pauseOfferBody(price: String, resumePlanName: String?) -> String {
+    "\(price) a month holds your number and your whole message history for as long "
+        + "as the quiet lasts. There is no \(cancellationGraceDays)-day clock on a "
+        + "pause and nothing goes back to the phone company. Texting and calling "
+        + "stop; texts your customers send still arrive and are waiting for you, and "
+        + "anything you scheduled is held rather than cancelled. "
+        + (resumePlanName.map { "Come back on \($0) whenever the work does." }
+            ?? "Come back whenever the work does.")
+}
+
+/// The same facts once more, where the recurring charge is actually agreed to.
+///
+/// Repetition on purpose: the note above is an offer somebody may have scrolled
+/// past, and this is the sentence they read with their thumb over the button.
+func pauseConfirmMessage(price: String) -> String {
+    "You'll be billed \(price) a month instead of your plan, starting now. Texting "
+        + "and calling stop straight away. Your number, your message history and "
+        + "anything you have scheduled stay exactly where they are, and texts your "
+        + "customers send keep arriving. There is no deadline on any of it — resume "
+        + "whenever you like."
+}
+
+/// The paused state, as separate facts rather than one paragraph.
+///
+/// Three of them, plus the price when there is one, because a reader checking
+/// "wait, am I still receiving?" is scanning rather than reading. The price goes
+/// FIRST when it exists: it is the one line that changes what they owe.
+func pausedStateLines(price: String?) -> [String] {
+    var lines: [String] = [
+        "Texting and calling are off.",
+        "Texts your customers send still arrive, and anything you scheduled is held "
+            + "until you resume — nothing is lost.",
+        "Your number and your whole message history stay exactly where they are, with "
+            + "no deadline on them.",
+    ]
+    if let price {
+        lines.insert("You're billed \(price) a month while this is paused.", at: 0)
+    }
+    return lines
+}
+
+/// "Resume Pro", or plain "Resume" when the server did not name a plan.
+///
+/// `resume_plan` is a real answer months in — the pause never touches `plan` —
+/// so naming it is naming what they are getting back, not a guess.
+func pauseResumeLabel(planName: String?) -> String {
+    planName.map { "Resume \($0)" } ?? "Resume"
+}
+
+/// What is said after the pause lands, built from the RESPONSE.
+///
+/// The API re-reads its own mirror and 409s when it disagrees, so this sentence
+/// is only ever composed from a pause that demonstrably exists. No figure when
+/// the response carried none — a confirmation is a bad place to invent a price.
+func pausedConfirmationMessage(monthlyCents: Int?) -> String {
+    guard let monthlyCents else { return "Paused. Texting is off until you resume." }
+    return "Paused. You're billed \(formatMonthlyCents(monthlyCents)) a month until "
+        + "you resume."
+}
+
+// MARK: - What the screen KNOWS about the pause (#277)
+
+/// What the REQUEST has done so far.
+///
+/// Three cases and deliberately not four: `unaskable` is a fact about the
+/// READER — no `billing.manage`, so the whole `/v1/billing` router 403s — known
+/// before any request is made, and it is not something a fetch can become. It
+/// lives on `PauseRead`, which this becomes once the role is applied by
+/// `pauseReadFor`.
+///
+/// # This split closes a hole; it is not an abstraction for its own sake
+///
+/// The billing screen keeps this in a `@State` with a default, and while that
+/// default had type `PauseRead` a one-token edit — `.loading` to `.unaskable` —
+/// restored the whole defect (a paused workspace shown its plan's price beside a
+/// green `Active` pill) with every test in the suite still green, because
+/// `planCardShape(.unaskable)` is `.active` BY DESIGN. The narrow exception for
+/// a reader who genuinely cannot ask was covering a reader who simply had not
+/// asked yet. A screen that has not asked must not be able to SAY it cannot ask,
+/// and with this type on the state that edit no longer compiles.
+enum PauseFetch {
+    /// Asked, no answer yet. The ordinary state for the first moment of a visit.
+    case loading
+    /// Asked, and this is the answer.
+    case ready(BillingPause)
+    /// Asked, and no answer came back.
+    case failed
+}
+
+/// The read as every card on the billing screen must see it.
+///
+/// THE ONE PLACE `.unaskable` IS PRODUCED, and it is produced from the role and
+/// from nothing else. That is what keeps `planCardShape`'s exception for a
+/// reader who cannot ask from being reachable by a screen that has not asked.
+func pauseReadFor(canManageBilling: Bool, fetch: PauseFetch) -> PauseRead {
+    guard canManageBilling else { return .unaskable }
+    switch fetch {
+    case .loading: return .loading
+    case .ready(let pause): return .ready(pause)
+    case .failed: return .failed
+    }
+}
+
+/// The state of the read, which is a different thing from the state of the plan.
+///
+/// # Why this is not `BillingPause?`
+///
+/// It was, and the optional collapsed three different situations into one value.
+/// `nil` meant "the screen just opened", "we asked and Stripe did not answer",
+/// and "there is no pause" all at once — and the card downstream read all three
+/// as the last one. A workspace paying a holding fee, on a cold start whose read
+/// failed, was shown its PLAN's price beside a green Active pill: a wrong number
+/// about the reader's own money, on the billing screen, in the confident voice.
+///
+/// `GET /v1/billing/pause` throws rather than degrading to a null precisely so
+/// this cannot happen — the route would rather fail than let the offer render
+/// with no price beside it. Swallowing that throw with `try?` threw the
+/// distinction away again on the client side. This enum is the throw, kept.
+///
+/// # The rule
+///
+/// A screen may not state a fact it has not read. Only `ready` is a fact.
+enum PauseRead {
+    /// Asked, no answer yet. The ordinary state for the first moment of a visit.
+    case loading
+    /// Asked, and this is the answer. The only case anything may be asserted
+    /// from.
+    case ready(BillingPause)
+    /// Asked, and no answer came back.
+    case failed
+    /// Not asked, and not askable. The whole `/v1/billing` router is behind
+    /// `billing.manage`, so for a tech or a member there is no answer to be had
+    /// — asking would 403 on every visit to this screen.
+    case unaskable
+
+    /// The answer, and only when there is one.
+    ///
+    /// `loading`, `failed` and `unaskable` all hand back nil, which every
+    /// pause-copy function already renders as "no offer". So a surface that only
+    /// needs the offer keeps taking a `BillingPause?` and needs no new branch.
+    var answer: BillingPause? {
+        if case .ready(let pause) = self { return pause }
+        return nil
+    }
+}
+
+/// Which plan card may be drawn, given what has actually been read.
+enum PlanCardShape: Equatable {
+    /// The API said paused. Price, status and controls all come from the pause.
+    case paused
+    /// The API said not paused. The plan card exactly as it has always been.
+    case active
+    /// No answer. The card renders what it read from the COMPANY and leaves out
+    /// everything that depends on the answer — the price, the status pill and
+    /// the plan switch. `checking` is true while the read is still in flight and
+    /// false once it has failed, which is the difference between a state that
+    /// will resolve itself and one that wants a retry.
+    case unconfirmed(checking: Bool)
+}
+
+/// The whole of the rule above, in one place a test can reach.
+///
+/// A FUNCTION RATHER THAN A CHAIN OF `if`s IN THE VIEW, because the view is the
+/// one place a test cannot go: the defect this replaces was three lines of
+/// SwiftUI, and every unit test in the suite passed straight through it. A
+/// `switch` over what this returns cannot silently grow a fourth interpretation,
+/// and `CancelOneActionTests` reads the view to prove the branches are in the
+/// order that matters.
+///
+/// `unaskable` RENDERS `active`, and that is a deliberate, narrow exception
+/// rather than a hole. For a reader without `billing.manage` there is no answer
+/// to be had at any point, so "unconfirmed" would not be a loading state for
+/// them — it would permanently delete the plan price from the only screen that
+/// prints it, to guard a case they can neither act on nor see a control for.
+/// What they get is the card exactly as it was before the pause existed, and
+/// "Pro" with its price under the heading "Plan" remains a true statement about
+/// the plan. Closing this properly is an API change — a paused marker on the
+/// company view, which today deliberately withholds `paused_at` — not a client
+/// one.
+///
+/// The exception is only as narrow as the thing that produces `.unaskable`, and
+/// that is `pauseReadFor` reading the role. A screen storing this case in its own
+/// state would be claiming "I cannot ask" while holding an unfinished request,
+/// and would be handed `.active` for it; `PauseFetch` is what makes that
+/// unsayable.
+func planCardShape(_ read: PauseRead) -> PlanCardShape {
+    switch read {
+    case .ready(let pause): return pauseIsActive(pause) ? .paused : .active
+    case .loading: return .unconfirmed(checking: true)
+    case .failed: return .unconfirmed(checking: false)
+    case .unaskable: return .active
+    }
+}
+
+/// What the card says while it cannot vouch for itself.
+///
+/// It names what is MISSING rather than apologising in the abstract, because the
+/// reader's question on seeing a thinner card is "where did my price go". And it
+/// says the plan has not changed, because the second question is "did something
+/// happen to my subscription".
+func planUnconfirmedLine(checking: Bool) -> String {
+    checking
+        ? "Checking whether this plan is paused…"
+        : "We couldn't check whether this plan is paused, so anything that depends on "
+            + "the answer — the price, the status and the plan switch — is left out "
+            + "rather than guessed. Nothing about your plan has changed."
+}
+
+/// May a control that CHARGES be offered?
+///
+/// Only on an answer that came back and said "not paused". Enabling a module
+/// invoices immediately (`proration_behavior: "always_invoice"`), and
+/// `POST /v1/billing/modules` refuses a paused workspace, so offering the toggle
+/// on a maybe is offering a purchase that either fails or — worse, before the
+/// route was gated — charges for voice on a workspace that cannot dial.
+///
+/// FAILING CLOSED COSTS NOTHING VISIBLE HERE. The add-ons card already draws
+/// nothing until its own catalog fetch returns, so "not yet" looks like the
+/// loading state it already has. A read that FAILS hides the card for that
+/// visit; the plan card above it says why and offers the retry that heals both.
+func mayBuyAddOns(_ read: PauseRead) -> Bool {
+    if case .ready(let pause) = read { return !pauseIsActive(pause) }
+    return false
+}
+
+/// The cancel card's answer, decided from what this screen has actually READ.
+///
+/// # Why the Bool on `cancellationOffer` is not enough on its own
+///
+/// A `Bool` cannot tell "not paused" apart from "not read yet". Handing that
+/// function `false` on a workspace whose pause read is still in flight — or has
+/// failed — puts "Switch to Starter" back in front of a
+/// `POST /v1/billing/change-plan` that answers 409 while `companies.paused_at`
+/// is set. It is the same defect the plan card above already refuses with
+/// `planCardShape`, re-created one inch further down the same screen: that card
+/// withholds its own plan switch until the read lands, and this second switch
+/// sat under it, ungated.
+///
+/// # THE WORDS STAY, THE CONTROL GOES
+///
+/// On an answer this is `cancellationOffer` exactly. On `loading`, `failed` or
+/// `unaskable` it is the same paragraph with the PLAN SWITCH removed — the
+/// sentences are the ones this screen has always shown and no route can refuse
+/// a sentence, while `change_plan` is the one thing here that a route does
+/// refuse. Dropping the answer entirely was rejected for the reason the shared
+/// module gives: somebody cancelling over $79 would then be told nothing about
+/// the $29 plan they can have.
+///
+/// ONLY `change_plan` IS WITHHELD. `open_help` is a screen in this app that no
+/// state refuses, so a pause read that has not landed has nothing to say about
+/// it, and deleting it would be this guard costing a reader the route to a human
+/// over a fact that does not apply to it.
+///
+/// `unaskable` sits with the unread states rather than with `ready`, and that
+/// costs its reader nothing: the whole cancel card is behind `billing.manage`
+/// (see `BillingSectionView`), and so is the plan sheet this control opens, so a
+/// reader who cannot ask about the pause was never going to press it.
+///
+/// The phase is always `.before`: this is the cancel card, where the
+/// subscription is still live. The grace surface reads a company row whose
+/// `paused_at` may have outlived its subscription, and `cancellationOffer`
+/// ignores the flag there for exactly that reason.
+func cancellationOffer(
+    read: PauseRead,
+    reason: String?,
+    plan: String?,
+    billingCurrency: String? = nil,
+    country: String? = nil,
+    registrationFeePaidAt: String? = nil
+) -> CancellationOffer? {
+    func answer(paused: Bool?) -> CancellationOffer? {
+        cancellationOffer(
+            reason: reason,
+            plan: plan,
+            phase: .before,
+            billingCurrency: billingCurrency,
+            country: country,
+            registrationFeePaidAt: registrationFeePaidAt,
+            paused: paused
+        )
+    }
+    switch read {
+    case .ready(let pause):
+        return answer(paused: pauseIsActive(pause))
+    case .loading, .failed, .unaskable:
+        guard let offer = answer(paused: nil) else { return nil }
+        // The type is written out rather than inferred: `offer.action` is an
+        // optional, and the one comparison in this file that decides whether a
+        // control survives should not rest on how a leading dot resolves.
+        guard offer.action == CancellationOfferAction.changePlan else { return offer }
+        return CancellationOffer(
+            reason: offer.reason,
+            heading: offer.heading,
+            body: offer.body,
+            action: nil,
+            actionLabel: nil
+        )
+    }
 }

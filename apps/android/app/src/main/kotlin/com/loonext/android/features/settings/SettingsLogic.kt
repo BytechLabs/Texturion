@@ -744,9 +744,16 @@ fun formatMoney(cents: Int, currency: BillingCurrency): String =
 //
 // HAND-PORT of packages/shared/src/cancellation-offers.ts. Read that file's
 // header before changing a word below. Every sentence here is checkable in this
-// repository, the three reasons that answer nothing answer nothing ON PURPOSE,
-// and there is NO pause feature — the seasonal answer is about the 30-day hold
-// that already exists and nothing more.
+// repository, and the three reasons that answer nothing answer nothing ON
+// PURPOSE.
+//
+// THE PAUSE NOW EXISTS AND THIS BLOCK IS TOLD ABOUT IT, which is the one thing
+// that changed since it was written. It is told as a FACT — this workspace's
+// plan is paused right now — and never as an offer: whether a pause is
+// AVAILABLE is eight server-side gates and a live Stripe price, none of which a
+// pure function can see, and that half still lives below in the pause block. So
+// these sentences may describe a pause the reader is already in, and may not
+// promise one to anybody else.
 //
 // This is not a retention funnel. Nothing derived from it may be rendered in a
 // way that adds a step, a scroll past the exit, or a disabled state to leaving.
@@ -904,12 +911,32 @@ private fun resolveBillingCurrency(billingCurrency: String?, country: String?): 
  * holding a second number is REFUSED the downgrade until it is released, so the
  * second number is the one thing that does not stay as it is. The history
  * genuinely does survive and is still promised.
+ *
+ * WHY THE PAUSED ANSWER HAS NOTHING TO PRESS. [CancellationOfferAction.ChangePlan]
+ * names the plan switcher, and POST /v1/billing/change-plan refuses outright
+ * while `companies.paused_at` is set — a plan change during a pause is ambiguous
+ * in a way only the customer can settle (resume onto the new plan now, or land
+ * on it in spring?), so the API asks for the two steps in order rather than
+ * guessing. The plan card's own switcher is gated on the same fact, so a button
+ * here would be the ONLY pressable route to that 409 on the whole screen, drawn
+ * by us, an inch under an answer somebody volunteered.
+ *
+ * The WORDS stay, and returning null for the whole offer was the wrong fix:
+ * somebody cancelling over $79 would then be told nothing at all about the $29
+ * plan they can have. What the API refuses is the click, not the fact.
+ *
+ * There is no resume action either, and that is not an oversight: Resume already
+ * sits on the paused card at the top of this same screen, and a second one down
+ * here would be a retention funnel growing a control — see the header. The words
+ * name the order instead, in the API's own words, so somebody who goes and does
+ * it reads the same sentence twice rather than a contradiction.
  */
 private fun tooExpensiveOffer(
     plan: String?,
     phase: CancellationOfferPhase,
     billingCurrency: String?,
     country: String?,
+    paused: Boolean,
 ): CancellationOffer? {
     if (resolveOfferPlan(plan) != "pro") return null
 
@@ -928,6 +955,24 @@ private fun tooExpensiveOffer(
     /** Seats and numbers, and so only for the phase whose route refuses them. */
     val limits = "It covers $STARTER_SEATS people and $numbers business " +
         "number${if (numbers == 1) "" else "s"}."
+
+    // Same heading as the unpaused answer, on purpose. It is a fact about the
+    // two plans and the pause does not touch it; a second heading would be a
+    // second string for three clients to hand-port and drift.
+    if (paused) {
+        return CancellationOffer(
+            reason = "too_expensive",
+            heading = "Starter is the same product, priced for a smaller crew",
+            body = "$price $limits Your plan is paused, so this takes two steps in " +
+                "this order: resume first, then switch plans. The switch takes effect " +
+                "at the end of your current billing period. Your message history " +
+                "comes with you, and so does the number you text from — a second " +
+                "number does not: the downgrade is refused until you release it, and " +
+                "until the crew is back inside $STARTER_SEATS seats.",
+            action = null,
+            actionLabel = null,
+        )
+    }
 
     return if (phase == CancellationOfferPhase.Grace) {
         CancellationOffer(
@@ -954,13 +999,86 @@ private fun tooExpensiveOffer(
 }
 
 /**
+ * The fee sentence, only for a workspace that has actually paid it.
+ *
+ * Gated on the TIMESTAMP rather than on country, because the timestamp is
+ * exactly what checkout tests: the one-time line is added only when
+ * `registration_fee_paid_at IS NULL`, and the webhook stamps it once per company
+ * ever. A workspace that has not paid it WILL be charged on return, so for them
+ * this sentence is simply absent rather than softened.
+ *
+ * SAID TO THE PAUSED READER TOO. It answers "what does coming back cost", and
+ * that question survives the pause unchanged: the fee is charged at most once
+ * per workspace ever, so neither resuming nor cancelling-and-returning charges
+ * it again. Lifted out of [seasonalOffer] when the paused answer needed the same
+ * sentence — one copy, because two would be one promise about money typed twice.
+ */
+private fun registrationFeeSentence(registrationFeePaidAt: String?): String =
+    if (!registrationFeePaidAt.isNullOrBlank()) {
+        " You have already paid the one-time registration fee, and it is " +
+            "charged at most once per workspace, ever — coming back does not " +
+            "charge it again."
+    } else {
+        ""
+    }
+
+/**
+ * The seasonal answer for somebody who ALREADY PAUSED, and is cancelling anyway.
+ *
+ * They are not choosing between leaving and a 30-day hold; they are choosing
+ * between the thing they already have and giving it up, and only one of those
+ * two has a deadline. So this answer states both sides of exactly that:
+ *
+ *   what they have   the number and the history are held, and nothing expires
+ *                    while the plan is paused. The pause is a licensed-price
+ *                    swap with no clock attached — `runGraceJob` measures
+ *                    `now - canceled_at` and a paused workspace has no
+ *                    `canceled_at`, so there is genuinely nothing counting.
+ *   what they lose   cancelling ends the pause and starts the hold, and the hold
+ *                    is the only countdown in this product. Anchored to the
+ *                    cancellation for the reason [seasonalOffer] gives at length.
+ *
+ * IT REPLACES THE UNPAUSED WORDS RATHER THAN JOINING THEM. That answer's
+ * load-bearing clause — "a quiet season longer than that outruns the hold" — is
+ * FALSE for a paused workspace, and it would be read twelve lines under a paused
+ * card saying the pause starts no clock at all. Two sentences, one card,
+ * contradicting each other about the thing the reader came to find out.
+ *
+ * NO CONTROL, same as every other seasonal answer. Resume is already on the
+ * paused card on this screen, and the point of the paragraph is not to press
+ * anything — it is that somebody about to trade an open-ended hold for a 30-day
+ * one should know that is the trade.
+ *
+ * IT SAYS "PAUSED" OUT LOUD, which every other string in this block may not.
+ * Safe here and only here: they are in a pause, so it is a description of their
+ * account rather than an offer whose eligibility this function cannot see.
+ */
+private fun pausedSeasonalOffer(registrationFeePaidAt: String?): CancellationOffer =
+    CancellationOffer(
+        reason = "seasonal",
+        heading = "Your plan is already paused, and that hold has no deadline",
+        body = "Your number and your whole message history are held for as long as you " +
+            "stay paused — nothing expires while your plan is paused, and there is " +
+            "no date you have to be back by. Cancelling instead ends the pause and " +
+            "starts a clock: $CANCELLATION_GRACE_DAYS days from the day you " +
+            "cancel, not from the end of your billing period, and at the end of it " +
+            "the number goes back to the phone company." +
+            registrationFeeSentence(registrationFeePaidAt),
+        action = null,
+        actionLabel = null,
+    )
+
+/**
  * The seasonal answer: what is already true about going quiet and coming back.
  *
- * THERE IS NO PAUSE, and this copy must never imply one. "You cannot reply" is
- * in there on purpose: `runPreSendGates` requires an active subscription and
- * answers 402 otherwise, so a cancelled workspace can receive and cannot send.
- * Leaving that out would let somebody plan a quiet season around a product that
- * answers their customers, and find out otherwise from a customer.
+ * THIS COPY IS FOR SOMEBODY WHO HAS NOT PAUSED — [pausedSeasonalOffer] answers
+ * the one who has. What this describes is the 30-day hold, and it must never
+ * imply a pause: whether one is on offer is the API's read, not this function's.
+ * "You cannot reply" is in there on purpose: `runPreSendGates` requires an
+ * active subscription and answers 402 otherwise, so a cancelled workspace can
+ * receive and cannot send. Leaving that out would let somebody plan a quiet
+ * season around a product that answers their customers, and find out otherwise
+ * from a customer.
  *
  * THE HEADING MAY NOT COVER THE SEASON. It used to read "Your number is held
  * while you are gone", over a body that said 30 days, to a reader who had just
@@ -981,18 +1099,7 @@ private fun seasonalOffer(
     phase: CancellationOfferPhase,
     registrationFeePaidAt: String?,
 ): CancellationOffer {
-    // Gated on the TIMESTAMP rather than on country, because the timestamp is
-    // exactly what checkout tests: the one-time line is added only when
-    // `registration_fee_paid_at IS NULL`, and the webhook stamps it once per
-    // company ever. A workspace that has not paid it WILL be charged on return,
-    // so for them this sentence is simply absent rather than softened.
-    val fee = if (!registrationFeePaidAt.isNullOrBlank()) {
-        " You have already paid the one-time registration fee, and it is " +
-            "charged at most once per workspace, ever — coming back does not " +
-            "charge it again."
-    } else {
-        ""
-    }
+    val fee = registrationFeeSentence(registrationFeePaidAt)
 
     return if (phase == CancellationOfferPhase.Grace) {
         CancellationOffer(
@@ -1046,6 +1153,22 @@ private fun missingFeatureOffer(): CancellationOffer = CancellationOffer(
  * those answers actually need), one returns it on Starter, and an unrecognised
  * or absent reason returns it too: a client reading a code from a newer build
  * must render nothing rather than guess. Never substitute copy for a null.
+ *
+ * @param paused is this workspace's plan paused RIGHT NOW — `companies.paused_at
+ *   != null`, as GET /v1/billing/pause reports it.
+ *
+ *   FALSE BY DEFAULT, and that is deliberate rather than lazy: every answer this
+ *   function gave before the pause existed is the answer for an unpaused
+ *   workspace, so a caller that does not pass this reads exactly what it read
+ *   before, word for word. Three clients hand-port these strings and their tests
+ *   compare them.
+ *
+ *   PASS THE FACT YOU HAVE READ, NOT THE ABSENCE OF ONE. A boolean cannot tell
+ *   "not paused" apart from "not read yet", and on a paused workspace `false` is
+ *   the claim that draws "Switch to Starter" in front of a 409. On this client
+ *   the unread state is [PauseRead], and the rule the billing screen follows is
+ *   [mayDrawOfferControl] — the words come from this flag, the CONTROL comes
+ *   from the read having answered.
  */
 fun cancellationOffer(
     reason: String?,
@@ -1054,14 +1177,357 @@ fun cancellationOffer(
     billingCurrency: String? = null,
     country: String? = null,
     registrationFeePaidAt: String? = null,
-): CancellationOffer? = when (reason) {
-    "too_expensive" -> tooExpensiveOffer(plan, phase, billingCurrency, country)
-    "seasonal" -> seasonalOffer(phase, registrationFeePaidAt)
-    "missing_feature" -> missingFeatureOffer()
-    // switched / not_using / other, and anything unrecognised: nothing honest
-    // to add. See the header.
+    paused: Boolean = false,
+): CancellationOffer? {
+    // The pause fact, narrowed to the phase it can be true in.
+    //
+    // `paused_at` OUTLIVES THE SUBSCRIPTION IT BELONGED TO — nothing clears it
+    // on cancellation (the reconcile skips cancelled tenants, and
+    // `claim_checkout_activation` clears it only on the way back in) — so a
+    // grace-phase caller reading a company row can hand us a `true` for a
+    // workspace whose pause died with its subscription and whose 30-day clock is
+    // running right now. Honouring it there would answer "nothing expires" to
+    // the one reader for whom something is expiring, on a date this same card
+    // prints two lines further down.
+    val inPause = paused && phase == CancellationOfferPhase.Before
+
+    return when (reason) {
+        "too_expensive" -> tooExpensiveOffer(plan, phase, billingCurrency, country, inPause)
+        "seasonal" -> if (inPause) {
+            pausedSeasonalOffer(registrationFeePaidAt)
+        } else {
+            seasonalOffer(phase, registrationFeePaidAt)
+        }
+        // The support promise does not change because the plan is paused, for
+        // the same reason it does not change between the two phases: it is a
+        // promise about us, not about their subscription.
+        "missing_feature" -> missingFeatureOffer()
+        // switched / not_using / other, and anything unrecognised: nothing
+        // honest to add, paused or not — a pause does not tell us what somebody
+        // switched to. See the header.
+        else -> null
+    }
+}
+
+// ---------------------------------------------------------------------------
+// #277 — the paid pause: a quiet season that keeps the number
+//
+// NOT A HAND-PORT, and it is the one billing block on this screen that is not.
+// Everything above mirrors `packages/shared/src/cancellation-offers.ts`, which
+// can be shared because it is pure. A pause cannot be: the price is read out of
+// the live Stripe catalog per workspace, and whether it is offered at all is
+// decided by eight server-side gates. The only honest source for both is the
+// answer to GET /v1/billing/pause, so what is written here is the wording around
+// the API's figures and nothing else.
+//
+// The rule the rest of this file lives under still holds and matters more here,
+// not less: the pause is an OFFER. Nothing built from it may add a step, a
+// scroll past the exit, or a disabled control to leaving.
+// ---------------------------------------------------------------------------
+
+/**
+ * The one cancellation reason the pause answers better than words can.
+ *
+ * "Quiet season, I'll be back" is a description of the pause, said by somebody
+ * who does not know it exists. Every other reason gets the answer
+ * [cancellationOffer] gives it — a pause offered to "too expensive" is a second
+ * bill, and offered to "not using it" is a subscription to nothing.
+ */
+const val PAUSE_ANSWERS_REASON = "seasonal"
+
+/**
+ * WHAT STOPS. Said first, and in the offer as well as in the paused state,
+ * because it is the half somebody could plan a season around being wrong about.
+ *
+ * `runPreSendGates` refuses with `workspace_paused` (402) and the call runtime
+ * puts a paused workspace in the same arm as a suspended one — no dial command,
+ * in or out. What the caller hears is #490's line-is-down notice, which is
+ * worth saying out loud: an owner imagining their phone ringing unanswered all
+ * winter is imagining something that does not happen.
+ */
+private const val PAUSE_STOPS = "You can't send texts or take calls while you're " +
+    "paused, and anyone who rings hears that the line isn't taking calls."
+
+/**
+ * WHAT DOES NOT. Every clause is enforced somewhere: inbound messages are never
+ * gated on billing, a scheduled send is HELD under `workspace_paused` rather
+ * than failed (and that reason is marked recoverable, so it goes out on the way
+ * back), and the number and history are simply never touched.
+ */
+private const val PAUSE_KEEPS = "Every text a customer sends still arrives, anything " +
+    "you've scheduled is held rather than dropped and goes out when you're back, " +
+    "and your number and your whole message history stay exactly as they are."
+
+/**
+ * The pause, offered — heading, body, and the words on every control.
+ *
+ * THE PRICE IS ON THE CONTROL, not only in the paragraph above it. A button
+ * that says "Pause my plan" over a price two lines up is a button somebody
+ * presses without having read the amount, and this one starts a recurring
+ * charge.
+ */
+data class PauseOfferCopy(
+    val heading: String,
+    val body: String,
+    val actionLabel: String,
+    val confirmTitle: String,
+    val confirmBody: String,
+    val confirmLabel: String,
+)
+
+/**
+ * The offer, or null — and null is the common case.
+ *
+ * [PauseState.eligible] IS THE GATE, and this function adds exactly one thing
+ * to it: a null price is also null here. The route already refuses to report
+ * `eligible` without a figure, so this is the belt to that braces rather than a
+ * second opinion — the failure it exists to make impossible is a Pause button
+ * rendered beside a blank where the amount should be.
+ *
+ * NOTHING IS SAID WHEN THE ANSWER IS NO. Not "pausing isn't available", not a
+ * greyed control, not [PauseState.reason]: `not_provisioned` means the offer
+ * does not exist, and the seven other reasons are conditions on something the
+ * reader was never shown. The seasonal answer that was already there is a whole
+ * answer on its own, and it is what renders instead.
+ */
+fun pauseOfferCopy(pause: PauseState?): PauseOfferCopy? {
+    if (pause == null || !pause.eligible) return null
+    val cents = pause.monthly_cents ?: return null
+    val price = formatMonthlyCents(cents)
+
+    return PauseOfferCopy(
+        heading = "Pause instead of cancelling — $price a month",
+        // The contrast with the sentence at the top of this card is the whole
+        // argument, so it is made explicitly: cancelling starts a clock that a
+        // trades quiet season outruns, and pausing starts no clock at all.
+        body = "$price a month instead of your plan, for as long as the quiet season " +
+            "lasts. $PAUSE_STOPS $PAUSE_KEEPS Cancelling starts a " +
+            "$CANCELLATION_GRACE_DAYS-day clock on your number from the day you " +
+            "cancel; pausing starts no clock at all — come back in spring and pick " +
+            "up where you left off.",
+        actionLabel = "Pause my plan — $price/mo",
+        confirmTitle = "Pause your plan?",
+        // Says "every month until you resume" rather than naming a term,
+        // because there is no term: the swap holds until somebody presses
+        // Resume. A recurring charge has to be described as recurring.
+        confirmBody = "$price a month from today, instead of your plan price, and " +
+            "every month after that until you resume. You can resume whenever you " +
+            "want. $PAUSE_STOPS $PAUSE_KEEPS",
+        confirmLabel = "Pause for $price/mo",
+    )
+}
+
+/** The paused state itself: what is true now, and the way back. */
+data class PausedStateCopy(
+    val heading: String,
+    val body: String,
+    val resumeLabel: String,
+    val confirmTitle: String,
+    val confirmBody: String,
+    val confirmLabel: String,
+)
+
+/**
+ * What a paused workspace is told, or null when it is not paused.
+ *
+ * [PauseState.paused_at] IS THE STATE. It is non-null only while the mirror
+ * says the subscription carries the pause price, which is the same fact every
+ * send gate reads, so this card and the composer cannot disagree.
+ *
+ * THE PRICE IS THE MIRROR'S, not the catalog's, and it may be absent. A pause
+ * priced last winter is what this workspace is actually charged; a repricing
+ * since then belongs to the next pause, not to this one. Where the mirror has
+ * no figure the heading simply does not name one — inventing today's catalog
+ * price to fill the gap would be quoting a charge nobody is on.
+ *
+ * @param resumePlanName the plan they come back to, in the words the plan card
+ *   uses ([planFacts]). Null when it is a plan this build does not know, in
+ *   which case the way back is named without it rather than guessed at.
+ */
+fun pausedStateCopy(pause: PauseState?, resumePlanName: String?): PausedStateCopy? {
+    if (pause?.paused_at == null) return null
+    val price = pause.monthly_cents?.let { formatMonthlyCents(it) }
+
+    val back = if (resumePlanName != null) {
+        "Resuming puts you straight back on $resumePlanName, with the rest of this " +
+            "billing period charged at the $resumePlanName price."
+    } else {
+        "Resuming puts you straight back on your plan, with the rest of this " +
+            "billing period charged at the plan price."
+    }
+
+    return PausedStateCopy(
+        heading = if (price != null) {
+            "Paused — $price a month instead of the plan price"
+        } else {
+            "Paused"
+        },
+        body = "$PAUSE_STOPS $PAUSE_KEEPS $back",
+        resumeLabel = if (resumePlanName != null) "Resume $resumePlanName" else "Resume my plan",
+        confirmTitle = if (resumePlanName != null) "Resume $resumePlanName?" else "Resume your plan?",
+        confirmBody = "$back Texting and calls work again as soon as it lands, and " +
+            "anything that was held goes out.",
+        confirmLabel = "Resume now",
+    )
+}
+
+/**
+ * WHAT THE BILLING SCREEN KNOWS ABOUT THE PAUSE — which is a different question
+ * from whether the workspace is paused.
+ *
+ * This exists because a nullable [PauseState] carried three separate meanings in
+ * one value: nobody has asked, the API said no, and the ask failed. Every one of
+ * them rendered as "not paused", so a paused workspace whose read failed — or
+ * whose read had merely not landed yet — was shown a green Active pill, five
+ * allowance lines describing a plan that is not running, and a plan-switch
+ * button whose POST 409s by design. A failed re-read did the same thing to a
+ * card that had already been told the truth once.
+ *
+ * A SCREEN MAY NOT STATE A FACT IT HAS NOT READ. These are the four things this
+ * screen can honestly be in, and only [Answered] licenses a claim in either
+ * direction. Neutral until the answer lands is honest; a green pill is not.
+ */
+sealed interface PauseRead {
+    /**
+     * Nobody has asked.
+     *
+     * Two ways to be here, and neither is "not paused". The question is moot —
+     * a workspace with no plan, or one already cancelled, can neither pause nor
+     * be paused — or the viewer cannot ask at all: GET /v1/billing/pause sits
+     * behind `billing.manage`, so a member is never told about a pause by this
+     * client and this screen must not invent a status for them.
+     */
+    data object Unasked : PauseRead
+
+    /** Asked, no answer yet. The load window, which used to render as Active. */
+    data object Loading : PauseRead
+
+    /** Asked and answered. The ONLY state that licenses a claim either way. */
+    data class Answered(val state: PauseState) : PauseRead
+
+    /**
+     * Asked, and the ask failed.
+     *
+     * Deliberately NOT collapsed into [Unasked]: the route throws rather than
+     * degrading to null on a Stripe failure, precisely so the screen is never
+     * "the offer visible with no price beside it", and a client that turns that
+     * throw back into a shrug has undone it.
+     */
+    data object Failed : PauseRead
+}
+
+/**
+ * The answer, or null when there is not one.
+ *
+ * Null here means "no answer", never "not paused" — every caller has to decide
+ * what to do with that, which is the point of the type.
+ */
+val PauseRead.answer: PauseState? get() = (this as? PauseRead.Answered)?.state
+
+/** Paused, and we were told so. Never true on a guess. */
+val PauseRead.isPaused: Boolean get() = answer?.paused_at != null
+
+/**
+ * Running, and we were told so.
+ *
+ * NOT `!isPaused`. That is the whole defect in one expression: it is true of a
+ * read that has not landed and of one that failed, and it is what let a paused
+ * workspace be told it was active. Everything that claims the plan is running —
+ * the pill, the allowances, the plan switch, the add-ons — hangs off this.
+ */
+val PauseRead.isRunning: Boolean get() = this is PauseRead.Answered && state.paused_at == null
+
+/** What the plan card may say about this plan's state, if anything. */
+enum class PlanBadge {
+    /** The API says so. Amber: the plan named beside it is not what is charged. */
+    Paused,
+
+    /** The API says so, and Stripe says the subscription is live and staying. */
+    Active,
+
+    /** We asked and are waiting. Says only that we are asking. */
+    Checking,
+}
+
+/**
+ * The pill on the plan card, or none.
+ *
+ * PURE, AND THAT IS DELIBERATE. This is the one rule on this screen that cannot
+ * bend — no "Active" over a workspace nobody has asked about — and a rule that
+ * lives inside a composable can only be guarded by reading source text. Here it
+ * can be broken in a test.
+ *
+ * `cancelAtPeriodEnd` and an inactive subscription both answer NOTHING rather
+ * than a third pill: the amber banner at the top of the screen already says
+ * cancelling is scheduled or that payment failed, and a second badge saying it
+ * again next to the plan name is noise on a screen somebody is reading in a
+ * hurry.
+ */
+fun planBadge(
+    pause: PauseRead,
+    subscriptionActive: Boolean,
+    cancelAtPeriodEnd: Boolean,
+): PlanBadge? = when {
+    pause.isPaused -> PlanBadge.Paused
+    pause.isRunning && subscriptionActive && !cancelAtPeriodEnd -> PlanBadge.Active
+    // Answered, and there is nothing to badge: past due, unpaid, or on its way
+    // out. The banner above has already said which.
+    pause is PauseRead.Answered -> null
+    pause is PauseRead.Loading -> PlanBadge.Checking
+    // Unasked or Failed. Nothing was read, so nothing is claimed.
     else -> null
 }
+
+/**
+ * What the plan card says when it could not find out, or null when it did.
+ *
+ * ONLY THE FAILURE SPEAKS. [PauseRead.Loading] is covered by the Checking pill
+ * and adding a sentence to it would be narrating a network request at somebody
+ * reading their plan. [PauseRead.Unasked] says nothing because there is nothing
+ * to report — nobody asked, and for a member nobody can.
+ *
+ * The sentence says what is NOT known rather than apologising, and it says that
+ * nothing changed, because the reader's next thought after "couldn't check" is
+ * "did something happen to my plan".
+ */
+fun planStateUnknownNote(pause: PauseRead): String? = when (pause) {
+    is PauseRead.Failed ->
+        "We couldn't check this plan's status just now, so nothing here is claimed " +
+            "either way. Your plan and your number are untouched."
+
+    else -> null
+}
+
+/**
+ * May the cancellation answer's own control be DRAWN, given what this screen
+ * knows about the pause?
+ *
+ * THE HOLE THE BOOLEAN LEAVES, CLOSED WHERE THE SCREEN CAN SEE IT.
+ * [cancellationOffer] takes a `paused: Boolean`, and a boolean has no way to say
+ * "nobody has asked yet" — so an unread pause arrives there as `false`, and on a
+ * workspace that turns out to be paused the `too_expensive` answer comes back
+ * carrying [CancellationOfferAction.ChangePlan] and "Switch to Starter". POST
+ * /v1/billing/change-plan answers 409 to exactly that press. It is the same
+ * defect [PauseRead] was built for, one layer down: a claim made from a read
+ * that has not landed.
+ *
+ * So the WORDS are decided by the flag and the CONTROL is decided by the read,
+ * which is what the plan card above already does — its own switcher is gated on
+ * [PauseRead.isRunning], and this is that gate applied to the second switch an
+ * inch below it. `isRunning` rather than `!isPaused` for the usual reason: a
+ * read in flight and a read that failed are not permission to draw anything.
+ *
+ * ONLY [CancellationOfferAction.ChangePlan] IS WITHHELD. `OpenHelp` opens a
+ * screen no billing state can refuse, and `ResubscribeStarter` belongs to a
+ * cancelled subscription, which has no live pause to read — withholding either
+ * would be this function inventing a rule the API does not have.
+ *
+ * NOTHING IS DISABLED, EVER. The control is drawn or it is not; a greyed button
+ * on the cancel screen is the friction that whole screen is built against, and
+ * the exit is not on this path at all.
+ */
+fun mayDrawOfferControl(action: CancellationOfferAction?, pause: PauseRead): Boolean =
+    action != CancellationOfferAction.ChangePlan || pause.isRunning
 
 // ---------------------------------------------------------------------------
 // #414 emergency keyword — mirror of packages/shared/src/emergency.ts

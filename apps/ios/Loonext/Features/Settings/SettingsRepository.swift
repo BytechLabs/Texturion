@@ -778,6 +778,38 @@ struct SettingsRepository: Sendable {
         return String(decoding: data, as: UTF8.self)
     }
 
+    // MARK: - The paid pause (#277)
+
+    /// May this workspace pause, what would it cost, and is it paused already?
+    ///
+    /// ONE request answers all three because the billing screen needs all three,
+    /// and because the price has to be on the screen before anybody presses
+    /// anything. Behind the router's `billing.manage` gate like every other call
+    /// in this section, so it is only ever asked by somebody who can act on it.
+    ///
+    /// It round-trips to Stripe, which is why the screen reads it once and hands
+    /// the answer to both surfaces rather than letting each fetch its own.
+    func pauseOffer(_ companyId: String) async throws -> BillingPause {
+        try await api.get("/v1/billing/pause", companyId: companyId)
+    }
+
+    /// Hold the number, stop the texting.
+    ///
+    /// THE RESPONSE IS A RE-READ, not an echo. The route swaps the licensed
+    /// price at Stripe, re-reads its own mirror, and answers 409 when the two
+    /// disagree — so "the call returned" and "the workspace is paused" are the
+    /// same statement here, and callers must render what came back rather than
+    /// what they asked for. A 409 carries a sentence written for the customer;
+    /// show it as it arrives.
+    func pausePlan(_ companyId: String) async throws -> BillingPaused {
+        try await api.post("/v1/billing/pause", companyId: companyId)
+    }
+
+    /// Come back in the spring. Same swap in reverse, same re-read, same rule.
+    func resumePlan(_ companyId: String) async throws -> BillingResumed {
+        try await api.post("/v1/billing/resume", companyId: companyId)
+    }
+
     /// Hosted Stripe Billing Portal URL — open in an EXTERNAL browser.
     func billingPortal(_ companyId: String) async throws -> HostedUrl {
         try await api.post("/v1/billing/portal", companyId: companyId)

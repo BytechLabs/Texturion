@@ -11,6 +11,7 @@ import {
   PLAN_PRICE_CENTS,
 } from "@loonext/shared";
 
+import { ApiError } from "@/lib/api/error";
 import { PLAN_PRICING, type CompanyView } from "@/lib/api/types";
 
 import { PLAN_FACTS } from "./plan-facts";
@@ -75,6 +76,10 @@ const {
   changePlan,
   stated,
   dismiss,
+  pause,
+  pausePlan,
+  resumePlan,
+  toasted,
   activeRole,
   companyQuery,
 } = vi.hoisted(() => ({
@@ -90,6 +95,45 @@ const {
     asked: undefined as boolean | undefined,
   },
   dismiss: { mutate: vi.fn() },
+  /**
+   * #277 GET /v1/billing/pause. `asked` records the caller's `enabled`, because
+   * "does this screen pay two Stripe round trips it will not render" is a
+   * property under test, not decoration — same as `stated.asked` above.
+   *
+   * `error` EXISTS SO THE SUITE CAN EXPRESS A QUERY THAT IS NOT DATA-SHAPED.
+   * This mock used to hand back `{ data, asked }` and nothing else, so
+   * `isPending` and `isError` were `undefined` on every render and no test in
+   * the file could describe the two states that are not "the server answered":
+   * the cold-start window before the read lands, and a read that failed. The
+   * constraint this whole feature is subordinate to — one press reaches Stripe —
+   * is exactly what a `disabled={pause.isPending}` would break, and it would
+   * have broken it while the suite reported green. The flags are DERIVED below
+   * rather than stored beside `data`, so a fixture cannot claim to be loading
+   * and answered at once.
+   */
+  pause: {
+    data: undefined as
+      | {
+          eligible: boolean;
+          reason: string | null;
+          paused_at: string | null;
+          monthly_cents: number | null;
+          resume_plan: "starter" | "pro" | null;
+        }
+      | undefined,
+    /** What the read failed with, when it failed. */
+    error: null as Error | null,
+    asked: undefined as boolean | undefined,
+    /**
+     * Asking again. Real, because a failed read now says so on the plan card
+     * and offers a retry — and a "Try again" wired to nothing is worse than no
+     * "Try again", since it looks like the request was made.
+     */
+    refetch: vi.fn(),
+  },
+  pausePlan: { mutate: vi.fn(), isPending: false },
+  resumePlan: { mutate: vi.fn(), isPending: false },
+  toasted: vi.fn(),
   /** The role the page renders for. Only the page-level tests move it. */
   activeRole: { current: "owner" },
   /** What `useCompany()` answers the PAGE with (the card tests pass props). */
@@ -111,9 +155,42 @@ vi.mock("@/lib/api/billing", () => ({
     return stated;
   },
   useDismissWinback: () => dismiss,
+  usePauseOffer: (enabled: boolean) => {
+    // ACCUMULATES, never overwrites. Two surfaces share this key — the paused
+    // card and the cancel card — and react-query fires the request if EITHER
+    // enables it. A last-caller-wins recorder would report `false` for a
+    // bookkeeper page (whose cancel card passes `isOwner: false`) while the
+    // request was very much made.
+    pause.asked = (pause.asked ?? false) || enabled;
+    return {
+      data: pause.data,
+      error: pause.error,
+      // THE THREE STATES REACT-QUERY REALLY HAS, derived from the fixture so it
+      // cannot describe an impossible query. `isPending` is `status ===
+      // "pending"` — no data and no error — which is also what a DISABLED query
+      // reports, and that is the shape that matters most here: a screen whose
+      // exit waited on this query would wait forever for the reader who never
+      // enabled it.
+      isPending: pause.error === null && pause.data === undefined,
+      isError: pause.error !== null,
+      isSuccess: pause.data !== undefined,
+      refetch: pause.refetch,
+    };
+  },
+  usePausePlan: () => pausePlan,
+  useResumePlan: () => resumePlan,
   // #490's count, on the page. Nothing renders from `undefined`, which is what
   // this suite wants: the win-back gate is what is under test, not the count.
   useMissedWhileOff: () => ({ data: undefined }),
+  // The three offers that only mount on an ACTIVE subscription, which the
+  // canceled-state page tests never reach. Each renders nothing from
+  // `undefined`, which is what this suite wants — they are neighbours of the
+  // thing under test, not the thing.
+  useModules: () => ({ data: undefined }),
+  useSetModule: () => ({ mutate: vi.fn(), isPending: false }),
+  usePrepayOffer: () => ({ data: undefined }),
+  useBuyPrepaidYear: () => ({ mutate: vi.fn(), isPending: false }),
+  useReferrals: () => ({ data: undefined }),
 }));
 vi.mock("@/lib/api/contacts-export-hook", () => ({
   useExportContacts: () => exportContacts,
@@ -126,6 +203,10 @@ vi.mock("@/lib/api/companies", () => ({
   useCompany: () => companyQuery,
   useUpdateCompany: () => ({ mutate: vi.fn(), isPending: false }),
 }));
+// The pause and the resume say so out loud, and the surface that says it is a
+// toast rather than a line on the card — the paused card is a scroll away from
+// where the pause is pressed.
+vi.mock("sonner", () => ({ toast: { success: toasted, error: vi.fn() } }));
 
 const PORTAL_URL = "https://billing.stripe.com/session/test";
 
@@ -142,6 +223,15 @@ const {
 const { HoldSentence, WinbackAnswer } = await import(
   "@/components/settings/cancellation-answer"
 );
+
+const {
+  PAUSE_CONFIRMATION,
+  RESUME_CONFIRMATION,
+  PausedPlanCard,
+  pauseOfferAction,
+  pauseOfferBody,
+  pauseOfferHeading,
+} = await import("@/components/settings/pause-plan");
 
 const { default: BillingSettingsPage } = await import("./page");
 
@@ -171,6 +261,37 @@ function daysAgo(days: number): string {
 }
 
 /**
+ * A pause fee, and the exact characters it must become on screen.
+ *
+ * BOTH SIDES ARE WRITTEN OUT, and the price literal is the whole point of the
+ * pair. Every other price assertion in the pause suites reads
+ * `pauseOfferAction(PAUSE_CENTS)` — the shipped function — and compares its
+ * output to the same function's output rendered by the shipped component, which
+ * is a tautology: rewrite `pauseOfferAction` to return "Pause your plan" with no
+ * figure in it, or `monthly()` to return a constant, and every one of those
+ * assertions still passes. A customer is agreeing to a recurring charge here, so
+ * the one thing that may not be self-referential is the amount.
+ *
+ * 1275 rather than the 500 the fixtures elsewhere use, deliberately: a component
+ * that ignored its prop and hardcoded the neighbouring fixture's "$5" would pass
+ * a check written against 500. It also exercises the formatter's fractional
+ * branch, which a round figure never reaches. It is not a plan price —
+ * `price-surfaces.test.ts` forbids those as literals anywhere in the tree, and a
+ * holding fee is not one of them.
+ */
+const ODD_CENTS = 1275;
+const ODD_PRICE = "$12.75";
+
+/**
+ * Every money-shaped run of characters on screen, including a bare "$" — which
+ * is what "$NaN" or a figure that failed to render leaves behind, and the exact
+ * thing a price assertion written as `toContain("$12.75")` would sail past.
+ */
+function pricesShown(): string[] {
+  return (document.body.textContent ?? "").match(/\$[\d,]*\.?\d*/g) ?? [];
+}
+
+/**
  * Render the card as somebody actually meets it, and return the control that
  * leaves. There is deliberately no interaction in here: every test below
  * measures its steps from a plain arrival on the billing screen, so a trigger
@@ -180,6 +301,85 @@ function daysAgo(days: number): string {
 function renderCard(overrides: Partial<CompanyView> = {}): HTMLElement {
   render(<CancelSubscriptionCard isOwner company={company(overrides)} />);
   return screen.getByRole("button", { name: new RegExp(CANCEL_ACTION) });
+}
+
+/**
+ * The way out, checked the way a person meets it rather than the way the DOM
+ * reports it.
+ *
+ * `expect(leave.hasAttribute("disabled")).toBe(false)` is the obvious check and
+ * it is not enough. happy-dom applies NO CSS, so
+ * `className={pause.isPending ? "pointer-events-none opacity-50" : undefined}`
+ * on this button leaves it enabled, visible, un-hidden and perfectly clickable
+ * by `fireEvent` — while a real person cannot press it for the whole cold-start
+ * read. Every one of the 83 tests in this file passed with that edit in place.
+ *
+ * It is not a contrived mutation either: `pointer-events-none` appears in five
+ * places under `apps/web/src`, and every shadcn button in the tree ships
+ * `disabled:pointer-events-none` in its own class list (`call-bar.test.tsx`
+ * documents that pattern), so reaching for the unprefixed token is one
+ * keystroke away from a pattern already in the file being edited.
+ *
+ * THE TOKEN, NOT THE SUBSTRING, and up the whole ancestor chain. A
+ * `toContain("pointer-events-none")` check would read true for every button
+ * here — that `disabled:` variant is inert until the button really IS disabled,
+ * which is asserted separately on the line above — and a wrapper carrying the
+ * class kills the child just as dead as the child carrying it.
+ *
+ * Opacity is deliberately not checked. A dim exit is a styling argument; an
+ * exit that cannot be pressed is the rule this whole card exists to keep.
+ */
+function expectExitIsPressable(exit: HTMLElement, when = "the exit"): void {
+  expect(exit.hasAttribute("disabled"), when).toBe(false);
+
+  for (let node: HTMLElement | null = exit; node; node = node.parentElement) {
+    expect(
+      (node.getAttribute("class") ?? "").split(/\s+/),
+      `${when}: <${node.tagName.toLowerCase()}> makes the exit unclickable`,
+    ).not.toContain("pointer-events-none");
+  }
+
+  // Not disabled, not CSS-dead, and not put behind something: a collapse, an
+  // accordion or a Radix trigger wrapped around this card would cost a press
+  // without ever touching the `disabled` attribute.
+  expect(
+    exit.closest("[hidden], [aria-hidden='true'], [data-state='closed']"),
+    when,
+  ).toBeNull();
+}
+
+/**
+ * What `GET /v1/billing/pause` answers for a workspace whose plan is RUNNING.
+ *
+ * The point of this fixture is that it is an ANSWER. `pause.data = undefined`
+ * is the cold-start read, not a workspace that is not paused, and the two used
+ * to render identically — which is the whole defect these suites now guard.
+ * Ineligible-and-unquotable by default, so it puts no pause offer on screen:
+ * these are the tests about the OTHER answers.
+ */
+function running(
+  overrides: Partial<NonNullable<typeof pause.data>> = {},
+): NonNullable<typeof pause.data> {
+  return {
+    eligible: false,
+    reason: "not_provisioned",
+    paused_at: null,
+    monthly_cents: null,
+    resume_plan: "pro",
+    ...overrides,
+  };
+}
+
+/** …and for one that is paused RIGHT NOW, which is what the route really says. */
+function pausedNow(
+  overrides: Partial<NonNullable<typeof pause.data>> = {},
+): NonNullable<typeof pause.data> {
+  return running({
+    reason: "already_paused",
+    paused_at: daysAgo(9),
+    monthly_cents: ODD_CENTS,
+    ...overrides,
+  });
 }
 
 afterEach(cleanup);
@@ -197,6 +397,15 @@ beforeEach(() => {
   dismiss.mutate.mockReset();
   stated.data = undefined;
   stated.asked = undefined;
+  pause.data = undefined;
+  pause.error = null;
+  pause.asked = undefined;
+  pause.refetch.mockReset();
+  pausePlan.mutate.mockReset();
+  pausePlan.isPending = false;
+  resumePlan.mutate.mockReset();
+  resumePlan.isPending = false;
+  toasted.mockReset();
   activeRole.current = "owner";
   companyQuery.data = undefined;
 });
@@ -245,7 +454,7 @@ describe("#277 saying why, on the way out", () => {
     const leave = screen.getByRole("button", {
       name: new RegExp(CANCEL_ACTION),
     });
-    expect(leave.hasAttribute("disabled")).toBe(false);
+    expectExitIsPressable(leave, "on arrival");
 
     // And it is one of exactly two buttons, which is what pins the absence of
     // BOTH a trigger in front of the card and a dismiss beside the confirm.
@@ -271,7 +480,7 @@ describe("#277 saying why, on the way out", () => {
     // The whole rule. No second dialog, no "are you sure", no
     // disabled-until-you-pick. One click from this screen to the portal.
     const leave = renderCard();
-    expect(leave.hasAttribute("disabled")).toBe(false);
+    expectExitIsPressable(leave, "nothing answered");
 
     fireEvent.click(leave);
     expect(portal.mutate).toHaveBeenCalledTimes(1);
@@ -542,8 +751,8 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
       leave.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
 
-    // And leaving is unchanged: one action, enabled, nothing in the way.
-    expect(leave.hasAttribute("disabled")).toBe(false);
+    // And leaving is unchanged: one action, pressable, nothing in the way.
+    expectExitIsPressable(leave, "with the answer up");
     expect(screen.queryByRole("dialog")).toBeNull();
     fireEvent.click(leave);
     expect(portal.mutate).toHaveBeenCalledTimes(1);
@@ -604,9 +813,11 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
   });
 
   it("OFFER-6: seasonal is words only — there is nothing to press", () => {
-    // There is no pause feature. The answer is about the hold that already
-    // exists, so it has no control, and a button here would imply a product we
-    // do not sell.
+    // The shared answer is about the 30-day hold that already exists, so it has
+    // no control. #277's paid pause is a control, and this is now the case where
+    // there is NO pause to offer: `pause.data` is undefined here (the query is
+    // loading, disabled, or failed), so the card is the card it always was. The
+    // eligible case is PAUSE-2 below.
     renderCard();
     pick("Quiet season, I'll be back");
     const offer = offerFor({ reason: "seasonal", plan: "pro" });
@@ -649,7 +860,12 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
     // pattern this card exists to avoid is an exit that is quieter than
     // whatever keeps somebody subscribed, so every control the offer can put on
     // screen has to be checked, not just the first one.
+    //
+    // With the pause read ANSWERED, so the plan switch is genuinely on screen:
+    // this test measures the loudest control among the ones that exist, and a
+    // cold-start fixture would quietly measure a card with one fewer.
     for (const label of ["Too expensive", "Missing something I need"]) {
+      pause.data = running();
       renderCard();
       pick(label);
       const primaries = [
@@ -669,6 +885,13 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
     // plan while `actionLabel` is shared across three clients — two places
     // arriving at the same words is precisely how they stop matching, so the
     // equality is pinned rather than assumed.
+    //
+    // THE READ HAS ANSWERED, and that is now load-bearing rather than scenery:
+    // this control is withheld until the pause read comes back, because on a
+    // paused workspace it is a button whose only outcome is a 409. `running()`
+    // is that answer; `pause.data = undefined` would be the cold-start window,
+    // where OFFER-P3 asserts the opposite of everything below.
+    pause.data = running();
     renderCard();
     pick("Too expensive");
     const offer = offerFor({ reason: "too_expensive", plan: "pro" });
@@ -730,10 +953,25 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
       ({ label }) => [
         label,
         () => {
+          pause.data = running();
           renderCard();
           pick(label);
         },
       ],
+    );
+    // Including the answers a PAUSED workspace gets. Two of the six are
+    // different copy for that reader — copy that talks about a clock starting
+    // when they cancel — and different copy is exactly where a deadline gets
+    // stated without saying where it is counted from.
+    surfaces.push(
+      ...CANCELLATION_REASONS.map(({ label }): [string, () => void] => [
+        `${label} (paused)`,
+        () => {
+          pause.data = pausedNow();
+          renderCard();
+          pick(label);
+        },
+      ]),
     );
     // Including the version an admin reads and relays to the owner — an admin
     // who counts the deadline wrong passes the wrong deadline on.
@@ -749,6 +987,766 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
       expect(copy, name).not.toMatch(HOLD_STATED_WITHOUT_ANCHOR);
       cleanup();
     }
+  });
+});
+
+/**
+ * #277 — the paid pause, offered as the answer to "quiet season".
+ *
+ * A crew going quiet for the winter keeps its number and its history, stops
+ * texting, and pays a small monthly fee instead of the plan. It is a better
+ * answer to `seasonal` than the 30-day hold is, so it REPLACES the shared
+ * seasonal offer in the same slot — below the exit, after a reason has been
+ * volunteered.
+ *
+ * The pass/fail rules, in the order they matter:
+ *
+ *   1. the exit is unchanged. One action, never disabled, never moved.
+ *   2. `eligible` is the only thing that may put a control on screen.
+ *   3. no figure is ever invented — the price on the control is the API's.
+ */
+describe("#277 the paid pause, on the cancel card", () => {
+  /**
+   * A pause the server says yes to, at a price it quoted.
+   *
+   * The FIGURE is the fixture's, and every expectation below derives from it
+   * through the shipped formatter rather than restating it — a test that types
+   * "$5" alongside a component that types "$5" proves the two agree with each
+   * other and nothing about where the number came from. Deliberately not a plan
+   * price: `price-surfaces.test.ts` forbids those as literals anywhere in the
+   * tree, and a holding fee is not one of them.
+   */
+  const PAUSE_CENTS = 500;
+
+  function offered(
+    overrides: Partial<NonNullable<typeof pause.data>> = {},
+  ): NonNullable<typeof pause.data> {
+    return {
+      eligible: true,
+      reason: null,
+      paused_at: null,
+      monthly_cents: PAUSE_CENTS,
+      resume_plan: "pro",
+      ...overrides,
+    };
+  }
+
+  /** The heading, the body and the control, all from the shipped copy. */
+  const heading = () => pauseOfferHeading(PAUSE_CENTS);
+  const action = () => pauseOfferAction(PAUSE_CENTS);
+
+  it("PAUSE-1: an ineligible pause is absent, not greyed out or explained", () => {
+    // Every reason the route can give, and the answer to all of them is the
+    // same: the seasonal reader gets the shared 30-day answer and there is
+    // nothing to press. `not_provisioned` is the one that matters most — that is
+    // our own unset Stripe catalog, and a customer on the way out must never be
+    // shown a disabled control explaining our configuration to them.
+    for (const reason of [
+      "not_provisioned",
+      "no_subscription",
+      "already_paused",
+      "subscription_unhealthy",
+      "plan_change_pending",
+      "referral_month_pending",
+      "already_prepaid",
+      "prepaid_coupon_orphaned",
+    ]) {
+      const isPaused = reason === "already_paused";
+      pause.data = offered({
+        eligible: false,
+        reason,
+        // The route's real shapes, and `already_paused` is the one that
+        // matters: it answers `monthly_cents` from the company mirror, so a
+        // figure IS present while `eligible` is false. Sending null for every
+        // reason would let the price check mask the eligibility check, and a
+        // client that gated on "do we have a number" instead of on `eligible`
+        // would pass this whole loop.
+        monthly_cents: isPaused ? PAUSE_CENTS : null,
+        // And it answers a `paused_at`, because that is what makes it
+        // `already_paused`. Sending null here would have made this the one
+        // fixture in the file that describes a state the route cannot produce —
+        // and it is the exact state whose seasonal answer is different.
+        paused_at: isPaused ? daysAgo(9) : null,
+      });
+      renderCard();
+      pick("Quiet season, I'll be back");
+
+      const copy = document.body.textContent ?? "";
+      expect(copy, reason).toContain(
+        offerFor({ reason: "seasonal", plan: "pro", paused: isPaused }).heading,
+      );
+      expect(copy, reason).not.toContain(reason);
+      expect(
+        screen.getAllByRole("button").map((b) => b.textContent?.trim()),
+        reason,
+      ).toEqual(QUIET_CARD_BUTTONS);
+      cleanup();
+    }
+  });
+
+  it("PAUSE-2: eligible REPLACES the hold answer, and quotes the real price", () => {
+    // One answer to one reason. The shared seasonal offer describes the 30-day
+    // hold — true, and the best we had — but it is the wrong answer to somebody
+    // who has just said they will be back in the spring. Two notes stacked here
+    // would be the retention funnel this card refuses to become.
+    pause.data = offered();
+    renderCard();
+    pick("Quiet season, I'll be back");
+
+    expect(screen.getByText(heading())).toBeTruthy();
+    expect(screen.getByText(pauseOfferBody(PAUSE_CENTS))).toBeTruthy();
+    expect(
+      screen.queryByText(offerFor({ reason: "seasonal", plan: "pro" }).heading),
+    ).toBeNull();
+
+    // The amount is on the CONTROL, not only in the prose. Nobody agrees to a
+    // recurring charge whose figure was a paragraph away from the button.
+    expect(screen.getByRole("button", { name: action() })).toBeTruthy();
+  });
+
+  it("PAUSE-3: THE EXIT DOES NOT MOVE — one action, still, with the offer up", () => {
+    // The constraint that outranks the feature. A previous round of this
+    // regressed the exit from one action to two on all three clients and every
+    // build report called it fine, so it is measured here from a plain arrival:
+    // no expand, no dialog, no disabled state, and the offer strictly BELOW the
+    // button that leaves.
+    pause.data = offered();
+    const leave = renderCard();
+    pick("Quiet season, I'll be back");
+
+    expect(
+      leave.compareDocumentPosition(screen.getByText(heading())) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expectExitIsPressable(leave, "with the pause offered");
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    fireEvent.click(leave);
+    expect(portal.mutate).toHaveBeenCalledTimes(1);
+    // And pressing the exit does not quietly pause anybody on the way out.
+    expect(pausePlan.mutate).not.toHaveBeenCalled();
+  });
+
+  it("PAUSE-4: leaving is still the loudest thing in the card", () => {
+    // An offer that out-shouts the exit is the dark pattern this whole screen is
+    // built against. The pause is an outline, like every other answer's control.
+    pause.data = offered();
+    renderCard();
+    pick("Quiet season, I'll be back");
+
+    expect(screen.getByRole("button", { name: action() }).getAttribute("data-variant")).toBe(
+      "outline",
+    );
+    expect(
+      [...screen.getAllByRole("button"), ...screen.queryAllByRole("link")]
+        .filter((node) => node.getAttribute("data-variant") === "default")
+        .map((node) => node.textContent?.trim()),
+    ).toEqual([CANCEL_ACTION]);
+  });
+
+  it("PAUSE-5: a pause we cannot quote is never offered", () => {
+    // The route already reports `eligible: false` for a price it cannot read —
+    // unset, archived, $0 or tiered. This is the belt to that braces: a response
+    // that ever said yes without a figure renders NOTHING rather than a control
+    // with a hole where the amount goes.
+    pause.data = offered({ monthly_cents: null });
+    renderCard();
+    pick("Quiet season, I'll be back");
+
+    expect(
+      screen.getAllByRole("button").map((b) => b.textContent?.trim()),
+    ).toEqual(QUIET_CARD_BUTTONS);
+    // And no "$" with nothing after it, or "$NaN", anywhere on the card.
+    expect(document.body.textContent).not.toMatch(/\$\s*(?![\d])/);
+  });
+
+  it("PAUSE-6: only the seasonal reader is offered it", () => {
+    // The pause answers "quiet season". It is not a retention offer bolted onto
+    // every reason: somebody leaving because a feature is missing gets the help
+    // route, and somebody who says nothing gets nothing.
+    pause.data = offered();
+    for (const { label } of CANCELLATION_REASONS) {
+      if (label === "Quiet season, I'll be back") continue;
+      renderCard();
+      pick(label);
+      expect(screen.queryByText(heading()), label).toBeNull();
+      cleanup();
+    }
+
+    // Including the case where no reason has been given at all.
+    renderCard();
+    expect(screen.queryByText(heading())).toBeNull();
+  });
+
+  it("PAUSE-7: pressing it sends ONE request and says so when it lands", () => {
+    pausePlan.mutate.mockImplementation(
+      (_input: undefined, options: { onSuccess: () => void }) =>
+        options.onSuccess(),
+    );
+    pause.data = offered();
+    renderCard();
+    pick("Quiet season, I'll be back");
+    fireEvent.click(screen.getByRole("button", { name: action() }));
+
+    expect(pausePlan.mutate).toHaveBeenCalledTimes(1);
+    // Said where the press happened. The paused state lands at the top of this
+    // page, a scroll away from a button near the bottom of it.
+    expect(toasted).toHaveBeenCalledWith(PAUSE_CONFIRMATION);
+    // The handoff to Stripe was not touched: pausing is not leaving.
+    expect(portal.mutate).not.toHaveBeenCalled();
+  });
+
+  it("PAUSE-8: a refusal is shown in the API's own words, and blocks nothing", () => {
+    // Both pause routes re-read the database mirror after the Stripe swap and
+    // 409 rather than reporting a success they cannot see. The message is
+    // written for the customer, so it is shown as-is rather than replaced with
+    // a house sentence that knows less.
+    const refusal =
+      "Your plan hasn't paused yet. If you resumed earlier today, try again " +
+      "tomorrow — you won't be charged twice for pausing.";
+    pausePlan.mutate.mockImplementation(
+      (_input: undefined, options: { onError: (cause: unknown) => void }) =>
+        options.onError(new ApiError("conflict", refusal, 409)),
+    );
+    pause.data = offered();
+    const leave = renderCard();
+    pick("Quiet season, I'll be back");
+    fireEvent.click(screen.getByRole("button", { name: action() }));
+
+    expect(screen.getByRole("alert").textContent).toBe(refusal);
+    // And the way out is exactly where it was, still one press.
+    expectExitIsPressable(leave, "after the pause was refused");
+    fireEvent.click(leave);
+    expect(portal.mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("PAUSE-9: not asked for on a card that could not render it", () => {
+    // `GET /v1/billing/pause` round-trips to Stripe twice — the subscription,
+    // then the price. The non-owner card has no cancel flow and no offer slot,
+    // so it must not buy the answer.
+    render(<CancelSubscriptionCard isOwner={false} company={company()} />);
+    expect(pause.asked).toBe(false);
+  });
+
+  it("PAUSE-9a: nor on a workspace that has no plan to pause", () => {
+    // The page and this card enable the SAME query key, and react-query fires
+    // the request if either says yes — so the card's gate was quietly the whole
+    // gate wherever it was wider. It was: the page asked only for a workspace
+    // with a plan and a live subscription, this card asked for any owner, and an
+    // owner who abandoned setup before checkout bought two Stripe round trips
+    // for an answer that can only be `no_subscription`.
+    render(<CancelSubscriptionCard isOwner company={company({ plan: null })} />);
+    // The card itself is on screen — this is a gate that closed, not a card that
+    // never rendered.
+    expect(screen.getByRole("button", { name: new RegExp(CANCEL_ACTION) })).toBeTruthy();
+    expect(pause.asked).toBe(false);
+  });
+
+  it("PAUSE-10: the price on the offer is the SERVER's figure, to the cent", () => {
+    // Checked against a LITERAL, because every other price assertion in this
+    // file is circular: `screen.getByText(pauseOfferHeading(500))` asks the
+    // shipped function what to look for and then finds what the shipped
+    // component rendered with the same function. Rewrite `pauseOfferAction` to
+    // return "Pause your plan", or `monthly()` to return a constant, and all of
+    // them still pass — while a customer agrees to a recurring charge whose
+    // amount nothing checked.
+    for (const [name, copy] of [
+      ["heading", pauseOfferHeading(ODD_CENTS)],
+      ["body", pauseOfferBody(ODD_CENTS)],
+      ["action", pauseOfferAction(ODD_CENTS)],
+    ] as const) {
+      expect(copy.match(/\$[\d,]*\.?\d*/g) ?? [], name).toEqual([ODD_PRICE]);
+    }
+
+    // And at the RENDER SITE, which is where a fabricated fallback would live: a
+    // component that ignored its prop and reached for a default would be invisible
+    // to the three checks above.
+    pause.data = offered({ monthly_cents: ODD_CENTS });
+    renderCard();
+    pick("Quiet season, I'll be back");
+
+    expect(
+      screen.getByRole("button", { name: `Pause for ${ODD_PRICE} a month` }),
+    ).toBeTruthy();
+    // Stated in the prose AND again on the control — nobody agrees to a
+    // recurring charge whose figure was a paragraph away from the button — and
+    // no other figure, no bare "$", anywhere on the card.
+    expect(pricesShown().length).toBeGreaterThanOrEqual(3);
+    expect([...new Set(pricesShown())]).toEqual([ODD_PRICE]);
+  });
+
+  it("PAUSE-11: the exit is one press in EVERY state this query can be in", () => {
+    // THE CONSTRAINT THAT OUTRANKS THE FEATURE, checked against the shape most
+    // likely to break it. `disabled={portal.isPending || pause.isPending}` is one
+    // plausible-looking edit, it makes the way out wait on two Stripe round trips
+    // that have nothing to do with leaving, and until the mock above grew the
+    // query flags it passed every test in this file — no fixture could describe a
+    // query that had not answered yet.
+    //
+    // So all five states the hook can be in, including the two that are not
+    // data-shaped: the cold-start window, and a read that failed outright.
+    const states: [name: string, apply: () => void][] = [
+      ["not read yet", () => {}],
+      [
+        "read failed",
+        () => {
+          pause.error = new ApiError(
+            "internal_error",
+            "Couldn't reach Stripe.",
+            502,
+          );
+        },
+      ],
+      [
+        "eligible",
+        () => {
+          pause.data = offered();
+        },
+      ],
+      [
+        "ineligible",
+        () => {
+          pause.data = offered({
+            eligible: false,
+            reason: "not_provisioned",
+            monthly_cents: null,
+          });
+        },
+      ],
+      [
+        "already paused",
+        () => {
+          pause.data = offered({
+            eligible: false,
+            reason: "already_paused",
+            paused_at: daysAgo(9),
+          });
+        },
+      ],
+    ];
+
+    for (const [name, apply] of states) {
+      pause.data = undefined;
+      pause.error = null;
+      apply();
+      portal.mutate.mockClear();
+
+      const leave = renderCard();
+      // Not disabled, not made unclickable by a class, and not put behind a
+      // collapse — see `expectExitIsPressable`, and note that the CSS-dead
+      // variant of this defect is invisible to `fireEvent` below.
+      expectExitIsPressable(leave, name);
+      expect(screen.queryByRole("dialog"), name).toBeNull();
+
+      fireEvent.click(leave);
+      expect(portal.mutate, name).toHaveBeenCalledTimes(1);
+      cleanup();
+    }
+  });
+
+  it("PAUSE-12: the confirmation waits for the server, and a refusal is not one", () => {
+    // "Your plan is paused" is a statement about somebody's money. Fired beside
+    // `mutate` instead of inside `onSuccess` it is a guess about a Stripe call
+    // that has not happened; fired in `onError` beside the 409 sentence it is a
+    // contradiction — the card would say paused and not-paused at once. Both are
+    // a one-line edit and both passed everything here, because PAUSE-7 settles
+    // the mutation synchronously and never asks what happens when it does not.
+    pause.data = offered();
+    // Accepted and still in flight: no callback is ever invoked.
+    pausePlan.mutate.mockImplementation(() => {});
+    renderCard();
+    pick("Quiet season, I'll be back");
+    fireEvent.click(screen.getByRole("button", { name: action() }));
+
+    expect(pausePlan.mutate).toHaveBeenCalledTimes(1);
+    expect(toasted).not.toHaveBeenCalled();
+    cleanup();
+
+    const refusal = "Your plan hasn't paused yet.";
+    pausePlan.mutate.mockImplementation(
+      (_input: undefined, options: { onError: (cause: unknown) => void }) =>
+        options.onError(new ApiError("conflict", refusal, 409)),
+    );
+    renderCard();
+    pick("Quiet season, I'll be back");
+    fireEvent.click(screen.getByRole("button", { name: action() }));
+
+    expect(screen.getByRole("alert").textContent).toBe(refusal);
+    expect(toasted).not.toHaveBeenCalled();
+  });
+
+  it("PAUSE-13: the offer says what stops and what does not, BEFORE the charge", () => {
+    // The paused card makes these promises too, but this is the one somebody
+    // reads before pressing a button that starts a recurring charge, and it is
+    // the only one they can act on. Each clause is load-bearing: `runPreSendGates`
+    // refuses with 402 `workspace_paused` so texting really does stop; inbound is
+    // untouched and scheduled sends are HELD rather than failed, which is what
+    // the fee buys; and there is no fuse, which is the whole difference from
+    // cancelling. "Nothing comes in or out" is one edit, reads as tighter copy,
+    // and is a lie the customer finds out about from a customer.
+    const body = pauseOfferBody(ODD_CENTS).toLowerCase();
+    expect(body).toContain("still arrive");
+    expect(body).toContain("waits rather than fails");
+    expect(body).toContain("cannot send");
+    expect(body).toContain("nothing expires");
+    for (const wrong of [
+      "in or out",
+      "nothing comes in",
+      "nothing gets through",
+      "stops receiving",
+      "stop receiving",
+      "no texts arrive",
+    ]) {
+      expect(body, `the offer must not say "${wrong}"`).not.toContain(wrong);
+    }
+  });
+});
+
+/**
+ * #277 — the two answers that change once the workspace is ALREADY paused.
+ *
+ * The pause offer is over by then (`GET /v1/billing/pause` answers
+ * `eligible: false, reason: already_paused`), so the cancel card falls through
+ * to the shared `cancellationOffer` — which, until it was told about the pause,
+ * answered a paused workspace with two things it could not have:
+ *
+ *   too_expensive  a "Switch to Starter" control. `POST /v1/billing/change-plan`
+ *                  answers 409 while `companies.paused_at` is set and asks for
+ *                  the two steps in order, so the only outcome of pressing it is
+ *                  a refusal — reached through a button we drew, an inch under
+ *                  an answer somebody volunteered.
+ *   seasonal       the 30-day hold, whose whole argument is that a long quiet
+ *                  season outruns it. That is false for somebody who has already
+ *                  taken the option it exists to compare against, and it
+ *                  contradicts the paused card twelve lines up.
+ *
+ * The fix is in `packages/shared/src/cancellation-offers.ts` so all three
+ * clients inherit it; what these guard is that THIS client passes the fact, and
+ * passes a fact it has actually read.
+ */
+describe("#277 the answers a paused workspace gets on the cancel card", () => {
+  it("OFFER-P1: no plan switch is drawn for a workspace the API would refuse", () => {
+    pause.data = pausedNow();
+    renderCard();
+    pick("Too expensive");
+
+    const answer = offerFor({
+      reason: "too_expensive",
+      plan: "pro",
+      paused: true,
+    });
+    // The WORDS stay: Starter is still the true answer to "this costs too much",
+    // and dropping the answer entirely would leave somebody cancelling over $79
+    // never hearing about the $29 plan they can have. What the API refuses is
+    // the click, not the fact.
+    expect(screen.getByText(answer.body)).toBeTruthy();
+    expect(document.body.textContent).toContain(
+      "resume first, then switch plans",
+    );
+
+    // And there is nothing to press. QUIET_CARD_BUTTONS is this card with an
+    // answer given and no control on it.
+    expect(screen.queryByRole("button", { name: "Switch to Starter" })).toBeNull();
+    expect(
+      screen.getAllByRole("button").map((b) => b.textContent?.trim()),
+    ).toEqual(QUIET_CARD_BUTTONS);
+  });
+
+  it("OFFER-P2: the seasonal answer is the paused one, not the 30-day hold", () => {
+    pause.data = pausedNow();
+    renderCard();
+    pick("Quiet season, I'll be back");
+
+    const answer = offerFor({ reason: "seasonal", plan: "pro", paused: true });
+    expect(screen.getByText(answer.heading)).toBeTruthy();
+    expect(
+      screen.queryByText(offerFor({ reason: "seasonal", plan: "pro" }).heading),
+    ).toBeNull();
+
+    const copy = document.body.textContent ?? "";
+    // The clause that is false for them, named as a literal rather than by
+    // asking the shared module what it says — that is the sentence a rewrite
+    // would reintroduce, and comparing the module to itself would not notice.
+    expect(copy).not.toContain("outruns the hold");
+    // Every deadline this answer names belongs to CANCELLING. The pause has no
+    // clock on it, which is the entire difference being described.
+    expect(copy).toContain("nothing expires while your plan is paused");
+    expect(copy).not.toMatch(HOLD_STATED_WITHOUT_ANCHOR);
+    // Still no control: Resume is already on the paused card at the top of this
+    // screen, and a second one here would be this card growing a funnel.
+    expect(
+      screen.getAllByRole("button").map((b) => b.textContent?.trim()),
+    ).toEqual(QUIET_CARD_BUTTONS);
+  });
+
+  it("OFFER-P3: a pause we have not READ withholds the control, not the words", () => {
+    // THE RESIDUAL THE SHARED MODULE CANNOT CLOSE. A single boolean cannot tell
+    // "not paused" from "not read yet", so `paused: false` on a workspace whose
+    // read is pending or failed puts "Switch to Starter" back in front of a 409
+    // — the same defect as the Active badge, one layer down. The module answers
+    // the unread case with the unpaused WORDS, which is right (most workspaces
+    // are not paused, and those are the words they have always read); the
+    // client withholds the CONTROL until the read answers.
+    const unread: [name: string, apply: () => void][] = [
+      ["not read yet", () => {}],
+      [
+        "read failed",
+        () => {
+          pause.error = new ApiError("internal_error", "Couldn't reach Stripe.", 502);
+        },
+      ],
+    ];
+
+    for (const [name, apply] of unread) {
+      pause.data = undefined;
+      pause.error = null;
+      apply();
+      const leave = renderCard();
+      pick("Too expensive");
+
+      expect(
+        screen.getByText(offerFor({ reason: "too_expensive", plan: "pro" }).body),
+        name,
+      ).toBeTruthy();
+      expect(
+        screen.queryByRole("button", { name: "Switch to Starter" }),
+        name,
+      ).toBeNull();
+      // And none of this touches the way out, which is the rule that outranks
+      // the whole feature.
+      expectExitIsPressable(leave, name);
+      cleanup();
+    }
+
+    // The control WAITS rather than being removed: an answer that the plan is
+    // running brings it straight back. Without this the test would pass on a
+    // client that never drew the switch at all.
+    pause.data = running();
+    renderCard();
+    pick("Too expensive");
+    expect(screen.getByRole("button", { name: "Switch to Starter" })).toBeTruthy();
+  });
+
+  it("OFFER-P4: a slow pause read does not take the help route away", () => {
+    // Only the control the pause can refuse is withheld. `open_help` is the same
+    // /settings/help route whether the plan is paused, running or unread, so
+    // taking it away would charge somebody a help link for our network being
+    // slow — on the screen they came to leave from.
+    const offer = offerFor({ reason: "missing_feature", plan: "pro" });
+    for (const [name, apply] of [
+      ["not read yet", () => {}],
+      ["paused", () => { pause.data = pausedNow(); }],
+    ] as [string, () => void][]) {
+      pause.data = undefined;
+      apply();
+      renderCard();
+      pick("Missing something I need");
+      expect(
+        screen.getByRole("link", { name: offer.actionLabel ?? "" }),
+        name,
+      ).toBeTruthy();
+      cleanup();
+    }
+  });
+});
+
+/**
+ * #277 — the paused state, on the billing screen.
+ *
+ * `subscription_status` stays genuinely `active` through a pause (it is a price
+ * swap, not a status), so this card is the ONLY thing on the screen that says
+ * texting is off. It has to say it plainly, say what still works, and offer the
+ * way back.
+ */
+describe("#277 the paused state, on the billing screen", () => {
+  const PAUSE_CENTS = 500;
+
+  function paused(
+    overrides: Partial<NonNullable<typeof pause.data>> = {},
+  ): NonNullable<typeof pause.data> {
+    return {
+      eligible: false,
+      reason: "already_paused",
+      paused_at: daysAgo(9),
+      monthly_cents: PAUSE_CENTS,
+      resume_plan: "pro",
+      ...overrides,
+    };
+  }
+
+  it("PAUSED-1: says texting is off, that inbound still arrives, and the fee", () => {
+    // The order somebody worries in: the first thing they need to know is that
+    // texting really is off, and the very next is that nothing their customers
+    // sent has been lost.
+    pause.data = paused();
+    render(<PausedPlanCard show />);
+    const copy = (document.body.textContent ?? "").toLowerCase();
+
+    expect(copy).toContain("texting is off");
+    expect(copy).toContain("still arrive");
+    expect(copy).toContain("message history");
+    // The fee, from the API rather than from a guess about what a pause costs.
+    expect(document.body.textContent).toContain(`$${PAUSE_CENTS / 100} a month`);
+    expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy();
+  });
+
+  it("PAUSED-2: renders nothing at all unless this workspace IS paused", () => {
+    // Three ways to not be paused, and none of them may leave a card behind.
+    for (const [name, data] of [
+      ["not paused", paused({ paused_at: null })],
+      ["eligible to pause", { ...paused({ paused_at: null }), eligible: true }],
+      ["nothing loaded", undefined],
+    ] as const) {
+      pause.data = data;
+      render(<PausedPlanCard show />);
+      expect(document.body.textContent, name).toBe("");
+      cleanup();
+    }
+
+    // And the caller's gate is honoured, which is what stops two Stripe round
+    // trips on a screen with nothing to show for them. `asked` accumulates
+    // across every mount in this test, so it is cleared first — the three
+    // renders above each asked, truthfully.
+    pause.data = paused();
+    pause.asked = undefined;
+    render(<PausedPlanCard show={false} />);
+    expect(document.body.textContent).toBe("");
+    expect(pause.asked).toBe(false);
+  });
+
+  it("PAUSED-3: no price is invented when the mirror has no figure", () => {
+    // `paused_price_cents` mirrors the item we swapped onto, and a response that
+    // cannot name it gets a card with no sentence about money — not a rounded
+    // one, and not the catalog price, which is last winter's fee.
+    pause.data = paused({ monthly_cents: null });
+    render(<PausedPlanCard show />);
+
+    expect(document.body.textContent).not.toContain("$");
+    // Everything that is still true is still said, and Resume still works.
+    expect((document.body.textContent ?? "").toLowerCase()).toContain(
+      "texting is off",
+    );
+    expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy();
+  });
+
+  it("PAUSED-4: Resume sends one request, and a refusal is the API's sentence", () => {
+    const refusal =
+      "Your plan hasn't come back yet. Give it a minute and try again — you " +
+      "won't be charged twice for resuming.";
+    resumePlan.mutate.mockImplementation(
+      (_input: undefined, options: { onError: (cause: unknown) => void }) =>
+        options.onError(new ApiError("conflict", refusal, 409)),
+    );
+    pause.data = paused();
+    render(<PausedPlanCard show />);
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+
+    expect(resumePlan.mutate).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("alert").textContent).toBe(refusal);
+  });
+
+  it("PAUSED-5: a resume that lands says so", () => {
+    resumePlan.mutate.mockImplementation(
+      (_input: undefined, options: { onSuccess: () => void }) =>
+        options.onSuccess(),
+    );
+    pause.data = paused();
+    render(<PausedPlanCard show />);
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    expect(toasted).toHaveBeenCalledWith(RESUME_CONFIRMATION);
+  });
+
+  it("PAUSED-6: no guilt here either, and no deadline invented", () => {
+    // The pause has no fuse — that is the whole difference from cancelling — so
+    // nothing on this card may put a countdown on the number. OFFER-13's rule,
+    // on the surface that would be most tempting to hurry somebody along from.
+    pause.data = paused();
+    render(<PausedPlanCard show />);
+    const copy = (document.body.textContent ?? "").toLowerCase();
+    for (const pitch of ["are you sure", "hurry", "expires", "before you lose"]) {
+      expect(copy, pitch).not.toContain(pitch);
+    }
+    expect(document.body.textContent ?? "").not.toMatch(
+      HOLD_STATED_WITHOUT_ANCHOR,
+    );
+  });
+
+  it("PAUSED-7: the fee on the card is the mirror's figure, to the cent", () => {
+    // PAUSED-1 reads `$${PAUSE_CENTS / 100} a month`, which is true of a card
+    // that hardcodes "$5" as well as one that formats what it was given. This is
+    // the same check with a figure no hardcode in this tree produces, so the
+    // only way to pass it is to print the number the server sent.
+    pause.data = paused({ monthly_cents: ODD_CENTS });
+    render(<PausedPlanCard show />);
+
+    expect(document.body.textContent).toContain(`${ODD_PRICE} a month`);
+    expect([...new Set(pricesShown())]).toEqual([ODD_PRICE]);
+  });
+
+  it("PAUSED-8: scheduled sends are WAITING, which is what the API does to them", () => {
+    // The fee buys a hold, not a wipe. `runPreSendGates` refuses a paused
+    // workspace with 402 `workspace_paused` and the scheduled row stays where it
+    // is — so a card that says those messages were cancelled describes a
+    // different product, and the crew finds out in the spring when the follow-ups
+    // they lined up in October never went. Same sentence in the same direction as
+    // the offer's (PAUSE-13): inbound arrives, outbound waits.
+    pause.data = paused();
+    render(<PausedPlanCard show />);
+    const copy = (document.body.textContent ?? "").toLowerCase();
+
+    expect(copy).toContain("still arrive");
+    expect(copy).toContain("waiting rather than failed");
+    expect(copy).not.toMatch(/schedul\w*[^.]{0,60}(cancel|delet|discard|drop)/);
+  });
+
+  it("PAUSED-9: the plan they come back to is the one the SERVER named", () => {
+    // `resume_plan` is what the pause parked, read back off the route. A card
+    // that types "Pro" instead tells the Starter workspace beside it that
+    // resuming costs a plan it never had — and nothing in this file noticed,
+    // because every fixture here happened to be on Pro.
+    for (const [plan, named, other] of [
+      ["pro", PLAN_FACTS.pro.name, PLAN_FACTS.starter.name],
+      ["starter", PLAN_FACTS.starter.name, PLAN_FACTS.pro.name],
+    ] as const) {
+      pause.data = paused({ resume_plan: plan });
+      render(<PausedPlanCard show />);
+      const copy = document.body.textContent ?? "";
+      expect(copy, plan).toContain(`${named} starts again`);
+      expect(copy, plan).not.toContain(other);
+      cleanup();
+    }
+
+    // And a response with no plan on it names none, rather than guessing one.
+    pause.data = paused({ resume_plan: null });
+    render(<PausedPlanCard show />);
+    expect(document.body.textContent).not.toContain("starts again");
+  });
+
+  it("PAUSED-10: 'you're back' waits for the server to say so", () => {
+    // PAUSE-12's rule on the way out of a pause. Both routes re-read the mirror
+    // after the Stripe swap and 409 rather than reporting a success they cannot
+    // see, so a toast fired beside `mutate` claims the one thing the route
+    // refuses to claim — and the customer stops waiting for texting to come back
+    // on a workspace where it has not.
+    pause.data = paused();
+    resumePlan.mutate.mockImplementation(() => {});
+    render(<PausedPlanCard show />);
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+
+    expect(resumePlan.mutate).toHaveBeenCalledTimes(1);
+    expect(toasted).not.toHaveBeenCalled();
+    cleanup();
+
+    const refusal = "Your plan hasn't come back yet.";
+    resumePlan.mutate.mockImplementation(
+      (_input: undefined, options: { onError: (cause: unknown) => void }) =>
+        options.onError(new ApiError("conflict", refusal, 409)),
+    );
+    render(<PausedPlanCard show />);
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+
+    expect(screen.getByRole("alert").textContent).toBe(refusal);
+    expect(toasted).not.toHaveBeenCalled();
   });
 });
 
@@ -1108,6 +2106,47 @@ describe("#315 the billing screen is gated by capability, not by rank", () => {
     }
   });
 
+  it("BILL-5: the pause is asked for on the screen that renders it", () => {
+    // Two Stripe round trips server-side, on a screen visited to check a plan.
+    // A bookkeeper on a live subscription is exactly who it is for; a member
+    // cannot read the route at all, and a canceled workspace has no pause to
+    // take (the route answers `subscription_unhealthy`).
+    renderPage("bookkeeper", { subscription_status: "active", canceled_at: null });
+    expect(pause.asked).toBe(true);
+    cleanup();
+
+    pause.asked = undefined;
+    renderPage("member", { subscription_status: "active", canceled_at: null });
+    expect(pause.asked).toBe(false);
+    cleanup();
+
+    pause.asked = undefined;
+    renderPage("owner");
+    expect(pause.asked).toBe(false);
+  });
+
+  it("BILL-6: the page and the cancel card ask the SAME question about it", () => {
+    // Two callers, one query key: react-query fires the request if EITHER
+    // enables it, so the wider gate is the only gate and a disagreement between
+    // them is invisible in both files. They disagreed — the page required a plan
+    // and a live subscription, the card required an owner — and an owner who
+    // never finished checkout paid for two Stripe round trips that could only
+    // answer `no_subscription`. `pauseQueryEnabled` is now the one predicate;
+    // this is what proves both callers still route through it.
+    pause.asked = undefined;
+    renderPage("owner", {
+      subscription_status: "active",
+      canceled_at: null,
+      plan: null,
+    });
+    // The cancel card IS on this screen — the gate closed, rather than there
+    // being nothing to ask on behalf of.
+    expect(
+      screen.getByRole("button", { name: new RegExp(CANCEL_ACTION) }),
+    ).toBeTruthy();
+    expect(pause.asked).toBe(false);
+  });
+
   it("BILL-4: the refusal names no rank, because ranks go stale", () => {
     // "Only owners and admins can change billing" became false the day the
     // bookkeeper preset shipped. The owner is the safe thing to name: the owner
@@ -1117,5 +2156,369 @@ describe("#315 the billing screen is gated by capability, not by rank", () => {
     expect(copy).toContain("owner");
     expect(copy).not.toContain("admins can");
     expect(copy).not.toContain("only owners");
+  });
+});
+
+/**
+ * #277 — the whole billing screen, on a paused workspace.
+ *
+ * A pause is a licensed-price swap, so `subscription_status` stays genuinely
+ * `active` and every other card on this screen renders exactly as it does for a
+ * paying customer. That is the hazard worth pinning: the page has to tell one
+ * story about the account, and the exit has to survive the new card above it.
+ */
+describe("#277 the billing screen while paused", () => {
+  function renderPaused(overrides: Partial<CompanyView> = {}) {
+    activeRole.current = "owner";
+    pause.data = {
+      eligible: false,
+      reason: "already_paused",
+      paused_at: daysAgo(9),
+      monthly_cents: 500,
+      resume_plan: "pro",
+    };
+    companyQuery.data = company({
+      subscription_status: "active",
+      canceled_at: null,
+      ...overrides,
+    });
+    render(<BillingSettingsPage />);
+  }
+
+  /**
+   * The billing screen, with the pause read in a state we choose.
+   *
+   * The company is a live Pro workspace in every case, because that is the one
+   * shape a paused workspace can have — the pause is a licensed-price swap, so
+   * `subscription_status` stays genuinely `active`. Which means the ONLY thing
+   * that can tell these four renders apart is what the pause read has answered.
+   */
+  function renderBilling(apply: () => void, overrides: Partial<CompanyView> = {}) {
+    activeRole.current = "owner";
+    pause.data = undefined;
+    pause.error = null;
+    apply();
+    companyQuery.data = company({
+      subscription_status: "active",
+      canceled_at: null,
+      ...overrides,
+    });
+    render(<BillingSettingsPage />);
+  }
+
+  /**
+   * The four states this screen's pause read can be in.
+   *
+   * Only ONE of them is an answer that the plan is running, and that asymmetry
+   * is the whole point: three of the four used to render as the fourth.
+   */
+  const READ_STATES: [name: string, apply: () => void][] = [
+    ["not read yet", () => {}],
+    [
+      "read failed",
+      () => {
+        pause.error = new ApiError("internal_error", "Couldn't reach Stripe.", 502);
+      },
+    ],
+    ["paused", () => { pause.data = pausedNow(); }],
+    ["running", () => { pause.data = running(); }],
+  ];
+
+  it("PAGE-PAUSE-1: the screen claims a plan state only when it has READ one", () => {
+    // The subscription really IS active in Stripe — that is the point of a price
+    // swap — so this badge is the only thing on the screen that can contradict
+    // the paused card above it, and it is the half a reader acts on.
+    //
+    // THIS TEST USED TO PIN THE DEFECT. It had two halves: a paused workspace
+    // shows no Active badge, and then "the badge is not simply gone: an unpaused
+    // workspace still gets it" — asserted with `pause.data = undefined`, which
+    // is not an unpaused workspace at all. It is a read that has not landed. So
+    // the second half REQUIRED the screen to call a workspace it had heard
+    // nothing about Active, and the honest fix (gate the badge on the read
+    // having answered) failed here rather than passing. The property that was
+    // meant is below: the badge is not simply gone, it follows the ANSWER.
+    for (const [name, apply] of READ_STATES) {
+      renderBilling(apply);
+      if (name === "running") {
+        expect(screen.getByText("Active"), name).toBeTruthy();
+      } else {
+        expect(screen.queryByText("Active"), name).toBeNull();
+      }
+      cleanup();
+    }
+
+    // And each of the other three is itself rather than merely not-green: the
+    // paused card and an amber badge on a workspace we were told is paused, a
+    // neutral pill while we are still asking, and nothing at all after a read
+    // that failed — because there is nothing to claim, in either direction.
+    renderBilling(() => { pause.data = pausedNow(); });
+    expect(screen.getByText("Your plan is paused")).toBeTruthy();
+    expect(screen.getByText("Paused")).toBeTruthy();
+    expect(screen.queryByText("Checking…")).toBeNull();
+    cleanup();
+
+    renderBilling(() => {});
+    expect(screen.getByText("Checking…")).toBeTruthy();
+    cleanup();
+
+    renderBilling(() => {
+      pause.error = new ApiError("internal_error", "Couldn't reach Stripe.", 502);
+    });
+    expect(screen.queryByText("Checking…")).toBeNull();
+    expect(screen.queryByText("Paused")).toBeNull();
+  });
+
+  it("PAGE-PAUSE-1a: nothing that is only true of a RUNNING plan survives an unread pause", () => {
+    // The badge is the loudest claim on this card but it is not the only one.
+    // The allowance lines describe what a plan gives you, which is not what a
+    // paused plan is giving anybody; and "Switch to Starter" is a control
+    // `POST /v1/billing/change-plan` answers 409 to while `paused_at` is set
+    // ("Your plan is paused. Resume it first, then switch plans"). Both were
+    // rendered off "we have no pause in hand", which is true of a paused
+    // workspace on a cold start.
+    for (const [name, apply] of READ_STATES) {
+      renderBilling(apply);
+      const isRunning = name === "running";
+      const copy = document.body.textContent ?? "";
+
+      expect(copy.includes(PLAN_FACTS.pro.seats), `${name}: allowances`).toBe(
+        isRunning,
+      );
+      expect(
+        screen.queryByRole("button", { name: "Switch to Starter" }) !== null,
+        `${name}: plan switch`,
+      ).toBe(isRunning);
+      // The plan and its price stay in every state: a pause changes what is
+      // CHARGED, and the card above says so — it does not change which plan is
+      // parked, and blanking it would leave a Plan card with no plan on it.
+      expect(copy, name).toContain(PLAN_FACTS.pro.name);
+      cleanup();
+    }
+  });
+
+  it("PAGE-PAUSE-1c: the add-ons toggle waits for the read, like everything else", () => {
+    // `POST /v1/billing/modules` refuses to turn an add-on ON while paused
+    // (`apps/api/src/routes/billing.ts`, 409 "Resume it first"), and this card's
+    // own promise — that changes prorate to today — is not true in that state.
+    // So the toggle is a control the product answers 409 to, sitting under a
+    // sentence that is false, and it was rendered off `subscription_status ===
+    // "active"`, which a pause leaves genuinely true because a pause is a price
+    // swap rather than a cancellation.
+    //
+    // Swept across every read state rather than only the paused one: "not read
+    // yet" is the cold start every visit begins with, and it was the state that
+    // made the plan switch wrong two rounds ago.
+    for (const [name, apply] of READ_STATES) {
+      renderBilling(apply);
+      expect(
+        screen.queryByText("Add-ons") !== null,
+        `${name}: add-ons card`,
+      ).toBe(name === "running");
+      cleanup();
+    }
+  });
+
+  it("PAGE-PAUSE-1b: a read that failed says so, and offers to ask again", () => {
+    // The one state where silence would leave a card that has quietly dropped
+    // half its contents with no reason given. It says what is NOT known and that
+    // nothing changed, because the next thought after "couldn't check" is "did
+    // something happen to my plan" — and it offers the retry, because a screen
+    // that cannot answer and cannot be asked again is a dead end.
+    renderBilling(() => {
+      pause.error = new ApiError("internal_error", "Couldn't reach Stripe.", 502);
+    });
+
+    const copy = document.body.textContent ?? "";
+    expect(copy).toContain("couldn't check this plan's status");
+    expect(copy).toContain("untouched");
+    // Never the transport's words. The thrown message is our plumbing, and
+    // reading it back at somebody looking at their own plan explains nothing
+    // they can act on.
+    expect(copy).not.toContain("Couldn't reach Stripe");
+    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(pause.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("PAGE-PAUSE-2: leaving is STILL one action from landing on this screen", () => {
+    // The rule that outranks the feature, measured where it is actually spent:
+    // on the page, with the paused card above everything. No expand, no dialog,
+    // no disabled control — one press of the button that was always there.
+    renderPaused();
+    const leave = screen.getByRole("button", {
+      name: new RegExp(CANCEL_ACTION),
+    });
+    expectExitIsPressable(leave, "on a paused workspace");
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    fireEvent.click(leave);
+    expect(portal.mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("PAGE-PAUSE-3: the pause is not offered again to somebody already paused", () => {
+    // `already_paused` is an ineligible reason, so no Pause control: a second
+    // one on a paused workspace would be a button that 409s on click.
+    //
+    // AND THE WORDS UNDERNEATH ARE THE PAUSED ONES. The shared seasonal answer
+    // written for an unpaused reader ends "a quiet season longer than that
+    // outruns the hold and the number goes back to the phone company" — which
+    // is the whole reason that answer is worth showing, and is false for
+    // somebody whose hold has no clock on it. It would sit a dozen lines under
+    // a card on this same screen saying nothing expires while they are paused,
+    // with both sentences on screen at once, disagreeing.
+    renderPaused();
+    fireEvent.click(
+      screen.getByRole("radio", { name: "Quiet season, I'll be back" }),
+    );
+
+    const pausedAnswer = offerFor({
+      reason: "seasonal",
+      plan: "pro",
+      paused: true,
+    });
+    expect(screen.getByText(pausedAnswer.heading)).toBeTruthy();
+    expect(
+      screen.queryByText(offerFor({ reason: "seasonal", plan: "pro" }).heading),
+    ).toBeNull();
+    // Read off the rendered page rather than off the shared string, because the
+    // contradiction this guards was between two sentences that were each
+    // defensible on their own and were shown together.
+    expect(document.body.textContent).not.toContain("outruns the hold");
+    expect(screen.queryByText(/^Pause for /)).toBeNull();
+  });
+
+  it("PAGE-PAUSE-4: one press reaches Stripe from the PAGE, in every pause state", () => {
+    // PAUSE-11's rule where the action is actually spent: from landing on
+    // /settings/billing, not from a card rendered on its own. The pause put a new
+    // card at the TOP of this screen — above the plan, above the payment card,
+    // above the way out — so "nothing new above the exit costs a press" is a
+    // property of the page rather than of the card, and the two states that would
+    // break it are the ones no fixture could describe until now.
+    const states: [name: string, apply: () => void][] = [
+      ["not read yet", () => {}],
+      [
+        "read failed",
+        () => {
+          pause.error = new ApiError(
+            "internal_error",
+            "Couldn't reach Stripe.",
+            502,
+          );
+        },
+      ],
+      [
+        "eligible",
+        () => {
+          pause.data = {
+            eligible: true,
+            reason: null,
+            paused_at: null,
+            monthly_cents: ODD_CENTS,
+            resume_plan: "pro",
+          };
+        },
+      ],
+      [
+        "paused",
+        () => {
+          pause.data = {
+            eligible: false,
+            reason: "already_paused",
+            paused_at: daysAgo(9),
+            monthly_cents: ODD_CENTS,
+            resume_plan: "pro",
+          };
+        },
+      ],
+    ];
+
+    for (const [name, apply] of states) {
+      activeRole.current = "owner";
+      pause.data = undefined;
+      pause.error = null;
+      apply();
+      companyQuery.data = company({
+        subscription_status: "active",
+        canceled_at: null,
+      });
+      portal.mutate.mockClear();
+      render(<BillingSettingsPage />);
+
+      const leave = screen.getByRole("button", {
+        name: new RegExp(CANCEL_ACTION),
+      });
+      // Every way this exit can be taken away without being removed: the
+      // attribute, a class that makes it CSS-dead, and a collapse around the
+      // card. See `expectExitIsPressable`.
+      expectExitIsPressable(leave, name);
+      expect(screen.queryByRole("dialog"), name).toBeNull();
+
+      fireEvent.click(leave);
+      expect(portal.mutate, name).toHaveBeenCalledTimes(1);
+      cleanup();
+    }
+  });
+
+  it("PAGE-PAUSE-6: a paused workspace is offered no plan switch ANYWHERE", () => {
+    // TWO CONTROLS ON THIS PAGE OPEN THE SAME REFUSAL, and only one of them was
+    // ever gated. The plan card has its own "Switch to Starter"; the
+    // cancellation answer draws a second one an inch under the button that
+    // leaves, from `cancellationOffer`'s `change_plan` action. `POST
+    // /v1/billing/change-plan` answers 409 to both while `paused_at` is set. A
+    // card-level test cannot see this, because the two controls live on
+    // different cards — it is a property of the SCREEN.
+    renderBilling(() => {
+      pause.data = pausedNow();
+    });
+    fireEvent.click(screen.getByRole("radio", { name: "Too expensive" }));
+
+    expect(
+      screen.queryAllByRole("button", { name: "Switch to Starter" }),
+    ).toHaveLength(0);
+    // The answer is still there, and it names the order the refusal names, so
+    // somebody who goes and does it reads the same sentence twice rather than a
+    // contradiction.
+    expect(document.body.textContent).toContain(
+      "resume first, then switch plans",
+    );
+  });
+
+  it("PAGE-PAUSE-5: the offer stays BELOW the exit on the page too", () => {
+    // OFFER-2 and PAUSE-3 measure this inside the card, where the distance is a
+    // few hundred pixels. On the page the exit already sits roughly two screens
+    // down on a 375px phone, so an offer that moved up by one element in the card
+    // is a third of a screen of extra scrolling added to leaving — charged to
+    // somebody for having answered an optional question.
+    activeRole.current = "owner";
+    pause.data = {
+      eligible: true,
+      reason: null,
+      paused_at: null,
+      monthly_cents: ODD_CENTS,
+      resume_plan: "pro",
+    };
+    companyQuery.data = company({
+      subscription_status: "active",
+      canceled_at: null,
+    });
+    render(<BillingSettingsPage />);
+
+    const leave = screen.getByRole("button", {
+      name: new RegExp(CANCEL_ACTION),
+    });
+    fireEvent.click(
+      screen.getByRole("radio", { name: "Quiet season, I'll be back" }),
+    );
+    // Found by the literal price rather than by asking the shipped copy function
+    // where to look — see PAUSE-10.
+    const offer = screen.getByRole("button", {
+      name: `Pause for ${ODD_PRICE} a month`,
+    });
+
+    expect(
+      leave.compareDocumentPosition(offer) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expectExitIsPressable(leave, "with the pause offer on the page");
   });
 });

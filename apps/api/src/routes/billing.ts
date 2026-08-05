@@ -1541,7 +1541,8 @@ billingRoutes.get("/missed-while-off", async (c) => {
  * forward + missed-call text) so a switched-off module can never keep costing
  * us. Schedule-aware (#18): with a pending downgrade the change is written
  * into the schedule's phases instead of the raw items. Mirrored to
- * `company_modules`; the subscription webhook re-mirrors too.
+ * `company_modules`; the subscription webhook re-mirrors too. #277: a PAUSED
+ * workspace cannot enable one — see the gate below — but may still disable.
  */
 billingRoutes.post("/modules", async (c) => {
   const env = getEnv(c.env);
@@ -1593,6 +1594,50 @@ billingRoutes.post("/modules", async (c) => {
       c,
       "validation_failed",
       `The ${MODULE_CATALOG[module].label} add-on isn't available yet.`,
+    );
+  }
+  /**
+   * #277 — a paused workspace does not buy add-ons.
+   *
+   * NONE of the gates above can see a pause. It is a licensed-PRICE swap, so
+   * `subscription_status` stays genuinely 'active' and `plan` stays genuinely
+   * populated — both terms of the canceled gate survive it — while the
+   * workspace cannot send and cannot dial. The enable path below charges
+   * IMMEDIATELY (`always_invoice`), so without this line an owner is billed
+   * today, in full, for a capability the pause has switched off, on top of the
+   * holding fee they are already paying to be switched off.
+   *
+   * Refused rather than queued, for the reason `/change-plan` gives above: only
+   * the customer can settle whether they mean "resume and add this now" or "add
+   * it when I come back", and storing the second is an intention with nowhere
+   * to see or cancel it.
+   *
+   * ONLY THE ENABLE DIRECTION, and that asymmetry is deliberate. A module's
+   * line item keeps billing straight through a pause — the swap touches the
+   * plan's licensed item and nothing else — so a disable is the customer
+   * STOPPING a charge for something they cannot use. Refusing it would answer
+   * "resume your plan, at full price, if you want to stop paying for this",
+   * which is not a sentence we could defend.
+   *
+   * AFTER the availability check above, also deliberate. A module we cannot
+   * sell here — unsellable, or a price this environment never provisioned — is
+   * unbuyable whatever the plan is doing, so leading with the pause would send
+   * somebody to resume (a plan month, in real money) to reach a 422.
+   *
+   * `conflict`, not the `workspace_paused` 402 the numbers and send paths use
+   * for the same fact. That code exists so a surface ELSEWHERE in the app can
+   * route somebody back to the one button that resumes the plan
+   * (packages/shared/src/error-codes.ts); here that button is already on the same
+   * screen, and this route's other state refusals are 409s whose sentence the
+   * clients render beside the toggle. Matching them keeps the answer a sentence
+   * rather than a status a settings screen has never seen from this route.
+   */
+  if (enabled && company.paused_at) {
+    return errorResponse(
+      c,
+      "conflict",
+      `Your plan is paused. Resume it first, then turn on ${MODULE_CATALOG[module].label} — ` +
+        "that way you start paying for it on the day you can use it.",
     );
   }
 

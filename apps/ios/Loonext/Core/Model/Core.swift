@@ -548,6 +548,74 @@ struct CompanyView: Codable, Sendable {
     }
 }
 
+// MARK: - The paid pause (#277)
+
+/// GET /v1/billing/pause — may this workspace pause, what would it cost, and is
+/// it paused right now?
+///
+/// # Why it is not a field on `CompanyView`
+///
+/// `paused_at` is deliberately kept off the company view, and that is the API's
+/// decision rather than this client's: `GET /v1/company` runs on every app boot
+/// for every role, and whether the plan is paused is a billing fact. The whole
+/// `/v1/billing` router sits behind `billing.manage`, so this is asked for only
+/// on the billing screen and only by somebody who can act on the answer.
+///
+/// # Every field is optional here
+///
+/// The route always sends all five, so this is not modelling a real absence —
+/// it is choosing the direction to fail in. A response this build cannot fully
+/// read renders NOTHING rather than throwing, and nothing is the safe answer
+/// for a control that starts a recurring charge.
+struct BillingPause: Codable, Sendable {
+    /// The ONLY thing that may put a Pause control on screen.
+    ///
+    /// Already `eligibility.eligible && offer !== null` server-side — a pause we
+    /// cannot quote reports false — so no client re-derives it from `reason`,
+    /// and none of them has to know what the reasons mean.
+    let eligible: Bool?
+    /// Why not, when `eligible` is false: `not_provisioned`, `no_subscription`,
+    /// `already_paused`, `subscription_unhealthy`, `plan_change_pending`,
+    /// `referral_month_pending`, `already_prepaid`, `prepaid_coupon_orphaned`.
+    ///
+    /// Nothing on this screen branches on it and nothing prints it. Most of them
+    /// are not worth explaining to somebody who never asked to pause, and
+    /// `not_provisioned` means the offer does not exist — so the block is absent
+    /// rather than greyed out with a sentence about our Stripe configuration.
+    /// Modelled so it is readable in a diagnostic rather than invisible.
+    let reason: String?
+    /// Non-nil means paused RIGHT NOW.
+    let paused_at: String?
+    /// The REAL monthly price, read from Stripe before anybody presses anything:
+    /// the live catalog price while the offer is open, and once paused the
+    /// mirror of what this workspace is actually being charged.
+    let monthly_cents: Int?
+    /// What they come back to. The pause never touches `plan`, so this is still
+    /// a real answer months in.
+    let resume_plan: String?
+
+    var isEligible: Bool { eligible ?? false }
+}
+
+/// POST /v1/billing/pause — the pause as the server RE-READ it after the Stripe
+/// swap.
+///
+/// Never an assumption: the route compares its own mirror against the swap it
+/// just made and answers 409 when they disagree, rather than reporting a success
+/// it cannot see. So a caller uses what comes back and never what it sent.
+struct BillingPaused: Codable, Sendable {
+    let paused_at: String?
+    let monthly_cents: Int?
+    let resume_plan: String?
+}
+
+/// POST /v1/billing/resume — likewise re-read, and likewise 409 when the mirror
+/// disagrees. `plan` is where the plan came from: untouched the whole time.
+struct BillingResumed: Codable, Sendable {
+    let plan: String?
+    let paused_at: String?
+}
+
 /// #307 — one field of a line's identity: what a caller gets, and whether it
 /// came from the workspace rather than from this line.
 ///

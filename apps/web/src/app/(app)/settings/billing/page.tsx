@@ -14,6 +14,17 @@ import {
 import { ChangePlanDialog } from "@/components/settings/change-plan-dialog";
 import { MissedWhileOff } from "@/components/settings/missed-while-off";
 import { OffRampCard } from "@/components/settings/off-ramp-card";
+import {
+  PausedPlanCard,
+  pauseQueryEnabled,
+} from "@/components/settings/pause-plan";
+import {
+  type PlanBadge,
+  pauseReadOf,
+  planBadge,
+  planStateUnknownNote,
+  readSaysRunning,
+} from "@/components/settings/pause-read";
 import { PlanModulesCard } from "@/components/settings/plan-modules-card";
 import { PrepaidYearCard } from "@/components/settings/prepaid-year-card";
 import { ReferralCard } from "@/components/settings/referral-card";
@@ -25,7 +36,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useBillingPortal } from "@/lib/api/billing";
+import { useBillingPortal, usePauseOffer } from "@/lib/api/billing";
 import { useCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import type { CompanyView } from "@/lib/api/types";
@@ -80,6 +91,44 @@ function PortalButton({
       )}
     </div>
   );
+}
+
+/**
+ * The plan's state, in the one slot on this card that claims one.
+ *
+ * THREE TONES FOR THREE MEANINGS, and never a fourth for "we don't know" —
+ * `planBadge` answers null there and nothing renders, because an absent badge
+ * is the honest shape of an unread fact and a grey pill saying "Unknown" is a
+ * screen worrying at somebody about our network.
+ *
+ *   active    positive green, the house `bg-success/10 text-success` pair.
+ *   paused    the house warning pair (`number-card` uses the same one): the
+ *             plan named an inch to the left is NOT what is being charged
+ *             today, so the badge may not read as a healthy state.
+ *   checking  neutral secondary. It says only that we are asking, which is all
+ *             that is true yet — and it holds the slot so the badge does not
+ *             pop into a line that had none, which is the layout shift a
+ *             skeleton exists to avoid.
+ */
+function PlanStateBadge({ badge }: { badge: PlanBadge | null }) {
+  if (badge === "active") {
+    return (
+      <Badge className="border-transparent bg-success/10 text-success">
+        Active
+      </Badge>
+    );
+  }
+  if (badge === "paused") {
+    return (
+      <Badge className="border-transparent bg-warning/10 text-amber-800 dark:bg-warning/15 dark:text-warning">
+        Paused
+      </Badge>
+    );
+  }
+  if (badge === "checking") {
+    return <Badge variant="secondary">Checking…</Badge>;
+  }
+  return null;
 }
 
 function StatusNotices({ company }: { company: CompanyView }) {
@@ -175,6 +224,51 @@ export default function BillingSettingsPage() {
   const planFacts = planFactsFor(company.data?.billing_currency)[
     company.data?.plan ?? "starter"
   ];
+  /**
+   * #277: whether this workspace is on a paid pause, and may it take one.
+   *
+   * ASKED HERE AND NOWHERE ELSE ON THIS PAGE. `GET /v1/billing/pause` round-trips
+   * to Stripe twice — the subscription, then the price — and this screen renders
+   * it on every visit, so the gate is deliberately narrow: somebody who can
+   * manage billing, on a workspace with a plan and a live subscription. That is
+   * also the only shape a paused workspace can have, because a pause is a price
+   * swap and leaves `subscription_status` genuinely `active`. The cancel card
+   * asks for the same key, so the two surfaces cost one request between them.
+   *
+   * THE PREDICATE IS SHARED WITH THAT CARD rather than re-typed here. Both
+   * surfaces enable the same query key, so react-query fires the request if
+   * either says yes — two hand-kept gates cannot be two opinions, only the wider
+   * one. See `pauseQueryEnabled`.
+   */
+  const showPause = pauseQueryEnabled(canManage, company.data);
+  /**
+   * WHAT WAS READ, not what a missing answer looks like.
+   *
+   * This was `usePauseOffer(showPause).data?.paused_at != null`, and that
+   * expression is false in three different situations: nobody asked, the read
+   * has not landed, and the read failed. None of them is "not paused" — so a
+   * genuinely paused workspace on a cold start got the green Active badge, the
+   * allowance lines of a plan that is not running, and a "Switch to Starter"
+   * that `POST /v1/billing/change-plan` refuses with a 409 by design. See
+   * `pause-read.ts` for the four states and what each one licenses.
+   */
+  const pauseQuery = usePauseOffer(showPause);
+  const pause = pauseReadOf(showPause, pauseQuery);
+  const badge = planBadge(pause, {
+    subscriptionActive: company.data?.subscription_status === "active",
+    cancelAtPeriodEnd: company.data?.cancel_at_period_end === true,
+  });
+  const unknownNote = planStateUnknownNote(pause);
+  /**
+   * The plan's own terms, which are only true of a plan that is running.
+   *
+   * `unasked` keeps them, and it is the one carve-out: nobody asked because
+   * nobody could (a member cannot read `GET /v1/billing/pause` at all), and
+   * blanking a plan's contents would punish the one reader who has no control
+   * on this card to be misled about. The BADGE — the only thing here that
+   * claims a state — is withheld for them either way.
+   */
+  const showsPlanTerms = readSaysRunning(pause) || pause.state === "unasked";
 
   return (
     <SettingsPage title="Billing" description="Your plan and payment details.">
@@ -188,6 +282,16 @@ export default function BillingSettingsPage() {
       ) : (
         <div className="space-y-6">
           <StatusNotices company={company.data} />
+
+          {/* #277: the paid pause, when this workspace is on one. It is the
+              state of the whole screen — it is why the plan below has no Active
+              badge and why nothing can be sent — so it goes at the top, and it
+              renders nothing at all otherwise.
+
+              BELOW the payment notices rather than above them: a card that has
+              stopped working is the one thing more urgent than the pause, and it
+              is the one thing that can end a pause badly. */}
+          <PausedPlanCard show={showPause} />
 
           {/* #490: directly under the status notice that says the line is off,
               because it is the consequence of that sentence rather than a
@@ -237,31 +341,54 @@ export default function BillingSettingsPage() {
                   <p className="text-lg font-semibold tabular-nums">
                     {planFacts.price}
                   </p>
-                  {company.data.subscription_status === "active" &&
-                    !company.data.cancel_at_period_end && (
-                      <Badge className="border-transparent bg-success/10 text-success">
-                        Active
-                      </Badge>
-                    )}
+                  {/* #277: what we have been TOLD, never what a missing answer
+                      looks like. The subscription really is `active` in Stripe
+                      — that is the point of a price swap — so this badge is the
+                      only thing on the screen that can contradict the paused
+                      card above it, and it is the half a reader acts on. It is
+                      green only on an answer that said the plan is running;
+                      before that answer lands it says it is checking, and after
+                      one that failed it says nothing at all. */}
+                  <PlanStateBadge badge={badge} />
                 </div>
-                <ul className="space-y-1 text-sm text-muted-foreground">
-                  <li>{planFacts.included}</li>
-                  <li>{planFacts.overage}</li>
-                  <li>{planFacts.seats}</li>
-                  <li>{planFacts.numbers}</li>
-                </ul>
-                {/* #85: the exact allowances live in the fair-use policy, not on
-                    the plan card. */}
-                <p className="text-xs text-muted-foreground">
-                  Allowances reflect fair use.{" "}
-                  <Link
-                    href="/legal/fair-use"
-                    className="underline underline-offset-2 hover:text-foreground"
-                  >
-                    See the policy
-                  </Link>
-                  .
-                </p>
+                {showsPlanTerms && (
+                  <>
+                    <ul className="space-y-1 text-sm text-muted-foreground">
+                      <li>{planFacts.included}</li>
+                      <li>{planFacts.overage}</li>
+                      <li>{planFacts.seats}</li>
+                      <li>{planFacts.numbers}</li>
+                    </ul>
+                    {/* #85: the exact allowances live in the fair-use policy,
+                        not on the plan card. */}
+                    <p className="text-xs text-muted-foreground">
+                      Allowances reflect fair use.{" "}
+                      <Link
+                        href="/legal/fair-use"
+                        className="underline underline-offset-2 hover:text-foreground"
+                      >
+                        See the policy
+                      </Link>
+                      .
+                    </p>
+                  </>
+                )}
+                {/* Asked, and the ask failed. One sentence and a way to ask
+                    again — and nothing at all while it is still in flight,
+                    because the badge above already says so and narrating a
+                    request is not information. */}
+                {unknownNote && (
+                  <p className="text-sm text-muted-foreground">
+                    {unknownNote}{" "}
+                    <button
+                      type="button"
+                      onClick={() => void pauseQuery.refetch()}
+                      className="font-medium text-primary underline-offset-4 hover:underline"
+                    >
+                      Try again
+                    </button>
+                  </p>
+                )}
                 {company.data.current_period_end && (
                   <p className="text-xs text-muted-foreground">
                     Current period ends{" "}
@@ -288,17 +415,34 @@ export default function BillingSettingsPage() {
               <ReferralCard plan={company.data.plan} show />
             )}
 
+          {/* #277: only on a plan we have been TOLD is running. `POST
+              /v1/billing/change-plan` answers 409 while `paused_at` is set and
+              names the two steps instead ("resume first, then switch plans"),
+              so a switcher here would be a control whose only outcome is a
+              refusal — and that was equally true of the window before the read
+              landed, which is why the gate is `readSaysRunning` rather than "no
+              pause in hand". The same fact takes the second one off the cancel
+              card below. */}
           {canManage &&
-                  company.data.subscription_status === "active" && (
+                  company.data.subscription_status === "active" &&
+                  readSaysRunning(pause) && (
                     <ChangePlanDialog company={company.data} />
                   )}
               </div>
             </SettingsCard>
           )}
 
+          {/* Add-ons wait for the read, the same as the plan switch above. A
+              pause leaves `subscription_status` genuinely "active" (it is a
+              price swap, not a cancellation), so this gate cannot see one on
+              its own. `POST /v1/billing/modules` refuses to turn an add-on ON
+              while paused, and the card's own promise that "changes prorate to
+              today" is false in that state, so offering the toggle is offering
+              a 409 under a sentence that is not true. */}
           {canManage &&
             company.data.plan !== null &&
-            company.data.subscription_status === "active" && <PlanModulesCard />}
+            company.data.subscription_status === "active" &&
+            readSaysRunning(pause) && <PlanModulesCard />}
 
           {canManage ? (
             <>

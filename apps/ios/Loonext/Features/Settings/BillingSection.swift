@@ -75,7 +75,48 @@ struct BillingSectionView: View {
     let company: CompanyView
     let onRefreshCompany: @MainActor () -> Void
 
+    /// #277 — the paid pause, read ONCE for this whole screen and handed to the
+    /// two surfaces that speak about it.
+    ///
+    /// ONE READ, for two reasons. `GET /v1/billing/pause` round-trips to Stripe
+    /// on every visit here; and two independent fetches could land out of step,
+    /// which on this screen means an offer to pause on the cancel card while the
+    /// plan card an inch above says the workspace is already paused.
+    ///
+    /// `PlanCard` owns the request rather than this view. It renders in every
+    /// state, it needs the answer before anything below it does, and it is the
+    /// card the answer is ABOUT — the alternative was wrapping this body in a
+    /// container purely to hang a `.task` on, which moves the cards for no
+    /// reason on a screen whose layout is load-bearing.
+    ///
+    /// A READ STATE AND NOT A `BillingPause?`. The optional collapsed "not asked
+    /// yet", "asked and it failed" and "there is no pause" into one nil, and the
+    /// plan card read all three as the last one — so a paused workspace whose
+    /// cold-start read failed was shown its plan's price beside a green Active
+    /// pill. `PauseRead` is that distinction; `planCardShape` is what the cards
+    /// are allowed to conclude from it.
+    ///
+    /// `PauseFetch` AND NOT `PauseRead`, which is the narrower half of the same
+    /// idea. This state describes the REQUEST, and a request cannot become
+    /// "unaskable" — that is a fact about the reader, applied once below. While
+    /// this line held a `PauseRead`, `= .loading` could be edited to
+    /// `= .unaskable` and every test in the suite stayed green while the whole
+    /// defect came back, because `planCardShape(.unaskable)` is `.active` by
+    /// design for a reader who can never get an answer.
+    @State private var pauseFetch: PauseFetch = .loading
+    /// Bumped by a pause, a resume, or a retry, so the read runs again.
+    @State private var pauseRefresh = 0
+
     private var canManage: Bool { SettingsRoleGate.canManageBilling(scope.role) }
+
+    /// The read as every card on this screen must see it, derived in ONE place.
+    ///
+    /// Without `billing.manage` there is no answer to be had — the whole
+    /// `/v1/billing` router 403s — so the state is not "loading forever", it is
+    /// `unaskable`, and `planCardShape` says what that is allowed to render.
+    private var pauseKnown: PauseRead {
+        pauseReadFor(canManageBilling: canManage, fetch: pauseFetch)
+    }
 
     var body: some View {
         StatusNotices(scope: scope, company: company, canManage: canManage)
@@ -85,9 +126,36 @@ struct BillingSectionView: View {
         // #481: only for a workspace on its way out. Directly under the count
         // of customers who rang into nothing, because this is what to DO.
         OffRampCard(scope: scope, company: company)
-        PlanCard(scope: scope, company: company, canManage: canManage, onRefreshCompany: onRefreshCompany)
+        PlanCard(
+            scope: scope,
+            company: company,
+            canManage: canManage,
+            read: pauseKnown,
+            pauseRefresh: pauseRefresh,
+            onRead: { pauseFetch = $0 },
+            // A retry re-runs the read WITHOUT discarding an answer we already
+            // have: there is nothing stale about it, the request simply did not
+            // come back.
+            onRetryPause: { pauseRefresh += 1 },
+            onPauseChanged: {
+                // A pause or a resume changes the shape of the subscription, so
+                // the answer in hand is known-stale — unlike a retry, this one
+                // throws it away rather than rendering it while the re-read runs.
+                pauseFetch = .loading
+                pauseRefresh += 1
+                onRefreshCompany()
+            },
+            onRefreshCompany: onRefreshCompany
+        )
+        // #277 — a module toggle INVOICES IMMEDIATELY, and
+        // `POST /v1/billing/modules` refuses a paused workspace, so the card is
+        // offered only on an answer that came back and said "not paused".
+        // `mayBuyAddOns` is false while the read is in flight, which costs
+        // nothing visible: this card already draws nothing until its own catalog
+        // fetch returns.
         if canManage && company.billing_writes_enabled
-            && company.plan != nil && company.subscriptionActive {
+            && company.plan != nil && company.subscriptionActive
+            && mayBuyAddOns(pauseKnown) {
             ModulesCard(scope: scope)
         }
         if canManage {
@@ -99,7 +167,31 @@ struct BillingSectionView: View {
                 PortalButton(scope: scope, label: "Manage payment & invoices")
             }
             if company.subscriptionActive {
-                CancelCard(scope: scope, company: company, onRefreshCompany: onRefreshCompany)
+                CancelCard(
+                    scope: scope,
+                    company: company,
+                    // THE READ, not just the answer it may or may not hold.
+                    //
+                    // It used to be `pauseKnown.answer` — nil for loading, for
+                    // failed and for unaskable alike — and nil is indeed what
+                    // this card renders as "no pause to offer". But the ANSWER
+                    // it falls through to has to tell "not paused" apart from
+                    // "not read yet": a paused workspace answering
+                    // `too_expensive` was handed "Switch to Starter", whose POST
+                    // 409s by design while the plan is paused.
+                    //
+                    // Handing the whole read down changes nothing about the way
+                    // out. Every state of it renders the same exit, in the same
+                    // place, enabled by the same one flag — `CancelOneActionTests`
+                    // reads this file to say so.
+                    read: pauseKnown,
+                    onPauseChanged: {
+                        pauseFetch = .loading
+                        pauseRefresh += 1
+                        onRefreshCompany()
+                    },
+                    onRefreshCompany: onRefreshCompany
+                )
             }
         } else {
             SettingsCard(title: "Billing") {
@@ -212,17 +304,79 @@ private struct StatusNotices: View {
 
 // MARK: - Plan card
 
+@MainActor
 private struct PlanCard: View {
     let scope: SettingsScope
     let company: CompanyView
     let canManage: Bool
+    /// #277 — what the screen KNOWS about the pause, derived once by the section
+    /// above and written by this card's own read.
+    let read: PauseRead
+    /// Changes when a pause, a resume or a retry asks for the read again.
+    let pauseRefresh: Int
+    /// What the REQUEST did. The role is applied by the section above, so this
+    /// card cannot report a state that says "nobody may ask".
+    let onRead: @MainActor (PauseFetch) -> Void
+    let onRetryPause: @MainActor () -> Void
+    let onPauseChanged: @MainActor () -> Void
     let onRefreshCompany: @MainActor () -> Void
 
     @State private var opening = false
     @State private var error: String?
     @State private var changingPlan = false
+    @State private var resuming = false
+    @State private var resumeError: String?
 
+    /// #277 — the pause read, hung on the whole if/else chain below.
+    ///
+    /// ON THE CHAIN AND NOT ON A `Group` AROUND IT: a Group wrapping several
+    /// SIBLING views applies its modifiers to each of them, so a `.task` there
+    /// would hit Stripe once per card on every visit. One conditional, one
+    /// child, one request.
+    ///
+    /// Only for somebody who can act on the answer. The whole /v1/billing router
+    /// is behind `billing.manage`, so asking on anybody else's behalf would be a
+    /// guaranteed 403 every time this screen opens.
     var body: some View {
+        cards.task(id: "\(scope.companyId)|\(pauseRefresh)") {
+            guard canManage else { return }
+            // THE FAILURE IS RECORDED, NOT SWALLOWED. `try?` here was the whole
+            // of the defect this replaces: `GET /v1/billing/pause` deliberately
+            // THROWS rather than degrading to a null — the route would rather
+            // fail than let the offer render with no price beside it — and a
+            // `try?` on this line quietly undid that decision on the client, so
+            // a paused workspace whose read failed printed its plan's price
+            // beside a green Active pill.
+            do {
+                let fresh = try await scope.repo.pauseOffer(scope.companyId)
+                onRead(.ready(fresh))
+            } catch {
+                // A cancelled task is not a failed read. `.task(id:)` cancels the
+                // outgoing request whenever the id changes or the screen goes
+                // away, and reporting that as a failure would flash "we couldn't
+                // check" over a read that is being replaced by a fresher one.
+                guard !Task.isCancelled else { return }
+                // NO "KEEP THE LAST ANSWER" BRANCH, on purpose. It reads like
+                // caution — a stale truth beats a fresh lie — but there is no
+                // case on this screen where it applies and one where it is
+                // wrong. The two in-place re-reads are a pause/resume, which
+                // discards the held answer before asking BECAUSE the
+                // subscription just changed shape, and the retry below, which is
+                // only offered from a state that has no answer to keep. What is
+                // left is a change of `scope.companyId`, where holding the last
+                // answer means describing one workspace's pause on another's
+                // billing screen.
+                onRead(.failed)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var cards: some View {
+        // Read once. The three branches below must agree about which shape they
+        // are in, and a chain that recomputed it per branch could disagree with
+        // itself mid-render.
+        let shape = planCardShape(read)
         if company.subscription_status == SubscriptionStatus.canceled {
             SettingsCard(title: "Subscription") {
                 Text("Your subscription is canceled.")
@@ -256,6 +410,13 @@ private struct PlanCard: View {
                     .padding(.top, 10)
                 }
             }
+        } else if shape == .paused {
+            pausedPlan
+        } else if let facts = planFacts(company.plan, company.billedIn),
+                  case .unconfirmed(let checking) = shape {
+            // BEFORE the ordinary plan card, not after it: this branch exists
+            // precisely to stop that one rendering on a fact nobody has read.
+            unconfirmedPlan(facts: facts, checking: checking)
         } else if let facts = planFacts(company.plan, company.billedIn) {
             SettingsCard(title: "Plan") {
                 HStack(spacing: 10) {
@@ -326,6 +487,160 @@ private struct PlanCard: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    /// #277 — the plan, with every part that depends on an unread fact left out.
+    ///
+    /// # What this branch is for
+    ///
+    /// A paused subscription is still `active` in Stripe, so the ordinary plan
+    /// card renders straight through a pause and is confidently wrong about
+    /// three things at once: the PRICE (the licensed line during a pause IS the
+    /// holding fee, so the plan's own price overstates the charge many times
+    /// over), the green `Active` PILL, and the five allowance lines describing a
+    /// plan that is not running. Before `pauseIsActive` can answer, and again if
+    /// the read fails, none of those has been read — so none of them is printed.
+    ///
+    /// The plan NAME stays. It comes from `GET /v1/company`, which this screen
+    /// did read, and it is true on either footing.
+    ///
+    /// # No plan switch here either
+    ///
+    /// `POST /v1/billing/change-plan` refuses a paused workspace outright. A
+    /// button whose outcome might be a 409 by design is not a button, and
+    /// offering it on a maybe is how somebody finds out they are paused from an
+    /// error message.
+    ///
+    /// # It cannot touch the way out
+    ///
+    /// This card sits ABOVE the cancel card and changes nothing about it.
+    /// Reaching Stripe while answering nothing stays one press, in every one of
+    /// these states — `CancelOneActionTests` is what says so out loud.
+    @ViewBuilder
+    private func unconfirmedPlan(facts: PlanFacts, checking: Bool) -> some View {
+        SettingsCard(title: "Plan") {
+            Text(facts.name)
+                .font(.title3.weight(.semibold))
+            Spacer().frame(height: 8)
+            Text(planUnconfirmedLine(checking: checking))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            // Read from the company and true either way, so it stays: it is the
+            // one fact that keeps this from looking like a card that lost its
+            // contents.
+            if let date = fullDate(company.current_period_end) {
+                Text("Current period ends \(date).")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 6)
+            }
+            // Only once it has actually failed. A retry offered against a request
+            // still in flight is a button that races itself.
+            if !checking && canManage {
+                Button("Try again") { onRetryPause() }
+                    .buttonStyle(.bordered)
+                    .padding(.top, 10)
+            }
+        }
+    }
+
+    /// #277 — the pause as a STATE, in the card that would otherwise be wrong
+    /// about it.
+    ///
+    /// # Why it lives inside the plan card and not above the screen
+    ///
+    /// A paused subscription is still `active` in Stripe — the pause is a price
+    /// swap on the licensed line, deliberately, so status, reconciliation and
+    /// usage all keep working on real data. Which means the ordinary plan card
+    /// renders happily straight through a pause and prints the PLAN's price over
+    /// a workspace being charged a holding fee. The place that cannot be allowed
+    /// to be wrong is the place this belongs, and a banner bolted above it would
+    /// have left the wrong number on screen underneath.
+    ///
+    /// # It is shorter than what it replaces
+    ///
+    /// Deliberately. The cancel card sits below this one, and a paused workspace
+    /// must not have to scroll further to leave than an unpaused one does. Four
+    /// lines and one button, against five bullets, a policy link, a period-end
+    /// line and a plan-change button.
+    ///
+    /// # No plan-change control here
+    ///
+    /// `POST /v1/billing/change-plan` refuses outright while paused ("Resume it
+    /// first, then switch plans"), because a plan change during a pause is
+    /// ambiguous in a way only the customer can settle. A button whose only
+    /// outcome is that sentence is a button that does not work.
+    @ViewBuilder
+    private var pausedPlan: some View {
+        // `resume_plan` first: it is the API's own answer to "what do they come
+        // back to", and it survives months of pause because the pause never
+        // touches `plan`. The company view is the fallback for a response that
+        // did not name one.
+        //
+        // `read.answer` and not a stored optional: this branch is only reachable
+        // from `.ready`, so the answer is present by construction, and reading it
+        // back off the same value that decided the branch keeps the two from
+        // ever describing different pauses.
+        let paused = read.answer
+        let facts = planFacts(paused?.resume_plan ?? company.plan, company.billedIn)
+        SettingsCard(title: "Plan") {
+            HStack(spacing: 10) {
+                Text(facts.map { "\($0.name) · paused" } ?? "Paused")
+                    .font(.title3.weight(.semibold))
+                StatusPill(label: "Paused", tone: .neutral)
+            }
+            Spacer().frame(height: 8)
+            // The price line is inside this list and only when the API sent a
+            // figure — see `pausedStateLines`. Nothing here falls back to the
+            // plan price.
+            ForEach(pausedStateLines(price: pausedMonthlyPrice(paused)), id: \.self) { line in
+                Text("· \(line)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.vertical, 1)
+            }
+            if canManage {
+                Button(resuming ? "Resuming…" : pauseResumeLabel(planName: facts?.name)) {
+                    resume()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(BrandColor.olive)
+                .disabled(resuming)
+                .padding(.top, 10)
+                InlineError(resumeError)
+            }
+        }
+    }
+
+    /// Come back, and believe the RESPONSE rather than the request.
+    ///
+    /// The route swaps the price back at Stripe, re-reads its own mirror and
+    /// answers 409 when the two disagree — so there is no such thing here as "it
+    /// probably worked". The 409's sentence is written for the customer ("give
+    /// it a minute and try again — you won't be charged twice for resuming"), so
+    /// it is shown exactly as it arrives: this client has nothing truer to say
+    /// about a swap it cannot see.
+    ///
+    /// The plan named in the confirmation comes from the response too, not from
+    /// the company view this screen was holding.
+    private func resume() {
+        resuming = true
+        resumeError = nil
+        Task {
+            do {
+                let resumed = try await scope.repo.resumePlan(scope.companyId)
+                scope.showMessage(
+                    planFacts(resumed.plan, company.billedIn)
+                        .map { "You're back on \($0.name)." } ?? "Your plan is back on."
+                )
+                onPauseChanged()
+            } catch {
+                resumeError = error.userMessage
+            }
+            resuming = false
         }
     }
 
@@ -827,6 +1142,19 @@ private struct OffRampCard: View {
 private struct CancelCard: View {
     let scope: SettingsScope
     let company: CompanyView
+    /// #277 — read by `PlanCard` above and handed down WHOLE.
+    ///
+    /// Two things below need different halves of it. The pause OFFER needs the
+    /// answer alone (`read.answer`), where a nil renders exactly what "not
+    /// eligible" renders: the answer this card already gave. The written answer
+    /// under it needs the read STATE, because "not paused" and "not read yet"
+    /// have to produce different screens — the first may print the plan switch,
+    /// the second may not.
+    ///
+    /// It gates nothing. Every state of it renders the same exit, in the same
+    /// place, enabled by the same one flag.
+    let read: PauseRead
+    let onPauseChanged: @MainActor () -> Void
     let onRefreshCompany: @MainActor () -> Void
 
     @State private var chosen: String?
@@ -926,7 +1254,33 @@ private struct CancelCard: View {
             // Computed from the LOCAL selection rather than read back from the
             // server: the answer belongs to the tap, and a round trip would put
             // a spinner in the middle of a cancel screen.
-            if let offer = cancellationOffer(
+            //
+            // #277 — THE PAUSE TAKES THE SEASONAL SLOT, it does not add a slot.
+            // The shared seasonal answer has to end by admitting that a quiet
+            // season longer than the hold outruns it and the number goes back to
+            // the phone company; a real pause is simply a better answer to the
+            // same sentence, so it renders in the same place, in the same muted
+            // box, with the same one outline control under it. The exit above is
+            // untouched by either: same position, same enabledness, and nothing
+            // new between the consequence copy and the button.
+            if let price = pauseAnswerPrice(reason: chosen, pause: read.answer) {
+                PauseOfferNote(
+                    scope: scope,
+                    price: price,
+                    resumePlanName: planFacts(
+                        read.answer?.resume_plan ?? company.plan,
+                        company.billedIn
+                    )?.name,
+                    onPaused: onPauseChanged
+                )
+                .padding(.top, 20)
+            } else if let offer = cancellationOffer(
+                // THE READ, and not a Bool derived from it at this call site. A
+                // paused workspace must not be handed "Switch to Starter" (that
+                // POST answers 409 until they resume), and neither must one whose
+                // read has not landed: we do not know yet, and `false` would be a
+                // claim rather than a fact.
+                read: read,
                 reason: chosen,
                 plan: company.plan,
                 billingCurrency: company.billing_currency,
@@ -1207,6 +1561,117 @@ private struct CancellationAnswerNote: View {
     }
 }
 
+// MARK: - Pausing instead (#277)
+
+/// The answer to "quiet season, I'll be back", when there is a real pause to
+/// offer instead of a 30-day hold.
+///
+/// # It replaces an answer; it does not add a step
+///
+/// This is the constraint that outranks everything else on this card, and it is
+/// arithmetic rather than taste. Reaching Stripe while answering nothing is ONE
+/// action from landing on the billing screen, and it stays one: this note lives
+/// in the slot the shared seasonal answer already occupied, which is BELOW
+/// "Continue to cancel". Nothing new appears above that button, it does not
+/// move, and nothing here can disable it — the only thing that ever may is the
+/// handoff already in flight.
+///
+/// A pause offer is an offer. It is never a confirmation in front of the exit,
+/// and never a reason the exit is unavailable.
+///
+/// # The price is on the control
+///
+/// `monthly_cents` is read from Stripe before this ever renders, and the button
+/// says it out loud. Nobody agrees to a recurring charge from a button labelled
+/// "Pause", and this file has no fallback price to put there if the API sends
+/// none — in that case `pauseAnswerPrice` returns nil and this does not render.
+///
+/// # Why there is a sheet on the way in
+///
+/// Pausing stops a live business texting and starts a monthly charge. Both of
+/// the other controls on this screen that do either — the module toggles and the
+/// plan switch — confirm first, and this is the larger of the two. The step is
+/// in front of the PAUSE and nowhere near the exit: somebody who came here to
+/// leave never opens it, and their path is the same length it was yesterday.
+@MainActor
+private struct PauseOfferNote: View {
+    let scope: SettingsScope
+    let price: String
+    let resumePlanName: String?
+    let onPaused: @MainActor () -> Void
+
+    @State private var confirming = false
+    @State private var pending = false
+    @State private var error: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Pause instead — the number stays, the texting stops")
+                .font(.golos(13.5, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(pauseOfferBody(price: price, resumePlanName: resumePlanName))
+                .font(.golos(12))
+                .foregroundStyle(BrandColor.muted600)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 3)
+            // Outline, never the prominent olive. That is reserved for "Continue
+            // to cancel" on this card: a loud stay above a quiet leave is the
+            // asymmetry the card's own docblock exists to avoid.
+            Button("Pause for \(price)/mo") { confirming = true }
+                .buttonStyle(.bordered)
+                .disabled(pending)
+                .padding(.top, 10)
+        }
+        .cancellationNoteBox()
+        // ON THE MODIFIER, not in the sheet's own Cancel button. A failure left
+        // in `error` reappears the next time this sheet opens, so somebody who
+        // hit a 409, backed out and came back would read last time's refusal
+        // above a button they have not pressed yet — and a stale refusal about a
+        // recurring charge is read as this attempt's. `.sheet`'s `onDismiss`
+        // fires however the sheet closes, including the interactive swipe, which
+        // is the case a Cancel-button reset would miss.
+        .sheet(isPresented: $confirming, onDismiss: { error = nil }) {
+            ConfirmSheet(
+                title: "Pause your plan?",
+                message: pauseConfirmMessage(price: price),
+                confirmLabel: "Pause my plan",
+                pending: pending,
+                // The failure is shown INSIDE the sheet, which is the only place
+                // it can be read: the sheet stays open on an error, and a 409
+                // here carries a sentence written for the customer.
+                error: error,
+                onConfirm: { pauseNow() },
+                onDismiss: { confirming = false }
+            )
+        }
+    }
+
+    /// Pause, and believe the RESPONSE.
+    ///
+    /// The route re-reads its own mirror after the Stripe swap and answers 409
+    /// when the two disagree rather than reporting a success it cannot see — so
+    /// the confirmation is composed from what came back, and a failure shows the
+    /// API's own words. Nothing here assumes the request worked.
+    private func pauseNow() {
+        pending = true
+        error = nil
+        Task {
+            do {
+                let paused = try await scope.repo.pausePlan(scope.companyId)
+                confirming = false
+                scope.showMessage(
+                    pausedConfirmationMessage(monthlyCents: paused.monthly_cents)
+                )
+                onPaused()
+            } catch {
+                self.error = error.userMessage
+            }
+            pending = false
+        }
+    }
+}
+
 /// The same answer again, while the number can still be saved.
 ///
 /// # Why here and not in the mail
@@ -1463,7 +1928,10 @@ private struct ContactsCsvShareSheet: UIViewControllerRepresentable {
 #Preview("Cancellation reasons · one chosen") {
     VStack(alignment: .leading, spacing: 0) {
         ForEach(cancellationReasons) { reason in
-            CancellationReasonRow(reason: reason, selected: reason.code == "seasonal") {}
+            CancellationReasonRow(
+                reason: reason,
+                selected: reason.code == cancellationReasonSeasonal
+            ) {}
         }
     }
     .padding(20)
@@ -1494,6 +1962,141 @@ private struct ContactsCsvShareSheet: UIViewControllerRepresentable {
     }
     .frame(width: 390)
     .background(BrandColor.paper)
+}
+
+/// #277 — the two answers `seasonal` can get, one above the other.
+///
+/// The point of reading them together: the shared answer has to end by admitting
+/// that a season longer than the hold outruns it and the number goes to somebody
+/// else, and the pause is the same paragraph with that sentence deleted. Only
+/// one of them is ever on screen.
+///
+/// THE FIXTURE IS A RESPONSE, NOT A PRICE. A preview has no API, and the pause
+/// price does not exist in this repository at all — the founder provisions a
+/// Stripe price and the API reads it back. So the amount enters as CENTS, in the
+/// shape the route sends, and the string on screen comes out of the very
+/// `pauseOfferPrice` the screen calls. Every other preview in this file derives
+/// its prices the same way, through `planFacts` and `cancellationOffer`, and the
+/// file carried no formatted price literal before the pause existed. A typed
+/// "$5" here would be a recurring charge this repository invented, sitting one
+/// copy-paste away from the code path that renders the real one.
+///
+/// AND NOT A ROUND ONE. 500 cents renders "$5", which is exactly what a hardcode
+/// renders, so a preview built on it looks identical whether the price came from
+/// the response or from somebody's fingers. 1275 cents renders "$12.75", which
+/// nothing types by accident.
+#Preview("Seasonal · the pause and the answer it replaces") {
+    let offered = BillingPause(
+        eligible: true,
+        reason: nil,
+        paused_at: nil,
+        monthly_cents: 1275,
+        resume_plan: "pro"
+    )
+    ScrollView {
+        VStack(alignment: .leading, spacing: 14) {
+            // Absent without a quotable price, exactly as the card behaves: the
+            // preview cannot render a state the screen refuses to render.
+            if let price = pauseOfferPrice(offered) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Pause instead — the number stays, the texting stops")
+                        .font(.golos(13.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(
+                        pauseOfferBody(
+                            price: price,
+                            resumePlanName: planFacts(offered.resume_plan, .usd)?.name
+                        )
+                    )
+                    .font(.golos(12))
+                    .foregroundStyle(BrandColor.muted600)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 3)
+                    Button("Pause for \(price)/mo") {}
+                        .buttonStyle(.bordered)
+                        .padding(.top, 10)
+                }
+                .cancellationNoteBox()
+            }
+
+            if let offer = cancellationOffer(
+                reason: cancellationReasonSeasonal,
+                plan: "pro",
+                billingCurrency: "usd",
+                country: "US",
+                registrationFeePaidAt: "2026-01-05T00:00:00Z"
+            ) {
+                CancellationAnswerText(offer: offer)
+                    .cancellationNoteBox()
+            }
+        }
+        .padding(20)
+    }
+    .frame(width: 390)
+    .background(BrandColor.paper)
+}
+
+/// #277 — the paused state, with and without a figure from the server.
+///
+/// The second one is the case worth being able to look at: no price came back,
+/// so no price is printed, and the card says nothing about money rather than
+/// falling back to the plan's own price over a workspace paying a holding fee.
+///
+/// CENTS IN, AND THE ROW RUNS THE REAL FUNCTIONS. `nil` cents is a response that
+/// quoted nothing, and what it renders is decided by `pausedMonthlyPrice` rather
+/// than by this preview — so the empty case cannot be drawn as passing while the
+/// shipped one prints a plan price. Same reason as the offer preview above: no
+/// formatted price is typed anywhere in this file.
+///
+/// A DIFFERENT AMOUNT FROM THE OFFER PREVIEW, on purpose: 940 renders "$9.40"
+/// where that one renders "$12.75", so no single typed string could stand in for
+/// both and the two surfaces are visibly reading their own responses.
+#Preview("Paused · with and without a quoted price") {
+    ScrollView {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach([940, nil] as [Int?], id: \.self) { cents in
+                let paused = BillingPause(
+                    eligible: false,
+                    reason: "already_paused",
+                    paused_at: "2026-01-05T00:00:00Z",
+                    monthly_cents: cents,
+                    resume_plan: "pro"
+                )
+                let facts = planFacts(paused.resume_plan, .usd)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 10) {
+                        Text(facts.map { "\($0.name) · paused" } ?? "Paused")
+                            .font(.title3.weight(.semibold))
+                        StatusPill(label: "Paused", tone: .neutral)
+                    }
+                    Spacer().frame(height: 8)
+                    ForEach(
+                        pausedStateLines(price: pausedMonthlyPrice(paused)), id: \.self
+                    ) { line in
+                        Text("· \(line)")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.vertical, 1)
+                    }
+                    Text(pauseResumeLabel(planName: facts?.name))
+                        .font(.golos(13, weight: .semibold))
+                        .foregroundStyle(BrandColor.olive)
+                        .padding(.top, 10)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .background(
+                    BrandColor.paper,
+                    in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+                )
+            }
+        }
+        .padding(20)
+    }
+    .frame(width: 390)
+    .background(BrandColor.inset)
 }
 
 /// The same answers during the grace window, where the verb changes from
