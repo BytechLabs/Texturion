@@ -25,13 +25,18 @@ import {
   trackPlanSelected,
   trackPlanTierChanged,
 } from "@/lib/analytics/events";
+import {
+  currencyForCountry,
+  formatMoney,
+  US_REGISTRATION_FEE_CENTS,
+} from "@loonext/shared";
+
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
 import { useOnboardingCheckout } from "@/lib/api/onboarding";
 import { usePortRequestsForCompany } from "@/lib/api/porting";
 import {
   PLAN_MODULE_CARDS,
-  US_REGISTRATION_FEE_DOLLARS,
   type PlanId,
   type PlanModule,
 } from "@/lib/api/types";
@@ -122,6 +127,27 @@ function PlanStep() {
   const companyId = state.companyId;
   const progress = stepProgress("plan", state.snapshot);
   const owes = owesUsRegistration(company);
+  /**
+   * #522: the same fee, resolved the same way the summary above resolves it.
+   *
+   * This line printed `US_REGISTRATION_FEE_CENTS.usd` while `WorkspaceSummary`
+   * on this very screen resolved through the country and printed the CAD
+   * figure, so a Canadian reader was shown two different prices for one fee,
+   * inches apart, on the last screen before paying.
+   *
+   * WHICH ONE IS TRUE IS NOT SETTLED HERE, and that is worth being plain
+   * about: before a checkout exists Stripe has not pinned a currency, and the
+   * catalog decides it (`checkoutCurrency` degrades to USD for a price with no
+   * CAD amount, and the row is corrected to match once the session is made).
+   * What this screen can guarantee is that it does not contradict itself, and
+   * that it quotes the higher of the two rather than the lower, because being
+   * charged less than quoted is the recoverable direction.
+   */
+  const registrationFee = formatMoney(
+    US_REGISTRATION_FEE_CENTS[currencyForCountry(company?.country ?? null)],
+    currencyForCountry(company?.country ?? null),
+  );
+
   const owesFee = owes && company.registration_fee_paid_at === null;
   const soleProp = state.registration?.brand?.sole_proprietor === true;
   const canceledReturn = searchParams.get("checkout") === "canceled";
@@ -313,8 +339,7 @@ function PlanStep() {
 
         {owesFee ? (
           <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            + ${US_REGISTRATION_FEE_DOLLARS} one-time carrier registration (US
-            texting)
+            + {registrationFee} one-time carrier registration (US texting)
             <Tooltip>
               <TooltipTrigger
                 aria-label="Why the registration fee?"
