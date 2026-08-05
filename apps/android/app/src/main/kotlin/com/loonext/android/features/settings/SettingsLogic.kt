@@ -113,6 +113,20 @@ object SettingsRoleGate {
 const val STARTER_SEATS = 3
 const val PRO_SEATS = 15
 
+/**
+ * Business numbers per plan — mirror of `PLAN_NUMBERS` in
+ * packages/shared/src/seats.ts.
+ *
+ * Here for the same reason the seat counts are, and it arrived later because
+ * nothing outside the API needed to SAY the number until a cancel screen had to
+ * name what Starter actually covers. It is a real limit rather than a marketing
+ * figure: POST /v1/billing/change-plan refuses a downgrade while the workspace
+ * holds more numbers than this, so an offer that named a different count would
+ * be describing a plan the server will not sell.
+ */
+const val STARTER_NUMBERS = 1
+const val PRO_NUMBERS = 2
+
 /** Fallback allowance ONLY. Prefer `CompanyView.seat_limit` from the server. */
 fun seatLimit(plan: String?): Int = if (plan == "pro") PRO_SEATS else STARTER_SEATS
 
@@ -539,10 +553,59 @@ data class PlanFacts(
     val voiceMinutes: Int,
 )
 
-fun planFacts(plan: String?): PlanFacts? = when (plan) {
-    "starter" -> PlanFacts("Starter", "$29/mo", STARTER_SEATS, 1, 2500)
-    "pro" -> PlanFacts("Pro", "$79/mo", PRO_SEATS, 2, 6000)
+/**
+ * The plan card's facts, in the currency this workspace is actually charged.
+ *
+ * #328: the price used to be the literal "$29/mo" / "$79/mo", which is the USD
+ * price and only the USD price. `api_create_company` sets `billing_currency`
+ * to 'cad' for every Canadian workspace and the column is `not null default
+ * 'usd'`, so a Canadian owner was reading "Pro · $79/mo" against a Canadian
+ * invoice for $109 — and, once the cancellation answer landed below it,
+ * against "Starter is $39 a month instead of $109" an inch further down the
+ * same card. One of the two was provably wrong and both were on screen at
+ * once.
+ *
+ * THE CURRENCY IS A REQUIRED ARGUMENT, not a defaulted one. A default would
+ * silently answer USD for the next caller that forgets, which is exactly the
+ * failure this changed. Both call sites hold a `CompanyView` and can answer.
+ * Mirrors `planFactsFor(currency)` in web's plan-facts.ts, whose comment names
+ * this same contradiction.
+ *
+ * @param billingCurrency `companies.billing_currency` — what the card is
+ *   charged. Wins whenever it is one we bill in.
+ * @param country `companies.country`, consulted ONLY when there is no stored
+ *   currency: `checkout-currency.ts` bills a Canadian workspace in USD when
+ *   the Stripe catalog cannot honour CAD, so the country alone would print a
+ *   CAD price to somebody whose card is charged in US dollars.
+ */
+fun planFacts(
+    plan: String?,
+    billingCurrency: String?,
+    country: String?,
+): PlanFacts? = when (plan) {
+    "starter" -> PlanFacts(
+        name = "Starter",
+        price = planPrice("starter", billingCurrency, country),
+        seats = STARTER_SEATS,
+        numbers = STARTER_NUMBERS,
+        voiceMinutes = 2500,
+    )
+
+    "pro" -> PlanFacts(
+        name = "Pro",
+        price = planPrice("pro", billingCurrency, country),
+        seats = PRO_SEATS,
+        numbers = PRO_NUMBERS,
+        voiceMinutes = 6000,
+    )
+
     else -> null
+}
+
+/** "$29/mo" or "$39/mo" — the same price book both routes charge from. */
+private fun planPrice(plan: String, billingCurrency: String?, country: String?): String {
+    val currency = resolveBillingCurrency(billingCurrency, country)
+    return formatMoney(PLAN_PRICE_CENTS.getValue(currency).getValue(plan), currency) + "/mo"
 }
 
 /** Included outbound segments (SPEC §2) — for downgrade checklists only;
@@ -610,6 +673,395 @@ fun cancellationStatement(code: String?, typedDetail: String?): CancellationStat
         reason = code?.trim()?.ifEmpty { null }?.take(CANCELLATION_REASON_MAX),
         detail = typedDetail?.trim()?.ifEmpty { null }?.take(CANCELLATION_DETAIL_MAX),
     )
+
+// ---------------------------------------------------------------------------
+// #328 billing currency — mirror of packages/shared/src/billing-currency.ts
+// ---------------------------------------------------------------------------
+
+/** The currencies a workspace can be billed in. */
+enum class BillingCurrency { USD, CAD }
+
+/**
+ * Flat monthly plan price in the minor unit of each currency.
+ *
+ * The CAD figures are DECIDED, not converted — see the shared module. Copied
+ * here rather than derived from a rate for exactly that reason: a rate would
+ * make this screen quote a different number every month.
+ *
+ * `internal` rather than private so `CancellationOfferTest` can compare these
+ * four integers against `PLAN_PRICE_CENTS` in
+ * packages/shared/src/billing-currency.ts. A hand-ported price book with no
+ * cross-language check is a repricing away from quoting last quarter's figure
+ * at somebody standing on the cancel screen because of the figure.
+ */
+internal val PLAN_PRICE_CENTS: Map<BillingCurrency, Map<String, Int>> = mapOf(
+    BillingCurrency.USD to mapOf("starter" to 2900, "pro" to 7900),
+    BillingCurrency.CAD to mapOf("starter" to 3900, "pro" to 10900),
+)
+
+/** `companies.billing_currency`, narrowed. Null for anything we do not bill in. */
+fun billingCurrencyOrNull(value: String?): BillingCurrency? =
+    when (value?.trim()?.lowercase()) {
+        "usd" -> BillingCurrency.USD
+        "cad" -> BillingCurrency.CAD
+        else -> null
+    }
+
+/**
+ * The currency a workspace in this country is OFFERED — a default, not a rule.
+ *
+ * Only ever a fallback for a workspace with no stored currency, which is what
+ * every workspace predating #328 looks like. It must never override
+ * `billing_currency`: `checkout-currency.ts` will bill a Canadian workspace in
+ * USD when the Stripe catalog cannot honour CAD, so country alone would print a
+ * CAD price to somebody whose card is charged in US dollars.
+ */
+fun currencyForCountry(country: String?): BillingCurrency =
+    if (country?.trim()?.uppercase() == "CA") BillingCurrency.CAD else BillingCurrency.USD
+
+/**
+ * "$29" / "$109" — mirror of `formatMoney` with `audience === currency`.
+ *
+ * Whole dollars stay whole: a trailing ".00" on a plan price reads as machine
+ * output and takes up space on a phone.
+ *
+ * BARE "$" IS CORRECT HERE and is not an oversight. The shared function only
+ * prefixes `US$`/`CA$` when the amount is being shown to somebody billed in the
+ * OTHER currency; a workspace reading its own plan price is always its own
+ * audience. [currency] is still taken, because the caller has to have decided
+ * which price book the cents came out of before it can call this at all.
+ */
+@Suppress("UNUSED_PARAMETER")
+fun formatMoney(cents: Int, currency: BillingCurrency): String =
+    if (cents % 100 == 0) {
+        "$" + String.format(Locale.CANADA, "%,d", cents / 100)
+    } else {
+        "$" + String.format(Locale.CANADA, "%,.2f", cents / 100.0)
+    }
+
+// ---------------------------------------------------------------------------
+// #277 follow-up — answering the reason somebody gave for leaving, once.
+//
+// HAND-PORT of packages/shared/src/cancellation-offers.ts. Read that file's
+// header before changing a word below. Every sentence here is checkable in this
+// repository, the three reasons that answer nothing answer nothing ON PURPOSE,
+// and there is NO pause feature — the seasonal answer is about the 30-day hold
+// that already exists and nothing more.
+//
+// This is not a retention funnel. Nothing derived from it may be rendered in a
+// way that adds a step, a scroll past the exit, or a disabled state to leaving.
+// ---------------------------------------------------------------------------
+
+/**
+ * A server timestamp as an instant, or null when there is none to read.
+ *
+ * Both spellings, because both arrive: PostgREST sends `+00:00` offsets and the
+ * Workers send `Z`, and `Instant.parse` is documented against ISO_INSTANT. A
+ * client that understood only one of them would silently lose the release
+ * deadline on half its reads and fall back to copy carrying no date at all.
+ */
+internal fun parseServerInstant(iso: String?): Instant? {
+    val text = iso?.trim().orEmpty()
+    if (text.isEmpty()) return null
+    return runCatching { java.time.OffsetDateTime.parse(text).toInstant() }.getOrNull()
+        ?: runCatching { Instant.parse(text) }.getOrNull()
+}
+
+/**
+ * SPEC §1 key rule 2 / §9: how long the number is held after cancellation.
+ *
+ * THE CLOCK RUNS FROM `companies.canceled_at`, not from the period end, because
+ * that is what the job does — `runGraceJob` measures `now - canceled_at` and
+ * releases at 30. `subscription.canceled_at` is stamped when cancelling is
+ * REQUESTED, so for a cancel-at-period-end the clock can start up to a month
+ * before the period ends. Copy that says "30 days after your last period"
+ * names a different date from the one the number actually dies on, and a
+ * deadline wrong in the customer's favour is the expensive direction.
+ */
+const val CANCELLATION_GRACE_DAYS = 30
+
+/**
+ * When this workspace's number goes back to the carrier, or null if it is not
+ * cancelled. Mirror of `numberReleaseAt`.
+ */
+fun numberReleaseAt(canceledAt: String?): Instant? =
+    parseServerInstant(canceledAt)
+        ?.plus(java.time.Duration.ofDays(CANCELLATION_GRACE_DAYS.toLong()))
+
+/**
+ * Is this workspace still inside the window where coming back keeps the number?
+ *
+ * The win-back must not render outside it. Past the release the number is gone
+ * — back in carrier inventory and reassignable to another business (#413) — so
+ * "resubscribe and keep your number" becomes false at exactly this boundary,
+ * and it is the sort of false that gets discovered by the person it was
+ * promised to.
+ */
+fun isWithinCancellationGrace(canceledAt: String?, now: Instant = Instant.now()): Boolean {
+    val release = numberReleaseAt(canceledAt) ?: return false
+    return now.isBefore(release)
+}
+
+/**
+ * Has the win-back already been waved away for THIS cancellation?
+ *
+ * A timestamp compared against `canceled_at` rather than a boolean, because a
+ * dismissal belongs to one cancellation: somebody who dismisses this,
+ * resubscribes, and cancels again a year later gets the offer back, since the
+ * second cancellation stamps a newer `canceled_at`. Nothing has to clear it.
+ *
+ * A stamp we cannot parse counts as dismissed. The press demonstrably happened
+ * — the column is non-empty — and re-showing something after somebody asked us
+ * to stop is the worse of the two failures.
+ */
+fun winbackWavedAway(winbackDismissedAt: String?, canceledAt: String?): Boolean {
+    if (winbackDismissedAt.isNullOrBlank()) return false
+    val dismissed = parseServerInstant(winbackDismissedAt) ?: return true
+    val canceled = parseServerInstant(canceledAt) ?: return true
+    return !dismissed.isBefore(canceled)
+}
+
+/** Whether the canceled-state card should carry the win-back at all. */
+fun shouldOfferWinback(
+    canceledAt: String?,
+    winbackDismissedAt: String?,
+    now: Instant = Instant.now(),
+): Boolean = isWithinCancellationGrace(canceledAt, now) &&
+    !winbackWavedAway(winbackDismissedAt, canceledAt)
+
+/**
+ * Where the offer is being read.
+ *
+ * The same reason gets the same ANSWER in both places and a different verb: on
+ * the cancel card the subscription is still live, so the control is the plan
+ * switch; during grace it is over, so the control is coming back.
+ */
+enum class CancellationOfferPhase { Before, Grace }
+
+/**
+ * A control this screen ALREADY HAS. Never a route — a route string would be
+ * wrong on two of the three platforms.
+ *
+ *   ChangePlan          the plan switcher (ChangePlanDialog), targeting Starter.
+ *   ResubscribeStarter  the resubscribe control, with Starter as the plan
+ *                       rather than the old one.
+ *   OpenHelp            the in-product help surface (#382) — HelpSection here.
+ */
+enum class CancellationOfferAction { ChangePlan, ResubscribeStarter, OpenHelp }
+
+data class CancellationOffer(
+    /** The reason this answers, so a screen can key its state on it. */
+    val reason: String,
+    val heading: String,
+    val body: String,
+    /** Null when the words are the whole answer and there is nothing to press. */
+    val action: CancellationOfferAction? = null,
+    /** The words on that control — the SAME words on all three clients. */
+    val actionLabel: String? = null,
+)
+
+/** `companies.plan`, narrowed. Null means no checkout has happened yet. */
+private fun resolveOfferPlan(plan: String?): String = if (plan == "pro") "pro" else "starter"
+
+/**
+ * What this workspace is charged in. The stored currency wins whenever it is
+ * one we bill in; the country is consulted only when there is none.
+ *
+ * Shared with [planFacts] rather than kept private to the offer. Two ways of
+ * answering "which price book" on one screen is how the plan card and the
+ * cancellation answer directly below it ended up quoting two different
+ * currencies at the same reader.
+ */
+private fun resolveBillingCurrency(billingCurrency: String?, country: String?): BillingCurrency =
+    billingCurrencyOrNull(billingCurrency) ?: currencyForCountry(country)
+
+/**
+ * The cheaper-plan answer, and the ONE case it is not offered.
+ *
+ * A workspace already on Starter gets NULL, because there is nothing below it.
+ * The alternative — some softer sentence about how the price is fair — is an
+ * argument with somebody who has just told us it is not, on the screen they
+ * came to leave from. Inventing a cheaper plan is the dishonesty #277 forbids.
+ *
+ * A FIGURE MAY ONLY BE PRINTED ON THE PATH THAT ENFORCES IT. The two routes
+ * back to Starter are not the same route and do not enforce the same things:
+ *
+ *   Before  POST /v1/billing/change-plan. Answers 409 while the workspace holds
+ *           more numbers than [STARTER_NUMBERS], and again while active members
+ *           exceed [STARTER_SEATS]. Both allowances are real there, so both are
+ *           stated.
+ *   Grace   Stripe checkout. Its only gates are "one live subscription" and the
+ *           US registration draft — it counts neither members nor numbers — and
+ *           `checkout.session.completed` then un-suspends EVERY suspended number
+ *           with no plan filter. A Pro workspace with two numbers and eight
+ *           members can come back on Starter holding two and eight, so the seat
+ *           and number allowances are NOT stated there. The price still is:
+ *           checkout charges it.
+ *
+ * WHY THE BEFORE PHASE NAMES A REFUSAL. It used to end "your number and your
+ * message history stay exactly as they are", which is true for a workspace that
+ * fits Starter and false for exactly the one being spoken to: a Pro tenant
+ * holding a second number is REFUSED the downgrade until it is released, so the
+ * second number is the one thing that does not stay as it is. The history
+ * genuinely does survive and is still promised.
+ */
+private fun tooExpensiveOffer(
+    plan: String?,
+    phase: CancellationOfferPhase,
+    billingCurrency: String?,
+    country: String?,
+): CancellationOffer? {
+    if (resolveOfferPlan(plan) != "pro") return null
+
+    val currency = resolveBillingCurrency(billingCurrency, country)
+    val prices = PLAN_PRICE_CENTS.getValue(currency)
+    val starter = formatMoney(prices.getValue("starter"), currency)
+    val pro = formatMoney(prices.getValue("pro"), currency)
+    val numbers = STARTER_NUMBERS
+
+    // True on both routes back, because both end at a Starter subscription
+    // built from the Starter prices — the schedule phase a downgrade writes,
+    // and the session a resubscribe checks out through.
+    val price = "Starter is $starter a month instead of $pro, with smaller texting " +
+        "and calling allowances under the same fair-use policy."
+
+    /** Seats and numbers, and so only for the phase whose route refuses them. */
+    val limits = "It covers $STARTER_SEATS people and $numbers business " +
+        "number${if (numbers == 1) "" else "s"}."
+
+    return if (phase == CancellationOfferPhase.Grace) {
+        CancellationOffer(
+            reason = "too_expensive",
+            heading = "There is a smaller plan to come back on",
+            body = "$price Come back on Starter and your number and your whole " +
+                "message history come with you.",
+            action = CancellationOfferAction.ResubscribeStarter,
+            actionLabel = "Come back on Starter",
+        )
+    } else {
+        CancellationOffer(
+            reason = "too_expensive",
+            heading = "Starter is the same product, priced for a smaller crew",
+            body = "$price $limits The switch takes effect at the end of your " +
+                "current billing period. Your message history comes with you, and " +
+                "so does the number you text from — a second number does not: the " +
+                "downgrade is refused until you release it, and until the crew is " +
+                "back inside $STARTER_SEATS seats.",
+            action = CancellationOfferAction.ChangePlan,
+            actionLabel = "Switch to Starter",
+        )
+    }
+}
+
+/**
+ * The seasonal answer: what is already true about going quiet and coming back.
+ *
+ * THERE IS NO PAUSE, and this copy must never imply one. "You cannot reply" is
+ * in there on purpose: `runPreSendGates` requires an active subscription and
+ * answers 402 otherwise, so a cancelled workspace can receive and cannot send.
+ * Leaving that out would let somebody plan a quiet season around a product that
+ * answers their customers, and find out otherwise from a customer.
+ *
+ * THE HEADING MAY NOT COVER THE SEASON. It used to read "Your number is held
+ * while you are gone", over a body that said 30 days, to a reader who had just
+ * said they would be back next spring. A trades quiet season is months; the
+ * hold is 30 days; and the heading is the line that gets read. So the heading
+ * carries the duration and the anchor, and the body says plainly that a longer
+ * season outruns it.
+ *
+ * THE ANCHOR IS THE CANCELLATION, NOT THE PERIOD END. `runGraceJob` measures
+ * `now - canceled_at`, and `startCancellationLifecycle` stamps that column from
+ * Stripe's `canceled_at`, which for a `cancel_at_period_end` cancellation is the
+ * time of the REQUEST — the vendored `Subscriptions.d.ts` says so in as many
+ * words. Somebody who cancels on day 2 of a month and reads "your period ends,
+ * then we hold it for 30 days" counts about 59 days and has about 30. What they
+ * lose at the end of the miscount is the number on the side of the van.
+ */
+private fun seasonalOffer(
+    phase: CancellationOfferPhase,
+    registrationFeePaidAt: String?,
+): CancellationOffer {
+    // Gated on the TIMESTAMP rather than on country, because the timestamp is
+    // exactly what checkout tests: the one-time line is added only when
+    // `registration_fee_paid_at IS NULL`, and the webhook stamps it once per
+    // company ever. A workspace that has not paid it WILL be charged on return,
+    // so for them this sentence is simply absent rather than softened.
+    val fee = if (!registrationFeePaidAt.isNullOrBlank()) {
+        " You have already paid the one-time registration fee, and it is " +
+            "charged at most once per workspace, ever — coming back does not " +
+            "charge it again."
+    } else {
+        ""
+    }
+
+    return if (phase == CancellationOfferPhase.Grace) {
+        CancellationOffer(
+            reason = "seasonal",
+            heading = "Your number is still yours until the date below",
+            body = "It is still receiving texts, so nothing a customer sends is lost, " +
+                "though you cannot reply until you are back. That date is " +
+                "$CANCELLATION_GRACE_DAYS days from the day you cancelled, not from " +
+                "the end of your last billing period. Resubscribe before then and " +
+                "the number and your whole message history come back with you.$fee",
+        )
+    } else {
+        CancellationOffer(
+            reason = "seasonal",
+            heading = "Your number is held for $CANCELLATION_GRACE_DAYS days from " +
+                "the day you cancel",
+            body = "It keeps receiving texts the whole time, so nothing a customer " +
+                "sends is lost — you cannot reply until you are back, and your " +
+                "message history stays put. The $CANCELLATION_GRACE_DAYS days run " +
+                "from the day you cancel, not from the end of your billing period, " +
+                "so a quiet season longer than that outruns the hold and the number " +
+                "goes back to the phone company.$fee",
+        )
+    }
+}
+
+/**
+ * The missing-feature answer: the route to a human, and what it promises.
+ *
+ * Both sentences are read from the support constants rather than restated, for
+ * the reason that module gives — a response time typed in separately is a
+ * promise somebody made without knowing they were making it. Same words the
+ * help screen shows, so the offer cannot promise what the help screen does not.
+ */
+private fun missingFeatureOffer(): CancellationOffer = CancellationOffer(
+    reason = "missing_feature",
+    heading = "Tell us what was missing",
+    body = "If the thing you needed is not here, the fastest way to change that is " +
+        "to tell us what it was. We answer $SUPPORT_RESPONSE_TIME. " +
+        SUPPORT_FIX_PROMISE,
+    action = CancellationOfferAction.OpenHelp,
+    actionLabel = "Get help",
+)
+
+/**
+ * The answer to a stated reason, or null for "say nothing".
+ *
+ * NULL IS THE COMMON CASE and it is a real answer. Three of the six reasons
+ * return it always (`switched` — we do not know what they went to; `not_using`
+ * and `other` — the export and the exit are already on the card and are what
+ * those answers actually need), one returns it on Starter, and an unrecognised
+ * or absent reason returns it too: a client reading a code from a newer build
+ * must render nothing rather than guess. Never substitute copy for a null.
+ */
+fun cancellationOffer(
+    reason: String?,
+    plan: String?,
+    phase: CancellationOfferPhase = CancellationOfferPhase.Before,
+    billingCurrency: String? = null,
+    country: String? = null,
+    registrationFeePaidAt: String? = null,
+): CancellationOffer? = when (reason) {
+    "too_expensive" -> tooExpensiveOffer(plan, phase, billingCurrency, country)
+    "seasonal" -> seasonalOffer(phase, registrationFeePaidAt)
+    "missing_feature" -> missingFeatureOffer()
+    // switched / not_using / other, and anything unrecognised: nothing honest
+    // to add. See the header.
+    else -> null
+}
 
 // ---------------------------------------------------------------------------
 // #414 emergency keyword — mirror of packages/shared/src/emergency.ts

@@ -105,6 +105,17 @@ enum SettingsRoleGate {
 let starterSeats = 3
 let proSeats = 15
 
+/// Business numbers per plan — PLAN_NUMBERS in packages/shared/src/seats.ts.
+///
+/// Here for the same reason the seat counts are, and it arrived later because
+/// nothing outside the API needed to SAY the number until a cancel screen had
+/// to name what Starter actually covers. A real limit rather than a marketing
+/// figure: POST /v1/billing/change-plan refuses a downgrade while the workspace
+/// holds more numbers than this, so a figure that drifted from the server's
+/// would be a promise the next tap refuses.
+let starterNumbers = 1
+let proNumbers = 2
+
 /// Fallback allowance ONLY. Prefer `CompanyView.seat_limit` from the server.
 func seatLimit(_ plan: String?) -> Int { plan == "pro" ? proSeats : starterSeats }
 
@@ -422,6 +433,61 @@ func formatBytes(_ bytes: Int) -> String {
 /// The shareable invite accept link (same origin the web copies).
 func inviteLink(_ inviteId: String) -> String { "https://app.loonext.com/invite/\(inviteId)" }
 
+// MARK: - What this workspace is charged in (#328)
+
+/// The currencies a workspace can be billed in — BILLING_CURRENCIES (#328).
+enum BillingCurrency: String, Sendable {
+    case usd
+    case cad
+}
+
+/// What this workspace is actually charged in.
+///
+/// The stored currency wins whenever it is one we bill in, and it is stored on
+/// every workspace there is: `20260802090000_billing_currency.sql` adds the
+/// column `not null default 'usd'`, and `api_create_company` writes `'cad'` for
+/// every CA signup. There is no null row and no "pre-#328 workspace" to fall
+/// back for.
+///
+/// NIL ON THE WIRE MEANS REDACTED, not unknown. `billing_currency` is in
+/// BILLING_ONLY_COMPANY_FIELDS, so the key is ABSENT for a caller without
+/// `billing.manage` — a tech or a member reading the plan card. The country is
+/// the answer THEN, and it is the right one: it is what the column was
+/// defaulted from at signup, so it agrees with the stored value for every
+/// workspace that has not deliberately switched. Trusting the country OVER a
+/// stored `usd` would be the wrong way round, which is why the stored value is
+/// checked first rather than last.
+func billingCurrencyFor(stored: String?, country: String?) -> BillingCurrency {
+    if let stored, let known = BillingCurrency(rawValue: stored) { return known }
+    return country?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() == "CA"
+        ? .cad
+        : .usd
+}
+
+/// Flat monthly plan price in the minor unit — PLAN_PRICE_CENTS (#328).
+///
+/// CAD is decided, not converted: a converted number reads as an afterthought
+/// and moves every time the rate does.
+func planPriceCents(_ plan: String?, _ currency: BillingCurrency) -> Int {
+    let pro = plan == "pro"
+    switch currency {
+    case .usd: return pro ? 7900 : 2900
+    case .cad: return pro ? 10900 : 3900
+    }
+}
+
+extension CompanyView {
+    /// The currency this workspace's card is charged in, resolved once.
+    ///
+    /// A property rather than a call at each site, because the two screens that
+    /// print a plan price would otherwise each decide for themselves how to
+    /// answer a redacted column, and the failure mode of the pair disagreeing
+    /// is two different prices for the same plan in the same app.
+    var billedIn: BillingCurrency {
+        billingCurrencyFor(stored: billing_currency, country: country)
+    }
+}
+
 /// Plan display facts (SPEC §2, mirrored from web plan-facts.ts).
 struct PlanFacts: Equatable, Sendable {
     let name: String
@@ -431,12 +497,34 @@ struct PlanFacts: Equatable, Sendable {
     let voiceMinutes: Int
 }
 
-func planFacts(_ plan: String?) -> PlanFacts? {
+/// The plan card's facts, in the currency this workspace is billed in.
+///
+/// THE CURRENCY IS A PARAMETER AND HAS NO DEFAULT, deliberately. It used to be
+/// "$29/mo" and "$79/mo" flat, which put a Canadian owner in front of "Pro ·
+/// $79/mo" on the plan card and "Starter is $39 a month instead of $109" in the
+/// cancel answer an inch below it — two prices for the same plan, on one
+/// screen, one of them provably wrong, at the moment they are deciding whether
+/// to leave. A defaulted parameter would let the next call site re-create that
+/// silently; a required one makes the caller say whose money it is.
+///
+/// The figures are read from `planPriceCents` rather than typed, so a repricing
+/// moves this card and the cancel answer together. Unprefixed "$": it is the
+/// reader's own money, and "CA$39" to a Canadian reads as though we expect them
+/// to be confused about it. Web's twin is `planFactsFor` in plan-facts.ts.
+func planFacts(_ plan: String?, _ currency: BillingCurrency) -> PlanFacts? {
     switch plan {
     case "starter":
-        return PlanFacts(name: "Starter", price: "$29/mo", seats: starterSeats, numbers: 1, voiceMinutes: 2500)
+        return PlanFacts(
+            name: "Starter",
+            price: formatMonthlyCents(planPriceCents("starter", currency)) + "/mo",
+            seats: starterSeats, numbers: starterNumbers, voiceMinutes: 2500
+        )
     case "pro":
-        return PlanFacts(name: "Pro", price: "$79/mo", seats: proSeats, numbers: 2, voiceMinutes: 6000)
+        return PlanFacts(
+            name: "Pro",
+            price: formatMonthlyCents(planPriceCents("pro", currency)) + "/mo",
+            seats: proSeats, numbers: proNumbers, voiceMinutes: 6000
+        )
     default:
         return nil
     }
@@ -947,4 +1035,372 @@ func cancellationReasonBody(reason: String?, detail: String) -> JSONValue {
         object["detail"] = .string(truncatedCancellationDetail(written))
     }
     return .object(object)
+}
+
+// MARK: - Answering that reason (#277 follow-up)
+
+/// MIRROR of `packages/shared/src/cancellation-offers.ts`. Swift cannot import
+/// it, so the module is hand-ported and `cancellation-offers.test.ts` is the
+/// fixture the port is held to — its cases are re-run in Swift.
+///
+/// # What this is
+///
+/// The cancel card asks why, records the answer, and then says nothing back.
+/// Six reasons, and for three of them there is a true and useful thing to say
+/// that the person has no way of knowing. This is that answer and ONLY that
+/// answer: a heading, a body, and an optional action naming a control the
+/// client already has on the same screen.
+///
+/// # What it is deliberately not
+///
+/// NOT A RETENTION FUNNEL, and the constraint is hard rather than tasteful.
+/// `CancelCard` renders open precisely so somebody who answers nothing reaches
+/// Stripe in ONE action, because cancelling may never take more steps than
+/// subscribing did. Nothing here may be rendered in a way that adds a step.
+///
+/// NOT A PLACE TO INVENT AN OFFER. Three of the six reasons return nil, and one
+/// more returns nil on Starter, because there is nothing honest to say — not
+/// because the copy has not been written yet:
+///
+///   too_expensive on starter  There is no cheaper plan. Inventing one is the
+///                             dishonesty #277 forbids.
+///   switched                  We do not know what they switched to, and a
+///                             rebuttal against a competitor we are guessing at
+///                             is an argument, which this is not.
+///   not_using / other         The export and the exit are already on the card
+///                             and are what those answers actually need.
+///
+/// There is NO pause feature. Copy implying one sends somebody looking for a
+/// button that is not there.
+///
+/// # Why the figures are read rather than typed
+///
+/// Three hand-typed copies of a sentence carrying a price and a deadline is
+/// three chances to be wrong about money, and the wrong one is always
+/// discovered by the customer. Every number below comes from the price book or
+/// the plan limits, so a repricing moves the copy instead of stranding it.
+
+/// SPEC §1 key rule 2 / §9 — how long the number is held after cancellation.
+///
+/// THE CLOCK RUNS FROM `companies.canceled_at`, not from the period end,
+/// because that is what the job does: `runGraceJob` measures `now -
+/// canceled_at` and releases at 30. Stripe stamps `canceled_at` when cancelling
+/// is REQUESTED, so on a cancel-at-period-end the clock can start most of a
+/// month before texting stops. Copy that says "30 days after your last period"
+/// names a later date than the one the number actually dies on, and a deadline
+/// wrong in the customer's favour is the expensive direction to be wrong in.
+let cancellationGraceDays = 30
+
+private let cancellationGraceSeconds = TimeInterval(cancellationGraceDays * 24 * 60 * 60)
+
+/// When this workspace's number goes back to the carrier, or nil if it is not
+/// cancelled.
+///
+/// A `Date` rather than a formatted string, so each surface formats it the way
+/// that surface needs. Mirrors `releaseDateLabel` in grace.ts, which prints this
+/// same date into the day-27 email.
+func numberReleaseAt(_ canceledAt: String?) -> Date? {
+    guard let canceledAt,
+          !canceledAt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+          let canceled = parseWireTimestamp(canceledAt) else { return nil }
+    return canceled.addingTimeInterval(cancellationGraceSeconds)
+}
+
+/// Is this workspace still inside the window where coming back keeps the number?
+///
+/// The grace offer must not be rendered outside it. Past the release the number
+/// is gone — back in carrier inventory and reassignable to another business
+/// (#413) — so "resubscribe and keep your number" becomes false at exactly this
+/// boundary, and it is the sort of false that gets discovered by the person it
+/// was promised to.
+func isWithinCancellationGrace(_ canceledAt: String?, now: Date = Date()) -> Bool {
+    guard let release = numberReleaseAt(canceledAt) else { return false }
+    return now < release
+}
+
+/// Has the grace-window win-back been waved away for THIS cancellation?
+///
+/// The comparison is the design. A dismissal belongs to one cancellation, so a
+/// stamp left over from a previous one suppresses nothing: somebody who
+/// dismisses this, resubscribes, and leaves again next winter gets the answer
+/// again, because that second `canceled_at` is newer than the stamp.
+///
+/// An absent or unreadable stamp is NOT a dismissal. `winback_dismissed_at` is
+/// withheld entirely from a caller without `billing.manage`, and failing that
+/// way round shows a note to somebody who has not declined it rather than
+/// hiding one from somebody who has not.
+func winbackIsDismissed(canceledAt: String?, dismissedAt: String?) -> Bool {
+    guard let canceled = parseWireTimestamp(canceledAt),
+          let dismissed = parseWireTimestamp(dismissedAt) else { return false }
+    return dismissed >= canceled
+}
+
+/// Where the offer is being read.
+///
+/// The same reason gets the same ANSWER in both places and a different verb: on
+/// the cancel card the subscription is still live, so the control is the plan
+/// switch; during grace it is over, so the control is coming back.
+enum CancellationOfferPhase: Sendable {
+    case before
+    case grace
+}
+
+/// A control the client already has. Never a route — a route string returned
+/// from shared logic would be wrong on two of the three platforms. The LABEL is
+/// shared, because the words on the button are not platform-specific and three
+/// of them would drift.
+enum CancellationOfferAction: Equatable, Sendable {
+    /// The plan switcher already on the billing screen, targeting Starter.
+    case changePlan
+    /// The resubscribe control, with Starter as the plan rather than the old one.
+    case resubscribeStarter
+    /// The in-product help surface (#382) — `SettingsSection.help` here.
+    case openHelp
+}
+
+struct CancellationOffer: Equatable, Sendable {
+    /// The reason this answers, so a surface can key on it.
+    let reason: String
+    let heading: String
+    let body: String
+    /// Nil when the words are the whole answer and there is nothing to press.
+    let action: CancellationOfferAction?
+    /// The words on that control, or nil when there is no control.
+    let actionLabel: String?
+}
+
+/// The answer to a stated reason, or nil for "say nothing".
+///
+/// NIL IS THE COMMON CASE and it is a real answer. Three of the six reasons
+/// return it always, one returns it on Starter, and an unrecognised or absent
+/// reason returns it too — a client reading a code from a newer build must
+/// render nothing rather than guess.
+///
+/// - Parameters:
+///   - reason: the stored reason code. Anything unrecognised yields nil.
+///   - plan: `companies.plan`. Nil (never checked out) is treated as Starter.
+///   - phase: `.before` is the cancel card, `.grace` the canceled-state card.
+///   - billingCurrency: `companies.billing_currency` — what the card is really
+///     charged, and so what any price printed here must be in.
+///   - country: `companies.country`. Used ONLY to pick a currency when the
+///     workspace has no stored one.
+///   - registrationFeePaidAt: `companies.registration_fee_paid_at`. Non-nil
+///     unlocks one extra sentence in the seasonal answer, and it is the
+///     sentence a seasonal business is actually asking about: what coming back
+///     costs.
+func cancellationOffer(
+    reason: String?,
+    plan: String?,
+    phase: CancellationOfferPhase = .before,
+    billingCurrency: String? = nil,
+    country: String? = nil,
+    registrationFeePaidAt: String? = nil
+) -> CancellationOffer? {
+    // The shared list is the contract, so a code this build has never heard of
+    // renders nothing instead of falling through to a guessed answer.
+    guard let reason, cancellationReasons.contains(where: { $0.code == reason }) else {
+        return nil
+    }
+    switch reason {
+    case "too_expensive":
+        return tooExpensiveCancellationOffer(
+            plan: plan,
+            phase: phase,
+            billingCurrency: billingCurrency,
+            country: country
+        )
+    case "seasonal":
+        return seasonalCancellationOffer(
+            phase: phase,
+            registrationFeePaidAt: registrationFeePaidAt
+        )
+    case "missing_feature":
+        return missingFeatureCancellationOffer()
+    // switched / not_using / other: nothing honest to add. See the header.
+    default:
+        return nil
+    }
+}
+
+/// The cheaper-plan answer, and the ONE case it is not offered.
+///
+/// A workspace already on Starter gets nothing, because there is nothing below
+/// it. The alternative — some softer sentence about how the price is fair — is
+/// an argument with somebody who has just told us it is not, on the screen they
+/// came to leave from.
+///
+/// # A FIGURE MAY ONLY BE PRINTED ON THE PATH THAT ENFORCES IT
+///
+/// The rule the shared module settled on after the first round of this copy
+/// shipped with a limit the next tap did not apply. The two routes back to
+/// Starter are not the same route:
+///
+///   before  POST /v1/billing/change-plan. Refuses (409) while the workspace
+///           holds more numbers than Starter allows, and again while active
+///           members exceed the Starter seats. The allowances are real there,
+///           so they are stated.
+///   grace   Stripe checkout. Its only gates are "one live subscription" and
+///           the US registration draft — no seat count, no number count — and
+///           `checkout.session.completed` then un-suspends EVERY suspended
+///           number with no plan filter. A Pro workspace with two numbers and
+///           eight members can come back on Starter holding two and eight, so
+///           the seat and number allowances are NOT stated there.
+///
+/// Dropping the grace control instead was rejected: change-plan 409s a canceled
+/// subscription outright ("resubscribe to change plans"), so checkout is the
+/// ONLY way back once the subscription is dead, and removing the button would
+/// leave the win-back with nothing to press at the one moment it is worth
+/// anything. What was false was the FIGURE, not the button. The price stays in
+/// both, because both end at a Starter subscription built from the Starter
+/// prices.
+///
+/// WHY THE BEFORE PHASE NAMES A REFUSAL. It used to end "your number and your
+/// message history stay exactly as they are", which is true for the workspace
+/// that fits Starter and false for exactly the workspace being spoken to: a Pro
+/// tenant holding a second number is REFUSED the downgrade until it is
+/// released. The history genuinely does survive and is still promised; the
+/// second number is not, because the next tap is where they would find out.
+///
+/// The smaller allowances are named without a figure, matching the plan card on
+/// this same screen: #85 and #121 put the concrete numbers only in the fair-use
+/// policy, and a count quoted here would be a second home for them.
+private func tooExpensiveCancellationOffer(
+    plan: String?,
+    phase: CancellationOfferPhase,
+    billingCurrency: String?,
+    country: String?
+) -> CancellationOffer? {
+    guard plan == "pro" else { return nil }
+
+    let currency = billingCurrencyFor(stored: billingCurrency, country: country)
+    // Unprefixed "$": it is the reader's own money. `formatMonthlyCents` drops
+    // the cents on a whole dollar, which is what `formatMoney` does too.
+    let starter = formatMonthlyCents(planPriceCents("starter", currency))
+    let pro = formatMonthlyCents(planPriceCents("pro", currency))
+    // True on both routes back: both end at a Starter subscription built from
+    // the Starter prices, and the metered allowances ride those same prices.
+    let price = "Starter is \(starter) a month instead of \(pro), with smaller "
+        + "texting and calling allowances under the same fair-use policy."
+    // Seats and numbers, and so only for the phase whose route refuses them.
+    let limits = "It covers \(starterSeats) people and \(starterNumbers) business "
+        + "number\(starterNumbers == 1 ? "" : "s")."
+
+    if phase == .grace {
+        return CancellationOffer(
+            reason: "too_expensive",
+            heading: "There is a smaller plan to come back on",
+            body: price
+                + " Come back on Starter and your number and your whole message "
+                + "history come with you.",
+            action: .resubscribeStarter,
+            actionLabel: "Come back on Starter"
+        )
+    }
+    return CancellationOffer(
+        reason: "too_expensive",
+        heading: "Starter is the same product, priced for a smaller crew",
+        body: price + " " + limits
+            + " The switch takes effect at the end of your current billing "
+            + "period. Your message history comes with you, and so does the "
+            + "number you text from — a second number does not: the downgrade is "
+            + "refused until you release it, and until the crew is back inside "
+            + "\(starterSeats) seats.",
+        action: .changePlan,
+        actionLabel: "Switch to Starter"
+    )
+}
+
+/// The seasonal answer: what is already true about going quiet and coming back.
+///
+/// THERE IS NO PAUSE, and this copy must never imply one. What exists is the
+/// 30-day hold, and for a business that goes quiet for a winter the useful
+/// facts are that the number keeps receiving, the history survives, and the
+/// one-time registration fee is not charged twice.
+///
+/// "You cannot reply" is in there on purpose. `runPreSendGates` requires an
+/// active subscription and answers 402 otherwise, so a cancelled workspace can
+/// receive and cannot send. Leaving that out would let somebody plan a quiet
+/// season around a product that answers their customers, and find out otherwise
+/// from a customer.
+///
+/// THE HEADING MAY NOT COVER THE SEASON. It used to read "Your number is held
+/// while you are gone", over a body that said 30 days, to a reader who had just
+/// said they would be back next spring. A trades quiet season is months; the
+/// hold is 30 days; and the heading is the line that gets read. So the heading
+/// carries the duration and the anchor, and the body says plainly that a longer
+/// season outruns it — which is the whole reason this answer is worth showing
+/// to somebody whose plan is to disappear until the work comes back.
+///
+/// THE ANCHOR IS THE CANCELLATION, NOT THE PERIOD END. `runGraceJob` measures
+/// `now - canceled_at`, and `startCancellationLifecycle` stamps that column
+/// from Stripe's `canceled_at`, which for a `cancel_at_period_end` cancellation
+/// is the time of the REQUEST (the vendored `Subscriptions.d.ts` says so in as
+/// many words), not the end of the period. Somebody who cancels on day 2 of a
+/// month and reads "your period ends, then we hold it for 30 days" counts about
+/// 59 days and has about 30. What they lose at the end of the miscount is the
+/// number on the side of the van, so both phases name the wrong anchor by name
+/// in order to deny it — the wrong anchor is the one already in the reader's
+/// head.
+private func seasonalCancellationOffer(
+    phase: CancellationOfferPhase,
+    registrationFeePaidAt: String?
+) -> CancellationOffer {
+    // Gated on the TIMESTAMP rather than on country, because the timestamp is
+    // the exact thing checkout tests: the $29 line is added only when
+    // `registration_fee_paid_at IS NULL`, and the webhook stamps it once per
+    // company ever. A workspace that has not paid it WILL be charged on return,
+    // so for them this sentence is simply absent rather than softened.
+    let paid = !(registrationFeePaidAt ?? "")
+        .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    let fee = paid
+        ? " You have already paid the one-time registration fee, and it is "
+            + "charged at most once per workspace, ever — coming back does not "
+            + "charge it again."
+        : ""
+
+    if phase == .grace {
+        return CancellationOffer(
+            reason: "seasonal",
+            heading: "Your number is still yours until the date below",
+            body: "It is still receiving texts, so nothing a customer sends is lost, "
+                + "though you cannot reply until you are back. That date is "
+                + "\(cancellationGraceDays) days from the day you cancelled, not from "
+                + "the end of your last billing period. Resubscribe before then and "
+                + "the number and your whole message history come back with you." + fee,
+            action: nil,
+            actionLabel: nil
+        )
+    }
+    return CancellationOffer(
+        reason: "seasonal",
+        heading: "Your number is held for \(cancellationGraceDays) days from the "
+            + "day you cancel",
+        body: "It keeps receiving texts the whole time, so nothing a customer sends "
+            + "is lost — you cannot reply until you are back, and your message "
+            + "history stays put. The \(cancellationGraceDays) days run from the day "
+            + "you cancel, not from the end of your billing period, so a quiet season "
+            + "longer than that outruns the hold and the number goes back to the "
+            + "phone company." + fee,
+        action: nil,
+        actionLabel: nil
+    )
+}
+
+/// The missing-feature answer: the route to a human, and what it promises.
+///
+/// Both sentences are read from the support constants rather than restated, for
+/// the reason that module gives: a response time typed into three clients
+/// separately is a promise somebody made without knowing they were making it.
+/// Same words the help screen shows, so the offer cannot promise something the
+/// help screen does not.
+private func missingFeatureCancellationOffer() -> CancellationOffer {
+    CancellationOffer(
+        reason: "missing_feature",
+        heading: "Tell us what was missing",
+        body: "If the thing you needed is not here, the fastest way to change that is "
+            + "to tell us what it was. We answer \(supportResponseTime). "
+            + supportFixPromise,
+        action: .openHelp,
+        actionLabel: "Get help"
+    )
 }

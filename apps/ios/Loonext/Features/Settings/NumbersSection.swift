@@ -630,7 +630,11 @@ private struct AddNumberCard: View {
     var body: some View {
         if SettingsRoleGate.canManageNumbers(scope.role),
            company.subscriptionActive,
-           let facts = planFacts(company.plan) {
+           // The currency is required rather than defaulted (#328), so this
+           // call site has to say whose money it is even though it reads only
+           // `facts.numbers`. That is the point of the requirement: the day
+           // this card starts printing a price, it prints the right one.
+           let facts = planFacts(company.plan, company.billedIn) {
             let liveCount = numbers.filter { $0.status != NumberStatus.released }.count
             let starterAtCap = company.plan == "starter" && liveCount >= 2
             let nextIsExtra = liveCount >= facts.numbers

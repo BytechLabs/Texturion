@@ -418,6 +418,30 @@ data class CompanyView(
     val overage_cap_multiplier: kotlinx.serialization.json.JsonPrimitive? = null,
     val registration_fee_paid_at: String? = null,
     val canceled_at: String? = null,
+    /**
+     * #328 — what this workspace's card is actually charged in ("usd"/"cad").
+     *
+     * Modelled because the COUNTRY is not a safe stand-in for it. When the
+     * Stripe catalog cannot honour CAD, `checkout-currency.ts` bills a Canadian
+     * workspace in US dollars, so a screen deriving the currency from `country`
+     * alone would print a CAD plan price to somebody whose card is charged in
+     * USD. Null on a workspace that predates #328 — fall back to the country
+     * then, and only then.
+     */
+    val billing_currency: String? = null,
+    /**
+     * #277 follow-up — when the grace-window win-back was waved away.
+     *
+     * A TIMESTAMP, compared against [canceled_at], not a boolean: a dismissal
+     * belongs to ONE cancellation. Somebody who dismisses it, resubscribes, and
+     * cancels again next winter gets the offer back, because that second
+     * cancellation stamps a newer `canceled_at`. Nothing has to clear it.
+     *
+     * In BILLING_ONLY_COMPANY_FIELDS, so it is ABSENT rather than null for a
+     * caller without `billing.manage` — which decodes to null here, and null is
+     * the honest answer for somebody who cannot see the card anyway.
+     */
+    val winback_dismissed_at: String? = null,
     /** #481: what a departing owner's customers are told. Null = off. */
     val offramp_message: String? = null,
     val offramp_opted_in_at: String? = null,

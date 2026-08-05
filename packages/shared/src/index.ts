@@ -233,6 +233,7 @@ export {
 } from "./duplicate-reply";
 
 export {
+  PLAN_NUMBERS,
   PLAN_SEATS,
   seatLimit,
   canUpgradeSeats,
@@ -240,6 +241,20 @@ export {
   type SeatPlan,
   type SeatUsage,
 } from "./seats";
+
+export {
+  CANCELLATION_GRACE_DAYS,
+  CANCELLATION_REASON_CODES,
+  cancellationOffer,
+  isCancellationReasonCode,
+  isWithinCancellationGrace,
+  numberReleaseAt,
+  type CancellationOffer,
+  type CancellationOfferAction,
+  type CancellationOfferInput,
+  type CancellationOfferPhase,
+  type CancellationReasonCode,
+} from "./cancellation-offers";
 
 export {
   AI_DISCLOSURES,

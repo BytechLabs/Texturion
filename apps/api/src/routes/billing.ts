@@ -487,6 +487,87 @@ billingRoutes.post("/cancellation-reason", async (c) => {
   return c.body(null, 204);
 });
 
+/**
+ * GET /v1/billing/cancellation-reason — #277 follow-up. What they told us, read
+ * back, so the canceled-state card can answer during the grace window what the
+ * cancel card answered on the way out.
+ *
+ * A DEDICATED ROUTE RATHER THAN A FIELD ON company_view, and the reasoning is
+ * the same one `missed-while-off` beside it already uses. `loadCompanyView` is
+ * the hottest path in the product — every GET /v1/company and every GET /v1/me,
+ * for every role, on every app boot — and this answer can only ever be non-null
+ * for a workspace that has already cancelled. Putting it there would have every
+ * paying workspace run a query for a feature it can never see, forever, and the
+ * card that needs it renders on exactly one screen in exactly one state.
+ *
+ * THE OPEN ROW ONLY. `confirmed_at is null` is what the partial unique index
+ * makes at-most-one of; a confirmed row belongs to a cancellation that has
+ * already run its course, and answering a year-old reason on a new one would be
+ * answering a question nobody just asked.
+ *
+ * NEVER THE FREE TEXT. `detail` is what somebody wrote about us, in their own
+ * words, and reading it back to them on a win-back card would be quoting them at
+ * themselves. The reason CODE is all the card needs to pick an answer.
+ *
+ * `billing.manage` like every route in this file: a stated reason for leaving is
+ * not something a tech should be able to read off their own workspace.
+ */
+billingRoutes.get("/cancellation-reason", async (c) => {
+  const db = getDb(getEnv(c.env));
+  const { data, error } = await db
+    .from("cancellation_reasons")
+    .select("reason,created_at")
+    .eq("company_id", c.get("companyId"))
+    .is("confirmed_at", null)
+    .limit(1);
+  if (error) throw new Error(`cancellation reason lookup failed: ${error.message}`);
+  const row = (data ?? [])[0] as
+    | { reason: string | null; created_at: string }
+    | undefined;
+  // `reason: null` is a real answer and NOT the same as no row: it means
+  // somebody opened the cancel screen and skipped the question, which is
+  // allowed on purpose. Both render nothing, but only one of them is a person
+  // declining to say, and the report the whole feature feeds counts them apart.
+  return c.json({
+    reason: row?.reason ?? null,
+    stated_at: row?.created_at ?? null,
+  });
+});
+
+/**
+ * POST /v1/billing/dismiss-winback — #277 follow-up. "Stop showing me this."
+ *
+ * The grace emails on day 1, 15 and 27 all link to /settings/billing, so the
+ * canceled-state card is seen on a cadence rather than once. Anything shown
+ * three times needs a way to be shown zero times, and until now there was no
+ * dismissal state anywhere in the schema.
+ *
+ * A TIMESTAMP, COMPARED AGAINST `canceled_at`, not a boolean — the reasoning is
+ * in the migration and the property is that a dismissal belongs to ONE
+ * cancellation. Somebody who dismisses this, resubscribes, and cancels again a
+ * year later gets the offer back, because that second cancellation stamps a
+ * newer `canceled_at` than the dismissal. Nothing has to clear it.
+ *
+ * DELIBERATELY UNCONDITIONAL. It does not check that the workspace is cancelled
+ * first: a stamp written while nothing is cancelled suppresses nothing (the next
+ * `canceled_at` is later than it), so the guard would only add a way for a
+ * legitimate press to fail. 204 for the same reason a dismissal is not worth a
+ * body — there is nothing the client needs back that it did not already know.
+ */
+billingRoutes.post("/dismiss-winback", async (c) => {
+  const db = getDb(getEnv(c.env));
+  expectOk(
+    await db
+      .from("companies")
+      .update({ winback_dismissed_at: new Date().toISOString() })
+      .eq("id", c.get("companyId"))
+      // A soft-deleted company is not billable — matches fetchCompany above.
+      .is("deleted_at", null),
+    "dismiss winback",
+  );
+  return c.body(null, 204);
+});
+
 billingRoutes.post("/portal", async (c) => {
   const env = getEnv(c.env);
   const company = await fetchCompany(getDb(env), c.get("companyId"));

@@ -30,6 +30,36 @@ private func fullDate(_ iso: String?) -> String? {
     return formatter.string(from: date)
 }
 
+/// The day this workspace's number goes back to the carrier — "August 14,
+/// 2026" — or nil when nothing has been cancelled.
+///
+/// ONE FUNCTION, because three surfaces on this screen name this same date: the
+/// off-ramp card, the canceled-state Subscription card, and the win-back note
+/// inside it. Three of them disagreeing about when somebody loses their
+/// business number is worse than none of them saying it.
+///
+/// WITH THE YEAR, and in the same shape the mail uses. The day-27 grace email
+/// prints "August 4, 2026" through `releaseDateLabel` in grace.ts and sends the
+/// reader to this screen, which printed "4 August" — the same deadline in two
+/// formats, one of them undated. The branch that suffers is the expired one
+/// ("the hold ended on 3 September"), which is read by definition after the
+/// deadline and can be read a year later by somebody signing back in to find
+/// out what happened.
+///
+/// UTC, because that is the clock `runGraceJob` runs on and the zone
+/// `releaseDateLabel` prints in. Rendering it in the reader's zone would show a
+/// date a day either side of the one the job acts on — which is why this stays
+/// separate from `fullDate` above despite the identical format string: that one
+/// prints a billing period end, which is a moment in the reader's own life.
+private func numberReleaseDay(_ canceledAt: String?) -> String? {
+    guard let release = numberReleaseAt(canceledAt) else { return nil }
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = TimeZone(identifier: "UTC")
+    formatter.dateFormat = "MMMM d, yyyy"
+    return formatter.string(from: release)
+}
+
 /// Billing (#163): plan card (calling is INCLUDED on every plan — never an
 /// add-on), honest status banners, in-app plan change, the add-on modules
 /// card, and hosted Stripe surfaces which ALWAYS open in the external browser
@@ -69,7 +99,7 @@ struct BillingSectionView: View {
                 PortalButton(scope: scope, label: "Manage payment & invoices")
             }
             if company.subscriptionActive {
-                CancelCard(scope: scope, company: company)
+                CancelCard(scope: scope, company: company, onRefreshCompany: onRefreshCompany)
             }
         } else {
             SettingsCard(title: "Billing") {
@@ -141,11 +171,20 @@ private struct StatusNotices: View {
         }
         if company.subscriptionActive && company.cancel_at_period_end {
             let date = fullDate(company.current_period_end)
+            // The hold is counted from the day cancelling was REQUESTED, not
+            // from the day texting stops — `canceled_at` comes off Stripe's own
+            // `subscription.canceled_at`. This notice used to read "texting
+            // stops then; we hold your number for 30 days", which invites the
+            // reader to count from the period end and can overstate the real
+            // deadline by most of a month. The exact date cannot be shown here
+            // (nothing has stamped `canceled_at` yet), so the anchor is named.
             return (
                 "Your plan is set to cancel"
                     + (date.map { " on \($0)" } ?? " at the end of this period")
-                    + ". Texting stops then; we hold your number for 30 days in case you come "
-                    + "back. You can undo this from the payment portal.",
+                    + ". Texting stops then. Your number is held for "
+                    + "\(cancellationGraceDays) days from the day you cancelled — not "
+                    + "from that date — so it can be released soon afterwards. You can "
+                    + "undo this from the payment portal.",
                 "Keep my plan"
             )
         }
@@ -186,24 +225,47 @@ private struct PlanCard: View {
     var body: some View {
         if company.subscription_status == SubscriptionStatus.canceled {
             SettingsCard(title: "Subscription") {
-                Text(
-                    "Your subscription is canceled. We hold your number for 30 days after "
-                        + "your last period. Resubscribe before then and everything picks up "
-                        + "where it left off."
-                )
-                .font(.callout)
+                Text("Your subscription is canceled.")
+                    .font(.callout)
+                // #277 follow-up: the answer to what they told us on the way
+                // out, said once more while the number can still be saved.
+                // ABOVE the hold sentence on purpose — the shared seasonal copy
+                // points at "the date below", and that date is the next thing
+                // in this card. Draws nothing for the four reasons we have
+                // nothing honest to add to, once it has been waved away, and
+                // once the hold has expired.
+                if canManage {
+                    WinbackNote(scope: scope, company: company)
+                }
+                Text(holdSentence)
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 12)
                 InlineError(error)
                 if canManage {
-                    Button(opening ? "Opening…" : "Resubscribe") { resubscribe() }
-                        .buttonStyle(.borderedProminent)
-                        .tint(BrandColor.olive)
-                        .disabled(opening)
-                        .padding(.top, 10)
+                    // Unchanged, and still the loud one: "come back on exactly
+                    // what you had". The win-back's own control is quieter,
+                    // because steering somebody who has already left toward the
+                    // cheaper plan is a decision that should be theirs.
+                    Button(opening ? "Opening…" : "Resubscribe") {
+                        resubscribe(plan: company.plan ?? "starter")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(BrandColor.olive)
+                    .disabled(opening)
+                    .padding(.top, 10)
                 }
             }
-        } else if let facts = planFacts(company.plan) {
+        } else if let facts = planFacts(company.plan, company.billedIn) {
             SettingsCard(title: "Plan") {
                 HStack(spacing: 10) {
+                    // #328: priced in what this workspace's card is actually
+                    // charged, not a hardcoded dollar sign. A Canadian owner
+                    // read "Pro · $79/mo" here and "Starter is $39 a month
+                    // instead of $109" in the cancel answer an inch below —
+                    // two prices for the same plan, on one screen, one of them
+                    // provably wrong, at the moment they are deciding whether
+                    // to leave.
                     Text("\(facts.name) · \(facts.price)")
                         .font(.title3.weight(.semibold))
                     if company.subscriptionActive && !company.cancel_at_period_end {
@@ -267,12 +329,52 @@ private struct PlanCard: View {
         }
     }
 
-    private func resubscribe() {
+    /// What is true about the number on a workspace that has already left.
+    ///
+    /// Three states, because the hold really does have three and the sentence
+    /// this replaced ("30 days after your last period") described none of them:
+    ///
+    ///   inside the hold   the date it goes, which is the only actionable fact.
+    ///   past the hold     the hold ENDED. Deliberately not "your number has
+    ///                     been released": the release job runs daily, so
+    ///                     between the deadline and the next run the number may
+    ///                     still be ours, and the honest claim at that boundary
+    ///                     is about the hold rather than about the carrier.
+    ///   no `canceled_at`  the general rule, with no date invented for it.
+    ///
+    /// THE EXPIRED BRANCH MAY NOT SPEAK IN THE PAST TENSE EITHER. It used to
+    /// end "resubscribing now sets you up with a new number", which is the same
+    /// claim in different words: this sentence flips on the DEVICE clock at
+    /// `canceled_at + 30d`, while the release runs on a once-daily cron
+    /// (`0 14 * * *`) that can also fail and retry. For up to a day the number
+    /// is still suspended-not-released, and `runGraceJob` only ever looks at
+    /// companies whose `subscription_status` is still `canceled` — so somebody
+    /// who came back inside that window would keep the number we had just told
+    /// them was gone. What is certain at that boundary is that we can no longer
+    /// PROMISE it, and that is what it says. It does not promise the reverse
+    /// either: inviting somebody to race a cron is not an offer.
+    private var holdSentence: String {
+        guard let day = numberReleaseDay(company.canceled_at) else {
+            return "We hold your number for \(cancellationGraceDays) days from the day "
+                + "you cancel. Resubscribe before then and everything picks up where it "
+                + "left off."
+        }
+        if !isWithinCancellationGrace(company.canceled_at) {
+            return "The \(cancellationGraceDays)-day hold on your number ended on \(day). "
+                + "We can't promise it any more — once it goes back to the phone company, "
+                + "resubscribing sets you up with a new number. Your message history is "
+                + "still here either way."
+        }
+        return "We hold your number until \(day). Resubscribe before then and everything "
+            + "picks up where it left off."
+    }
+
+    private func resubscribe(plan: String) {
         opening = true
         error = nil
         Task {
             do {
-                let hosted = try await scope.repo.checkout(scope.companyId, plan: company.plan ?? "starter")
+                let hosted = try await scope.repo.checkout(scope.companyId, plan: plan)
                 openExternal(hosted.url)
             } catch {
                 self.error = error.userMessage
@@ -627,23 +729,17 @@ private struct OffRampCard: View {
     }
 
     private var blurb: String {
-        let stops = releaseDate.map { "It stops on \($0), when " } ?? "It stops when "
+        // Through `numberReleaseDay`, which is the one place on this screen the
+        // release date is computed. This card used to add its own 30 days in
+        // its own arithmetic; the Subscription card above it now names the same
+        // day, and two independently-derived deadlines is one drift away from
+        // telling an owner two different days they lose their number.
+        let stops = numberReleaseDay(company.canceled_at)
+            .map { "It stops on \($0), when " } ?? "It stops when "
         return "Anyone who texts your old number gets this back, once each. "
             + stops
             + "the number goes back to the phone company. After that we can't "
             + "answer it, and texts to it reach whoever gets it next."
-    }
-
-    /// UTC, because that is the clock the release job runs on. A deadline shown
-    /// a day out from the one the number actually goes on is worse than none.
-    private var releaseDate: String? {
-        guard let canceledAt = company.canceled_at,
-              let date = parseWireTimestamp(canceledAt) else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "UTC")
-        formatter.dateFormat = "d MMMM"
-        return formatter.string(from: date.addingTimeInterval(30 * 24 * 60 * 60))
     }
 
     private func save(_ message: String?) async {
@@ -716,10 +812,22 @@ private struct OffRampCard: View {
 /// The export offer is here because somebody leaving still needs their customer
 /// list, and "they made it hard to leave with our data" is a story a trade tells
 /// about a supplier for years.
+///
+/// THE ANSWER SITS BELOW THE BUTTON THAT LEAVES (#277 follow-up), and that is
+/// arithmetic rather than taste. Picking a reason can produce a true and useful
+/// thing to say back, but it is four or five lines plus a control. This card is
+/// the LAST thing on the billing screen, so somebody who has scrolled to it is
+/// at the bottom of a scroll view with "Continue to cancel" near the foot of
+/// the viewport. Inserting the answer above that button pushes it off the
+/// bottom of the screen and asks for another scroll — in direct response to
+/// having answered an OPTIONAL question. Answering must never cost more than
+/// skipping. So the answer renders last, the exit does not move, and a plain
+/// arrival on this screen is byte-for-byte the screen it was before.
 @MainActor
 private struct CancelCard: View {
     let scope: SettingsScope
     let company: CompanyView
+    let onRefreshCompany: @MainActor () -> Void
 
     @State private var chosen: String?
     @State private var detail = ""
@@ -739,16 +847,36 @@ private struct CancelCard: View {
     /// What is true FOR THE READER, which is not the same sentence for
     /// everybody. "Cancel anytime" is a promise an admin or a bookkeeper cannot
     /// keep, and making it and then withdrawing it one line later reads as a
-    /// runaround. The three facts are identical either way; only the person
-    /// they happen to changes.
+    /// runaround. The facts are identical either way; only the person they
+    /// happen to changes.
+    ///
+    /// THE HOLD IS ANCHORED TO THE CANCELLATION, and this is the sentence that
+    /// got it wrong. It read "texting stops at the end of your billing period,
+    /// and we hold your number for 30 days" — two clauses in one breath, which
+    /// invites the reader to count the 30 from the period end. The clock does
+    /// not start there: `runGraceJob` measures `now - canceled_at`, and
+    /// `startCancellationLifecycle` stamps that column from Stripe's
+    /// `canceled_at`, which on a `cancel_at_period_end` cancellation is the
+    /// time of the REQUEST. Somebody cancelling on day 2 of a month counted
+    /// about 59 days and had about 30, and what they lose at the end of the
+    /// miscount is the number on the side of the van and on their invoices.
+    ///
+    /// The wrong anchor is named in order to deny it, because the reader
+    /// already has it in their head — it is the date in the sentence before.
+    /// The same correction is made in the scheduled-cancellation notice at the
+    /// top of this screen and in the shared seasonal answer, and all three now
+    /// say it the same way round.
     private var consequence: String {
         canCancel
-            ? "Cancel anytime. Texting stops at the end of your billing period, and we "
-                + "hold your number for 30 days in case you change your mind. After that "
-                + "it is released for good."
+            ? "Cancel anytime. Texting stops at the end of your billing period. Your "
+                + "number is held for \(cancellationGraceDays) days from the day you "
+                + "cancel — not from the day texting stops — so it can go back to the "
+                + "phone company soon after. After that it is released for good."
             : "Only the owner can cancel this plan. When they do, texting stops at the "
-                + "end of the billing period, and we hold the number for 30 days in case "
-                + "they change their mind. After that it is released for good."
+                + "end of the billing period. The number is held for "
+                + "\(cancellationGraceDays) days from the day they cancel — not from the "
+                + "day texting stops — so it can go back to the phone company soon "
+                + "after. After that it is released for good."
     }
 
     var body: some View {
@@ -794,6 +922,25 @@ private struct CancelCard: View {
                 .disabled(opening)
                 .padding(.top, 10)
             InlineError(error)
+            // LAST, and after the exit on purpose — see the card's docblock.
+            // Computed from the LOCAL selection rather than read back from the
+            // server: the answer belongs to the tap, and a round trip would put
+            // a spinner in the middle of a cancel screen.
+            if let offer = cancellationOffer(
+                reason: chosen,
+                plan: company.plan,
+                billingCurrency: company.billing_currency,
+                country: company.country,
+                registrationFeePaidAt: company.registration_fee_paid_at
+            ) {
+                CancellationAnswerNote(
+                    offer: offer,
+                    scope: scope,
+                    company: company,
+                    onRefreshCompany: onRefreshCompany
+                )
+                .padding(.top, 20)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -955,6 +1102,301 @@ private struct CancellationReasonRow: View {
     }
 }
 
+// MARK: - Answering that reason (#277 follow-up)
+
+/// The muted note box the two answers share.
+///
+/// The same one `MissedWhileOffNote` uses at the top of this screen, and a NOTE
+/// rather than a card on purpose: the cards here are the workspace's own state,
+/// and these are things we know that the reader does not. A second SettingsCard
+/// would read as a competing offer on a screen somebody came to leave from.
+private extension View {
+    func cancellationNoteBox() -> some View {
+        frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                BrandColor.inset,
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+    }
+}
+
+/// The words of one offer: heading and body, tight together because they are
+/// one thought. Every sentence comes from `cancellationOffer`, which reads the
+/// price book and the plan limits rather than restating them — there is no
+/// fallback string anywhere in this file, because a client that substituted its
+/// own copy for a nil would be inventing the retention offer the shared module
+/// exists to prevent.
+private struct CancellationAnswerText: View {
+    let offer: CancellationOffer
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(offer.heading)
+                .font(.golos(13.5, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(offer.body)
+                .font(.golos(12))
+                .foregroundStyle(BrandColor.muted600)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 3)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// The answer to the reason just picked, on the cancel card.
+///
+/// IT ADDS NOTHING TO LEAVING. No confirmation, no disabled state, and nothing
+/// on the exit above it changes because this appeared — the one control here is
+/// an outline button under a paragraph. The sheet below belongs to "Switch to
+/// Starter" and sits nowhere near the path to Stripe; it is the same
+/// `ChangePlanSheet` the plan card already opens, so the downgrade checklist
+/// (numbers, seats) is the one that already tells the truth about what fits.
+///
+/// The button is deliberately NOT the prominent olive. That is reserved for
+/// "Continue to cancel" on this card: a loud stay above a quiet leave is the
+/// asymmetry the card's own docblock exists to avoid.
+@MainActor
+private struct CancellationAnswerNote: View {
+    let offer: CancellationOffer
+    let scope: SettingsScope
+    let company: CompanyView
+    let onRefreshCompany: @MainActor () -> Void
+
+    @State private var changingPlan = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            CancellationAnswerText(offer: offer)
+            if let action = offer.action, let label = offer.actionLabel {
+                control(action, label: label)
+                    .padding(.top, 10)
+            }
+        }
+        .cancellationNoteBox()
+        .sheet(isPresented: $changingPlan) {
+            ChangePlanSheet(scope: scope, company: company) {
+                changingPlan = false
+                onRefreshCompany()
+            } onDismiss: {
+                changingPlan = false
+            }
+        }
+    }
+
+    /// The control the offer NAMES, with the offer's own words on it. An
+    /// unhandled action renders nothing rather than guessing: a fallback
+    /// control would be a button that does something other than its label says.
+    @ViewBuilder
+    private func control(_ action: CancellationOfferAction, label: String) -> some View {
+        switch action {
+        case .changePlan:
+            Button(label) { changingPlan = true }
+                .buttonStyle(.bordered)
+        case .openHelp:
+            NavigationLink(label, value: SettingsSection.help)
+                .buttonStyle(.bordered)
+        // `resubscribeStarter` cannot reach this phase — the subscription is
+        // still live here, so there is nothing to come back from.
+        case .resubscribeStarter:
+            EmptyView()
+        }
+    }
+}
+
+/// The same answer again, while the number can still be saved.
+///
+/// # Why here and not in the mail
+///
+/// The day 1/15/27 grace emails already point at this screen, so it receives
+/// win-back traffic on a cadence and had nothing to say when they arrived. It
+/// stays IN THE APP for reasons that are legal rather than tasteful:
+/// `MAILING_ADDRESS` is null in business-identity.ts and our one commercial
+/// sender refuses on that basis; the grace emails ride the critical reputation
+/// stream and carry no unsubscribe by design; and the only opt-out list is
+/// global, so declining a win-back by email would also silence that workspace's
+/// payment-failure and security mail. A card is not an electronic message and
+/// carries none of that.
+///
+/// # Why not in OffRampCard
+///
+/// That card's docblock forbids persuasion in as many words — "a screen that
+/// argues with them about leaving... is the last thing they will remember about
+/// us" — and it is right. This sits in the Subscription card beside
+/// Resubscribe, which is the control it is about.
+///
+/// # The three gates, in the order they cost something
+///
+///   1. dismissed        a press this session, or a stored stamp NEWER than
+///                       this cancellation. The comparison is what makes a
+///                       dismissal belong to ONE cancellation.
+///   2. within grace     past the release the number is back in carrier
+///                       inventory and reassignable to another business (#413),
+///                       so "come back and keep your number" stops being true
+///                       at exactly that boundary.
+///   3. a stated reason  asked only once gates 1 and 2 have passed, so a
+///                       healthy workspace never asks and a dismissed one stops
+///                       asking. Nil renders nothing: they said "switched", or
+///                       "not using it", or they are already on the cheapest
+///                       plan, and there is nothing honest to add.
+///
+/// NO SPINNER AND NO ERROR BOX around the read, for the reason
+/// `MissedWhileOffNote` gives: this is a supporting note on somebody else's
+/// screen, and a broken box where a sentence should be makes the billing itself
+/// look broken.
+@MainActor
+private struct WinbackNote: View {
+    let scope: SettingsScope
+    let company: CompanyView
+
+    @State private var stated: String?
+    @State private var dismissed = false
+    @State private var opening = false
+    @State private var error: String?
+
+    /// Worth asking the server anything about.
+    private var open: Bool {
+        !dismissed
+            && !winbackIsDismissed(
+                canceledAt: company.canceled_at,
+                dismissedAt: company.winback_dismissed_at
+            )
+            && isWithinCancellationGrace(company.canceled_at)
+    }
+
+    private var offer: CancellationOffer? {
+        guard open else { return nil }
+        return cancellationOffer(
+            reason: stated,
+            plan: company.plan,
+            phase: .grace,
+            billingCurrency: company.billing_currency,
+            country: company.country,
+            registrationFeePaidAt: company.registration_fee_paid_at
+        )
+    }
+
+    var body: some View {
+        Group {
+            if let offer {
+                VStack(alignment: .leading, spacing: 0) {
+                    CancellationAnswerText(offer: offer)
+                    HStack(spacing: 16) {
+                        if let action = offer.action, let label = offer.actionLabel {
+                            control(action, label: label)
+                        }
+                        Button {
+                            waveAway()
+                        } label: {
+                            Text("No thanks")
+                                .font(.golos(13, weight: .semibold))
+                                .foregroundStyle(BrandColor.muted600)
+                                .padding(.vertical, 8)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.top, 6)
+                    InlineError(error)
+                }
+                .cancellationNoteBox()
+                .padding(.top, 12)
+            }
+        }
+        .task(id: open) {
+            guard open else { return }
+            stated = try? await scope.repo.cancellationReason(scope.companyId).reason
+        }
+    }
+
+    @ViewBuilder
+    private func control(_ action: CancellationOfferAction, label: String) -> some View {
+        switch action {
+        // STARTER, not `company.plan`. They left because Pro was too expensive,
+        // and the one control that answers that must not put them back on Pro.
+        //
+        // THIS BUTTON ENFORCES NOTHING, and the copy above it is written to
+        // that. It opens Stripe checkout, whose only gates are "one live
+        // subscription" and the US registration draft — no seat count, no
+        // number count — and `checkout.session.completed` then un-suspends
+        // every suspended number with no plan filter. So a Pro workspace with
+        // two numbers and eight members can land on Starter holding two and
+        // eight. The shared grace copy therefore names the PRICE and nothing
+        // else; a caption promising "3 people and 1 business number" here would
+        // be a ceiling nobody applies. The under-enforcement is an API bug and
+        // belongs in the API — do not paper it over from this file.
+        //
+        // The button stays regardless: change-plan 409s a canceled subscription
+        // outright, so checkout is the only way back, and removing this would
+        // leave the win-back with nothing to press at the one moment it is
+        // worth anything.
+        case .resubscribeStarter:
+            Button(opening ? "Opening…" : label) { comeBack(on: "starter") }
+                .buttonStyle(.bordered)
+                .disabled(opening)
+        case .openHelp:
+            NavigationLink(label, value: SettingsSection.help)
+                .buttonStyle(.bordered)
+        // `changePlan` cannot reach this phase — there is no live subscription
+        // to switch, so nothing is rendered rather than a guessed control.
+        case .changePlan:
+            EmptyView()
+        }
+    }
+
+    /// "Stop showing me this."
+    ///
+    /// HIDDEN FIRST, SENT SECOND — the same order the cancel card uses for the
+    /// reason, and for the same reason: a press must never wait on a round
+    /// trip. A failed dismissal is said quietly rather than as an alert telling
+    /// somebody who has already left that our server would not take their "no
+    /// thanks".
+    ///
+    /// IT CAN COME BACK BEFORE THE APP IS CLOSED, and saying otherwise would be
+    /// a promise about a flag that cannot keep it. `dismissed` is `@State`, so
+    /// it dies with this view: leaving the billing screen and returning inside
+    /// the same session rebuilds `WinbackNote` with `dismissed == false`, and
+    /// the cached `CompanyView` still carries the `winback_dismissed_at` it was
+    /// fetched with — nothing refetches the company on a dismissal, and the
+    /// only write is the POST. So the second gate has not learned about the
+    /// press either, and the note draws again.
+    ///
+    /// Left as it is rather than fixed, because every fix is worse than the
+    /// symptom. Refetching the company would put a load on the press this
+    /// docblock exists to keep instant; hoisting the flag into a session-scoped
+    /// store would make one workspace's "no thanks" outlive the cancellation it
+    /// was made on, which is the exact thing `winbackIsDismissed` compares
+    /// timestamps to prevent. A note seen twice in one sitting is a small cost;
+    /// it is honest about being one, and it stops for good on the next launch.
+    private func waveAway() {
+        dismissed = true
+        Task {
+            do {
+                try await scope.repo.dismissWinback(scope.companyId)
+            } catch {
+                scope.showMessage("Couldn't save that — you may see this again.")
+            }
+        }
+    }
+
+    private func comeBack(on plan: String) {
+        opening = true
+        error = nil
+        Task {
+            do {
+                let hosted = try await scope.repo.checkout(scope.companyId, plan: plan)
+                openExternal(hosted.url)
+            } catch {
+                self.error = error.userMessage
+            }
+            opening = false
+        }
+    }
+}
+
 // MARK: - Handing the export to the phone
 
 /// One finished export, staged on disk for the share sheet.
@@ -1025,6 +1467,57 @@ private struct ContactsCsvShareSheet: UIViewControllerRepresentable {
         }
     }
     .padding(20)
+    .frame(width: 390)
+    .background(BrandColor.paper)
+}
+
+/// Every answer that exists, on the cancel card. Three of the six reasons are
+/// missing from this preview and that is the point: `switched`, `not_using` and
+/// `other` have nothing honest to add, so they draw nothing at all.
+#Preview("Cancellation answers · before leaving") {
+    ScrollView {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(cancellationReasons) { reason in
+                if let offer = cancellationOffer(
+                    reason: reason.code,
+                    plan: "pro",
+                    billingCurrency: "usd",
+                    country: "US",
+                    registrationFeePaidAt: "2026-01-05T00:00:00Z"
+                ) {
+                    CancellationAnswerText(offer: offer)
+                        .cancellationNoteBox()
+                }
+            }
+        }
+        .padding(20)
+    }
+    .frame(width: 390)
+    .background(BrandColor.paper)
+}
+
+/// The same answers during the grace window, where the verb changes from
+/// "switch" to "come back". A Canadian workspace, so the prices in the first
+/// one are the ones that workspace is actually charged.
+#Preview("Cancellation answers · during the grace window") {
+    ScrollView {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(cancellationReasons) { reason in
+                if let offer = cancellationOffer(
+                    reason: reason.code,
+                    plan: "pro",
+                    phase: .grace,
+                    billingCurrency: "cad",
+                    country: "CA",
+                    registrationFeePaidAt: nil
+                ) {
+                    CancellationAnswerText(offer: offer)
+                        .cancellationNoteBox()
+                }
+            }
+        }
+        .padding(20)
+    }
     .frame(width: 390)
     .background(BrandColor.paper)
 }

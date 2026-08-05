@@ -658,6 +658,97 @@ describe("POST /v1/billing/cancellation-reason (#277)", () => {
   });
 });
 
+describe("GET /v1/billing/cancellation-reason (#277 follow-up)", () => {
+  // The win-back card reads this during the grace window to answer the reason
+  // that was given on the way out. It is a route rather than a company_view
+  // field on purpose: loadCompanyView runs on every app boot for every role,
+  // and this answer is non-null only for a workspace that has already left.
+  const READ = /rest\/v1\/cancellation_reasons/;
+
+  it("reads back the OPEN statement", async () => {
+    const harness = makeHarness([
+      endpoint("GET", READ, () => [
+        { reason: "seasonal", created_at: "2026-03-01T00:00:00Z" },
+      ]),
+    ]);
+    const response = await get("/v1/billing/cancellation-reason", harness);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      reason: "seasonal",
+      stated_at: "2026-03-01T00:00:00Z",
+    });
+  });
+
+  it("asks for the open row only — a confirmed one is a finished conversation", async () => {
+    // Without `confirmed_at is null` the card would answer a reason from a
+    // cancellation that ran its course a year ago, which is the shape the
+    // partial unique index exists to keep at-most-one of.
+    const harness = makeHarness([endpoint("GET", READ, () => [])]);
+    await get("/v1/billing/cancellation-reason", harness);
+    const url = harness.callsTo("GET", READ)[0].url;
+    expect(url.searchParams.get("confirmed_at")).toBe("is.null");
+    expect(url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+  });
+
+  it("never reads back their own words", async () => {
+    // `detail` is what somebody wrote about us. Quoting it back at them on a
+    // win-back card would be the product arguing with its own transcript.
+    const harness = makeHarness([endpoint("GET", READ, () => [])]);
+    await get("/v1/billing/cancellation-reason", harness);
+    const select = harness.callsTo("GET", READ)[0].url.searchParams.get("select");
+    expect(select).not.toContain("detail");
+  });
+
+  it("answers null when nobody ever said why, and when nobody cancelled", async () => {
+    // Both render nothing, and they are different facts: a row with a null
+    // reason is somebody who opened the screen and declined to answer, which
+    // is allowed on purpose and is counted separately in the report.
+    const skipped = makeHarness([
+      endpoint("GET", READ, () => [
+        { reason: null, created_at: "2026-03-01T00:00:00Z" },
+      ]),
+    ]);
+    expect(await (await get("/v1/billing/cancellation-reason", skipped)).json())
+      .toEqual({ reason: null, stated_at: "2026-03-01T00:00:00Z" });
+
+    const none = makeHarness([endpoint("GET", READ, () => [])]);
+    expect(await (await get("/v1/billing/cancellation-reason", none)).json())
+      .toEqual({ reason: null, stated_at: null });
+  });
+});
+
+describe("POST /v1/billing/dismiss-winback (#277 follow-up)", () => {
+  const COMPANIES = /rest\/v1\/companies/;
+
+  it("stamps a timestamp on this company and answers 204", async () => {
+    const harness = makeHarness([endpoint("PATCH", COMPANIES, () => [])]);
+    const response = await post("/v1/billing/dismiss-winback", undefined, harness);
+    expect(response.status).toBe(204);
+
+    const call = harness.callsTo("PATCH", COMPANIES)[0];
+    expect(call.url.searchParams.get("id")).toBe(`eq.${COMPANY_ID}`);
+    expect(call.url.searchParams.get("deleted_at")).toBe("is.null");
+    // A TIMESTAMP, not a boolean. The suppression rule compares it against
+    // canceled_at, which is what makes a dismissal belong to ONE cancellation:
+    // a later cancellation stamps a newer canceled_at and the offer returns
+    // with nothing to clear. A boolean would silence the second cancellation
+    // with a decision made about the first.
+    const written = call.json() as { winback_dismissed_at: string };
+    expect(Number.isNaN(Date.parse(written.winback_dismissed_at))).toBe(false);
+    expect(Object.keys(written)).toEqual(["winback_dismissed_at"]);
+  });
+
+  it("does not require a cancellation to exist first", async () => {
+    // Deliberate: a stamp written while nothing is cancelled suppresses
+    // nothing, because the next canceled_at is later than it. A guard would
+    // only add a way for a legitimate press to fail.
+    const harness = makeHarness([endpoint("PATCH", COMPANIES, () => [])]);
+    expect(
+      (await post("/v1/billing/dismiss-winback", undefined, harness)).status,
+    ).toBe(204);
+  });
+});
+
 describe("POST /v1/billing/portal", () => {
   it("409 before any checkout (no Stripe customer)", async () => {
     const harness = makeHarness([companyEndpoint(companyRow())]);

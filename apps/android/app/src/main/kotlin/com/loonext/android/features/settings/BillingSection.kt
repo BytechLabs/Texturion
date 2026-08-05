@@ -101,6 +101,11 @@ fun BillingSection(
     scope: SettingsScope,
     company: CompanyView,
     onRefreshCompany: () -> Unit,
+    // #277 follow-up: the `missing_feature` answer names the help screen, and
+    // sections do not own the section stack — the host does (#200). Defaulted
+    // so a caller that has not been taught about it still compiles; the button
+    // is simply not offered rather than doing nothing when pressed.
+    onOpenHelp: (() -> Unit)? = null,
 ) {
     val canManage = SettingsRoleGate.canManageBilling(scope.role)
 
@@ -111,7 +116,7 @@ fun BillingSection(
     // #481: only for a workspace on its way out. Directly under the count of
     // customers who rang into nothing, because this is what to DO about that.
     OffRampCard(scope, company)
-    PlanCard(scope, company, canManage, onRefreshCompany)
+    PlanCard(scope, company, canManage, onRefreshCompany, onOpenHelp)
     if (canManage && company.plan != null && company.subscriptionActive) {
         ModulesCard(scope)
     }
@@ -124,7 +129,7 @@ fun BillingSection(
             PortalButton(scope, label = "Manage payment & invoices")
         }
         if (company.subscriptionActive) {
-            CancelCard(scope)
+            CancelCard(scope, company, onRefreshCompany, onOpenHelp)
         }
     } else {
         SettingsCard(title = "Billing") {
@@ -217,13 +222,26 @@ private fun PortalButton(
  * to leave with their own data" is the story told about a company afterwards.
  * It is offered whether they go through with the cancellation or not.
  *
- * NO SAVE OFFER. Not because one would be forbidden (a single dismissible offer
- * on this same card would be within the rule) but because we do not yet have
- * one that is true. A discount invented at the moment of leaving tells every
- * customer who did not threaten to leave what their loyalty was worth.
+ * NO SAVE OFFER, AND WHAT SITS BELOW THE BUTTON IS NOT ONE. There is still no
+ * discount here: one invented at the moment of leaving tells every customer who
+ * did not threaten to leave what their loyalty was worth. What [CancellationOfferNote]
+ * adds is an ANSWER to the reason somebody volunteered — a cheaper plan that
+ * already exists, the hold that already exists, the help screen that already
+ * exists — and it is rendered AFTER the button that leaves, never before it.
+ *
+ * That placement is the whole of it. Any content above the exit moves the exit
+ * further down the moment a radio is tapped, which would mean answering the
+ * question pushes the way out away from your thumb. Below the button, the exit
+ * sits exactly where it did before a word was said, and the answer is the first
+ * thing under it.
  */
 @Composable
-private fun CancelCard(scope: SettingsScope) {
+private fun CancelCard(
+    scope: SettingsScope,
+    company: CompanyView,
+    onRefreshCompany: () -> Unit,
+    onOpenHelp: (() -> Unit)?,
+) {
     val context = LocalContext.current
     val coroutines = rememberCoroutineScope()
     // NOTHING IS PRE-SELECTED. A default answer is not an answer anybody gave,
@@ -280,8 +298,10 @@ private fun CancelCard(scope: SettingsScope) {
             // runaround rather than as information.
             ReadOnlyLine(
                 "Only the owner can cancel this plan. When they do, texting stops at " +
-                    "the end of the billing period, and we hold the number for 30 days " +
-                    "in case they change their mind. After that it is released for good.",
+                    "the end of the billing period. The number is held for " +
+                    "$CANCELLATION_GRACE_DAYS days from the day they cancel — not from " +
+                    "that date — in case they change their mind. After that it is " +
+                    "released for good.",
             )
             Spacer(Modifier.height(8.dp))
             // Said plainly rather than by omission. The portal an admin or a
@@ -297,10 +317,20 @@ private fun CancelCard(scope: SettingsScope) {
 
         // The consequence first, in the second person, because from here down
         // every word is addressed to the one person who can act on it.
+        //
+        // THE HOLD RUNS FROM THE DAY THEY CANCEL, and this sentence says so
+        // because the seasonal answer twenty dp below says so too. It used to
+        // read "texting stops at the end of your billing period, and we hold
+        // your number for 30 days", which invites the reader to add the two
+        // together: cancel on day 2 of a month and you count about 59 days
+        // where you have about 30. `runGraceJob` measures `now - canceled_at`,
+        // and `canceled_at` is stamped when cancelling is REQUESTED — so the
+        // period end is not on the clock at all.
         ReadOnlyLine(
-            "Cancel anytime. Texting stops at the end of your billing period, and we " +
-                "hold your number for 30 days in case you change your mind. After that " +
-                "it is released for good.",
+            "Cancel anytime. Texting stops at the end of your billing period. Your " +
+                "number is held for $CANCELLATION_GRACE_DAYS days from the day you " +
+                "cancel — not from that date — in case you change your mind. After " +
+                "that it is released for good.",
         )
 
         // Spacing is what tells the four groups apart. A divider or an inner
@@ -425,6 +455,101 @@ private fun CancelCard(scope: SettingsScope) {
             },
         ) { Text(if (opening) "Opening…" else "Continue to cancel") }
         InlineError(error)
+        // Under the button on purpose — see the header. Renders nothing for the
+        // four answers we have nothing honest to say to, and nothing at all
+        // until somebody chooses one.
+        CancellationOfferNote(
+            scope = scope,
+            company = company,
+            reason = reason,
+            onRefreshCompany = onRefreshCompany,
+            onOpenHelp = onOpenHelp,
+        )
+    }
+}
+
+/**
+ * #277 follow-up — the answer to the reason, in place, on the cancel card.
+ *
+ * WHAT IT MAY SAY is decided by [cancellationOffer] and nowhere else. Four of
+ * the six answers get NULL from it and render nothing, and null is a real
+ * answer rather than copy nobody has written yet: there is no plan cheaper than
+ * Starter, we do not know what somebody switched to, and "not using it" is
+ * already served by the export and the exit above.
+ *
+ * LIVES OUTSIDE CancelCard for the same reason [DetailCounter] does. Nothing
+ * between that card opening and the button that leaves may be conditional, and
+ * a block that renders itself or nothing is exactly the shape that has to stay
+ * out of the way of that rule. Here it also keeps the plan dialog out of the
+ * cancel card's own body, where a dialog of any kind is forbidden.
+ *
+ * THE CONTROL IS ONE THIS SCREEN ALREADY HAS. `ChangePlanDialog` is the same
+ * downgrade the plan card above offers, with the same live checks on numbers
+ * and seats — so the offer cannot promise a switch the API would refuse. Help
+ * is the help section. Neither is a new path invented for people on their way
+ * out.
+ */
+@Composable
+private fun CancellationOfferNote(
+    scope: SettingsScope,
+    company: CompanyView,
+    reason: String?,
+    onRefreshCompany: () -> Unit,
+    onOpenHelp: (() -> Unit)?,
+) {
+    val offer = cancellationOffer(
+        reason = reason,
+        plan = company.plan,
+        phase = CancellationOfferPhase.Before,
+        billingCurrency = company.billing_currency,
+        country = company.country,
+        registrationFeePaidAt = company.registration_fee_paid_at,
+    ) ?: return
+
+    var changingPlan by remember(offer.reason) { mutableStateOf(false) }
+
+    Spacer(Modifier.height(20.dp))
+    Text(offer.heading, style = MaterialTheme.typography.titleSmall)
+    Spacer(Modifier.height(4.dp))
+    Text(
+        offer.body,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+
+    // Outlined, never filled. The only filled control on this card is the one
+    // that leaves, and an offer that out-weighed it would be the styling
+    // asymmetry — a loud stay, a quiet leave — this whole screen avoids.
+    val label = offer.actionLabel
+    when (offer.action) {
+        CancellationOfferAction.ChangePlan -> if (label != null) {
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = { changingPlan = true }) { Text(label) }
+        }
+
+        CancellationOfferAction.OpenHelp -> if (label != null && onOpenHelp != null) {
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = onOpenHelp) { Text(label) }
+        }
+
+        // Coming back is not something a live subscription can be offered, so
+        // this arm cannot be reached from the "before" phase. Rendering nothing
+        // is the correct answer to an action this surface has no control for.
+        CancellationOfferAction.ResubscribeStarter -> Unit
+
+        null -> Unit
+    }
+
+    if (changingPlan) {
+        ChangePlanDialog(
+            scope = scope,
+            company = company,
+            onDismiss = { changingPlan = false },
+            onChanged = {
+                changingPlan = false
+                onRefreshCompany()
+            },
+        )
     }
 }
 
@@ -574,17 +699,28 @@ private fun OffRampCard(scope: SettingsScope, company: CompanyView) {
     }
 }
 
-/** #481: the release date, in UTC — the clock the release job runs on. A
- *  deadline shown a day out from the one the number actually goes on is worse
- *  than no date. */
-private fun releaseDate(canceledAt: String?): String? = canceledAt?.let {
-    runCatching {
-        Instant.parse(it)
-            .plus(java.time.Duration.ofDays(30))
-            .atZone(ZoneId.of("UTC"))
-            .format(DateTimeFormatter.ofPattern("d MMMM"))
-    }.getOrNull()
-}
+/**
+ * #481: the release date, in UTC — the clock the release job runs on. A
+ * deadline shown a day out from the one the number actually goes on is worse
+ * than no date.
+ *
+ * The arithmetic itself lives in [numberReleaseAt] rather than here, because
+ * two surfaces on this screen now print this date and the 30 is a shared
+ * constant hand-ported from `cancellation-offers.ts`. A second local copy of it
+ * is how one of the two ends up naming a different day.
+ *
+ * THE YEAR IS PART OF THE DATE. This printed "4 August" while the day-27 grace
+ * email — which links to this exact screen — printed "August 4, 2026". The
+ * branch that suffers is the expired one: "the hold ended on 3 September" is
+ * read by definition after the deadline has passed, and possibly a winter or a
+ * year later, by somebody whose only question is whether that date is behind
+ * them. So this is [FULL_DATE], the same shape as the period end on the plan
+ * card above and as `releaseDateLabel` in grace.ts, in UTC rather than the
+ * device zone because that is the clock the job releases on.
+ */
+private fun releaseDate(canceledAt: String?): String? = numberReleaseAt(canceledAt)
+    ?.atZone(ZoneId.of("UTC"))
+    ?.format(FULL_DATE)
 
 private const val OFFRAMP_MAX = 320
 
@@ -636,12 +772,23 @@ private fun StatusNotices(scope: SettingsScope, company: CompanyView, canManage:
             "Sending is paused until your payment method is updated." to
                 "Update payment method"
 
+        // The hold is counted from the day cancelling was REQUESTED, not from
+        // the day texting stops — `canceled_at` comes off Stripe's own
+        // `subscription.canceled_at`. This notice used to read "texting stops
+        // then; we hold your number for 30 days", which invites the reader to
+        // count from the period end and can overstate the real deadline by most
+        // of a month. The exact date is not shown here on purpose: this notice
+        // is drawn while the subscription is still `active`, so the webhook has
+        // not stamped `canceled_at` on the company yet and any date built here
+        // would be a guess. The anchor is named instead.
         company.subscriptionActive && company.cancel_at_period_end -> {
             val date = fullDate(company.current_period_end)
             ("Your plan is set to cancel" +
                 (if (date != null) " on $date" else " at the end of this period") +
-                ". Texting stops then; we hold your number for 30 days in case you come " +
-                "back. You can undo this from the payment portal.") to "Keep my plan"
+                ". Texting stops then. Your number is held for " +
+                "$CANCELLATION_GRACE_DAYS days from the day you cancelled — not from " +
+                "the end of that period — so it can be released soon afterwards. You " +
+                "can undo this from the payment portal.") to "Keep my plan"
         }
 
         else -> null
@@ -669,55 +816,247 @@ private fun StatusNotices(scope: SettingsScope, company: CompanyView, canManage:
     }
 }
 
+/**
+ * The canceled-state card, and the one thing it now has to say (#277 follow-up).
+ *
+ * THE DATE WAS WRONG AND IS THE FIRST FIX HERE. This card said "we hold your
+ * number for 30 days after your last period". The release job measures
+ * `now - canceled_at`, and `canceled_at` is stamped when cancelling is
+ * REQUESTED — so for a cancel-at-period-end the clock can start up to a month
+ * before the last period ends. The old sentence named a later date than the one
+ * the number actually dies on, which is the expensive direction to be wrong in.
+ * [numberReleaseAt] is the same arithmetic the job does.
+ *
+ * WHY THE WIN-BACK IS HERE AND NOT IN THE MAIL. The day 1/15/27 grace emails
+ * already link to this screen, so it is receiving win-back traffic on a cadence
+ * and had nothing to say when somebody arrived. It stays in the app rather than
+ * becoming a fourth email because this product cannot lawfully send a
+ * commercial one today — `MAILING_ADDRESS` is null and the sender refuses on
+ * that basis — the grace emails ride the critical reputation stream and carry
+ * no unsubscribe by design, and the only opt-out list is global, so declining a
+ * win-back would also silence that workspace's payment-failure and security
+ * mail. An in-app card is not an electronic message and carries none of that.
+ *
+ * AND NOT INSIDE [OffRampCard], whose docblock forbids persuasion in as many
+ * words. That card is for a business winding down. This one is beside the
+ * Resubscribe button, which is where somebody who came back to look already is.
+ *
+ * ANYTHING SHOWN THREE TIMES NEEDS A WAY TO BE SHOWN ZERO TIMES, hence "No
+ * thanks". It is stamped as a timestamp compared against `canceled_at` rather
+ * than a flag, so a workspace that dismisses this, comes back, and leaves again
+ * next winter is asked once about the new cancellation rather than never again.
+ */
+@Composable
+private fun CanceledSubscriptionCard(
+    scope: SettingsScope,
+    company: CompanyView,
+    canManage: Boolean,
+    onOpenHelp: (() -> Unit)?,
+) {
+    val context = LocalContext.current
+    val coroutines = rememberCoroutineScope()
+    // WHICH plan is being opened, not merely that something is. Two ways back
+    // can be on this card at once, and a shared boolean would put "Opening…" on
+    // both of them.
+    var opening by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    val canceledAt = company.canceled_at
+    val withinGrace = isWithinCancellationGrace(canceledAt)
+
+    // Hidden the moment it is waved away, and re-shown if the write fails —
+    // the control did nothing, so the screen must not pretend it did.
+    var wavedAway by remember(canceledAt) { mutableStateOf(false) }
+    val offering = canManage &&
+        !wavedAway &&
+        shouldOfferWinback(canceledAt, company.winback_dismissed_at)
+
+    // Asked only when there is a window to answer inside, and never from
+    // `company_view`: this is non-null only for a workspace that has already
+    // left, and the company read runs on every boot for every role.
+    var stated by remember(canceledAt) { mutableStateOf<String?>(null) }
+    LaunchedEffect(offering, canceledAt) {
+        if (offering) {
+            stated = runCatching { scope.repo.statedCancellationReason(scope.companyId) }
+                .getOrNull()?.reason
+        }
+    }
+
+    val offer = if (offering) {
+        cancellationOffer(
+            reason = stated,
+            plan = company.plan,
+            phase = CancellationOfferPhase.Grace,
+            billingCurrency = company.billing_currency,
+            country = company.country,
+            registrationFeePaidAt = company.registration_fee_paid_at,
+        )
+    } else {
+        null
+    }
+
+    fun resubscribe(plan: String) {
+        opening = plan
+        error = null
+        coroutines.launch {
+            try {
+                val hosted = scope.repo.checkout(scope.companyId, plan)
+                openExternal(context, hosted.url)
+            } catch (cause: Exception) {
+                error = cause.userMessage()
+            } finally {
+                opening = null
+            }
+        }
+    }
+
+    val releaseOn = releaseDate(canceledAt)
+    val released = canceledAt != null && !withinGrace
+
+    SettingsCard(title = "Subscription") {
+        Text(
+            if (released) {
+                "Your subscription is canceled."
+            } else {
+                // Receiving and sending are not the same thing here, and saying
+                // only the reassuring half would let somebody plan around a
+                // product they think is answering their customers.
+                // `runPreSendGates` requires an active subscription and answers
+                // 402 otherwise; inbound still lands.
+                "Your subscription is canceled. You can't send until you're back, " +
+                    "but your number is still taking messages and your history is " +
+                    "untouched."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+        )
+
+        if (offer != null) {
+            Spacer(Modifier.height(18.dp))
+            Text(offer.heading, style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                offer.body,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            LinkButton(
+                onClick = {
+                    wavedAway = true
+                    // Process-lifetime, like the reason record on the way out:
+                    // this is bookkeeping about a decision somebody has already
+                    // made, and it must not depend on them staying on the
+                    // screen long enough for it to land.
+                    scope.graph.appScope.launch {
+                        runCatching { scope.repo.dismissWinback(scope.companyId) }
+                            .onFailure {
+                                wavedAway = false
+                                scope.showMessage("Couldn't save that. Try again.")
+                            }
+                    }
+                },
+            ) { Text("No thanks") }
+        }
+
+        Spacer(Modifier.height(if (offer != null) 14.dp else 10.dp))
+        // THE HOLD ENDS ON A CLOCK; THE RELEASE HAPPENS ON A CRON. This branch
+        // used to say the number "has gone back to the phone company", which
+        // flips on the DEVICE clock the instant `canceled_at + 30d` passes —
+        // but `runGraceJob` sweeps once a day (`0 14 * * *`) and can fail and
+        // retry. For up to a day we would be telling somebody their number is
+        // gone while it is in fact still recoverable, and the win-back above
+        // vanishes at the same moment. What is true at exactly that boundary is
+        // about the HOLD, not about the carrier, so that is what is said.
+        Text(
+            when {
+                released && releaseOn != null ->
+                    "The $CANCELLATION_GRACE_DAYS-day hold on your number ended on " +
+                        "$releaseOn. Resubscribing now sets you up with a new number " +
+                        "— your message history is still here."
+
+                released ->
+                    "The $CANCELLATION_GRACE_DAYS-day hold on your number has ended. " +
+                        "Resubscribing now sets you up with a new number — your " +
+                        "message history is still here."
+
+                releaseOn != null ->
+                    "We hold your number until $releaseOn. Resubscribe before then and " +
+                        "it comes back with everything in it; after that it goes back " +
+                        "to the phone company."
+
+                // No readable `canceled_at` — a member without `billing.manage`
+                // is not sent one. The rule is still true, so state the rule
+                // rather than inventing a date for it.
+                else ->
+                    "We hold your number for $CANCELLATION_GRACE_DAYS days from the " +
+                        "day you cancel. Resubscribe before then and it comes back " +
+                        "with everything in it; after that it goes back to the phone " +
+                        "company."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+        )
+
+        InlineError(error)
+
+        if (canManage) {
+            val currentPlan = company.plan ?: "starter"
+            // Stacked rather than sat side by side. "Resubscribe" and "Come
+            // back on Starter" together are wider than a small phone, and a
+            // clipped label on the one control that brings somebody back is
+            // not a trade worth making for a tidier row.
+            Column(
+                Modifier.padding(top = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(onClick = { resubscribe(currentPlan) }, enabled = opening == null) {
+                    Text(if (opening == currentPlan) "Opening…" else "Resubscribe")
+                }
+                // Never filled: the offer is the alternative, not the headline.
+                val label = offer?.actionLabel
+                when (offer?.action) {
+                    CancellationOfferAction.ResubscribeStarter -> if (label != null) {
+                        OutlinedButton(
+                            onClick = { resubscribe("starter") },
+                            enabled = opening == null,
+                        ) { Text(if (opening == "starter") "Opening…" else label) }
+                    }
+
+                    CancellationOfferAction.OpenHelp -> if (label != null && onOpenHelp != null) {
+                        OutlinedButton(onClick = onOpenHelp) { Text(label) }
+                    }
+
+                    // A live plan switch needs a live subscription. There is
+                    // none here, so there is no control to render.
+                    CancellationOfferAction.ChangePlan -> Unit
+
+                    null -> Unit
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun PlanCard(
     scope: SettingsScope,
     company: CompanyView,
     canManage: Boolean,
     onRefreshCompany: () -> Unit,
+    onOpenHelp: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val coroutines = rememberCoroutineScope()
 
     if (company.subscription_status == SubscriptionStatus.CANCELED) {
-        var opening by remember { mutableStateOf(false) }
-        var error by remember { mutableStateOf<String?>(null) }
-        SettingsCard(title = "Subscription") {
-            Text(
-                "Your subscription is canceled. We hold your number for 30 days after " +
-                    "your last period. Resubscribe before then and everything picks up " +
-                    "where it left off.",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            InlineError(error)
-            if (canManage) {
-                Button(
-                    onClick = {
-                        opening = true
-                        error = null
-                        coroutines.launch {
-                            try {
-                                val hosted = scope.repo.checkout(
-                                    scope.companyId,
-                                    company.plan ?: "starter",
-                                )
-                                openExternal(context, hosted.url)
-                            } catch (cause: Exception) {
-                                error = cause.userMessage()
-                            } finally {
-                                opening = false
-                            }
-                        }
-                    },
-                    enabled = !opening,
-                    modifier = Modifier.padding(top = 10.dp),
-                ) { Text(if (opening) "Opening…" else "Resubscribe") }
-            }
-        }
+        CanceledSubscriptionCard(scope, company, canManage, onOpenHelp)
         return
     }
 
-    val facts = planFacts(company.plan)
+    // #328: the currency this workspace is actually CHARGED, not a hardcoded
+    // dollar sign. A Canadian owner used to read "Pro · $79/mo" here and, an
+    // inch below on the same screen, "Starter is $39 a month instead of $109"
+    // out of the cancellation answer. One of those was provably wrong and both
+    // were on screen at once.
+    val facts = planFacts(company.plan, company.billing_currency, company.country)
     if (facts == null) {
         SettingsCard(title = "Plan") {
             Text(
@@ -826,9 +1165,12 @@ private fun ChangePlanDialog(
     }
 
     val activeNumbers = company.numbers.count { it.status != NumberStatus.RELEASED }
-    val numbersOk = activeNumbers <= 1
-    // #392: the Starter allowance, not a literal. A downgrade gate that
-    // disagrees with the API blocks a plan change the server would allow.
+    // #392: the Starter allowances, not literals. A downgrade gate that
+    // disagrees with the API blocks a plan change the server would allow — and
+    // a CHECKLIST that disagrees with the offer above it ("It covers 3 people
+    // and 1 business number") tells an owner two different things about the
+    // same plan across one tap.
+    val numbersOk = activeNumbers <= STARTER_NUMBERS
     val seatsOk = (activeMembers ?: Int.MAX_VALUE) <= STARTER_SEATS
     val downgradeBlocked = !upgrading && (!numbersOk || !seatsOk || membersFailed)
 
@@ -867,11 +1209,13 @@ private fun ChangePlanDialog(
             null
         } else {
             {
+                val numbersLabel =
+                    "$STARTER_NUMBERS phone number" + if (STARTER_NUMBERS == 1) "" else "s"
                 Spacer(Modifier.height(10.dp))
                 Text(
                     (if (numbersOk) "✓" else "✗") +
-                        if (numbersOk) " 1 phone number. You're set."
-                        else " Starter includes 1 phone number; you have $activeNumbers. " +
+                        if (numbersOk) " $numbersLabel. You're set."
+                        else " Starter includes $numbersLabel; you have $activeNumbers. " +
                             "Release under Settings › Numbers first.",
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -879,10 +1223,11 @@ private fun ChangePlanDialog(
                     when {
                         membersFailed -> "✗ Couldn't check your member count. Try again."
                         activeMembers == null -> "Checking your member count…"
-                        seatsOk -> "✓ Up to 3 members; you have $activeMembers."
-                        else -> "✗ Starter includes 3 members; you have $activeMembers " +
-                            "active. Deactivate ${activeMembers!! - 3} under Settings › " +
-                            "Team first."
+                        seatsOk -> "✓ Up to $STARTER_SEATS members; you have $activeMembers."
+                        else -> "✗ Starter includes $STARTER_SEATS members; you have " +
+                            "$activeMembers active. Deactivate " +
+                            "${activeMembers!! - STARTER_SEATS} under Settings › Team " +
+                            "first."
                     },
                     style = MaterialTheme.typography.bodySmall,
                 )

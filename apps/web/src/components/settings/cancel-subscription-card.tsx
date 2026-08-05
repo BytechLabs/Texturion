@@ -1,8 +1,10 @@
 "use client";
 
+import { CANCELLATION_GRACE_DAYS, cancellationOffer } from "@loonext/shared";
 import { Download, ExternalLink } from "lucide-react";
 import { useState } from "react";
 
+import { CancellationAnswer } from "@/components/settings/cancellation-answer";
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -14,6 +16,7 @@ import {
 } from "@/lib/api/billing";
 import { useExportContacts } from "@/lib/api/contacts-export-hook";
 import { ApiError } from "@/lib/api/error";
+import type { CompanyView } from "@/lib/api/types";
 
 /**
  * The six answers, and the codes stored for them.
@@ -46,11 +49,30 @@ const DETAIL_COUNTDOWN_FROM = 200;
 /**
  * The words this surface owns, exported so the tests read the shipped copy
  * rather than a paraphrase of it.
+ *
+ * THE HOLD IS ANCHORED TO THE CANCELLATION, NOT TO THE PERIOD END, and that is
+ * the most expensive sentence on this card to get wrong. `runGraceJob` measures
+ * `now - companies.canceled_at` and releases at 30;
+ * `startCancellationLifecycle` stamps that column from Stripe's own
+ * `subscription.canceled_at`, which for a `cancel_at_period_end` cancellation
+ * is the time of the REQUEST — the vendored `Subscriptions.d.ts` says so in as
+ * many words ("the time of the most recent update request, not the end of the
+ * subscription period").
+ *
+ * So "texting stops at the end of your billing period, and we hold your number
+ * for 30 days" has only one reading, and it is the wrong one: somebody who
+ * cancels on day 2 of a monthly period counts about 59 days and has about 30.
+ * What they lose at the end of the miscount is the number on the side of the
+ * van and on their invoices. Wrong in the customer's favour about a deadline is
+ * the expensive direction to be wrong in, so the anchor is named out loud, in
+ * the same words the scheduled-cancellation notice at the top of this screen
+ * uses and the seasonal answer a few lines below it now uses.
  */
 export const CANCEL_CONSEQUENCE =
   "Cancel anytime. Texting stops at the end of your billing period, and we " +
-  "hold your number for 30 days in case you change your mind. After that " +
-  "it is released for good.";
+  `hold your number for ${CANCELLATION_GRACE_DAYS} days from the day you ` +
+  "cancel — not from that date, so the hold can run out soon after texting " +
+  "stops. After that the number is released for good.";
 export const CANCEL_QUESTION = "If you want to say why, it helps us fix it.";
 export const CANCEL_QUESTION_NOTE =
   "Optional, and it changes nothing about cancelling.";
@@ -79,15 +101,21 @@ export const CANCEL_ACTION = "Continue to cancel";
  * The non-owner's version of the consequence copy.
  *
  * It says the same three facts as CANCEL_CONSEQUENCE (when texting stops, the
- * 30 day hold, the release) but never in the second person, because an admin
- * cannot do any of it. "Cancel anytime" followed by "only the owner can
- * cancel" promises something and withdraws it in the next sentence, which
- * reads as either a broken screen or a runaround.
+ * 30 day hold and where it is counted from, the release) but never in the
+ * second person, because an admin cannot do any of it. "Cancel anytime"
+ * followed by "only the owner can cancel" promises something and withdraws it
+ * in the next sentence, which reads as either a broken screen or a runaround.
+ *
+ * The anchor matters MORE here, not less: this is the copy an admin relays to
+ * the owner, so an admin who reads the deadline wrong passes the wrong deadline
+ * on. See CANCEL_CONSEQUENCE for where the 30 days are actually counted from.
  */
 export const CANCEL_ADMIN_CONSEQUENCE =
   "Only the owner can cancel this plan. When they do, texting stops at the " +
-  "end of the billing period, and we hold the number for 30 days in case " +
-  "they change their mind. After that it is released for good.";
+  `end of the billing period, and we hold the number for ` +
+  `${CANCELLATION_GRACE_DAYS} days from the day they cancel — not from that ` +
+  "date, so the hold can run out soon after texting stops. After that the " +
+  "number is released for good.";
 export const CANCEL_ADMIN_NOTE =
   "The payment portal an admin reaches is the card screen and has no " +
   "cancellation on it, so this is not something to go looking for there.";
@@ -149,8 +177,26 @@ export const CANCEL_ADMIN_NOTE =
  * Stripe's card-update flow, which has no cancellation surface at all. Offering
  * an admin a cancel button here would send them to a page that cannot do it, so
  * they are told who can instead.
+ *
+ * THE ANSWER SITS BELOW THE BUTTON THAT LEAVES, and that is arithmetic rather
+ * than taste. Picking a reason can produce a true and useful thing to say back
+ * (see `cancellation-offers.ts`), but the answer is four or five lines plus a
+ * control — around 160px. Measured on a 375px phone, the consequence copy, the
+ * six reasons, the note box and the export offer already put `Continue to
+ * cancel` roughly two screens below the top of this page; putting the answer
+ * between the reasons and the button would add a third of a screen of scrolling
+ * to leaving, in direct response to the person having answered an OPTIONAL
+ * question. Answering must never cost more than skipping. So the offer renders
+ * last, the exit does not move, and nothing about it is conditional on the
+ * offer being there.
  */
-export function CancelSubscriptionCard({ isOwner }: { isOwner: boolean }) {
+export function CancelSubscriptionCard({
+  isOwner,
+  company,
+}: {
+  isOwner: boolean;
+  company: CompanyView;
+}) {
   const portal = useBillingPortal();
   const record = useRecordCancellationReason();
   const exportContacts = useExportContacts();
@@ -158,6 +204,22 @@ export function CancelSubscriptionCard({ isOwner }: { isOwner: boolean }) {
   const [detail, setDetail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+
+  /**
+   * What we can honestly say about the reason they just picked, or null.
+   *
+   * Computed from the LOCAL selection rather than read back from the server:
+   * the answer belongs to the click, and a round trip would put a spinner in
+   * the middle of a cancel screen. Null for four of the six reasons — see the
+   * shared module for why each one has nothing worth saying.
+   */
+  const offer = cancellationOffer({
+    reason,
+    plan: company.plan,
+    billingCurrency: company.billing_currency,
+    country: company.country,
+    registrationFeePaidAt: company.registration_fee_paid_at,
+  });
 
   function leave() {
     setError(null);
@@ -308,6 +370,11 @@ export function CancelSubscriptionCard({ isOwner }: { isOwner: boolean }) {
             </p>
           )}
         </div>
+
+        {/* Last, and after the exit on purpose — see the docblock. It appears
+            only once a reason has been picked, so a plain arrival on this
+            screen is byte-for-byte the screen it was before this shipped. */}
+        {offer && <CancellationAnswer offer={offer} company={company} />}
       </div>
     </SettingsCard>
   );

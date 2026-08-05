@@ -330,6 +330,33 @@ data class MissedWhileOff(
     val last_at: String? = null,
 )
 
+/**
+ * GET /v1/billing/cancellation-reason (#277 follow-up) — what they told us on
+ * the way out, read back so the canceled-state card can answer during the grace
+ * window what the cancel card answered on the way out.
+ *
+ * A dedicated route rather than a field on the company view, for the same
+ * reason [MissedWhileOff] beside it is one: `loadCompanyView` runs on every app
+ * boot for every role, and this can only ever be non-null for a workspace that
+ * has already cancelled.
+ *
+ * NEVER THE FREE TEXT. The route does not serve `detail` and this model must
+ * never grow a field for it — that is what somebody wrote about us in their own
+ * words, and reading it back to them on a win-back card would be quoting them
+ * at themselves. The CODE is all the card needs to pick an answer.
+ */
+@Serializable
+data class StatedCancellationReason(
+    /**
+     * The stored code, or null. Null is a real answer and is NOT the same as no
+     * row: it means somebody opened the cancel screen and skipped the question,
+     * which is allowed on purpose. Both render nothing.
+     */
+    val reason: String? = null,
+    /** When they said it. Not shown; kept so the shape matches the route. */
+    val stated_at: String? = null,
+)
+
 // ---------------------------------------------------------------------------
 // Two-factor authentication (#314 — routes/mfa.ts)
 // ---------------------------------------------------------------------------

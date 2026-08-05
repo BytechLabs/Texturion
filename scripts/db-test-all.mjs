@@ -146,7 +146,7 @@ const SUITES = [
   "attachment_previews",
   "locale",
   "cancellation_reason_upsert",
-
+  "winback_dismissal",
 ];
 
 const args = process.argv.slice(2);

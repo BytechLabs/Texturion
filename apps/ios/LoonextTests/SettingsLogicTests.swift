@@ -326,22 +326,73 @@ final class SettingsLogicTests: XCTestCase {
         )
     }
 
+    /// Nothing between "Continue to cancel" and Stripe — read over the CARD AND
+    /// EVERYTHING IT RENDERS.
+    ///
+    /// WHY THIS WAS REWRITTEN. The previous version asked `CancelCard`'s own
+    /// source for `.sheet(isPresented:` and forbade it outright. By the time
+    /// the #277 answer shipped, that assertion was decorative: the one sheet
+    /// under this card lives in `CancellationAnswerNote`, a separate struct
+    /// rendered inside the card's subtree, so the substring was simply not in
+    /// the text being searched. The path to Stripe was genuinely unaffected —
+    /// but the guard had stopped enforcing what it was written to enforce while
+    /// still reading as though it did, which is worse than not having it.
+    ///
+    /// AND WHY THE RULE CHANGED WITH IT. A blanket ban is now the wrong rule,
+    /// because the subtree legitimately contains two modals: the plan switcher
+    /// behind "Switch to Starter", and the share sheet after an export. Neither
+    /// is on the way out. What may never happen is the press that LEAVES
+    /// opening one, so that is what is asserted — plus no confirmation step
+    /// anywhere beneath the card, which is the hole the old version had.
     func testNothingStandsBetweenTheCardAndStripe() throws {
+        let subtree = try cancelCardSubtree()
+        let names = subtree.map(\.name)
+        XCTAssertTrue(
+            names.contains("CancellationAnswerNote"),
+            "the walk no longer reaches the answer note — renamed, or no longer "
+                + "rendered from the card? — so this guard is reading CancelCard "
+                + "alone again, which is exactly how it went blind the first time. "
+                + "Re-point it before trusting it. Reached: \(names)"
+        )
+
+        for view in subtree {
+            XCTAssertFalse(
+                view.source.contains("ConfirmSheet"),
+                "\(view.name): an 'are you sure' step under this card is the friction "
+                    + "the rule forbids, wherever in the subtree it is declared"
+            )
+            XCTAssertFalse(
+                view.source.contains(".fullScreenCover("),
+                "\(view.name): a full-screen cover under the cancel card is a second "
+                    + "screen by any other name"
+            )
+            XCTAssertFalse(
+                view.source.contains("Never mind"),
+                "\(view.name): a second button beside the confirm invites the "
+                    + "asymmetry this card avoids: with nothing expanded there is "
+                    + "nothing to back out of"
+            )
+        }
+
+        // A modal under this card is fine when a press of its own opens it.
+        // What may never open one is the press that leaves.
+        let flags = presentationBindings(subtree.map(\.source).joined(separator: "\n"))
+        XCTAssertFalse(
+            flags.isEmpty,
+            "no modal binding found anywhere under the cancel card. This subtree has "
+                + "presented at least the contacts share sheet since #277, so an empty "
+                + "result means the scanner stopped matching, not that the card got "
+                + "simpler — the loop below would check nothing"
+        )
         let card = try cancelCardSource()
-        XCTAssertFalse(
-            card.contains("ConfirmSheet"),
-            "an 'are you sure' step here is the friction the rule forbids"
-        )
-        XCTAssertFalse(
-            card.contains(".sheet(isPresented:"),
-            "a sheet presented from this card is the second screen under another name "
-                + "(the share sheet is .sheet(item:), and only opens after an export)"
-        )
-        XCTAssertFalse(
-            card.contains("Never mind"),
-            "a second button beside the confirm invites the asymmetry this card avoids: "
-                + "with nothing expanded there is nothing to back out of"
-        )
+        let handOff = try section(of: card, from: "private func handOff() {")
+        for flag in flags.sorted() {
+            XCTAssertFalse(
+                handOff.contains("\(flag) ="),
+                "handOff() sets `\(flag)`, which presents a modal: that is a second "
+                    + "screen between 'Continue to cancel' and Stripe"
+            )
+        }
     }
 
     func testNoReasonIsPreSelected() throws {
@@ -427,6 +478,880 @@ final class SettingsLogicTests: XCTestCase {
         )
     }
 
+    // MARK: - Answering that reason (#277 follow-up)
+    //
+    // Hand-ported from `packages/shared/src/cancellation-offers.test.ts`, which
+    // names itself the fixture the three clients build against. The properties
+    // matter more than the string comparisons:
+    //
+    //   1. SILENCE IS A RESULT. Four of the seven reason/plan combinations
+    //      return nil, each for a stated reason. An edit that fills one of them
+    //      in with something invented fails here.
+    //   2. NO PAUSE EXISTS. Copy saying "pause", "freeze" or "suspend your
+    //      plan" describes a feature this product does not have, and would be
+    //      discovered as a lie by somebody who went looking for the button.
+    //   3. THE FIGURES ARE READ, NOT TYPED. Every price and count has to come
+    //      from the price book and the plan limits.
+    //   4. THE OFFER IS NEVER A STEP. Nothing returns a route, and the
+    //      reason-with-no-control returns a nil action, so no client can be
+    //      handed a button it has to invent.
+
+    /// A US Pro workspace — the case with the most to say.
+    private func proOffer(
+        reason: String?,
+        plan: String? = "pro",
+        phase: CancellationOfferPhase = .before,
+        billingCurrency: String? = "usd",
+        country: String? = "US",
+        registrationFeePaidAt: String? = nil
+    ) -> CancellationOffer? {
+        cancellationOffer(
+            reason: reason,
+            plan: plan,
+            phase: phase,
+            billingCurrency: billingCurrency,
+            country: country,
+            registrationFeePaidAt: registrationFeePaidAt
+        )
+    }
+
+    /// Every renderable string this module can produce, across every input.
+    private func everyRenderableOfferString() -> [String] {
+        let plans: [String?] = ["starter", "pro", nil]
+        let phases: [CancellationOfferPhase] = [.before, .grace]
+        let currencies: [String?] = ["usd", "cad", nil]
+        let countries: [String?] = ["US", "CA"]
+        let fees: [String?] = [nil, "2026-01-05T00:00:00Z"]
+        var out: [String] = []
+        for reason in cancellationReasons.map(\.code) {
+            for plan in plans {
+                for phase in phases {
+                    for currency in currencies {
+                        for country in countries {
+                            for fee in fees {
+                                guard let offer = cancellationOffer(
+                                    reason: reason,
+                                    plan: plan,
+                                    phase: phase,
+                                    billingCurrency: currency,
+                                    country: country,
+                                    registrationFeePaidAt: fee
+                                ) else { continue }
+                                out.append(
+                                    [offer.heading, offer.body, offer.actionLabel ?? ""]
+                                        .joined(separator: " ")
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return out
+    }
+
+    func testSaysNothingToAStarterWorkspaceThatFindsItTooExpensive() {
+        // THE CASE THE WHOLE MODULE IS JUDGED ON. There is no cheaper plan, so
+        // there is no honest offer, and inventing one is the dishonesty #277
+        // forbids.
+        XCTAssertNil(proOffer(reason: "too_expensive", plan: "starter"))
+        XCTAssertNil(proOffer(reason: "too_expensive", plan: "starter", phase: .grace))
+    }
+
+    func testTreatsAWorkspaceWithNoPlanAsStarterAndSaysNothing() {
+        XCTAssertNil(proOffer(reason: "too_expensive", plan: nil))
+    }
+
+    func testSaysNothingToSwitchedNotUsingOrOther() {
+        for reason in ["switched", "not_using", "other"] {
+            for plan in ["starter", "pro"] {
+                for phase in [CancellationOfferPhase.before, .grace] {
+                    XCTAssertNil(
+                        proOffer(reason: reason, plan: plan, phase: phase),
+                        "\(reason)/\(plan)"
+                    )
+                }
+            }
+        }
+    }
+
+    func testSaysNothingWhenNoReasonWasGiven() {
+        // The card records a row with no reason on purpose: nothing is required.
+        XCTAssertNil(proOffer(reason: nil))
+        XCTAssertNil(proOffer(reason: ""))
+    }
+
+    func testSaysNothingForACodeThisBuildHasNeverHeardOf() {
+        // A newer client sending a seventh reason must render nothing rather
+        // than fall through to a guessed answer.
+        XCTAssertNil(proOffer(reason: "moving_to_carrier_pigeon"))
+        XCTAssertNil(proOffer(reason: "TOO_EXPENSIVE"))
+    }
+
+    func testNamesStartersRealPriceInTheCurrencyTheWorkspaceIsCharged() {
+        let usd = proOffer(reason: "too_expensive", billingCurrency: "usd")
+        XCTAssertTrue(usd?.body.contains("$29") ?? false)
+        XCTAssertTrue(usd?.body.contains("$79") ?? false)
+
+        let cad = proOffer(reason: "too_expensive", billingCurrency: "cad")
+        XCTAssertTrue(cad?.body.contains("$39") ?? false)
+        XCTAssertTrue(cad?.body.contains("$109") ?? false)
+    }
+
+    func testReadsTheFiguresFromThePriceBookRatherThanALiteral() throws {
+        // The guard that survives a repricing: if the price book moves and the
+        // copy does not, this fails.
+        for currency in [BillingCurrency.usd, .cad] {
+            guard let body = proOffer(
+                reason: "too_expensive",
+                billingCurrency: currency.rawValue
+            )?.body else { return XCTFail("no offer for \(currency.rawValue)") }
+            XCTAssertTrue(body.contains("$\(planPriceCents("starter", currency) / 100)"))
+            XCTAssertTrue(body.contains("$\(planPriceCents("pro", currency) / 100)"))
+        }
+
+        // ...and the same for the counts, asserted on the SOURCE rather than on
+        // the output. A body that typed "3 people" renders identically to one
+        // that interpolates `starterSeats`, so every assertion above passes on
+        // a hardcoded figure — it would only fail on the day somebody changed
+        // the constant, which is the day the copy is already wrong in front of
+        // a customer. What is pinned here is that the copy READS them.
+        let logic = try settingsLogicSource()
+        let offers = String(
+            logic[
+                (logic.range(of: "// MARK: - Answering that reason")?.lowerBound
+                    ?? logic.startIndex)...
+            ]
+        )
+        for interpolation in [
+            "\\(starterSeats) people",
+            "\\(starterNumbers) business ",
+            "\\(starterSeats) seats",
+            "\\(cancellationGraceDays) days from the ",
+        ] {
+            XCTAssertTrue(
+                offers.contains(interpolation),
+                "the offer copy states a figure as a literal instead of reading "
+                    + "\(interpolation) — a second home for a number the API enforces"
+            )
+        }
+    }
+
+    func testFallsBackToTheCountryOnlyWhenTheCurrencyWasWithheld() {
+        // NOT "every workspace predating #328", which is what this comment used
+        // to say and is false: `20260802090000_billing_currency.sql` adds the
+        // column `not null default 'usd'`, so every row that existed took USD
+        // at migration time and `api_create_company` has written 'cad' for
+        // every CA signup since. There is no null row.
+        //
+        // Nil reaches this function for ONE reason: the field was redacted.
+        // `billing_currency` is in BILLING_ONLY_COMPANY_FIELDS, so the key is
+        // absent for a caller without `billing.manage` — a tech or a member
+        // looking at the plan card. The country is the right answer for them,
+        // because it is what the column was defaulted from at signup.
+        XCTAssertTrue(
+            proOffer(reason: "too_expensive", billingCurrency: nil, country: "CA")?
+                .body.contains("$39") ?? false
+        )
+        XCTAssertTrue(
+            proOffer(reason: "too_expensive", billingCurrency: nil, country: "US")?
+                .body.contains("$29") ?? false
+        )
+        // An unrecognised stored currency is not trusted over the country either.
+        XCTAssertTrue(
+            proOffer(reason: "too_expensive", billingCurrency: "gbp", country: "CA")?
+                .body.contains("$39") ?? false
+        )
+    }
+
+    func testNamesTheLimitsTheApiWillActuallyEnforce() {
+        // Both are refusal conditions on POST /v1/billing/change-plan, and that
+        // route is the ONLY one that applies them — which is why the phase is
+        // written out here rather than defaulted. It is load-bearing now: the
+        // grace phase goes through checkout, which counts neither members nor
+        // numbers, so these same figures are forbidden there.
+        guard let body = proOffer(reason: "too_expensive", phase: .before)?.body else {
+            return XCTFail("no offer")
+        }
+        XCTAssertTrue(body.contains("\(starterSeats) people"))
+        // ...and it has to agree with itself about how many that is. A bare
+        // `contains` matches "1 business numbers" happily, which is the sort of
+        // thing that ships because every assertion around it is green.
+        let plural = starterNumbers == 1 ? "" : "s"
+        XCTAssertTrue(body.contains("\(starterNumbers) business number\(plural)."))
+    }
+
+    func testTheGraceAnswerNamesNoSeatOrNumberLimitNothingWillApply() {
+        // THE DEFECT THIS PAIR EXISTS FOR. The grace action opens Stripe
+        // checkout, whose only gates are "one live subscription" and the US
+        // registration draft — it counts neither members nor numbers — and
+        // `checkout.session.completed` then un-suspends every suspended number
+        // with no plan filter. A Pro workspace with two numbers and eight
+        // members can press a button captioned "covers 3 people and 1 business
+        // number" and land on Starter holding two and eight, so that caption
+        // may not be printed here. The price still is: checkout charges it.
+        guard let grace = proOffer(reason: "too_expensive", phase: .grace) else {
+            return XCTFail("no offer")
+        }
+        let copy = "\(grace.heading) \(grace.body) \(grace.actionLabel ?? "")"
+        XCTAssertFalse(copy.contains("\(starterSeats) people"), copy)
+        XCTAssertFalse(copy.contains("business number"), copy)
+        XCTAssertNil(
+            copy.range(
+                of: "\\bseats?\\b|\\bcovers\\b",
+                options: [.regularExpression, .caseInsensitive]
+            ),
+            copy
+        )
+        XCTAssertTrue(
+            grace.body.contains(formatMonthlyCents(planPriceCents("starter", .usd))),
+            "the price stays: it is the one figure checkout does apply"
+        )
+    }
+
+    func testTheBeforeAnswerDoesNotPromiseTheSecondNumberSurvivesTheDowngrade() {
+        // "your number and your message history stay exactly as they are" was
+        // true for a workspace that fits Starter and false for exactly the one
+        // being spoken to: change-plan answers 409 "Release your extra phone
+        // number before downgrading to Starter". The history does survive and
+        // is still promised.
+        guard let body = proOffer(reason: "too_expensive", phase: .before)?.body else {
+            return XCTFail("no offer")
+        }
+        XCTAssertFalse(body.contains("stay exactly as they are"), body)
+        XCTAssertTrue(body.contains("message history comes with you"), body)
+        XCTAssertTrue(body.contains("a second number does not"), body)
+        XCTAssertTrue(body.contains("refused until you release it"), body)
+        XCTAssertTrue(body.contains("back inside \(starterSeats) seats"), body)
+    }
+
+    func testQuotesNoAllowanceFigureBecauseThoseLiveInTheFairUsePolicy() {
+        // #85/#121: the plan card on this same screen states allowances as a
+        // fair-use line and puts the concrete numbers only in the policy. USD,
+        // matching the shared fixture — "$109" is three digits, and asserting
+        // this against a CAD body would be asserting against a price.
+        guard let body = proOffer(reason: "too_expensive", billingCurrency: "usd")?.body
+        else { return XCTFail("no offer") }
+        XCTAssertTrue(body.contains("fair-use policy"))
+        XCTAssertNil(body.range(of: "\\d{3,}", options: .regularExpression))
+    }
+
+    func testPointsAtThePlanSwitcherBeforeAndAtComingBackAfter() {
+        let before = proOffer(reason: "too_expensive", phase: .before)
+        XCTAssertEqual(before?.action, .changePlan)
+        XCTAssertEqual(before?.actionLabel, "Switch to Starter")
+
+        let grace = proOffer(reason: "too_expensive", phase: .grace)
+        XCTAssertEqual(grace?.action, .resubscribeStarter)
+        XCTAssertEqual(grace?.actionLabel, "Come back on Starter")
+    }
+
+    func testSaysWhenTheSwitchLandsBecauseItIsNotToday() {
+        // A downgrade applies at period end via a subscription schedule.
+        XCTAssertTrue(
+            proOffer(reason: "too_expensive", phase: .before)?
+                .body.contains("end of your current billing period") ?? false
+        )
+    }
+
+    func testSeasonalStatesTheHoldReadFromTheConstantTheJobUses() {
+        XCTAssertEqual(cancellationGraceDays, 30)
+        XCTAssertTrue(
+            proOffer(reason: "seasonal")?
+                .body.contains("\(cancellationGraceDays) days") ?? false
+        )
+    }
+
+    func testSeasonalSaysTheNumberKeepsReceivingAndThatReplyingDoesNot() {
+        // Both halves are checkable: numbers are suspended-but-receiving on
+        // cancellation, and runPreSendGates answers 402 without an active
+        // subscription. Stating only the first would let somebody plan a quiet
+        // season around a product that answers their customers.
+        guard let body = proOffer(reason: "seasonal")?.body else {
+            return XCTFail("no offer")
+        }
+        XCTAssertTrue(body.contains("receiving texts"))
+        XCTAssertTrue(body.contains("cannot reply"))
+    }
+
+    func testTheRegistrationFeePromiseAppearsOnlyOnceItIsPaid() {
+        XCTAssertTrue(
+            proOffer(reason: "seasonal", registrationFeePaidAt: "2026-01-05T00:00:00Z")?
+                .body.contains("once per workspace, ever") ?? false
+        )
+        // Not yet paid: silence. They WILL be charged it on return, so a
+        // softened version of this sentence would be false.
+        for unpaid in [nil, "", "   "] as [String?] {
+            XCTAssertFalse(
+                proOffer(reason: "seasonal", registrationFeePaidAt: unpaid)?
+                    .body.contains("registration fee") ?? true
+            )
+        }
+    }
+
+    func testTheSeasonalAnswerAnchorsTheHoldToTheCancellationInBothPhases() {
+        // runGraceJob measures now - canceled_at, and startCancellationLifecycle
+        // stamps that column from Stripe's `canceled_at` — which for a
+        // cancel_at_period_end cancellation is the time of the REQUEST, not the
+        // end of the period. Anything anchored to the period end describes a
+        // date about a month later than the one the number actually dies on,
+        // and wrong in the customer's favour is the expensive direction.
+        for phase in [CancellationOfferPhase.before, .grace] {
+            guard let result = proOffer(reason: "seasonal", phase: phase) else {
+                return XCTFail("no offer")
+            }
+            let copy = "\(result.heading) \(result.body)"
+            XCTAssertNotNil(
+                copy.range(
+                    of: "\(cancellationGraceDays) days .{0,20}from the day you cancel",
+                    options: .regularExpression
+                ),
+                copy
+            )
+            // ...and says so against the wrong anchor BY NAME, because the
+            // wrong anchor is the one the reader already has in their head.
+            XCTAssertTrue(copy.contains("not from the end of your"), copy)
+        }
+    }
+
+    func testTheSeasonalHeadingNeverPromisesCoverForTheWholeAbsence() {
+        // "Your number is held while you are gone" over a body that said 30
+        // days, to somebody who had just chosen "Quiet season, I'll be back".
+        // The heading is the louder line and a trades quiet season is months.
+        for phase in [CancellationOfferPhase.before, .grace] {
+            guard let heading = proOffer(reason: "seasonal", phase: phase)?.heading else {
+                return XCTFail("no offer")
+            }
+            XCTAssertNil(
+                heading.lowercased().range(
+                    of: "while you are (gone|away|out)|until you (are back|return)"
+                        + "|(whole|entire|all) (season|winter|year)|as long as",
+                    options: .regularExpression
+                ),
+                heading
+            )
+        }
+    }
+
+    func testTheSeasonalAnswerSaysALongerSeasonOutrunsTheHold() {
+        // The one fact a seasonal business needs and cannot get anywhere else:
+        // 30 days does not cover a winter, and #413 is what happens at the end
+        // of it. Leaving it implied is how the old heading got away with
+        // promising the opposite.
+        guard let body = proOffer(reason: "seasonal", phase: .before)?.body else {
+            return XCTFail("no offer")
+        }
+        XCTAssertTrue(body.contains("longer than that outruns the hold"), body)
+        XCTAssertTrue(body.contains("goes back to the phone company"), body)
+    }
+
+    func testNoOfferEverCountsTheHoldFromABillingPeriod() {
+        // THE PROPERTY behind the seasonal pair above, applied to every string
+        // this module can emit. `canceled_at` is stamped from Stripe's field,
+        // which on a cancel-at-period-end cancellation is the time of the
+        // request — so "30 days after your billing period ends" is roughly
+        // double the real answer, in the customer's favour, about the number on
+        // the side of their van.
+        //
+        // Deliberately NOT a ban on "billing period": the downgrade genuinely
+        // lands at period end via a subscription schedule, and both seasonal
+        // answers name the wrong anchor in order to deny it. What is banned is
+        // tying the DAYS to the period.
+        for copy in everyRenderableOfferString() {
+            XCTAssertNil(
+                copy.range(
+                    of: "\\b\\d+ days (after|from|following) (your|the)"
+                        + "( last| current| next)?( billing)? period",
+                    options: [.regularExpression, .caseInsensitive]
+                ),
+                copy
+            )
+            XCTAssertNil(
+                copy.range(
+                    of: "(period ends?|end of (your|the)[a-z ]*period)[^.]{0,40}"
+                        + "\\b(then|and)\\b[^.]{0,30}\\b\\d+ days",
+                    options: [.regularExpression, .caseInsensitive]
+                ),
+                copy
+            )
+        }
+    }
+
+    func testSeasonalOffersNoControlBecauseThereIsNothingToPress() {
+        for phase in [CancellationOfferPhase.before, .grace] {
+            let result = proOffer(reason: "seasonal", phase: phase)
+            XCTAssertNotNil(result)
+            XCTAssertNil(result?.action)
+            XCTAssertNil(result?.actionLabel)
+        }
+    }
+
+    func testMissingFeatureQuotesTheSupportConstantsRatherThanRestatingThem() {
+        guard let body = proOffer(reason: "missing_feature")?.body else {
+            return XCTFail("no offer")
+        }
+        XCTAssertTrue(body.contains(supportResponseTime))
+        XCTAssertTrue(body.contains(supportFixPromise))
+    }
+
+    func testMissingFeaturePointsAtTheInProductHelpSurface() {
+        let result = proOffer(reason: "missing_feature")
+        XCTAssertEqual(result?.action, .openHelp)
+        XCTAssertEqual(result?.actionLabel, "Get help")
+    }
+
+    func testMissingFeatureSaysTheSameThingInBothPhases() {
+        // The promise does not change because they have already gone.
+        XCTAssertEqual(
+            proOffer(reason: "missing_feature", phase: .before),
+            proOffer(reason: "missing_feature", phase: .grace)
+        )
+    }
+
+    func testNoOfferEverClaimsAPauseFeatureExists() {
+        // THE PROPERTY, not a spot check: every renderable string over every
+        // input. There is no pause, freeze or hold-my-plan control in this
+        // product, and copy implying one sends somebody looking for a button
+        // that is not there.
+        let forbidden = "\\bpause[sd]?\\b|\\bpausing\\b|\\bfreeze\\b|\\bfrozen\\b"
+            + "|\\bon hold\\b|\\bsuspend your\\b"
+        for copy in everyRenderableOfferString() {
+            XCTAssertNil(
+                copy.lowercased().range(of: forbidden, options: .regularExpression),
+                copy
+            )
+        }
+    }
+
+    func testNoOfferEverClaimsTheNumberIsKeptForever() {
+        let forbidden = "\\bforever\\b|\\bpermanently\\b|\\bkeep it indefinitely\\b"
+        for copy in everyRenderableOfferString() {
+            XCTAssertNil(
+                copy.lowercased().range(of: forbidden, options: .regularExpression),
+                copy
+            )
+        }
+    }
+
+    func testNoOfferEverHandsAClientARouteAUrlOrAMailto() {
+        for copy in everyRenderableOfferString() {
+            XCTAssertNil(
+                copy.range(
+                    of: "https?://|mailto:|/settings/",
+                    options: .regularExpression
+                ),
+                copy
+            )
+        }
+    }
+
+    func testEveryOfferHasANonEmptyHeadingAndBody() {
+        let copies = everyRenderableOfferString()
+        XCTAssertFalse(copies.isEmpty)
+        for copy in copies {
+            XCTAssertFalse(copy.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+        for reason in ["too_expensive", "seasonal", "missing_feature"] {
+            let result = proOffer(reason: reason)
+            XCTAssertEqual(result?.reason, reason)
+            XCTAssertFalse(
+                result?.heading.trimmingCharacters(in: .whitespaces).isEmpty ?? true
+            )
+            XCTAssertFalse(
+                result?.body.trimmingCharacters(in: .whitespaces).isEmpty ?? true
+            )
+        }
+    }
+
+    func testTheDeadlineCountsThirtyDaysFromCanceledAtMatchingTheReleaseJob() {
+        // runGraceJob measures now - canceled_at and releases at 30. Anything
+        // measured from the period end would print a different date from the
+        // one the number actually dies on.
+        XCTAssertEqual(
+            numberReleaseAt("2026-03-01T00:00:00.000Z"),
+            parseWireTimestamp("2026-03-31T00:00:00.000Z")
+        )
+    }
+
+    func testThereIsNoDeadlineForAWorkspaceThatNeverCancelled() {
+        XCTAssertNil(numberReleaseAt(nil))
+        XCTAssertNil(numberReleaseAt(""))
+        XCTAssertNil(numberReleaseAt("   "))
+        XCTAssertNil(numberReleaseAt("not a date"))
+    }
+
+    func testTheGraceWindowClosesAtTheReleaseNotAfterIt() {
+        let canceledAt = "2026-03-01T00:00:00.000Z"
+        XCTAssertTrue(
+            isWithinCancellationGrace(
+                canceledAt,
+                now: parseWireTimestamp("2026-03-30T23:59:59Z")!
+            )
+        )
+        // Exactly at the release the number is gone, so "resubscribe and keep
+        // your number" stops being true here.
+        XCTAssertFalse(
+            isWithinCancellationGrace(
+                canceledAt,
+                now: parseWireTimestamp("2026-03-31T00:00:00Z")!
+            )
+        )
+        XCTAssertFalse(
+            isWithinCancellationGrace(
+                canceledAt,
+                now: parseWireTimestamp("2026-04-05T00:00:00Z")!
+            )
+        )
+        XCTAssertFalse(isWithinCancellationGrace(nil))
+    }
+
+    func testADismissalBelongsToTheCancellationItWasMadeOn() {
+        let canceledAt = "2026-03-01T00:00:00Z"
+        // Waved away during THIS cancellation.
+        XCTAssertTrue(
+            winbackIsDismissed(canceledAt: canceledAt, dismissedAt: "2026-03-02T00:00:00Z")
+        )
+        XCTAssertTrue(
+            winbackIsDismissed(canceledAt: canceledAt, dismissedAt: canceledAt)
+        )
+        // A stamp left over from a PREVIOUS cancellation suppresses nothing:
+        // somebody who waves this away, comes back, and leaves again next
+        // winter gets the answer again. Nothing has to clear it.
+        XCTAssertFalse(
+            winbackIsDismissed(canceledAt: canceledAt, dismissedAt: "2026-02-01T00:00:00Z")
+        )
+        // Absent or unreadable is NOT a dismissal. The field is withheld
+        // entirely from a caller without billing.manage, and failing that way
+        // round shows a note to somebody who has not declined it rather than
+        // hiding one from somebody who has.
+        XCTAssertFalse(winbackIsDismissed(canceledAt: canceledAt, dismissedAt: nil))
+        XCTAssertFalse(winbackIsDismissed(canceledAt: canceledAt, dismissedAt: "nonsense"))
+        XCTAssertFalse(
+            winbackIsDismissed(canceledAt: nil, dismissedAt: "2026-03-02T00:00:00Z")
+        )
+    }
+
+    // MARK: - One price per plan, per workspace (#328)
+
+    func testThePlanCardIsPricedInTheCurrencyTheWorkspaceIsCharged() {
+        for currency in [BillingCurrency.usd, .cad] {
+            for plan in ["starter", "pro"] {
+                XCTAssertEqual(
+                    planFacts(plan, currency)?.price,
+                    "\(formatMonthlyCents(planPriceCents(plan, currency)))/mo",
+                    "\(plan)/\(currency.rawValue)"
+                )
+            }
+        }
+        // A workspace that has never checked out has no plan card at all.
+        XCTAssertNil(planFacts(nil, .cad))
+        XCTAssertNil(planFacts("enterprise", .usd))
+    }
+
+    /// THE DEFECT, in one assertion: the plan card and the cancel answer sit an
+    /// inch apart on the billing screen, and a Canadian owner read "Pro ·
+    /// $79/mo" on one and "Starter is $39 a month instead of $109" on the
+    /// other. Both are about the same plan and the same card, so at most one of
+    /// them could be true.
+    func testThePlanCardAndTheCancelAnswerNameTheSamePriceForTheSamePlan() {
+        for currency in [BillingCurrency.usd, .cad] {
+            guard let card = planFacts("pro", currency)?.price,
+                  let answer = proOffer(
+                      reason: "too_expensive",
+                      billingCurrency: currency.rawValue
+                  )?.body
+            else { return XCTFail("no plan card or no offer for \(currency.rawValue)") }
+            let pro = formatMonthlyCents(planPriceCents("pro", currency))
+            XCTAssertEqual(card, "\(pro)/mo")
+            XCTAssertTrue(answer.contains("instead of \(pro)"), answer)
+        }
+    }
+
+    /// The currency has to be ASKED FOR. A defaulted parameter is how the
+    /// hardcoded price got to live through a change that touched this same
+    /// function to wire the number limits: nothing at the call site had to
+    /// mention money, so nothing did.
+    func testThePlanCardReadsThePriceBookAndTheCallerHasToNameTheCurrency() throws {
+        let facts = try topLevelDeclaration(
+            try settingsLogicSource(),
+            "func planFacts("
+        )
+        XCTAssertTrue(
+            facts.contains("planPriceCents("),
+            "the plan card must read the price book, not type a dollar sign"
+        )
+        XCTAssertNil(
+            facts.range(of: "\"\\$\\d", options: .regularExpression),
+            "a literal price reappeared on the plan card: \(facts)"
+        )
+        XCTAssertFalse(
+            facts.contains("BillingCurrency ="),
+            "the currency parameter grew a default, which is how the next call "
+                + "site quietly goes back to printing one workspace's money at "
+                + "another workspace"
+        )
+    }
+
+    // MARK: - The two surfaces the answer is rendered on (#277 follow-up)
+
+    /// THE RULE THAT OUTRANKS THE FEATURE: picking a reason may not move the
+    /// exit. The cancel card is the last thing on the billing screen, so
+    /// "Continue to cancel" sits near the foot of the viewport for anybody who
+    /// has scrolled to it; content inserted above that button pushes it off the
+    /// bottom of the screen and charges another scroll for having answered an
+    /// OPTIONAL question.
+    func testTheAnswerRendersAfterTheControlThatLeaves() throws {
+        let card = try cancelCardSource()
+        let rendered = try section(of: card, from: "private var leaving: some View {")
+        guard let leave = rendered.range(of: "\"Continue to cancel\""),
+              let answer = rendered.range(of: "CancellationAnswerNote(") else {
+            return XCTFail("the cancel card no longer renders the exit and the answer")
+        }
+        XCTAssertTrue(
+            leave.lowerBound < answer.lowerBound,
+            "the answer goes BELOW the button that leaves: answering must never cost "
+                + "more scrolling than skipping"
+        )
+    }
+
+    /// The answer is computed from the local selection, so a dead or slow
+    /// endpoint of ours can never put a spinner on a cancel screen.
+    func testTheAnswerIsComputedLocallyAndNotFetched() throws {
+        let card = try cancelCardSource()
+        XCTAssertTrue(card.contains("cancellationOffer("))
+        XCTAssertFalse(
+            card.contains("cancellationReason("),
+            "the cancel card must not read the reason back from the server: the answer "
+                + "belongs to the tap that produced it"
+        )
+    }
+
+    /// Nothing the answer adds may gate the exit, and it may not become a
+    /// second screen on the way to Stripe. Its one sheet is the plan switcher
+    /// the plan card already opens, reached by an explicit press.
+    func testTheAnswerGatesNothingAndAddsNoStepToLeaving() throws {
+        let note = try billingStructSource("private struct CancellationAnswerNote: View {")
+        XCTAssertEqual(
+            Set(declaredState(note)), Set(["changingPlan"]),
+            "the answer grew view state. Anything beyond the plan sheet's presentation "
+                + "flag is a flow this note is not allowed to have"
+        )
+        XCTAssertTrue(disabledExpressions(note).isEmpty, "the answer disables nothing")
+        XCTAssertFalse(note.contains("Continue to cancel"))
+        XCTAssertFalse(note.contains("ConfirmSheet"))
+        XCTAssertEqual(
+            note.components(separatedBy: ".sheet(").count - 1, 1,
+            "exactly one sheet, and it is the plan switcher"
+        )
+        XCTAssertTrue(note.contains("ChangePlanSheet("))
+    }
+
+    /// Both notes render the offer's OWN words. A literal heading or body here
+    /// would be a retention line this client invented, which is the thing the
+    /// shared module exists to prevent.
+    func testNeitherNoteWritesCopyOfItsOwn() throws {
+        let text = try billingStructSource("private struct CancellationAnswerText: View {")
+        XCTAssertTrue(text.contains("Text(offer.heading)"))
+        XCTAssertTrue(text.contains("Text(offer.body)"))
+        for source in [
+            try billingStructSource("private struct CancellationAnswerNote: View {"),
+            try billingStructSource("private struct WinbackNote: View {"),
+        ] {
+            XCTAssertTrue(
+                source.contains("actionLabel"),
+                "the words on the control come from the offer, so all three clients say "
+                    + "the same thing"
+            )
+        }
+    }
+
+    /// #481's card forbids persuasion in as many words — "a screen that argues
+    /// with them about leaving... is the last thing they will remember about
+    /// us". The win-back goes in the Subscription card beside Resubscribe.
+    func testTheWinBackIsNowhereNearTheOffRampCard() throws {
+        let offRamp = try billingStructSource("private struct OffRampCard: View {")
+        for forbidden in ["cancellationOffer(", "WinbackNote", "Resubscribe", "No thanks"] {
+            XCTAssertFalse(
+                offRamp.contains(forbidden),
+                "\(forbidden) appeared inside OffRampCard, whose docblock forbids "
+                    + "persuasion: a business is winding down there"
+            )
+        }
+    }
+
+    /// The three gates, and the property that a healthy workspace never asks.
+    func testTheWinBackAsksNothingUntilItIsWorthAsking() throws {
+        let note = try billingStructSource("private struct WinbackNote: View {")
+        let gate = try section(of: note, from: "private var open: Bool {")
+        XCTAssertTrue(gate.contains("dismissed"), "a press this session")
+        XCTAssertTrue(gate.contains("winbackIsDismissed("), "or a stored stamp")
+        XCTAssertTrue(
+            gate.contains("isWithinCancellationGrace("),
+            "past the release the number is reassignable to another business, so "
+                + "'come back and keep your number' stops being true"
+        )
+        XCTAssertTrue(
+            note.contains("guard open else { return }"),
+            "the reason is read only once the gates have passed: a paying workspace "
+                + "must never run a query for a card it can never see"
+        )
+    }
+
+    /// "No thanks" must not wait on a round trip, and a failed dismissal must
+    /// not put an error box on a wind-down screen.
+    func testTheDismissalHidesTheNoteBeforeItTellsTheServer() throws {
+        let note = try billingStructSource("private struct WinbackNote: View {")
+        let waveAway = try section(of: note, from: "private func waveAway() {")
+        guard let hide = waveAway.range(of: "dismissed = true"),
+              let send = waveAway.range(of: "dismissWinback(") else {
+            return XCTFail("the dismissal no longer hides the note or no longer records it")
+        }
+        XCTAssertTrue(
+            hide.lowerBound < send.lowerBound,
+            "hidden first, sent second: a 'no thanks' that argues with a spinner is not a no"
+        )
+    }
+
+    /// One deadline on this screen, from one function. Two independently
+    /// derived ones is one drift away from telling an owner two different days
+    /// they lose their business number.
+    func testEveryDeadlineOnTheBillingScreenComesFromOneFunction() throws {
+        // Comment lines are prose, not code — the same allowance
+        // `check-native-a11y.mjs` makes, and for the same reason: without it,
+        // explaining why a sentence was removed fails the guard that asked for
+        // its removal.
+        let source = codeOnly(try billingSource())
+        XCTAssertNil(
+            source.range(of: "30 \\* 24 \\* 60 \\* 60", options: .regularExpression),
+            "the release date is computed by hand somewhere on this screen again"
+        )
+        XCTAssertEqual(
+            source.components(separatedBy: "func numberReleaseDay(").count - 1, 1,
+            "one release-date formatter"
+        )
+        XCTAssertFalse(
+            source.contains("30 days after your last period"),
+            "the canceled-state card named a date the number does not die on: the hold "
+                + "runs from canceled_at, which can be most of a month earlier"
+        )
+    }
+
+    /// Every sentence on this screen counts the hold from the CANCELLATION.
+    ///
+    /// The screen said both things at once. `StatusNotices` had been corrected
+    /// to "held for 30 days from the day you cancelled — not from that date",
+    /// while the cancel card two thirds of the way down still read "Texting
+    /// stops at the end of your billing period, and we hold your number for 30
+    /// days", which invites the reader to add the two together. Somebody
+    /// cancelling on day 2 of a monthly period counted about 59 days and had
+    /// about 30, and what they lose at the end of the miscount is the number on
+    /// the van.
+    ///
+    /// Read as the READER sees it, not as it is wrapped: the copy here is
+    /// line-broken Swift concatenation, so a guard matching raw source would
+    /// pass on any sentence that happened to break in the middle.
+    func testEverySentenceOnTheBillingScreenCountsTheHoldFromTheCancellation() throws {
+        let rendered = renderedCopy(codeOnly(try billingSource()))
+
+        // Nowhere ties the days to the period — the same property the shared
+        // module asserts over its own strings.
+        XCTAssertNil(
+            rendered.range(
+                of: "\\b\\d+ days (after|from|following) (your|the)"
+                    + "( last| current| next)?( billing)? period",
+                options: [.regularExpression, .caseInsensitive]
+            ),
+            "the billing screen counts the hold from a billing period again"
+        )
+        XCTAssertNil(
+            rendered.range(
+                of: "(period ends?|end of (your|the)[a-z ]*period)[^.]{0,40}"
+                    + "\\b(then|and)\\b[^.]{0,30}\\b\\d+ days",
+                options: [.regularExpression, .caseInsensitive]
+            ),
+            "a sentence on the billing screen puts the period end and the hold in "
+                + "one breath, which is the arithmetic that overstates the deadline"
+        )
+
+        // ...and the positive half, which is what stops this passing on a
+        // screen that simply stopped mentioning the hold: every place that
+        // names the duration names its anchor in the same breath.
+        var searched = rendered[...]
+        var mentions = 0
+        while let hit = searched.range(of: "\(cancellationGraceDays) days") {
+            let after = String(searched[hit.upperBound...].prefix(30))
+            XCTAssertTrue(
+                after.contains("from the day"),
+                "a sentence names the \(cancellationGraceDays)-day hold without its "
+                    + "anchor: …\(searched[hit.lowerBound...].prefix(80))"
+            )
+            mentions += 1
+            searched = searched[hit.upperBound...]
+        }
+        XCTAssertTrue(
+            mentions > 0,
+            "the billing screen no longer names the hold at all, so the loop above "
+                + "checked nothing"
+        )
+    }
+
+    /// The release date carries its year.
+    ///
+    /// The day-27 grace email prints "August 4, 2026" through `releaseDateLabel`
+    /// in grace.ts and points the reader at this screen, which printed "4
+    /// August" — one deadline, two formats, one of them undated. The branch
+    /// that suffers is the expired one ("the hold ended on 3 September"), read
+    /// by definition after the deadline and possibly a year later by somebody
+    /// signing back in to find out what happened to their number.
+    func testTheReleaseDateIsPrintedWithItsYearInTheSameShapeTheMailUses() throws {
+        let formatter = try topLevelDeclaration(
+            try billingSource(),
+            "private func numberReleaseDay("
+        )
+        XCTAssertTrue(
+            formatter.contains("\"MMMM d, yyyy\""),
+            "the release-date formatter no longer matches releaseDateLabel in "
+                + "grace.ts, which is the mail that sends people to this screen"
+        )
+        XCTAssertTrue(
+            formatter.contains("TimeZone(identifier: \"UTC\")"),
+            "and stays on the clock runGraceJob runs on: a guessed zone prints a "
+                + "date a day either side of the one the job acts on"
+        )
+    }
+
+    /// The screen may not say the number is already gone.
+    ///
+    /// The expired-hold copy flips on the DEVICE clock at `canceled_at + 30d`,
+    /// while the release runs on a once-daily cron (`0 14 * * *`) that can also
+    /// fail and retry — and `runGraceJob` only ever looks at companies whose
+    /// `subscription_status` is still `canceled`. For up to a day the number is
+    /// suspended-not-released and somebody coming back would keep it, so a past
+    /// tense here tells them they have lost something they still have, at the
+    /// same moment the win-back disappears.
+    func testTheScreenSaysTheHoldEndedRatherThanThatTheNumberIsGone() throws {
+        let rendered = renderedCopy(codeOnly(try billingSource()))
+        XCTAssertNil(
+            rendered.range(
+                of: "(has|have) (already )?(gone back|been released|been reassigned)"
+                    + "|\\bnumber (is|has) (now )?gone\\b|resubscribing now\\b",
+                options: [.regularExpression, .caseInsensitive]
+            ),
+            "the billing screen claims a release the cron may not have run yet"
+        )
+        // The positive half: it still says what IS certain at that boundary,
+        // which is that the hold is over and we can no longer promise it.
+        XCTAssertTrue(
+            rendered.contains("hold on your number ended on"),
+            "the expired branch no longer says the hold ended"
+        )
+        XCTAssertTrue(
+            rendered.contains("can't promise it any more"),
+            "...nor that the number is no longer promised, which is the whole "
+                + "honest content of that sentence"
+        )
+    }
+
     // MARK: - Reading the card's source
 
     /// Walk up to the repo's own copy of the sources. The test bundle lives in
@@ -442,18 +1367,34 @@ final class SettingsLogicTests: XCTestCase {
         return dir
     }
 
-    /// `CancelCard`'s source, from its declaration to the brace that closes it
-    /// at column 0.
-    private func cancelCardSource() throws -> String {
+    /// The billing screen's whole source, line endings normalised — every
+    /// brace-matching pattern below is written with LF, and a checkout on a
+    /// Windows machine can hand back CRLF.
+    private func billingSource() throws -> String {
         let path = try iosSourceRoot()
             .appendingPathComponent("Features")
             .appendingPathComponent("Settings")
             .appendingPathComponent("BillingSection.swift")
-        // Normalised, because every brace-matching pattern below is written
-        // with LF and a checkout on a Windows machine can hand back CRLF.
-        let text = try String(contentsOf: path, encoding: .utf8)
+        return try String(contentsOf: path, encoding: .utf8)
             .replacingOccurrences(of: "\r\n", with: "\n")
-        guard let start = text.range(of: "private struct CancelCard: View {") else {
+    }
+
+    /// The pure-logic file's source, for the one property that cannot be seen
+    /// from the outside: whether a figure was read or typed.
+    private func settingsLogicSource() throws -> String {
+        let path = try iosSourceRoot()
+            .appendingPathComponent("Features")
+            .appendingPathComponent("Settings")
+            .appendingPathComponent("SettingsLogic.swift")
+        return try String(contentsOf: path, encoding: .utf8)
+            .replacingOccurrences(of: "\r\n", with: "\n")
+    }
+
+    /// One view on that screen, from its declaration to the brace that closes
+    /// it at column 0.
+    private func billingStructSource(_ declaration: String) throws -> String {
+        let text = try billingSource()
+        guard let start = text.range(of: declaration) else {
             throw CardSourceMissing.declaration
         }
         let rest = text[start.lowerBound...]
@@ -461,6 +1402,102 @@ final class SettingsLogicTests: XCTestCase {
             throw CardSourceMissing.closingBrace
         }
         return String(rest[..<end.upperBound])
+    }
+
+    /// `CancelCard`'s source.
+    private func cancelCardSource() throws -> String {
+        try billingStructSource("private struct CancelCard: View {")
+    }
+
+    /// The card, plus every view declared on this screen that it renders.
+    ///
+    /// ONE LEVEL DEEP on purpose, and the depth is the judgement call. The
+    /// answer note reaches `ChangePlanSheet` by an explicit press of "Switch to
+    /// Starter"; that sheet carries a confirmation, and it is a confirmation of
+    /// a PLAN CHANGE, which is a different journey and the right place for one.
+    /// Walking into it would make this guard fail on a step that belongs where
+    /// it is. What the walk must cover is everything that draws INSIDE the
+    /// card, because that is where a second screen could hide from a guard
+    /// reading `CancelCard` alone — and did.
+    private func cancelCardSubtree() throws -> [SubtreeView] {
+        let screen = try billingSource()
+        let card = try cancelCardSource()
+        var out = [SubtreeView(name: "CancelCard", source: card)]
+        for chunk in screen.components(separatedBy: "\nprivate struct ").dropFirst() {
+            let name = String(chunk.prefix { $0.isLetter || $0.isNumber || $0 == "_" })
+            guard name != "CancelCard", card.contains("\(name)(") else { continue }
+            guard let headerEnd = chunk.firstIndex(of: "\n") else { continue }
+            out.append(SubtreeView(
+                name: name,
+                source: try billingStructSource(
+                    "private struct " + String(chunk[..<headerEnd])
+                )
+            ))
+        }
+        return out
+    }
+
+    /// A struct rather than a labelled tuple: Swift key paths do not address
+    /// tuple elements, so `subtree.map(\.name)` would not compile.
+    private struct SubtreeView {
+        let name: String
+        let source: String
+    }
+
+    /// Every `$flag` a modal in this source is presented from.
+    ///
+    /// Both spellings, because `.sheet(item:)` and `.sheet(isPresented:)` put
+    /// the same screen in front of the same person — the distinction the old
+    /// guard drew between them protected nothing.
+    private func presentationBindings(_ source: String) -> Set<String> {
+        var found: Set<String> = []
+        for label in ["isPresented: $", "item: $"] {
+            var rest = source[...]
+            while let hit = rest.range(of: label) {
+                let name = rest[hit.upperBound...].prefix {
+                    $0.isLetter || $0.isNumber || $0 == "_"
+                }
+                if !name.isEmpty { found.insert(String(name)) }
+                rest = rest[hit.upperBound...]
+            }
+        }
+        return found
+    }
+
+    /// A top-level declaration, from its first line to the brace that closes it
+    /// at column 0. `section(of:from:)` above finds MEMBERS, which close one
+    /// indent in.
+    private func topLevelDeclaration(_ source: String, _ declaration: String) throws -> String {
+        guard let start = source.range(of: declaration) else {
+            throw CardSourceMissing.member(declaration)
+        }
+        let rest = source[start.lowerBound...]
+        guard let end = rest.range(of: "\n}\n") else {
+            throw CardSourceMissing.closingBrace
+        }
+        return String(rest[..<end.upperBound])
+    }
+
+    /// The screen's copy as the READER sees it.
+    ///
+    /// Swift wraps a long sentence across several literals joined by `+`, so a
+    /// guard matching raw source passes on any sentence that happens to break
+    /// in the middle of the phrase it bans. Joining the literals first is what
+    /// makes a copy assertion mean the copy rather than the wrapping. The one
+    /// interpolation resolved is the hold's duration, because every sentence
+    /// this file writes about the hold reads it from the constant rather than
+    /// typing it, and a pattern looking for digits would find none.
+    private func renderedCopy(_ source: String) -> String {
+        source
+            .replacingOccurrences(
+                of: "\"\\s*\\+\\s*\"",
+                with: "",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: "\\(cancellationGraceDays)",
+                with: "\(cancellationGraceDays)"
+            )
     }
 
     private enum CardSourceMissing: Error {
@@ -480,6 +1517,13 @@ final class SettingsLogicTests: XCTestCase {
             throw CardSourceMissing.member(declaration)
         }
         return String(rest[..<end.lowerBound])
+    }
+
+    /// The source with whole-line comments removed.
+    private func codeOnly(_ source: String) -> String {
+        source.split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
     }
 
     /// Every `@State` the card holds, by name.

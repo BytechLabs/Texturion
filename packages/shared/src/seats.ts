@@ -40,6 +40,24 @@ export const PLAN_SEATS: Record<SeatPlan, number> = {
 };
 
 /**
+ * Business numbers per plan.
+ *
+ * Here for the same reason PLAN_SEATS is, and it arrived later because nothing
+ * outside the API needed to SAY the number until a cancel screen had to name
+ * what Starter actually covers. `PLAN_LIMITS` in apps/api/src/billing/plans.ts
+ * stays the billing source of truth and asserts against this at module load
+ * (routes/core/plans.ts), which is the shape #392 settled on: the rule lives
+ * here, the billing table stays canonical, and a divergence cannot ship quietly.
+ *
+ * It is a real limit rather than a marketing figure: POST /v1/billing/change-plan
+ * refuses a downgrade while the workspace holds more numbers than this.
+ */
+export const PLAN_NUMBERS: Record<SeatPlan, number> = {
+  starter: 1,
+  pro: 2,
+};
+
+/**
  * Seat allowance for a company.
  *
  * A company that has never checked out has plan NULL (SPEC §6) and gets the

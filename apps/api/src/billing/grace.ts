@@ -1,3 +1,5 @@
+import { CANCELLATION_GRACE_DAYS } from "@loonext/shared";
+
 import { billingRecipients } from "./recipients";
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
@@ -15,8 +17,15 @@ type Db = ReturnType<typeof getDb>;
 export type GraceThresholdDay = 1 | 15 | 27;
 export const GRACE_THRESHOLD_DAYS: readonly GraceThresholdDay[] = [1, 15, 27];
 
-/** SPEC §1 key rule 2 / §9: numbers are released 30 days after cancellation. */
-export const GRACE_PERIOD_DAYS = 30;
+/**
+ * SPEC §1 key rule 2 / §9: numbers are released 30 days after cancellation.
+ *
+ * Derived from the shared constant rather than declared, because the same 30 is
+ * now printed to a customer as a DEADLINE by three clients (the cancel card's
+ * consequence copy and the grace-window win-back). This module still owns the
+ * clock; it no longer owns a second copy of the number the clients quote.
+ */
+export const GRACE_PERIOD_DAYS = CANCELLATION_GRACE_DAYS;
 
 /**
  * #54: the synthetic `grace_notices.threshold_day` for the day-30 "number

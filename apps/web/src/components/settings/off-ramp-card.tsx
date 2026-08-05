@@ -1,5 +1,6 @@
 "use client";
 
+import { numberReleaseAt } from "@loonext/shared";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -54,11 +55,17 @@ export function OffRampCard() {
   // expecting you to go.
   if (company.data?.subscription_status !== "canceled") return null;
 
-  const releaseAt = company.data.canceled_at
-    ? new Date(
-        new Date(company.data.canceled_at).getTime() + 30 * 24 * 60 * 60 * 1000,
-      )
-    : null;
+  // From the shared helper, not a fourth private copy of "30 days". Every
+  // surface that names this deadline has to name the same day, and the grace
+  // job that acts on it reads the same constant.
+  const releaseAt = numberReleaseAt(company.data.canceled_at);
+  // Past the deadline the sentence below cannot be written in the future
+  // tense: it would print a date that has already gone by as though it were
+  // still coming. The release runs on a once-daily cron and can fail and be
+  // retried, so this says the hold has ENDED rather than asserting the number
+  // is already back with the carrier, which is the same hedge HoldSentence
+  // makes a few lines down the page.
+  const holdEnded = releaseAt !== null && releaseAt.getTime() <= Date.now();
   const trimmed = draft.trim();
   const dirty = trimmed !== (saved ?? "");
 
@@ -69,20 +76,35 @@ export function OffRampCard() {
           Anyone who texts your old number gets this back, once each.{" "}
           {releaseAt ? (
             <>
-              It stops on{" "}
+              {holdEnded ? "The hold ended on " : "It stops on "}
               <span className="font-medium text-foreground">
                 {/* UTC, because that is the clock the release job runs on.
                     Rendering this in the reader's zone would show a date one
                     day out from the one their number actually goes on — and a
-                    deadline that is wrong by a day is worse than no date. */}
+                    deadline that is wrong by a day is worse than no date.
+                    The year is here because the day-27 email that sends people
+                    to this screen prints one, and because this branch is read
+                    after the deadline and can be read a year later. */}
                 {releaseAt.toLocaleDateString(undefined, {
                   day: "numeric",
                   month: "long",
+                  year: "numeric",
                   timeZone: "UTC",
                 })}
               </span>
-              , when the number goes back to the phone company. After that we
-              can&apos;t answer it, and texts to it reach whoever gets it next.
+              {holdEnded ? (
+                <>
+                  . We are not holding the number for you any more. Once it
+                  goes back to the phone company we can&apos;t answer it, and
+                  texts to it reach whoever gets it next.
+                </>
+              ) : (
+                <>
+                  , when the number goes back to the phone company. After that
+                  we can&apos;t answer it, and texts to it reach whoever gets it
+                  next.
+                </>
+              )}
             </>
           ) : (
             <>

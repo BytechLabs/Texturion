@@ -56,11 +56,29 @@ describe("OffRampCard", () => {
     ).toLocaleDateString(undefined, {
       day: "numeric",
       month: "long",
+      // The day-27 grace email links to this screen and prints the year. The
+      // same date in two formats on one journey reads as two dates.
+      year: "numeric",
       timeZone: "UTC",
     });
     expect(html).toContain(expected);
     expect(html).toContain("goes back to the phone company");
     expect(html).toContain("whoever gets it next");
+  });
+
+  it("does not print a date that has gone by as though it were still coming", () => {
+    // This card renders for ANY canceled workspace, with no check that the
+    // hold is still running, so forty days out it was saying "It stops on 3
+    // September" about a date already past. The release runs on a once-daily
+    // cron that can fail and retry, so the past-tense branch says the HOLD
+    // ended rather than asserting the number is already back with the carrier.
+    const html = render({
+      ...canceled,
+      canceled_at: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+    expect(html).toContain("The hold ended on");
+    expect(html).not.toContain("It stops on");
+    expect(html).toContain("not holding the number for you any more");
   });
 
   it("still names the deadline in words when the date is unknown", () => {

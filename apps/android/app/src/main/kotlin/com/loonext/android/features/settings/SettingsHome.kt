@@ -373,6 +373,10 @@ fun SettingsHome(
 
                             SettingsSection.Billing -> BillingSection(
                                 settingsScope, company, onRefreshCompany = { refreshKey++ },
+                                // #277 follow-up: the answer to "missing
+                                // something I need" is the help screen, and
+                                // only the host can move between sections.
+                                onOpenHelp = { onOpenSection(SettingsSection.Help) },
                             )
 
                             SettingsSection.Notifications -> NotificationsSection(

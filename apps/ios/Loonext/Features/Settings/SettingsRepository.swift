@@ -739,6 +739,33 @@ struct SettingsRepository: Sendable {
         )
     }
 
+    /// #277 follow-up: what this workspace told us on the way out, read back.
+    ///
+    /// A ROUTE OF ITS OWN rather than a field on the company view, for the
+    /// reason `missed-while-off` beside it already uses: `GET /v1/company` runs
+    /// on every app boot for every role, and this answer can only ever be
+    /// non-null for a workspace that has already cancelled. Putting it there
+    /// would have every paying workspace run a query for a card it can never
+    /// see.
+    ///
+    /// The free text is deliberately NOT on the wire. `detail` is what somebody
+    /// wrote about us in their own words, and reading it back to them on a
+    /// win-back card would be quoting them at themselves. The code is all the
+    /// card needs to pick an answer.
+    func cancellationReason(_ companyId: String) async throws -> StatedCancellationReason {
+        try await api.get("/v1/billing/cancellation-reason", companyId: companyId)
+    }
+
+    /// #277 follow-up: "stop showing me this."
+    ///
+    /// 204 No Content, so nothing is decoded — a typed `post` would throw on
+    /// the empty body of a SUCCESSFUL call. The server stamps a timestamp
+    /// compared against `canceled_at` rather than a flag, so the dismissal
+    /// belongs to this one cancellation and nothing has to clear it later.
+    func dismissWinback(_ companyId: String) async throws {
+        _ = try await api.raw("POST", "/v1/billing/dismiss-winback", companyId: companyId)
+    }
+
     /// #227's CSV of the whole customer list, for the cancel screen.
     ///
     /// Here as well as on the contacts repository, for the same reason
@@ -840,4 +867,15 @@ struct SettingsRepository: Sendable {
         }
         return data
     }
+}
+
+/// GET /v1/billing/cancellation-reason (#277 follow-up).
+///
+/// `reason: nil` with a non-nil `stated_at` is a REAL answer and not the same
+/// as no row: it means somebody opened the cancel screen and skipped the
+/// question, which is allowed on purpose. Both render nothing, but only one of
+/// them is a person declining to say.
+struct StatedCancellationReason: Codable, Sendable {
+    let reason: String?
+    let stated_at: String?
 }

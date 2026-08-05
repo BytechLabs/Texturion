@@ -202,6 +202,77 @@ export function useRecordCancellationReason() {
   });
 }
 
+/** GET /v1/billing/cancellation-reason — the OPEN row, read back. */
+export interface StatedCancellationReason {
+  /**
+   * The code the cancel card recorded, or null.
+   *
+   * NULL IS NOT THE SAME AS NO ROW, and both arrive here as null: one is
+   * somebody who opened the cancel screen and skipped the question, the other
+   * is a workspace that never saw it. Both render nothing, so the client does
+   * not need to tell them apart — the report the route feeds does, which is why
+   * the route keeps them distinct on its side.
+   */
+  reason: string | null;
+  stated_at: string | null;
+}
+
+/**
+ * GET /v1/billing/cancellation-reason (#277 follow-up) — what they told us on
+ * the way out, so the canceled-state card can answer it during the grace
+ * window.
+ *
+ * NOT ON `company_view`, deliberately: that shape is loaded on every app boot
+ * for every role, and this answer can only ever be non-null for a workspace
+ * that has already left. `enabled` is the caller's for the same reason
+ * `useMissedWhileOff` beside it does it — a workspace that is not cancelled,
+ * or one that has already waved the offer away, must not pay for the question.
+ *
+ * The route never returns the free text. `detail` is what somebody wrote about
+ * us in their own words, and reading it back to them would be quoting them at
+ * themselves; the CODE is all the card needs to pick an answer.
+ */
+export function useCancellationReason(enabled: boolean) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: [companyId, "cancellation-reason"],
+    queryFn: () =>
+      apiFetch<StatedCancellationReason>("/v1/billing/cancellation-reason", {
+        companyId,
+      }),
+    enabled,
+  });
+}
+
+/**
+ * POST /v1/billing/dismiss-winback (#277 follow-up) — "stop showing me this".
+ *
+ * The grace emails on day 1, 15 and 27 all link to /settings/billing, so the
+ * offer is seen on a cadence rather than once, and anything shown three times
+ * needs a way to be shown zero times.
+ *
+ * The server stores a TIMESTAMP compared against `canceled_at`, not a boolean,
+ * so the dismissal belongs to one cancellation and a later one brings the offer
+ * back without anything having to clear it. The company query is invalidated
+ * because `winback_dismissed_at` rides on that shape; the pressing surface
+ * hides itself first and does not wait for either.
+ */
+export function useDismissWinback() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    // 204 No Content: nothing comes back that the caller did not already know.
+    mutationFn: () =>
+      apiFetch<void>("/v1/billing/dismiss-winback", {
+        method: "POST",
+        companyId,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
+    },
+  });
+}
+
 /**
  * POST /v1/billing/change-plan — upgrade prorates now; downgrade applies at
  * period end and is blocked (409) until numbers/seats fit Starter (SPEC §9).

@@ -4,7 +4,10 @@
  * module — and are re-exported/derived here so route code keeps its short
  * import path without duplicating the values.
  */
-import { PLAN_SEATS as SHARED_PLAN_SEATS } from "@loonext/shared";
+import {
+  PLAN_NUMBERS as SHARED_PLAN_NUMBERS,
+  PLAN_SEATS as SHARED_PLAN_SEATS,
+} from "@loonext/shared";
 
 import {
   PLAN_INCLUDED_SEGMENTS,
@@ -41,6 +44,18 @@ if (
 ) {
   throw new Error(
     "PLAN_LIMITS seats and @loonext/shared PLAN_SEATS disagree — a seat change landed in one of them only.",
+  );
+}
+
+// The same guard for the number allowance, which the cancel screen's
+// cheaper-plan answer now NAMES to a customer. A drift here would put a figure
+// in front of somebody that POST /v1/billing/change-plan then refuses them on.
+if (
+  PLAN_LIMITS.starter.numbers !== SHARED_PLAN_NUMBERS.starter ||
+  PLAN_LIMITS.pro.numbers !== SHARED_PLAN_NUMBERS.pro
+) {
+  throw new Error(
+    "PLAN_LIMITS numbers and @loonext/shared PLAN_NUMBERS disagree — a plan change landed in one of them only.",
   );
 }
 

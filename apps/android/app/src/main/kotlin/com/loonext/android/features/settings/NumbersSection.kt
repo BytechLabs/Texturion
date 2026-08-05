@@ -757,7 +757,7 @@ private fun AddNumberCard(
     onChanged: () -> Unit,
 ) {
     if (!SettingsRoleGate.canManageNumbers(scope.role) || !company.subscriptionActive) return
-    val facts = planFacts(company.plan) ?: return
+    val facts = planFacts(company.plan, company.billing_currency, company.country) ?: return
 
     val liveCount = numbers.count { it.status != NumberStatus.RELEASED }
     val starterAtCap = company.plan == "starter" && liveCount >= 2

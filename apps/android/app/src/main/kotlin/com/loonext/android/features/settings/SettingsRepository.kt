@@ -645,6 +645,37 @@ class SettingsRepository(
         )
     }
 
+    /**
+     * #277 follow-up — the reason read BACK, for the canceled-state card.
+     *
+     * Asked only while the subscription is cancelled: it is a query that can
+     * only ever answer non-null for a workspace on its way out, and a paying
+     * workspace must never pay for a question it is not asking. Same rule the
+     * [missedWhileOff] card beside it follows.
+     *
+     * The route never serves the free text, so there is nothing here that could
+     * quote somebody's parting words back at them.
+     */
+    suspend fun statedCancellationReason(companyId: String): StatedCancellationReason =
+        api.get("/v1/billing/cancellation-reason", companyId = companyId)
+
+    /**
+     * #277 follow-up — "stop showing me this", stamped for THIS cancellation.
+     *
+     * Through [ApiClient.raw] because the route answers 204 No Content: the
+     * typed helpers decode a body, and an empty one is not JSON, so they would
+     * throw on a call that had in fact succeeded.
+     *
+     * There is nothing to read back. The stamp is compared against
+     * `canceled_at` by the client that drew the card, and the caller already
+     * knows it pressed the button — so this returns Unit and the card hides
+     * itself optimistically rather than waiting on a round trip to stop
+     * showing something somebody just declined.
+     */
+    suspend fun dismissWinback(companyId: String) {
+        api.raw("POST", "/v1/billing/dismiss-winback", body = "{}", companyId = companyId)
+    }
+
     /** Hosted Stripe Billing Portal URL — open in an EXTERNAL browser. */
     suspend fun billingPortal(companyId: String): HostedUrl =
         api.post("/v1/billing/portal", companyId = companyId)

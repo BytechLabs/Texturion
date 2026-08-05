@@ -34,6 +34,11 @@ export const COMPANY_COLUMNS =
   "subscription_status,current_period_start,current_period_end," +
   "overage_cap_multiplier,registration_fee_paid_at,canceled_at," +
   "cancel_at_period_end," +
+  // #277 follow-up: whether the win-back answer on the billing screen has been
+  // waved away. Beside `canceled_at` because it is meaningless without it — the
+  // column only ever says "dismissed at this moment", and which cancellation
+  // that refers to is decided by comparing the two.
+  "winback_dismissed_at," +
   // #481: what a departing owner has chosen to tell their customers, and
   // whether they have opted in at all. Beside `canceled_at` because the three
   // only make sense together — the message is meaningless without the deadline
@@ -382,6 +387,13 @@ export const BILLING_ONLY_COMPANY_FIELDS = [
   "cancel_at_period_end",
   "offramp_message",
   "offramp_opted_in_at",
+  // #277 follow-up: whether the win-back answer has been waved away. Withheld
+  // for the same reason `canceled_at` beside it is — it is a fact about the
+  // workspace winding down, and a tech has no business reading the owner's
+  // decisions about leaving off their own boot payload. (The REASON itself is
+  // not here at all: it is served by GET /v1/billing/cancellation-reason, so
+  // the hottest hydration path in the product runs no extra query for it.)
+  "winback_dismissed_at",
 ] as const;
 
 /**
@@ -461,6 +473,7 @@ export async function loadCompanyView(
     modulesRes,
     "company_modules lookup",
   );
+
 
   // #515: the money columns leave here only for a caller who holds
   // billing.manage. Applied LAST, to the finished payload, so a column carried

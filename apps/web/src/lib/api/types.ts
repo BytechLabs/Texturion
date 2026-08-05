@@ -339,6 +339,16 @@ export interface CompanyView {
   overage_cap_multiplier: number | string | null;
   registration_fee_paid_at: string | null;
   canceled_at: string | null;
+  /**
+   * #277 follow-up: when the grace-window win-back was waved away. A TIMESTAMP
+   * rather than a flag, and it is only meaningful compared against
+   * `canceled_at` — a stamp older than the current cancellation belongs to a
+   * previous one and suppresses nothing.
+   *
+   * Optional because it is a `billing.manage`-only field: it is ABSENT, not
+   * null, on the company shape a tech or a member is served.
+   */
+  winback_dismissed_at?: string | null;
   /** #481: what a departing owner's customers are told. Null = off. */
   offramp_message?: string | null;
   offramp_opted_in_at?: string | null;

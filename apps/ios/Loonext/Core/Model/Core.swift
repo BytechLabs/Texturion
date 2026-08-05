@@ -389,6 +389,30 @@ struct CompanyView: Codable, Sendable {
     let overage_cap_multiplier: JSONValue?
     let registration_fee_paid_at: String?
     let canceled_at: String?
+    /// #328 — what this workspace's card is actually charged in ("usd"/"cad").
+    ///
+    /// Modelled because COUNTRY is not a safe stand-in for it: a Canadian
+    /// workspace can end up billed in US dollars, and a screen deriving the
+    /// currency from `country` alone would print a CAD plan price to somebody
+    /// whose card is charged in USD. Nil on any workspace predating #328 — the
+    /// country is the fallback THEN, and only then.
+    ///
+    /// In BILLING_ONLY_COMPANY_FIELDS, so the key is ABSENT rather than null
+    /// for a caller without `billing.manage`. An Optional decodes a missing key
+    /// rather than throwing, which is what makes that redaction safe here.
+    let billing_currency: String?
+    /// #277 follow-up — when the grace-window win-back was waved away.
+    ///
+    /// A TIMESTAMP compared against `canceled_at`, never a boolean: a dismissal
+    /// belongs to ONE cancellation. Somebody who waves this away, resubscribes,
+    /// and cancels again next winter gets the offer back, because that second
+    /// cancellation stamps a newer `canceled_at` than the dismissal. Nothing
+    /// has to clear it, and nothing has to remember to.
+    ///
+    /// Billing-only as well, and absent for everybody else — a tech has no
+    /// business reading the owner's decisions about leaving off their own boot
+    /// payload.
+    let winback_dismissed_at: String?
     /// #481: what a departing owner's customers are told. Nil = off.
     let offramp_message: String?
     let offramp_opted_in_at: String?
