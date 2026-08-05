@@ -10,10 +10,15 @@
  * lands in a parallel worktree.
  */
 import { Hono } from "hono";
+import * as Sentry from "@sentry/cloudflare";
 import Stripe from "stripe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { stripeWebhookRoute } from "./stripe";
+import {
+  heldNoticeNoRecipientsAlert,
+  heldNoticeUnannouncedAlert,
+} from "../billing/number-allowance";
 import { POSTHOG_CAPTURE_URL } from "../analytics/posthog";
 import type { AppEnv } from "../context";
 import type { Env } from "../env";
@@ -27,10 +32,28 @@ import {
 import { completeEnv, stubFetch } from "../test/support";
 import { sendPortEmail, startPortSaga } from "../test/telnyx-doubles/porting";
 import {
+  closeOutDeadProvisioningBestEffort,
   provisionCompanyNumber,
   suspendCompanyNumbers,
 } from "../test/telnyx-doubles/provisioning";
 import { submitRegistration } from "../test/telnyx-doubles/registration";
+
+/**
+ * #526: Sentry is observable here because for one branch of this handler it is
+ * the ONLY thing that exists — the held-number notice is best-effort by design,
+ * so a failure leaves no email, no push, no retry and no error. Without a spy
+ * on it, "never silent" is an unguarded sentence in a comment (#526 R3: both
+ * captures could be deleted with all 51 tests still green).
+ *
+ * The whole surface this module graph touches is listed, because vitest fails
+ * the import — not the call — on a name the factory does not provide.
+ */
+vi.mock("@sentry/cloudflare", () => ({
+  captureException: vi.fn(),
+  captureMessage: vi.fn(),
+  addBreadcrumb: vi.fn(),
+  getClient: vi.fn(() => undefined),
+}));
 
 const env = completeEnv();
 const COMPANY_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
@@ -657,6 +680,164 @@ describe("§9 event → state table", () => {
     const released = harness.callsTo("DELETE", /email_ledger/);
     expect(released).toHaveLength(1);
     expect(released[0].url.searchParams.get("email_key")).toBe("eq.numbers_held:cs_1");
+  });
+
+  it("#526 the ghost rows are closed out while the workspace is still cancelled — BEFORE the activation claim", async () => {
+    // The last window neither the cancellation webhook nor the daily grace job
+    // can reach: a saga that recorded its failure a second after cancellation,
+    // on a workspace that came back before the next daily pass. Everything
+    // downstream here counts rows — the allowance claim settles the hold
+    // against every row that is not released, and provisionCompanyNumber skips
+    // the buy entirely when it finds a row under a foreign provisioning key —
+    // so a ghost standing at this moment can cost a returning customer their
+    // number outright.
+    //
+    // And the ORDER is the property, not just the call. The close-out is
+    // refused for a live workspace by design; the activation claim on the very
+    // next line is what makes this one live. One line later and it is a no-op.
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      ...recipientEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint(
+        "GET",
+        /api\.stripe\.com\/v1\/checkout\/sessions\/cs_1\/line_items/,
+        () => ({ object: "list", data: [] }),
+      ),
+    ]);
+    let activationsWhenClosedOut = -1;
+    closeOutDeadProvisioningBestEffort.mockImplementationOnce(async () => {
+      activationsWhenClosedOut = harness.callsTo(
+        "POST",
+        /rpc\/claim_checkout_activation/,
+      ).length;
+    });
+
+    const response = await deliver(
+      eventOf("checkout.session.completed", checkoutSessionFixture()),
+      harness,
+    );
+
+    expect(response.status).toBe(200);
+    expect(closeOutDeadProvisioningBestEffort).toHaveBeenCalledWith(
+      expect.anything(),
+      COMPANY_ID,
+      expect.stringContaining("cs_1"),
+    );
+    expect(activationsWhenClosedOut).toBe(0);
+    expect(harness.callsTo("POST", /rpc\/claim_checkout_activation/)).toHaveLength(1);
+  });
+
+  it("#526 a hold nobody could be told about is on the record, by name", async () => {
+    // The notice is best-effort, and that is right — it must never stop a
+    // customer who just paid to come back from being able to text. But the
+    // handler then stamps `processed_at`, so the sweeper will not replay it,
+    // and if the confirm-checkout poller already ran for this session the
+    // ledger key is spent. After that, this alert is the only thing in the
+    // product that would ever say the hold was applied and never announced.
+    const held = {
+      id: "b1f1f6a1-2c3d-4e5f-8a9b-0c1d2e3f4a5b",
+      number_e164: "+14155550102",
+      suspended_at: "2026-07-30T00:00:00.000Z",
+    };
+    const harness = makeHarness([
+      endpoint("POST", /\/rest\/v1\/rpc\/claim_number_allowance/, () => ({
+        applied: true,
+        plan_known: true,
+        allowance: 1,
+        capacity: 0,
+        capacity_fenced: false,
+        restored: [],
+        held: [held],
+      })),
+      endpoint("GET", /\/rest\/v1\/companies\?select=name/, () => [
+        { name: "523 Roofing" },
+      ]),
+      endpoint(
+        "POST",
+        /api\.resend\.com\/emails/,
+        () => new Response("service unavailable", { status: 503 }),
+      ),
+      endpoint("DELETE", /\/rest\/v1\/email_ledger/, () => []),
+      ...ledgerEndpoints(),
+      ...recipientEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint(
+        "GET",
+        /api\.stripe\.com\/v1\/checkout\/sessions\/cs_1\/line_items/,
+        () => ({ object: "list", data: [] }),
+      ),
+    ]);
+    await deliver(
+      eventOf("checkout.session.completed", checkoutSessionFixture()),
+      harness,
+    );
+
+    // The shipped sentence, not one typed in here: a differently-worded
+    // replacement is a different alert, and this test would not notice.
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(
+      heldNoticeUnannouncedAlert({
+        companyId: COMPANY_ID,
+        sessionId: "cs_1",
+        held: 1,
+      }),
+      "error",
+    );
+    // And the cause itself, so the alert is not the only thing an operator has.
+    expect(Sentry.captureException).toHaveBeenCalled();
+  });
+
+  it("#526 a workspace with no billing email is on the record too — that branch throws nothing", async () => {
+    // The silent one. `billingRecipients` comes back empty, so there is no send
+    // to fail, no error to catch, and the test above would never fire: the
+    // handler runs to completion having emailed nobody about a number that has
+    // stopped sending.
+    const held = {
+      id: "b1f1f6a1-2c3d-4e5f-8a9b-0c1d2e3f4a5b",
+      number_e164: "+14155550102",
+      suspended_at: "2026-07-30T00:00:00.000Z",
+    };
+    const harness = makeHarness([
+      endpoint("POST", /\/rest\/v1\/rpc\/claim_number_allowance/, () => ({
+        applied: true,
+        plan_known: true,
+        allowance: 1,
+        capacity: 0,
+        capacity_fenced: false,
+        restored: [],
+        held: [held],
+      })),
+      endpoint("GET", /\/rest\/v1\/companies\?select=name/, () => [
+        { name: "523 Roofing" },
+      ]),
+      // Nobody on this workspace has an email address we can reach.
+      endpoint("GET", /\/rest\/v1\/company_members/, () => []),
+      ...ledgerEndpoints(),
+      ...recipientEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint(
+        "GET",
+        /api\.stripe\.com\/v1\/checkout\/sessions\/cs_1\/line_items/,
+        () => ({ object: "list", data: [] }),
+      ),
+    ]);
+    const response = await deliver(
+      eventOf("checkout.session.completed", checkoutSessionFixture()),
+      harness,
+    );
+
+    expect(response.status).toBe(200);
+    expect(harness.callsTo("POST", /api\.resend\.com\/emails/)).toHaveLength(0);
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(
+      heldNoticeNoRecipientsAlert({ companyId: COMPANY_ID, held: 1 }),
+      "error",
+    );
   });
 
   it("#523 an ordinary first checkout is told nothing: no hold, no email", async () => {

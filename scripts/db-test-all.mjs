@@ -149,6 +149,7 @@ const SUITES = [
   "winback_dismissal",
   "paid_pause",
   "number_allowance",
+  "dead_provisioning",
 ];
 
 const args = process.argv.slice(2);

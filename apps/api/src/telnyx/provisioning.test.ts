@@ -1,7 +1,9 @@
+import * as Sentry from "@sentry/cloudflare";
 import { afterEach, describe, expect, it } from "vitest";
 import { vi } from "vitest";
 
 import {
+  closeOutDeadProvisioning,
   MAX_PROVISION_ATTEMPTS,
   provisionCompanyNumber,
   reconcileNumbers,
@@ -19,7 +21,20 @@ import {
   telnyxError,
   type SentEmailCapture,
 } from "./test-support";
-import { completeEnv, stubFetch } from "../test/support";
+import { getDb } from "../db";
+import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+
+/**
+ * #526: the close-out is best-effort at all three of its call sites, so a
+ * failure produces no throw, no email and no retry — Sentry is the entire
+ * record that it happened. Guarding "never silent" needs it observable.
+ */
+vi.mock("@sentry/cloudflare", () => ({
+  captureException: vi.fn(),
+  captureMessage: vi.fn(),
+  addBreadcrumb: vi.fn(),
+  getClient: vi.fn(() => undefined),
+}));
 
 const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
 const OWNER_ID = "22222222-2222-4222-8222-222222222222";
@@ -1210,13 +1225,17 @@ describe("suspend / release", () => {
     expect(telnyx.calls).toHaveLength(0);
   });
 
-  it("#523 closes out a failed order that never became a number, so it cannot eat the allowance on the way back", async () => {
+  it("#523/#526 closes out every row that never became a number, and holds the one that did", async () => {
     // The proved defect: a `provision_failed` row with no number in it survived
     // cancellation in its own status, and every slot claim counts anything that
     // is not `released`. A Starter workspace resubscribing with one of these
     // and one real number on hold had its whole allowance filled by the row
     // with no phone number, and its only working number stayed held.
-    const { env, rest, telnyx } = setup();
+    //
+    // #526 widened it to the two shapes that walked past the first version: a
+    // row keeping a possibly-live order id (recordProvisionFailure keeps it on
+    // purpose) and a row whose saga lease expired days ago.
+    const { env, rest, telnyx } = setup({ subscription_status: "canceled" });
     const real = rest.insert("phone_numbers", {
       company_id: COMPANY_ID,
       status: "active",
@@ -1232,6 +1251,20 @@ describe("suspend / release", () => {
       country: "US",
       last_provision_error: "no_inventory",
     });
+    const withOrder = rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provision_failed",
+      provisioning_key: "k-order",
+      country: "US",
+      telnyx_order_id: "order-still-maybe",
+    });
+    const staleLease = rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "provisioning",
+      provisioning_key: "k-stale",
+      country: "US",
+      provisioning_lease_until: new Date(Date.now() - 60_000).toISOString(),
+    });
 
     const suspended = await suspendCompanyNumbers(env, COMPANY_ID);
 
@@ -1239,49 +1272,94 @@ describe("suspend / release", () => {
     expect(suspended).toHaveLength(1);
     const rows = rest.rows("phone_numbers");
     expect(rows.find((r) => r.id === real.id)?.status).toBe("suspended");
-    // The row that is not a number is closed out. Nothing was handed back to a
-    // carrier: the three columns that could name a number are all null.
-    const closed = rows.find((r) => r.id === ghost.id);
-    expect(closed?.status).toBe("released");
-    expect(closed?.released_at).toBeTruthy();
+    // The rows that are not numbers are closed out. Nothing was handed back to
+    // a carrier: the two columns that could name a number are null on each.
+    for (const dead of [ghost, withOrder, staleLease]) {
+      const closed = rows.find((r) => r.id === dead.id);
+      expect(closed?.status).toBe("released");
+      expect(closed?.released_at).toBeTruthy();
+    }
+    // The order that might still land keeps its pointer. It is what
+    // adoptOrphanNumber matches on if the number arrives after all.
+    expect(rows.find((r) => r.id === withOrder.id)?.telnyx_order_id).toBe(
+      "order-still-maybe",
+    );
     expect(telnyx.calls).toHaveLength(0);
   });
 
-  it("#523 an order that might still land keeps its slot", async () => {
-    // The mirror image, and the reason the close-out is so narrowly scoped. A
-    // row with a live Telnyx order, a ported row mid-transfer, or one a saga is
-    // holding a lease on could all still become a working number — closing any
-    // of them out would orphan a number we are paying for, or strand a
-    // multi-week transfer.
-    const { env, rest } = setup();
-    const ordering = rest.insert("phone_numbers", {
+  it("#526 the close-out is the database's decision — this module writes no release of its own", async () => {
+    // What the predicate lets through is proved against a real database, one
+    // clause at a time, in supabase/tests/dead_provisioning.test.sql. What is
+    // pinned HERE is that there is only one predicate: a second one, spelled in
+    // PostgREST filters on this side, is exactly what #526 R2 found — six
+    // filters of which every single one could be deleted with the suite green.
+    const { env, rest } = setup({ subscription_status: "canceled" });
+    const writes: { method: string; body: unknown }[] = [];
+    const recorder: FetchRoute = async (url, request) => {
+      if (url.pathname === "/rest/v1/phone_numbers" && request.method !== "GET") {
+        writes.push({
+          method: request.method,
+          body: await request.clone().json().catch(() => undefined),
+        });
+      }
+      return undefined; // record only — FakeRest still answers
+    };
+    stubFetch(recorder, rest.route());
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "active",
+      provisioning_key: "k-real",
+      country: "US",
+      number_e164: "+12125550123",
+      telnyx_phone_number_id: "pn-1",
+    });
+    rest.insert("phone_numbers", {
       company_id: COMPANY_ID,
       status: "provision_failed",
-      provisioning_key: "k-ordering",
+      provisioning_key: "k-ghost",
       country: "US",
-      telnyx_order_id: "order-1",
-    });
-    const porting = rest.insert("phone_numbers", {
-      company_id: COMPANY_ID,
-      status: "provisioning",
-      source: "ported",
-      provisioning_key: "k-port",
-      country: "US",
-    });
-    const leased = rest.insert("phone_numbers", {
-      company_id: COMPANY_ID,
-      status: "provisioning",
-      provisioning_key: "k-leased",
-      country: "US",
-      provisioning_lease_until: "2099-01-01T00:00:00.000Z",
     });
 
     await suspendCompanyNumbers(env, COMPANY_ID);
 
-    const rows = rest.rows("phone_numbers");
-    expect(rows.find((r) => r.id === ordering.id)?.status).toBe("provision_failed");
-    expect(rows.find((r) => r.id === porting.id)?.status).toBe("provisioning");
-    expect(rows.find((r) => r.id === leased.id)?.status).toBe("provisioning");
+    // Exactly one direct write to the table, and it is the suspend.
+    expect(writes).toHaveLength(1);
+    expect(writes[0].method).toBe("PATCH");
+    expect(writes[0].body).toMatchObject({ status: "suspended" });
+  });
+
+  it("#526 a close-out that fails is recorded and swallowed — never the caller's problem", async () => {
+    // Three callers run this: the cancellation webhook, the paid checkout and
+    // the daily grace job. For each of them the thing it would take down is
+    // worth more than the tidy-up — the day-1 notice, a returning customer's
+    // number, the day-27 final warning — and the next daily pass asks again.
+    // Silent it is not: the exception is on the record.
+    const { env, rest } = setup({ subscription_status: "canceled" });
+    const downstream: FetchRoute = (url) =>
+      url.pathname === "/rest/v1/rpc/close_out_dead_provisioning"
+        ? new Response(JSON.stringify({ message: "db down" }), { status: 500 })
+        : undefined;
+    stubFetch(downstream, rest.route());
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "active",
+      provisioning_key: "k-real",
+      country: "US",
+      number_e164: "+12125550123",
+      telnyx_phone_number_id: "pn-1",
+    });
+
+    // Cleared HERE rather than in a beforeEach: `toHaveBeenCalled` on a mock
+    // this file never resets is satisfied by any earlier test in it, which is
+    // how this very assertion survived its own mutation on the first attempt.
+    vi.mocked(Sentry.captureException).mockClear();
+
+    const suspended = await suspendCompanyNumbers(env, COMPANY_ID);
+
+    // The consequential half happened anyway.
+    expect(suspended).toHaveLength(1);
+    expect(rest.rows("phone_numbers")[0].status).toBe("suspended");
+    expect(Sentry.captureException).toHaveBeenCalledOnce();
   });
 
   it("releases every non-released number, tolerating Telnyx 404", async () => {
@@ -1329,5 +1407,34 @@ describe("suspend / release", () => {
       /release failed/,
     );
     expect(rest.rows("phone_numbers")[0].status).toBe("active");
+  });
+
+  it("#526 a database that predates the function is loud, not empty", () => {
+    // The shape check is the deploy-window guard: a Worker talking to a
+    // database without `close_out_dead_provisioning` gets PostgREST's own
+    // error shape back, and coercing that to `{eligible: false, closed: []}`
+    // reads as "nothing to close out" forever - the silent shape of the exact
+    // defect the function exists to end.
+    //
+    // Replacing the throw with that literal survived all 3804 tests, so the
+    // guard was protecting a property nothing measured.
+    return (async () => {
+      const { env, rest } = setup({ subscription_status: "canceled" });
+      const downstream: FetchRoute = (url) =>
+        url.pathname === "/rest/v1/rpc/close_out_dead_provisioning"
+          ? // A 200 carrying the wrong shape, which is what a stale schema cache
+            // or an older function signature produces - not a 500, because a 500
+            // is already covered above and is not the silent case.
+            new Response(JSON.stringify({ hint: "no such function" }), {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            })
+          : undefined;
+      stubFetch(downstream, rest.route());
+
+      await expect(closeOutDeadProvisioning(getDb(env), COMPANY_ID)).rejects.toThrow(
+        /unexpected shape/,
+      );
+    })();
   });
 });

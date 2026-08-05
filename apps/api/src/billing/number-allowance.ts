@@ -253,3 +253,48 @@ export function heldNumbersCopy(args: {
 
   return { subject, text };
 }
+
+/**
+ * #526 — the two sentences that are the only record that an owner was NOT told.
+ *
+ * Both live here rather than at the call site, and both are exported, because a
+ * guard that types the phrase into the test is a guard that passes when the
+ * alert is deleted and replaced with a differently-worded one, and one that
+ * asserts nothing at all is what #526 R3 found: removing BOTH Sentry calls from
+ * the notice's catch left all 51 tests in stripe.test.ts green.
+ *
+ * SILENCE IS THE FAILURE MODE, not noise. The handler stamps `processed_at`, so
+ * the sweeper will not replay it, and if the confirm-checkout poller already ran
+ * for that session the ledger key is spent. After that there is nothing left in
+ * the product that would ever say the hold was applied and never announced — the
+ * owner simply has a number that stops sending, and finds out when a customer
+ * tells them.
+ */
+export function heldNoticeUnannouncedAlert(args: {
+  companyId: string;
+  sessionId: string;
+  held: number;
+}): string {
+  return (
+    `checkout ${args.sessionId}: company ${args.companyId} came back holding ` +
+    `${args.held} number(s) and could NOT be told — the hold is applied and unannounced`
+  );
+}
+
+/**
+ * The other way the same silence happens, and the one that throws nothing at
+ * all: `billingRecipients` returns an empty list, so there is no email to send
+ * and no error to catch. The push still goes (its audience is user ids, not
+ * addresses), but the channel we treat as the durable one did not run and
+ * nothing recorded that.
+ */
+export function heldNoticeNoRecipientsAlert(args: {
+  companyId: string;
+  held: number;
+}): string {
+  return (
+    `held-number notice for company ${args.companyId}: ${args.held} number(s) are on ` +
+    `hold and the workspace has no billing email address — the email was not sent, ` +
+    `only the push`
+  );
+}

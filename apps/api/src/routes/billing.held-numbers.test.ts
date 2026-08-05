@@ -13,6 +13,7 @@ import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { billingRoutes } from "./billing";
+import { PLAN_LIMITS, type PlanId } from "../billing/plans";
 import type { AppEnv, MemberRole } from "../context";
 import { ApiError, errorResponse } from "../http/errors";
 import {
@@ -124,9 +125,13 @@ function claimRpc(result: Record<string, unknown> = {}): StubEndpoint {
 }
 
 function subscriptionFixture(
-  overrides: { schedule?: string | null; extraQuantity?: number | null } = {},
+  overrides: {
+    schedule?: string | null;
+    extraQuantity?: number | null;
+    plan?: PlanId;
+  } = {},
 ) {
-  const { schedule = null, extraQuantity = null } = overrides;
+  const { schedule = null, extraQuantity = null, plan = "starter" } = overrides;
   return {
     id: "sub_1",
     object: "subscription",
@@ -140,7 +145,10 @@ function subscriptionFixture(
           object: "subscription_item",
           quantity: 1,
           price: {
-            id: env.STRIPE_STARTER_PRICE_ID,
+            id:
+              plan === "pro"
+                ? env.STRIPE_PRO_PRICE_ID
+                : env.STRIPE_STARTER_PRICE_ID,
             object: "price",
             recurring: { interval: "month" },
           },
@@ -153,7 +161,10 @@ function subscriptionFixture(
                 object: "subscription_item",
                 quantity: extraQuantity,
                 price: {
-                  id: env.STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID,
+                  id:
+                    plan === "pro"
+                      ? env.STRIPE_EXTRA_NUMBER_PRO_PRICE_ID
+                      : env.STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID,
                   object: "price",
                   recurring: { interval: "month" },
                 },
@@ -311,6 +322,60 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
       p_paid_extras: 1,
       p_expected_epoch: 4,
       p_prefer_id: NUMBER_ID,
+    });
+  });
+
+  it("#526 the body reports the CLAIM's numbers — the capacity it settled on and what is still held", async () => {
+    // #526 R4: the whole success body could be replaced with the happy-path
+    // literals `{reinstated: true, paid_extras: 1, allowance: 2, held: []}` and
+    // all 21 tests here stayed green, because the one test that asserted the
+    // body used a fixture that returned exactly those values. So a route
+    // reporting a stale capacity — or an empty held list to a workspace that is
+    // still holding two numbers, which is the screen telling somebody their
+    // problem is solved when it is not — would have shipped.
+    //
+    // A Pro workspace holding three, buying back the middle one. Every figure
+    // below is different from every other, and none of them is 1 or 2.
+    const OTHER_HELD = [
+      { id: "c2f2f7b2-3d4e-4f60-8a9b-0c1d2e3f4a5c", number_e164: "+14155550103", suspended_at: "2026-07-30T00:00:00.000Z" },
+      { id: "d3f3f8c3-4e5f-4a71-8a9b-0c1d2e3f4a5d", number_e164: "+14155550104", suspended_at: "2026-07-31T00:00:00.000Z" },
+    ];
+    const CLAIM = {
+      applied: true,
+      plan_known: true,
+      // 2 included on Pro + the 3 paid extras this purchase just settled on.
+      allowance: PLAN_LIMITS.pro.numbers + 3,
+      capacity: 3,
+      capacity_fenced: false,
+      restored: [{ id: NUMBER_ID, number_e164: "+14155550102" }],
+      held: OTHER_HELD,
+    };
+    const harness = makeHarness([
+      companyEndpoint(
+        companyRow({ plan: "pro", paid_extra_numbers: 2, paid_capacity_epoch: 9 }),
+      ),
+      heldRows([{ id: NUMBER_ID, status: "suspended", number_e164: "+14155550102" }]),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({ plan: "pro", extraQuantity: 2 }),
+      ),
+      endpoint("POST", /api\.stripe\.com\/v1\/subscription_items\/si_extra/, () => ({
+        id: "si_extra",
+        object: "subscription_item",
+        quantity: 3,
+      })),
+      claimRpc(CLAIM),
+      endpoint("POST", /\/rest\/v1\/audit_log/, () => new Response(null, { status: 201 })),
+    ]);
+    const response = await reinstate(harness);
+
+    expect(response.status).toBe(200);
+    // Read off the claim, not retyped: a body pinned to literals cannot pass
+    // this, and neither can one that reports the figures we ASKED Stripe for.
+    expect(await response.json()).toEqual({
+      reinstated: true,
+      paid_extras: CLAIM.capacity,
+      allowance: CLAIM.allowance,
+      held: CLAIM.held,
     });
   });
 

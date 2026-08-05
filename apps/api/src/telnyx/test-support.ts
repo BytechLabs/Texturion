@@ -361,6 +361,46 @@ export function registerProvisioningRpcs(rest: FakeRest): void {
     row.updated_at = new Date().toISOString();
     return structuredClone(row);
   });
+  // close_out_dead_provisioning (#526): mark released the rows of a CANCELLED
+  // workspace that provably never became a number.
+  //
+  // A faithful double of the predicate, NOT the place it is guarded. The clauses
+  // are decided in SQL over a real database and each one is broken on its own in
+  // supabase/tests/dead_provisioning.test.sql; what the suites over this double
+  // pin is the layer TypeScript owns — which workspace is asked, when, and what
+  // the caller does with the answer.
+  rest.rpc("close_out_dead_provisioning", (args) => {
+    const company = rest
+      .rows("companies")
+      .find((r) => r.id === args.p_company_id);
+    if (!company) {
+      throw new Error("close_out_dead_provisioning: company not found");
+    }
+    if (company.subscription_status !== "canceled") {
+      return { eligible: false, closed: [] };
+    }
+    const now = Date.now();
+    const closed: { id: string; telnyx_order_id: string | null }[] = [];
+    for (const row of rest.rows("phone_numbers")) {
+      if (row.company_id !== args.p_company_id) continue;
+      if (row.source !== "provisioned") continue;
+      if (row.status !== "provisioning" && row.status !== "provision_failed") continue;
+      if (row.number_e164 != null) continue;
+      if (row.telnyx_phone_number_id != null) continue;
+      const lease =
+        typeof row.provisioning_lease_until === "string"
+          ? Date.parse(row.provisioning_lease_until)
+          : null;
+      if (lease !== null && lease > now) continue;
+      row.status = "released";
+      row.released_at = new Date().toISOString();
+      closed.push({
+        id: row.id as string,
+        telnyx_order_id: (row.telnyx_order_id ?? null) as string | null,
+      });
+    }
+    return { eligible: true, closed };
+  });
   // claim_order_idempotency_key: COALESCE-claim — the same key on repeat calls.
   rest.rpc("claim_order_idempotency_key", (args) => {
     const row = rest

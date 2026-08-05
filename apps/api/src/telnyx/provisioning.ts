@@ -931,28 +931,138 @@ export async function provisionCompanyNumber(
   return resumeProvisioning(env, row);
 }
 
+/** One row the close-out marked `released` because it never became a number. */
+export interface ClosedOutRow {
+  id: string;
+  /**
+   * An order that may still land. Kept ON the row rather than cleared — see the
+   * migration; it is the pointer {@link adoptOrphanNumber} and the reconcile
+   * orphan scan work from if it does.
+   */
+  telnyx_order_id: string | null;
+}
+
+export interface DeadProvisioningCloseOut {
+  /**
+   * False when the workspace is not `canceled`. For a live workspace the same
+   * row shape is a purchase in flight — the 15-minute retry cron still owns it,
+   * or its owner is looking at the "Choose a number" remediation — so the SQL
+   * refuses rather than trusting the caller.
+   */
+  eligible: boolean;
+  closed: ClosedOutRow[];
+}
+
+/**
+ * #526/#523 — mark `released` the provisioning rows of a CANCELLED workspace
+ * that provably never became a number, so they stop occupying the allowance a
+ * resubscribe settles against.
+ *
+ * The predicate is `close_out_dead_provisioning` and lives in SQL on purpose:
+ * it is one statement with six terms over live phone-number rows, it needs the
+ * DATABASE's clock to decide whether a saga lease is still alive (the same
+ * clock `claim_provisioning_lease` wrote it with), and both callers — the
+ * cancellation webhook below and the daily grace job — must ask the identical
+ * question. 20260805140000_close_out_dead_provisioning.sql argues every clause,
+ * and supabase/tests/dead_provisioning.test.sql breaks each one on its own.
+ */
+export async function closeOutDeadProvisioning(
+  db: SupabaseClient,
+  companyId: string,
+): Promise<DeadProvisioningCloseOut> {
+  const { data, error } = await db.rpc("close_out_dead_provisioning", {
+    p_company_id: companyId,
+  });
+  if (error) {
+    throw new Error(`close_out_dead_provisioning failed: ${error.message}`);
+  }
+  const row = data as { eligible?: boolean; closed?: ClosedOutRow[] } | null;
+  // Checked rather than coerced: a deploy talking to a database that predates
+  // this function would otherwise read as "nothing to close out" forever, which
+  // is the silent shape of the very defect it exists to end.
+  if (typeof row?.eligible !== "boolean" || !Array.isArray(row.closed)) {
+    throw new Error("close_out_dead_provisioning returned an unexpected shape");
+  }
+  return { eligible: row.eligible, closed: row.closed };
+}
+
+/**
+ * The close-out in the form all three of its callers want: BEST-EFFORT.
+ *
+ * The cancellation webhook, the paid checkout and the daily grace job each run
+ * it, and for every one of them the same trade holds — this is a tidy-up whose
+ * only cost of failing is that a row keeps occupying a slot until the next
+ * daily pass, while the thing it would take down with it is not:
+ *
+ *   cancellation   the day-1 "your number is safe for 29 more days" notice, and
+ *                  a webhook that retries the whole lifecycle
+ *   checkout       a customer who has just paid us to come back getting their
+ *                  number provisioned at all
+ *   grace          the day-27 "released in three days" warning, which is the
+ *                  last thing standing between an owner and losing the number
+ *
+ * Stated once here rather than as three catch blocks, so nobody has to decide
+ * it again — and so the day one of them decides differently, it is visible.
+ *
+ * It is also what makes the deploy window safe: a Worker that reaches
+ * production before the migration does gets a missing-function error from every
+ * one of these, and none of them is allowed to be a cancellation that fails or
+ * a resubscribe with no number.
+ */
+export async function closeOutDeadProvisioningBestEffort(
+  db: SupabaseClient,
+  companyId: string,
+  /** Where this ran, so one log line is enough to place it. */
+  context: string,
+): Promise<void> {
+  try {
+    const result = await closeOutDeadProvisioning(db, companyId);
+    if (result.closed.length === 0) return;
+    const orders = result.closed
+      .map((row) => row.telnyx_order_id)
+      .filter((id): id is string => typeof id === "string");
+    console.log(
+      `${context}: closed out ${result.closed.length} provisioning row(s) for company ` +
+        `${companyId} that never became a number — they were occupying the plan ` +
+        `allowance a resubscribe settles against (#526)` +
+        // An order that might still land is the one part of this that is
+        // genuinely open, and it already has an alarm: the reconcile orphan
+        // scan pages on a Telnyx number no row claims. Named here so an
+        // operator reading that page can find where the row went, not paged
+        // again.
+        (orders.length > 0
+          ? `. Order(s) ${orders.join(", ")} may still land; the reconcile orphan net owns those from here.`
+          : "."),
+    );
+  } catch (cause) {
+    Sentry.captureException(cause);
+    console.error(
+      `${context}: dead-provisioning close-out failed for ${companyId} (retried on the next daily grace pass):`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+  }
+}
+
 /**
  * Cancellation → suspension (SPEC §1 rule 2, §9): app-side only — inbound
  * keeps flowing and being stored; outbound is blocked by the subscription
  * gate. Returns the suspended rows.
  *
  * #523: it also closes out the rows that are NOT numbers. An order that failed
- * or never finished — no `number_e164`, no Telnyx number, no order to recover
- * from — used to survive cancellation in its own status, and every slot claim
- * counts anything that is not `released`. So on the way back in it occupied the
- * plan's allowance: a Starter workspace resubscribing with one such row and one
- * real number on hold got its allowance filled by the row with no phone number
- * in it, and its only working number stayed held. Nothing would have fixed that
- * either — the un-hold is bounded by the allowance, and remediation is the one
- * thing that could revive the dead row, which the owner has no reason to expect.
+ * or never finished — no `number_e164`, no Telnyx number — used to survive
+ * cancellation in its own status, and every slot claim counts anything that is
+ * not `released`. So on the way back in it occupied the plan's allowance: a
+ * Starter workspace resubscribing with one such row and one real number on hold
+ * got its allowance filled by the row with no phone number in it, and its only
+ * working number stayed held. Nothing would have fixed that either — the un-hold
+ * is bounded by the allowance, and remediation is the one thing that could
+ * revive the dead row, which the owner has no reason to expect.
  *
- * Closing it out is not releasing a number. There is provably no number: the
- * three columns that could name one are null, so this is the same `released`
- * marker {@link releaseNumberRow} would write for such a row at grace expiry,
- * minus the carrier call it would not make. It is scoped to `source =
- * 'provisioned'` (a ported or hosted row is fulfilled by its own saga, and an
- * open port sits exactly like this for weeks) and to rows nobody holds a lease
- * on, so a saga running right now is never stomped.
+ * #526: this is the FAST path, not the only one. It runs at the one instant the
+ * cancellation lands, which cannot see a saga that fails a second later or a
+ * lease that expires tomorrow — and could never have reached a workspace that
+ * was already sitting in the grace window. The daily grace job asks the same
+ * question again for every cancelled workspace; see `runGraceJob`.
  */
 export async function suspendCompanyNumbers(
   env: Env,
@@ -967,19 +1077,7 @@ export async function suspendCompanyNumbers(
     .select(NUMBER_COLUMNS);
   if (error) throw new Error(`number suspension failed: ${error.message}`);
 
-  const { error: deadError } = await db
-    .from("phone_numbers")
-    .update({ status: "released", released_at: new Date().toISOString() })
-    .eq("company_id", companyId)
-    .eq("source", "provisioned")
-    .in("status", ["provisioning", "provision_failed"])
-    .is("number_e164", null)
-    .is("telnyx_phone_number_id", null)
-    .is("telnyx_order_id", null)
-    .is("provisioning_lease_until", null);
-  if (deadError) {
-    throw new Error(`dead provisioning close-out failed: ${deadError.message}`);
-  }
+  await closeOutDeadProvisioningBestEffort(db, companyId, "cancellation");
 
   return (data ?? []) as unknown as PhoneNumberRow[];
 }

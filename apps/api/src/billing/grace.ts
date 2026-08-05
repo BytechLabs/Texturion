@@ -9,7 +9,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { pushConsequentialNotice } from "./consequential-push";
 import type { Env } from "../env";
 import { deactivateCampaign } from "../telnyx/registration";
-import { releaseCompanyNumbers } from "../telnyx/provisioning";
+import {
+  closeOutDeadProvisioningBestEffort,
+  releaseCompanyNumbers,
+} from "../telnyx/provisioning";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -414,11 +417,13 @@ async function releaseExpiredCompany(
 
 /**
  * Daily grace & release cron body (SPEC §11): for every `canceled` company,
- * send the day-1/15/27 warnings through the `grace_notices` ledger, and at
- * ≥30 days release the numbers + deactivate the campaign + send the final
- * email (ledgered as the synthetic day-30 notice, #54). Work is selected by
- * state (status + `canceled_at` age) plus the ledger, never by "last run"
- * bookkeeping, so re-runs and overlaps are safe.
+ * close out any provisioning row that never became a number (#526 — the loop
+ * argues why this job is where that belongs), send the day-1/15/27 warnings
+ * through the `grace_notices` ledger, and at ≥30 days release the numbers +
+ * deactivate the campaign + send the final email (ledgered as the synthetic
+ * day-30 notice, #54). Work is selected by state (status + `canceled_at` age)
+ * plus the ledger, never by "last run" bookkeeping, so re-runs and overlaps are
+ * safe.
  *
  * `now` is injected so the clock is a parameter, never buried logic; the
  * scheduled handler passes the trigger's time.
@@ -472,6 +477,27 @@ export async function runGraceJob(
   const failures: unknown[] = [];
   for (const company of queue) {
     try {
+      // #526 — the standing pass over the rows that are not numbers.
+      //
+      // `suspendCompanyNumbers` closes these out on the cancellation webhook,
+      // and that is one instant in time. It cannot see a saga that records its
+      // failure a second later, or a 180-second lease that expires tomorrow,
+      // and it could never have reached a workspace that was ALREADY sitting in
+      // the grace window — which is precisely the cohort it was written for. A
+      // one-shot migration would have fixed those and nothing after them.
+      //
+      // This loop already walks exactly the right set, every day: `canceled`
+      // workspaces inside the window plus the stragglers that still owe a
+      // release. That is the only cohort in which a `provisioning` row is inert
+      // rather than a purchase in flight, which is what makes closing one out
+      // safe at all. So the same question is asked again here, and converges.
+      //
+      // The window is not academic: every workspace in it can resubscribe at
+      // any moment, and the allowance a resubscribe settles against counts
+      // every row that is not `released` — so a ghost left open holds the slot
+      // the workspace's real, working number needs, and the owner is told their
+      // number is on hold instead.
+      await closeOutDeadProvisioningBestEffort(db, company.id, "grace");
       const canceledAt = new Date(company.canceled_at).getTime();
       const daysElapsed = Math.floor((now.getTime() - canceledAt) / DAY_MS);
 

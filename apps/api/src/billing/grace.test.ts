@@ -17,7 +17,11 @@ import {
   type StubEndpoint,
 } from "../test/billing-support";
 import { completeEnv, stubFetch } from "../test/support";
-import { releaseCompanyNumbers } from "../test/telnyx-doubles/provisioning";
+import {
+  closeOutDeadProvisioning,
+  closeOutDeadProvisioningBestEffort,
+  releaseCompanyNumbers,
+} from "../test/telnyx-doubles/provisioning";
 import { deactivateCampaign } from "../test/telnyx-doubles/registration";
 
 const env = completeEnv();
@@ -400,6 +404,95 @@ describe("runGraceJob — day 1/15/27/30 transitions, ledger-gated", () => {
       expect.anything(),
       OLD_COMPANY,
     );
+  });
+
+  describe("#526 — the ghost close-out is a standing pass, not one instant", () => {
+    /**
+     * `suspendCompanyNumbers` closes out the rows that never became a number at
+     * the cancellation webhook. That moment cannot see a saga that records its
+     * failure a second later, a 180-second lease that expires tomorrow, or —
+     * the one this was written for — a workspace that was ALREADY sitting in
+     * the grace window. Every one of those keeps occupying the allowance a
+     * resubscribe settles against, and there is nothing else in the product
+     * that would ever notice.
+     */
+    it("asks again for every cancelled workspace in scope, every day", async () => {
+      const state: GraceState = {
+        ledger: new Set([1, 15, 27]),
+        nonReleasedNumbers: 1,
+        campaignActive: false,
+      };
+      // Mid-window with every notice already sent: the day this job would
+      // otherwise have nothing at all to do for this workspace, which is
+      // exactly when a ghost sits there unnoticed.
+      const { done } = run(state, daysAfterCancel(20));
+      await done;
+
+      expect(closeOutDeadProvisioningBestEffort).toHaveBeenCalledWith(
+        expect.anything(),
+        COMPANY_ID,
+        expect.any(String),
+      );
+    });
+
+    it("a straggler past the notice window is asked too", async () => {
+      // Bounded by OUTSTANDING WORK rather than age — same reasoning as the
+      // release retry above. A company that aged out still holding rows is the
+      // one most likely to be carrying a ghost.
+      const OLD_COMPANY = "8c9e6679-7425-40de-944b-e07fc1f90ae7";
+      const harness = makeHarness([
+        endpoint("GET", /\/rest\/v1\/companies/, () => []),
+        endpoint("GET", /\/rest\/v1\/phone_numbers/, (call) =>
+          call.url.searchParams.has("companies.subscription_status")
+            ? [
+                {
+                  company_id: OLD_COMPANY,
+                  companies: {
+                    id: OLD_COMPANY,
+                    name: "Churned Plumbing",
+                    canceled_at: CANCELED_AT,
+                  },
+                },
+              ]
+            : [{ id: "num-1" }],
+        ),
+        endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () => countResponse(1)),
+        endpoint("GET", /\/rest\/v1\/messaging_registrations/, () => []),
+        endpoint("POST", /\/rest\/v1\/grace_notices/, () => []),
+      ]);
+      stubFetch(harness.route);
+
+      await runGraceJob(env, daysAfterCancel(90));
+
+      expect(closeOutDeadProvisioningBestEffort).toHaveBeenCalledWith(
+        expect.anything(),
+        OLD_COMPANY,
+        expect.any(String),
+      );
+    });
+
+    it("asks in the form that cannot throw", async () => {
+      // The ordering trade, pinned at the call site. A close-out that could not
+      // run costs the customer nothing today and is retried tomorrow; a day-27
+      // "your number is released in three days" that was skipped because of it
+      // costs them the number. The swallowing itself lives in the telnyx track
+      // (and is proved there); what this pins is that the grace job reaches for
+      // the arm that has it, because the two are one import apart.
+      const state: GraceState = {
+        ledger: new Set([1, 15]),
+        nonReleasedNumbers: 1,
+        campaignActive: false,
+      };
+      const { harness, done } = run(state, daysAfterCancel(27.5));
+      await done;
+
+      expect(closeOutDeadProvisioningBestEffort).toHaveBeenCalled();
+      expect(closeOutDeadProvisioning).not.toHaveBeenCalled();
+
+      const subjects = sentEmails(harness).map((email) => email.subject);
+      expect(subjects).toHaveLength(1);
+      expect(subjects[0]).toContain("Final notice");
+    });
   });
 
   it("a failing tenant surfaces as an error after the loop (cron retries daily)", async () => {

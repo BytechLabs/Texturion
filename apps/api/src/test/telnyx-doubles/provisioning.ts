@@ -71,6 +71,32 @@ export const releaseCompanyNumbers = vi.fn<
   (env: Env, companyId: string) => Promise<void>
 >(async () => {});
 
+/**
+ * #526: the daily grace job asks this for every cancelled workspace. The
+ * default answer is the healthy one — eligible, nothing to close out — so the
+ * dozens of grace tests written before it stay about what they were about; a
+ * test that wants a ghost (or a failure) overrides it.
+ */
+export const closeOutDeadProvisioning = vi.fn<
+  (
+    db: SupabaseClient,
+    companyId: string,
+  ) => Promise<{
+    eligible: boolean;
+    closed: { id: string; telnyx_order_id: string | null }[];
+  }>
+>(async () => ({ eligible: true, closed: [] }));
+
+/**
+ * The best-effort form, which is what every caller outside the telnyx track
+ * actually uses. A separate double rather than a wrapper over the one above,
+ * because a suite asserting "the grace job asked" wants ONE recorded call, not
+ * an inner call it has to reason about.
+ */
+export const closeOutDeadProvisioningBestEffort = vi.fn<
+  (db: SupabaseClient, companyId: string, context: string) => Promise<void>
+>(async () => {});
+
 export const reconcileNumbers = vi.fn<
   (env: Env, now?: Date) => Promise<void>
 >(async () => {});

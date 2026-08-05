@@ -36,6 +36,8 @@ import { readPaidCapacityEpoch } from "../billing/extra-numbers";
 import {
   billedExtraQuantity,
   claimNumberAllowance,
+  heldNoticeNoRecipientsAlert,
+  heldNoticeUnannouncedAlert,
   heldNumbersCopy,
   type HeldNumber,
 } from "../billing/number-allowance";
@@ -51,6 +53,7 @@ import { sendEmail } from "../email/resend";
 import { portDocumentsNeededCopy } from "../telnyx/emails";
 import { sendPortEmail, startPortSaga } from "../telnyx/porting";
 import {
+  closeOutDeadProvisioningBestEffort,
   provisionCompanyNumber,
   suspendCompanyNumbers,
 } from "../telnyx/provisioning";
@@ -531,7 +534,20 @@ async function noticeHeldNumbers(
       held: args.held,
     });
     const to = await billingRecipients(env, args.companyId, db);
-    if (to.length > 0) {
+    if (to.length === 0) {
+      // #526: silent by construction until now. Nothing is sent and nothing is
+      // thrown, so the catch below never runs and the ledger key is spent on a
+      // notice that had nowhere to go. The push still fires (its audience is
+      // user ids, not addresses) — but the channel we treat as the durable one
+      // did not, and that has to be on the record.
+      Sentry.captureMessage(
+        heldNoticeNoRecipientsAlert({
+          companyId: args.companyId,
+          held: args.held.length,
+        }),
+        "error",
+      );
+    } else {
       await sendEmail(env, {
         to,
         subject,
@@ -649,6 +665,32 @@ export async function handleCheckoutCompleted(
   // confirm-checkout every few seconds for anyone sitting on a bookmarked
   // ?checkout=success URL.
   if (status === "canceled") return;
+
+  // #526 — close out the rows that never became a number, HERE, while the
+  // workspace is still `canceled`.
+  //
+  // ORDER IS THE WHOLE POINT, and it is why this sits above the activation
+  // claim rather than beside the allowance claim below. The close-out is
+  // deliberately refused for a live workspace (a `provisioning` row there is a
+  // purchase in flight, not a ghost — see the migration), and the claim on the
+  // next line is what flips this workspace to `active`. One line later and
+  // this is a no-op.
+  //
+  // The cancellation webhook and the daily grace job both do this already, so
+  // in the common case it finds nothing. What it closes is the last window
+  // neither of them can: a saga that recorded its failure a second after the
+  // cancellation, on a workspace that came back before the next daily pass.
+  // That window matters more than its width, because everything downstream on
+  // this path is decided by counting rows — `claimNumberAllowance` settles the
+  // hold against every row that is not `released`, and `provisionCompanyNumber`
+  // skips the buy entirely when it finds a row under a foreign provisioning
+  // key. A ghost left standing here does not just cost a slot; for a workspace
+  // whose FIRST provisioning is what failed, it is the reason coming back buys
+  // them no number at all.
+  //
+  // Best-effort, like its other two callers: nothing about a customer paying us
+  // to come back should fail because a tidy-up could not run.
+  await closeOutDeadProvisioningBestEffort(db, companyId, `checkout ${session.id}`);
 
   // §9 double-charge fail-safe: attach EXACTLY ONE live subscription per company,
   // atomically (row-locked conditional claim). Two checkout completions — a raced
@@ -812,7 +854,11 @@ export async function handleCheckoutCompleted(
       } catch (cause) {
         Sentry.captureException(cause);
         Sentry.captureMessage(
-          `checkout ${session.id}: company ${companyId} came back holding ${allowance.held.length} number(s) and could NOT be told — the hold is applied and unannounced`,
+          heldNoticeUnannouncedAlert({
+            companyId,
+            sessionId: session.id,
+            held: allowance.held.length,
+          }),
           "error",
         );
         console.error(

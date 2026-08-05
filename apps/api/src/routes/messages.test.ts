@@ -10,6 +10,7 @@ import { Hono } from "hono";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { companyContext } from "../auth/company";
+import { makeExecutionContext } from "../test/billing-support";
 import { jwtAuth } from "../auth/jwt";
 import type { AppEnv } from "../context";
 import type { Env } from "../env";
@@ -1255,12 +1256,34 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
         attachmentsLookup.route,
         // #106: no access rules → the member caller is unrestricted.
         stubRoute(rpcMatch(env, "member_number_levels"), () => []).route,
+        // #313/#526: marking a message done queues the rating ask on
+        // `waitUntil`, and it starts by asking which job this message became.
+        // Answered ("none") rather than left unstubbed, because the work is
+        // real and these are the tests that trigger it — see patchDone.
+        stubRoute(restMatch(env, "GET", "tasks"), () => []).route,
       ],
     };
   }
 
+  /**
+   * #526: the execution context is passed AND drained, and both halves matter.
+   *
+   * Marking a message done queues the #313 rating ask on `waitUntil`. Without a
+   * context to hand it to, `executionCtxOf(c)?.waitUntil(work)` drops the
+   * reference — but the work is already running, so it outlives the test,
+   * lands on whatever `stubFetch` the NEXT test has installed, and is counted
+   * there. That is not hypothetical: it is why "reads the next visit ONLY when
+   * the text asks when we are coming" saw two task lookups, and why "reads the
+   * member ONLY when the text signs off with {my_name}" saw one where it
+   * expects none — twice in ten full runs of apps/api, on tests that have
+   * nothing to do with marking anything done.
+   *
+   * Draining is what a Worker does with `waitUntil` for real, so this is the
+   * harness catching up with production rather than a workaround.
+   */
   async function patchDone(body: unknown): Promise<Response> {
-    return app.fetch(
+    const { ctx, drain } = makeExecutionContext();
+    const response = await app.fetch(
       new Request(`https://api.loonext.com/v1/messages/${MESSAGE_ID}`, {
         method: "PATCH",
         headers: {
@@ -1271,7 +1294,10 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
         body: JSON.stringify(body),
       }),
       env,
+      ctx,
     );
+    await drain();
+    return response;
   }
 
   it("marks done: flips done_at + done_by_user_id via the atomic RPC", async () => {
