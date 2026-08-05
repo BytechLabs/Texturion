@@ -573,7 +573,9 @@ class SettingsRepository(
         body: JsonObject,
     ): RegistrationDetailPair = api.put("/v1/registration", body, companyId = companyId)
 
-    /** Owner-only: a Canadian company turning US texting on (one-time $29). */
+    /** Owner-only: a Canadian company turning US texting on. The one-time fee
+     *  the route charges is [US_REGISTRATION_FEE_CENTS] in the company's own
+     *  currency, which is what [usRegistrationFee] quotes on the card. */
     suspend fun enableUsTexting(companyId: String): EnableUsResult =
         api.post("/v1/registration/enable-us", companyId = companyId)
 

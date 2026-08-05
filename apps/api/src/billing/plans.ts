@@ -1,3 +1,5 @@
+import { PLAN_PRICE_CENTS, type BillingCurrency } from "@loonext/shared";
+
 import type { Env } from "../env";
 
 /** `plan_id` enum values (SPEC §6). */
@@ -109,16 +111,45 @@ export const PLAN_NOTIFY_LIMITS: Record<
 export const MAX_EMAIL_RECIPIENTS_PER_CLAIM = 3;
 
 /**
- * #400/D107 — what a prepaid year costs, in cents. Ten months for twelve.
+ * #400/D107 — how many months of money a prepaid year costs. Ten, for twelve.
+ *
+ * The discount is delivered through the PRICE. An earlier design delivered it
+ * through a customer-balance credit, which funds ten invoices rather than
+ * twelve, and was reverted for it.
+ */
+export const PREPAY_MONTHS_CHARGED = 10;
+
+/**
+ * #400/D107 — what a prepaid year costs, per currency, in cents.
  *
  * $290 against 12 x $29 = $348, an effective $24.17/mo. $790 against 12 x $79 =
- * $948, an effective $65.83/mo. The discount is real and delivered through the
- * PRICE — an earlier design delivered it through a customer-balance credit,
- * which funds ten invoices rather than twelve and was reverted for it.
+ * $948, an effective $65.83/mo.
+ *
+ * # Why this is multiplied rather than typed out (#522)
+ *
+ * The CAD monthly figures were DECIDED, once, in
+ * packages/shared/src/billing-currency.ts — round, locally sensible, and
+ * deliberately a little under a straight conversion. A prepaid year is not a
+ * second pricing decision on top of that; it is the same plan bought ten months
+ * at a time. Deriving it means the Canadian year cannot be a number somebody
+ * invented, and cannot drift from the monthly price it is a discount on.
+ *
+ * The figures that reach Stripe are therefore CA$390 and CA$1,090, and the
+ * catalog script files exactly those (guarded by
+ * stripe-catalog-currency.test.ts, which reads the script as text).
  */
-export const PLAN_PREPAY_YEAR_CENTS: Record<PlanId, number> = {
-  starter: 29_000,
-  pro: 79_000,
+export const PLAN_PREPAY_YEAR_CENTS: Record<
+  BillingCurrency,
+  Record<PlanId, number>
+> = {
+  usd: {
+    starter: PLAN_PRICE_CENTS.usd.starter * PREPAY_MONTHS_CHARGED,
+    pro: PLAN_PRICE_CENTS.usd.pro * PREPAY_MONTHS_CHARGED,
+  },
+  cad: {
+    starter: PLAN_PRICE_CENTS.cad.starter * PREPAY_MONTHS_CHARGED,
+    pro: PLAN_PRICE_CENTS.cad.pro * PREPAY_MONTHS_CHARGED,
+  },
 };
 
 /** How many monthly invoices a prepaid year covers. Matches the coupon. */

@@ -19,6 +19,8 @@
  * constants so retuning is one edit. Enablement lives in `company_modules`;
  * `company-modules.ts` reads it, checkout writes it.
  */
+import type { BillingCurrency } from "@loonext/shared";
+
 import type { Env } from "../env";
 import type { PlanId } from "./plans";
 
@@ -61,6 +63,24 @@ export interface ModuleSpec {
   /** Name of the env var holding this module's licensed Stripe price id. */
   priceEnvKey: string;
 }
+
+/**
+ * #522 — the currency every `monthlyCents` below is in.
+ *
+ * A named constant rather than a literal on the route, because the thing worth
+ * saying is that this is a FACT about the catalog and not a default somebody
+ * left in. `scripts/stripe-setup.ts` files the module prices with no
+ * `currency_options` at all, unlike the plans, the overage meters and the
+ * registration fee — so USD is what the module genuinely costs, in the only
+ * currency it has ever been priced in.
+ *
+ * That is defensible only while nothing here is sellable: `regions_ca` gates
+ * nothing until multi-region provisioning ships, so no Canadian has ever been
+ * able to buy it and no CAD figure has ever been decided. When one becomes
+ * sellable this constant has to become an axis on {@link ModuleSpec}, and the
+ * guard in stripe-catalog-currency.test.ts fails until it does.
+ */
+export const MODULE_PRICE_CURRENCY: BillingCurrency = "usd";
 
 export const MODULE_CATALOG: Record<PlanModule, ModuleSpec> = {
   regions_ca: {

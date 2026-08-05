@@ -751,42 +751,9 @@ final class CancelOneActionTests: XCTestCase {
         }
     }
 
-    private func typesAPrice(_ line: String) -> Bool {
-        let characters = Array(line)
-        var inString = false
-        var interpolation = 0
-        var index = 0
-        while index < characters.count {
-            let character = characters[index]
-            if inString, character == "\\", index + 1 < characters.count,
-               characters[index + 1] == "(" {
-                interpolation += 1
-                index += 2
-                continue
-            }
-            if inString, interpolation > 0 {
-                if character == "(" { interpolation += 1 }
-                if character == ")" { interpolation -= 1 }
-                index += 1
-                continue
-            }
-            if character == "\\" {
-                index += 2
-                continue
-            }
-            if character == "\"" {
-                inString.toggle()
-                index += 1
-                continue
-            }
-            if inString, character == "$", index + 1 < characters.count,
-               characters[index + 1].isNumber {
-                return true
-            }
-            index += 1
-        }
-        return false
-    }
+    // `typesAPrice` moved to TypedPriceScan.swift when #522 gave it a second
+    // caller (the registration card). The walk is unchanged; see that file for
+    // why it is a walk and not a pattern.
 
     // MARK: - The scan is reading something
 

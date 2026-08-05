@@ -22,7 +22,14 @@ struct RegistrationBlock: View {
         // CA without US texting has nothing to register yet — but turning it on
         // is an owner decision we can take right here, the way the web does.
         if company.country == "CA" && !company.us_texting_enabled {
-            EnableUsCard(scope: scope, onChanged: onChanged)
+            // #328: signed in, so the currency is this workspace's own —
+            // `billedIn` reads the stored column and falls back to the country
+            // only when `billing_currency` was redacted for this reader.
+            EnableUsCard(
+                scope: scope,
+                currency: company.billedIn,
+                onChanged: onChanged
+            )
         } else {
             SettingsCard(
                 title: "Texting registration",
@@ -248,16 +255,29 @@ private struct SolePropOtpRow: View {
 }
 
 
-/// A Canadian workspace turning US texting on: a one-time $29 carrier
+/// A Canadian workspace turning US texting on: a one-time carrier
 /// registration, owner only. Everyone else gets the honest read-only line.
+///
+/// THE FEE IS NOT $29 HERE. This card renders only while `country == "CA"` and
+/// US texting is off, and #328 bills every CA workspace in CAD — so all three
+/// sentences below used to quote a US price to a reader whose card is charged
+/// CA$39, on the screen that takes their consent to that exact charge. The
+/// figure now comes from the price book through the workspace's own currency,
+/// and the sentences live in `enableUsTextingCopy` so a test can read them
+/// without rendering SwiftUI.
 @MainActor
 private struct EnableUsCard: View {
     let scope: SettingsScope
+    /// What this workspace's card is charged in. No default, deliberately —
+    /// see `enableUsTextingCopy`.
+    let currency: BillingCurrency
     let onChanged: @MainActor () -> Void
 
     @State private var confirming = false
     @State private var pending = false
     @State private var error: String?
+
+    private var cardCopy: EnableUsTextingCopy { enableUsTextingCopy(currency) }
 
     var body: some View {
         SettingsCard(
@@ -266,22 +286,16 @@ private struct EnableUsCard: View {
                 + "needs a one-time carrier registration."
         ) {
             if SettingsRoleGate.canEnableUsTexting(scope.role) {
-                Button("Enable US texting: $29 one-time") { confirming = true }
+                Button(cardCopy.buttonLabel) { confirming = true }
                     .buttonStyle(.borderedProminent)
             } else {
-                ReadOnlyLine(
-                    "Ask your account owner to enable US texting; it's a one-time "
-                        + "$29 carrier registration."
-                )
+                ReadOnlyLine(cardCopy.readOnlyLine)
             }
         }
         .sheet(isPresented: $confirming) {
             ConfirmSheet(
                 title: "Enable US texting?",
-                message: "A one-time $29 registration fee is charged to your card on "
-                    + "file, and we register your business with US carriers. Approval "
-                    + "usually takes 3 to 7 business days. We handle it and email you "
-                    + "when it's live.",
+                message: cardCopy.confirmMessage,
                 confirmLabel: pending ? "Starting…" : "Enable US texting",
                 pending: pending,
                 error: error,

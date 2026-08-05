@@ -1,12 +1,17 @@
 "use client";
 
+import {
+  formatMoney,
+  PLAN_PRICE_CENTS,
+  type BillingCurrency,
+} from "@loonext/shared";
 import { Check, Copy, Users } from "lucide-react";
 import { useState } from "react";
 
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { useReferrals, type ReferralStage } from "@/lib/api/billing";
-import { PLAN_PRICING, type PlanId } from "@/lib/api/types";
+import { type PlanId } from "@/lib/api/types";
 
 /**
  * #399 — the referral link, and what it has done.
@@ -32,7 +37,14 @@ import { PLAN_PRICING, type PlanId } from "@/lib/api/types";
  *
  * Applying: Zen of Clarity (one action, one number), Chunking (four named
  * states rather than a raw table), and the local rule that no paying-customer
- * surface quotes a hand-typed price — the free month comes from PLAN_PRICING.
+ * surface quotes a hand-typed price — the free month comes from the shared
+ * price book.
+ *
+ * #522: and it comes out of that book at the workspace's own currency. The
+ * reward IS a month of this workspace's plan, so the figure naming it has to be
+ * the figure on this workspace's invoice. Quoting the US price to a Canadian
+ * owner overstated the reward by nothing they would ever receive, on a card
+ * asking them to go and vouch for us to another business.
  */
 
 const STAGE_LABEL: Record<ReferralStage, string> = {
@@ -43,7 +55,21 @@ const STAGE_LABEL: Record<ReferralStage, string> = {
   voided: "Not counted",
 };
 
-export function ReferralCard({ plan, show }: { plan: PlanId; show: boolean }) {
+export function ReferralCard({
+  plan,
+  currency,
+  show,
+}: {
+  plan: PlanId;
+  /**
+   * What this workspace is billed in, resolved by the caller — which has the
+   * company loaded and is where `billingCurrencyOf` belongs. Taking a settled
+   * `BillingCurrency` rather than the raw column keeps this card from being a
+   * second place that decides what an unrecognised value means.
+   */
+  currency: BillingCurrency;
+  show: boolean;
+}) {
   const referrals = useReferrals(show);
   const [copied, setCopied] = useState(false);
 
@@ -54,7 +80,9 @@ export function ReferralCard({ plan, show }: { plan: PlanId; show: boolean }) {
 
   const { code, link, referrals: rows, rewarded_this_year: rewarded } =
     referrals.data;
-  const monthly = PLAN_PRICING[plan].monthlyDollars;
+  // Bare "$" for their own money: `formatMoney` keeps the "US$"/"CA$" prefix
+  // for a price quoted to somebody who thinks in the other currency.
+  const monthly = formatMoney(PLAN_PRICE_CENTS[currency][plan], currency);
   const shareable = link ?? code;
 
   return (
@@ -68,7 +96,7 @@ export function ReferralCard({ plan, show }: { plan: PlanId; show: boolean }) {
         <div className="min-w-0 flex-1 space-y-4">
           <p className="text-sm text-muted-foreground">
             Send this to another business. When they sign up and send their
-            first text, you both get a month free — ${monthly} each.
+            first text, you both get a month free — {monthly} each.
           </p>
 
           <div className="flex flex-wrap items-center gap-2">

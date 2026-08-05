@@ -97,6 +97,36 @@ async function currenciesFor(
 }
 
 /**
+ * Can this price actually be charged in `wanted`?
+ *
+ * # Why this is not `checkoutCurrency(...) === wanted` (#522)
+ *
+ * Because the two questions have different right answers, and `checkoutCurrency`
+ * answers the OTHER one. Its fallback — charge USD rather than have the session
+ * refused — is correct for the subscription checkout, where the alternative is a
+ * customer who cannot pay at all and is gone.
+ *
+ * It is wrong for an OPTIONAL offer. A workspace that cannot buy a prepaid year
+ * today still has its plan, its number and its crew; nothing is lost by not
+ * offering it. What IS lost by offering it anyway is the thing #522 is about:
+ * the surface quotes a figure in the workspace's currency and Stripe collects
+ * that many US dollars. A one-time price does not refuse an unfilled currency
+ * the way a subscription price does — it silently bills its base currency — so
+ * "charge USD anyway" here is not a graceful degradation, it is the defect.
+ *
+ * False whenever the catalog cannot be READ, too. A price we could not reach is
+ * not a price we may quote in somebody's own money on a guess.
+ */
+export async function canChargeIn(
+  stripe: Stripe,
+  args: { wanted: BillingCurrency; priceId: string },
+): Promise<boolean> {
+  if (args.wanted === "usd") return true;
+  const available = await currenciesFor(stripe, args.priceId);
+  return available?.has(args.wanted) ?? false;
+}
+
+/**
  * What to pass as the session's `currency`.
  *
  * `wanted` is the workspace's own stored currency. The return is what the

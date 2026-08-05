@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  canChargeIn,
   checkoutCurrency,
   resetCheckoutCurrencyCache,
 } from "./checkout-currency";
@@ -132,5 +133,61 @@ describe("checkoutCurrency", () => {
       await checkoutCurrency(stripe, { wanted: "gbp", licensedPriceId: PRICE }),
     ).toBe("usd");
     expect(retrieve).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * #522 — the other question, whose right answer is the opposite one.
+ *
+ * `checkoutCurrency` degrades to USD because the alternative is a customer who
+ * cannot subscribe at all. An OPTIONAL one-time offer has no such alternative:
+ * the workspace keeps everything it has. And a one-time price does NOT refuse a
+ * currency it has no option for — it bills its base currency silently — so
+ * degrading there means quoting CA$390 and collecting US$390.
+ */
+describe("canChargeIn", () => {
+  beforeEach(() => {
+    resetCheckoutCurrencyCache();
+  });
+
+  it("says yes to USD without asking the catalog", async () => {
+    const { stripe, retrieve } = stripeWith({ currency: "usd" });
+
+    expect(await canChargeIn(stripe, { wanted: "usd", priceId: PRICE })).toBe(true);
+    expect(retrieve).not.toHaveBeenCalled();
+  });
+
+  it("says NO where checkoutCurrency would have said usd", async () => {
+    // The same catalog state, the same price, the opposite answer. This pair is
+    // the whole reason the second function exists — asserting only the "no"
+    // would leave a reader thinking `checkoutCurrency(...) === wanted` would do.
+    const { stripe } = stripeWith({ currency: "usd", currency_options: {} });
+
+    expect(
+      await checkoutCurrency(stripe, { wanted: "cad", licensedPriceId: PRICE }),
+    ).toBe("usd");
+    expect(await canChargeIn(stripe, { wanted: "cad", priceId: PRICE })).toBe(false);
+  });
+
+  it("says yes the moment the catalog carries the currency", async () => {
+    const { stripe } = stripeWith({
+      currency: "usd",
+      currency_options: {
+        cad: { unit_amount: 39_000 },
+      } as unknown as Stripe.Price["currency_options"],
+    });
+
+    expect(await canChargeIn(stripe, { wanted: "cad", priceId: PRICE })).toBe(true);
+  });
+
+  it("says no when the catalog cannot be read at all", async () => {
+    // A price we could not reach is not a price we may quote in somebody's own
+    // money on a guess. The offer simply does not appear.
+    const retrieve = vi.fn(async () => {
+      throw new Error("stripe unreachable");
+    });
+    const stripe = { prices: { retrieve } } as unknown as Stripe;
+
+    expect(await canChargeIn(stripe, { wanted: "cad", priceId: PRICE })).toBe(false);
   });
 });

@@ -308,16 +308,34 @@ try {
   // #400/D107: the prepaid year. ONE-TIME prices (no `recurring`), exactly like
   // the US registration fee above — a year is a discount on the licensed line,
   // not a billing interval. Ten months' money for twelve.
+  //
+  // #522: the CAD options were missing here while the monthly plans, the
+  // overage meters and the registration fee all had them, so a Canadian
+  // workspace was quoted "$290" and charged US$290 — the offer's own price was
+  // in a currency nothing else on its bill was in. Ten times the CAD monthly
+  // figure, exactly as the USD side is ten times the USD monthly figure.
   const starterYear = await ensurePrice("loonext_starter_year", {
     product: starterProduct.id,
     currency: "usd",
     unit_amount: 29000,
+    currency_options: {
+      cad: {
+        unit_amount: 39000,
+        tax_behavior: "exclusive",
+      },
+    },
     tax_behavior: "exclusive",
   });
   const proYear = await ensurePrice("loonext_pro_year", {
     product: proProduct.id,
     currency: "usd",
     unit_amount: 79000,
+    currency_options: {
+      cad: {
+        unit_amount: 109000,
+        tax_behavior: "exclusive",
+      },
+    },
     tax_behavior: "exclusive",
   });
 
@@ -401,6 +419,16 @@ try {
       `Loonext — ${mod.label}`,
     );
     if (mod.id === "voice") voiceProductId = product.id;
+    // #522: NO `currency_options`, and that is the honest state rather than an
+    // oversight. `regions_ca` is the only module left and it is not sellable
+    // (SELLABLE_MODULES in src/billing/company-modules.ts excludes it — it
+    // gates nothing until multi-region provisioning ships), so no CAD figure
+    // has ever been decided for it and inventing one here would file a price
+    // nobody chose. The day it becomes sellable it needs one: Stripe refuses a
+    // subscription item whose price carries no option in the subscription's
+    // currency, so a CAD workspace could not add it at all. That day is caught
+    // by the "a sellable module must be chargeable in every currency" guard in
+    // src/billing/stripe-catalog-currency.test.ts.
     const price = await ensurePrice(`loonext_module_${mod.id}_licensed`, {
       product: product.id,
       currency: "usd",

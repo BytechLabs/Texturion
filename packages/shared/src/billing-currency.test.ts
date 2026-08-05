@@ -12,6 +12,7 @@ import {
   PLAN_PRICE_CENTS,
   planRevenueUsdCents,
   US_REGISTRATION_FEE_CENTS,
+  usdCentsOf,
   VOICE_OVERAGE_CENTS_PER_MINUTE,
 } from "./billing-currency";
 import { PLAN_SEATS } from "./seats";
@@ -138,6 +139,23 @@ describe("planRevenueUsdCents", () => {
     // fewer US cents, so #255's margin question is answered conservatively.
     expect(ASSUMED_USD_PER_CAD).toBeGreaterThan(0);
     expect(ASSUMED_USD_PER_CAD).toBeLessThan(1);
+  });
+});
+
+describe("usdCentsOf (#522)", () => {
+  it("converts an amount that is not a plan price", () => {
+    // A prepaid year is the amount that forced this out of planRevenueUsdCents:
+    // what we COLLECTED, in the currency we collected it. 39_000 is a figure no
+    // plan price and no registration fee produces, so a helper that quietly
+    // ignored its currency argument could not reproduce the expectation.
+    expect(usdCentsOf(39_000, "cad")).toBe(Math.round(39_000 * ASSUMED_USD_PER_CAD));
+    expect(usdCentsOf(39_000, "cad")).toBeLessThan(39_000);
+  });
+
+  it("leaves a USD amount exactly alone", () => {
+    // Not "close to" — the cost model's own figures pass through this, and a
+    // rounding step applied to them would move margin for every US tenant.
+    expect(usdCentsOf(29_000, "usd")).toBe(29_000);
   });
 });
 

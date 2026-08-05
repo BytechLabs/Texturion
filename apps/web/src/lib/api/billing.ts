@@ -1,3 +1,4 @@
+import type { BillingCurrency } from "@loonext/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useCompanyId } from "@/lib/company/provider";
@@ -44,9 +45,39 @@ export interface PrepayOffer {
   /** Why not, when not. The card never shows this; the copy is server-side. */
   reason: string | null;
   price_cents: number | null;
+  /**
+   * #522 — the currency `price_cents` AND `monthly_cents` are in.
+   *
+   * Always present, including on a refusal. Formatting `price_cents` without it
+   * printed a CAD year as "$290" and then collected US$290: a one-time Stripe
+   * price does not refuse a session in a currency it does not carry, it just
+   * bills the base one, so nothing failed loudly on the one screen whose whole
+   * purpose is a large up-front payment.
+   */
+  currency: BillingCurrency;
+  /**
+   * The plan's list price, for the "instead of twelve months" comparison.
+   *
+   * Sent by the server in the SAME currency as `price_cents` rather than looked
+   * up here, so the two halves of the comparison cannot land in different
+   * money. Null only when there is no plan to compare against — which is also a
+   * shape that can never be `eligible`.
+   */
+  monthly_cents: number | null;
   months: number;
   /** The year already running, when there is one. */
-  open: { plan: PlanId; amount_cents: number; granted_through: string } | null;
+  open: {
+    plan: PlanId;
+    amount_cents: number;
+    /**
+     * What was actually COLLECTED, which is not necessarily what this workspace
+     * is charged in today: a year bought before the CAD option was filed is
+     * genuinely USD. Anything printing `amount_cents` must use this and not the
+     * offer's `currency`, or it relabels somebody's past payment.
+     */
+    currency: BillingCurrency;
+    granted_through: string;
+  } | null;
 }
 
 /**

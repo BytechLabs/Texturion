@@ -232,6 +232,66 @@ describe("POST /v1/billing/checkout — roles and body", () => {
     expect(response.status).toBe(200);
   });
 
+  it("#522: records the currency the customer was ACTUALLY charged in", async () => {
+    // `api_create_company` guesses the currency from the country, so a Canadian
+    // workspace is born saying `cad`. The Stripe catalog is USD-only until an
+    // operator files the CAD amounts, so `checkoutCurrency` degrades the session
+    // to USD and the customer pays in USD — while the row went on saying `cad`,
+    // and every screen that quotes a price reads the row.
+    //
+    // That is how a card came to promise CA$39 for a fee invoiced at US$29. The
+    // figure was denominated in a currency nobody was ever charged.
+    const harness = makeHarness([
+      companyEndpoint(
+        companyRow({ country: "CA", billing_currency: "cad", us_texting_enabled: false }),
+      ),
+      // The catalog answers with a USD-only price, which is what live Stripe
+      // holds today: all thirteen active prices carry `currency_options: [usd]`.
+      endpoint("GET", /api\.stripe\.com\/v1\/prices\//, () => ({
+        id: "price_starter",
+        currency: "usd",
+        currency_options: { usd: { unit_amount: 2900 } },
+      })),
+      checkoutSessionEndpoint(),
+      endpoint("PATCH", /rest\/v1\/companies/, () => []),
+    ]);
+
+    const response = await post("/v1/billing/checkout", { plan: "starter" }, harness);
+    expect(response.status).toBe(200);
+
+    // The session charges USD, because that is all the catalog can do...
+    expect(harness.callsTo("POST", /checkout\/sessions/)[0].form().get("currency")).toBe(
+      "usd",
+    );
+    // ...and the row now says so too, which is the half that was missing.
+    const patches = harness.callsTo("PATCH", /rest\/v1\/companies/);
+    expect(patches).toHaveLength(1);
+    expect(patches[0].json()).toMatchObject({ billing_currency: "usd" });
+  });
+
+  it("#522: leaves the row alone when it already matches", async () => {
+    // A PATCH per checkout for a workspace that was never wrong is a write
+    // nobody asked for, and it would make the audit trail read as though the
+    // currency had changed.
+    const harness = makeHarness([
+      // A Canadian workspace already recorded as usd: the healed state, and the
+      // one this must not churn a write on.
+      companyEndpoint(companyRow({ country: "CA", billing_currency: "usd", us_texting_enabled: false })),
+      endpoint("GET", /api\.stripe\.com\/v1\/prices\//, () => ({
+        id: "price_starter",
+        currency: "usd",
+        currency_options: { usd: { unit_amount: 2900 } },
+      })),
+      checkoutSessionEndpoint(),
+      // Stubbed so a stray PATCH would be COUNTED rather than hanging: an
+      // unstubbed call cannot be told apart from one that never happened.
+      endpoint("PATCH", /rest\/v1\/companies/, () => []),
+    ]);
+    const response = await post("/v1/billing/checkout", { plan: "starter" }, harness);
+    expect(response.status).toBe(200);
+    expect(harness.callsTo("PATCH", /rest\/v1\/companies/)).toHaveLength(0);
+  });
+
   it("rejects a bad plan with 422", async () => {
     const harness = makeHarness([]);
     const response = await post(
@@ -1181,10 +1241,22 @@ describe("plan-builder modules (#12)", () => {
     const response = await get("/v1/billing/modules", harness);
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
-      modules: { id: string; enabled: boolean }[];
+      modules: {
+        id: string;
+        enabled: boolean;
+        monthly_cents: number;
+        currency: string;
+      }[];
     };
     const regions = body.modules.find((m) => m.id === "regions_ca");
     expect(regions?.enabled).toBe(true);
+    // #522: the module price says which money it is in. It is genuinely USD —
+    // `stripe-setup.ts` files no CAD option on module prices, and regions_ca is
+    // not sellable, so no CAD figure has ever been decided. Stating it lets a
+    // Canadian client render "US$5/mo" instead of a bare "$5", which to that
+    // reader means CAD.
+    expect(regions?.monthly_cents).toBe(500);
+    expect(regions?.currency).toBe("usd");
     // #103/#121/#134: the catalog is exactly regions_ca — the retired mms,
     // extra_storage, and voice modules are gone entirely (not even as
     // disabled): calling is included on every plan now.

@@ -203,12 +203,25 @@ export const ASSUMED_USD_PER_CAD = 0.72;
  */
 export const MAX_FX_ABSORPTION = 0.05;
 
+/**
+ * Any charged amount, expressed in US cents.
+ *
+ * The general form of {@link planRevenueUsdCents}, for the amounts that are not
+ * a monthly plan price — a prepaid year is the one that forced it out: what we
+ * COLLECTED is stored in the currency it was collected in, and the cost model
+ * divides it across twelve months and compares it against Telnyx and Cloudflare
+ * invoices denominated in US dollars. Handing that comparison a CAD figure
+ * unconverted overstates the revenue side by the whole exchange rate, which is
+ * larger than the margin being measured, and it flatters exactly the cohort
+ * whose licensed line is invoicing at $0.
+ */
+export function usdCentsOf(cents: number, currency: BillingCurrency): number {
+  return currency === "usd" ? cents : Math.round(cents * ASSUMED_USD_PER_CAD);
+}
+
 export function planRevenueUsdCents(
   plan: SeatPlan,
   currency: BillingCurrency,
 ): number {
-  const charged = PLAN_PRICE_CENTS[currency][plan];
-  return currency === "usd"
-    ? charged
-    : Math.round(charged * ASSUMED_USD_PER_CAD);
+  return usdCentsOf(PLAN_PRICE_CENTS[currency][plan], currency);
 }

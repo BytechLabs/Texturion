@@ -10,14 +10,20 @@
  *  2. A claim that commits without its response being seen is the case that
  *     silently ate a payment in the first attempt at this feature.
  */
-import { describe, expect, it, vi } from "vitest";
+import { BILLING_CURRENCIES, PLAN_PRICE_CENTS } from "@loonext/shared";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { completeEnv } from "../test/support";
+import {
+  PLAN_PREPAY_YEAR_CENTS,
+  PREPAY_MONTHS,
+  PREPAY_MONTHS_CHARGED,
+} from "./plans";
 import {
   PREPAY_METADATA_FIELD,
   PREPAY_METADATA_KIND,
   PREPAY_PLAN_FIELD,
-  amortisedMonthlyCents,
+  amortisedMonthlyUsdCents,
   grantPrepaidYear,
   isPrepayCheckout,
   itemHasDiscount,
@@ -111,11 +117,19 @@ function subscriptionWith(discounts: unknown[] = []) {
   };
 }
 
-function stripeStub(subscription: unknown = subscriptionWith()) {
+function stripeStub(
+  subscription: unknown = subscriptionWith(),
+  /**
+   * #522 — what the year price can be charged in. `undefined` means the CAD
+   * option has not been filed, which is the live state before an operator runs
+   * `stripe:setup`.
+   */
+  priceCurrencyOptions?: Record<string, unknown>,
+) {
   const updates: { id: string; params: Record<string, unknown> }[] = [];
   return {
     updates,
-     
+
     api: {
       subscriptions: {
         retrieve: vi.fn(async () => subscription),
@@ -123,6 +137,12 @@ function stripeStub(subscription: unknown = subscriptionWith()) {
           updates.push({ id, params });
           return subscription;
         }),
+      },
+      prices: {
+        retrieve: vi.fn(async () => ({
+          currency: "usd",
+          currency_options: priceCurrencyOptions ?? {},
+        })),
       },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any,
@@ -247,6 +267,102 @@ describe("#400 eligibility", () => {
   });
 });
 
+/**
+ * #522 — the year is priced in the money the workspace is billed in.
+ *
+ * The defect: a Canadian workspace saw "$290" on a card whose entire job is to
+ * take a large payment up front, and was charged US$290. Every other figure on
+ * that screen was already CAD — the plan price, the cancellation answer — so
+ * the one number the customer was agreeing to was the one in a foreign
+ * currency, and nothing on the page said so.
+ */
+describe("#522 the prepaid year speaks the workspace's currency", () => {
+  const canadian = {
+    id: COMPANY_ID,
+    plan: "starter" as const,
+    subscription_status: "active",
+    stripe_customer_id: "cus_1",
+    stripe_subscription_id: "sub_1",
+    billing_currency: "cad",
+  };
+
+  beforeEach(async () => {
+    // The probe memoises per price id for the isolate's lifetime, so one test's
+    // catalog would otherwise answer the next test's question.
+    const { resetCheckoutCurrencyCache } = await import("./checkout-currency");
+    resetCheckoutCurrencyCache();
+  });
+
+  it("quotes CAD once the catalog carries it", async () => {
+    const stub = stripeStub(subscriptionWith(), { cad: { unit_amount: 39_000 } });
+    const r = await withStripe(stub, () =>
+      prepayEligibility(env, fakeDb(), canadian, subscriptionWith() as never),
+    );
+
+    expect(r.eligible).toBe(true);
+    expect(r.currency).toBe("cad");
+    // Ten times the DECIDED CAD monthly price ($39), not a conversion of $290
+    // and not the USD figure relabelled. Deliberately unequal to both the USD
+    // year (29_000) and any rounding of it, so a constant that ignored the
+    // currency could not satisfy this.
+    expect(r.priceCents).toBe(39_000);
+  });
+
+  /**
+   * THE ONE THAT MATTERS. The live state on the day #522 was filed: the
+   * workspace is CAD, the year price is USD-only, and the old code answered
+   * "eligible, $290" — a figure a Canadian reads as CAD, against a charge in
+   * US dollars.
+   */
+  it("offers NOTHING rather than a US figure the catalog cannot leave", async () => {
+    const stub = stripeStub(subscriptionWith());
+    const r = await withStripe(stub, () =>
+      prepayEligibility(env, fakeDb(), canadian, subscriptionWith() as never),
+    );
+
+    expect(r).toMatchObject({ eligible: false, reason: "currency_unavailable" });
+    // No price at all, in either currency. A refusal that still carried
+    // `priceCents: 29000` would let a surface render the offer greyed out with
+    // the wrong money on it.
+    expect(r.priceCents).toBeUndefined();
+    expect(r.currency).toBe("cad");
+  });
+
+  it("never spends a Stripe read on a USD workspace", async () => {
+    const stub = stripeStub(subscriptionWith());
+    const r = await withStripe(stub, () =>
+      prepayEligibility(
+        env,
+        fakeDb(),
+        { ...canadian, billing_currency: "usd" },
+        subscriptionWith() as never,
+      ),
+    );
+
+    expect(r).toMatchObject({ eligible: true, currency: "usd", priceCents: 29_000 });
+    expect(stub.api.prices.retrieve).not.toHaveBeenCalled();
+  });
+
+  it("prices the Canadian year off the Canadian monthly price, not a conversion", () => {
+    // The CAD year is not a pricing decision of its own — it is the same plan
+    // bought ten months at a time, so it can never drift from the monthly
+    // figure it discounts. A straight FX conversion of the USD year would be
+    // ~$403 and ~$1,097, which is what "converted, not decided" looks like.
+    for (const currency of BILLING_CURRENCIES) {
+      for (const plan of ["starter", "pro"] as const) {
+        expect(PLAN_PREPAY_YEAR_CENTS[currency][plan]).toBe(
+          PLAN_PRICE_CENTS[currency][plan] * PREPAY_MONTHS_CHARGED,
+        );
+        // And it is still a discount in its own currency, which is the property
+        // the customer-balance-credit design failed.
+        expect(PLAN_PREPAY_YEAR_CENTS[currency][plan]).toBeLessThan(
+          PLAN_PRICE_CENTS[currency][plan] * PREPAY_MONTHS,
+        );
+      }
+    }
+  });
+});
+
 describe("#400 grantPrepaidYear", () => {
   it("applies the coupon to the LICENSED item only", async () => {
     const stub = stripeStub();
@@ -359,7 +475,7 @@ describe("#400 itemHasDiscount", () => {
   });
 });
 
-describe("#400 amortisedMonthlyCents", () => {
+describe("#400 amortisedMonthlyUsdCents", () => {
   it("values a prepaid tenant at what it actually pays", () => {
     // The underwater alert reads the plan LIST price, so a prepaid workspace
     // looks like it is paying $29 a month it is not paying — muting the one
@@ -369,16 +485,47 @@ describe("#400 amortisedMonthlyCents", () => {
       session_id: "cs_1",
       plan: "starter" as const,
       amount_cents: 29_000,
+      currency: "usd",
       months_granted: 12,
       granted_at: "2026-01-01T00:00:00Z",
       granted_through: "2027-01-01T00:00:00Z",
       discount_id: COUPON,
     };
-    expect(amortisedMonthlyCents(open, 2_900)).toBe(2_417);
-    expect(amortisedMonthlyCents(open, 2_900)).toBeLessThan(2_900);
+    expect(amortisedMonthlyUsdCents(open, 2_900)).toBe(2_417);
+    expect(amortisedMonthlyUsdCents(open, 2_900)).toBeLessThan(2_900);
   });
 
   it("falls back to the list price with no open window", () => {
-    expect(amortisedMonthlyCents(null, 2_900)).toBe(2_900);
+    expect(amortisedMonthlyUsdCents(null, 2_900)).toBe(2_900);
+  });
+
+  /**
+   * #522 — a CAD year must not reach the USD cost model at face value.
+   *
+   * The projection divides this across the months it bought and compares the
+   * result against Telnyx and Cloudflare invoices in US dollars. Read as US
+   * cents, CA$390 a year would report a tenant paying MORE per month than the
+   * US$290 tenant on the identical plan — flattering margin on the one cohort
+   * whose licensed line is invoicing at $0, which is the cohort this figure
+   * exists to keep an eye on.
+   */
+  it("converts a Canadian year into US cents before the cost model sees it", () => {
+    const cad = {
+      session_id: "cs_cad",
+      plan: "starter" as const,
+      amount_cents: 39_000,
+      currency: "cad",
+      months_granted: 12,
+      granted_at: "2026-01-01T00:00:00Z",
+      granted_through: "2027-01-01T00:00:00Z",
+      discount_id: COUPON,
+    };
+    // 39_000 x 0.72 / 12 = 2_340. A function that ignored `currency` returns
+    // 3_250 — a figure larger than the plan's own USD list price, which is the
+    // tell that a foreign number got in.
+    expect(amortisedMonthlyUsdCents(cad, 2_900)).toBe(2_340);
+    expect(amortisedMonthlyUsdCents(cad, 2_900)).toBeLessThan(
+      Math.round(cad.amount_cents / cad.months_granted),
+    );
   });
 });

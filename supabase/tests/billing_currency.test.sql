@@ -144,4 +144,56 @@ begin
   raise notice 'BC-5 PASSED: a pre-checkout workspace can change currency';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- BC-6 (#522). `open_prepayment` publishes what the money WAS.
+--
+-- The prepaid year could only ever be collected in USD, so the currency column
+-- on `prepayments` never varied and the reader function never published it.
+-- With the CAD option filed on the year prices it varies, and the ONE consumer
+-- of `amount_cents` is the cost-vs-revenue projection: it divides the amount
+-- across the months it bought and compares the result against Telnyx,
+-- Cloudflare and Supabase invoices, every one of them in US dollars.
+--
+-- A CAD amount read as US cents makes a Canadian prepaid tenant look like it
+-- pays MORE per month than the US tenant on the identical plan — flattering
+-- margin for the one cohort whose licensed line is invoicing at $0, which is
+-- precisely the cohort the underwater alert exists to keep watching. The
+-- application can only convert what it is told.
+--
+-- The fixture is CA$390 for a year, which is the real figure (ten times the
+-- decided CA$39 monthly) and is not a number the USD side produces.
+do $$
+declare
+  v_open jsonb;
+begin
+  insert into public.prepayments
+    (company_id, stripe_session_id, plan, amount_cents, currency,
+     months_granted, stripe_discount_id, granted_at, granted_through)
+  values
+    ('7c000000-0000-4000-8000-0000000000c1'::uuid, 'cs_522_cad', 'starter',
+     39000, 'cad', 12, 'loonext_prepaid_year', now(), now() + interval '1 year');
+
+  select public.open_prepayment('7c000000-0000-4000-8000-0000000000c1'::uuid)
+    into v_open;
+
+  if v_open is null then
+    raise exception 'BC-6 FAILED: no open prepayment was found at all.';
+  end if;
+  if v_open ? 'currency' is false then
+    raise exception 'BC-6 FAILED: open_prepayment returns an amount with no '
+      'currency beside it, so every reader has to assume one. The cost model '
+      'assumes US cents, and a CAD year read that way overstates that '
+      'tenant''s revenue by the whole exchange rate.';
+  end if;
+  if v_open ->> 'currency' <> 'cad' then
+    raise exception 'BC-6 FAILED: a year collected in cad is reported as %.',
+      v_open ->> 'currency';
+  end if;
+  if (v_open ->> 'amount_cents')::int <> 39000 then
+    raise exception 'BC-6 FAILED: the amount changed on the way out (%).',
+      v_open ->> 'amount_cents';
+  end if;
+  raise notice 'BC-6 PASSED: a prepaid year carries its own currency out';
+end $$;
+
 rollback;

@@ -1,7 +1,9 @@
+import { billingCurrencyOf, usdCentsOf, type BillingCurrency } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 
 import type { Env } from "../env";
+import { canChargeIn } from "./checkout-currency";
 import {
   PLAN_PREPAY_YEAR_CENTS,
   PREPAY_MONTHS,
@@ -66,12 +68,16 @@ export type PrepayIneligibleReason =
   | "already_prepaid"
   | "plan_change_pending"
   // #277: the workspace's plan is paused. See the gate in prepayEligibility.
-  | "workspace_paused";
+  | "workspace_paused"
+  // #522: the catalog cannot charge a year in this workspace's currency.
+  | "currency_unavailable";
 
 export interface OpenPrepayment {
   session_id: string;
   plan: PlanId;
   amount_cents: number;
+  /** #522: what `amount_cents` is IN. Never assume it is the cost model's USD. */
+  currency: string;
   months_granted: number;
   granted_at: string;
   granted_through: string;
@@ -82,6 +88,16 @@ export interface PrepayEligibility {
   eligible: boolean;
   reason?: PrepayIneligibleReason;
   priceCents?: number;
+  /**
+   * #522 — the currency `priceCents` is in, and the one a session would charge.
+   *
+   * Always present, including on refusals, because a surface that shows the
+   * price beside a "not right now" sentence still has to name the money. It is
+   * the workspace's own currency whenever the catalog can honour it; when it
+   * cannot, the answer is `currency_unavailable` rather than a USD figure
+   * dressed as the workspace's own.
+   */
+  currency: BillingCurrency;
   /** The window already running, when there is one. */
   open?: OpenPrepayment | null;
 }
@@ -94,6 +110,8 @@ interface CompanyForPrepay {
   stripe_subscription_id: string | null;
   /** #277: the seasonal pause. Optional — rows read before the column shipped. */
   paused_at?: string | null;
+  /** #522: what this workspace is billed in. Absent reads as the USD default. */
+  billing_currency?: string | null;
 }
 
 /** The prepaid year currently running for this company, or null. */
@@ -166,6 +184,20 @@ export async function hasSentOutbound(
  * and every check in this file has already passed. The refusal that has to hold
  * in that case is not a refusal at all: the money is ours, so the grant path
  * delivers what it bought. See grantPrepaidYear.
+ *
+ * #522 — AND THE CATALOG HAS TO BE ABLE TO CHARGE THE WORKSPACE'S OWN CURRENCY.
+ *
+ * The year is a ONE-TIME price, and a one-time price with no option for the
+ * session's currency does not fail: Stripe bills its base currency. So a
+ * Canadian workspace read "$290" — in a product that prints CAD as the bare "$"
+ * for exactly this reader — and was charged US$290, on the one screen whose
+ * whole job is to take a large payment up front. Every other figure on that
+ * screen was already CAD.
+ *
+ * Probed rather than assumed, for the reason checkout-currency.ts gives at
+ * length: filing a currency against a live price is an operator action, and code
+ * that assumes somebody has run something breaks in the window before they do.
+ * Cached per price per isolate, so the polling surface pays for it once.
  */
 export async function prepayEligibility(
   env: Env,
@@ -173,38 +205,79 @@ export async function prepayEligibility(
   company: CompanyForPrepay,
   subscription?: Stripe.Subscription | null,
 ): Promise<PrepayEligibility> {
+  const wanted = billingCurrencyOf(company.billing_currency);
   if (company.plan === null || !company.stripe_subscription_id) {
-    return { eligible: false, reason: "no_subscription" };
+    return { eligible: false, reason: "no_subscription", currency: wanted };
   }
   const price = prepayYearPrice(env, company.plan);
   if (!price || !env.STRIPE_PREPAID_YEAR_COUPON_ID) {
-    return { eligible: false, reason: "not_provisioned" };
+    return { eligible: false, reason: "not_provisioned", currency: wanted };
   }
-  const priceCents = PLAN_PREPAY_YEAR_CENTS[company.plan];
+
+  // Before any figure is put in the answer, because the figure is meaningless
+  // until it is known which money it is in.
+  if (!(await canChargeIn(getStripe(env), { wanted, priceId: price }))) {
+    // Loud: this is a real gap between what a workspace was promised and what
+    // the catalog can take, and closing it is one `stripe:setup` run.
+    console.error(
+      `prepaid year unavailable in ${wanted}: ${price} carries no such ` +
+        `currency — run stripe:setup. Offering nothing rather than a US figure.`,
+    );
+    return { eligible: false, reason: "currency_unavailable", currency: wanted };
+  }
+  const priceCents = PLAN_PREPAY_YEAR_CENTS[wanted][company.plan];
 
   // Only a genuinely healthy subscription. Selling a year beside the past-due
   // notice is both tasteless and the least likely money in the product to clear.
   if (company.subscription_status !== "active") {
-    return { eligible: false, reason: "subscription_unhealthy", priceCents };
+    return {
+      eligible: false,
+      reason: "subscription_unhealthy",
+      priceCents,
+      currency: wanted,
+    };
   }
 
   // #277: before the claim and before Stripe — see the note above. Also simply
   // the honest answer: a workspace that has stopped for the winter is not the
   // one to ask for twelve months up front.
   if ((company.paused_at ?? null) !== null) {
-    return { eligible: false, reason: "workspace_paused", priceCents };
+    return {
+      eligible: false,
+      reason: "workspace_paused",
+      priceCents,
+      currency: wanted,
+    };
   }
 
   const open = await openPrepayment(db, company.id);
-  if (open) return { eligible: false, reason: "already_prepaid", priceCents, open };
+  if (open) {
+    return {
+      eligible: false,
+      reason: "already_prepaid",
+      priceCents,
+      currency: wanted,
+      open,
+    };
+  }
 
   if (subscription?.schedule) {
-    return { eligible: false, reason: "plan_change_pending", priceCents };
+    return {
+      eligible: false,
+      reason: "plan_change_pending",
+      priceCents,
+      currency: wanted,
+    };
   }
   if (!(await hasSentOutbound(db, company.id))) {
-    return { eligible: false, reason: "not_activated", priceCents };
+    return {
+      eligible: false,
+      reason: "not_activated",
+      priceCents,
+      currency: wanted,
+    };
   }
-  return { eligible: true, priceCents, open: null };
+  return { eligible: true, priceCents, currency: wanted, open: null };
 }
 
 /** The licensed item on a subscription, which is the one the discount rides. */
@@ -484,7 +557,7 @@ export async function revokePrepaidYear(
 }
 
 /**
- * What a prepaid tenant actually pays us per month, in cents.
+ * What a prepaid tenant actually pays us per month, in US cents.
  *
  * The cost-vs-revenue projection reads the plan's LIST price, so a prepaid
  * workspace looks like it is paying $29 a month it is not paying — muting the
@@ -495,10 +568,30 @@ export async function revokePrepaidYear(
  * The codebase has fixed this same class of defect twice (grandfathered
  * modules, phantom extra-number revenue), which is why it is a function rather
  * than an inline division somebody forgets.
+ *
+ * # USD IN THE NAME, because #522 made the unit ambiguous
+ *
+ * `amount_cents` is what we COLLECTED, in whatever currency we collected it —
+ * and since #522 a Canadian workspace can buy its year in CAD. Every cost this
+ * figure is compared against (Telnyx, Cloudflare, Supabase) is US-denominated,
+ * so handing the comparison CA$39,000/12 as though it were US cents would
+ * overstate that tenant's revenue by the whole exchange rate. That is the
+ * flattering direction, on the one cohort whose licensed line invoices at $0 —
+ * it would mute the alert this figure exists to keep working.
+ *
+ * `listCents` is already USD (PLAN_MONTHLY_REVENUE_CENTS), so the fallback
+ * needs no conversion.
  */
-export function amortisedMonthlyCents(open: OpenPrepayment | null, listCents: number): number {
+export function amortisedMonthlyUsdCents(
+  open: OpenPrepayment | null,
+  listCents: number,
+): number {
   if (!open || open.months_granted <= 0) return listCents;
-  return Math.round(open.amount_cents / open.months_granted);
+  const collected = usdCentsOf(
+    open.amount_cents,
+    billingCurrencyOf(open.currency),
+  );
+  return Math.round(collected / open.months_granted);
 }
 
 /**

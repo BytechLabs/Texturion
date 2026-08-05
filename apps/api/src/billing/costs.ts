@@ -18,7 +18,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { amortisedMonthlyCents, openPrepayment } from "./prepay";
+import { amortisedMonthlyUsdCents, openPrepayment } from "./prepay";
 
 import { enabledModules } from "./company-modules";
 import { MODULE_CATALOG, type PlanModule } from "./modules";
@@ -327,6 +327,6 @@ export async function companyMonthlyRevenueCents(
   return companyRevenueCents(
     plan,
     modules,
-    open ? amortisedMonthlyCents(open, PLAN_MONTHLY_REVENUE_CENTS[plan]) : undefined,
+    open ? amortisedMonthlyUsdCents(open, PLAN_MONTHLY_REVENUE_CENTS[plan]) : undefined,
   );
 }

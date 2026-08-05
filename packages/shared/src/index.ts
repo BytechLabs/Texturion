@@ -640,6 +640,7 @@ export {
   PLAN_PRICE_CENTS,
   planRevenueUsdCents,
   US_REGISTRATION_FEE_CENTS,
+  usdCentsOf,
   VOICE_OVERAGE_CENTS_PER_MINUTE,
   type BillingCurrency,
 } from "./billing-currency";

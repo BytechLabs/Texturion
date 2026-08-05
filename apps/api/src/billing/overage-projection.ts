@@ -72,7 +72,7 @@ import {
 import { enabledModuleFlags } from "./company-modules";
 import { periodProviderCostCents } from "./provider-costs";
 import { EXTRA_NUMBER_MONTHLY_CENTS } from "./extra-numbers";
-import { amortisedMonthlyCents, openPrepayment } from "./prepay";
+import { amortisedMonthlyUsdCents, openPrepayment } from "./prepay";
 import {
   dialCeilings,
   PLAN_INCLUDED_SEGMENTS,
@@ -566,7 +566,7 @@ export async function decideOverage(
     (company.paused_at ?? null) !== null
       ? (company.paused_price_cents ?? 0)
       : openPrepaid
-        ? amortisedMonthlyCents(openPrepaid, PLAN_MONTHLY_REVENUE_CENTS[company.plan])
+        ? amortisedMonthlyUsdCents(openPrepaid, PLAN_MONTHLY_REVENUE_CENTS[company.plan])
         : undefined;
   const baseRevenueGrossCents =
     companyRevenueCents(company.plan, paidModules, planCentsOverride) +

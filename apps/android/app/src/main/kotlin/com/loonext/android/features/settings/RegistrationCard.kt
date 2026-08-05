@@ -45,7 +45,7 @@ fun RegistrationBlock(
     // CA without US texting has nothing to register yet — but turning it on is
     // an owner decision we can take right here, the way the web does.
     if (company.country == "CA" && !company.us_texting_enabled) {
-        EnableUsCard(scope, onChanged)
+        EnableUsCard(scope, company, onChanged)
         return
     }
 
@@ -165,15 +165,33 @@ fun RegistrationBlock(
 }
 
 /**
- * A Canadian workspace turning US texting on: a one-time $29 carrier
- * registration, owner only. Everyone else gets the honest read-only line.
+ * A Canadian workspace turning US texting on: a one-time carrier registration,
+ * owner only. Everyone else gets the honest read-only line.
+ *
+ * #522 — THE FEE IS QUOTED IN THE MONEY THE CARD IS CHARGED. This surface used
+ * to say "$29", which is `US_REGISTRATION_FEE_CENTS.usd`, to a reader who is
+ * Canadian by construction: the card is only drawn for `country == "CA"`, and
+ * `api_create_company` sets `billing_currency` to 'cad' for a Canadian
+ * workspace against a `not null default 'usd'` column. So the button asking for
+ * consent to a charge named a figure ten dollars under the one the invoice
+ * carried, and the dialog above the confirm button repeated it.
+ *
+ * It takes the whole [CompanyView] rather than a pre-formatted string because
+ * the currency question has exactly one right answer per workspace, and
+ * [usRegistrationFee] is where it is answered — the same resolution the plan
+ * card on the next screen uses.
  */
 @Composable
-private fun EnableUsCard(scope: SettingsScope, onChanged: () -> Unit) {
+private fun EnableUsCard(
+    scope: SettingsScope,
+    company: CompanyView,
+    onChanged: () -> Unit,
+) {
     var confirming by remember { mutableStateOf(false) }
     var pending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val fee = usRegistrationFee(company.billing_currency, company.country)
 
     SettingsCard(
         title = "US texting",
@@ -182,12 +200,12 @@ private fun EnableUsCard(scope: SettingsScope, onChanged: () -> Unit) {
     ) {
         if (SettingsRoleGate.canEnableUsTexting(scope.role)) {
             Button(onClick = { confirming = true }) {
-                Text("Enable US texting: \$29 one-time")
+                Text("Enable US texting: $fee one-time")
             }
         } else {
             ReadOnlyLine(
                 "Ask your account owner to enable US texting; it's a one-time " +
-                    "\$29 carrier registration.",
+                    "$fee carrier registration.",
             )
         }
     }
@@ -195,7 +213,7 @@ private fun EnableUsCard(scope: SettingsScope, onChanged: () -> Unit) {
     if (confirming) {
         ConfirmDialog(
             title = "Enable US texting?",
-            body = "A one-time \$29 registration fee is charged to your card on file, " +
+            body = "A one-time $fee registration fee is charged to your card on file, " +
                 "and we register your business with US carriers. Approval usually " +
                 "takes 3 to 7 business days. We handle it and email you when it's live.",
             confirmLabel = if (pending) "Starting…" else "Enable US texting",

@@ -1,6 +1,10 @@
 "use client";
 
-import { CANCELLATION_GRACE_DAYS, roleHasCapability } from "@loonext/shared";
+import {
+  billingCurrencyOf,
+  CANCELLATION_GRACE_DAYS,
+  roleHasCapability,
+} from "@loonext/shared";
 import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -403,7 +407,7 @@ export default function BillingSettingsPage() {
           {canManage &&
             company.data.plan !== null &&
             company.data.subscription_status === "active" && (
-              <PrepaidYearCard plan={company.data.plan} show />
+              <PrepaidYearCard show />
             )}
 
           {/* #399: the referral link. On the billing screen because the reward
@@ -412,7 +416,14 @@ export default function BillingSettingsPage() {
           {canManage &&
             company.data.plan !== null &&
             company.data.subscription_status === "active" && (
-              <ReferralCard plan={company.data.plan} show />
+              <ReferralCard
+                plan={company.data.plan}
+                // #522: the reward is a month of THIS workspace's plan, so the
+                // figure naming it comes from the same currency the plan card
+                // above is quoted in.
+                currency={billingCurrencyOf(company.data.billing_currency)}
+                show
+              />
             )}
 
           {/* #277: only on a plan we have been TOLD is running. `POST

@@ -672,7 +672,9 @@ struct SettingsRepository: Sendable {
         try await api.put("/v1/registration", body: body, companyId: companyId)
     }
 
-    /// Owner-only: a Canadian company turning US texting on (one-time $29).
+    /// Owner-only: a Canadian company turning US texting on. The one-time fee
+    /// is `usRegistrationFeeCents` in the workspace's own currency — CA$39 for
+    /// every caller of this route that has not been grandfathered onto USD.
     func enableUsTexting(_ companyId: String) async throws -> EnableUsResult {
         try await api.post("/v1/registration/enable-us", companyId: companyId)
     }

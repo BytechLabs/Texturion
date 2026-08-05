@@ -1,5 +1,6 @@
 "use client";
 
+import { formatMoney } from "@loonext/shared";
 import { CalendarCheck } from "lucide-react";
 import { useState } from "react";
 
@@ -7,7 +8,6 @@ import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { useBuyPrepaidYear, usePrepayOffer } from "@/lib/api/billing";
 import { ApiError } from "@/lib/api/error";
-import { PLAN_PRICING, type PlanId } from "@/lib/api/types";
 
 /**
  * #400 / D107 — pay for a year up front.
@@ -27,10 +27,19 @@ import { PLAN_PRICING, type PlanId } from "@/lib/api/types";
  * approval and can be REJECTED, extracts the most at the moment the customer
  * has received the least.
  *
- * IT QUOTES NO HAND-TYPED PRICE. The figure comes from the server's
- * `price_cents`, and the comparison it is set against comes from PLAN_PRICING —
- * the same table every other price on this screen traces to. A literal here
- * would be the first hardcoded number on a paying customer's billing page.
+ * IT QUOTES NO HAND-TYPED PRICE. Every figure on this card — the year, the
+ * twelve months it is set against, the saving, the daily rate — is the server's
+ * `price_cents` and `monthly_cents`, and both arrive in the currency named by
+ * `currency`. A literal here would be the first hardcoded number on a paying
+ * customer's billing page.
+ *
+ * #522: the comparison used to come from PLAN_PRICING, which is USD-only, and
+ * that was not a stale-number risk but a live one. `price_cents` already moved
+ * with the workspace's currency, so a Canadian owner was shown a CAD year set
+ * against a US year — and because CA$390 exceeds twelve US months, the saving
+ * clamped to zero and the card argued against itself. Both halves of a
+ * comparison have to be the same money or it is not a comparison, which is why
+ * the monthly is now sent beside the price rather than looked up here.
  *
  * # Why the daily figure is there
  *
@@ -45,9 +54,16 @@ import { PLAN_PRICING, type PlanId } from "@/lib/api/types";
  * anything is lost by not buying. The reader is already a paying customer.
  */
 
-/** The saving, and the daily figure, from real numbers only. */
-export function prepaidYearFraming(priceCents: number, plan: PlanId) {
-  const monthlyCents = PLAN_PRICING[plan].monthlyDollars * 100;
+/**
+ * The saving, and the daily figure, from real numbers only.
+ *
+ * BOTH ARGUMENTS COME FROM THE SAME SERVER RESPONSE, and that is the point:
+ * they are two amounts in one currency, so nothing here needs to know which
+ * currency that is. It takes cents rather than a plan id precisely so there is
+ * no price book for it to look the monthly up in — a lookup is where the two
+ * halves drifted apart (#522).
+ */
+export function prepaidYearFraming(priceCents: number, monthlyCents: number) {
   const twelveMonths = monthlyCents * 12;
   return {
     /** What twelve monthly payments would have cost. */
@@ -59,17 +75,9 @@ export function prepaidYearFraming(priceCents: number, plan: PlanId) {
   };
 }
 
-const dollars = (cents: number) =>
-  `$${(cents / 100).toLocaleString("en-US", {
-    minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
-    maximumFractionDigits: 2,
-  })}`;
-
 export function PrepaidYearCard({
-  plan,
   show,
 }: {
-  plan: PlanId;
   /** The caller's gate: an owner or admin, on an active subscription. */
   show: boolean;
 }) {
@@ -83,10 +91,23 @@ export function PrepaidYearCard({
   // MissedWhileOff follows.
   if (!show || !offer.data) return null;
 
-  const { eligible, price_cents: priceCents, months, open } = offer.data;
+  const {
+    eligible,
+    price_cents: priceCents,
+    monthly_cents: monthlyCents,
+    currency,
+    months,
+    open,
+  } = offer.data;
 
   // A year already running is worth saying, once, without a button. The
   // customer paid; the useful fact is when it ends.
+  //
+  // NO AMOUNT IS PRINTED HERE, and anything that later wants to print one must
+  // format it with `open.currency` rather than the `currency` above: a year
+  // bought before the CAD option was filed was genuinely collected in USD, and
+  // this workspace may be CAD today. The date is the useful fact anyway — what
+  // they paid is already on the receipt Stripe sent them.
   if (open) {
     return (
       <SettingsCard title="Your year">
@@ -106,12 +127,22 @@ export function PrepaidYearCard({
     );
   }
 
-  if (!eligible || priceCents === null) return null;
+  // `monthly_cents` joins the same guard rather than getting a shorter card of
+  // its own. It is null only when there is no plan, which is a shape that can
+  // never be `eligible` — so this is a belt, not a second layout, and the belt
+  // fails towards silence: the whole persuasion here IS the comparison, and an
+  // offer to hand over a year's money with nothing to weigh it against is not
+  // one we should be making.
+  if (!eligible || priceCents === null || monthlyCents === null) return null;
 
   const { twelveMonthsCents, savingCents, perDayCents } = prepaidYearFraming(
     priceCents,
-    plan,
+    monthlyCents,
   );
+  // The workspace's own money, so bare "$" — `formatMoney` reserves the "US$"
+  // and "CA$" prefixes for a price shown to somebody who thinks in the other
+  // one. Same rule the plan card above this follows.
+  const money = (cents: number) => formatMoney(cents, currency);
 
   return (
     <SettingsCard title="Pay for a year">
@@ -124,10 +155,10 @@ export function PrepaidYearCard({
         <div className="min-w-0 flex-1 space-y-3">
           <p className="text-sm text-muted-foreground">
             <span className="font-medium text-foreground">
-              {dollars(priceCents)} for {months} months
+              {money(priceCents)} for {months} months
             </span>{" "}
-            instead of {dollars(twelveMonthsCents)} — that&apos;s{" "}
-            {dollars(savingCents)} saved, about {perDayCents}&cent; a day.
+            instead of {money(twelveMonthsCents)} — that&apos;s{" "}
+            {money(savingCents)} saved, about {perDayCents}&cent; a day.
           </p>
           <p className="text-sm text-muted-foreground">
             One charge today. Your plan fee is covered for {months} months;
@@ -151,7 +182,7 @@ export function PrepaidYearCard({
               }}
               disabled={buy.isPending}
             >
-              {buy.isPending ? "Opening checkout..." : `Pay ${dollars(priceCents)}`}
+              {buy.isPending ? "Opening checkout..." : `Pay ${money(priceCents)}`}
             </Button>
           </div>
 

@@ -68,7 +68,8 @@ enum SettingsRoleGate {
     /// Cancel a text-enablement — OWNER only.
     static func canCancelTextEnablement(_ role: String?) -> Bool { role == MemberRole.owner }
 
-    /// CA workspace turning on US texting ($29) — OWNER only.
+    /// CA workspace turning on US texting (`usRegistrationFeeCents`) — OWNER
+    /// only. Not "$29": the reader of that card is Canadian by construction.
     static func canEnableUsTexting(_ role: String?) -> Bool { role == MemberRole.owner }
 
     /// A member's role can change only between admin and member, by an
@@ -474,6 +475,73 @@ func planPriceCents(_ plan: String?, _ currency: BillingCurrency) -> Int {
     case .usd: return pro ? 7900 : 2900
     case .cad: return pro ? 10900 : 3900
     }
+}
+
+/// The one-time US texting registration fee in the minor unit —
+/// US_REGISTRATION_FEE_CENTS (#328).
+///
+/// EVERY READER OF THIS FIGURE IS CANADIAN. The only surface that quotes it is
+/// the card a workspace sees while `country == "CA"` and US texting is off, and
+/// `api_create_company` bills every CA workspace in CAD. So the flat "$29" that
+/// stood on that card was wrong for every single person who ever read it — on
+/// the one card whose entire purpose is consent to the charge. A US workspace
+/// is never offered the fee at all; it is charged with the first subscription.
+///
+/// READ RATHER THAN TYPED, and the reason is sharper here than for a plan
+/// price: the fee and the Starter plan are the same amount in both currencies
+/// today (2900/3900), so an implementation that reached for `planPriceCents`
+/// instead would render correctly until one of the two moves, and then be
+/// wrong with no test failing. They are separate figures that happen to agree.
+func usRegistrationFeeCents(_ currency: BillingCurrency) -> Int {
+    switch currency {
+    case .usd: return 2900
+    case .cad: return 3900
+    }
+}
+
+/// The three sentences the enable-US-texting card prints — all in one money.
+struct EnableUsTextingCopy: Equatable, Sendable {
+    /// The owner's button.
+    let buttonLabel: String
+    /// The confirmation sheet's body: the sentence that takes the consent.
+    let confirmMessage: String
+    /// What a reader who cannot press the button is told instead.
+    let readOnlyLine: String
+}
+
+/// The enable-US-texting card's copy, in the currency this workspace is billed
+/// in.
+///
+/// THE CURRENCY IS A PARAMETER AND HAS NO DEFAULT, for the reason `planFacts`
+/// spells out below: a defaulted one lets the next call site quietly go back to
+/// printing one workspace's money at another workspace, and nothing at the call
+/// site has to mention money for that to happen. There is no harmless default
+/// to pick here either — this card has no US readers at all, so `.usd` would be
+/// wrong for one hundred percent of them.
+///
+/// THE COPY LIVES HERE RATHER THAN IN THE VIEW so the figure can be asserted
+/// without rendering SwiftUI. That is the same move the pause copy made after a
+/// price was typed straight into a view body, and the same reason: a sentence
+/// only a screenshot can check is a sentence nothing checks.
+///
+/// Unprefixed "$": it is the reader's own money, and "CA$39" to a Canadian
+/// reads as though we expect them to be confused about it — the same call
+/// `formatMoney` makes on web, whose `audience` parameter defaults to the
+/// currency. `formatMonthlyCents` is the house money formatter and drops the
+/// cents on a whole dollar; its name says "monthly" and this fee is charged
+/// once, which is a naming debt rather than a reason for a second formatter
+/// that rounds differently.
+func enableUsTextingCopy(_ currency: BillingCurrency) -> EnableUsTextingCopy {
+    let fee = formatMonthlyCents(usRegistrationFeeCents(currency))
+    return EnableUsTextingCopy(
+        buttonLabel: "Enable US texting: \(fee) one-time",
+        confirmMessage: "A one-time \(fee) registration fee is charged to your "
+            + "card on file, and we register your business with US carriers. "
+            + "Approval usually takes 3 to 7 business days. We handle it and "
+            + "email you when it's live.",
+        readOnlyLine: "Ask your account owner to enable US texting; it's a "
+            + "one-time \(fee) carrier registration."
+    )
 }
 
 extension CompanyView {
@@ -1400,7 +1468,7 @@ private func tooExpensiveCancellationOffer(
 /// The fee sentence, only for a workspace that has actually paid it.
 ///
 /// Gated on the TIMESTAMP rather than on country, because the timestamp is the
-/// exact thing checkout tests: the $29 line is added only when
+/// exact thing checkout tests: the registration line is added only when
 /// `registration_fee_paid_at IS NULL`, and the webhook stamps it once per
 /// company ever. A workspace that has not paid it WILL be charged on return, so
 /// for them this sentence is simply absent rather than softened.

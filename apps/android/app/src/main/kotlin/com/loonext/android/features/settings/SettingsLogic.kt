@@ -71,7 +71,7 @@ object SettingsRoleGate {
     /** Cancel a text-enablement — OWNER only. */
     fun canCancelTextEnablement(role: String?): Boolean = role == MemberRole.OWNER
 
-    /** CA workspace turning on US texting ($29) — OWNER only. */
+    /** CA workspace turning on US texting ([usRegistrationFee]) — OWNER only. */
     fun canEnableUsTexting(role: String?): Boolean = role == MemberRole.OWNER
 
     /** A member's role can change only between admin and member, by an
@@ -699,6 +699,53 @@ internal val PLAN_PRICE_CENTS: Map<BillingCurrency, Map<String, Int>> = mapOf(
     BillingCurrency.CAD to mapOf("starter" to 3900, "pro" to 10900),
 )
 
+/**
+ * The one-time US texting registration fee — mirror of
+ * `US_REGISTRATION_FEE_CENTS` in packages/shared/src/billing-currency.ts.
+ *
+ * THE CAD ROW IS THE ONE THAT GETS READ, and that is why this constant had to
+ * exist here at all. The only screen on this client that quotes the fee is the
+ * enable-US card, and it is drawn for `country == "CA" && !us_texting_enabled`
+ * — so every reader of that sentence is Canadian, and `api_create_company` sets
+ * `billing_currency` to 'cad' for a Canadian workspace against a column that is
+ * `not null default 'usd'`. The card said "$29" and the invoice said CA$39, on
+ * the one button whose whole purpose is to get consent to that charge.
+ *
+ * The USD row is not dead weight: a Canadian workspace grandfathered onto USD
+ * billing, or one `checkout-currency.ts` had to fall back to USD for because
+ * the Stripe catalog could not honour CAD, is genuinely charged in US dollars
+ * and must read the US figure.
+ *
+ * `internal` for the same reason [PLAN_PRICE_CENTS] is: `RegistrationFeeTest`
+ * compares these two integers against the TypeScript. A hand-ported price with
+ * no cross-language check is one repricing away from naming a figure on the
+ * button that authorises a charge and billing a different one.
+ */
+internal val US_REGISTRATION_FEE_CENTS: Map<BillingCurrency, Int> = mapOf(
+    BillingCurrency.USD to 2900,
+    BillingCurrency.CAD to 3900,
+)
+
+/**
+ * "$39" — the one-time US registration fee, in the money that card is charged.
+ *
+ * RESOLVED AND FORMATTED IN ONE PLACE because the screen says it three times:
+ * on the button, inside the confirm dialog, and in the read-only line everybody
+ * who is not the owner reads instead. Three call sites answering "which price
+ * book" separately is three chances for two of them to agree and one not to,
+ * which is the shape of #328 itself.
+ *
+ * Resolved exactly the way [planFacts] resolves a plan price — stored currency
+ * first, country only when there is none — and deliberately the same rule
+ * rather than a second one. Both figures are read on the same Settings screen
+ * by the same person, and a screen quoting two currencies at one reader is the
+ * defect, not the fix.
+ */
+fun usRegistrationFee(billingCurrency: String?, country: String?): String {
+    val currency = resolveBillingCurrency(billingCurrency, country)
+    return formatMoney(US_REGISTRATION_FEE_CENTS.getValue(currency), currency)
+}
+
 /** `companies.billing_currency`, narrowed. Null for anything we do not bill in. */
 fun billingCurrencyOrNull(value: String?): BillingCurrency? =
     when (value?.trim()?.lowercase()) {
@@ -874,10 +921,11 @@ private fun resolveOfferPlan(plan: String?): String = if (plan == "pro") "pro" e
  * What this workspace is charged in. The stored currency wins whenever it is
  * one we bill in; the country is consulted only when there is none.
  *
- * Shared with [planFacts] rather than kept private to the offer. Two ways of
- * answering "which price book" on one screen is how the plan card and the
- * cancellation answer directly below it ended up quoting two different
- * currencies at the same reader.
+ * Shared with [planFacts] and [usRegistrationFee] rather than kept private to
+ * the offer. Two ways of answering "which price book" on one screen is how the
+ * plan card and the cancellation answer directly below it ended up quoting two
+ * different currencies at the same reader, and the registration fee was a third
+ * surface answering it with no price book at all.
  */
 private fun resolveBillingCurrency(billingCurrency: String?, country: String?): BillingCurrency =
     billingCurrencyOrNull(billingCurrency) ?: currencyForCountry(country)

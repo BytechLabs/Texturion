@@ -1,4 +1,5 @@
 import { checkoutCurrency } from "../billing/checkout-currency";
+import { billingCurrencyOf, PLAN_PRICE_CENTS } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -40,6 +41,7 @@ import {
 import {
   allVoiceOveragePrices,
   MODULE_CATALOG,
+  MODULE_PRICE_CURRENCY,
   moduleForPrice,
   modulePrice,
   PLAN_MODULES,
@@ -318,6 +320,45 @@ billingRoutes.post("/checkout", async (c) => {
     wanted: company.billing_currency,
     licensedPriceId: planPrices(env, plan).licensed,
   });
+
+  // #522: and the row is corrected to match, because until now nothing wrote
+  // this decision down.
+  //
+  // `api_create_company` guesses the currency from the country, so every
+  // Canadian workspace was born saying `cad`. The catalog is USD-only until an
+  // operator runs `stripe:setup` — verified against live Stripe: all thirteen
+  // active prices carry `currency_options: [usd]` and nothing else — so
+  // `checkoutCurrency` degrades the session to USD and the customer is charged
+  // in USD. The column went on saying `cad`, and every screen that quotes a
+  // price reads the column.
+  //
+  // That is how a card came to promise CA$39 for a fee Stripe invoices at
+  // US$29. The figure was not wrong because the client formatted it badly; it
+  // was wrong because it was denominated in a currency nobody was ever charged.
+  //
+  // Written here rather than guessed earlier because THIS is the moment the
+  // currency becomes a fact: Stripe pins it on the Customer at the first
+  // invoice and it cannot be changed afterwards. Before a checkout there is no
+  // answer to record, and after one there is only this one.
+  //
+  // It heals in the other direction too. Once the CAD prices are filed,
+  // `checkoutCurrency` stops degrading and the next new Canadian workspace
+  // records `cad` because that is what it was actually charged.
+  if (sessionCurrency !== company.billing_currency) {
+    const { error: currencyError } = await db
+      .from("companies")
+      .update({ billing_currency: sessionCurrency })
+      .eq("id", company.id);
+    // Best effort: a session we can create beats a row we could not correct,
+    // and the next checkout tries again. Quoting the wrong currency is bad;
+    // refusing to sell is worse.
+    if (currencyError) {
+      console.error(
+        `[billing] could not record the checkout currency for ${company.id}: ` +
+          currencyError.message,
+      );
+    }
+  }
 
   const session = await getStripe(env).checkout.sessions.create(
     {
@@ -949,11 +990,29 @@ billingRoutes.get("/prepay", async (c) => {
     eligible: eligibility.eligible,
     reason: eligibility.reason ?? null,
     price_cents: eligibility.priceCents ?? null,
+    // #522: the currency EVERY figure in this response is in — the offer price,
+    // the monthly it is compared against, and the amount of any open window. A
+    // client that formats `price_cents` without it prints CAD as "$290" and the
+    // card is charged US$290, which is the defect this closes.
+    currency: eligibility.currency,
+    // The figure the offer is sold against ("instead of $348 a year"), in the
+    // same currency, from the same price book. Sent rather than left to the
+    // client to look up, so the comparison cannot end up in a different money
+    // from the price it is comparing.
+    monthly_cents:
+      company.plan === null
+        ? null
+        : PLAN_PRICE_CENTS[eligibility.currency][company.plan],
     months: PREPAY_MONTHS,
     open: eligibility.open
       ? {
           plan: eligibility.open.plan,
           amount_cents: eligibility.open.amount_cents,
+          // What was ACTUALLY collected is stored with its own currency, and a
+          // year bought before the CAD option was filed is genuinely USD even
+          // on a workspace that is CAD today. Reporting the workspace's current
+          // currency here would relabel somebody's past payment.
+          currency: billingCurrencyOf(eligibility.open.currency),
           granted_through: eligibility.open.granted_through,
         }
       : null,
@@ -999,7 +1058,14 @@ billingRoutes.post("/prepay", async (c) => {
                 "."
               : eligibility.reason === "plan_change_pending"
                 ? "You have a plan change waiting to take effect. Once it lands you can pay for a year."
-                : "Paying for a year up front isn't available right now.";
+                : // #522: `currency_unavailable` deliberately lands here with
+                  // the generic sentence. It is our provisioning gap, not
+                  // theirs, and the alternative — "we can only take this one in
+                  // US dollars" — invites somebody to say yes to a bill that
+                  // moves with the exchange rate on a product sold as Canadian.
+                  // The console.error in prepayEligibility is where it is
+                  // reported, to the person who can run stripe:setup.
+                  "Paying for a year up front isn't available right now.";
     return errorResponse(c, "conflict", message);
   }
 
@@ -1016,6 +1082,15 @@ billingRoutes.post("/prepay", async (c) => {
   const session = await getStripe(env).checkout.sessions.create(
     {
       mode: "payment",
+      // #522: the money this collects, stated rather than defaulted.
+      //
+      // A ONE-TIME price does not refuse a currency it has no option for the
+      // way a subscription price does — it bills its base currency and says
+      // nothing. So the whole defect was an omission: no `currency`, a USD base
+      // price, and a Canadian workspace quoted "$290" paying US$290. Passing it
+      // is safe because `prepayEligibility` has already established the catalog
+      // carries it; without that check this line would be the refusal instead.
+      currency: eligibility.currency,
       client_reference_id: company.id,
       // The SAME customer as the subscription, always: the discount lands on
       // that customer's subscription, so a payment on a second customer object
@@ -1454,6 +1529,21 @@ billingRoutes.post("/resume", async (c) => {
 /**
  * GET /v1/billing/modules (#12 plan builder) — the module catalog with each
  * one's current enabled state, for the settings plan-builder surface.
+ *
+ * #522 — WHY `currency` IS ALWAYS "usd" HERE, AND WHY THAT IS THE HONEST ANSWER.
+ *
+ * `MODULE_CATALOG` has no currency axis, and `scripts/stripe-setup.ts` files no
+ * `currency_options` on the module prices — unlike the plans, the overage
+ * meters and the registration fee, which all carry CAD. That is not an
+ * oversight: `regions_ca` is the only module left and it is not sellable
+ * (SELLABLE_MODULES excludes it), so no CAD figure was ever decided and
+ * inventing one to make this field vary would quote a price nobody chose.
+ *
+ * So the figure is stated in the currency it is actually in, and a client
+ * billed in CAD renders it with `formatMoney(cents, "usd", "cad")` — "US$5/mo",
+ * which is exactly what a not-yet-sellable US-priced add-on is. The formatter's
+ * `audience` parameter exists for this. What must not happen is the bare "$5",
+ * which to a Canadian reader means CAD, on a figure we have never filed in CAD.
  */
 billingRoutes.get("/modules", async (c) => {
   const env = getEnv(c.env);
@@ -1466,6 +1556,8 @@ billingRoutes.get("/modules", async (c) => {
       blurb: MODULE_CATALOG[id].blurb,
       detail: MODULE_CATALOG[id].detail ?? null,
       monthly_cents: MODULE_CATALOG[id].monthlyCents,
+      /** The currency `monthly_cents` is in — see the note above. */
+      currency: MODULE_PRICE_CURRENCY,
       enabled: enabled.has(id),
       // #41: `available` is what we can actually DELIVER and bill — an
       // unsellable module (regions_ca until multi-region ships) reads as
