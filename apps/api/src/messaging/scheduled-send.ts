@@ -130,6 +130,11 @@ function reasonFor(cause: unknown): ScheduledHoldReason {
       return "recipient_opted_out";
     case "subscription_inactive":
       return "subscription_inactive";
+    // #277: held, not failed, and with its own sentence — a paused workspace's
+    // scheduled sends go out when they resume, which is the whole point of
+    // pausing rather than cancelling.
+    case "workspace_paused":
+      return "workspace_paused";
     case "registration_pending":
       return "registration_pending";
     case "validation_failed":

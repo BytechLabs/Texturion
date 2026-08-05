@@ -768,6 +768,161 @@ describe("POST /v1/numbers/provision", () => {
   });
 });
 
+/**
+ * Observes the `select` PostgREST is asked for without answering — returns
+ * undefined so the FakeRest behind it still serves the row.
+ *
+ * Needed because FakeRest returns WHOLE rows and ignores the projection, so a
+ * select that stops asking for a column is invisible to every behavioural
+ * assertion in this file: the fixture keeps supplying the value the route can
+ * no longer see in production.
+ */
+function selectSpy(table: string) {
+  const selects: string[] = [];
+  const route: FetchRoute = (url, request) => {
+    if (request.method === "GET" && url.pathname === `/rest/v1/${table}`) {
+      selects.push(url.searchParams.get("select") ?? "");
+    }
+    return undefined;
+  };
+  return { route, selects };
+}
+
+/**
+ * #277 — a paused workspace does not buy numbers.
+ *
+ * A pause is a licensed-PRICE swap, so BOTH terms of the gate above it survive
+ * one: `subscription_status` is genuinely 'active' and `plan` is genuinely
+ * populated (it is what they resume onto). Without its own term a paused crew
+ * could be charged $4-5/mo for an extra number they are gated from texting from
+ * and gated from calling on — and even an INCLUDED number is not free to us,
+ * because we pay the carrier to hold it while they pay only the holding fee.
+ *
+ * It compounds, which is why the charge matters more than it looks: the
+ * down-only `convergeExtraNumberQuantity` backstop is skipped for paused
+ * workspaces, so a half-failed buy keeps billing until they resume.
+ */
+describe("POST /v1/numbers/provision — #277 the pause", () => {
+  const PAUSED_AT = "2026-08-01T09:00:00+00:00";
+  const PAUSED_COMPANY = { paused_at: PAUSED_AT };
+
+  it("NP-1: 402s workspace_paused, orders nothing", async () => {
+    const harness = buildHarness(PAUSED_COMPANY);
+    sagaTelnyx(harness.telnyx);
+
+    const res = await harness.request(
+      "/v1/numbers/provision",
+      provisionInit(crypto.randomUUID()),
+    );
+    expect(res.status).toBe(402);
+    const body = (await res.json()) as { error: { code: string; message: string } };
+    expect(body.error.code).toBe("workspace_paused");
+    // Nothing was bought and nothing was admitted.
+    expect(harness.telnyx.callsTo("POST", /number_orders/)).toHaveLength(0);
+    expect(harness.rest.rows("phone_numbers")).toHaveLength(0);
+    // Same copy rule as every other pause refusal: it must not accuse a crew
+    // that chose a cheaper winter of anything, and it must say what is held.
+    const message = body.error.message.toLowerCase();
+    for (const accusation of ["review", "suspend", "abuse", "violat"]) {
+      expect(message).not.toContain(accusation);
+    }
+    expect(message).toContain("resume");
+  });
+
+  it("NP-2: a PAID extra is refused before Stripe is touched at all", async () => {
+    // The money half. This is the path that charges $4-5/mo immediately
+    // (proration always_invoice), so the refusal has to land before the
+    // quantity bump — never charge-then-refuse.
+    const stripe = stripeStub();
+    const harness = buildHarness(
+      {
+        ...PAUSED_COMPANY,
+        plan: "starter",
+        us_texting_enabled: true,
+        stripe_subscription_id: "sub_1",
+      },
+      [stripe.route],
+    );
+    harness.rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "active",
+      provisioning_key: "cs_first",
+      country: "US",
+      number_e164: "+12125550001",
+    });
+    sagaTelnyx(harness.telnyx);
+
+    const res = await harness.request(
+      "/v1/numbers/provision",
+      provisionInit(crypto.randomUUID()),
+    );
+    expect(res.status).toBe(402);
+    expect(stripe.calls).toHaveLength(0);
+    expect(harness.telnyx.callsTo("POST", /number_orders/)).toHaveLength(0);
+  });
+
+  it("NP-3: the identical world NOT paused provisions — so NP-1 is the pause", async () => {
+    // PROVE THE GUARD BY BREAKING IT. Same company, one field different, so a
+    // green NP-1 cannot be some other gate refusing.
+    const harness = buildHarness({ paused_at: null });
+    sagaTelnyx(harness.telnyx);
+
+    const res = await harness.request(
+      "/v1/numbers/provision",
+      provisionInit(crypto.randomUUID()),
+    );
+    expect(res.status).toBe(201);
+    expect(harness.telnyx.callsTo("POST", /number_orders/)).toHaveLength(1);
+  });
+
+  it("NP-4: a pause never strands a number the crew already bought (the replay still answers)", async () => {
+    // Why the gate sits AFTER the idempotent replay. A buy that completed and
+    // then lost its HTTP response would otherwise be unreachable: the retry
+    // 402s, the client never learns the number's id, and the crew is billed
+    // for something they cannot see. A replay moves no money — it returns a
+    // row that already exists.
+    const harness = buildHarness();
+    sagaTelnyx(harness.telnyx);
+    const key = crypto.randomUUID();
+
+    const first = await harness.request("/v1/numbers/provision", provisionInit(key));
+    expect(first.status).toBe(201);
+    const bought = (await first.json()) as { id: string };
+
+    // They pause in between.
+    harness.rest.rows("companies")[0].paused_at = PAUSED_AT;
+
+    const replay = await harness.request("/v1/numbers/provision", provisionInit(key));
+    expect(replay.status).toBe(200);
+    expect(((await replay.json()) as { id: string }).id).toBe(bought.id);
+    // Still exactly one order — the replay bought nothing.
+    expect(harness.telnyx.callsTo("POST", /number_orders/)).toHaveLength(1);
+  });
+
+  it("NP-5: the route ASKS for paused_at, and an absent column is not a pause", async () => {
+    // How this gate dies with the suite green: someone edits the companies
+    // select and drops the column. Every row then reads undefined, the
+    // `?? null` coalesce says "not paused", and a paused workspace buys
+    // numbers again. FakeRest ignores the projection and keeps serving the
+    // whole row, so only the spy can see it.
+    const spy = selectSpy("companies");
+    const harness = buildHarness(PAUSED_COMPANY, [spy.route]);
+    await harness.request("/v1/numbers/provision", provisionInit(crypto.randomUUID()));
+    expect(spy.selects.some((select) => select.includes("paused_at"))).toBe(true);
+
+    // The other half of the coalesce: a row with no such key provisions
+    // exactly as it did before #277 — a wrong "paused" would refuse a paying
+    // crew the number they just asked for.
+    const unmigrated = buildHarness(); // no paused_at key at all
+    sagaTelnyx(unmigrated.telnyx);
+    const res = await unmigrated.request(
+      "/v1/numbers/provision",
+      provisionInit(crypto.randomUUID()),
+    );
+    expect(res.status).toBe(201);
+  });
+});
+
 /** A Stripe API stub for the #105 paid-extra paths (subscription + items). */
 function stripeStub(
   options: {

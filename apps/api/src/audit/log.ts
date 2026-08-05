@@ -102,6 +102,14 @@ export type AuditAction =
   // released and given to another business — so it belongs in the record that
   // cannot be rewritten.
   | "billing.cancellation_scheduled"
+  // #277: the seasonal pause, both directions. Recorded because a pause changes
+  // what the workspace can DO — nobody can send while it is on — so "why did
+  // texting stop in November" needs an answer that names who pressed it, and
+  // because it is the one billing change the customer makes in order to spend
+  // LESS, which is exactly the kind of thing a support conversation later turns
+  // on.
+  | "billing.paused"
+  | "billing.resumed"
   // The end of the account (#341). The most consequential thing anyone does
   // here, and the one an owner is most likely to ask us about afterwards.
   | "workspace.closed"

@@ -369,6 +369,9 @@ interface InboundCompanyRow {
   current_period_start: string | null;
   overage_cap_multiplier: number | string | null;
   subscription_status: string;
+  /** #277: the seasonal pause. Optional — a row read before the column shipped
+   *  reads undefined, which is coalesced to "not paused" at the gate. */
+  paused_at?: string | null;
   call_screening: "off" | "flag" | "divert";
   voicemail_greeting: string | null;
   /** #278: the clock the call path now consults. Every one nullable, because
@@ -601,7 +604,7 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         .from("companies")
         .select(
           "id,name,plan,current_period_start,overage_cap_multiplier," +
-            "subscription_status,call_screening,voicemail_greeting,timezone," +
+            "subscription_status,paused_at,call_screening,voicemail_greeting,timezone," +
             "business_hours,business_hours_exceptions,after_hours_calls," +
             "after_hours_greeting_id,ring_strategy,ring_seconds",
         )
@@ -631,9 +634,21 @@ export function createSessionRuntime(env: Env): SessionRuntime {
       }
       const lineBusy = busyData === true;
 
+      // #277: a paused workspace joins the suspended/inactive arm, which means
+      // the caller hears the existing "line is down" notice — bounded by
+      // companyUnderNoticeCap (#490) — instead of the crew's browsers ringing.
+      //
+      // Two reasons, and the money is only one of them. A ringing call that
+      // somebody answers bills per minute on both legs against a holding fee of
+      // a few dollars, which is the same unbounded shape a pause exists to
+      // close. But the product reason is the stronger one: a crew that has
+      // paused for the winter is not working, and a phone that rings their
+      // browsers all season is not a held number, it is the plan they thought
+      // they had stopped paying for.
       const suspendedOrInactive =
         number.status === "suspended" ||
-        company.subscription_status !== "active";
+        company.subscription_status !== "active" ||
+        (company.paused_at ?? null) !== null;
       const overCap = suspendedOrInactive
         ? false
         : await companyOverVoiceCap(db, number.company_id, {
@@ -931,7 +946,7 @@ export function createSessionRuntime(env: Env): SessionRuntime {
         const { data: companyRows, error: companyError } = await db
           .from("companies")
           .select(
-            "plan,current_period_start,overage_cap_multiplier,subscription_status",
+            "plan,current_period_start,overage_cap_multiplier,subscription_status,paused_at",
           )
           .eq("id", auth.company_id)
           .limit(1);
@@ -939,11 +954,20 @@ export function createSessionRuntime(env: Env): SessionRuntime {
           throw new Error(`outbound company lookup failed: ${companyError.message}`);
         }
         const company = (companyRows ?? [])[0] as
-          | (CompanyVoiceState & { subscription_status: string })
+          | (CompanyVoiceState & {
+              subscription_status: string;
+              paused_at: string | null;
+            })
           | undefined;
         if (
           !company ||
           company.subscription_status !== "active" ||
+          // #277: a workspace that PAUSED between authorize and dial must not
+          // connect either — a paused subscription is genuinely `active`, so
+          // the status test above cannot see it. Same defence-in-depth reason
+          // as the lapse case it sits beside: the route already refused this,
+          // and this is the check that holds if the route is ever bypassed.
+          (company.paused_at ?? null) !== null ||
           (await companyOverVoiceCap(db, auth.company_id, company))
         ) {
           return "reject";

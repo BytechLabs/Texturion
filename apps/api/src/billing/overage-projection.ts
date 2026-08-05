@@ -388,6 +388,50 @@ export interface OverageCompany {
    * list (which can diverge from what Stripe charges).
    */
   paid_extra_numbers: number;
+  /**
+   * #277 — what the plan line is actually worth this month when the workspace
+   * is PAUSED, in cents, mirrored from the Stripe item (companies.paused_price_cents).
+   *
+   * A pause is a licensed-price swap, so `plan` still reads 'starter' or 'pro'
+   * and `subscription_status` still reads 'active' — meaning this job selects
+   * paused tenants and, without this, would credit each of them with the full
+   * $29 or $79 they are conspicuously not paying. That mutes the one alert that
+   * catches a tenant costing more than it pays, for the cohort whose revenue
+   * just fell by roughly ninety per cent while its cost (a number, a live 10DLC
+   * campaign, and uncapped inbound) barely moved.
+   *
+   * It is a field rather than something a caller is trusted to remember because
+   * this codebase has now fixed the identical defect four times — grandfathered
+   * modules, phantom extra numbers, the prepaid year, and this.
+   *
+   * Optional: absent or null means the amount is UNREADABLE, which is not the
+   * same thing as "not paused" — see `paused_at` below, which is the field this
+   * job branches on.
+   */
+  paused_price_cents?: number | null;
+  /**
+   * #277 — WHETHER the workspace is paused. `companies.paused_at`.
+   *
+   * The fact and the amount are separate fields because they fail separately,
+   * and branching on the amount is the same mis-valuation this whole block
+   * exists to prevent, one level down. `paused_price_cents` is null whenever the
+   * fee cannot be read — a tiered pause price (no `unit_amount`), a workspace
+   * paused before `pausePriceSnapshot` started refusing those, or the window
+   * between syncSubscription's two writes, which stamp the fact and the fee as
+   * separate PATCHes. Every one of those reads "not paused" to a test on the
+   * amount, and the tenant is then credited with the $29 or $79 it is
+   * conspicuously not paying — the exact alert-muting this field was added to
+   * stop.
+   *
+   * So: branch on the FACT, and when the amount is missing count ZERO rather
+   * than guessing. Zero is the conservative direction for an alert whose job is
+   * to make somebody LOOK at a row — whatever a paused workspace is paying, it
+   * is certainly not paying for the plan. Same posture as
+   * scripts/ops/pricing-report.mjs, which reports the same cohort.
+   *
+   * Optional: absent or null means not paused, which is every ordinary tenant.
+   */
+  paused_at?: string | null;
 }
 
 async function rpcNumber(
@@ -509,14 +553,23 @@ export async function decideOverage(
   // one cohort that has already paid everything it will ever pay. Same class of
   // defect as the grandfathered-module and phantom-extra-number cases above.
   const openPrepaid = await openPrepayment(db, company.id);
-  const baseRevenueGrossCents =
-    companyRevenueCents(
-      company.plan,
-      paidModules,
-      openPrepaid
+  // #277: a pause overrides the plan price outright. It cannot coexist with a
+  // prepaid year — pauseEligibility refuses one while the other is open,
+  // precisely because the year's coupon rides the licensed item a pause would
+  // swap — so this is an ordered choice rather than an arithmetic one.
+  //
+  // Keyed on `paused_at`, the FACT, and NOT on the fee being non-null: a paused
+  // workspace whose fee we cannot read must be counted at zero, never handed
+  // back its plan's list price. See the field's own comment for the three ways
+  // the fee goes missing while the pause is perfectly real.
+  const planCentsOverride =
+    (company.paused_at ?? null) !== null
+      ? (company.paused_price_cents ?? 0)
+      : openPrepaid
         ? amortisedMonthlyCents(openPrepaid, PLAN_MONTHLY_REVENUE_CENTS[company.plan])
-        : undefined,
-    ) +
+        : undefined;
+  const baseRevenueGrossCents =
+    companyRevenueCents(company.plan, paidModules, planCentsOverride) +
     company.paid_extra_numbers * EXTRA_NUMBER_MONTHLY_CENTS[company.plan];
   return overageDecision(
     {

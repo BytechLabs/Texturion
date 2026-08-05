@@ -82,6 +82,11 @@ function companyRow(overrides: Record<string, unknown> = {}) {
     stripe_customer_id: null,
     stripe_subscription_id: null,
     registration_fee_paid_at: null,
+    // #277: not paused, which is what every workspace is unless a test says
+    // otherwise. Present rather than absent so a route reading it gets null
+    // and not undefined, exactly as PostgREST would answer.
+    paused_at: null,
+    paused_price_cents: null,
     ...overrides,
   };
 }
@@ -843,6 +848,39 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     expect(response.status).toBe(409);
   });
 
+  it("409s with a real sentence when the workspace is paused — never a 500", async () => {
+    /**
+     * #277. A paused subscription carries the PAUSE price on its licensed
+     * item, so the licensed+metered pair lookup below finds nothing and hits
+     * the invariant `throw` — which becomes `internal_error`, "Something went
+     * wrong", and a Sentry alert, for a perfectly ordinary thing to try.
+     *
+     * Refused rather than performed because the request is genuinely ambiguous
+     * and only the customer can settle it: resume now on the new plan, or keep
+     * paying the holding fee and land on it in spring?
+     */
+    const harness = makeHarness([
+      companyEndpoint(
+        companyRow({
+          plan: "starter",
+          subscription_status: "active",
+          stripe_customer_id: "cus_1",
+          stripe_subscription_id: "sub_1",
+          paused_at: "2026-11-04T00:00:00.000Z",
+          paused_price_cents: 500,
+        }),
+      ),
+    ]);
+    const response = await post("/v1/billing/change-plan", { plan: "pro" }, harness);
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as { error: { code: string; message: string } };
+    expect(body.error.code).toBe("conflict");
+    expect(body.error.message).toMatch(/paused/i);
+    expect(body.error.message).toMatch(/resume/i);
+    // And it never reached Stripe: no half-done swap to unwind.
+    expect(harness.callsTo("GET", /api\.stripe\.com/)).toHaveLength(0);
+  });
+
   it("upgrade swaps both items to Pro with always_invoice proration, immediately", async () => {
     const harness = makeHarness([
       companyEndpoint(activeStarter()),
@@ -1297,5 +1335,553 @@ describe("plan-builder modules (#12)", () => {
       ((await voiceToggle.json()) as { error: { message: string } }).error
         .message,
     ).toContain("included on every plan");
+  });
+});
+
+/**
+ * #277 — the seasonal pause, at the routes.
+ *
+ * The mechanism is a licensed-price swap on the SAME subscription, and every
+ * assertion here is about a way that could go wrong quietly: swapping the wrong
+ * item, pausing without a provisioned price, or letting a price id reach a
+ * client.
+ */
+describe("#277 the seasonal pause", () => {
+  const activePaused = () =>
+    companyRow({
+      plan: "starter",
+      subscription_status: "active",
+      stripe_customer_id: "cus_1",
+      stripe_subscription_id: "sub_1",
+      paused_at: "2026-11-04T00:00:00.000Z",
+      paused_price_cents: 500,
+    });
+  const activeUnpaused = () =>
+    companyRow({
+      plan: "starter",
+      subscription_status: "active",
+      stripe_customer_id: "cus_1",
+      stripe_subscription_id: "sub_1",
+    });
+
+  /** Everything a swap touches after the Stripe write: the mirror + the audit. */
+  function afterSwapEndpoints(): StubEndpoint[] {
+    return [
+      endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => null),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => [
+        { id: COMPANY_ID, name: "Acme", canceled_at: null, company_modules: [] },
+      ]),
+      endpoint("POST", /\/rest\/v1\/audit_log/, () => [{ id: "a1" }]),
+      endpoint("GET", /\/rest\/v1\/phone_numbers/, () => []),
+      // #399/#277: a resume pays whatever qualified while the workspace was
+      // paused. Nothing owed is the ambient case.
+      endpoint("GET", /\/rest\/v1\/referrals/, () => []),
+    ];
+  }
+
+  /**
+   * The company row as it reads on successive fetches.
+   *
+   * POST /resume answers from a RE-READ rather than from a constant, so a
+   * fixture that returned the same row forever would assert nothing about that —
+   * a hardcoded `paused_at: null` passes against a row that still says paused.
+   * Only the billing route's own select advances the sequence: `rewardSide`
+   * reads this table too, and counting its reads would make the fixture depend
+   * on how many referrals happen to be pending.
+   */
+  function companySequence(...rows: Record<string, unknown>[]): StubEndpoint {
+    let index = 0;
+    return endpoint("GET", /\/rest\/v1\/companies/, (call) => {
+      if (!(call.url.searchParams.get("select") ?? "").startsWith("id,plan")) {
+        return [{ stripe_subscription_id: "sub_1" }];
+      }
+      return [rows[Math.min(index++, rows.length - 1)]];
+    });
+  }
+
+  it("swaps the PLAN licensed item to the pause price, and nothing else", async () => {
+    const harness = makeHarness([
+      // Unpaused going in, paused coming out. POST /pause answers from a
+      // RE-READ, so a row frozen at "unpaused" is a fixture asserting that the
+      // swap never took — which is the replay case, not this one.
+      companySequence(activeUnpaused(), activePaused()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({
+          moduleItems: [
+            { id: "si_module", priceId: env.STRIPE_MODULE_VOICE_PRICE_ID! },
+          ],
+        }),
+      ),
+      endpoint("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({ licensed: env.STRIPE_PAUSE_PRICE_ID! }),
+      ),
+      pausePriceEndpoint(),
+      ...afterSwapEndpoints(),
+    ]);
+    const response = await post("/v1/billing/pause", {}, harness);
+    expect(response.status).toBe(200);
+
+    const form = harness.callsTo("POST", /subscriptions\/sub_1/)[0].form();
+    // The PLAN item, by id — not "the first unmetered item", which on this
+    // subscription is the Calling module and would have been silently
+    // converted into a pause.
+    expect(form.get("items[0][id]")).toBe("si_licensed");
+    expect(form.get("items[0][price]")).toBe(env.STRIPE_PAUSE_PRICE_ID);
+    expect(form.get("items[1][id]")).toBeNull();
+    // Fair to the part-month, and quiet: a credit note landing in the inbox of
+    // somebody who just chose to spend less is a support ticket, not a receipt.
+    expect(form.get("proration_behavior")).toBe("create_prorations");
+  });
+
+  it("409s when the pause price is not provisioned — never a free pause", async () => {
+    // The failure this prevents is not an error: it is a workspace holding a
+    // number and a live 10DLC campaign, ~$3/mo between them, against no
+    // revenue, because somebody deployed before provisioning the price.
+    const bare = { ...env, STRIPE_PAUSE_PRICE_ID: undefined };
+    const harness = makeHarness([
+      companyEndpoint(activeUnpaused()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+    ]);
+    stubFetch(harness.route);
+    const response = await makeApp("owner").request(
+      "/v1/billing/pause",
+      { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } },
+      bare,
+    );
+    expect(response.status).toBe(409);
+    expect(harness.callsTo("POST", /subscriptions\/sub_1/)).toHaveLength(0);
+  });
+
+  /**
+   * The stubs a resume needs, with the swap actually taking effect.
+   *
+   * The subscription reads PAUSED on the first retrieve and on the plan price
+   * after that, because that is what the swap in between did. Everything the
+   * route runs afterwards — the mirror, the referral payout — reads the
+   * resumed shape, and a fixture frozen at "paused" would quietly make those
+   * steps assert the wrong thing.
+   */
+  function resumeHarness(extra: StubEndpoint[] = []) {
+    let retrieves = 0;
+    return makeHarness([
+      companySequence(activePaused(), activeUnpaused()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        (retrieves += 1) === 1
+          ? subscriptionFixture({ licensed: env.STRIPE_PAUSE_PRICE_ID! })
+          : subscriptionFixture(),
+      ),
+      endpoint("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      ...extra,
+      ...afterSwapEndpoints(),
+    ]);
+  }
+
+  it("resume swaps the PAUSE item back to the stored plan's price", async () => {
+    // `companies.plan` was never touched — that is the payoff for the pause not
+    // being a third plan_id, and it is where the resume price comes from.
+    const harness = resumeHarness();
+    const response = await post("/v1/billing/resume", {}, harness);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ plan: "starter", paused_at: null });
+
+    const form = harness.callsTo("POST", /subscriptions\/sub_1/)[0].form();
+    expect(form.get("items[0][id]")).toBe("si_licensed");
+    expect(form.get("items[0][price]")).toBe(env.STRIPE_STARTER_PRICE_ID);
+  });
+
+  it("keys the resume on THE PAUSE, so a same-day re-pause can be resumed again", async () => {
+    // A day-scoped key made resume → pause → resume inside one day replay the
+    // FIRST resume: Stripe returns the cached response, no swap happens, and the
+    // customer is told they resumed while they stay paused and unable to send.
+    // `paused_at` is stamped once per pause, so it names this pause exactly.
+    const harness = resumeHarness();
+    await post("/v1/billing/resume", {}, harness);
+    const key = harness
+      .callsTo("POST", /subscriptions\/sub_1/)[0]
+      .headers.get("Idempotency-Key");
+    expect(key).toContain("2026-11-04T00:00:00.000Z");
+    expect(key).not.toContain(new Date().toISOString().slice(0, 10));
+  });
+
+  it("resume tells the customer what the MIRROR says, not a constant", async () => {
+    // The route used to answer `{ paused_at: null }` unconditionally. That is a
+    // sentence that stays true-looking when everything behind it has failed, and
+    // the customer acts on it — they go and try to send.
+    const harness = makeHarness([
+      // The mirror does not clear: the workspace is still paused after the swap.
+      companySequence(activePaused()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({ licensed: env.STRIPE_PAUSE_PRICE_ID! }),
+      ),
+      endpoint("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      ...afterSwapEndpoints(),
+    ]);
+    const response = await post("/v1/billing/resume", {}, harness);
+    expect(response.status).toBe(409);
+    expect(((await response.json()) as { error: { message: string } }).error.message)
+      .toMatch(/hasn't come back/i);
+    // And no audit entry claiming a resume that did not happen.
+    expect(harness.callsTo("POST", /\/rest\/v1\/audit_log/)).toHaveLength(0);
+  });
+
+  it("resume is not left CHARGED AND BLOCKED when the mirror write fails", async () => {
+    // syncSubscription throws on any PostgREST error, and by then
+    // `create_prorations` has already billed the balance of the period back up
+    // to the plan price. A bare throw meant a 500, a full-price bill, and five
+    // SQL send gates still refusing every text — with no way out, because
+    // /resume itself 409s once the subscription carries no pause item.
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    let mirrorAttempts = 0;
+    const harness = makeHarness([
+      companySequence(activePaused(), activeUnpaused()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({ licensed: env.STRIPE_PAUSE_PRICE_ID! }),
+      ),
+      endpoint("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => {
+        mirrorAttempts += 1;
+        // The canonical mirror fails; the narrow fallback that follows it is
+        // what has to land.
+        return mirrorAttempts === 1
+          ? new Response(JSON.stringify({ message: "deadlock detected" }), {
+              status: 500,
+              headers: { "content-type": "application/json" },
+            })
+          : [{ id: COMPANY_ID }];
+      }),
+      endpoint("POST", /\/rest\/v1\/audit_log/, () => [{ id: "a1" }]),
+      endpoint("GET", /\/rest\/v1\/phone_numbers/, () => []),
+      endpoint("GET", /\/rest\/v1\/referrals/, () => []),
+    ]);
+    const response = await post("/v1/billing/resume", {}, harness);
+    expect(response.status).toBe(200);
+    expect(mirrorAttempts).toBe(2);
+    const fallback = harness.callsTo("PATCH", /\/rest\/v1\/companies/)[1].json();
+    expect(fallback).toEqual({ paused_at: null, paused_price_cents: null });
+    spy.mockRestore();
+  });
+
+  it("resume pays a referral month that qualified while the workspace was paused", async () => {
+    // `rewardSide` refuses to spend a $29/$79 credit on a ~$5 holding fee and
+    // leaves the row unstamped. Nothing in this product sweeps unstamped
+    // rewards, so without this the month is lost just as surely as if it had
+    // been spent on the hold.
+    const harness = resumeHarness([
+      endpoint("GET", /\/rest\/v1\/referrals/, () => [{ id: "ref-1" }]),
+      endpoint("POST", /\/rest\/v1\/rpc\/stamp_referral_reward/, () => ({
+        outcome: "stamped",
+      })),
+    ]);
+    const response = await post("/v1/billing/resume", {}, harness);
+    expect(response.status).toBe(200);
+
+    // The coupon lands on the RESUMED plan line — the whole point of waiting.
+    const rewardWrite = harness.callsTo("POST", /subscriptions\/sub_1/)[1].form();
+    expect(rewardWrite.get("items[0][discounts][0][coupon]")).toBe(
+      env.STRIPE_REFERRAL_MONTH_COUPON_ID,
+    );
+    expect(
+      harness.callsTo("POST", /rpc\/stamp_referral_reward/)[0].json(),
+    ).toMatchObject({ p_side: "referrer" });
+  });
+
+  it("409s on resume when nothing is paused", async () => {
+    const harness = makeHarness([companyEndpoint(activeUnpaused())]);
+    const response = await post("/v1/billing/resume", {}, harness);
+    expect(response.status).toBe(409);
+    expect(harness.callsTo("GET", /api\.stripe\.com/)).toHaveLength(0);
+  });
+
+  it("GET reports eligibility in cents and never leaks a price id", async () => {
+    // A price id in a client bundle is a value somebody can put in a checkout
+    // call. Same boundary GET /v1/billing/prepay already draws.
+    const harness = makeHarness([
+      companyEndpoint(activePaused()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({ licensed: env.STRIPE_PAUSE_PRICE_ID! }),
+      ),
+      endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => null),
+    ]);
+    const response = await get("/v1/billing/pause", harness);
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toEqual({
+      eligible: false,
+      reason: "already_paused",
+      paused_at: "2026-11-04T00:00:00.000Z",
+      monthly_cents: 500,
+      resume_plan: "starter",
+    });
+    expect(JSON.stringify(body)).not.toContain(env.STRIPE_PAUSE_PRICE_ID);
+  });
+
+  /**
+   * A Stripe price, as the catalog answers a retrieve. `unit_amount` is the
+   * monthly figure a client renders; `cents` in the route's response must be
+   * this and nothing else.
+   */
+  function pausePriceEndpoint(
+    overrides: Record<string, unknown> = {},
+  ): StubEndpoint {
+    return endpoint("GET", /api\.stripe\.com\/v1\/prices\//, () => ({
+      id: env.STRIPE_PAUSE_PRICE_ID,
+      object: "price",
+      active: true,
+      unit_amount: 700,
+      currency: "usd",
+      recurring: { interval: "month", interval_count: 1 },
+      ...overrides,
+    }));
+  }
+
+  it("prices the FIRST pause from the catalog, because the mirror is empty", async () => {
+    // THE defect this closes. `companies.paused_price_cents` is written from
+    // the subscription item at pause time, so it is null for everybody who has
+    // never paused — which is everybody the offer is shown to. Reporting it
+    // meant every first-time pause asked somebody to agree to a recurring
+    // charge whose amount we refused to state.
+    const harness = makeHarness([
+      companyEndpoint(activeUnpaused()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      pausePriceEndpoint(),
+      endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => null),
+    ]);
+    const response = await get("/v1/billing/pause", harness);
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toEqual({
+      eligible: true,
+      reason: null,
+      paused_at: null,
+      monthly_cents: 700,
+      resume_plan: "starter",
+    });
+    // Still cents only. The offer being priced must not be the thing that
+    // finally puts a price id in a client bundle.
+    expect(JSON.stringify(body)).not.toContain(env.STRIPE_PAUSE_PRICE_ID);
+  });
+
+  it("quotes today's price, not the fee from a pause that already ended", async () => {
+    // The mirror survives a resume as the record of what that pause cost. A
+    // workspace pausing a second winter is being offered TODAY's price, and
+    // quoting the old one would be a different number from the one it is about
+    // to be charged — the same defect in a smaller font.
+    const harness = makeHarness([
+      companyEndpoint(
+        companyRow({
+          plan: "starter",
+          subscription_status: "active",
+          stripe_customer_id: "cus_1",
+          stripe_subscription_id: "sub_1",
+          paused_at: null,
+          paused_price_cents: 500,
+        }),
+      ),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      pausePriceEndpoint(),
+      endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => null),
+    ]);
+    const response = await get("/v1/billing/pause", harness);
+    expect(await response.json()).toMatchObject({
+      eligible: true,
+      monthly_cents: 700,
+    });
+  });
+
+  it("quotes nothing rather than a price that cannot be charged", async () => {
+    // A $0 pause price is a genuinely free pause and an archived one cannot go
+    // on a subscription at all. `pausePriceSnapshot` refuses both, and reading
+    // the quote through it is what stops this route advertising a pause that
+    // POST would then decline.
+    const harness = makeHarness([
+      companyEndpoint(activeUnpaused()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      pausePriceEndpoint({ unit_amount: 0 }),
+      endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => null),
+    ]);
+    const response = await get("/v1/billing/pause", harness);
+    expect(response.status).toBe(200);
+    // AND the offer is withdrawn, not merely left unpriced. `eligible` is what
+    // puts the Pause button on the screen; reporting it true beside a null
+    // amount is the priced-blind state this whole route exists to end, and the
+    // press behind it 409s.
+    expect(await response.json()).toMatchObject({
+      eligible: false,
+      reason: "not_provisioned",
+      monthly_cents: null,
+    });
+  });
+
+  it("pause tells the customer what the MIRROR says, not that it succeeded", async () => {
+    // The mirror image of the resume case, and reachable through the pause
+    // route's own idempotency key. The key is DAY-scoped, and nothing on the
+    // subscription distinguishes a retried pause from a second one: after a
+    // resume the licensed item is back on the same id at the same plan price,
+    // so pause → resume → pause inside one day sends Stripe a byte-identical
+    // request under a key it has already answered. Stripe returns the cached
+    // response, no swap happens, and every step after it still succeeds.
+    //
+    // The row is what knows. Answering 200 here told somebody who pressed Pause
+    // that they had paused, while they went on paying the full plan price and
+    // sending at full quota.
+    const harness = makeHarness([
+      // The swap never landed, so the mirror never says paused.
+      companySequence(activeUnpaused()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      pausePriceEndpoint(),
+      ...afterSwapEndpoints(),
+    ]);
+    const response = await post("/v1/billing/pause", {}, harness);
+    expect(response.status).toBe(409);
+    expect(((await response.json()) as { error: { message: string } }).error.message)
+      .toMatch(/hasn't paused yet/i);
+    // And no audit entry claiming a pause that did not happen.
+    expect(harness.callsTo("POST", /\/rest\/v1\/audit_log/)).toHaveLength(0);
+  });
+
+  it("pause is not left SWAPPED BUT UNBLOCKED when the mirror write fails", async () => {
+    // The mirror direction that leaks money rather than trapping a customer.
+    // The swap has landed, so Stripe is billing the ~$5 holding fee — and a
+    // `paused_at` that never got written leaves the workspace texting at full
+    // plan quota on it, with every SQL send gate waving it through.
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    let mirrorAttempts = 0;
+    const harness = makeHarness([
+      companySequence(activeUnpaused(), activePaused()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({ licensed: env.STRIPE_PAUSE_PRICE_ID! }),
+      ),
+      pausePriceEndpoint(),
+      endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => null),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => {
+        mirrorAttempts += 1;
+        return mirrorAttempts === 1
+          ? new Response(JSON.stringify({ message: "deadlock detected" }), {
+              status: 500,
+              headers: { "content-type": "application/json" },
+            })
+          : [{ id: COMPANY_ID }];
+      }),
+      endpoint("POST", /\/rest\/v1\/audit_log/, () => [{ id: "a1" }]),
+      endpoint("GET", /\/rest\/v1\/phone_numbers/, () => []),
+    ]);
+    const response = await post("/v1/billing/pause", {}, harness);
+    expect(response.status).toBe(200);
+    expect(mirrorAttempts).toBe(2);
+    // The fee comes from the price we actually swapped onto, not from a
+    // constant — this column is what the #85 projection values the tenant at.
+    const fallback = harness.callsTo("PATCH", /\/rest\/v1\/companies/)[1].json();
+    expect(fallback).toEqual({
+      paused_at: expect.any(String),
+      paused_price_cents: 700,
+    });
+    spy.mockRestore();
+  });
+
+  it("REFUSES TO PAUSE onto a $0 price, which every other guard passes", async () => {
+    // The env var is set, the id resolves, the swap would succeed and the
+    // subscription would stay active. Nothing else in this feature can tell a
+    // $0 pause price from a real one — and the workspace would hold a number and
+    // a live 10DLC campaign, ~$3/mo of ours, against no revenue at all. The
+    // price is provisioned by hand in a dashboard; nothing prevents the typo.
+    const harness = makeHarness([
+      companyEndpoint(activeUnpaused()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      pausePriceEndpoint({ unit_amount: 0 }),
+      ...afterSwapEndpoints(),
+    ]);
+    const response = await post("/v1/billing/pause", {}, harness);
+    expect(response.status).toBe(409);
+    expect(harness.callsTo("POST", /subscriptions\/sub_1/)).toHaveLength(0);
+  });
+
+  it("REFUSES TO PAUSE onto a TIERED price, which would re-value the tenant", async () => {
+    // A tiered price has no `unit_amount`, so `paused_price_cents` mirrors NULL
+    // and the #85 projection falls back to the plan's list price — the founder's
+    // underwater report would render the paused cohort as its most profitable
+    // customers. That column exists to prevent exactly that.
+    const harness = makeHarness([
+      companyEndpoint(activeUnpaused()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      pausePriceEndpoint({ unit_amount: null, billing_scheme: "tiered" }),
+      ...afterSwapEndpoints(),
+    ]);
+    const response = await post("/v1/billing/pause", {}, harness);
+    expect(response.status).toBe(409);
+    expect(harness.callsTo("POST", /subscriptions\/sub_1/)).toHaveLength(0);
+  });
+
+  it("REFUSES TO PAUSE while an unspent referral month rides the licensed item", async () => {
+    // #399's free month is a 100%-off coupon on the same line a pause swaps.
+    // Earn one, pause before the next invoice, and the pause bills $0 while we
+    // pay for the held number and the live campaign — and the customer burns a
+    // $29/$79 credit on a ~$5 charge.
+    const withMonth = subscriptionFixture();
+    (withMonth.items.data[0] as Record<string, unknown>).discounts = [
+      { id: "di_1", coupon: { id: env.STRIPE_REFERRAL_MONTH_COUPON_ID } },
+    ];
+    const harness = makeHarness([
+      companyEndpoint(activeUnpaused()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () => withMonth),
+      pausePriceEndpoint(),
+      ...afterSwapEndpoints(),
+    ]);
+    const response = await post("/v1/billing/pause", {}, harness);
+    expect(response.status).toBe(409);
+    expect(((await response.json()) as { error: { message: string } }).error.message)
+      .toMatch(/free month/i);
+    expect(harness.callsTo("POST", /subscriptions\/sub_1/)).toHaveLength(0);
+  });
+
+  it("quotes nothing when there is no offer — an unhealthy subscription", async () => {
+    // Not an oversight: a workspace that cannot pause is not being asked to
+    // agree to anything, so there is no amount it needs stated.
+    const harness = makeHarness([
+      companyEndpoint(
+        companyRow({
+          plan: "starter",
+          subscription_status: "past_due",
+          stripe_customer_id: "cus_1",
+          stripe_subscription_id: "sub_1",
+        }),
+      ),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      pausePriceEndpoint(),
+      endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => null),
+    ]);
+    const response = await get("/v1/billing/pause", harness);
+    expect(await response.json()).toMatchObject({
+      eligible: false,
+      reason: "subscription_unhealthy",
+      monthly_cents: null,
+    });
   });
 });

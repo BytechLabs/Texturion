@@ -52,11 +52,17 @@ import { runScript } from "./lib.mjs";
  * resolve, and adding extensions across `apps/api` to suit one report would be
  * the tail wagging the dog.
  *
- * So this is a mirror, and `scripts/ops/pricing-report.test.ts` fails the build
- * when any value here stops matching `apps/api/src/billing`. That is the same
- * answer this codebase already uses for the Kotlin and Swift ports and for the
- * store declarations: an UNGUARDED duplicate is the problem, a guarded one is a
- * translation.
+ * So this is a mirror, and `apps/api/src/billing/pricing-report-mirror.test.ts`
+ * fails the build when any value here stops matching `apps/api/src/billing`.
+ * That is the same answer this codebase already uses for the Kotlin and Swift
+ * ports and for the store declarations: an UNGUARDED duplicate is the problem, a
+ * guarded one is a translation.
+ *
+ * The arithmetic and the printed output have a second guard beside it,
+ * `pricing-report-revenue.test.ts`, which evaluates this file — CLI invocation
+ * and all — against fixture rows. Both live in `apps/api` rather than next to
+ * this script because that is where the vitest projects are, and a guard nobody
+ * runs is not one.
  */
 export const MIRRORED = {
   /** apps/api/src/billing/costs.ts PLAN_MONTHLY_REVENUE_CENTS */
@@ -103,6 +109,68 @@ const money = (cents) =>
 const pad = (text, width) => String(text).padEnd(width);
 
 /**
+ * True when this row is a workspace CURRENTLY living on a #277 paid pause.
+ *
+ * `paused_at` alone is not that question, and the difference is a cohort the
+ * founder would otherwise be told they have. A workspace that paused and then
+ * CANCELLED keeps its pause fact on the row: nothing clears it, deliberately —
+ * the daily reconcile skips cancelled tenants and `claim_checkout_activation`
+ * clears it if they ever come back (see
+ * 20260805080000_resubscribe_clears_pause.sql). So a churned workspace reads
+ * "paused" here, gets named in the paused cohort line, and is priced at the
+ * holding fee it stopped paying months ago.
+ *
+ * Coalesces an absent field to null so a snapshot without the column reads
+ * "not paused" rather than throwing — `assertSnapshotShape` is the thing that
+ * refuses that database, and it says why.
+ */
+export function isPaused(row) {
+  return (row.paused_at ?? null) !== null && row.subscription_status !== "canceled";
+}
+
+/**
+ * True when nobody is invoicing this workspace at all.
+ *
+ * The snapshot admits `canceled` on purpose — churn is part of the picture the
+ * founder is reading — but a cancelled subscription collects NOTHING, and
+ * `revenueCents` valued one at its plan's list price. A workspace that left in
+ * March was still counted as $79 a month of revenue, against real telecom cost
+ * we may still be paying while its number sits in the 30-day grace window. That
+ * is the same "revenue inferred from a plan id" defect as the pause and the
+ * prepaid year, on the one cohort where the right answer is exactly zero.
+ */
+export function isChurned(row) {
+  return row.subscription_status === "canceled";
+}
+
+/**
+ * Refuse to report against a snapshot that predates the pause columns.
+ *
+ * The failure this prevents is silent and one-directional: an older
+ * `api_pricing_snapshot` returns no `paused_at`, every row then reads as
+ * unpaused, and the paused cohort is valued at its plan's list price — which is
+ * the entire defect the columns were added for, reappearing the moment the
+ * script is pointed at a database a migration has not reached. A report that
+ * refuses to run is recoverable; one that quietly reports the old wrong number
+ * is what gets acted on.
+ */
+export function assertSnapshotShape(rows) {
+  if (rows.length === 0) return;
+  const missing = ["paused_at", "paused_price_cents"].filter(
+    (field) => !(field in rows[0]),
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `api_pricing_snapshot() returned no ${missing.join(" or ")} — this ` +
+        "database predates 20260805090000_pricing_snapshot_pause.sql. Without " +
+        "it every paused workspace is valued at its plan's list price, which " +
+        "renders the least profitable cohort as the most profitable. Apply the " +
+        "migration and re-run.",
+    );
+  }
+}
+
+/**
  * A workspace's monthly revenue in cents.
  *
  * #400/D107: a prepaid year invoices the licensed line at $0, so the plan part
@@ -110,10 +178,34 @@ const pad = (text, width) => String(text).padEnd(width);
  * price nobody is paying. Counting the list price would mute the one signal
  * that catches a tenant costing more than it pays, for exactly the cohort that
  * has already paid everything it will ever pay.
+ *
+ * #277: a PAUSE is the same trap and a worse one. A paused workspace stays
+ * `active` on its plan — that is the mechanism, not an accident — while its
+ * licensed line is swapped to a holding fee of a few dollars. Its number and
+ * its 10DLC campaign cost us exactly what they did before. Read from the plan
+ * id, it is a $79 customer with almost no usage: the most profitable row in the
+ * book, in the one report read to find the least profitable ones.
+ *
+ * THE FEE IS NOT IN THIS REPOSITORY — it is provisioned in Stripe and mirrored
+ * onto the row — so when it is missing there is nothing to look up. A paused
+ * row with no mirrored fee is counted as ZERO rather than at list price:
+ * whatever it is paying, it is certainly not paying for the plan, and the
+ * conservative direction is the one that makes somebody look at the row. The
+ * caller prints how many were counted that way, because an unexplained zero is
+ * its own bad number.
+ *
+ * The ADD-ONS still count while paused. A pause swaps the plan's licensed item
+ * and touches nothing else on the subscription, so the module lines keep
+ * invoicing at full price.
  */
-function revenueCents(row) {
-  const planCents =
-    row.prepaid_cents > 0 && row.prepaid_months > 0
+export function revenueCents(row) {
+  // A CANCELLED workspace is invoiced nothing — not the plan, not its add-ons.
+  // First, because it outranks every other reading: a churned row that also
+  // carries a stale pause fact must not be counted at the holding fee either.
+  if (isChurned(row)) return 0;
+  const planCents = isPaused(row)
+    ? (row.paused_price_cents ?? 0)
+    : row.prepaid_cents > 0 && row.prepaid_months > 0
       ? Math.round(row.prepaid_cents / row.prepaid_months)
       : PLAN_MONTHLY_REVENUE_CENTS[row.plan];
   const modules = (row.modules ?? []).reduce(
@@ -137,20 +229,36 @@ function proximity(row) {
 await runScript(
   "pricing-report",
   async ({ db, args }) => {
-    const { data, error } = await db.rpc("api_pricing_snapshot");
-    if (error) throw new Error(`api_pricing_snapshot failed: ${error.message}`);
-    const rows = data ?? [];
+    // `opsClient().rpc` RESOLVES WITH THE ROWS and REJECTS on a bad status —
+    // the plain-fetch contract every other ops script uses (`retention-report`,
+    // `storage-report`, `version-distribution`). This one destructured the
+    // supabase-js `{ data, error }` shape off an ARRAY, so both came back
+    // undefined, `rows` was always empty, and the report printed "No paying
+    // workspaces yet" against a database full of them — for as long as it has
+    // existed. It never threw, which is why nobody caught it: a report that
+    // cannot fail is not the same thing as a report that is right.
+    const rows = await db.rpc("api_pricing_snapshot");
 
     if (rows.length === 0) {
       console.log("\n  No paying workspaces yet. Nothing to report.\n");
       return;
     }
+    assertSnapshotShape(rows);
 
     const priced = rows.map((row) => {
       const gross = revenueCents(row);
       const net = stripeNetCents(gross);
       const cost = Number(row.provider_cost_cents);
-      return { row, gross, net, cost, margin: net - cost, near: proximity(row) };
+      return {
+        row,
+        gross,
+        net,
+        cost,
+        margin: net - cost,
+        near: proximity(row),
+        paused: isPaused(row),
+        churned: isChurned(row),
+      };
     });
 
     const thin = priced.length < THIN;
@@ -175,28 +283,95 @@ await runScript(
         (losing.length > 0 ? ` (${losing.map((p) => p.row.name).join(", ")})` : ""),
     );
 
+    // #277: named, because a paused workspace is the row most likely to be
+    // misread. It is `active` on a plan and paying a few dollars, and its
+    // number and 10DLC campaign cost what they always did — so it belongs in
+    // the margin above, and the reader needs to know it is in there. Printed
+    // only when there are any: a "paused 0 of 7" line invites somebody to read
+    // a cohort into a report that has none.
+    const paused = priced.filter((p) => p.paused);
+    if (paused.length > 0) {
+      const unpriced = paused.filter((p) => p.row.paused_price_cents == null);
+      console.log(
+        `    paused             ${paused.length} of ${priced.length}` +
+          ` (${paused.map((p) => p.row.name).join(", ")})` +
+          // The fee is provisioned in Stripe, not held here, so a missing one
+          // cannot be looked up. Counted as $0 rather than at list price, and
+          // SAID so — an unexplained zero is its own misleading number.
+          (unpriced.length > 0
+            ? `\n    ${" ".repeat(19)}${unpriced.length} with no mirrored pause fee, counted as $0`
+            : ""),
+      );
+    }
+
+    // CHURNED, named for the same reason and a sharper one. A cancelled
+    // workspace collects nothing and is counted at zero — which puts it in the
+    // `unprofitable` line above the moment it costs us a cent, and its number
+    // does keep costing us through the 30-day grace window. That is a CHURN
+    // fact, not a pricing one, and an unnamed $0 row sitting in a list the
+    // founder reads as "customers whose price is wrong" is the misreading this
+    // line exists to prevent.
+    const churned = priced.filter((p) => p.churned);
+    if (churned.length > 0) {
+      console.log(
+        `    cancelled          ${churned.length} of ${priced.length}` +
+          ` (${churned.map((p) => p.row.name).join(", ")})` +
+          `\n    ${" ".repeat(19)}counted at $0 — they are invoiced nothing; any` +
+          ` cost here is churn, not price`,
+      );
+    }
+
     // --- Limit proximity ------------------------------------------------
     //
     // #255: "how many are at 90%+ of a limit, how many under 20%. That single
     // chart tells us whether the tiers are drawn in the right places."
+    //
+    // #277: PAUSED WORKSPACES ARE EXCLUDED from this one. They are counted in
+    // the margin above because they really are paying and really do cost us —
+    // but a paused workspace has deliberately stopped using the product, so it
+    // lands in "under 20% of its limits" by construction. Left in, it reads as
+    // "paying for headroom they never touch", i.e. as evidence for a cheaper
+    // tier, when the actual fact is that they already bought the cheaper thing.
+    //
+    // CANCELLED workspaces are excluded for the same reason, only more so: they
+    // have stopped using the product permanently, so they sit at 0% by
+    // construction and would read as the strongest possible evidence that the
+    // tiers are too generous.
+    const usingIt = priced.filter((p) => !p.paused && !p.churned);
+    const thinUsage = usingIt.length < THIN;
     console.log("\n  Where workspaces sit against their limits");
-    if (thin) {
+    if (thinUsage) {
       // WITHHELD rather than caveated. A distribution over four workspaces
       // describes four workspaces, and reading it as a tier signal is the bad
       // decision this report exists to prevent.
       console.log(
-        `    withheld — ${priced.length} workspace(s) is not a distribution.`,
+        `    withheld — ${usingIt.length} unpaused workspace(s) is not a distribution.`,
       );
     } else {
-      const near = priced.filter((p) => p.near >= NEAR_LIMIT).length;
-      const far = priced.filter((p) => p.near < FAR_UNDER).length;
-      const middle = priced.length - near - far;
-      console.log(`    at 90%+ of a limit   ${near} of ${priced.length}`);
-      console.log(`    comfortably inside   ${middle} of ${priced.length}`);
-      console.log(`    under 20%            ${far} of ${priced.length}`);
+      const near = usingIt.filter((p) => p.near >= NEAR_LIMIT).length;
+      const far = usingIt.filter((p) => p.near < FAR_UNDER).length;
+      const middle = usingIt.length - near - far;
+      console.log(`    at 90%+ of a limit   ${near} of ${usingIt.length}`);
+      console.log(`    comfortably inside   ${middle} of ${usingIt.length}`);
+      console.log(`    under 20%            ${far} of ${usingIt.length}`);
       console.log(
         "    (90%+ is under-served and would likely pay more; under 20% is\n" +
           "     paying for headroom they never touch and reads the invoice one day.)",
+      );
+    }
+    // Named separately so the excluded count is never a number the reader has
+    // to decompose: a pause and a cancellation are different facts, and lumping
+    // them would hide whichever one is growing.
+    const pausedOut = priced.filter((p) => p.paused).length;
+    const churnedOut = priced.filter((p) => p.churned).length;
+    if (pausedOut > 0) {
+      console.log(
+        `    ${pausedOut} paused workspace(s) excluded — a pause is not a usage signal.`,
+      );
+    }
+    if (churnedOut > 0) {
+      console.log(
+        `    ${churnedOut} cancelled workspace(s) excluded — churn is not a usage signal.`,
       );
     }
 
@@ -224,11 +399,8 @@ await runScript(
     // Split by WHEN, because a module attached during checkout is a
     // pricing-page decision and one attached weeks later is expansion. A total
     // that mixes them answers neither question.
-    const moves = await db.rpc("api_module_movements", { p_days: 90 });
-    if (moves.error) {
-      throw new Error(`api_module_movements failed: ${moves.error.message}`);
-    }
-    const moved = moves.data ?? [];
+    // Same contract as the snapshot above: the rows, or a rejection.
+    const moved = await db.rpc("api_module_movements", { p_days: 90 });
     console.log("\n  Add-on movement, last 90 days");
     if (moved.length === 0) {
       console.log("    nothing attached or dropped in the window.");
@@ -252,13 +424,19 @@ await runScript(
       console.log("\n  Per workspace");
       console.log(
         `    ${pad("workspace", 26)}${pad("plan", 9)}${pad("net", 10)}` +
-          `${pad("cost", 10)}${pad("margin", 10)}limit`,
+          `${pad("cost", 10)}${pad("margin", 10)}${pad("limit", 8)}state`,
       );
       for (const p of [...priced].sort((a, b) => a.margin - b.margin)) {
         console.log(
           `    ${pad(p.row.name.slice(0, 24), 26)}${pad(p.row.plan, 9)}` +
             `${pad(money(p.net), 10)}${pad(money(p.cost), 10)}` +
-            `${pad(money(p.margin), 10)}${(p.near * 100).toFixed(0)}%`,
+            `${pad(money(p.margin), 10)}${pad(`${(p.near * 100).toFixed(0)}%`, 8)}` +
+            // #277: the plan column says `pro` for a paused workspace, because
+            // that is the plan it will resume onto. Without this the row reads
+            // as a Pro tenant paying $5, which looks like a billing bug. A
+            // cancelled row needs the same sentence for the same reason — `pro`
+            // at $0 reads as an unpaid invoice rather than as somebody who left.
+            (p.churned ? "cancelled" : p.paused ? "paused" : ""),
         );
       }
     }

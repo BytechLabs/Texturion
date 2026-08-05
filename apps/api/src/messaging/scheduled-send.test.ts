@@ -152,7 +152,7 @@ function harness(options: HarnessOptions = {}) {
   // The gates, through the cross-track double rather than a companies row:
   // this project aliases `telnyx/registration`, so stubbing the REST read the
   // real `getSendGates` would make is stubbing a function that never runs.
-  vi.mocked(getSendGates).mockResolvedValue({ aupEnforcement: "none", subscriptionActive: true,
+  vi.mocked(getSendGates).mockResolvedValue({ aupEnforcement: "none", paused: false, subscriptionActive: true,
     usApproved: true,
     caAllowed: true,
     ...options.gates,

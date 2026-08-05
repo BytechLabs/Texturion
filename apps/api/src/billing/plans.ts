@@ -249,6 +249,44 @@ export function planForLicensedPrice(env: Env, priceId: string): PlanId | null {
 }
 
 /**
+ * #277 — the licensed price a PAUSED subscription carries, or null when the
+ * pause is not provisioned in this environment.
+ *
+ * Null is the feature flag, the same way {@link prepayYearPrice} is: with no
+ * price the offer exists nowhere, and it fails CLOSED — no price means no
+ * pause, never a free one. Empty string is normalised to null because a
+ * Cloudflare variable that was created and then blanked reads as `""`, and an
+ * empty price id would sail through a bare truthiness check and then 400 at
+ * Stripe, halfway through a swap.
+ *
+ * The deliberate consequence is that {@link planForLicensedPrice} returns null
+ * for this price. `syncSubscription` writes `...(plan ? { plan } : {})`, so
+ * `companies.plan` is LEFT ALONE while paused and keeps holding the plan the
+ * workspace resumes onto. That is load-bearing, not incidental: a third
+ * `plan_id` value would give the quota CASE in
+ * 20260701001100_messaging_functions.sql no arm, making the overage spending
+ * cap NULL and therefore permanently open.
+ */
+export function pauseLicensedPrice(env: Env): string | null {
+  const id = env.STRIPE_PAUSE_PRICE_ID;
+  return id && id.length > 0 ? id : null;
+}
+
+/**
+ * True when this Stripe price id is the pause price.
+ *
+ * False whenever the pause is unprovisioned, which is the honest reading: with
+ * no configured price we cannot tell a pause price from any other foreign
+ * price, and claiming otherwise would be guessing about somebody's money.
+ * Callers that must not un-pause a workspace on a guess (the subscription
+ * mirror) branch on "recognised a PLAN price" instead — see syncSubscription.
+ */
+export function isPauseLicensedPrice(env: Env, priceId: string): boolean {
+  const pause = pauseLicensedPrice(env);
+  return pause !== null && priceId === pause;
+}
+
+/**
  * Map a Stripe subscription status onto the SPEC §6 enum. The two Stripe
  * statuses outside the enum can never legitimately occur here (Loonext has no
  * trials and never pauses collection), but a webhook must not crash on them:

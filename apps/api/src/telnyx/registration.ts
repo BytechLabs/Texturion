@@ -85,6 +85,8 @@ interface RegistrationCompany {
   subscription_status: string;
   /** #303 ladder step. Optional: rows read before the column shipped. */
   aup_enforcement?: AupEnforcement | null;
+  /** #277 pause. Optional: rows read before the column shipped. */
+  paused_at?: string | null;
 }
 
 const ROW_COLUMNS =
@@ -93,7 +95,8 @@ const ROW_COLUMNS =
   "deactivated_at,otp_nudged_at";
 
 const COMPANY_COLUMNS =
-  "id,name,country,us_texting_enabled,subscription_status,aup_enforcement";
+  "id,name,country,us_texting_enabled,subscription_status,aup_enforcement," +
+  "paused_at";
 
 async function fetchCompany(
   db: SupabaseClient,
@@ -1794,6 +1797,21 @@ export interface SendGates {
   /** `companies.subscription_status === 'active'` (SPEC §1 rule 3). */
   subscriptionActive: boolean;
   /**
+   * #277: this workspace's plan is PAUSED — the seasonal hold.
+   *
+   * It lives here, beside the subscription flag, rather than at each call site,
+   * because that is what makes every outbound path inherit it at once. There
+   * are a dozen of them (compose, thread, retry, away reply, missed-call
+   * text-back, emergency ack, scheduled sends, reminders, ratings, the off-ramp)
+   * and a pause each of them had to REMEMBER would be a pause with a hole in it
+   * within two features.
+   *
+   * DELIBERATELY NOT derived from `subscriptionActive`. A paused subscription is
+   * genuinely `active` in Stripe — the pause is a licensed-price swap, not a
+   * status — so this flag carries information that one cannot.
+   */
+  paused: boolean;
+  /**
    * #303: the ladder step in force. Deliberately NOT derived from
    * `phone_numbers.status`, which is the non-payment path the Stripe webhook
    * clears — an abuse suspension must never be lifted by paying an invoice.
@@ -1847,6 +1865,23 @@ export async function getSendGates(
 
   return {
     subscriptionActive: company.subscription_status === "active",
+    // #277: the pause, read HERE and nowhere else on the send side — every
+    // outbound path inherits it from this one field.
+    //
+    // `?? null` rather than trusted, for the same reason as the ladder below —
+    // a row that carries no such key reads undefined, and the safe reading of
+    // "we do not know" is "not paused", because a wrong "paused" would refuse a
+    // paying customer's texts until somebody noticed.
+    //
+    // That fail-open is NOT underwritten by a daily convergence, whatever a
+    // reader might assume: runSubscriptionReconcileJob re-mirrors non-active
+    // companies plus active ones whose period has ELAPSED, and a paused company
+    // is active with a fresh period, so it is in neither scan. The writers are
+    // the pause/resume routes and syncSubscription on a Stripe webhook. So the
+    // one way this gate can read undefined forever is a select that stops
+    // asking for the column — which is why registration.test.ts SG-4 asserts
+    // the select itself and not only the derived answer.
+    paused: (company.paused_at ?? null) !== null,
     // #303: the enforcement ladder's step, read here so the single pre-send
     // choke point can act on it. Defaulted rather than trusted — a company row
     // written before the column existed reads as undefined, and the safe

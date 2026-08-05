@@ -1,18 +1,28 @@
 /**
  * Daily subscription reconcile (SPEC §11): a convergence backstop for missed
- * Stripe webhooks. For every non-`active` company that has a subscription,
- * re-fetch the subscription from Stripe and re-mirror status/plan/period
- * through the SAME `syncSubscription` path the §9 webhook handlers use — the
- * mirror is convergent, so re-running it is always safe. Also counts pending
- * invites past `expires_at` (report only — §11: acceptance already checks
- * expiry, so no state change is needed or wanted here).
+ * Stripe webhooks. Re-fetch the subscription from Stripe and re-mirror
+ * status/plan/period through the SAME `syncSubscription` path the §9 webhook
+ * handlers use — the mirror is convergent, so re-running it is always safe.
+ *
+ * Three scans feed that loop, and each exists because the ones before it cannot
+ * see the fault it catches:
+ *   1. every non-`active` company with a subscription (the original §11 scan);
+ *   2. every `active` company whose mirrored period has already ended — a
+ *      renewal webhook that never landed, which pins every billing read to last
+ *      month;
+ *   3. #277: every company mirrored as PAUSED. A pause leaves the subscription
+ *      genuinely active with a fresh period, so a paused workspace appears in
+ *      neither scan above and nothing re-read it at all.
+ *
+ * Also counts pending invites past `expires_at` (report only — §11: acceptance
+ * already checks expiry, so no state change is needed or wanted here).
  */
 import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { syncSubscription } from "../webhooks/stripe";
+import { subscriptionPause, syncSubscription } from "../webhooks/stripe";
 import { idempotencyKey } from "./idempotency";
 import { convergeExtraNumberQuantity } from "./extra-numbers";
 import { retiredModulePrices } from "./modules";
@@ -146,18 +156,65 @@ export async function runSubscriptionReconcileJob(
     "stale-period re-mirror",
   );
 
-  const seenIds = new Set((data ?? []).map((row) => (row as { id: string }).id));
-  const remirrorTargets = [
-    ...((data ?? []) as { id: string; stripe_subscription_id: string }[]),
-    ...((staleActive ?? []) as { id: string; stripe_subscription_id: string }[])
-      .filter((row) => !seenIds.has(row.id)),
-  ];
+  // #277: plus every workspace this database says is PAUSED.
+  //
+  // A pause leaves the subscription genuinely `active` and its period fresh, so
+  // a paused company is in NEITHER scan above — and no other job re-reads it.
+  // The pause column's own comment claimed it converged "within a day"; until
+  // this scan existed, nothing re-read a paused workspace at all.
+  //
+  // `paused_at` is a SEND GATE, so being stuck on the wrong side of it is not a
+  // reporting inaccuracy. The states this heals are all shapes of the same
+  // thing — Stripe took the money and our mirror did not land:
+  //   * POST /v1/billing/resume swaps the price back and THEN mirrors; if that
+  //     mirror throws (a PostgREST blip is enough) the customer has been charged
+  //     back up to the plan price and stays blocked, and the resume button now
+  //     409s because the subscription no longer carries a pause item to swap.
+  //     There is no self-serve way out of that; this scan is the way out.
+  //   * a resume or a repricing done in the Stripe dashboard.
+  //   * any future path that attaches a subscription and forgets this column.
+  //
+  // Bounded by the paused cohort rather than by a fault, which is affordable
+  // precisely because the cohort is small by construction: every row in it is a
+  // workspace paying a holding fee, and each costs one subscription retrieve a
+  // day. Capped and alerted like the scans above.
+  const { data: pausedActive, error: pausedError } = await db
+    .from("companies")
+    .select("id,stripe_subscription_id")
+    .eq("subscription_status", "active")
+    .not("paused_at", "is", null)
+    .not("stripe_subscription_id", "is", null)
+    .is("deleted_at", null)
+    .order("id", { ascending: true })
+    .limit(RECONCILE_REMIRROR_BATCH);
+  if (pausedError) {
+    throw new Error(`paused-company lookup failed: ${pausedError.message}`);
+  }
+  warnIfScanAtCapacity(
+    (pausedActive ?? []).length,
+    RECONCILE_REMIRROR_BATCH,
+    "paused re-mirror",
+  );
+
+  // One target list, de-duplicated by company id: the scans deliberately
+  // overlap (a paused workspace whose period also expired is in two of them),
+  // and syncSubscription is convergent, so a repeat would be correct but would
+  // pay a second Stripe retrieve and a second write to say the same thing.
+  const seenIds = new Set<string>();
+  const remirrorTargets: { id: string; stripe_subscription_id: string }[] = [];
+  for (const scan of [data, staleActive, pausedActive]) {
+    for (const row of (scan ?? []) as {
+      id: string;
+      stripe_subscription_id: string;
+    }[]) {
+      if (seenIds.has(row.id)) continue;
+      seenIds.add(row.id);
+      remirrorTargets.push(row);
+    }
+  }
 
   const failures: unknown[] = [];
-  for (const row of remirrorTargets as {
-    id: string;
-    stripe_subscription_id: string;
-  }[]) {
+  for (const row of remirrorTargets) {
     try {
       await syncSubscription(env, row.stripe_subscription_id, db);
       summary.reconciled += 1;
@@ -216,6 +273,11 @@ export async function runSubscriptionReconcileJob(
  * A LIST failure reddens the run (pushed to failures[]); a CANCEL failure is
  * flagged + retried next sweep (NOT failures[], so one un-killable orphan can't
  * perpetually red the daily job — mirrors reconcileNumbers' orphan handling).
+ *
+ * The one list call this makes per tenant has become the cheapest place in the
+ * product to ask what a subscription's items actually say, so two convergences
+ * ride it: #103's retired-item strip, and #277's pause fact (below). Neither
+ * costs a Stripe request unless something is genuinely out of step.
  */
 async function sweepOrphanSubscriptions(
   env: Env,
@@ -226,7 +288,12 @@ async function sweepOrphanSubscriptions(
 ): Promise<void> {
   const { data, error } = await db
     .from("companies")
-    .select("id,plan,stripe_customer_id,stripe_subscription_id")
+    // #277: paused_price_cents rides along so the pause convergence at the foot
+    // of this loop can tell "already correct" from "needs a write" — the founder
+    // can reprice the pause, and the #85 margin report reads that column.
+    .select(
+      "id,plan,paused_at,paused_price_cents,stripe_customer_id,stripe_subscription_id",
+    )
     .not("stripe_customer_id", "is", null)
     .not("stripe_subscription_id", "is", null)
     .is("deleted_at", null)
@@ -246,6 +313,8 @@ async function sweepOrphanSubscriptions(
   for (const row of (data ?? []) as {
     id: string;
     plan: PlanId | null;
+    paused_at: string | null;
+    paused_price_cents: number | null;
     stripe_customer_id: string;
     stripe_subscription_id: string;
   }[]) {
@@ -267,6 +336,36 @@ async function sweepOrphanSubscriptions(
         (s) => s.id === row.stripe_subscription_id,
       );
       const settled = stored != null && SETTLED_STATUSES.has(stored.status);
+
+      /**
+       * #277 — what THIS subscription says about the pause, read from the items
+       * the list call above already returned. No extra Stripe request on the
+       * healthy path, which is what makes checking every swept tenant every day
+       * affordable.
+       *
+       * Used twice: to decide the extra-number skip on Stripe's truth rather
+       * than on a mirror that may be the very thing that is wrong, and to
+       * converge the mirror at the foot of this loop.
+       *
+       * `unknown` (neither a pause price nor a plan price is recognisable —
+       * the shape of a deploy that lost STRIPE_PAUSE_PRICE_ID) falls back to
+       * the stored fact, because a fact we cannot currently read is not a fact
+       * that changed. Same three-answer discipline as the mirror itself.
+       *
+       * An absent or PARTIAL item list is read as `unknown` too, for the same
+       * reason stripRetiredModuleItems skips one: a view we know is incomplete
+       * is not evidence about what is on the subscription. (`items` is typed as
+       * always present, but this listing is the one place the shape is not
+       * ours to guarantee — the retired-item sweep below already guards it.)
+       */
+      const pause =
+        stored && stored.items && !stored.items.has_more
+          ? subscriptionPause(env, stored)
+          : { reading: "unknown" as const, priceCents: null };
+      const pausedNow =
+        pause.reading === "unknown"
+          ? (row.paused_at ?? null) !== null
+          : pause.reading === "paused";
 
       // #103: strip line items priced on a RETIRED module (mms) from the stored
       // subscription — the module no longer exists, so a subscriber still
@@ -296,7 +395,28 @@ async function sweepOrphanSubscriptions(
       // automated "correction" there would be an unconsented charge. Live
       // stored subs only; schedule-managed ones settle after their rollover.
       // A failure is flagged + retried tomorrow, never reddening the run.
-      if (stored && row.plan && SETTLED_STATUSES.has(stored.status)) {
+      //
+      // #277: SKIPPED WHILE PAUSED, and the reason is that `row.plan` stops
+      // being the right input. During a pause the licensed line is the pause
+      // price and `companies.plan` holds the plan the workspace will RESUME
+      // onto — so the formula's `included` term (PLAN_LIMITS[plan].numbers)
+      // describes a plan nobody is currently paying for. There is no "included
+      // numbers" figure for a pause price to converge against; the holding fee
+      // covers the base and the extra-number line stays exactly as it is,
+      // which is right — a paused workspace still holds those numbers and we
+      // still pay Telnyx rent on every one of them.
+      //
+      // Skipping is also the conservative arm under this function's own
+      // down-only rule: the honest answer to "what should the extras be for a
+      // plan that is not in effect" is that we do not know, and #105 already
+      // says an uncertain quantity is flagged for a human rather than written.
+      // The next daily sweep after a resume converges it normally.
+      //
+      // Decided on `pausedNow` — the subscription's OWN licensed item — rather
+      // than on the mirrored column: this sweep exists for the case where the
+      // mirror is stale, and reading the stale value here would let a pause
+      // Stripe already knows about be converged as though it were a plan.
+      if (stored && row.plan && !pausedNow && SETTLED_STATUSES.has(stored.status)) {
         try {
           const converged = await convergeExtraNumberQuantity({
             env,
@@ -366,6 +486,41 @@ async function sweepOrphanSubscriptions(
             "error",
           );
         }
+      }
+
+      // #277 — the pause fact, converged from the subscription's own licensed
+      // item. The other half of the claim on `companies.paused_at`: the paused
+      // re-mirror scan covers every workspace we ALREADY believe is paused, and
+      // this covers the direction that scan cannot see — a workspace paused (or
+      // repriced) at Stripe that our mirror still reads as running.
+      //
+      // That direction is the one every `paused_at ?? null` coalesce in the
+      // product leans on. getSendGates and routes/calls.ts both read a missing
+      // value as "not paused" — deliberately, because a wrong "paused" would
+      // refuse a paying crew's texts and calls — and both say the next mirror
+      // pass writes the fact back. Without this check nothing did, for an active
+      // workspace with a fresh period.
+      //
+      // LAST in the loop, and through syncSubscription rather than a direct
+      // write: last so a throw here cannot cost this tenant its orphan cancels,
+      // and through the mirror so `paused_at` keeps exactly one writer. A throw
+      // reddens the run (the outer catch), which is the right noise for a send
+      // gate that could not be corrected.
+      const stale =
+        pause.reading === "paused"
+          ? (row.paused_at ?? null) === null ||
+            (row.paused_price_cents ?? null) !== pause.priceCents
+          : pause.reading === "not_paused"
+            ? (row.paused_at ?? null) !== null ||
+              (row.paused_price_cents ?? null) !== null
+            : false;
+      if (stale) {
+        await syncSubscription(env, row.stripe_subscription_id, db);
+        summary.reconciled += 1;
+        Sentry.captureMessage(
+          `subscription reconcile: company ${row.id} was mirrored as ${row.paused_at ? "paused" : "not paused"} while subscription ${row.stripe_subscription_id} carries a ${pause.reading === "paused" ? "PAUSE" : "PLAN"} licensed price — re-mirrored (#277). A missed subscription webhook, or a mirror write that never landed.`,
+          "warning",
+        );
       }
     } catch (cause) {
       // A LIST failure for one tenant reddens the run without starving siblings.

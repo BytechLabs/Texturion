@@ -63,6 +63,16 @@ interface CompanyUsageRow {
   overage_cap_multiplier: number | string | null;
   us_texting_enabled: boolean;
   paid_extra_numbers: number;
+  /**
+   * #277: WHETHER the plan is paused. The projection branches on this rather
+   * than on the fee, because the fee is null whenever the amount cannot be read
+   * (a tiered pause price, a pause taken before that was refused, the window
+   * between syncSubscription's two writes) and a workspace is no less paused for
+   * it. Both fields travel because they fail separately.
+   */
+  paused_at: string | null;
+  /** #277: what a PAUSED plan line actually bills. Null when not paused. */
+  paused_price_cents: number | null;
 }
 
 /** DESIGN G8: the usage screen renders a 6-month history. */
@@ -78,7 +88,11 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
     await db
       .from("companies")
       .select(
-        "plan,current_period_start,current_period_end,overage_cap_multiplier,us_texting_enabled,paid_extra_numbers",
+        // #277: the projection must value a paused workspace at what it pays,
+        // not at the plan price its `plan` column still names. `paused_at` is
+        // the field it branches on — the fee is null whenever the amount cannot
+        // be read — so dropping either one puts the plan price back.
+        "plan,current_period_start,current_period_end,overage_cap_multiplier,us_texting_enabled,paid_extra_numbers,paused_at,paused_price_cents",
       )
       .eq("id", companyId)
       .is("deleted_at", null)
@@ -170,6 +184,12 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
           us_texting_enabled: company.us_texting_enabled,
           overage_cap_multiplier: multiplier,
           paid_extra_numbers: company.paid_extra_numbers,
+          // #277: BOTH. The projection decides on the fact and treats a fee it
+          // cannot read as zero — passing only the fee would leave every paused
+          // workspace valued at its plan's list price here, which is the
+          // mis-valuation the two columns exist to prevent.
+          paused_at: company.paused_at,
+          paused_price_cents: company.paused_price_cents,
         },
         new Date(),
       ),

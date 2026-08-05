@@ -60,7 +60,14 @@ object ScheduledSend {
      */
     val HOLD_REASONS: Map<String, String> = mapOf(
         "subscription_inactive" to
-            "Your subscription is paused, so this has not been sent. It will go out when billing is sorted.",
+            "Your subscription has lapsed, so this has not been sent. It will go out when billing is sorted.",
+        // #277: the seasonal hold. A SEPARATE reason from a lapse because the
+        // events and the remedies are separate: nothing lapsed, no card needs
+        // sorting, and the number is not on any clock. The sentence above used
+        // to say "paused" for a lapse; that word belongs to this now, and two
+        // reasons both claiming it is the confusion this roster exists to stop.
+        "workspace_paused" to
+            "Your plan is paused, so this has not been sent. It will go out when you resume.",
         "registration_pending" to
             "This is waiting on carrier approval for US texting. It will send once that clears.",
         "service_unavailable" to
@@ -91,7 +98,11 @@ object ScheduledSend {
      * forever against a condition that will never change.
      */
     fun reasonRecovers(reason: String): Boolean = when (reason) {
-        "subscription_inactive", "registration_pending",
+        // #277: a pause is the most recoverable state in the product. It is a
+        // season, and the whole promise is that everything is where it was left
+        // when the crew comes back. Marked terminal, pausing would quietly
+        // destroy a workspace's scheduled work.
+        "subscription_inactive", "workspace_paused", "registration_pending",
         "service_unavailable", "customer_replied" -> true
         else -> false
     }

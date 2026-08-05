@@ -1919,3 +1919,100 @@ describe("#303 getSendGates reads the enforcement ladder", () => {
     expect(seen).toContain("aup_enforcement");
   });
 });
+
+/**
+ * #277 — the pause, as the REAL gate loader derives it.
+ *
+ * This is the load-bearing half of the whole send-side pause: `getSendGates` is
+ * the ONE place the fact is read, and every outbound path inherits it from
+ * there. `messaging/pause-gate.test.ts` cannot assert it — that suite runs
+ * under the `cross-track-doubles` project, where this module is aliased to a
+ * test double, so it sets `paused` on the double and exercises what
+ * runPreSendGates does with the answer. Proven by breaking it: hardcoding
+ * `paused: false` in the derivation below left that entire suite green.
+ *
+ * Same reason the #303 block above lives here, and the same three failure
+ * modes: the term is removed, the fixture refuses for some other reason, or
+ * the SELECT stops asking for the column and every workspace reads "not
+ * paused" forever.
+ */
+describe("#277 getSendGates derives the pause from the company row", () => {
+  const COMPANY = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+  const PAUSED_AT = "2026-08-01T09:00:00+00:00";
+
+  function world(company: Record<string, unknown>): FetchRoute {
+    return (url) => {
+      if (url.pathname.includes("/companies")) {
+        return Response.json([
+          {
+            id: COMPANY,
+            name: "Reed Roofing",
+            country: "US",
+            us_texting_enabled: true,
+            subscription_status: "active",
+            ...company,
+          },
+        ]);
+      }
+      if (url.pathname.includes("/messaging_registrations")) {
+        return Response.json([
+          { kind: "campaign", status: "approved", deactivated_at: null },
+        ]);
+      }
+      // Loud rather than a hang: an unstubbed table times out at five seconds
+      // with nothing saying which one.
+      return Response.json(
+        { message: `unstubbed ${url.pathname}` },
+        { status: 500 },
+      );
+    };
+  }
+
+  it("SG-1: a stamped paused_at closes the gate", async () => {
+    stubFetch(world({ paused_at: PAUSED_AT }));
+    const gates = await getSendGates(completeEnv(), COMPANY);
+    expect(gates.paused).toBe(true);
+  });
+
+  it("SG-2: the SAME row unpaused leaves it open — and the pause moves nothing else", async () => {
+    // PROVE THE GUARD BY BREAKING IT: one field differs from SG-1, so a green
+    // SG-1 cannot be the fixture refusing for another reason.
+    stubFetch(world({ paused_at: null }));
+    const gates = await getSendGates(completeEnv(), COMPANY);
+    expect(gates.paused).toBe(false);
+
+    // The mechanism, restated as an assertion. A pause is a licensed-PRICE
+    // swap: the subscription stays genuinely active and the 10DLC campaign
+    // stays live (deactivating it would cost the customer a week of US texting
+    // on their return). If a paused workspace ever started reading as
+    // inactive or unapproved here, the pause would be silently doing the
+    // damage the mechanism was chosen to avoid.
+    stubFetch(world({ paused_at: PAUSED_AT }));
+    const paused = await getSendGates(completeEnv(), COMPANY);
+    expect(paused.subscriptionActive).toBe(true);
+    expect(paused.usApproved).toBe(true);
+  });
+
+  it("SG-3: an ABSENT column is not an accidental pause", async () => {
+    // The other direction is the worse one. "We do not know" has to read as
+    // "not paused" — a wrong "paused" refuses a paying crew's texts, and the
+    // only symptom is that their customers stop hearing back.
+    stubFetch(world({}));
+    await expect(getSendGates(completeEnv(), COMPANY)).resolves.toMatchObject({
+      paused: false,
+    });
+  });
+
+  it("SG-4: asks the database for the column at all", async () => {
+    // A gate that never selects the column reads undefined forever and
+    // coalesces to "not paused" — a pause that charges the customer a holding
+    // fee and holds nothing, with every test above still green.
+    let seen = "";
+    stubFetch((url, request) => {
+      if (url.pathname.includes("/companies")) seen = url.search;
+      return world({ paused_at: PAUSED_AT })(url, request);
+    });
+    await getSendGates(completeEnv(), COMPANY);
+    expect(seen).toContain("paused_at");
+  });
+});

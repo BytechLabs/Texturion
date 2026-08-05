@@ -52,6 +52,7 @@ function world(options: { enforcement?: AupEnforcement; sentThisHour?: number } 
   // two agree — a green vitest run does not mean the file typechecks.
   vi.mocked(getSendGates).mockResolvedValue({
     subscriptionActive: true,
+    paused: false,
     aupEnforcement: options.enforcement ?? "none",
     usApproved: true,
     caAllowed: true,

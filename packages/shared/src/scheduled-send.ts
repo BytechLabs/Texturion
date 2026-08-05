@@ -54,7 +54,21 @@ export const SCHEDULED_HOLD_REASONS = {
    * half of the rule exists for.
    */
   subscription_inactive:
-    "Your subscription is paused, so this has not been sent. It will go out when billing is sorted.",
+    "Your subscription has lapsed, so this has not been sent. It will go out when billing is sorted.",
+
+  /**
+   * #277: the workspace's plan is PAUSED — the seasonal hold. Held, not failed,
+   * and it clears by itself the moment somebody resumes.
+   *
+   * A separate reason from `subscription_inactive` because they are separate
+   * events with separate remedies: nothing lapsed here, nobody needs to sort a
+   * card out, and the number is not on any clock. Note that the sentence above
+   * used to say "paused" for a lapse — that word now belongs to this, and two
+   * reasons both claiming it is precisely the confusion this roster exists to
+   * prevent.
+   */
+  workspace_paused:
+    "Your plan is paused, so this has not been sent. It will go out when you resume.",
 
   /** US carrier registration still pending. Also temporary, also resumes. */
   registration_pending:
@@ -124,6 +138,11 @@ export type ScheduledHoldReason = keyof typeof SCHEDULED_HOLD_REASONS;
 export function scheduledReasonRecovers(reason: ScheduledHoldReason): boolean {
   return (
     reason === "subscription_inactive" ||
+    // #277: a pause is the most recoverable state in the product — it is a
+    // season, and the whole promise is that everything is exactly where it was
+    // left when the crew comes back. Marked terminal, a workspace's scheduled
+    // work would be quietly destroyed by the act of pausing.
+    reason === "workspace_paused" ||
     reason === "registration_pending" ||
     reason === "service_unavailable" ||
     reason === "customer_replied"

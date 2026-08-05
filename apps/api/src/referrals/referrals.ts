@@ -8,6 +8,7 @@ import {
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { isPauseLicensedPrice } from "../billing/plans";
 import { itemHasDiscount, licensedItemOf } from "../billing/prepay";
 import { getStripe } from "../billing/stripe";
 import type { Env } from "../env";
@@ -218,6 +219,16 @@ export async function qualifyReferralForSender(
  * the coupon is `once` and idempotent in effect — applying it twice before the
  * stamp lands costs at most the month that was already owed, while stamping
  * first would risk marking a reward that never arrived.
+ *
+ * #277 — A PAUSED WORKSPACE IS SKIPPED AND LEFT UNSTAMPED. Its licensed item is
+ * priced at the ~$5 holding fee, so a free month applied now would be spent on
+ * the hold rather than on the $29/$79 plan it was earned against — the customer
+ * would watch a month they earned buy them nothing. Returning false without
+ * stamping is what makes that recoverable: the row keeps its null timestamp and
+ * {@link payPendingReferralRewards} pays it the moment the plan comes back. The
+ * cancelled-subscription case just below has always worked this way; a pause is
+ * the same shape and was simply invisible, because a paused workspace looks
+ * completely healthy from here.
  */
 async function rewardSide(
   env: Env,
@@ -246,7 +257,19 @@ async function rewardSide(
   const stripe = getStripe(env);
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
   const licensed = licensedItemOf(env, subscription);
-  if (!licensed) return false;
+  if (!licensed) {
+    // Say WHICH of the two no-plan-item shapes this is, because they need
+    // different things from us: a pause will be paid on resume and needs
+    // nothing, while an unrecognised subscription is a catalog problem.
+    const paused = subscription.items.data.some(
+      (item) => item.price && isPauseLicensedPrice(env, item.price.id),
+    );
+    console.log(
+      `referral reward (${args.side}) held for ${args.companyId}: ` +
+        (paused ? "workspace paused, pays on resume" : "no plan licensed item"),
+    );
+    return false;
+  }
 
   if (!itemHasDiscount(licensed, coupon)) {
     await stripe.subscriptions.update(
@@ -288,4 +311,92 @@ export async function rewardQualifiedReferral(
       console.error(`referral reward (${side}) failed: ${String(cause)}`);
     }
   }
+}
+
+/**
+ * Pay a month this workspace earned while it had nothing to discount.
+ *
+ * ONE month per call, not all of them — the loop below says why, and the count
+ * it returns is how many actually landed rather than how many were owed.
+ *
+ * #277 — the other half of the pause. `rewardSide` refuses to spend a free month
+ * on a ~$5 holding fee and leaves the row unstamped, which is the correct
+ * decision and also, on its own, a month quietly lost: nothing in this product
+ * sweeps unstamped rewards, so without a retry "paid on resume" is a comment
+ * rather than a behaviour. This is the retry, and `POST /v1/billing/resume` is
+ * where it runs — the moment the licensed item is a plan again is the moment the
+ * month is worth what it was earned for.
+ *
+ * THE REFERRER SIDE ONLY, and that is a fact about the product rather than a
+ * shortcut. A referee's month is earned by `qualifyReferralForSender`, which
+ * fires on an ACCEPTED OUTBOUND SEND — and a paused workspace cannot send at
+ * all, because all five SQL gates refuse it. So a referee can never be sitting
+ * on a month held back by a pause; only the referrer, whose referee activated
+ * while they were away for the winter, can. Reading the referee side too would
+ * mean selecting rows owned by ANOTHER tenant (`referrals.company_id` is the
+ * referrer's), which is the read the #347 scope guard exists to make somebody
+ * argue for. There is nothing to argue for here.
+ *
+ * NEVER THROWS. It runs after a resume that has already charged the customer;
+ * a referral bookkeeping problem must not turn that into a 500, and every reward
+ * it fails to pay is still sitting unstamped for the next attempt.
+ */
+export async function payPendingReferralRewards(
+  env: Env,
+  db: SupabaseClient,
+  companyId: string,
+): Promise<number> {
+  let paid = 0;
+  try {
+    const { data, error } = await db
+      .from("referrals")
+      .select("id")
+      .eq("company_id", companyId)
+      // Nothing is owed before the referee actually sent something; a voided row
+      // is a reward somebody decided against; and a stamped one has been paid.
+      // None of the three is a retry.
+      .not("qualified_at", "is", null)
+      .is("voided_at", null)
+      .is("referrer_rewarded_at", null);
+    if (error) throw new Error(`referrals lookup failed: ${error.message}`);
+
+    for (const row of (data ?? []) as { id: string }[]) {
+      try {
+        if (
+          await rewardSide(env, db, {
+            referralId: row.id,
+            companyId,
+            side: "referrer",
+          })
+        ) {
+          paid += 1;
+          // ONE MONTH PER CALL, and the rest stay owed rather than being spent.
+          //
+          // The coupon is `duration: once` and `rewardSide` writes
+          // `discounts: [{ coupon }]`, which REPLACES the item's discounts — so
+          // a second one applied before the first reaches an invoice is not a
+          // second month, it is the same month written twice. The loop would
+          // still stamp every row it visited, because `itemHasDiscount` reads
+          // the coupon it just put there and skips straight to the stamp. A
+          // referrer who was away for the winter with three qualified referrals
+          // would come back, receive ONE free month, and find all three recorded
+          // as paid.
+          //
+          // Stopping here leaves the others unstamped, which is the state the
+          // whole pause/resume path is built on: unstamped means still owed, and
+          // still visible to the next attempt. It does mean a second held month
+          // waits for the next resume rather than the next invoice — a month
+          // late is recoverable, a month silently consumed is not.
+          break;
+        }
+      } catch (cause) {
+        console.error(`pending referral reward failed: ${String(cause)}`);
+      }
+    }
+  } catch (cause) {
+    console.error(
+      `pending referral rewards failed for ${companyId}: ${String(cause)}`,
+    );
+  }
+  return paid;
 }

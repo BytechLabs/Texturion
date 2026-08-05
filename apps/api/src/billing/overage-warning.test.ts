@@ -33,6 +33,9 @@ interface State {
   /** Ledger keys already present, `${metric}:${threshold}`. */
   ledger: Set<string>;
   numbers?: number;
+  /** #277: companies.paused_at / paused_price_cents, as the row carries them. */
+  pausedAt?: string | null;
+  pausedPriceCents?: number | null;
 }
 
 function endpoints(state: State): StubEndpoint[] {
@@ -47,6 +50,8 @@ function endpoints(state: State): StubEndpoint[] {
         us_texting_enabled: true,
         overage_cap_multiplier: 3,
         paid_extra_numbers: 0,
+        paused_at: state.pausedAt ?? null,
+        paused_price_cents: state.pausedPriceCents ?? null,
       },
     ]),
     // #400/D107: null = no prepaid year. A year zeroes the licensed line,
@@ -162,6 +167,73 @@ describe("runOverageWarningJob (#85/#92 dynamic overage warning)", () => {
     const { harness, done } = run(state);
     await done;
     expect(sentEmails(harness)).toHaveLength(0);
+  });
+
+  /**
+   * #277 — the paused cohort, in the one alert that exists to catch a tenant
+   * costing more than it pays.
+   *
+   * A pause leaves `subscription_status` 'active' and `plan` populated, so every
+   * paused workspace sails into this scan. Its revenue fell to a holding fee of
+   * a few dollars; its cost — a held number, a live 10DLC campaign, uncapped
+   * inbound — did not move. That is the definition of the row this job is read
+   * for, and valuing it at $29 is what makes it invisible.
+   *
+   * PW-1/PW-2 drive the two halves that fail separately: the fee we can read,
+   * and the fee we cannot. PW-3 asserts the SELECT, because neither behavioural
+   * assertion can see a projection that stops asking for the column — the stub
+   * hands back whole rows regardless of what was requested, so the fixture keeps
+   * supplying a value production can no longer read and both tests stay green
+   * while every paused tenant is quietly restored to its plan's list price.
+   */
+  it("PW-1: warns on a PAUSED tenant that a plan price would have hidden", async () => {
+    // The SAME 50 inbound segments the test above proves is silent on a plan:
+    // ~1210c of extrapolated cost (a held number and a live campaign dominate)
+    // against $29 net is comfortable, and against a $5 holding fee is not. The
+    // usage is identical in both runs — only the revenue moved, which is the
+    // whole claim.
+    const quiet: State = { inbound: 50, ledger: new Set() };
+    const { harness: unpausedHarness, done: unpausedDone } = run(quiet);
+    await unpausedDone;
+    expect(sentEmails(unpausedHarness)).toHaveLength(0);
+
+    const paused: State = {
+      inbound: 50,
+      ledger: new Set(),
+      pausedAt: "2026-06-01T00:00:00.000Z",
+      pausedPriceCents: 500,
+    };
+    const { harness, done } = run(paused);
+    await done;
+    // #447: the customer's heads-up and the founder's copy.
+    expect(sentEmails(harness)).toHaveLength(2);
+  });
+
+  it("PW-2: warns on a paused tenant whose fee we cannot read, never crediting the plan", async () => {
+    // paused_price_cents is null for a tiered pause price, for a workspace
+    // paused before pausePriceSnapshot began refusing those, and in the window
+    // between syncSubscription's two writes. Branching on the FEE reads every
+    // one of them as "not paused" and hands back $29.
+    const state: State = {
+      inbound: 50,
+      ledger: new Set(),
+      pausedAt: "2026-06-01T00:00:00.000Z",
+      pausedPriceCents: null,
+    };
+    const { harness, done } = run(state);
+    await done;
+    expect(sentEmails(harness)).toHaveLength(2);
+  });
+
+  it("PW-3: asks the database for paused_at, not only for the fee", async () => {
+    const { harness, done } = run({ inbound: 50, ledger: new Set() });
+    await done;
+    const select =
+      harness.callsTo("GET", /\/rest\/v1\/companies/)[0]?.url.searchParams.get(
+        "select",
+      ) ?? "";
+    expect(select).toContain("paused_at");
+    expect(select).toContain("paused_price_cents");
   });
 });
 

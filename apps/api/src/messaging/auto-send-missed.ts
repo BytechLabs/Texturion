@@ -36,6 +36,9 @@ export type MissedCallSendOutcome =
         | "recipient_opted_out"
         | "throttled"
         | "subscription_inactive"
+        // #277: the workspace's plan is paused — a seasonal hold, not a
+        // billing failure. The claim RPC distinguishes them and so does this.
+        | "workspace_paused"
         | "not_found";
     };
 
@@ -45,6 +48,7 @@ interface ClaimResult {
     | "recipient_opted_out"
     | "throttled"
     | "subscription_inactive"
+    | "workspace_paused"
     | "not_found";
   message?: MessageRow;
   conversation_id?: string;

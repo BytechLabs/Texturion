@@ -364,6 +364,12 @@ describe("POST /v1/calls/browser (D43)", () => {
       contactPhone?: string | null;
       /** #448 api_period_forwarded_calls — the per-dial COUNT this period. */
       dials?: number;
+      /**
+       * #277 the seasonal pause, exactly as the companies row carries it.
+       * `undefined` deliberately means "the row has no such key" (the pre-
+       * migration read), which is a distinct case from `null` — see PC-5.
+       */
+      pausedAt?: string | null;
     } = {},
   ): SupabaseStub {
     const sb = supabaseStub(env);
@@ -399,6 +405,9 @@ describe("POST /v1/calls/browser (D43)", () => {
         current_period_start: "2026-07-01T00:00:00Z",
         overage_cap_multiplier: "3.00",
         subscription_status: opts.subscriptionStatus ?? "active",
+        // Absent unless the test asks for it: the pre-#277 row shape, which is
+        // what every other test in this describe is written against.
+        ...("pausedAt" in opts ? { paused_at: opts.pausedAt } : {}),
       },
     ]);
     sb.on(
@@ -750,6 +759,134 @@ describe("POST /v1/calls/browser (D43)", () => {
     expect(res.status).toBe(200);
     const out = (await res.json()) as { from: string };
     expect(out.from).toBe("+14165550200"); // the chosen number
+  });
+
+  /**
+   * #277 — the pause, on the most expensive door in the product.
+   *
+   * A pause is a licensed-PRICE swap, so `subscription_status` is genuinely
+   * 'active' and `plan` is genuinely populated: every gate this route had
+   * before #277 passes for a paused workspace. Dialling costs ~10c per dial
+   * command whatever happens next, plus ~1.2c a minute on BOTH legs, against a
+   * holding fee of a few dollars a month — so this is the largest spend a
+   * workspace that has stopped paying could still reach.
+   *
+   * This block exists because the gate was written with no assertion anywhere
+   * in the suite: replacing its condition with `if (false)` left all 3,640
+   * tests green. PC-4 and PC-5 are the two that make the rest real — one
+   * proves a refusal is not the fixture refusing for some other reason, the
+   * other proves the route still ASKS the database for the column, which is
+   * the way this gate dies silently rather than loudly.
+   */
+  describe("#277 a paused workspace does not dial", () => {
+    const PAUSED_AT = "2026-08-01T09:00:00+00:00";
+
+    it("PC-1: 402s workspace_paused BEFORE the line claim and before Telnyx", async () => {
+      const sb = browserWorld({ pausedAt: PAUSED_AT });
+      const dial = telnyxDialStub();
+      stubFetch(jwksRoute(auth), sb.route, dial.route);
+
+      const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
+        companyId: COMPANY_ID,
+        method: "POST",
+        body: { conversation_id: CONVERSATION },
+      });
+      expect(res.status).toBe(402);
+      expect(await res.json()).toMatchObject({
+        error: { code: "workspace_paused" },
+      });
+      // The two things that cost money or wedge a line, both untouched: no
+      // nonce minted (so no sweeper-freed reservation), no dial command.
+      expect(sb.find("POST", "/rest/v1/rpc/api_claim_outbound_line")).toHaveLength(0);
+      expect(dial.calls).toHaveLength(0);
+    });
+
+    it("PC-2: the refusal never borrows the suspension code or its accusation", async () => {
+      // Same rule as the send gate's PG-3. A crew that chose a cheaper winter
+      // must not be told their account is under review, and the sentence has
+      // to say what is being HELD — that is the thing the holding fee buys.
+      const sb = browserWorld({ pausedAt: PAUSED_AT });
+      stubFetch(jwksRoute(auth), sb.route);
+
+      const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
+        companyId: COMPANY_ID,
+        method: "POST",
+        body: { conversation_id: CONVERSATION },
+      });
+      const body = (await res.json()) as { error: { code: string; message: string } };
+      expect(body.error.code).not.toBe("subscription_inactive");
+      expect(body.error.code).not.toBe("sending_suspended");
+      const message = body.error.message.toLowerCase();
+      for (const accusation of ["review", "suspend", "abuse", "violat"]) {
+        expect(message).not.toContain(accusation);
+      }
+      expect(message).toContain("number");
+      expect(message).toContain("resume");
+    });
+
+    it("PC-3: a cancellation outranks the pause", async () => {
+      // A workspace that paused and then cancelled has both facts true. The
+      // cancellation is the one with a 30-day clock on their phone number
+      // attached, so it is the one they hear about.
+      const sb = browserWorld({ pausedAt: PAUSED_AT, subscriptionStatus: "canceled" });
+      stubFetch(jwksRoute(auth), sb.route);
+
+      const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
+        companyId: COMPANY_ID,
+        method: "POST",
+        body: { conversation_id: CONVERSATION },
+      });
+      expect(res.status).toBe(402);
+      expect(await res.json()).toMatchObject({
+        error: { code: "subscription_inactive" },
+      });
+    });
+
+    it("PC-4: the identical world with the pause LIFTED dials — so PC-1 is the gate", async () => {
+      // PROVE THE GUARD BY BREAKING IT. Every field is the one PC-1 used
+      // except paused_at, so a green PC-1 cannot be some other gate refusing.
+      const sb = browserWorld({ pausedAt: null });
+      const dial = telnyxDialStub();
+      stubFetch(jwksRoute(auth), sb.route, dial.route);
+
+      const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
+        companyId: COMPANY_ID,
+        method: "POST",
+        body: { conversation_id: CONVERSATION },
+      });
+      expect(res.status).toBe(200);
+      expect(dial.calls).toHaveLength(1);
+      expect(sb.find("POST", "/rest/v1/rpc/api_claim_outbound_line")).toHaveLength(1);
+    });
+
+    it("PC-5: the route ASKS for paused_at, and an absent column is not a pause", async () => {
+      // How this gate dies without a single test going red: someone edits the
+      // companies select and drops the column. Every row then reads undefined,
+      // the `?? null` coalesce says "not paused", and a paused crew dials all
+      // winter. The stub answers whatever it likes regardless of the select,
+      // so only this assertion can see it.
+      const sb = browserWorld({ pausedAt: PAUSED_AT });
+      stubFetch(jwksRoute(auth), sb.route);
+      await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
+        companyId: COMPANY_ID,
+        method: "POST",
+        body: { conversation_id: CONVERSATION },
+      });
+      const read = sb.find("GET", "/rest/v1/companies")[0];
+      expect(read.url.searchParams.get("select")).toContain("paused_at");
+
+      // And the other half of the coalesce: a row with no such key is "not
+      // paused", never an accidental refusal of a paying crew's call.
+      const noColumn = browserWorld(); // no `paused_at` key at all
+      const dial = telnyxDialStub();
+      stubFetch(jwksRoute(auth), noColumn.route, dial.route);
+      const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
+        companyId: COMPANY_ID,
+        method: "POST",
+        body: { conversation_id: CONVERSATION },
+      });
+      expect(res.status).toBe(200);
+    });
   });
 });
 

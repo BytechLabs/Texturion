@@ -238,7 +238,8 @@ interface SlotResult {
  * POST /v1/numbers/provision — owner/admin (SPEC §7, §10): Pro's 2nd number.
  * Gate order: role → Idempotency-Key (client UUID, §7) → area-code validation
  * against the shared NANP table (country fixed to the company's) → active
- * subscription (402) → the atomic slot claim (`provision_number_slot` RPC:
+ * subscription (402) → idempotent replay → #277 not paused (402) → the atomic
+ * slot claim (`provision_number_slot` RPC:
  * company-row lock + count-vs-plan + §4.2 sole-prop cap + insert, one
  * transaction) → the §4.3 saga from S2.
  */
@@ -262,7 +263,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
     .from("companies")
     .select(
       "id,country,subscription_status,plan,us_texting_enabled," +
-        "stripe_subscription_id,paid_capacity_epoch",
+        "stripe_subscription_id,paid_capacity_epoch,paused_at",
     )
     .eq("id", companyId)
     .limit(1);
@@ -278,6 +279,8 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
     stripe_subscription_id: string | null;
     /** #110 raise fence — read BEFORE any billing conclusion below. */
     paid_capacity_epoch: number;
+    /** #277 pause. Optional: a row read before the column shipped has no key. */
+    paused_at?: string | null;
   } | null;
   if (!company) throw new ApiError("not_found", "Company not found.");
 
@@ -348,6 +351,41 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
     }
     const replay = (replayRows?.[0] ?? null) as unknown as NumberRowFull | null;
     if (replay) return c.json(sanitizeNumber(replay), 200);
+  }
+
+  /**
+   * #277 — a paused workspace does not buy numbers.
+   *
+   * The subscription test above cannot catch this: a pause is a licensed-PRICE
+   * swap, so `subscription_status` is genuinely 'active' and `plan` is genuinely
+   * populated (it is what they resume onto). Both of that gate's terms survive a
+   * pause, so without this line a paused crew could be charged $4-5/mo for an
+   * extra number they are gated from texting from and gated from calling on —
+   * and even an INCLUDED number is not free to us, since we pay the carrier to
+   * hold it while they pay only the holding fee.
+   *
+   * Placed AFTER the idempotent replay on purpose. A replay returns a row that
+   * already exists and moves no money; refusing it would strand a purchase that
+   * completed just before the pause behind a lost HTTP response, with no way to
+   * discover the number they already own. Every path that can ORDER or CHARGE
+   * is below this line.
+   *
+   * `?? null` rather than a bare `!== null`: a row that carries no such key
+   * reads undefined, and the safe reading of "we do not know" is "not paused" —
+   * the same coalesce, for the same reason, as getSendGates and the calls
+   * route. Nothing re-mirrors a paused workspace on a timer (see the note at
+   * that coalesce in routes/calls.ts), so the one way this gate could read
+   * undefined forever is a select that stops asking for the column, which is
+   * what numbers.test.ts NP-5 pins.
+   */
+  if ((company.paused_at ?? null) !== null) {
+    return errorResponse(
+      c,
+      "workspace_paused",
+      "Your plan is paused, so you can't add a number right now. The numbers " +
+        "you already have are being held — resume your plan in billing and " +
+        "you can add another straight away.",
+    );
   }
 
   // #105 (#80): numbers beyond the plan's included count are PAID extras

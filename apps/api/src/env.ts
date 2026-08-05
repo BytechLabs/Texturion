@@ -211,6 +211,27 @@ const envSchema = z.object({
   STRIPE_PRO_YEAR_PRICE_ID: z.string().min(1).optional(),
   STRIPE_PREPAID_YEAR_COUPON_ID: z.string().min(1).optional(),
   /**
+   * #277 — the seasonal pause. A recurring LICENSED price that replaces the
+   * plan's licensed price on the same subscription: the workspace keeps its
+   * number, its history and its 10DLC registration, stops being able to send,
+   * and pays a holding fee instead of a plan.
+   *
+   * OPTIONAL, and that is the feature flag, exactly as the prepaid year above:
+   * with it unset the offer does not exist — eligibility reports
+   * not_provisioned and the route 409s. It FAILS CLOSED in the strong sense —
+   * no price means no pause, never a free one — because the alternative
+   * ("pause them anyway and sort the billing out later") is a workspace holding
+   * a number and a campaign we pay ~$3/mo for against no revenue at all.
+   *
+   * ONE price, not one per plan. The pause is a hold on the number, and a
+   * paused Starter and a paused Pro cost us the same thing to hold; `plan` is
+   * untouched throughout and is what they resume onto.
+   *
+   * The AMOUNT is not ours to pick — the founder provisions the price and this
+   * variable names it. Nothing in this codebase hardcodes what a pause costs.
+   */
+  STRIPE_PAUSE_PRICE_ID: z.string().min(1).optional(),
+  /**
    * #399 — the free month a referral earns, for each side. 100% off the
    * LICENSED line once, exactly like the prepaid year but for a single month,
    * so a free month covers the plan fee and never the metered overage the

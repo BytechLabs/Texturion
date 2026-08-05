@@ -16,6 +16,14 @@ import {
   type LocalSubscriptionStatus,
   type PlanId,
 } from "../billing/plans";
+import {
+  PAUSE_PRORATION,
+  pauseEligibility,
+  pausePriceSnapshot,
+  pausedLicensedItem,
+  planLicensedItem,
+  type PauseEligibility,
+} from "../billing/pause";
 import { enabledModules, isSellableModule } from "../billing/company-modules";
 import {
   allExtraNumberPrices,
@@ -46,13 +54,18 @@ import {
 import {
   applyPriceToSchedulePhases,
 } from "../billing/schedule-phases";
+import { payPendingReferralRewards } from "../referrals/referrals";
 import { getStripe, type Stripe } from "../billing/stripe";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { getEnv } from "../env";
+import { getEnv, type Env } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { expectOk, parseJsonBody } from "./core/http";
-import { handleCheckoutCompleted, isProvisionableCheckout } from "../webhooks/stripe";
+import {
+  handleCheckoutCompleted,
+  isProvisionableCheckout,
+  syncSubscription,
+} from "../webhooks/stripe";
 
 const planBodySchema = z.object({
   plan: z.enum(PLAN_IDS),
@@ -100,6 +113,10 @@ interface BillingCompany {
   registration_fee_paid_at: string | null;
   /** #328: what this workspace is charged in. */
   billing_currency: string | null;
+  /** #277: when this workspace's plan was paused, or null. */
+  paused_at: string | null;
+  /** #277: what the pause bills per month, USD cents, mirrored from Stripe. */
+  paused_price_cents: number | null;
 }
 
 async function fetchCompany(
@@ -112,7 +129,11 @@ async function fetchCompany(
       "id,plan,country,us_texting_enabled,subscription_status," +
         "stripe_customer_id,stripe_subscription_id,registration_fee_paid_at," +
         // #328: the currency every line item on this session is charged in.
-        "billing_currency",
+        "billing_currency," +
+        // #277: the pause. Read on EVERY billing path rather than only the
+        // pause routes — change-plan, prepay and checkout each break in their
+        // own way against a subscription whose licensed line is the pause price.
+        "paused_at,paused_price_cents",
     )
     .eq("id", companyId)
     // A soft-deleted company is not billable — match usage.ts + the billing
@@ -666,6 +687,33 @@ billingRoutes.post("/change-plan", async (c) => {
       "Your subscription is canceled — resubscribe to change plans.",
     );
   }
+  /**
+   * #277 — a paused workspace changing plans gets a sentence, not a 500.
+   *
+   * Below, the licensed+metered pair is located by price and a miss THROWS,
+   * which becomes an `internal_error` and a Sentry alert. That throw is right
+   * for what it was written for — a subscription missing its own plan prices is
+   * a genuine invariant violation — but a paused subscription carries the pause
+   * price instead of a plan price, so it hits that throw by design. The
+   * customer sees "Something went wrong" for a perfectly ordinary thing to try,
+   * and the founder gets paged for it.
+   *
+   * Refused rather than performed, and not because performing it is hard: a
+   * plan change during a pause is ambiguous in a way only the customer can
+   * settle. Do they want to resume now on the new plan, or to keep paying the
+   * holding fee and land on the new plan in spring? Guessing the first bills
+   * them today for a plan they may not want yet; guessing the second stores an
+   * intention with no visible place to see or cancel it. So: resume, then
+   * change, in that order — two clear steps instead of one silent assumption.
+   */
+  if (company.paused_at) {
+    return errorResponse(
+      c,
+      "conflict",
+      "Your plan is paused. Resume it first, then switch plans — that way you " +
+        "choose when the new plan starts billing.",
+    );
+  }
 
   const stripe = getStripe(env);
   const subscription = await stripe.subscriptions.retrieve(
@@ -996,6 +1044,411 @@ billingRoutes.post("/prepay", async (c) => {
     throw new Error(`Stripe prepay session ${session.id} returned no URL.`);
   }
   return c.json({ url: session.url });
+});
+
+/**
+ * The sentence a refused pause or resume says, per reason.
+ *
+ * Each names the thing the customer can act on and nothing else — an
+ * unprovisioned catalog is our problem, not theirs, which is why
+ * `not_provisioned` says the offer is unavailable rather than explaining our
+ * configuration. Same shape and same rule as the prepay refusals above.
+ */
+function pauseRefusal(eligibility: PauseEligibility): string {
+  switch (eligibility.reason) {
+    case "no_subscription":
+      return "Subscribe first — pausing holds a plan you already have.";
+    case "already_paused":
+      return "Your plan is already paused.";
+    case "subscription_unhealthy":
+      return "Sort out your payment method first, then you can pause.";
+    case "plan_change_pending":
+      return "You have a plan change waiting to take effect. Once it lands you can pause.";
+    case "already_prepaid":
+      return (
+        "You have already paid for a year, and it runs until " +
+        new Date(eligibility.open?.granted_through ?? "").toISOString().slice(0, 10) +
+        ". Pausing would spend those months on a hold instead of on the plan you bought."
+      );
+    case "prepaid_coupon_orphaned":
+      // The `prepayments` row is missing but the year is plainly running, so we
+      // cannot name a date the way `already_prepaid` does. Say the true thing:
+      // a pause would spend the year on a hold, and support can see the coupon.
+      return (
+        "Your prepaid year is still running on this plan, so pausing would " +
+        "spend those months on a hold instead. Get in touch and we'll sort it out."
+      );
+    case "referral_month_pending":
+      // Same harm as `already_prepaid`, said the same way: the free month rides
+      // the line a pause would swap, so pausing spends a $29/$79 credit on a
+      // holding fee. Naming the bill it lands on is what makes waiting obvious.
+      return (
+        "You have a free month from a referral waiting on your next bill. " +
+        "Pausing would spend it on the hold instead of on your plan — let it " +
+        "land first, then pause."
+      );
+    default:
+      return "Pausing isn't available right now.";
+  }
+}
+
+/**
+ * Mirror the pause fact after a swap that has already landed at Stripe.
+ *
+ * #277. Both pause routes have the same shape and the same hazard: the Stripe
+ * write moves money, and the mirror that follows it can throw. `syncSubscription`
+ * raises on any PostgREST error, so a transient database failure used to leave
+ * the customer charged for a state our database refuses to grant them — billed
+ * for a plan they cannot send on, or texting at full quota on a holding fee.
+ *
+ * The fallback is NOT a second opinion about what "paused" means. It re-states
+ * the conclusion of the swap we just made — that swap either put the pause price
+ * on the licensed item or took it off, and Stripe accepted it — and it runs only
+ * when the one place that decides could not be reached. When it lands, the
+ * canonical writer runs anyway moments later on the `customer.subscription.updated`
+ * event our own write produced, and agrees.
+ *
+ * A failure of BOTH is allowed to throw, and the throw is honest: the database
+ * is unreachable, nothing we say about the account would be true, and the retry
+ * is the customer pressing the button again — which replays the same Stripe
+ * idempotency key rather than charging twice.
+ */
+async function mirrorAfterSwap(
+  env: Env,
+  db: SupabaseClient,
+  subscriptionId: string,
+  fallback: () => PromiseLike<{ error: { message: string } | null }>,
+): Promise<void> {
+  try {
+    await syncSubscription(env, subscriptionId, db);
+  } catch (cause) {
+    console.error(
+      `pause mirror via syncSubscription failed for ${subscriptionId}:`,
+      cause instanceof Error ? cause.message : String(cause),
+    );
+    const { error } = await fallback();
+    if (error) throw cause;
+  }
+}
+
+/**
+ * GET /v1/billing/pause (#277) — may this workspace pause, what would it cost,
+ * and is it paused already?
+ *
+ * One request answers all three, because the billing screen needs all three:
+ * the offer renders only when eligible, a workspace already paused should see
+ * since when rather than the offer again, and the price has to be shown before
+ * anybody presses anything.
+ *
+ * NO PRICE ID CROSSES THIS BOUNDARY. Clients get cents. A price id in a client
+ * bundle is a value somebody can put in a checkout call, and mirrors the shape
+ * GET /v1/billing/prepay already established.
+ *
+ * `monthly_cents` COMES FROM TWO PLACES, on purpose:
+ *
+ *   * PAUSED — the mirror on the company row, written from the subscription
+ *     item at pause time. That is genuinely what THIS workspace is being
+ *     charged, which the catalog price is not once the founder reprices a pause
+ *     somebody is already living on.
+ *   * NOT PAUSED AND ELIGIBLE — the live catalog price, read through the same
+ *     {@link pausePriceSnapshot} the pause itself is gated on. The mirror is
+ *     null until a first pause has happened, so quoting it would price every
+ *     FIRST pause blind — asking somebody to agree to a recurring charge whose
+ *     amount we refuse to name. And where it is NOT null it is last winter's
+ *     fee, while the offer on the screen is today's.
+ *
+ * Reading the offer through `pausePriceSnapshot` rather than a second price
+ * lookup is what keeps the quote and the charge the same number: a price it
+ * refuses (archived, $0, no recurrence) is one POST /pause will not swap onto
+ * either, so this cannot advertise a pause that would then be declined.
+ *
+ * Ineligible and not paused answers null and makes no Stripe call. There is no
+ * offer to price, and this route renders on every visit to the billing screen.
+ *
+ * A Stripe failure THROWS rather than degrading to null. Swallowing it would
+ * put the screen back in exactly the state this closes — the offer visible with
+ * no price beside it — and the handler already round-trips to Stripe for the
+ * subscription, so this is the failure surface the route always had.
+ */
+billingRoutes.get("/pause", async (c) => {
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  const company = await fetchCompany(db, c.get("companyId"));
+
+  // The schedule gate needs the live subscription; skipped for a company with
+  // none, which is the no_subscription answer anyway and saves a round trip on
+  // a screen that renders this on every visit.
+  let subscription: Stripe.Subscription | null = null;
+  if (company.stripe_subscription_id) {
+    subscription = await getStripe(env).subscriptions.retrieve(
+      company.stripe_subscription_id,
+    );
+  }
+  const eligibility = await pauseEligibility(env, db, company, subscription);
+  const offer = eligibility.eligible
+    ? await pausePriceSnapshot(env, getStripe(env))
+    : null;
+
+  return c.json({
+    // A pause we cannot quote is not offered. `pausePriceSnapshot` returns null
+    // for a price that would bill NOTHING, and a $0 pause price passes every
+    // other guard in this feature — the env var is set, the swap succeeds, the
+    // subscription is active — while handing out a held number and a live 10DLC
+    // campaign for free. Reporting `eligible` here without the figure would put
+    // that button on the screen.
+    eligible: eligibility.eligible && offer !== null,
+    reason: eligibility.reason ?? (offer === null ? "not_provisioned" : null),
+    paused_at: company.paused_at,
+    monthly_cents:
+      company.paused_at !== null ? company.paused_price_cents : (offer?.cents ?? null),
+    // What they come back to. The pause never touches `plan` — that is the
+    // whole reason it is not a third plan_id — so this is a real answer even
+    // months in.
+    resume_plan: company.plan,
+  });
+});
+
+/**
+ * POST /v1/billing/pause (#277) — hold the number, stop the texting.
+ *
+ * A licensed-price swap on the SAME subscription: the plan's licensed item
+ * becomes the pause price and nothing else on the subscription is touched. The
+ * 10DLC campaign stays live (deactivating it to save its fee would cost the
+ * customer 3-7 business days of US texting on their return, out of a lifetime
+ * budget of four reactivations), the numbers stay ours, and the history is
+ * never in question.
+ *
+ * The pause FACT is then mirrored by {@link syncSubscription} — the same
+ * function the webhook calls, run here with the truth freshly re-read from
+ * Stripe. Calling it rather than writing `paused_at` inline is what keeps one
+ * definition of "paused": if this route wrote the column itself, the route and
+ * the webhook would be two places that decide, and the day they disagree is the
+ * day a workspace is billed for a pause it can still send from.
+ */
+billingRoutes.post("/pause", async (c) => {
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  const company = await fetchCompany(db, c.get("companyId"));
+
+  let subscription: Stripe.Subscription | null = null;
+  if (company.stripe_subscription_id) {
+    subscription = await getStripe(env).subscriptions.retrieve(
+      company.stripe_subscription_id,
+    );
+  }
+  const eligibility = await pauseEligibility(env, db, company, subscription);
+  if (!eligibility.eligible || !subscription) {
+    return errorResponse(c, "conflict", pauseRefusal(eligibility));
+  }
+
+  // Read from the CATALOG, not just from the env var. `pauseLicensedPrice` only
+  // says an id is configured; this says the id names a price that can charge a
+  // monthly amount above zero. A price provisioned at $0 by mistake is a
+  // genuinely free pause that nothing else here would catch, and the fee is the
+  // entire reason this feature is allowed to exist (a held number plus a live
+  // campaign is ~$3/mo of ours). Fail closed on the same reader GET /pause
+  // quotes from, so the screen and the button cannot disagree.
+  const pausePrice = await pausePriceSnapshot(env, getStripe(env));
+  const licensedItem = planLicensedItem(env, subscription);
+  if (!pausePrice || !licensedItem) {
+    // Not an invariant violation worth a 500: a subscription with no plan
+    // licensed item is a subscription mid-something (a schedule that just
+    // released, a manual edit in the dashboard), and the useful answer is to
+    // try again rather than a stack trace.
+    return errorResponse(c, "conflict", "Pausing isn't available right now.");
+  }
+
+  await getStripe(env).subscriptions.update(
+    subscription.id,
+    {
+      items: [{ id: licensedItem.id, price: pausePrice.id }],
+      proration_behavior: PAUSE_PRORATION,
+    },
+    {
+      // Day-scoped, like the voice-item attach: a retried request within the
+      // same day replays rather than swapping twice.
+      //
+      // AND IT CANNOT TELL A RETRY FROM A SECOND PAUSE. Nothing observable on
+      // the subscription distinguishes them — after a resume the licensed item
+      // is back on the same id at the same plan price, so pause → resume →
+      // pause inside one day sends Stripe a byte-identical request under a key
+      // it has already answered, and the cached response comes back with no
+      // swap performed. `paused_at` names a pause that exists, so the resume
+      // side could key on it (see below); a pause has no such handle before it
+      // happens. The re-read after this call is what makes that case honest
+      // rather than a 200 for a pause nobody is being charged for.
+      idempotencyKey: idempotencyKey(
+        company.id,
+        "pause",
+        `${subscription.id}:${new Date().toISOString().slice(0, 10)}`,
+      ),
+    },
+  );
+
+  // THE SWAP HAS LANDED. From here the workspace is billed the holding fee in
+  // Stripe, so anything that leaves `paused_at` unset leaves it texting at full
+  // plan quota on a ~$5 line — the cost leak this whole feature is priced
+  // against. syncSubscription is the one place that DECIDES the pause fact and
+  // it throws on any PostgREST error, so the fallback re-states the same
+  // conclusion from the swap we just made rather than deciding a second time,
+  // and only when the canonical writer could not run.
+  await mirrorAfterSwap(env, db, subscription.id, () =>
+    db
+      .from("companies")
+      .update({ paused_at: new Date().toISOString(), paused_price_cents: pausePrice.cents })
+      .eq("id", company.id)
+      .is("paused_at", null),
+  );
+
+  // Told from the mirror, and REFUSED when the mirror does not agree — the same
+  // rule POST /resume follows, for the same reason and one more.
+  //
+  // The extra reason is the idempotency key above: a replayed pause returns a
+  // cached Stripe response, so the licensed item is never swapped, `paused_at`
+  // stays null, and every step after the swap still succeeds. Answering 200 with
+  // whatever the row happens to say would tell somebody who pressed Pause that
+  // they had paused, on a workspace still being billed the full plan price and
+  // still able to send. This is the one place that difference is visible.
+  const paused = await fetchCompany(db, company.id);
+  if (paused.paused_at === null) {
+    return errorResponse(
+      c,
+      "conflict",
+      "Your plan hasn't paused yet. If you resumed earlier today, try again " +
+        "tomorrow — you won't be charged twice for pausing.",
+    );
+  }
+
+  await recordAuditFromRequest(db, c, {
+    companyId: company.id,
+    action: "billing.paused",
+    targetType: "company",
+    targetId: company.id,
+    before: { plan: company.plan, paused: false },
+    after: { plan: company.plan, paused: true },
+  });
+
+  return c.json({
+    paused_at: paused.paused_at,
+    monthly_cents: paused.paused_price_cents,
+    resume_plan: paused.plan,
+  });
+});
+
+/**
+ * POST /v1/billing/resume (#277) — come back in the spring.
+ *
+ * The exact inverse: the pause price becomes the plan's licensed price again,
+ * on the same item, on the same subscription. Everything else has been sitting
+ * where it was left — the number, the campaign, the message history, the
+ * scheduled sends that were held rather than failed — so there is nothing to
+ * restore and nothing to re-approve.
+ *
+ * `companies.plan` is where the plan came from, and it has been untouched the
+ * whole time. That is the payoff for the pause not being a third plan_id.
+ */
+billingRoutes.post("/resume", async (c) => {
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  const company = await fetchCompany(db, c.get("companyId"));
+
+  if (!company.paused_at) {
+    return errorResponse(c, "conflict", "Your plan isn't paused.");
+  }
+  if (!company.stripe_subscription_id || company.plan === null) {
+    return errorResponse(c, "conflict", "No subscription to resume.");
+  }
+
+  const stripe = getStripe(env);
+  const subscription = await stripe.subscriptions.retrieve(
+    company.stripe_subscription_id,
+  );
+  if (subscription.schedule) {
+    return errorResponse(
+      c,
+      "conflict",
+      "You have a plan change waiting to take effect. Once it lands you can resume.",
+    );
+  }
+
+  const pausedItem = pausedLicensedItem(env, subscription);
+  if (!pausedItem) {
+    // The subscription does not carry the pause price, so there is nothing to
+    // swap back — the mirror will clear `paused_at` on its next pass. Telling
+    // the customer to try again is better than swapping a line we cannot
+    // identify.
+    return errorResponse(c, "conflict", "Resuming isn't available right now.");
+  }
+
+  await stripe.subscriptions.update(
+    subscription.id,
+    {
+      items: [{ id: pausedItem.id, price: planPrices(env, company.plan).licensed }],
+      proration_behavior: PAUSE_PRORATION,
+    },
+    {
+      // Keyed on THE PAUSE BEING LIFTED, not on the calendar day. A day-scoped
+      // key made resume → pause → resume inside one day replay the FIRST
+      // resume: Stripe returns the cached response, no swap happens, and the
+      // customer is told they resumed while they stay paused and unable to
+      // send. `paused_at` is stamped once per pause and never walked forward,
+      // so it names this pause exactly — a genuine retry of the same resume
+      // still replays, which is what stops a second proration.
+      idempotencyKey: idempotencyKey(
+        company.id,
+        "resume",
+        `${subscription.id}:${company.paused_at}`,
+      ),
+    },
+  );
+
+  // THE CHARGE HAS HAPPENED. `create_prorations` has just billed the balance of
+  // the period back up to the plan price. From here the only acceptable outcomes
+  // are "the pause is lifted" or "try again" — never "charged and still
+  // blocked", which is what a bare throw out of syncSubscription produced: a
+  // 500, a full-price bill, and five SQL send gates still refusing every text.
+  //
+  // Mirrors `paused_at` back to null, and — because this is the same path the
+  // subscription webhook runs — re-points the voice metered item at the resumed
+  // plan's price and re-reconciles the modules, with no resume-specific code.
+  await mirrorAfterSwap(env, db, subscription.id, () =>
+    db
+      .from("companies")
+      .update({ paused_at: null, paused_price_cents: null })
+      .eq("id", company.id),
+  );
+
+  // Told from the mirror rather than asserted. A response that says
+  // `paused_at: null` because the literal null was typed here is a response that
+  // stays right when everything else has gone wrong — and the customer acts on
+  // it, believing they can send.
+  const resumed = await fetchCompany(db, company.id);
+  if (resumed.paused_at !== null) {
+    return errorResponse(
+      c,
+      "conflict",
+      "Your plan hasn't come back yet. Give it a minute and try again — you " +
+        "won't be charged twice for resuming.",
+    );
+  }
+
+  // #399/#277: a free month that qualified while this workspace was paused was
+  // deliberately NOT applied — it would have been spent on the holding fee
+  // instead of the plan month it was earned against. The licensed item is a plan
+  // again, so this is the moment it is worth what it was earned for. Never
+  // throws: the customer has already been charged for this resume.
+  await payPendingReferralRewards(env, db, company.id);
+
+  await recordAuditFromRequest(db, c, {
+    companyId: company.id,
+    action: "billing.resumed",
+    targetType: "company",
+    targetId: company.id,
+    before: { plan: company.plan, paused: true },
+    after: { plan: company.plan, paused: false },
+  });
+
+  return c.json({ plan: resumed.plan, paused_at: resumed.paused_at });
 });
 
 /**

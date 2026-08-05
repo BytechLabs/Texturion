@@ -24,9 +24,21 @@ const PERIOD_START = 1_750_000_000;
 const PERIOD_END = 1_752_600_000;
 
 function subscriptionFixture(
-  overrides: { id?: string; status?: string } = {},
+  overrides: {
+    id?: string;
+    status?: string;
+    /** #277: the licensed price on the item a pause swaps. */
+    licensed?: string;
+    /** What that price bills, in its base currency — the pause fee mirror. */
+    licensedUnitAmount?: number | null;
+  } = {},
 ) {
-  const { id = "sub_1", status = "active" } = overrides;
+  const {
+    id = "sub_1",
+    status = "active",
+    licensed = env.STRIPE_STARTER_PRICE_ID,
+    licensedUnitAmount = null,
+  } = overrides;
   return {
     id,
     object: "subscription",
@@ -41,9 +53,10 @@ function subscriptionFixture(
           current_period_start: PERIOD_START,
           current_period_end: PERIOD_END,
           price: {
-            id: env.STRIPE_STARTER_PRICE_ID,
+            id: licensed,
             object: "price",
             recurring: { interval: "month" },
+            unit_amount: licensedUnitAmount,
           },
         },
       ],
@@ -641,5 +654,370 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
 
     const summary = await runSubscriptionReconcileJob(env, NOW);
     expect(summary.retiredModuleItemsRemoved).toBe(0);
+  });
+});
+
+/**
+ * #277 — the daily sweep and a paused workspace.
+ *
+ * A pause leaves `subscription_status` 'active' and `plan` populated, so a
+ * paused tenant sails into every scan this job runs. The extra-number
+ * convergence is the one that must not act on it: its formula reads
+ * `PLAN_LIMITS[plan].numbers`, and during a pause `plan` names the plan the
+ * workspace will RESUME onto rather than the one it is paying for. There is no
+ * "included numbers" figure for a pause price to converge against.
+ */
+describe("extra-number convergence skips a paused workspace (#277)", () => {
+  const CUSTOMER = "cus_1";
+  const STORED = "sub_stored";
+
+  function sweepWorld(pausedAt: string | null) {
+    return makeHarness([
+      endpoint("GET", /\/rest\/v1\/companies/, (call) => {
+        // #110's raise fence, which the convergence reads before it retrieves
+        // the subscription. Answered so the unpaused case gets all the way
+        // through; the paused case must never reach it.
+        if (call.url.searchParams.get("select")?.includes("paid_capacity_epoch")) {
+          return [{ paid_capacity_epoch: 0 }];
+        }
+        return call.url.searchParams.has("stripe_customer_id")
+          ? [
+              {
+                id: COMPANY_ID,
+                plan: "starter",
+                paused_at: pausedAt,
+                stripe_customer_id: CUSTOMER,
+                stripe_subscription_id: STORED,
+              },
+            ]
+          : [];
+      }),
+      endpoint("HEAD", /\/rest\/v1\/invites/, () => countResponse(0)),
+      endpoint("GET", /\/v1\/subscriptions\?customer=/, () => ({
+        object: "list",
+        url: "/v1/subscriptions",
+        has_more: false,
+        data: [
+          {
+            id: STORED,
+            object: "subscription",
+            status: "active",
+            created: Math.floor(NOW.getTime() / 1000) - 7200,
+            cancel_at_period_end: false,
+            items: { object: "list", data: [] },
+          },
+        ],
+      })),
+      // Convergence's OWN first Stripe read (#110: it always retrieves the
+      // subscription fresh, after the raise-fence epoch). Distinct from the
+      // customer LIST above, so a call here means exactly "the convergence ran".
+      endpoint("GET", /\/v1\/subscriptions\/sub_stored/, () => ({
+        id: STORED,
+        object: "subscription",
+        status: "active",
+        schedule: null,
+        items: { object: "list", data: [] },
+      })),
+      endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () => countResponse(0)),
+      endpoint("GET", /\/rest\/v1\/phone_numbers/, () => []),
+    ]);
+  }
+
+  it("never converges a paused workspace's extra numbers", async () => {
+    const harness = sweepWorld("2026-11-04T00:00:00.000Z");
+    stubFetch(harness.route);
+
+    const summary = await runSubscriptionReconcileJob(env, NOW);
+
+    expect(summary.extraNumberQuantitiesConverged).toBe(0);
+    expect(harness.callsTo("GET", /\/v1\/subscriptions\/sub_stored/)).toHaveLength(0);
+  });
+
+  it("DOES converge an unpaused workspace — the guard above is real", async () => {
+    // PROVE THE GUARD BY BREAKING IT: the same world with the pause lifted must
+    // reach the convergence, or the assertion above would pass against a sweep
+    // that never converges anything.
+    const harness = sweepWorld(null);
+    stubFetch(harness.route);
+
+    await runSubscriptionReconcileJob(env, NOW);
+
+    expect(
+      harness.callsTo("GET", /\/v1\/subscriptions\/sub_stored/).length,
+    ).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * #277 — the pause fact converges within a day, which is what three comments in
+ * this codebase promise a reader.
+ *
+ * `companies.paused_at` is a SEND GATE. Every consumer of it leans on the same
+ * promise: getSendGates and routes/calls.ts both coalesce a missing value to
+ * "not paused" — deliberately, because a wrong "paused" would refuse a paying
+ * crew's texts and calls — and both justify that by saying the next mirror pass
+ * writes the fact back. Nothing made that true. A pause leaves the subscription
+ * genuinely active with a fresh period, so a paused workspace was in neither
+ * re-mirror scan and no job re-read it in either direction.
+ *
+ * Two scans close it, and each is tested here in the direction the other cannot
+ * see:
+ *   - the paused re-mirror scan, for a workspace we KNOW is paused (a resume
+ *     that landed at Stripe and not here — POST /resume charges first and then
+ *     mirrors, and there is no self-serve way back from that throw);
+ *   - the orphan sweep's item read, for a workspace we do NOT know is paused.
+ */
+describe("the pause fact converges daily (#277)", () => {
+  const CUSTOMER = "cus_1";
+  const STORED = "sub_stored";
+  const PAUSED_AT = "2026-11-04T00:00:00.000Z";
+
+  /** Every companies PATCH body a run produced. */
+  function patchBodies(harness: ReturnType<typeof makeHarness>) {
+    return harness
+      .callsTo("PATCH", /\/rest\/v1\/companies/)
+      .map((call) => call.json() as Record<string, unknown>);
+  }
+
+  /**
+   * #110's raise-fence read — the first thing convergeExtraNumberQuantity does,
+   * and therefore the cheapest proof of whether #105's extra-number convergence
+   * ran for a tenant.
+   */
+  function raiseFenceReads(harness: ReturnType<typeof makeHarness>) {
+    return harness
+      .callsTo("GET", /\/rest\/v1\/companies/)
+      .filter((call) =>
+        call.url.searchParams.get("select")?.includes("paid_capacity_epoch"),
+      );
+  }
+
+  describe("the paused re-mirror scan", () => {
+    /**
+     * A world where the ONLY company the scans can find is one this database
+     * marks paused: the non-active scan and the stale-period scan both answer
+     * empty, so a Stripe call at all proves the third scan ran.
+     */
+    function pausedScanWorld(stored: {
+      paused_at: string | null;
+      paused_price_cents: number | null;
+    }) {
+      return makeHarness([
+        endpoint("GET", /\/rest\/v1\/companies/, (call) => {
+          if (call.url.searchParams.has("stripe_customer_id")) return []; // sweep off
+          return call.url.searchParams.has("paused_at")
+            ? [{ id: COMPANY_ID, stripe_subscription_id: "sub_1" }]
+            : [];
+        }),
+        endpoint("HEAD", /\/rest\/v1\/invites/, () => countResponse(0)),
+        // Stripe's truth: the plan price is back on the licensed item. The
+        // customer has been charged for the resume; only our mirror is behind.
+        endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+          subscriptionFixture({ status: "active" }),
+        ),
+        endpoint("PATCH", /\/rest\/v1\/companies/, () => [
+          {
+            id: COMPANY_ID,
+            name: "Acme Plumbing",
+            canceled_at: null,
+            company_modules: [],
+            ...stored,
+          },
+        ]),
+        endpoint("POST", /api\.stripe\.com\/v1\/subscription_items$/, () => ({
+          id: "si_voice_metered",
+          object: "subscription_item",
+        })),
+        endpoint("GET", /\/rest\/v1\/phone_numbers/, () => []),
+      ]);
+    }
+
+    it("re-mirrors a paused workspace, so a resume that never landed heals", async () => {
+      const harness = pausedScanWorld({
+        paused_at: PAUSED_AT,
+        paused_price_cents: 500,
+      });
+      stubFetch(harness.route);
+
+      const summary = await runSubscriptionReconcileJob(env, NOW);
+
+      expect(summary.reconciled).toBe(1);
+      // The scan is the paused one — not a widening of the others.
+      const scan = harness
+        .callsTo("GET", /\/rest\/v1\/companies/)
+        .find((call) => call.url.searchParams.has("paused_at"));
+      expect(scan?.url.searchParams.get("subscription_status")).toBe("eq.active");
+      expect(scan?.url.searchParams.get("paused_at")).toBe("not.is.null");
+      expect(scan?.url.searchParams.get("limit")).toBe("500");
+      // And the workspace is out: the send gate is lifted and the margin
+      // report stops valuing it at the holding fee.
+      expect(patchBodies(harness)).toContainEqual({
+        paused_at: null,
+        paused_price_cents: null,
+      });
+    });
+
+    it("leaves an ordinary active workspace alone — the scan is bounded", async () => {
+      // PROVE THE GUARD BY BREAKING IT, the other way round: if the scan were
+      // widened to every active company it would still pass the test above
+      // while re-mirroring the entire paying base daily. Nothing here is
+      // paused, so nothing may be fetched.
+      const harness = makeHarness([
+        endpoint("GET", /\/rest\/v1\/companies/, () => []),
+        endpoint("HEAD", /\/rest\/v1\/invites/, () => countResponse(0)),
+      ]);
+      stubFetch(harness.route);
+
+      const summary = await runSubscriptionReconcileJob(env, NOW);
+
+      expect(summary.reconciled).toBe(0);
+      expect(harness.callsTo("GET", /api\.stripe\.com/)).toHaveLength(0);
+    });
+  });
+
+  describe("the orphan sweep's licensed-item read", () => {
+    /**
+     * The sweep world: one settled tenant whose stored subscription carries
+     * `licensed`, and a mirror that currently says `stored`. The sweep already
+     * lists this subscription for the orphan check, so reading its licensed
+     * item costs nothing.
+     */
+    function sweepWorld(
+      licensed: string,
+      licensedUnitAmount: number | null,
+      stored: { paused_at: string | null; paused_price_cents: number | null },
+    ) {
+      const subscription = {
+        ...subscriptionFixture({ id: STORED, licensed, licensedUnitAmount }),
+        created: Math.floor(NOW.getTime() / 1000) - 7200,
+        cancel_at_period_end: false,
+        schedule: null,
+      };
+      return makeHarness([
+        endpoint("GET", /\/rest\/v1\/companies/, (call) => {
+          if (call.url.searchParams.get("select")?.includes("paid_capacity_epoch")) {
+            return [{ paid_capacity_epoch: 0 }];
+          }
+          return call.url.searchParams.has("stripe_customer_id")
+            ? [
+                {
+                  id: COMPANY_ID,
+                  plan: "starter",
+                  stripe_customer_id: CUSTOMER,
+                  stripe_subscription_id: STORED,
+                  ...stored,
+                },
+              ]
+            : [];
+        }),
+        endpoint("HEAD", /\/rest\/v1\/invites/, () => countResponse(0)),
+        endpoint("GET", /\/v1\/subscriptions\?customer=/, () => ({
+          object: "list",
+          url: "/v1/subscriptions",
+          has_more: false,
+          data: [subscription],
+        })),
+        // syncSubscription's own re-fetch, and the extra-number convergence's.
+        endpoint("GET", /\/v1\/subscriptions\/sub_stored/, () => subscription),
+        endpoint("PATCH", /\/rest\/v1\/companies/, () => [
+          {
+            id: COMPANY_ID,
+            name: "Acme Plumbing",
+            canceled_at: null,
+            company_modules: [],
+            ...stored,
+          },
+        ]),
+        endpoint("POST", /api\.stripe\.com\/v1\/subscription_items$/, () => ({
+          id: "si_voice_metered",
+          object: "subscription_item",
+        })),
+        endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () => countResponse(0)),
+        endpoint("GET", /\/rest\/v1\/phone_numbers/, () => []),
+      ]);
+    }
+
+    it("writes back a pause the mirror never saw", async () => {
+      // The direction the paused scan cannot reach: Stripe carries the pause
+      // price, our mirror says the workspace is running — so every gate in the
+      // product is currently letting a holding-fee tenant text and dial.
+      const harness = sweepWorld("price_pause_0001", 500, {
+        paused_at: null,
+        paused_price_cents: null,
+      });
+      stubFetch(harness.route);
+
+      const summary = await runSubscriptionReconcileJob(env, NOW);
+
+      expect(summary.reconciled).toBe(1);
+      const bodies = patchBodies(harness);
+      expect(bodies.some((b) => typeof b.paused_at === "string")).toBe(true);
+      expect(bodies.some((b) => b.paused_price_cents === 500)).toBe(true);
+      // And #105's extra-number convergence stayed away. Its skip reads the
+      // subscription's own licensed item now, not the mirror — this sweep
+      // exists for the case where the mirror is the stale thing, and converging
+      // a paused workspace onto PLAN_LIMITS[plan].numbers is exactly what #277
+      // decided must never happen. The raise-fence read is its first move.
+      expect(raiseFenceReads(harness)).toHaveLength(0);
+    });
+
+    it("converges a repriced pause, so the margin report values it right", async () => {
+      // The fee is founder-provisioned in the Stripe dashboard and can change
+      // under a live pause; #85 reads this column to decide who is underwater.
+      const harness = sweepWorld("price_pause_0001", 500, {
+        paused_at: PAUSED_AT,
+        paused_price_cents: 300,
+      });
+      stubFetch(harness.route);
+
+      const summary = await runSubscriptionReconcileJob(env, NOW);
+
+      expect(summary.reconciled).toBe(1);
+      const bodies = patchBodies(harness);
+      expect(bodies.some((b) => b.paused_price_cents === 500)).toBe(true);
+      // The DATE is not walked forward — "paused since 4 November" is shown to
+      // the customer and this job runs every day.
+      expect(bodies.some((b) => "paused_at" in b)).toBe(false);
+    });
+
+    it("an agreeing mirror costs nothing — the check above is real", async () => {
+      // PROVE THE GUARD BY BREAKING IT: an unconditional re-mirror would pass
+      // both tests above while re-writing every swept tenant daily. Stripe and
+      // the mirror agree here, so there must be no re-mirror at all.
+      const harness = sweepWorld(env.STRIPE_STARTER_PRICE_ID, 2900, {
+        paused_at: null,
+        paused_price_cents: null,
+      });
+      stubFetch(harness.route);
+
+      const summary = await runSubscriptionReconcileJob(env, NOW);
+
+      expect(summary.reconciled).toBe(0);
+      expect(
+        patchBodies(harness).some((b) => "paused_at" in b),
+      ).toBe(false);
+      // …and the extra-number convergence DID run here, which is what makes the
+      // "stayed away" assertion above mean something: the skip is decided by
+      // the licensed item, not switched off for every swept tenant.
+      expect(raiseFenceReads(harness).length).toBeGreaterThan(0);
+    });
+
+    it("says nothing when it recognises neither price — the un-provisioned deploy", async () => {
+      // The un-provisioned deploy, which is where a two-answer reading gives
+      // the product away: with STRIPE_PAUSE_PRICE_ID missing, every paused
+      // subscription stops matching, and a sweep that read that as "not
+      // paused" would clear the gate on the whole paused cohort, on a cron.
+      const bare = { ...env, STRIPE_PAUSE_PRICE_ID: undefined };
+      const harness = sweepWorld("price_pause_0001", 500, {
+        paused_at: PAUSED_AT,
+        paused_price_cents: 500,
+      });
+      stubFetch(harness.route);
+
+      const summary = await runSubscriptionReconcileJob(bare, NOW);
+
+      expect(summary.reconciled).toBe(0);
+      expect(patchBodies(harness).some((b) => "paused_at" in b)).toBe(false);
+    });
   });
 });

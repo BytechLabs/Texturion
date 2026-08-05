@@ -25,6 +25,7 @@ import {
 } from "../billing/modules";
 import {
   hasLiveSubscription,
+  isPauseLicensedPrice,
   mirrorSubscriptionStatus,
   planForLicensedPrice,
   type LocalSubscriptionStatus,
@@ -213,6 +214,57 @@ function subscriptionPlan(
 }
 
 /**
+ * #277 — what this subscription says about the pause, read from its licensed
+ * item.
+ *
+ * THREE ANSWERS, NOT TWO, and the third is the important one:
+ *
+ *   "paused"      the pause price is on the subscription.
+ *   "not_paused"  a recognised PLAN licensed price is on it.
+ *   "unknown"     neither — so say nothing and leave the stored fact alone.
+ *
+ * The two-answer version ("is the pause price here? no → clear paused_at") has
+ * a failure mode that hands out the product for free: unset
+ * STRIPE_PAUSE_PRICE_ID in a deploy — a typo, a secret not carried across, a
+ * rolled-back env change — and every paused subscription stops matching, so the
+ * next mirror pass would clear `paused_at` on every paused workspace and give
+ * them all full service at the holding fee. Silently, on a cron.
+ *
+ * "unknown" is what makes that impossible. It is the same reasoning as
+ * `...(plan ? { plan } : {})` right below, which is why the pause price
+ * deliberately does not resolve through planForLicensedPrice: a fact we cannot
+ * currently read is not a fact that changed.
+ *
+ * EXPORTED for the daily reconcile, which already holds every swept customer's
+ * subscriptions from one `subscriptions.list` call and can therefore ask what
+ * each one says about the pause for free. That check is what makes the
+ * "converges within a day" claim on `companies.paused_at` true — see
+ * billing/reconcile.ts. It reads only; the WRITE stays in syncSubscription, so
+ * this column keeps exactly one writer.
+ */
+export type PauseReading = "paused" | "not_paused" | "unknown";
+
+export function subscriptionPause(
+  env: Env,
+  subscription: Stripe.Subscription,
+): { reading: PauseReading; priceCents: number | null } {
+  for (const item of subscription.items.data) {
+    if (item.price && isPauseLicensedPrice(env, item.price.id)) {
+      // The fee, from the item we are already holding — no extra Stripe call.
+      // `unit_amount` is the price's BASE currency (USD), which is the currency
+      // the cost model speaks; null for a tiered price, which nothing sells here.
+      return { reading: "paused", priceCents: item.price.unit_amount ?? null };
+    }
+  }
+  for (const item of subscription.items.data) {
+    if (item.price && planForLicensedPrice(env, item.price.id)) {
+      return { reading: "not_paused", priceCents: null };
+    }
+  }
+  return { reading: "unknown", priceCents: null };
+}
+
+/**
  * #17: converge `company_modules` onto the module line items the subscription
  * ACTUALLY carries. Runs from every entry point that mirrors subscription
  * state (checkout completion, subscription created/updated webhooks, and —
@@ -283,6 +335,25 @@ export async function ensureVoiceMeteredItem(
     if (subscription.schedule) return; // phases own the items (#18)
 
     const plan = subscriptionPlan(env, subscription);
+    // #277 pause — DELIBERATE: the existing voice metered item is KEPT, not
+    // dropped. A paused subscription carries no plan licensed price, so `plan`
+    // is null here and this returns, leaving whatever voice item was already
+    // attached exactly where it was. That is the right arm, and it was chosen
+    // rather than inherited:
+    //
+    //  * DROPPING BUYS NO REVENUE. Tier 1 of the voice metered price is $0 up
+    //    to the plan allowance, and a paused workspace cannot place calls
+    //    (routes/calls.ts + the runtime's defence-in-depth gate both refuse),
+    //    so the item invoices nothing either way. The only thing dropping it
+    //    changes is what happens on the way back.
+    //  * DROPPING LOSES MONEY AND TIME. Deleting a metered item strands the
+    //    seconds already reported against it this period, and re-attaching in
+    //    spring is another write that can fail — a wholly avoidable pair of
+    //    failure modes in exchange for nothing.
+    //  * KEEPING MAKES RESUME A NO-OP. On resume the licensed price swaps back,
+    //    `plan` resolves again, and the convergence below re-points the item at
+    //    the right plan's price on the very next mirror pass. Resume needs no
+    //    voice handling of its own, which is the property worth having.
     if (!plan) return;
     const wanted = voiceOveragePrice(env, plan);
     if (!wanted) return; // not provisioned here — unbilled, never mis-billed
@@ -447,6 +518,19 @@ export async function handleCheckoutCompleted(
   // second checkout — used to both run this activation as an UNCONDITIONAL
   // overwrite: last-write-wins attached the second subscription and orphaned the
   // first, which then billed the founder forever, invisibly.
+  //
+  // #277: the claim ALSO clears `paused_at`/`paused_price_cents` when `p_plan`
+  // names a plan, and this handler deliberately does NOT call syncSubscription
+  // to do it. A workspace that paused, then cancelled, then resubscribed used to
+  // come back active on a plan price with the pause fact still set: blocked in
+  // every gate while paying full price, with no self-serve exit (pause refuses
+  // `already_paused`, change-plan refuses, resume 409s because the new
+  // subscription carries no pause item to swap back). The clear belongs inside
+  // the claim because the claim is the atomic attach: a mirror call afterwards
+  // leaves a window where the company is active-on-plan and still blocked, and
+  // anything that ends the request there — a CPU limit, a deploy, the sweeper
+  // giving up after five attempts — puts the customer back in a state they
+  // cannot leave. 20260805080000_resubscribe_clears_pause.sql argues it in full.
   const { data: claim, error: claimError } = await db.rpc(
     "claim_checkout_activation",
     {
@@ -691,6 +775,7 @@ export async function syncSubscription(
 
   const period = subscriptionPeriod(subscription);
   const plan = subscriptionPlan(env, subscription);
+  const pause = subscriptionPause(env, subscription);
   // #421: read BEFORE the mirror overwrites it. A portal cancellation arrives
   // as `cancel_at_period_end` newly true, and every later update repeats it —
   // comparing against what we already hold is what makes the owner's notice
@@ -714,15 +799,85 @@ export async function syncSubscription(
     .eq("stripe_subscription_id", subscriptionId)
     // company_modules embedded so the #17 reconcile needs no second read;
     // canceled_at feeds the #21 missed-cancellation backstop.
-    .select("id,name,owner_user_id,canceled_at,company_modules(module,disabled_at,grandfathered)");
+    // #277: paused_at + paused_price_cents ride along so the pause convergence
+    // below can tell "already correct" from "needs a write" without a read of
+    // its own — see the note there for why that distinction matters.
+    .select("id,name,owner_user_id,canceled_at,paused_at,paused_price_cents,company_modules(module,disabled_at,grandfathered)");
   if (error) throw new Error(`subscription mirror failed: ${error.message}`);
   const companies = (data ?? []) as {
     id: string;
     name: string;
     owner_user_id: string;
     canceled_at: string | null;
+    paused_at: string | null;
+    paused_price_cents: number | null;
     company_modules?: CompanyModuleRow[];
   }[];
+
+  /**
+   * #277 — the pause fact, converged from the subscription's own licensed item.
+   *
+   * NOT folded into the mirror update above, and WRITTEN ONLY WHEN IT CHANGES.
+   *
+   * Not folded in, because the DATE must be stamped once: "paused since 4
+   * November" is shown to the customer, and this function re-mirrors every
+   * subscription daily as well as on every Stripe event, so an unconditional
+   * write would walk that date forward forever.
+   *
+   * Written only on a change, because the alternative is a second PATCH against
+   * `companies` on EVERY mirror pass for every workspace in the product — a
+   * doubling of the write traffic on the hottest billing path, to store a value
+   * that is already correct. The rows the update just returned carry the current
+   * values, so the comparison is free.
+   *
+   * A failure THROWS rather than being swallowed. This is a send gate: a
+   * workspace whose pause never landed keeps texting on a holding fee, and the
+   * webhook sweeper retrying in five minutes is the correct outcome.
+   */
+  //
+  // Every comparison below coalesces `undefined` to null. A row that predates
+  // the column — or any future caller whose select drops it — reads undefined,
+  // and both branches then fail in the SAFE direction: the pause branch stamps
+  // (blocking sends), and the resume branch writes nothing (leaving the
+  // workspace blocked until somebody notices). The unsafe direction, a workspace
+  // silently un-paused into full service on a holding fee, is unreachable.
+  if (pause.reading === "paused") {
+    if (companies.some((company) => (company.paused_at ?? null) === null)) {
+      const { error: pausedError } = await db
+        .from("companies")
+        .update({ paused_at: new Date().toISOString() })
+        .eq("stripe_subscription_id", subscriptionId)
+        .is("paused_at", null);
+      if (pausedError) throw new Error(`pause mirror failed: ${pausedError.message}`);
+    }
+    // The fee converges separately: the founder can reprice the pause, and the
+    // #85 cost-vs-revenue projection reads this column to value a paused tenant.
+    if (
+      companies.some(
+        (company) => (company.paused_price_cents ?? null) !== pause.priceCents,
+      )
+    ) {
+      const { error: feeError } = await db
+        .from("companies")
+        .update({ paused_price_cents: pause.priceCents })
+        .eq("stripe_subscription_id", subscriptionId);
+      if (feeError) throw new Error(`pause fee mirror failed: ${feeError.message}`);
+    }
+  } else if (
+    pause.reading === "not_paused" &&
+    companies.some(
+      (company) =>
+        (company.paused_at ?? null) !== null ||
+        (company.paused_price_cents ?? null) !== null,
+    )
+  ) {
+    const { error: resumeError } = await db
+      .from("companies")
+      .update({ paused_at: null, paused_price_cents: null })
+      .eq("stripe_subscription_id", subscriptionId);
+    if (resumeError) throw new Error(`resume mirror failed: ${resumeError.message}`);
+  }
+  // pause.reading === "unknown" writes nothing at all — see subscriptionPause.
 
   // #327: the cohort anchor for D12's week-4 retention target. Stamped ONCE,
   // guarded on null, from Stripe's own `start_date` rather than from now() — a

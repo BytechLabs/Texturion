@@ -15,6 +15,7 @@ import { completeEnv } from "../test/support";
 import {
   attributeReferral,
   ensureReferralCode,
+  payPendingReferralRewards,
   qualifyReferralForSender,
   rewardQualifiedReferral,
 } from "./referrals";
@@ -208,28 +209,26 @@ describe("#399 qualifyReferralForSender", () => {
 });
 
 describe("#399 rewardQualifiedReferral", () => {
-  function stripeStub() {
+  /** A subscription carrying `licensed` as its non-metered line. */
+  function subscriptionOn(licensed: string) {
+    return {
+      id: "sub_1",
+      items: {
+        data: [
+          { id: "si_licensed", price: { id: licensed }, discounts: [] },
+          { id: "si_metered", price: { id: env.STRIPE_STARTER_OVERAGE_PRICE_ID } },
+        ],
+      },
+    };
+  }
+
+  function stripeStub(subscription: unknown = subscriptionOn(env.STRIPE_STARTER_PRICE_ID)) {
     const updates: { id: string; params: Record<string, unknown> }[] = [];
     return {
       updates,
       api: {
         subscriptions: {
-          retrieve: vi.fn(async () => ({
-            id: "sub_1",
-            items: {
-              data: [
-                {
-                  id: "si_licensed",
-                  price: { id: env.STRIPE_STARTER_PRICE_ID },
-                  discounts: [],
-                },
-                {
-                  id: "si_metered",
-                  price: { id: env.STRIPE_STARTER_OVERAGE_PRICE_ID },
-                },
-              ],
-            },
-          })),
+          retrieve: vi.fn(async () => subscription),
           update: vi.fn(async (id: string, params: Record<string, unknown>) => {
             updates.push({ id, params });
             return {};
@@ -316,6 +315,31 @@ describe("#399 rewardQualifiedReferral", () => {
     expect(stub.updates).toHaveLength(0);
   });
 
+  it("#277 HOLDS the month when the workspace is paused, and leaves it unstamped", async () => {
+    // A paused workspace's licensed item is priced at the ~$5 holding fee, so a
+    // free month applied now buys the customer a hold instead of the $29/$79
+    // plan month they earned. Nothing here can tell that apart from a healthy
+    // workspace — `companies.plan` is intact and the subscription is active — so
+    // the pause price on the item is the only signal there is.
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const stub = stripeStub(subscriptionOn(env.STRIPE_PAUSE_PRICE_ID as string));
+    const db = subDb();
+    await withStripe(stub, () =>
+      rewardQualifiedReferral(env, db, {
+        referralId: "ref-1",
+        referrerCompanyId: REFERRER,
+        refereeCompanyId: COMPANY,
+      }),
+    );
+    expect(stub.updates).toHaveLength(0);
+    // Unstamped is what makes it RECOVERABLE. A stamp here would record a month
+    // as paid that was never worth anything, and nothing would ever pay it.
+    expect((db.calls as RpcCall[]).some((c) => c.fn === "stamp_referral_reward")).toBe(
+      false,
+    );
+    spy.mockRestore();
+  });
+
   it("still pays the referee when the referrer's side fails", async () => {
     // A referrer who has since cancelled must not cost the referee the month
     // they earned by actually using the product.
@@ -337,5 +361,155 @@ describe("#399 rewardQualifiedReferral", () => {
         .map((c) => c.args.p_side),
     ).toEqual(["referee"]);
     spy.mockRestore();
+  });
+
+  /**
+   * #277 — the other half of the pause.
+   *
+   * `rewardSide` refusing to spend a free month on a holding fee is only half a
+   * decision: nothing in this product sweeps unstamped rewards, so without a
+   * retry "paid on resume" would be a comment rather than a behaviour, and the
+   * month would be lost exactly as surely as if it had been spent.
+   */
+  describe("payPendingReferralRewards", () => {
+    /** Records the PostgREST filters, so the scoping can be asserted. */
+    function pendingDb(rows: Record<string, unknown>[], answer?: unknown) {
+      const calls: RpcCall[] = [];
+      const filters: [string, unknown][] = [];
+      const referrals = {
+        select: () => referrals,
+        eq: (column: string, value: unknown) => {
+          filters.push([`eq:${column}`, value]);
+          return referrals;
+        },
+        not: (column: string, op: string, value: unknown) => {
+          filters.push([`not:${column}.${op}`, value]);
+          return referrals;
+        },
+        is: (column: string, value: unknown) => {
+          filters.push([`is:${column}`, value]);
+          return referrals;
+        },
+        then: (resolve: (r: unknown) => void) =>
+          resolve(answer ?? { data: rows, error: null }),
+      };
+      return {
+        calls,
+        filters,
+        rpc: vi.fn(async (fn: string, args: Record<string, unknown>) => {
+          calls.push({ fn, args });
+          return { data: { outcome: "stamped" }, error: null };
+        }),
+        from: (table: string) =>
+          table === "referrals"
+            ? referrals
+            : {
+                select: () => ({
+                  eq: () => ({
+                    limit: async () => ({
+                      data: [{ stripe_subscription_id: "sub_1" }],
+                      error: null,
+                    }),
+                  }),
+                }),
+              },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any;
+    }
+
+    it("pays the month the resumed workspace earned while it was paused", async () => {
+      const stub = stripeStub();
+      const db = pendingDb([{ id: "ref-1" }]);
+      await expect(
+        withStripe(stub, () => payPendingReferralRewards(env, db, REFERRER)),
+      ).resolves.toBe(1);
+
+      expect(stub.updates).toHaveLength(1);
+      const items = stub.updates[0].params.items as { id: string; discounts: unknown }[];
+      expect(items[0].id).toBe("si_licensed");
+      expect(items[0].discounts).toEqual([
+        { coupon: env.STRIPE_REFERRAL_MONTH_COUPON_ID },
+      ]);
+      const stamps = (db.calls as RpcCall[]).filter(
+        (c) => c.fn === "stamp_referral_reward",
+      );
+      expect(stamps.map((c) => c.args.p_side)).toEqual(["referrer"]);
+    });
+
+    it("pays ONE month per call, and leaves the rest owed rather than spent", async () => {
+      // A referrer away for the winter can come back to several qualified
+      // referrals at once. The coupon is `duration: once` and `rewardSide`
+      // writes `discounts: [{ coupon }]`, which REPLACES the item's discounts —
+      // so a second one applied before the first reaches an invoice is the same
+      // month written twice, not two months. Walking the whole list stamped
+      // every row while Stripe held one coupon: three referrals earned, one
+      // month delivered, three recorded as paid and none recoverable.
+      //
+      // This stub answers `retrieve` with what the updates actually did, which
+      // is what makes the over-stamp visible at all — a frozen subscription
+      // reports a clean discount-free item forever and every row "succeeds".
+      const applied: unknown[] = [];
+      const live = {
+        id: "sub_1",
+        items: {
+          data: [
+            {
+              id: "si_licensed",
+              price: { id: env.STRIPE_STARTER_PRICE_ID },
+              get discounts() {
+                return applied;
+              },
+            },
+          ],
+        },
+      };
+      const stub = stripeStub(live);
+      stub.api.subscriptions.update = vi.fn(
+        async (id: string, params: Record<string, unknown>) => {
+          stub.updates.push({ id, params });
+          applied.push({ id: "di_1", coupon: { id: env.STRIPE_REFERRAL_MONTH_COUPON_ID } });
+          return {};
+        },
+      );
+      const db = pendingDb([{ id: "ref-1" }, { id: "ref-2" }, { id: "ref-3" }]);
+
+      await expect(
+        withStripe(stub, () => payPendingReferralRewards(env, db, REFERRER)),
+      ).resolves.toBe(1);
+
+      expect(stub.updates).toHaveLength(1);
+      const stamps = (db.calls as RpcCall[]).filter(
+        (c) => c.fn === "stamp_referral_reward",
+      );
+      // One coupon, ONE stamp. The other two rows keep their null timestamps,
+      // which is what "still owed" is recorded as everywhere else here.
+      expect(stamps).toHaveLength(1);
+      expect(stamps[0].args.p_referral_id).toBe("ref-1");
+    });
+
+    it("asks only for THIS company's own qualified, unpaid, unvoided referrals", async () => {
+      // Tenant-scoped on the referrer column, which is what owns the row. The
+      // referee side is deliberately not read: a referee's month is earned by an
+      // accepted outbound send, and a paused workspace cannot send, so it can
+      // never be the side a pause held back — and reading it would mean
+      // selecting rows belonging to another tenant.
+      const stub = stripeStub();
+      const db = pendingDb([]);
+      await withStripe(stub, () => payPendingReferralRewards(env, db, REFERRER));
+      expect(db.filters).toEqual([
+        ["eq:company_id", REFERRER],
+        ["not:qualified_at.is", null],
+        ["is:voided_at", null],
+        ["is:referrer_rewarded_at", null],
+      ]);
+    });
+
+    it("swallows a lookup failure rather than 500ing a resume that already charged", async () => {
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const db = pendingDb([], { data: null, error: { message: "connection reset" } });
+      await expect(payPendingReferralRewards(env, db, REFERRER)).resolves.toBe(0);
+      expect(spy).toHaveBeenCalled();
+      spy.mockRestore();
+    });
   });
 });

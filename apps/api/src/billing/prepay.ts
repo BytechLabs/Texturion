@@ -5,7 +5,9 @@ import type { Env } from "../env";
 import {
   PLAN_PREPAY_YEAR_CENTS,
   PREPAY_MONTHS,
+  isPauseLicensedPrice,
   planForLicensedPrice,
+  planPrices,
   prepayYearPrice,
   type PlanId,
 } from "./plans";
@@ -62,7 +64,9 @@ export type PrepayIneligibleReason =
   | "subscription_unhealthy"
   | "not_activated"
   | "already_prepaid"
-  | "plan_change_pending";
+  | "plan_change_pending"
+  // #277: the workspace's plan is paused. See the gate in prepayEligibility.
+  | "workspace_paused";
 
 export interface OpenPrepayment {
   session_id: string;
@@ -88,6 +92,8 @@ interface CompanyForPrepay {
   subscription_status: string | null;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
+  /** #277: the seasonal pause. Optional — rows read before the column shipped. */
+  paused_at?: string | null;
 }
 
 /** The prepaid year currently running for this company, or null. */
@@ -144,6 +150,22 @@ export async function hasSentOutbound(
  * AN OPEN WINDOW IS REFUSED. A second coupon on the same item does not add
  * twelve months to the first — it replaces or stacks unpredictably — so a
  * second purchase is a way to lose the customer's money.
+ *
+ * #277 — A PAUSED WORKSPACE IS REFUSED HERE, AND HONOURED IN grantPrepaidYear.
+ *
+ * Every other test in this function passes for a paused workspace: `plan` is
+ * still populated (that is what they resume onto) and `subscription_status` is
+ * still `active` (the pause is a price swap, not a status). So without this gate
+ * a paused customer could buy a year of a plan they are not currently on.
+ *
+ * But this gate CANNOT be the whole answer, and believing it was is what left a
+ * hole worth $790. It runs when the Checkout Session is CREATED. A session stays
+ * payable for ~24 hours, and an unpaid prepayment has no row anywhere —
+ * `open_prepayment` requires `granted_at`, so `pauseEligibility` cannot see one
+ * coming. Open the page, pause, then pay on the tab that is still sitting there,
+ * and every check in this file has already passed. The refusal that has to hold
+ * in that case is not a refusal at all: the money is ours, so the grant path
+ * delivers what it bought. See grantPrepaidYear.
  */
 export async function prepayEligibility(
   env: Env,
@@ -164,6 +186,13 @@ export async function prepayEligibility(
   // notice is both tasteless and the least likely money in the product to clear.
   if (company.subscription_status !== "active") {
     return { eligible: false, reason: "subscription_unhealthy", priceCents };
+  }
+
+  // #277: before the claim and before Stripe — see the note above. Also simply
+  // the honest answer: a workspace that has stopped for the winter is not the
+  // one to ask for twelve months up front.
+  if ((company.paused_at ?? null) !== null) {
+    return { eligible: false, reason: "workspace_paused", priceCents };
   }
 
   const open = await openPrepayment(db, company.id);
@@ -224,6 +253,22 @@ export type GrantOutcome = "granted" | "already" | "revoked";
  * Worker — a lost ack, an evicted isolate — leaves a row with nothing granted,
  * and reporting that as a duplicate is how the first attempt at this feature
  * silently ate a payment. `resume` retries the grant instead.
+ *
+ * #277 — AND IT HONOURS A PAUSE RATHER THAN THROWING ON ONE. A workspace that
+ * paused after opening its Checkout Session (see prepayEligibility for why that
+ * is reachable) arrives here with the pause price on its licensed item, so
+ * `licensedItemOf` finds nothing. Throwing there was a permanent loss, not a
+ * retryable error: `claim_prepayment` has already COMMITTED, so every webhook
+ * retry re-enters at outcome `resume` and throws again until the sweeper
+ * abandons the row after five attempts — money collected, prepayment row
+ * written, no coupon, nobody told.
+ *
+ * The customer paid for twelve months of their PLAN, so that is what they get:
+ * the pause is lifted and the coupon applied in ONE item write, which is also
+ * the only ordering that cannot land a twelve-month 100%-off coupon on a ~$5
+ * holding fee. Whether they meant to pause and then buy a year, or bought the
+ * year and then hit pause on a stale tab, the answer is the same and it is the
+ * one they can be told: your year started, your plan is back.
  */
 export async function grantPrepaidYear(
   env: Env,
@@ -274,10 +319,30 @@ export async function grantPrepaidYear(
     throw new Error(`Prepay session ${session.id}: company has no subscription.`);
   }
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-  const licensed = licensedItemOf(env, subscription);
+  let licensed = licensedItemOf(env, subscription);
+  // Non-null exactly when this grant is also lifting a pause — see the note on
+  // this function. It is the plan the SESSION was created for, which is what the
+  // money was priced against; `companies.plan` is deliberately untouched by a
+  // pause and holds the same value, so the two agree.
+  let resumePrice: string | null = null;
+  if (!licensed) {
+    const held = subscription.items.data.find(
+      (item) => item.price && isPauseLicensedPrice(env, item.price.id),
+    );
+    if (held) {
+      licensed = held;
+      resumePrice = planPrices(env, plan).licensed;
+    }
+  }
   if (!licensed) {
     throw new Error(
-      `Prepay session ${session.id}: subscription ${subscriptionId} carries no licensed item.`,
+      `Prepay session ${session.id}: subscription ${subscriptionId} carries no licensed item` +
+        // Names the one shape we cannot recover from, so the founder reading
+        // this alert knows it is a provisioning problem and not a Stripe one:
+        // with STRIPE_PAUSE_PRICE_ID unset or rotated we cannot tell which item
+        // the pause is sitting on, and guessing at "the unmetered one" would
+        // convert somebody's Calling add-on into their plan.
+        " (a paused subscription reads this way when the pause price is unset).",
     );
   }
 
@@ -288,19 +353,29 @@ export async function grantPrepaidYear(
 
   // Already carrying it — a resume whose Stripe write actually landed. Stamp
   // and stop rather than applying it again, which would restart the year.
-  if (!itemHasDiscount(licensed, couponId)) {
+  // A pause still to lift is written regardless: an item that carries the coupon
+  // but is still priced at the holding fee is the worst of both states.
+  if (!itemHasDiscount(licensed, couponId) || resumePrice !== null) {
     await stripe.subscriptions.update(
       subscriptionId,
       {
         items: [
           {
             id: licensed.id,
+            ...(resumePrice ? { price: resumePrice } : {}),
             discounts: [{ coupon: couponId }],
           } as Stripe.SubscriptionUpdateParams.Item,
         ],
+        // Only on the resume path, and `none` rather than the pause routes'
+        // `create_prorations`: prorating would invoice the balance of the month
+        // at the plan price to somebody who has just paid twelve months up
+        // front. They owe nothing more for this period; leave it priced as the
+        // pause priced it.
+        ...(resumePrice ? { proration_behavior: "none" as const } : {}),
       },
       { idempotencyKey: `prepay_grant:${session.id}` },
     );
+    if (resumePrice) await clearPauseMirror(db, subscriptionId);
   }
 
   const grantedThrough = new Date();
@@ -317,6 +392,42 @@ export async function grantPrepaidYear(
     console.error(`stamp_prepayment failed for ${session.id}: ${stampError.message}`);
   }
   return { outcome: "granted" };
+}
+
+/**
+ * Clear the pause fact for a subscription this module has just resumed.
+ *
+ * WHY THIS IS NOT A SECOND PLACE THAT DECIDES WHAT "PAUSED" MEANS.
+ * `syncSubscription` in webhooks/stripe.ts is that place, and it cannot be
+ * called from here: that module imports this one, so the import would close a
+ * cycle. It runs anyway, seconds later, on the `customer.subscription.updated`
+ * event our own item write above produces — this write reaches the same
+ * conclusion early rather than competing with it, and if they ever disagreed the
+ * canonical one runs last and wins.
+ *
+ * Waiting for that event instead was the alternative, and it is not safe. Until
+ * `paused_at` clears, all five SQL send gates still refuse this workspace — so a
+ * customer who has just paid for twelve months would sit unable to send a single
+ * text, and `POST /v1/billing/resume` would refuse them too, because the
+ * subscription no longer carries a pause item to swap back.
+ *
+ * Best effort, and never fatal: the grant has happened, and a webhook that lands
+ * a few seconds later fixes a delay. Throwing here would fail an event whose
+ * retry re-enters at `resume` and re-does work that is already correct.
+ */
+async function clearPauseMirror(
+  db: SupabaseClient,
+  subscriptionId: string,
+): Promise<void> {
+  const { error } = await db
+    .from("companies")
+    .update({ paused_at: null, paused_price_cents: null })
+    .eq("stripe_subscription_id", subscriptionId);
+  if (error) {
+    console.error(
+      `prepay resume mirror failed for ${subscriptionId}: ${error.message}`,
+    );
+  }
 }
 
 async function subscriptionIdFor(

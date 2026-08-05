@@ -63,12 +63,15 @@ export const getSendGates = vi.fn<
     companyId: string,
   ) => Promise<{
     subscriptionActive: boolean;
+    /** #277: the seasonal pause. Default false — see the note above. */
+    paused: boolean;
     aupEnforcement: AupEnforcement;
     usApproved: boolean;
     caAllowed: boolean;
   }>
 >(async () => ({
   subscriptionActive: true,
+  paused: false,
   aupEnforcement: "none",
   usApproved: true,
   caAllowed: true,

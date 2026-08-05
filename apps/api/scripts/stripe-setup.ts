@@ -321,6 +321,39 @@ try {
     tax_behavior: "exclusive",
   });
 
+  // #277: the seasonal pause. A RECURRING licensed price that replaces the
+  // plan's licensed price on the same subscription — the workspace keeps its
+  // number, its history and its 10DLC campaign, and cannot send.
+  //
+  // ONE price, on its own product, not one per plan. What a pause holds is
+  // identical whichever plan somebody paused from — a number at $1.10/mo and a
+  // live 10DLC campaign at $1.50-2/mo, so about $3/mo before a single inbound
+  // segment — and `plan` is untouched throughout, so a paused Starter and a
+  // paused Pro resume onto their own plans from the same held state.
+  //
+  // THE AMOUNT IS A PLACEHOLDER, and deliberately above cost rather than at it.
+  // `ensurePrice` reuses an existing price by lookup key and never edits one, so
+  // this figure is only ever used the first time this script runs against a
+  // fresh Stripe account; the founder sets the real number in the dashboard by
+  // creating the price they want and putting its id in STRIPE_PAUSE_PRICE_ID.
+  // Nothing in the application reads a pause amount from this repository — the
+  // fee that reaches the customer and the cost model is mirrored from whichever
+  // Stripe item the subscription actually carries.
+  const pauseProduct = await ensureProduct("pause", "Loonext seasonal pause");
+  const pausePrice = await ensurePrice("loonext_pause", {
+    product: pauseProduct.id,
+    currency: "usd",
+    unit_amount: 500,
+    currency_options: {
+      cad: {
+        unit_amount: 700,
+        tax_behavior: "exclusive",
+      },
+    },
+    recurring: { interval: "month" },
+    tax_behavior: "exclusive",
+  });
+
   // The coupon that actually delivers the year: 100% off the LICENSED item for
   // twelve months. One coupon serves both plans — it is a percentage, so it
   // does not care which price it lands on. Created with an explicit id so the
@@ -432,6 +465,7 @@ try {
   console.log(`STRIPE_US_FEE_PRICE_ID=${usFee.id}`);
   console.log(`STRIPE_STARTER_YEAR_PRICE_ID=${starterYear.id}`);
   console.log(`STRIPE_PRO_YEAR_PRICE_ID=${proYear.id}`);
+  console.log(`STRIPE_PAUSE_PRICE_ID=${pausePrice.id}`);
   console.log(`STRIPE_PREPAID_YEAR_COUPON_ID=${prepaidCoupon.id}`);
   console.log(`STRIPE_REFERRAL_MONTH_COUPON_ID=${referralCoupon.id}`);
   for (const { envKey, id } of modulePriceIds) {

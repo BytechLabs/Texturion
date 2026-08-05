@@ -178,10 +178,44 @@ export async function runPreSendGates(
     }
   }
 
-  if (!gates.subscriptionActive && !(offRamp && (await offRampAllowed(env, companyId)))) {
+  // #481: resolved ONCE, because the pause gate below has to know whether the
+  // off-ramp exemption was granted. Asking twice would run offRampAllowed's
+  // query twice on the departure path and, worse, let the two answers differ.
+  const offRampGranted =
+    !gates.subscriptionActive && offRamp && (await offRampAllowed(env, companyId));
+
+  if (!gates.subscriptionActive && !offRampGranted) {
     throw new ApiError(
       "subscription_inactive",
       "Outbound texting requires an active subscription.",
+    );
+  }
+
+  /**
+   * #277 — the seasonal pause.
+   *
+   * AFTER the subscription gate, not before, and both halves of that matter.
+   *
+   * A workspace that paused and then CANCELLED hears about the cancellation,
+   * because that is the fact with a 30-day clock attached to their phone
+   * number. And the off-ramp — the one message a departing workspace may send,
+   * telling their old customers where they went — survives, because it is
+   * expressed as an exemption from the subscription gate and a pause fact
+   * checked first would have silenced it.
+   *
+   * The copy is its own code and its own sentence for a reason. This is NOT
+   * `sending_suspended`: that message says a workspace is under review, and
+   * saying it to somebody who chose a cheaper winter accuses them of something
+   * they did not do. It is not `subscription_inactive` either, which reads as
+   * "something lapsed" when nothing has — the number, the history and the
+   * carrier registration are all exactly where they were left.
+   */
+  if (gates.paused && !offRampGranted) {
+    throw new ApiError(
+      "workspace_paused",
+      "Your plan is paused, so texts are not going out. Your number, your " +
+        "history and your carrier registration are all being held — resume " +
+        "your plan in billing and sending starts again straight away.",
     );
   }
 
@@ -285,6 +319,11 @@ export const SEND_INTERRUPTED_ERROR_CODE = "send_interrupted";
 /** Error codes gate_outbound_send returns that map 1:1 onto SPEC §7 codes. */
 const GATE_ERROR_CODES = new Set([
   "subscription_inactive",
+  // #277: the SQL gate's own pause answer. Listed here so a send that somehow
+  // reached the RPC without passing runPreSendGates still returns the pause
+  // sentence rather than falling through to a bare 500 — which is exactly the
+  // shape the belt-and-braces gate exists to cover.
+  "workspace_paused",
   "recipient_opted_out",
   "rate_limited",
   "usage_cap_reached",
@@ -297,6 +336,10 @@ type GateErrorCode =
 
 const GATE_ERROR_MESSAGES: Record<GateErrorCode, string> = {
   subscription_inactive: "Outbound texting requires an active subscription.",
+  workspace_paused:
+    "Your plan is paused, so texts are not going out. Your number, your " +
+    "history and your carrier registration are all being held — resume your " +
+    "plan in billing and sending starts again straight away.",
   recipient_opted_out: "This recipient has opted out of receiving texts.",
   rate_limited: "Sending limit reached (250 segments per hour). Try again soon.",
   usage_cap_reached:

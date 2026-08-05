@@ -39,6 +39,11 @@ export type AutoSendOutcome =
         | "recipient_opted_out"
         | "throttled"
         | "subscription_inactive"
+        // #277: the workspace's plan is paused. Distinct from an inactive
+        // subscription because the claim RPCs now distinguish them, and a
+        // caller that collapsed the two would report a seasonal hold as a
+        // billing failure in the audit trail.
+        | "workspace_paused"
         | "not_found"
         // #414, emergency acknowledgment only.
         | "emergency_disabled"
@@ -50,6 +55,7 @@ interface ClaimResult {
     | "recipient_opted_out"
     | "throttled"
     | "subscription_inactive"
+    | "workspace_paused"
     | "not_found"
     | "emergency_disabled"
     | "daily_cap";

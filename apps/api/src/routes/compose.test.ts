@@ -898,7 +898,7 @@ describe("POST /v1/conversations — destination + gate failures", () => {
   });
 
   it("402s when the subscription is inactive, before quiet hours or writes", async () => {
-    vi.mocked(getSendGates).mockResolvedValueOnce({ aupEnforcement: "none", subscriptionActive: false,
+    vi.mocked(getSendGates).mockResolvedValueOnce({ aupEnforcement: "none", paused: false, subscriptionActive: false,
       usApproved: true,
       caAllowed: true,
     });

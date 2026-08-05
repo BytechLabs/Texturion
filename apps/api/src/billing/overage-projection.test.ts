@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
+import { stripeNetCents } from "./costs";
 import {
   countResponse,
   endpoint,
@@ -441,6 +442,82 @@ describe("decideOverage (DB orchestrator)", () => {
     const d = await decideOverage(db, company, new Date("2026-06-16T00:00:00Z"));
     expect(d.trendingOver).toBe(false);
     expect(d.marginCents).toBeGreaterThan(0);
+  });
+
+  it("#277: values a PAUSED tenant at the holding fee, not at the plan price", async () => {
+    /**
+     * A pause leaves `subscription_status` 'active' and `plan` populated, so a
+     * paused tenant sails into this job's scan. Crediting it with a plan fee it
+     * is conspicuously not paying mutes the one alert that catches a tenant
+     * costing more than it pays — for the cohort whose revenue just fell by
+     * roughly ninety per cent while its cost (a number, a live 10DLC campaign,
+     * uncapped inbound) barely moved.
+     *
+     * The identical class of defect has been fixed here three times already:
+     * grandfathered modules, phantom extra numbers, and the prepaid year.
+     */
+    const harness = makeHarness(endpoints({ inboundSegments: 50, numbers: 1 }));
+    stubFetch(harness.route);
+    const db = getDb(env);
+
+    const full = await decideOverage(db, company, new Date("2026-06-16T00:00:00Z"));
+    const paused = await decideOverage(
+      db,
+      {
+        ...company,
+        paused_at: "2026-06-01T00:00:00Z",
+        paused_price_cents: 500,
+      },
+      new Date("2026-06-16T00:00:00Z"),
+    );
+
+    // The holding fee, not the plan price — and the cost side is untouched,
+    // because holding the number and the campaign costs what it always did.
+    expect(paused.revenueCents).toBeCloseTo(stripeNetCents(500), 6);
+    expect(paused.revenueCents).toBeLessThan(full.revenueCents);
+    expect(paused.extrapolatedCostCents).toBe(full.extrapolatedCostCents);
+    // A quiet plan-priced tenant is comfortably profitable; the same tenant on
+    // a holding fee is underwater, which is the whole reason to tell anyone.
+    expect(full.marginCents).toBeGreaterThan(0);
+    expect(paused.marginCents).toBeLessThan(0);
+    expect(paused.trendingOver).toBe(true);
+  });
+
+  it("#277: a PAUSED tenant with no readable fee counts as zero, never as its plan", async () => {
+    /**
+     * The fact and the amount fail SEPARATELY, and this is the case that made
+     * branching on the amount wrong. `paused_price_cents` is null for a tiered
+     * pause price, for any workspace paused before `pausePriceSnapshot` began
+     * refusing those, and in the window between syncSubscription's two writes
+     * (the fact and the fee are separate PATCHes). Every one of those reads
+     * "not paused" to a test on the fee — and hands the tenant back the $79 it
+     * is conspicuously not paying, in the one alert that exists to catch a
+     * tenant costing more than it pays.
+     *
+     * Zero is the conservative answer, not a guess: whatever a paused workspace
+     * is paying, it is certainly not paying for the plan, and an under-counted
+     * revenue makes somebody LOOK at the row. Same posture as
+     * scripts/ops/pricing-report.mjs, which reports the same cohort.
+     */
+    const harness = makeHarness(endpoints({ inboundSegments: 50, numbers: 1 }));
+    stubFetch(harness.route);
+    const db = getDb(env);
+
+    const full = await decideOverage(db, company, new Date("2026-06-16T00:00:00Z"));
+    const unpriced = await decideOverage(
+      db,
+      { ...company, paused_at: "2026-06-01T00:00:00Z", paused_price_cents: null },
+      new Date("2026-06-16T00:00:00Z"),
+    );
+
+    // Zero plan revenue — not the plan price, and not the $5 of a pause whose
+    // fee we cannot see.
+    expect(unpriced.revenueCents).toBe(0);
+    expect(unpriced.revenueCents).toBeLessThan(full.revenueCents);
+    expect(unpriced.extrapolatedCostCents).toBe(full.extrapolatedCostCents);
+    expect(full.marginCents).toBeGreaterThan(0);
+    expect(unpriced.marginCents).toBeLessThan(0);
+    expect(unpriced.trendingOver).toBe(true);
   });
 });
 

@@ -107,7 +107,15 @@ export async function runOverageWarningJob(
   const { data, error } = await db
     .from("companies")
     .select(
-      "id,name,plan,current_period_start,current_period_end,us_texting_enabled,overage_cap_multiplier,paid_extra_numbers",
+      // #277: paused_at AND paused_price_cents ride along so the projection
+      // values a paused tenant at what it actually pays. This scan selects
+      // paused workspaces — a pause leaves subscription_status 'active' and
+      // plan populated — so omitting them would credit each of them with a plan
+      // fee nobody is paying. BOTH are needed: the projection branches on the
+      // fact and counts an unreadable fee as zero, so dropping `paused_at` here
+      // would silently restore the full plan price for every paused tenant
+      // while `paused_price_cents` sat in the row unused.
+      "id,name,plan,current_period_start,current_period_end,us_texting_enabled,overage_cap_multiplier,paid_extra_numbers,paused_at,paused_price_cents",
     )
     .eq("subscription_status", "active")
     .not("plan", "is", null)

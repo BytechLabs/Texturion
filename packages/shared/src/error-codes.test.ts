@@ -20,6 +20,9 @@ describe("error codes (SPEC §7)", () => {
       // #303: the AUP ladder's suspend step. 403 like the other refusals a
       // client cannot resolve by retrying or by paying.
       sending_suspended: 403,
+      // #277: the seasonal pause. 402 like subscription_inactive — the remedy
+      // is a billing action the customer can take themselves.
+      workspace_paused: 402,
       usage_cap_reached: 402,
       registration_pending: 403,
       recipient_opted_out: 403,
@@ -54,6 +57,19 @@ describe("error codes (SPEC §7)", () => {
     // copy was edited.
     expect(ERROR_CODE_STATUS.mfa_required).toBe(ERROR_CODE_STATUS.forbidden);
     expect(ERROR_CODES).toContain("mfa_required");
+  });
+
+  it("never lets a pause borrow the abuse-suspension code (#277)", () => {
+    // Two refusals that both stop outbound and mean opposite things. A client
+    // that showed `sending_suspended`'s copy for a pause would tell a customer
+    // who chose a cheaper winter that their workspace is under review.
+    expect(ERROR_CODES).toContain("workspace_paused");
+    expect(ERROR_CODE_STATUS.workspace_paused).not.toBe(
+      ERROR_CODE_STATUS.sending_suspended,
+    );
+    expect(ERROR_CODE_STATUS.workspace_paused).toBe(
+      ERROR_CODE_STATUS.subscription_inactive,
+    );
   });
 
   it("shares the 409 status between conflict and quiet-hours confirmation", () => {

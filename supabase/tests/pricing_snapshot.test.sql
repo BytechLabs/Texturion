@@ -41,6 +41,21 @@ values
    '52000000-0000-4000-8000-00000000000a'::uuid, 'US', '415', now(),
    null, 'incomplete', 'starter', null);
 
+-- #277: paying, and PAUSED — `active`, still on Pro, invoiced a holding fee
+-- instead of $79. Inserted separately from the block above because the pause
+-- columns are the only thing that distinguishes it, and a reader of PS277-1
+-- should be able to see the whole fixture without scrolling past three
+-- unrelated ones.
+insert into public.companies
+  (id, name, owner_user_id, country, requested_area_code, aup_accepted_at,
+   subscription_started_at, subscription_status, plan, current_period_start,
+   paused_at, paused_price_cents)
+values
+  ('52000000-0000-4000-8000-0000000000c4'::uuid, 'Winter Crew',
+   '52000000-0000-4000-8000-00000000000a'::uuid, 'US', '415', now(),
+   now() - interval '90 days', 'active', 'pro', now() - interval '5 days',
+   now() - interval '10 days', 500);
+
 insert into public.company_modules (company_id, module, enabled_at, disabled_at) values
   ('52000000-0000-4000-8000-0000000000c1'::uuid, 'regions_ca',
    now() - interval '30 days', null),
@@ -176,6 +191,73 @@ begin
    where module = 'regions_ca';
   if v_rows <> 0 then
     raise exception 'PS255-6: a one-day window reported attaches from weeks ago';
+  end if;
+end $$;
+
+-- ===========================================================================
+-- PS277-1. A PAUSED workspace is reported as paused, with what it actually
+-- pays.
+--
+-- The pause fee is the one price that is not in the repository — the founder
+-- provisions it in Stripe — so a caller that cannot read it from the row has
+-- nothing to fall back on but the plan's list price. That fallback is the
+-- defect: it renders the cohort with ~90% less revenue and an unchanged number
+-- and 10DLC campaign cost as the most profitable one in the report.
+--
+-- Both columns are asserted. `paused_at` alone would let the fee go missing
+-- (the caller would guess), and the fee alone would not say WHICH rows are a
+-- pause rather than a mis-mirrored plan.
+-- ===========================================================================
+do $$
+declare
+  v_paused_at timestamptz;
+  v_cents     integer;
+  v_plan      text;
+  v_status    text;
+begin
+  select paused_at, paused_price_cents, plan, subscription_status
+    into v_paused_at, v_cents, v_plan, v_status
+    from public.api_pricing_snapshot()
+   where company_id = '52000000-0000-4000-8000-0000000000c4'::uuid;
+
+  -- Present at all: a pause leaves the status `active`, so a snapshot that
+  -- filtered the cohort out would hide the rows this report is read for.
+  if v_status is distinct from 'active' or v_plan is distinct from 'pro' then
+    raise exception
+      'PS277-1: a paused workspace is missing from the snapshot (status %, plan %)',
+      v_status, v_plan;
+  end if;
+  if v_paused_at is null then
+    raise exception
+      'PS277-1: the snapshot does not report that this workspace is paused — '
+      'the caller can only value it at its plan''s list price';
+  end if;
+  if v_cents is distinct from 500 then
+    raise exception
+      'PS277-1: the pause fee reported as %, expected 500', v_cents;
+  end if;
+end $$;
+
+-- ===========================================================================
+-- PS277-2. An UNPAUSED workspace reports null, so the caller can tell them
+-- apart.
+--
+-- A constant is not a signal. If `paused_at` came back non-null for everybody
+-- the caller would value the whole book at a holding fee, which fails in the
+-- opposite direction and just as quietly.
+-- ===========================================================================
+do $$
+declare
+  v_paused_at timestamptz;
+  v_cents     integer;
+begin
+  select paused_at, paused_price_cents into v_paused_at, v_cents
+    from public.api_pricing_snapshot()
+   where company_id = '52000000-0000-4000-8000-0000000000c1'::uuid;
+  if v_paused_at is not null or v_cents is not null then
+    raise exception
+      'PS277-2: an unpaused workspace reports paused_at % / fee %',
+      v_paused_at, v_cents;
   end if;
 end $$;
 

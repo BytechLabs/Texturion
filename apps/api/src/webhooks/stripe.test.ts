@@ -89,6 +89,9 @@ function subscriptionFixture(
      *  (the default, matched to `licensed`); `null` models pre-D42 drift for
      *  the convergence test. */
     voiceMetered?: { id: string; priceId: string } | null;
+    /** #277: the licensed item's unit_amount, which is what the pause mirror
+     *  reads the holding fee from. Defaults to the Starter price. */
+    licensedUnitAmount?: number;
   } = {},
 ) {
   const {
@@ -100,6 +103,7 @@ function subscriptionFixture(
     modulePriceIds = [],
     canceledAt = null,
     startDate = SUBSCRIPTION_START,
+    licensedUnitAmount = 2900,
   } = overrides;
   const voiceMetered =
     overrides.voiceMetered !== undefined
@@ -128,7 +132,12 @@ function subscriptionFixture(
           quantity: 1,
           current_period_start: PERIOD_START,
           current_period_end: PERIOD_END,
-          price: { id: licensed, object: "price", recurring: { interval: "month" } },
+          price: {
+            id: licensed,
+            object: "price",
+            unit_amount: licensedUnitAmount,
+            recurring: { interval: "month" },
+          },
         },
         {
           id: "si_metered",
@@ -1786,5 +1795,144 @@ describe("pending ports on paid checkout (PORTING.md §4 / D16 bridge number)", 
       checkoutSessionId: "cs_1",
     });
     expect(harness.callsTo("PATCH", /port_requests/)).toHaveLength(0);
+  });
+});
+
+/**
+ * #277 — the pause fact, mirrored from the subscription's own licensed item.
+ *
+ * This is the ONLY writer of `companies.paused_at`, which is what stops the
+ * pause route and the webhook from becoming two places that decide. The three
+ * assertions that matter are all about a reading the obvious implementation
+ * gets wrong:
+ *
+ *  - a subscription carrying the pause price marks the workspace paused;
+ *  - a subscription carrying a PLAN price clears it;
+ *  - a subscription carrying NEITHER — which is what every paused workspace
+ *    looks like the moment STRIPE_PAUSE_PRICE_ID goes missing from a deploy —
+ *    changes nothing at all.
+ */
+describe("the pause mirror (#277)", () => {
+  /** The companies PATCH, answering with whatever the stored row currently is. */
+  function companiesEndpoint(
+    stored: { paused_at: string | null; paused_price_cents: number | null },
+  ): StubEndpoint {
+    return endpoint("PATCH", /\/rest\/v1\/companies/, () => [
+      {
+        id: COMPANY_ID,
+        name: "Acme Plumbing",
+        canceled_at: null,
+        company_modules: [],
+        ...stored,
+      },
+    ]);
+  }
+
+  function pauseHarness(
+    licensed: string,
+    stored: { paused_at: string | null; paused_price_cents: number | null },
+  ) {
+    return makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture({
+          licensed,
+          voiceMetered: null,
+          // What the pause price bills, in the price's base currency.
+          licensedUnitAmount: licensed === "price_pause_0001" ? 500 : 2900,
+        }),
+      ),
+      // The voice convergence attaches an item on a live subscription; a quiet
+      // stub keeps this suite about the pause.
+      endpoint("POST", /api\.stripe\.com\/v1\/subscription_items/, () => ({
+        id: "si_voice_metered",
+      })),
+      companiesEndpoint(stored),
+    ]);
+  }
+
+  /** Every companies PATCH body this delivery produced. */
+  function patchBodies(harness: Harness): Record<string, unknown>[] {
+    return harness
+      .callsTo("PATCH", /companies/)
+      .map((call) => call.json() as Record<string, unknown>);
+  }
+
+  it("marks a workspace paused when the subscription carries the pause price", async () => {
+    const harness = pauseHarness("price_pause_0001", {
+      paused_at: null,
+      paused_price_cents: null,
+    });
+    await deliver(
+      eventOf("customer.subscription.updated", subscriptionFixture()),
+      harness,
+    );
+
+    const bodies = patchBodies(harness);
+    // The plan is LEFT ALONE — planForLicensedPrice returns null for the pause
+    // price, so `plan` keeps holding what they resume onto, and the overage
+    // spending cap that keys on it keeps firing.
+    expect(bodies[0]).not.toHaveProperty("plan");
+    expect(bodies.some((b) => typeof b.paused_at === "string")).toBe(true);
+    // And the fee comes from the item we already held — no extra Stripe call.
+    expect(bodies.some((b) => b.paused_price_cents === 500)).toBe(true);
+  });
+
+  it("stamps paused_at ONCE — a daily re-mirror must not walk the date forward", async () => {
+    // "Paused since 4 November" is shown to the customer, and this function
+    // re-mirrors every subscription daily as well as on every Stripe event.
+    const harness = pauseHarness("price_pause_0001", {
+      paused_at: "2026-11-04T00:00:00.000Z",
+      paused_price_cents: 500,
+    });
+    await deliver(
+      eventOf("customer.subscription.updated", subscriptionFixture()),
+      harness,
+    );
+
+    // An already-correct row costs ZERO extra writes, on the hottest billing
+    // path in the product — the naive version PATCHes companies a second time
+    // on every mirror pass for every workspace, paused or not.
+    const bodies = patchBodies(harness);
+    expect(bodies.some((b) => "paused_at" in b)).toBe(false);
+    expect(bodies.some((b) => "paused_price_cents" in b)).toBe(false);
+  });
+
+  it("clears the pause when the subscription carries a PLAN price again", async () => {
+    const harness = pauseHarness(env.STRIPE_STARTER_PRICE_ID, {
+      paused_at: "2026-11-04T00:00:00.000Z",
+      paused_price_cents: 500,
+    });
+    await deliver(
+      eventOf("customer.subscription.updated", subscriptionFixture()),
+      harness,
+    );
+
+    const bodies = patchBodies(harness);
+    expect(bodies).toContainEqual({ paused_at: null, paused_price_cents: null });
+    // Resume needs no code of its own: the same pass re-writes `plan`.
+    expect(bodies[0]).toMatchObject({ plan: "starter" });
+  });
+
+  it("changes NOTHING when it recognises neither price — the un-provisioned deploy", async () => {
+    // THE ASSERTION THIS FEATURE MOST NEEDS. Under the obvious two-state
+    // reading ("pause price absent → not paused") an env var lost in a deploy
+    // makes every paused subscription stop matching, so the next reconcile
+    // would clear paused_at on all of them and hand out full service at the
+    // holding fee — silently, on a cron, with nothing failing.
+    const bare = { ...env, STRIPE_PAUSE_PRICE_ID: undefined };
+    const harness = pauseHarness("price_pause_0001", {
+      paused_at: "2026-11-04T00:00:00.000Z",
+      paused_price_cents: 500,
+    });
+    await deliver(
+      eventOf("customer.subscription.updated", subscriptionFixture()),
+      harness,
+      { env: bare },
+    );
+
+    const bodies = patchBodies(harness);
+    expect(bodies.some((b) => "paused_at" in b)).toBe(false);
+    expect(bodies.some((b) => "paused_price_cents" in b)).toBe(false);
   });
 });

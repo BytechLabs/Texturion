@@ -452,6 +452,82 @@ describe("GET /v1/usage", () => {
       sb.find("POST", "/rest/v1/rpc/api_period_forward_seconds"),
     ).toHaveLength(0);
   });
+
+  it("#277: a PAUSED workspace is projected against its holding fee, not its plan", async () => {
+    /**
+     * The behavioural half of the pair below, and the one that matters: the
+     * SELECT can be right while the row never reaches the projection, which is
+     * exactly what happened here — the handler builds an explicit object for
+     * `decideOverage`, so a field left out of THAT literal is as invisible as
+     * one left out of the query.
+     *
+     * A completed period (multiplier clamps to 1) with modest inbound volume:
+     * comfortably profitable at $29, underwater on a $5 holding fee. Same usage
+     * in both runs, so the only thing that moved is what we believe the
+     * workspace pays.
+     */
+    const period = {
+      overage_cap_multiplier: null,
+      current_period_start: "2020-06-15T00:00:00+00:00",
+      current_period_end: "2020-07-15T00:00:00+00:00",
+    };
+    const quiet = usageStub({ ...starterCompany, ...period }, 137, STORAGE, 100);
+    stubFetch(jwksRoute(auth), quiet.route);
+    expect(
+      await (
+        await apiRequest(app, env, await auth.token(), "/v1/usage", {
+          companyId: COMPANY_ID,
+        })
+      ).json(),
+    ).toMatchObject({ overage_projection: { trending_over: false } });
+
+    const paused = usageStub(
+      {
+        ...starterCompany,
+        ...period,
+        paused_at: "2020-06-20T00:00:00+00:00",
+        paused_price_cents: 500,
+      },
+      137,
+      STORAGE,
+      100,
+    );
+    stubFetch(jwksRoute(auth), paused.route);
+    expect(
+      await (
+        await apiRequest(app, env, await auth.token(), "/v1/usage", {
+          companyId: COMPANY_ID,
+        })
+      ).json(),
+    ).toMatchObject({
+      status: "pacing",
+      overage_projection: { trending_over: true },
+    });
+  });
+
+  it("#277: asks the database for paused_at, not only for the pause fee", async () => {
+    /**
+     * The projection behind this payload values a PAUSED workspace at its
+     * holding fee, and it decides that on `paused_at` — the fact — counting an
+     * unreadable fee as zero rather than handing back the plan's list price.
+     *
+     * Asserted on the SELECT because nothing behavioural can see this one go
+     * wrong: `supabaseStub` returns whatever the fixture holds regardless of
+     * what was projected, so a select that stops asking for `paused_at` keeps
+     * every figure assertion green while production reads undefined for every
+     * paused workspace and quietly re-values them all at $29 or $79.
+     */
+    const sb = usageStub(starterCompany, 137);
+    stubFetch(jwksRoute(auth), sb.route);
+    await apiRequest(app, env, await auth.token(), "/v1/usage", {
+      companyId: COMPANY_ID,
+    });
+    const select =
+      sb.find("GET", "/rest/v1/companies")[0]?.url.searchParams.get("select") ??
+      "";
+    expect(select).toContain("paused_at");
+    expect(select).toContain("paused_price_cents");
+  });
 });
 
 /**

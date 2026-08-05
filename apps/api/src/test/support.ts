@@ -50,6 +50,12 @@ export function completeEnv(): Env {
     STRIPE_STARTER_YEAR_PRICE_ID: "price_starter_year_0001",
     STRIPE_PRO_YEAR_PRICE_ID: "price_pro_year_0001",
     STRIPE_PREPAID_YEAR_COUPON_ID: "loonext_prepaid_year",
+    // #277: the seasonal pause price. Configured here exactly as production
+    // will be — suites that need the UNPROVISIONED behaviour (the offer must
+    // not exist, and must never be free) delete it explicitly, which is the
+    // way round that keeps the fail-closed path a deliberate assertion rather
+    // than the accidental default.
+    STRIPE_PAUSE_PRICE_ID: "price_pause_0001",
     STRIPE_REFERRAL_MONTH_COUPON_ID: "loonext_referral_month",
     STRIPE_MODULE_MMS_PRICE_ID: "price_module_mms_0001",
     STRIPE_MODULE_VOICE_PRICE_ID: "price_module_voice_0001",

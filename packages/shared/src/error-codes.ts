@@ -14,6 +14,16 @@ export const ERROR_CODES = [
   // it to say so plainly instead of showing a generic failure a crew would
   // read as a bug in the app. Shares the 403 status with `forbidden`.
   "sending_suspended",
+  // #277: this workspace's plan is PAUSED — the seasonal hold that keeps the
+  // number, the history and the 10DLC registration while the crew is not
+  // working. A distinct code rather than `subscription_inactive` because both
+  // the fact and the remedy differ: nothing lapsed, nothing is at risk, and the
+  // fix is one button that resumes the plan. And emphatically not
+  // `sending_suspended`, whose copy accuses somebody of something — telling a
+  // customer their workspace is "under review" because they chose a cheaper
+  // winter is the worst sentence this product could send them. Shares the 402
+  // status with `subscription_inactive`: money is still the remedy.
+  "workspace_paused",
   "usage_cap_reached",
   "registration_pending",
   "recipient_opted_out",
@@ -57,6 +67,7 @@ export const ERROR_CODE_STATUS = {
   forbidden: 403,
   subscription_inactive: 402,
   sending_suspended: 403,
+  workspace_paused: 402,
   usage_cap_reached: 402,
   registration_pending: 403,
   recipient_opted_out: 403,

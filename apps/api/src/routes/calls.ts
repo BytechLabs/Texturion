@@ -782,12 +782,15 @@ async function authorizeOutboundCall(
   });
 
   const companies = unwrap<
-    (CompanyVoiceState & { subscription_status: string })[]
+    (CompanyVoiceState & {
+      subscription_status: string;
+      paused_at: string | null;
+    })[]
   >(
     await db
       .from("companies")
       .select(
-        "plan,current_period_start,overage_cap_multiplier,subscription_status",
+        "plan,current_period_start,overage_cap_multiplier,subscription_status,paused_at",
       )
       .eq("id", companyId)
       .limit(1),
@@ -799,6 +802,41 @@ async function authorizeOutboundCall(
       c,
       "subscription_inactive",
       "Your subscription isn't active.",
+    );
+  }
+  /**
+   * #277 — a paused workspace does not place calls either.
+   *
+   * The status test above cannot catch this: a pause is a licensed-price swap,
+   * so the subscription really is `active`. Without this line a paused crew
+   * could not text but could dial, and dialling is the more expensive half —
+   * ~10c per dial command whatever happens next, plus ~1.2c a minute on both
+   * legs, against a holding fee of a few dollars a month. That is the same
+   * unbounded-spend shape the pause is designed to close, arriving through the
+   * one door the send gates do not cover.
+   *
+   * Placed BEFORE the line claim and the nonce mint, like the kill switch
+   * above, so a refused call consumes neither.
+   */
+  // `?? null` rather than a bare `!== null`: a row that carries no such key
+  // reads undefined, and the safe reading of "we do not know" is "not paused",
+  // because a wrong "paused" would refuse a paying crew's calls until somebody
+  // noticed. Same coalesce as getSendGates, for the same reason.
+  //
+  // Do NOT read that fail-open as "a sweep will correct it shortly". Nothing
+  // re-mirrors a paused workspace on a timer: runSubscriptionReconcileJob scans
+  // non-active companies plus active ones whose period has ELAPSED, and a
+  // paused company is active with a fresh period, so it is in neither. The
+  // writers are the pause/resume routes themselves and syncSubscription on a
+  // Stripe webhook. What that leaves is one way for this gate to read undefined
+  // forever — a select that stops asking for the column — which is why
+  // calls.test.ts PC-5 asserts the select, not just the behaviour.
+  if ((company.paused_at ?? null) !== null) {
+    return errorResponse(
+      c,
+      "workspace_paused",
+      "Your plan is paused, so calls are not going out. Your number is being " +
+        "held — resume your plan in billing and calling starts again straight away.",
     );
   }
   // #144: reserve committed minutes for the company's already-live outbound
