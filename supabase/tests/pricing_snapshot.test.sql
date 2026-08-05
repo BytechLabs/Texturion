@@ -261,4 +261,69 @@ begin
   end if;
 end $$;
 
+-- ===========================================================================
+-- PS525-1. The COST side of a paused workspace: it still carries its US 10DLC
+-- campaign, and the snapshot says so.
+--
+-- The campaign fee is charged monthly whether or not a single message is sent,
+-- and a paused workspace sends none — so its metered `provider_cost_cents` is
+-- ~$0 while its real cost is the number rent plus that fee. A report built on
+-- metered usage alone renders it as the highest-margin row in the book, which
+-- is the #277 defect arriving from the cost side after the revenue side was
+-- fixed.
+--
+-- The pause deliberately does NOT deactivate the campaign — that would cost the
+-- customer another 3-7 business day carrier wait on their return — so this flag
+-- reading true through a pause is the truth, not a leak.
+-- ===========================================================================
+do $$
+declare
+  v_us      boolean;
+  v_paused  timestamptz;
+  v_numbers bigint;
+begin
+  select us_texting_enabled, paused_at, numbers_used
+    into v_us, v_paused, v_numbers
+    from public.api_pricing_snapshot()
+   where company_id = '52000000-0000-4000-8000-0000000000c4'::uuid;
+
+  if v_paused is null then
+    raise exception 'PS525-1: fixture is not paused — the test proves nothing';
+  end if;
+  if v_us is not true then
+    raise exception
+      'PS525-1: a paused workspace with US texting on reports us_texting_enabled '
+      '% — the caller cannot see the recurring campaign fee it is paying, and '
+      'the lowest-margin cohort renders as the highest', v_us;
+  end if;
+  -- The other half of the fixed cost. Zero here would silently drop the number
+  -- rent from every margin in the report.
+  if v_numbers is null then
+    raise exception 'PS525-1: numbers_used is null, so number rent cannot be priced';
+  end if;
+end $$;
+
+-- ===========================================================================
+-- PS525-2. A workspace WITHOUT US texting reports false, so the caller can
+-- tell them apart.
+--
+-- A constant is not a signal. If the column came back true for everybody, every
+-- Canada-only workspace would be charged an imaginary $10/mo in the margin
+-- report and read as unprofitable — failing in the opposite direction and just
+-- as quietly.
+-- ===========================================================================
+do $$
+declare v_us boolean;
+begin
+  update public.companies set us_texting_enabled = false
+   where id = '52000000-0000-4000-8000-0000000000c1'::uuid;
+
+  select us_texting_enabled into v_us from public.api_pricing_snapshot()
+   where company_id = '52000000-0000-4000-8000-0000000000c1'::uuid;
+  if v_us is not false then
+    raise exception
+      'PS525-2: a workspace with US texting off reports us_texting_enabled %', v_us;
+  end if;
+end $$;
+
 rollback;

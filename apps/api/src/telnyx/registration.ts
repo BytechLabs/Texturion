@@ -6,8 +6,10 @@ import {
   otpNudgeCopy,
   portAssignmentBlockedCopy,
   registrationReinstatedCopy,
+  registrationReinstatedWhilePausedCopy,
   registrationRejectedCopy,
   registrationSuspendedCopy,
+  usTextingApprovedWhilePausedCopy,
   usTextingLiveCopy,
 } from "./emails";
 import {
@@ -521,18 +523,36 @@ async function applyTransition(
     } catch (cause) {
       Sentry.captureException(cause);
     }
+    // #525 — is this workspace PAUSED, and therefore unable to use what was
+    // just approved?
+    //
+    // Registering during a pause is deliberately allowed: carrier review takes
+    // days to weeks, a quiet winter is when that wait is free, and the $29 is
+    // charged once per workspace ever. The consequence is this moment —
+    // approval landing on a workspace every send path is refusing. Both
+    // channels below branch on THIS one read so they cannot describe the same
+    // workspace two ways.
+    //
+    // `?? null` matches getSendGates exactly, and so does the direction of the
+    // guess: a row that carries no such key reads undefined, and the safe
+    // reading of "we do not know" is NOT PAUSED. A wrong "paused" would tell a
+    // paying crew to go and resume a plan that is already running, on the one
+    // email they have been waiting a week for.
+    const paused = (company.paused_at ?? null) !== null;
     await sendOperationalEmail(
       env,
       db,
       company.id,
-      usTextingLiveCopy(company.name, env),
+      paused
+        ? usTextingApprovedWhilePausedCopy(company.name, env)
+        : usTextingLiveCopy(company.name, env),
     );
     // #310: and on the phone they are actually holding. Email alone lands in
     // an inbox they may not open for a day, about a product they have not yet
     // formed a habit around — and this is the single highest-value moment in
     // the customer's lifecycle, at the end of a wait that has been eroding
     // their intent since the Sunday night they signed up.
-    await pushRegistrationApproved(env, db, company.id);
+    await pushRegistrationApproved(env, db, company.id, paused);
     // §12 step 18 north-star: carrier approval — US texting just unlocked.
     // ALLOWED_TRANSITIONS gates this transition (and so this capture) to at
     // most once per approval, across webhook/poller overlap and redelivery.
@@ -566,11 +586,19 @@ async function applyTransition(
     } catch (cause) {
       Sentry.captureException(cause);
     }
+    // #525: branched for the same reason the approval branch above is. The
+    // running copy says texts are sending "right now, with nothing for you to
+    // do", and for a paused workspace both halves are false. `company.paused_at`
+    // is already in scope and already read at the approval branch; the reading
+    // of an absent key is NOT PAUSED there and is here too, for the same reason.
+    const reinstatedPaused = (company.paused_at ?? null) !== null;
     await sendOperationalEmail(
       env,
       db,
       company.id,
-      registrationReinstatedCopy(company.name, env),
+      reinstatedPaused
+        ? registrationReinstatedWhilePausedCopy(company.name, env)
+        : registrationReinstatedCopy(company.name, env),
     );
   }
   if (mapped.next === "rejected") {

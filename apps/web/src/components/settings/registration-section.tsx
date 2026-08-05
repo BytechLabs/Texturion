@@ -1,18 +1,25 @@
 "use client";
 
-import {
-  billingCurrencyOf,
-  formatMoney,
-  US_REGISTRATION_FEE_CENTS,
-  type BillingCurrency,
-} from "@loonext/shared";
-import { Check, CircleDashed } from "lucide-react";
+import { billingCurrencyOf } from "@loonext/shared";
+import { Check, CircleDashed, PauseCircle } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { pauseQueryEnabled } from "@/components/settings/pause-plan";
+import { pauseReadOf } from "@/components/settings/pause-read";
 import { RegistrationFixForm } from "@/components/settings/registration-fix-form";
 import { RejectionNotice } from "@/components/settings/rejection-notice";
 import { LoadError, SettingsCard } from "@/components/settings/section";
+import {
+  US_REGISTRATION_PAUSED_HEADING,
+  US_REGISTRATION_PAUSED_NOTE,
+  usRegistrationFee,
+  usRegistrationPausedTerms,
+  usRegistrationTail,
+  usRegistrationTerms,
+  usRegistrationStarted,
+  usRegistrationTiming,
+} from "@/components/settings/us-registration-timing";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,6 +32,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePauseOffer } from "@/lib/api/billing";
 import { ApiError } from "@/lib/api/error";
 import {
   useEnableUsTexting,
@@ -184,17 +192,38 @@ function OtpRow({ brand }: { brand: RegistrationRow }) {
 }
 
 /** CA companies with US texting off: the owner's enable-US flow (SPEC §4.2). */
-function EnableUsCard({ currency }: { currency: BillingCurrency }) {
+function EnableUsCard({ company }: { company: CompanyView }) {
   const { role } = useActiveCompany();
   const enable = useEnableUsTexting();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // #328: quoted in the currency the invoice will arrive in. Stripe prices the
-  // fee with a CAD currency option, so a CA workspace billed in CAD is charged
-  // the CAD figure — naming the US one here would be a price the owner can
-  // check against their statement and find wrong.
-  const fee = formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency);
+  /**
+   * #525 — is this workspace paused, and may we say so?
+   *
+   * `paused_at` is a `billing.manage` fact behind `GET /v1/billing/pause` and
+   * deliberately NOT on `company_view`, so it is read here the same way the
+   * billing screen reads it and run through `PauseRead` rather than a boolean.
+   * An owner holds `billing.manage`, so the one reader who can buy this can
+   * always ask.
+   *
+   * ASKED FROM THE CARD RATHER THAN FROM THE DIALOG, and that costs two Stripe
+   * round trips server-side on a screen that is otherwise cheap. It is worth
+   * it: the answer decides whether this card INVITES the purchase at all, so a
+   * dialog-time read would leave the invitation missing from the surface that
+   * has to carry it, and would settle the terms a beat after the reader started
+   * reading them. `pauseQueryEnabled` keeps it off every workspace that cannot
+   * be paused, the query key is shared with the billing screen (one request
+   * answers both within a session), and this card only exists for a CA
+   * workspace that has not enabled US texting.
+   */
+  const askPause = pauseQueryEnabled(role === "owner", company);
+  const pauseQuery = usePauseOffer(askPause);
+  const timing = usRegistrationTiming(pauseReadOf(askPause, pauseQuery));
+
+  const currency = billingCurrencyOf(company.billing_currency);
+  const fee = usRegistrationFee(currency);
+  const tail = usRegistrationTail(timing);
 
   return (
     <SettingsCard
@@ -202,7 +231,33 @@ function EnableUsCard({ currency }: { currency: BillingCurrency }) {
       description="Texting Canadian numbers already works. Texting US numbers needs a one-time carrier registration."
     >
       {role === "owner" ? (
-        <>
+        <div className="space-y-4">
+          {/* #525: ABOVE the control, because it answers the question a paused
+              owner asks before pressing anything — "is this even open to me
+              right now" — and an answer that arrives after the press is an
+              answer they never got. It leads with the reason to do it now; what
+              the pause blocks is a term of the sale and is stated in the dialog
+              where they agree to it. Rendered only on a CONFIRMED pause: on a
+              read still in flight or one that failed, the card is the card it
+              has always been. *Applying: Prioritize Intent & the PauseRead rule
+              that a screen may not state a fact it has not read.* */}
+          {timing === "paused" && (
+            <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3">
+              <PauseCircle
+                className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                strokeWidth={1.75}
+                aria-hidden
+              />
+              <div className="space-y-1">
+                <p className="text-sm font-medium">
+                  {US_REGISTRATION_PAUSED_HEADING}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {US_REGISTRATION_PAUSED_NOTE}
+                </p>
+              </div>
+            </div>
+          )}
           <Button onClick={() => setConfirming(true)}>
             Enable US texting: {fee} one-time
           </Button>
@@ -210,13 +265,35 @@ function EnableUsCard({ currency }: { currency: BillingCurrency }) {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Enable US texting?</DialogTitle>
+                {/* The terms every reader gets. `tail` is null while the pause
+                    is unread — the sentence it would otherwise add ("we email
+                    you when it's live") is the one a pause makes misleading, so
+                    it is withheld rather than guessed at. */}
                 <DialogDescription>
-                  A one-time {fee} registration fee is charged to your card on
-                  file, and we register your business with US carriers.
-                  Approval usually takes 3 to 7 business days. We handle it and
-                  email you when it&apos;s live.
+                  {usRegistrationTerms(currency)}
+                  {tail ? ` ${tail}` : ""}
                 </DialogDescription>
               </DialogHeader>
+              {/* #525: three facts as three lines. Only the last one changes an
+                  expectation, and a clause buried at the end of a long
+                  paragraph is the clause that gets skimmed past — at the moment
+                  somebody is agreeing to a charge. *Applying: Chunking.* */}
+              {timing === "paused" && (
+                <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3">
+                  <PauseCircle
+                    className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                    strokeWidth={1.75}
+                    aria-hidden
+                  />
+                  <ul className="space-y-2">
+                    {usRegistrationPausedTerms(currency).map((line) => (
+                      <li key={line} className="text-sm text-muted-foreground">
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {error && (
                 <p role="alert" className="text-sm text-destructive">
                   {error}
@@ -233,9 +310,7 @@ function EnableUsCard({ currency }: { currency: BillingCurrency }) {
                     enable.mutate(undefined, {
                       onSuccess: () => {
                         setConfirming(false);
-                        toast.success(
-                          "US registration started. We'll email you when it's approved.",
-                        );
+                        toast.success(usRegistrationStarted(timing));
                       },
                       onError: (cause) =>
                         setError(
@@ -251,7 +326,7 @@ function EnableUsCard({ currency }: { currency: BillingCurrency }) {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        </>
+        </div>
       ) : (
         <p className="text-sm text-muted-foreground">
           Ask your account owner to enable US texting; it&apos;s a one-time{" "}
@@ -275,10 +350,11 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
   // No registration owed: CA company that hasn't enabled US texting.
   if (company.country === "CA" && !company.us_texting_enabled) {
     // #328: signed in, so the currency is the company's own, not the visitor
-    // country signal the marketing pages read.
-    return (
-      <EnableUsCard currency={billingCurrencyOf(company.billing_currency)} />
-    );
+    // country signal the marketing pages read. #525: the whole row goes in
+    // rather than the currency alone — the card also needs `plan` and
+    // `subscription_status` to decide whether asking about a pause is even a
+    // question this workspace can have.
+    return <EnableUsCard company={company} />;
   }
 
   if (registration.isPending) {

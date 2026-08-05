@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -13,6 +16,10 @@ import {
   updateCampaignContent,
   type RegistrationRow,
 } from "./registration";
+import {
+  usTextingApprovedWhilePausedCopy,
+  usTextingLiveCopy,
+} from "./emails";
 import {
   FakeRest,
   resendRoute,
@@ -506,6 +513,139 @@ describe("handle10dlcEvent — §4.4 webhook mapping", () => {
     expect(emails).toHaveLength(1);
     expect(emails[0].subject).toContain("US texting is live");
     expect(emails[0].to).toContain("owner@acme.example");
+  });
+
+  /**
+   * #525 — approval landing on a PAUSED workspace.
+   *
+   * `POST /v1/registration/enable-us` is deliberately open during a pause: the
+   * 3-7 business day carrier wait is free in a quiet winter, and the $29 is
+   * charged once per workspace ever. Nothing in this codebase stalls the
+   * registration itself — the brand POST, the campaign POST, this approval
+   * transition and the number assignment all read no subscription state — so
+   * approval reliably lands on a workspace `runPreSendGates` is refusing.
+   *
+   * Which made the R3 side effects lie at the worst possible moment: an email
+   * saying "You can now text US numbers" and a push saying "You can text
+   * customers now", sent to somebody who then opens the app and is refused.
+   *
+   * Asserted against the SHIPPED copy functions, never a phrase retyped here —
+   * a guard quoting a string nobody renders cannot fail. Proven by breaking:
+   * with the branch removed (`usTextingLiveCopy` unconditionally) the paused
+   * case failed on the subject, and with it inverted the unpaused case failed
+   * the same way.
+   */
+  it("#525-1: approval while PAUSED does not tell them they can text", async () => {
+    const { env, rest, telnyx, emails } = setup({
+      paused_at: "2026-08-01T09:00:00+00:00",
+    });
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      { status: "pending", telnyx_id: "camp-1" },
+    );
+    rest.insert("phone_numbers", {
+      company_id: COMPANY_ID,
+      status: "active",
+      provisioning_key: "cs_1",
+      country: "US",
+      number_e164: "+12125550123",
+    });
+    telnyx.on("POST", /^\/v2\/10dlc\/phoneNumberCampaign$/, () => ({}));
+
+    await handle10dlcEvent(
+      env,
+      campaignEvent({ type: "MNO_REVIEW", status: "ACCEPTED" }),
+    );
+
+    const paused = usTextingApprovedWhilePausedCopy("Acme Plumbing", env);
+    expect(emails).toHaveLength(1);
+    expect(emails[0].subject).toBe(paused.subject);
+    // `toContain` because sendOperationalEmail appends the service-message
+    // footer; the whole shipped body is still required to be in there.
+    expect(emails[0].text).toContain(paused.text);
+    // The lie, named. Whatever the words become, the paused email must not be
+    // the one that invites somebody to go and text.
+    expect(emails[0].subject).not.toBe(
+      usTextingLiveCopy("Acme Plumbing", env).subject,
+    );
+
+    // AND NOTHING ELSE CHANGES, which is the decision: allow it, disclose it.
+    // The campaign is approved and the number is assigned, so a resume in
+    // spring sends immediately rather than starting a second carrier wait —
+    // the entire reason registering during a pause is worth $29.
+    expect(campaignRowOf(rest).status).toBe("approved");
+    expect(telnyx.callsTo("POST", /phoneNumberCampaign/)[0].body).toEqual({
+      phoneNumber: "+12125550123",
+      campaignId: "camp-1",
+    });
+  });
+
+  it("#525-3: the push is told about the pause too, at the call site", async () => {
+    // The email branch and the push branch are two arguments to two different
+    // functions, and only one of them was pinned. `pushRegistrationApproved`
+    // has its own tests for both copies, so replacing the argument at the CALL
+    // SITE with a literal `false` left the entire api suite green - the phone
+    // in somebody's pocket would say "You can text customers now" about a plan
+    // that cannot send, and the push is the channel they read first.
+    //
+    // A source lint rather than a behavioural assertion, deliberately: proving
+    // it through the push pipeline needs members, prefs and subscriptions
+    // seeded for one boolean, and the property here is not "what the push says"
+    // (that is covered where the copy lives) but "the call site passes what it
+    // computed". A literal is the whole failure mode, so a literal is what this
+    // forbids - any literal, not the one that happened to be tried.
+    const source = readFileSync(
+      join(__dirname, "registration.ts"),
+      "utf8",
+    );
+    const call = /pushRegistrationApproved\(([^)]*)\)/.exec(source);
+    expect(call, "the approval push is gone or renamed").not.toBeNull();
+    const last = call![1].split(",").at(-1)!.trim();
+    expect(
+      ["true", "false"],
+      `the push is handed the literal \`${last}\`, so it can no longer disagree ` +
+        "with the email beside it about whether this workspace is paused",
+    ).not.toContain(last);
+  });
+
+  it("#525-2: the SAME approval unpaused still says texting is live", async () => {
+    // PROVE THE GUARD BY BREAKING IT: one field differs from #525-1, so a green
+    // #525-1 cannot be a fixture that would have produced the paused copy for
+    // any workspace at all.
+    const { env, rest, emails } = setup({ paused_at: null });
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      { status: "pending", telnyx_id: "camp-1" },
+    );
+    await handle10dlcEvent(
+      env,
+      campaignEvent({ type: "MNO_REVIEW", status: "ACCEPTED" }),
+    );
+    expect(emails[0].subject).toBe(
+      usTextingLiveCopy("Acme Plumbing", env).subject,
+    );
+  });
+
+  it("#525-3: an ABSENT pause column is not an accidental pause", async () => {
+    // Same posture and same direction as getSendGates SG-3, which reads the
+    // very same select (COMPANY_COLUMNS, asserted by SG-4). A wrong "paused"
+    // here tells a paying crew to go and resume a plan that is already running,
+    // in the one email they have been waiting a week for.
+    const { env, rest, emails } = setup();
+    seedRows(
+      rest,
+      { status: "approved", telnyx_id: "brand-1" },
+      { status: "pending", telnyx_id: "camp-1" },
+    );
+    await handle10dlcEvent(
+      env,
+      campaignEvent({ type: "MNO_REVIEW", status: "ACCEPTED" }),
+    );
+    expect(emails[0].subject).toBe(
+      usTextingLiveCopy("Acme Plumbing", env).subject,
+    );
   });
 
   it("a duplicate approval event neither re-assigns nor re-emails", async () => {

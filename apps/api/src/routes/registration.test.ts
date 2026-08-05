@@ -945,4 +945,91 @@ describe("POST /v1/registration/enable-us", () => {
     // The whole point: NO second invoice was created.
     expect(stripeCalls.filter((call) => call.path === "/v1/invoices")).toHaveLength(0);
   });
+
+  // #525 — a PAUSED workspace may buy US registration, and this is the only
+  // place that says so in code.
+  //
+  // The decision is allow-disclose-account, and the "allow" half is the half
+  // with nothing holding it: `fetchCompanyRow` does not select `paused_at`, so
+  // the route is pause-blind by OMISSION rather than by intent. Omissions do not
+  // survive — the obvious future reading of "a paused workspace cannot send" is
+  // "so do not let it buy a sending capability", and that reading is wrong here
+  // for a reason no reader of the route can see: carrier review takes days to
+  // weeks, so a quiet winter is exactly when the wait is free, and the $29 is
+  // charged once per workspace ever (`registration_fee_paid_at`), so waiting
+  // until spring buys the same thing later and worse.
+  //
+  // Both cases below were verified to FAIL against a `paused_at` refusal added
+  // to this route: without them the whole shipped suite passes with every
+  // paused workspace 409'd, because no other test on any layer sets `paused_at`
+  // on this path.
+  const PAUSED_AT = "2026-11-04T00:00:00.000Z";
+
+  it("#525: a paused workspace is still charged and enabled — never refused", async () => {
+    const harness = buildHarness({
+      country: "CA",
+      us_texting_enabled: false,
+      registration_fee_paid_at: null,
+      paused_at: PAUSED_AT,
+    });
+    harness.state.role = "owner";
+    seedCompleteWizard(harness);
+    const stripeCalls: StripeCall[] = [];
+    harness.addRoute(stripeRoute(stripeCalls));
+
+    const res = await harness.request("/v1/registration/enable-us", {
+      method: "POST",
+    });
+    expect(
+      res.status,
+      "a paused workspace must not be refused — #525 rule 1",
+    ).toBe(200);
+    const body = (await res.json()) as {
+      us_texting_enabled: boolean;
+      invoice_id: string;
+    };
+    expect(body.us_texting_enabled).toBe(true);
+    expect(body.invoice_id).toBe("in_1");
+    // The money half: the $29 is not merely permitted, it is actually
+    // collected — invoiced, itemised and finalized — so the disclosure the
+    // clients show a paused buyer describes a charge that really happens.
+    expect(
+      stripeCalls.map((call) => call.path),
+      "the $29 must still be invoiced and finalized while paused",
+    ).toEqual([
+      "/v1/invoices",
+      "/v1/invoiceitems",
+      "/v1/invoices/in_1/finalize",
+    ]);
+  });
+
+  it("#525: a paused workspace whose fee is already paid submits to the carrier", async () => {
+    // The delivery half. `registration_fee_paid_at` set means no invoice, so
+    // this is the path where the only observable effect is the SUBMISSION —
+    // and it proves the thing the $29 buys actually leaves the building while
+    // the plan is paused, rather than queueing until resume.
+    const harness = buildHarness({
+      country: "CA",
+      us_texting_enabled: false,
+      registration_fee_paid_at: "2026-01-01T00:00:00.000Z",
+      paused_at: PAUSED_AT,
+    });
+    harness.state.role = "owner";
+    seedCompleteWizard(harness);
+    harness.telnyx.on("GET", /^\/v2\/10dlc\/brand$/, () => ({ records: [] }));
+    harness.telnyx.on("POST", /^\/v2\/10dlc\/brand$/, () => ({
+      data: { brandId: "brand-1" },
+    }));
+
+    const res = await harness.request("/v1/registration/enable-us", {
+      method: "POST",
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { action: string };
+    expect(body.action).toBe("brand_submitted");
+    expect(
+      harness.telnyx.callsTo("POST", /^\/v2\/10dlc\/brand$/),
+      "the brand submission must reach the carrier while paused",
+    ).toHaveLength(1);
+  });
 });

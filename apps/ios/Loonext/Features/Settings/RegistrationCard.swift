@@ -265,6 +265,23 @@ private struct SolePropOtpRow: View {
 /// figure now comes from the price book through the workspace's own currency,
 /// and the sentences live in `enableUsTextingCopy` so a test can read them
 /// without rendering SwiftUI.
+///
+/// # The pause is disclosed here and never enforced here (#525)
+///
+/// `POST /v1/registration/enable-us` charges the fee and submits the
+/// registration without looking at `paused_at`, deliberately: nothing in the
+/// registration path — submission, the carrier review, campaign creation,
+/// number assignment — is blocked by a pause, so the money buys a thing that
+/// really happens, and the weeks-long carrier wait is cheapest during a quiet
+/// winter. What the pause DOES block is sending, so approval alone changes
+/// nothing until they resume. This card says that and keeps the button.
+///
+/// A CONTROL THAT CHARGES IS USUALLY OFFERED ONLY ON A READ THAT SAID "NOT
+/// PAUSED" — `mayBuyAddOns` is that rule, and it fails closed. It is the wrong
+/// rule here and is deliberately not used: the module toggles it guards are
+/// refused by their own route while paused, so offering them would be offering
+/// a purchase that fails, whereas this one succeeds. Failing closed here would
+/// invent a refusal the API does not make.
 @MainActor
 private struct EnableUsCard: View {
     let scope: SettingsScope
@@ -276,8 +293,41 @@ private struct EnableUsCard: View {
     @State private var confirming = false
     @State private var pending = false
     @State private var error: String?
+    /// #525 — what the REQUEST for the pause has done so far.
+    ///
+    /// `PauseFetch` and not `PauseRead`: the fourth case, `unaskable`, is a fact
+    /// about the READER that only `pauseReadFor` may produce. Stored here it
+    /// would let this card claim it cannot ask while an ordinary first-frame
+    /// request is still in flight — the hole `PauseFetch` exists to close on the
+    /// billing screen, one file over.
+    @State private var pauseFetch: PauseFetch = .loading
 
-    private var cardCopy: EnableUsTextingCopy { enableUsTextingCopy(currency) }
+    /// The one reader this card has a button for.
+    private var canEnable: Bool { SettingsRoleGate.canEnableUsTexting(scope.role) }
+
+    /// What this card KNOWS about the pause.
+    ///
+    /// The role passed to `pauseReadFor` is owner rather than `billing.manage`,
+    /// and it is narrower on purpose. An owner holds both capabilities, so the
+    /// request never 403s; a bookkeeper holds `billing.manage` and has no button
+    /// on this card, so an answer fetched for them would be a round trip to
+    /// Stripe that nothing renders.
+    private var pauseKnown: PauseRead {
+        pauseReadFor(canManageBilling: canEnable, fetch: pauseFetch)
+    }
+
+    /// A screen may not state a fact it has not read.
+    ///
+    /// `PauseRead.answer` is nil for `loading`, `failed` and `unaskable` alike,
+    /// and `pauseIsActive(nil)` is false — so an unfinished or failed read gets
+    /// the copy that has always shipped rather than a paragraph about a pause
+    /// nobody has confirmed. That direction is the safe one here BECAUSE the
+    /// button is not gated: the worst an unread pause costs is a disclosure the
+    /// customer does not see on this screen, and the approval mail and push both
+    /// branch on the same fact server-side, where it is always known.
+    private var cardCopy: EnableUsTextingCopy {
+        enableUsTextingCopy(currency, paused: pauseIsActive(pauseKnown.answer))
+    }
 
     var body: some View {
         SettingsCard(
@@ -285,7 +335,14 @@ private struct EnableUsCard: View {
             description: "Texting Canadian numbers already works. Texting US numbers "
                 + "needs a one-time carrier registration."
         ) {
-            if SettingsRoleGate.canEnableUsTexting(scope.role) {
+            // ABOVE the button, because it is the answer to the question a
+            // paused owner has before pressing anything — "is this even open to
+            // me right now" — and an answer that arrives after the press is an
+            // answer they never got.
+            if let pausedNote = cardCopy.pausedNote {
+                PausedStartNote(note: pausedNote)
+            }
+            if canEnable {
                 Button(cardCopy.buttonLabel) { confirming = true }
                     .buttonStyle(.borderedProminent)
             } else {
@@ -306,8 +363,34 @@ private struct EnableUsCard: View {
                     guard !pending else { return }
                     confirming = false
                     error = nil
+                },
+                // The extra terms a paused buyer agrees to, in the sheet where
+                // the agreement happens rather than on the card they scrolled
+                // past. Empty for everybody else, so this draws nothing.
+                extra: {
+                    ForEach(cardCopy.pausedTerms, id: \.self) { term in
+                        PausedTermRow(text: term)
+                    }
                 }
             )
+        }
+        .task(id: scope.companyId) {
+            guard canEnable else { return }
+            // THE FAILURE IS RECORDED RATHER THAN SWALLOWED, the same way the
+            // plan card records it: `GET /v1/billing/pause` throws instead of
+            // degrading to a null, and a `try?` on this line would turn "we
+            // could not check" into "not paused" — which is exactly the
+            // sentence that must not be invented.
+            do {
+                let fresh = try await scope.repo.pauseOffer(scope.companyId)
+                pauseFetch = .ready(fresh)
+            } catch {
+                // A cancelled task is not a failed read: `.task(id:)` cancels
+                // the outgoing request when the workspace changes or the screen
+                // goes away, and a fresher answer is already on its way.
+                guard !Task.isCancelled else { return }
+                pauseFetch = .failed
+            }
         }
     }
 
@@ -318,14 +401,68 @@ private struct EnableUsCard: View {
             do {
                 _ = try await scope.repo.enableUsTexting(scope.companyId)
                 confirming = false
-                scope.showMessage(
-                    "US registration started. We'll email you when it's approved."
-                )
+                // The receipt branches on the same read the consent sentence did,
+                // so the last thing they see cannot contradict what they agreed
+                // to a second earlier.
+                scope.showMessage(cardCopy.startedMessage)
                 onChanged()
             } catch {
                 self.error = error.userMessage
             }
             pending = false
         }
+    }
+}
+
+/// #525 — the paused workspace's invitation, above the button.
+///
+/// Its own view rather than a `ReachNote`, because that primitive is one muted
+/// line and this is a heading with a paragraph under it. The heading carries the
+/// answer ("yes, you can start this now"); somebody who reads nothing else on
+/// the card has still been told the thing that decides whether they press.
+private struct PausedStartNote: View {
+    let note: UsRegistrationPausedNote
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(note.heading)
+                .font(.golos(13, weight: .semibold))
+                .foregroundStyle(BrandColor.ink)
+            Text(note.detail)
+                .font(.golos(12))
+                .foregroundStyle(BrandColor.muted600)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            BrandColor.inset,
+            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
+        .padding(.bottom, 12)
+    }
+}
+
+/// One of the three things a paused buyer is agreeing to.
+///
+/// The bullet hangs outside the text rather than being glued to the front of it,
+/// so a line that wraps stays a single readable block instead of running back
+/// under its own marker.
+private struct PausedTermRow: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("•")
+                .font(.golos(13))
+                .foregroundStyle(BrandColor.muted600)
+            Text(text)
+                .font(.golos(13))
+                .foregroundStyle(BrandColor.muted600)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 8)
     }
 }

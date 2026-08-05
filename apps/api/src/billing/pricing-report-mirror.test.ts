@@ -6,7 +6,11 @@ import { describe, expect, it } from "vitest";
 
 import { MODULE_CATALOG, PLAN_MODULES } from "./modules";
 import { PLAN_INCLUDED_SEGMENTS, PLAN_IDS, PLAN_LIMITS } from "./plans";
-import { PLAN_MONTHLY_REVENUE_CENTS, STRIPE_FEES } from "./costs";
+import {
+  FIXED_MONTHLY_COST_CENTS,
+  PLAN_MONTHLY_REVENUE_CENTS,
+  STRIPE_FEES,
+} from "./costs";
 
 /**
  * #255 — `scripts/ops/pricing-report.mjs` mirrors this package's price and
@@ -83,8 +87,18 @@ describe("#255 the pricing report mirrors this package exactly", () => {
         "moduleMonthlyCents",
         "includedSegments",
         "limits",
+        "fixedMonthlyCents",
       ].sort(),
     );
+  });
+
+  it("mirrors the fixed monthly cost, which is a paused workspace's whole cost", () => {
+    // #525. The WHOLE object, for the reason stripeFees is: a THIRD fixed cost
+    // centre added to FIXED_MONTHLY_COST_CENTS must not be able to appear on
+    // one side only. This is the term that decides whether a pause is priced
+    // above what it costs us — a paused workspace sends nothing, so its metered
+    // cost is ~$0 and these two lines are the entire answer.
+    expect(m.fixedMonthlyCents).toEqual(FIXED_MONTHLY_COST_CENTS);
   });
 
   it("mirrors the plan monthly price", () => {

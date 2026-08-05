@@ -1368,8 +1368,9 @@ billingRoutes.post("/pause", async (c) => {
   // monthly amount above zero. A price provisioned at $0 by mistake is a
   // genuinely free pause that nothing else here would catch, and the fee is the
   // entire reason this feature is allowed to exist (a held number plus a live
-  // campaign is ~$3/mo of ours). Fail closed on the same reader GET /pause
-  // quotes from, so the screen and the button cannot disagree.
+  // campaign is FIXED_MONTHLY_COST_CENTS of ours, every month, whether or not a
+  // message moves). Fail closed on the same reader GET /pause quotes from, so
+  // the screen and the button cannot disagree.
   const pausePrice = await pausePriceSnapshot(env, getStripe(env));
   const licensedItem = planLicensedItem(env, subscription);
   if (!pausePrice || !licensedItem) {

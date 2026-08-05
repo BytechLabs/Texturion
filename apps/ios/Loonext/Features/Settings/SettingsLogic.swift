@@ -524,14 +524,42 @@ func usRegistrationFeeCents(_ currency: BillingCurrency) -> Int {
     }
 }
 
-/// The three sentences the enable-US-texting card prints — all in one money.
+/// #525 — the invitation a paused workspace reads above the button.
+///
+/// TWO PARTS RATHER THAN ONE PARAGRAPH: the heading is the answer to the
+/// question a paused owner actually has ("is this even open to me right now"),
+/// and the detail is why it is worth doing today. Rendered as heading + body so
+/// the answer is legible without reading the paragraph — a strong-relationship
+/// pair, tight spacing.
+struct UsRegistrationPausedNote: Equatable, Sendable {
+    let heading: String
+    let detail: String
+}
+
+/// Everything the enable-US-texting card prints — all in one money, and all in
+/// one account of whether this workspace is paused.
 struct EnableUsTextingCopy: Equatable, Sendable {
     /// The owner's button.
     let buttonLabel: String
-    /// The confirmation sheet's body: the sentence that takes the consent.
+    /// The confirmation sheet's body: the terms every reader gets, plus the
+    /// closing promise when there is one that holds.
     let confirmMessage: String
     /// What a reader who cannot press the button is told instead.
     let readOnlyLine: String
+    /// #525 — the note on the card itself, and nil when there is nothing to
+    /// disclose.
+    ///
+    /// AN OPTIONAL RATHER THAN AN ALWAYS-PRESENT SENTENCE, because the note has
+    /// to be absent for the ordinary reader: a workspace that is not paused
+    /// would otherwise be handed a paragraph about a state it is not in, on the
+    /// card whose whole job is to be understood before money moves.
+    let pausedNote: UsRegistrationPausedNote?
+    /// #525 — the extra things a PAUSED buyer is agreeing to, one fact per
+    /// line. Empty for everybody else.
+    let pausedTerms: [String]
+    /// What the toast says once the charge has landed — the receipt, and the
+    /// last thing anybody reads before leaving this screen.
+    let startedMessage: String
 }
 
 /// The enable-US-texting card's copy, in the currency this workspace is billed
@@ -556,16 +584,103 @@ struct EnableUsTextingCopy: Equatable, Sendable {
 /// cents on a whole dollar; its name says "monthly" and this fee is charged
 /// once, which is a naming debt rather than a reason for a second formatter
 /// that rounds differently.
-func enableUsTextingCopy(_ currency: BillingCurrency) -> EnableUsTextingCopy {
+///
+/// # `paused` (#525), and why it does not remove anything
+///
+/// `POST /v1/registration/enable-us` charges the fee and submits the carrier
+/// registration WITHOUT reading `paused_at`, and that is the decision rather
+/// than an oversight: carrier approval takes days to weeks, nothing in the
+/// registration path is blocked by a pause, and a seasonal crew's quiet winter
+/// is the cheapest time in the year to spend that wait. Refusing would mean
+/// they resume in spring and then wait another week before they can text a US
+/// customer.
+///
+/// So the pause changes what this card SAYS and never what it offers. The
+/// button label and the read-only line are byte-identical either way — a paused
+/// reader is sold the same thing at the same price — and the terms every reader
+/// gets are word for word the same. What changes is the closing promise: "we
+/// handle it and email you when it's live" is the shipped copy making a promise
+/// the send gate then breaks, so a paused reader gets the three facts that are
+/// actually true for them instead.
+///
+/// THE NOTE ON THE CARD LEADS WITH THE INVITATION, NOT THE LIMIT. A paused
+/// owner reading a US texting card that says nothing about their pause concludes
+/// the feature is shut to them and does not press — which is refusal, arrived at
+/// by silence, and it is the outcome #525 rules out. What the pause blocks is a
+/// term of the sale, and it belongs in the sheet where they agree to it.
+///
+/// # A `Bool` here, and the read is the caller's problem
+///
+/// The caller has to have READ the pause to answer this, and "not paused" and
+/// "not read yet" are different screens — see `PauseRead`. This function takes
+/// the settled fact; `EnableUsCard` is where the read state collapses into it,
+/// and it collapses toward `false`, which is the copy that has always shipped.
+///
+/// NO DEFAULT, for the same reason the currency has none: a defaulted `false`
+/// is a call site quietly claiming the workspace is not paused without anything
+/// on that line mentioning the pause at all.
+func enableUsTextingCopy(
+    _ currency: BillingCurrency,
+    paused: Bool
+) -> EnableUsTextingCopy {
     let fee = formatMonthlyCents(usRegistrationFeeCents(currency))
+    // The terms EVERY reader gets: what is charged, who reviews it, how long
+    // that takes. Word for word what this sheet has always said, split at the
+    // sentence boundary so the branch below drops a promise rather than
+    // rewriting the agreement.
+    let terms = "A one-time \(fee) registration fee is charged to your card on "
+        + "file, and we register your business with US carriers. Approval "
+        + "usually takes 3 to 7 business days."
+    // Hoisted and explicitly typed rather than written as ternaries inside the
+    // initialiser: several branches nested in a struct literal is the shape
+    // that makes Swift's type checker give up on an expression, and each branch
+    // reads better on its own line anyway.
+    let note: UsRegistrationPausedNote? = paused
+        ? UsRegistrationPausedNote(
+            heading: "You can start this while your plan is paused",
+            detail: "Carrier review takes days either way, and none of it needs "
+                + "your plan running. Doing it now means the waiting happens in "
+                + "your quiet season rather than in your first week back."
+        )
+        : nil
+    // THREE FACTS AS THREE LINES, not a fourth clause on a 45-word paragraph.
+    // Only the last of them changes an expectation, and a clause buried at the
+    // end of a long sentence is the clause that gets skimmed — at the moment
+    // somebody is agreeing to a charge.
+    //
+    // The first is the value argument and is worthless unspoken: the fee is
+    // stamped on `companies.registration_fee_paid_at`, so paying during the
+    // pause is not paying again in spring.
+    let extraTerms: [String] = paused
+        ? [
+            "The \(fee) is charged today, and it is charged once ever — not "
+                + "again when you come back.",
+            "Carriers review you while your plan is paused. The pause does not "
+                + "hold the registration up.",
+            "Sending stays off until you resume. Approval means US texting is "
+                + "set up and waiting for you, not that a paused plan starts "
+                + "sending.",
+        ]
+        : []
+    // The promise is DROPPED for a paused reader rather than qualified. Left in
+    // place with a caveat beneath it, the false sentence is still on the screen
+    // above its own correction, and it is the sentence somebody quotes back at
+    // us when their texts do not send.
+    let body: String = paused
+        ? terms
+        : terms + " We handle it and email you when it's live."
+    let started: String = paused
+        ? "US registration started. We'll email you when it's approved; US texts "
+            + "go out when you resume."
+        : "US registration started. We'll email you when it's approved."
     return EnableUsTextingCopy(
         buttonLabel: "Enable US texting: \(fee) one-time",
-        confirmMessage: "A one-time \(fee) registration fee is charged to your "
-            + "card on file, and we register your business with US carriers. "
-            + "Approval usually takes 3 to 7 business days. We handle it and "
-            + "email you when it's live.",
+        confirmMessage: body,
         readOnlyLine: "Ask your account owner to enable US texting; it's a "
-            + "one-time \(fee) carrier registration."
+            + "one-time \(fee) carrier registration.",
+        pausedNote: note,
+        pausedTerms: extraTerms,
+        startedMessage: started
     )
 }
 

@@ -282,8 +282,17 @@ marketing page when a broader pass is wanted.
   Only outbound segments count against the quota. Outbound MMS meters as **3 segments**;
   inbound MMS free.
 - **US registration fee: $29 one-time** (covers $4.50 brand + $15 vetting + resubmission risk).
-  Recurring 10DLC campaign fees ($1.50–$2/mo low-volume/sole-prop) are **absorbed into plan
-  pricing** — no visible monthly compliance line item.
+  Recurring 10DLC campaign fees are **absorbed into plan pricing** — no visible monthly
+  compliance line item. **The figure lives in `FIXED_MONTHLY_COST_CENTS.us10dlcCampaign`
+  (`apps/api/src/billing/costs.ts`), not here.** This line used to restate it as $1.50–$2/mo
+  while the cost model carried $10/mo, and the two disagreed by 5×. Telnyx does not publish
+  brand or campaign fees (`billing/carrier-list-prices.ts` lists them among the unpublished
+  figures), so neither number has a primary source and the model deliberately keeps the high
+  end — a never-lose-money model must not under-count. The disagreement was not academic: on
+  a paused workspace holding one number and a live campaign, the break-even pause fee is
+  **$11.81/mo** at the model's figure and **$3.52/mo** at this one, and #525 lets a paused
+  workspace acquire a campaign mid-pause. Restating a cost in prose is how that happened, so
+  this now points at the constant instead.
 - **Overage cap**: default 3× included quota, owner-adjustable (raise/remove). At cap, sends
   return `usage_cap_reached`; owner gets a one-click raise. Email alerts at 80% and 100% of
   included quota. (Resolves the "never hard-block" vs "cap" dispute: cap with owner control.)

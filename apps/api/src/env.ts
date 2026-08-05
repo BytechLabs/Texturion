@@ -221,7 +221,8 @@ const envSchema = z.object({
    * not_provisioned and the route 409s. It FAILS CLOSED in the strong sense —
    * no price means no pause, never a free one — because the alternative
    * ("pause them anyway and sort the billing out later") is a workspace holding
-   * a number and a campaign we pay ~$3/mo for against no revenue at all.
+   * a number and a campaign we pay FIXED_MONTHLY_COST_CENTS for, every month,
+   * against no revenue at all.
    *
    * ONE price, not one per plan. The pause is a hold on the number, and a
    * paused Starter and a paused Pro cost us the same thing to hold; `plan` is

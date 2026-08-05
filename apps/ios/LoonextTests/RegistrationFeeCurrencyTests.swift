@@ -53,19 +53,27 @@ final class RegistrationFeeCurrencyTests: XCTestCase {
     /// All three, because they are three separate chances to be wrong and the
     /// consent sentence is the one that matters most: the button is an offer,
     /// the confirmation is the agreement.
+    ///
+    /// #525 ASKED BOTH PAUSE STATES. The confirmation grew a second branch for a
+    /// paused workspace, and a branch no currency test ever renders is a branch
+    /// where a flat "$29" can come straight back — which is this file's whole
+    /// subject.
     func testEveryCanadianSentenceQuotesTheCanadianFee() {
-        let cad = enableUsTextingCopy(.cad)
-        for (surface, sentence) in labelled(cad) {
-            XCTAssertTrue(
-                sentence.contains("$39"),
-                "the \(surface) does not quote the CA$39 this workspace is "
-                    + "actually charged: \(sentence)"
-            )
-            XCTAssertFalse(
-                sentence.contains("$29"),
-                "the \(surface) quotes the US fee to a Canadian reader, who is "
-                    + "the only reader this card has: \(sentence)"
-            )
+        for paused in [false, true] {
+            let cad = enableUsTextingCopy(.cad, paused: paused)
+            for (surface, sentence) in labelled(cad) {
+                XCTAssertTrue(
+                    sentence.contains("$39"),
+                    "the \(surface) (paused: \(paused)) does not quote the CA$39 "
+                        + "this workspace is actually charged: \(sentence)"
+                )
+                XCTAssertFalse(
+                    sentence.contains("$29"),
+                    "the \(surface) (paused: \(paused)) quotes the US fee to a "
+                        + "Canadian reader, who is the only reader this card "
+                        + "has: \(sentence)"
+                )
+            }
         }
     }
 
@@ -76,41 +84,49 @@ final class RegistrationFeeCurrencyTests: XCTestCase {
     /// not a screen we are protecting. It is the half of the pair that makes
     /// the CAD half mean "resolved" instead of "some constant".
     func testTheUsdCopyIsTheMirrorSoNoSingleConstantSatisfiesBoth() {
-        let usd = enableUsTextingCopy(.usd)
-        for (surface, sentence) in labelled(usd) {
-            XCTAssertTrue(
-                sentence.contains("$29"),
-                "the USD \(surface) lost the US figure: \(sentence)"
-            )
-            XCTAssertFalse(
-                sentence.contains("$39"),
-                "the USD \(surface) prints the CAD figure, so the copy is "
-                    + "pinned to one currency rather than resolved: \(sentence)"
-            )
+        for paused in [false, true] {
+            let usd = enableUsTextingCopy(.usd, paused: paused)
+            for (surface, sentence) in labelled(usd) {
+                XCTAssertTrue(
+                    sentence.contains("$29"),
+                    "the USD \(surface) (paused: \(paused)) lost the US figure: "
+                        + "\(sentence)"
+                )
+                XCTAssertFalse(
+                    sentence.contains("$39"),
+                    "the USD \(surface) (paused: \(paused)) prints the CAD "
+                        + "figure, so the copy is pinned to one currency rather "
+                        + "than resolved: \(sentence)"
+                )
+            }
         }
     }
 
     /// The whole sentence, not just the digits — a figure can be right and land
     /// in the wrong place. Pinned once per currency so a rewording is a
     /// deliberate edit here rather than a silent drift away from web's wording.
+    ///
+    /// The UNPAUSED copy, which is the copy that has always shipped: #525 added
+    /// a branch and changed nothing on this one. `RegistrationPauseTests` pins
+    /// the other branch.
     func testTheSentencesReadTheWayWebsDo() {
         XCTAssertEqual(
-            enableUsTextingCopy(.cad).buttonLabel,
+            enableUsTextingCopy(.cad, paused: false).buttonLabel,
             "Enable US texting: $39 one-time"
         )
         XCTAssertEqual(
-            enableUsTextingCopy(.usd).buttonLabel,
+            enableUsTextingCopy(.usd, paused: false).buttonLabel,
             "Enable US texting: $29 one-time"
         )
         XCTAssertEqual(
-            enableUsTextingCopy(.cad).confirmMessage,
+            enableUsTextingCopy(.cad, paused: false).confirmMessage,
             "A one-time $39 registration fee is charged to your card on file, "
                 + "and we register your business with US carriers. Approval "
                 + "usually takes 3 to 7 business days. We handle it and email "
                 + "you when it's live."
         )
         XCTAssertEqual(
-            enableUsTextingCopy(.cad).readOnlyLine,
+            enableUsTextingCopy(.cad, paused: false).readOnlyLine,
             "Ask your account owner to enable US texting; it's a one-time $39 "
                 + "carrier registration."
         )

@@ -17,11 +17,39 @@
  * SILENTLY — see the header of 20260805060000_paid_pause.sql, which is where
  * they are written down because that is where the consequences land.
  *
- * WHAT A PAUSE COSTS US, which is why it cannot be free: ~$1.10/mo for the
- * number plus ~$1.50-2/mo for the recurring 10DLC campaign (docs/DECISIONS.md),
- * so roughly $3/mo before a single inbound segment. The PRICE is not chosen
- * here and is nowhere in this repository — the founder provisions a Stripe
- * price and STRIPE_PAUSE_PRICE_ID names it.
+ * WHAT A PAUSE COSTS US, which is why it cannot be free: the held number's rent
+ * plus the recurring 10DLC campaign fee, both of which arrive every month
+ * whether or not a single message moves. THE FIGURE IS NOT RESTATED HERE — it
+ * is `FIXED_MONTHLY_COST_CENTS` in costs.ts, and a number retyped into a
+ * comment is a number that drifts.
+ *
+ * IT ALREADY HAD. This header used to say "~$1.50-2/mo for the recurring 10DLC
+ * campaign ... so roughly $3/mo", from docs/DECISIONS.md. The cost model carries
+ * $10/mo for the same campaign, and the two are the same source disagreeing with
+ * itself: docs/PRICING-AUDIT.md §4 records "campaign $10/mo (as low as $1.50
+ * low-volume)", the pause took the bottom of that range and costs.ts takes the
+ * top. Telnyx does not publish 10DLC brand and campaign fees at all
+ * (carrier-list-prices.ts), so neither end is verifiable from outside.
+ *
+ * COSTS.TS WINS, and its own rule is the reason: a table that exists to answer
+ * "are we losing money on this tenant" must not UNDER-count. At its figures a
+ * paused workspace with one number and a live US campaign costs $11.10/mo, and
+ * the pause fee has to clear that plus Stripe's cut — five times the ~$3 this
+ * comment used to imply. Whoever prices the pause is entitled to the
+ * conservative number rather than the flattering one.
+ *
+ * WHO WATCHES IT, since the price itself is out of reach of this code: the #85
+ * underwater alert already selects paused tenants (overage-warning.ts scans
+ * `subscription_status = 'active'`, which a pause deliberately stays) and
+ * already adds the campaign fee for them (`fixedMonthlyCostCents` keys on
+ * `us_texting_enabled`), and scripts/ops/pricing-report.mjs prints the paused
+ * cohort's held-number-and-campaign cost beside what its holding fees collect.
+ * So the margin is observed rather than assumed — which matters more here than
+ * usual, because #525 lets a workspace ADD a US campaign in the middle of a
+ * pause the fee was priced before.
+ *
+ * The PRICE is not chosen here and is nowhere in this repository — the founder
+ * provisions a Stripe price and STRIPE_PAUSE_PRICE_ID names it.
  *
  * INBOUND, DELIBERATELY UNBOUNDED. Inbound costs 1.0c/segment with no
  * offsetting revenue (billing/costs.ts), so a paused number that keeps
@@ -108,10 +136,10 @@ export interface CompanyForPause {
  * AN UNCONSUMED REFERRAL MONTH IS REFUSED, for exactly the same reason and it
  * was missed the first time. #399's free month is also a 100%-off coupon on the
  * licensed item — `duration: once` rather than twelve months, but riding the
- * same line a pause swaps. Without this gate the pause bills $0 while we pay
- * ~$3/mo for the held number and the live campaign, and the customer burns a
- * $29/$79 credit on a ~$5 charge. Both harms come out of one omission, which is
- * why the prepaid-year gate alone was not enough.
+ * same line a pause swaps. Without this gate the pause bills $0 while we keep
+ * paying FIXED_MONTHLY_COST_CENTS for the held number and the live campaign,
+ * and the customer burns a $29/$79 credit on a ~$5 charge. Both harms come out
+ * of one omission, which is why the prepaid-year gate alone was not enough.
  *
  * AN UNHEALTHY SUBSCRIPTION IS REFUSED. Past due means a card that is not
  * working, and swapping to a cheaper price does not collect the money already
@@ -232,8 +260,9 @@ export interface PausePrice {
  *   A $0 PRICE is a genuinely free pause that every other guard passes. The
  *   env var is set, `pauseLicensedPrice` returns an id, the swap succeeds, the
  *   subscription is active — and the workspace holds a number and a live 10DLC
- *   campaign (~$3/mo of ours) against no revenue at all. It is the exact
- *   outcome `not_provisioned` exists to prevent, reached by a different route.
+ *   campaign (FIXED_MONTHLY_COST_CENTS of ours, every month) against no revenue
+ *   at all. It is the exact outcome `not_provisioned` exists to prevent,
+ *   reached by a different route.
  *
  *   A TIERED PRICE has no `unit_amount`, so `paused_price_cents` mirrors NULL,
  *   and the #85 cost-vs-revenue projection then values the tenant at the full

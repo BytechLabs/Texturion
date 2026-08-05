@@ -69,6 +69,8 @@ export const MIRRORED = {
   planMonthlyCents: { starter: 2900, pro: 7900 },
   /** apps/api/src/billing/costs.ts STRIPE_FEES */
   stripeFees: { percent: 0.029, billingPercent: 0.005, fixedCents: 30 },
+  /** apps/api/src/billing/costs.ts FIXED_MONTHLY_COST_CENTS */
+  fixedMonthlyCents: { perNumber: 110, us10dlcCampaign: 1000 },
   /** apps/api/src/billing/modules.ts MODULE_CATALOG monthlyCents */
   moduleMonthlyCents: { regions_ca: 500 },
   /** apps/api/src/billing/plans.ts PLAN_INCLUDED_SEGMENTS */
@@ -84,6 +86,7 @@ const PLAN_MONTHLY_REVENUE_CENTS = MIRRORED.planMonthlyCents;
 const MODULE_CATALOG = MIRRORED.moduleMonthlyCents;
 const PLAN_INCLUDED_SEGMENTS = MIRRORED.includedSegments;
 const PLAN_LIMITS = MIRRORED.limits;
+const FIXED_MONTHLY_COST_CENTS = MIRRORED.fixedMonthlyCents;
 
 /** Gross monthly revenue AFTER Stripe's cut, in cents (never below zero). */
 export function stripeNetCents(grossCents) {
@@ -168,6 +171,63 @@ export function assertSnapshotShape(rows) {
         "migration and re-run.",
     );
   }
+  // #525: the same refusal for the COST side, and the same reasoning. Without
+  // this column the campaign fee silently drops out of every margin — hardest
+  // on the paused cohort, whose metered usage is ~$0 and whose entire real cost
+  // is the fixed lines. A report that stops is recoverable; one that quietly
+  // prints a healthy margin over an omitted cost is what gets acted on.
+  if (!("us_texting_enabled" in rows[0])) {
+    throw new Error(
+      "api_pricing_snapshot() returned no us_texting_enabled — this database " +
+        "predates 20260805130000_pricing_snapshot_us_texting.sql. Without it " +
+        "the recurring 10DLC campaign fee is missing from every cost figure " +
+        "below, and a paused workspace (metered cost ~$0, campaign fee " +
+        "unchanged) reads as the highest-margin row in the book. Apply the " +
+        "migration and re-run.",
+    );
+  }
+}
+
+/**
+ * What this workspace costs us every month before anybody sends anything.
+ *
+ * `provider_cost_cents` is METERED spend — per-message, per-minute — and this
+ * report priced margin from it alone. `apps/api/src/billing/costs.ts` has
+ * always held a second term: the number rent and the recurring US 10DLC
+ * campaign fee arrive whether or not a single text goes out. The in-app
+ * underwater alert adds them (`overage-projection.ts` fixedMonthlyCostCents);
+ * this did not, so two views of one cost model disagreed and only the one
+ * nobody reads was right.
+ *
+ * It matters most for the cohort #277 put in this report. A PAUSED workspace
+ * has stopped texting on purpose, so metered cost is ~$0 and the margin looked
+ * clean — while the held number and the live campaign, which are its ENTIRE
+ * cost, were invisible. The pause fee is sized against exactly these two lines,
+ * so a report that cannot see them cannot say whether the pause is priced right.
+ *
+ * KEYED ON `us_texting_enabled`, the same fact `fixedMonthlyCostCents` keys on,
+ * so the report and the alert cannot answer differently for one workspace. A
+ * pause never takes the campaign down (`deactivateCampaign` runs only on
+ * cancellation), so the flag reading true through a pause is the truth.
+ *
+ * ONE PLACE IT OVER-COUNTS, on purpose: a CANCELLED workspace keeps the flag,
+ * but grace expiry deletes its campaign at Telnyx. Inside the 30-day window we
+ * genuinely still pay the fee; after it we do not, and this reads $10/mo too
+ * high. Kept because costs.ts's rule is that a never-lose-money model must not
+ * UNDER-count, and because a churned row is already printed at $0 revenue under
+ * a line saying any cost on it is churn rather than price — the one reading
+ * this cannot mislead is the pricing decision the report exists for.
+ */
+export function fixedMonthlyCostCents(row) {
+  return (
+    Number(row.numbers_used ?? 0) * FIXED_MONTHLY_COST_CENTS.perNumber +
+    (row.us_texting_enabled === true ? FIXED_MONTHLY_COST_CENTS.us10dlcCampaign : 0)
+  );
+}
+
+/** Everything this workspace costs us this month: metered + fixed. */
+export function costCents(row) {
+  return Number(row.provider_cost_cents ?? 0) + fixedMonthlyCostCents(row);
 }
 
 /**
@@ -248,11 +308,18 @@ await runScript(
     const priced = rows.map((row) => {
       const gross = revenueCents(row);
       const net = stripeNetCents(gross);
-      const cost = Number(row.provider_cost_cents);
+      // #525: metered AND fixed. Split as well as summed, because they answer
+      // different questions — metered scales with how much they use the
+      // product, fixed arrives on an empty month.
+      const metered = Number(row.provider_cost_cents);
+      const fixed = fixedMonthlyCostCents(row);
+      const cost = metered + fixed;
       return {
         row,
         gross,
         net,
+        metered,
+        fixed,
         cost,
         margin: net - cost,
         near: proximity(row),
@@ -269,13 +336,20 @@ await runScript(
     // --- Margin ---------------------------------------------------------
     const grossTotal = priced.reduce((s, p) => s + p.gross, 0);
     const netTotal = priced.reduce((s, p) => s + p.net, 0);
+    const meteredTotal = priced.reduce((s, p) => s + p.metered, 0);
+    const fixedTotal = priced.reduce((s, p) => s + p.fixed, 0);
     const costTotal = priced.reduce((s, p) => s + p.cost, 0);
     const losing = priced.filter((p) => p.margin < 0);
 
     console.log("  Margin, this billing period");
     console.log(`    gross revenue      ${money(grossTotal)}`);
     console.log(`    after Stripe       ${money(netTotal)}`);
-    console.log(`    real telecom cost  ${money(costTotal)}`);
+    // #525: the two halves, named. "Real telecom cost" used to mean metered
+    // spend alone, which read as the whole answer and was not — the number rent
+    // and the 10DLC campaign fee land on a workspace that sent nothing at all.
+    console.log(`    metered telecom    ${money(meteredTotal)}`);
+    console.log(`    numbers + 10DLC    ${money(fixedTotal)}`);
+    console.log(`    total cost         ${money(costTotal)}`);
     console.log(`    gross margin       ${money(netTotal - costTotal)}`);
     // Never a bare percentage: the count is the thing that makes it readable.
     console.log(
@@ -301,6 +375,29 @@ await runScript(
           (unpriced.length > 0
             ? `\n    ${" ".repeat(19)}${unpriced.length} with no mirrored pause fee, counted as $0`
             : ""),
+      );
+      // #525: the pause fee is chosen in a Stripe dashboard against a cost
+      // nothing in this repository could previously show. These are the two
+      // numbers that decide whether it is priced right — what the held numbers
+      // and live campaigns cost us, and what the holding fees actually collect
+      // after Stripe's cut. Side by side, no verdict: #255's rule is that this
+      // report prints what IS, and a price change on a base this small is
+      // unmeasurable before it is unfair.
+      //
+      // Registering for US texting DURING a pause is allowed (#525), so this
+      // total can grow mid-pause by one campaign fee. That is the decision
+      // working as intended — the customer buys the carrier wait in the month
+      // it costs them nothing — and this is the line that stops it being
+      // absorbed silently.
+      const pausedFixed = paused.reduce((s, p) => s + p.fixed, 0);
+      const pausedNet = paused.reduce((s, p) => s + p.net, 0);
+      const withCampaign = paused.filter(
+        (p) => p.row.us_texting_enabled === true,
+      ).length;
+      console.log(
+        `    ${" ".repeat(19)}holding ${paused.length} number-set(s) and ` +
+          `${withCampaign} live 10DLC campaign(s): ${money(pausedFixed)}/mo of ours` +
+          `\n    ${" ".repeat(19)}against ${money(pausedNet)} of holding fees after Stripe`,
       );
     }
 

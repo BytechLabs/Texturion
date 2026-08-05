@@ -38,6 +38,62 @@ export function usTextingLiveCopy(companyName: string, env: Env): EmailCopy {
   );
 }
 
+/**
+ * #525 — the same approval, to a workspace whose plan is PAUSED.
+ *
+ * Carrier registration takes days to weeks, so a seasonal crew can start it in
+ * their quiet winter and have the wait cost them nothing — `enable-us` is
+ * deliberately open during a pause for exactly that reason. The consequence is
+ * that approval routinely lands on somebody who cannot send: `runPreSendGates`
+ * refuses every outbound text while `companies.paused_at` is set, and it will
+ * keep refusing until they resume.
+ *
+ * So {@link usTextingLiveCopy} would be a lie told at the worst moment. "You can
+ * now text US numbers from your Loonext inbox" invites somebody to open the app,
+ * try, and be refused by a gate whose sentence they then have to reconcile with
+ * an email we sent five seconds earlier. A customer who has just paid $29 needs
+ * the opposite: the thing they bought is DONE, and the reason nothing is sending
+ * is the pause they chose, not a problem with the registration.
+ *
+ * IT LEADS WITH THE APPROVAL ANYWAY, because that is the news and it is good
+ * news — the approval does not expire, it is not re-bought on resume, and the
+ * 3-7 business day wait is now behind them forever rather than ahead of them in
+ * spring. Burying it under the pause would turn the one moment that justifies
+ * registering early into an apology.
+ *
+ * The held-things sentence is deliberately the send gate's own list ("Your
+ * number, your history and your carrier registration are all being held" —
+ * messaging/send.ts), so the email and the in-app refusal describe one situation
+ * rather than two.
+ */
+export function usTextingApprovedWhilePausedCopy(
+  companyName: string,
+  env: Env,
+): EmailCopy {
+  return copy(
+    "US texting is approved and waiting for you",
+    `Hi,
+
+Good news: US carriers approved ${companyName}'s texting registration. That ` +
+      `part is finished, and it does not expire.
+
+` +
+      `Your plan is paused, so nothing is going out yet — US texts included. ` +
+      `Your number, your history and this approval are all being held exactly ` +
+      `where you left them.
+
+` +
+      `Resume whenever your season starts and US texts send straight away. ` +
+      `There is no second carrier wait: keeping the registration up while you ` +
+      `are paused is precisely so you never sit through that again.
+
+` +
+      `Resume your plan: ${env.APP_ORIGIN}/settings/billing
+
+Loonext`,
+  );
+}
+
 /** SPEC §4.4 R4: rejection email with a link to the fix-and-resubmit form. */
 export function registrationRejectedCopy(
   companyName: string,
@@ -105,6 +161,41 @@ Loonext`,
  * started again — otherwise they keep not using the product they are paying
  * for.
  */
+/**
+ * #525: the same news, for a workspace whose plan is paused.
+ *
+ * The running version says texts "are sending again, right now, with nothing
+ * for you to do", which is the exact sentence the approval path already had to
+ * branch: a paused workspace cannot send at all, so "right now" is false and
+ * "nothing for you to do" is the opposite of true - there is one thing, and it
+ * is the resume.
+ *
+ * The suspension really was lifted, so this is still good news and is still
+ * worth sending. What changes is which of the two facts is in front.
+ */
+export function registrationReinstatedWhilePausedCopy(
+  companyName: string,
+  env: Env,
+): EmailCopy {
+  return copy(
+    "US texting is back on, for when you are",
+    `Hi,
+
+Good news: the carrier lifted the suspension on ${companyName}'s ` +
+      `US registration, so the paperwork is settled and stays settled.
+
+` +
+      `Your plan is paused, so nothing sends yet. Resume whenever you are ` +
+      `ready and US texting works from that moment, with no second wait on ` +
+      `the carrier.
+
+` +
+      `Resume: ${env.APP_ORIGIN}/settings/billing
+
+Loonext`,
+  );
+}
+
 export function registrationReinstatedCopy(
   companyName: string,
   env: Env,

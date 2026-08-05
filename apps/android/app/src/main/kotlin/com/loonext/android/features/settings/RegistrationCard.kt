@@ -40,12 +40,23 @@ fun RegistrationBlock(
     scope: SettingsScope,
     company: CompanyView,
     registration: RegistrationDetailPair,
+    /**
+     * #525 — is this workspace's plan paused, as GET /v1/billing/pause reports
+     * it? Only [EnableUsCard] reads it, and only to change what it SAYS.
+     *
+     * REQUIRED RATHER THAN DEFAULTED, unlike the optional callbacks elsewhere on
+     * this screen. A default of [PauseRead.Unasked] would be honest — it claims
+     * nothing — but it would also let a new caller draw a $29 button on a paused
+     * workspace without ever having thought about the pause, which is the exact
+     * defect this parameter exists to close. One call site; make it decide.
+     */
+    pause: PauseRead,
     onChanged: () -> Unit,
 ) {
     // CA without US texting has nothing to register yet — but turning it on is
     // an owner decision we can take right here, the way the web does.
     if (company.country == "CA" && !company.us_texting_enabled) {
-        EnableUsCard(scope, company, onChanged)
+        EnableUsCard(scope, company, pause, onChanged)
         return
     }
 
@@ -185,6 +196,7 @@ fun RegistrationBlock(
 private fun EnableUsCard(
     scope: SettingsScope,
     company: CompanyView,
+    pause: PauseRead,
     onChanged: () -> Unit,
 ) {
     var confirming by remember { mutableStateOf(false) }
@@ -192,31 +204,33 @@ private fun EnableUsCard(
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
     val fee = usRegistrationFee(company.billing_currency, company.country)
+    // #525: the WORDS come from the fact, and there is no control to withhold —
+    // see [enableUsCopy]. `isPaused` is true only on an ANSWERED read, so a read
+    // in flight or one that failed leaves every sentence exactly as it was
+    // before the pause existed rather than guessing in either direction.
+    val copy = enableUsCopy(fee, pause.isPaused)
 
-    SettingsCard(
-        title = "US texting",
-        description = "Texting Canadian numbers already works. Texting US numbers needs " +
-            "a one-time carrier registration.",
-    ) {
+    SettingsCard(title = "US texting", description = copy.description) {
         if (SettingsRoleGate.canEnableUsTexting(scope.role)) {
+            // ABOVE THE BUTTON, because it is what pressing the button gets you
+            // and when. Under it, the disclosure would be read after the press.
+            copy.pausedNote?.let { note ->
+                ReadOnlyLine(note)
+                Spacer(Modifier.height(8.dp))
+            }
             Button(onClick = { confirming = true }) {
-                Text("Enable US texting: $fee one-time")
+                Text(copy.buttonLabel)
             }
         } else {
-            ReadOnlyLine(
-                "Ask your account owner to enable US texting; it's a one-time " +
-                    "$fee carrier registration.",
-            )
+            ReadOnlyLine(copy.readOnlyLine)
         }
     }
 
     if (confirming) {
         ConfirmDialog(
-            title = "Enable US texting?",
-            body = "A one-time $fee registration fee is charged to your card on file, " +
-                "and we register your business with US carriers. Approval usually " +
-                "takes 3 to 7 business days. We handle it and email you when it's live.",
-            confirmLabel = if (pending) "Starting…" else "Enable US texting",
+            title = copy.confirmTitle,
+            body = copy.confirmBody,
+            confirmLabel = if (pending) "Starting…" else copy.confirmLabel,
             confirmEnabled = !pending,
             pending = pending,
             error = error,
@@ -234,9 +248,7 @@ private fun EnableUsCard(
                     try {
                         scope.repo.enableUsTexting(scope.companyId)
                         confirming = false
-                        scope.showMessage(
-                            "US registration started. We'll email you when it's approved.",
-                        )
+                        scope.showMessage(copy.startedMessage)
                         onChanged()
                     } catch (cause: Exception) {
                         error = cause.userMessage()
@@ -247,6 +259,125 @@ private fun EnableUsCard(
             },
         )
     }
+}
+
+// ---------------------------------------------------------------------------
+// #525 — what the enable-US card says while the plan is paused
+// ---------------------------------------------------------------------------
+
+/**
+ * How long the carriers take, written once.
+ *
+ * Two branches quote it and they may not disagree: a paused reader deciding
+ * whether the wait fits inside their winter is doing arithmetic on this number,
+ * and a card that says "3 to 7 business days" in the dialog and something else
+ * in the note above the button is asking them which of us to believe.
+ *
+ * It is OURS rather than the server's, and that is the honest shape: nothing in
+ * the API knows how long a carrier will take. It is the estimate the product has
+ * always given, kept in one place instead of two.
+ */
+const val US_APPROVAL_WINDOW = "3 to 7 business days"
+
+/** Every sentence the enable-US card can render, decided in one place. */
+data class EnableUsCopy(
+    /** Under the card title. */
+    val description: String,
+    /** The control. Carries the fee in both branches — see [enableUsCopy]. */
+    val buttonLabel: String,
+    /** What somebody who cannot press it reads instead. */
+    val readOnlyLine: String,
+    /** The extra line a PAUSED workspace reads, above the button. Else null. */
+    val pausedNote: String?,
+    val confirmTitle: String,
+    val confirmBody: String,
+    val confirmLabel: String,
+    /** Said once the POST lands, and it has to survive the pause too. */
+    val startedMessage: String,
+)
+
+/**
+ * The enable-US card's words, branched on one fact: is the plan paused?
+ *
+ * WHAT WAS WRONG. `POST /v1/registration/enable-us` never reads `paused_at` and
+ * is not going to start: the carrier registration genuinely runs to completion
+ * while a workspace is paused — the brand goes out, the campaign is built, the
+ * numbers are assigned — and refusing the purchase would mean a seasonal crew
+ * resumes in spring and THEN waits a week before they can text a US customer.
+ * That is the worst possible week to spend on paperwork. So the fee is allowed
+ * during a pause, and it is better value there than in spring.
+ *
+ * What was NOT allowed is what this card used to say to a paused owner: "We
+ * handle it and email you when it's live." Approval lands; texting does not.
+ * `runPreSendGates` refuses every send with `workspace_paused` for as long as
+ * the pause holds, so "live" was a description of a thing that would not
+ * happen on the day it was promised. Somebody paid for a capability and was
+ * told the wrong date for it.
+ *
+ * WHAT THE PAUSED BRANCH HAS TO CARRY, and each clause is here because leaving
+ * it out is a different wrong impression:
+ *
+ *   the review runs anyway    without it, the reader assumes the fee buys a
+ *                             queue position that starts in spring, and the
+ *                             sensible thing to do is wait — which is the one
+ *                             conclusion the facts do not support.
+ *   texting waits for resume  without it, this is the old promise again.
+ *   the timing is the point   the wait is spent on a quiet week instead of a
+ *                             busy one. Said plainly, once, as a fact about
+ *                             when rather than a reason to hurry.
+ *   once per workspace, ever  `registration_fee_paid_at` is stamped once and
+ *                             checkout only adds the line when it is null, so
+ *                             waiting until spring cannot make this cheaper.
+ *                             Somebody weighing "buy it now or later" is owed
+ *                             that, because the alternative they are imagining
+ *                             does not exist.
+ *
+ * NOTHING IS WITHHELD. The button is the same button with the same label and
+ * the same fee on it, and no branch here returns a disabled control or a null
+ * one. A pause is not a reason to refuse a purchase that works.
+ *
+ * THE FEE IS THE CALLER'S, resolved through [usRegistrationFee] from the
+ * workspace's own billing currency (#522). This function never names an amount.
+ */
+fun enableUsCopy(fee: String, paused: Boolean): EnableUsCopy {
+    // One sentence, both branches, because it is the sentence somebody agrees
+    // to a charge on and two copies of it are two chances to reprice one of
+    // them. It is also the phrase `RegistrationFeeTest` pins.
+    val charge = "A one-time $fee registration fee is charged to your card on file, " +
+        "and we register your business with US carriers."
+
+    return EnableUsCopy(
+        description = "Texting Canadian numbers already works. Texting US numbers needs " +
+            "a one-time carrier registration.",
+        buttonLabel = "Enable US texting: $fee one-time",
+        readOnlyLine = "Ask your account owner to enable US texting; it's a one-time " +
+            "$fee carrier registration.",
+        pausedNote = if (paused) {
+            "Your plan is paused, and the carriers review this either way — the " +
+                "$US_APPROVAL_WINDOW pass while you're quiet instead of costing you a " +
+                "week in the spring. Texting US numbers starts the day you resume."
+        } else {
+            null
+        },
+        confirmTitle = "Enable US texting?",
+        confirmBody = if (paused) {
+            "$charge Approval usually takes $US_APPROVAL_WINDOW, and that review runs " +
+                "while your plan is paused. You still can't text anyone until you " +
+                "resume — US numbers work from the day you do, with no waiting left. " +
+                "The fee is charged once per workspace, ever, so waiting until spring " +
+                "wouldn't save it."
+        } else {
+            "$charge Approval usually takes $US_APPROVAL_WINDOW. We handle it and " +
+                "email you when it's live."
+        },
+        confirmLabel = "Enable US texting",
+        startedMessage = if (paused) {
+            "US registration started. We'll email you when the carriers approve it, " +
+                "and US texting works when you resume."
+        } else {
+            "US registration started. We'll email you when it's approved."
+        },
+    )
 }
 
 @Composable

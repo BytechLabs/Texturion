@@ -5,7 +5,11 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { MODULE_CATALOG } from "./modules";
-import { PLAN_MONTHLY_REVENUE_CENTS } from "./costs";
+import {
+  FIXED_MONTHLY_COST_CENTS,
+  PLAN_MONTHLY_REVENUE_CENTS,
+  stripeNetCents,
+} from "./costs";
 
 /**
  * #277 — the margin report must value a PAUSED workspace at what it is actually
@@ -60,6 +64,8 @@ interface ReportScope {
   revenueCents(row: Record<string, unknown>): number;
   isPaused(row: Record<string, unknown>): boolean;
   assertSnapshotShape(rows: Record<string, unknown>[]): void;
+  fixedMonthlyCostCents(row: Record<string, unknown>): number;
+  costCents(row: Record<string, unknown>): number;
 }
 
 function reportScope(): ReportScope {
@@ -71,9 +77,16 @@ function reportScope(): ReportScope {
     // `export` is a syntax error inside a Function body.
     .replace(/^export /gm, "");
   const scope = new Function(
-    `${body}\nreturn { revenueCents, isPaused, assertSnapshotShape };`,
+    `${body}\nreturn { revenueCents, isPaused, assertSnapshotShape, ` +
+      "fixedMonthlyCostCents, costCents };",
   )() as ReportScope;
-  for (const name of ["revenueCents", "isPaused", "assertSnapshotShape"] as const) {
+  for (const name of [
+    "revenueCents",
+    "isPaused",
+    "assertSnapshotShape",
+    "fixedMonthlyCostCents",
+    "costCents",
+  ] as const) {
     expect(
       typeof scope[name],
       `pricing-report.mjs no longer declares ${name} — this guard protects the ` +
@@ -141,6 +154,10 @@ function row(overrides: Record<string, unknown> = {}) {
     // what every row must look like for the branch below to be exercised at all.
     paused_at: null,
     paused_price_cents: null,
+    // #525: the COST-side fact. Present-and-false is what PostgREST answers for
+    // a Canada-only workspace, and every row must carry it or
+    // `assertSnapshotShape` refuses the whole report.
+    us_texting_enabled: false,
     segments_used: 0,
     seats_used: 1,
     numbers_used: 1,
@@ -384,5 +401,148 @@ describe("#277 the margin report values a paused workspace at its holding fee", 
     // construction and would read as evidence the limits are too generous.
     expect(printed).toMatch(/under 20%\s+\d+ of 5/);
     expect(printed).toContain("1 cancelled workspace(s) excluded");
+  });
+});
+
+/**
+ * #525 — the COST side of the same row.
+ *
+ * # The defect this file now also keeps fixed
+ *
+ * #277 made this report value a paused workspace at the holding fee it actually
+ * pays. It left the other half saying zero: cost was `provider_cost_cents`, the
+ * METERED per-message spend, and a paused workspace sends nothing. So the
+ * cohort came back into the report at ~$5 of revenue against ~$0 of cost —
+ * still the healthiest-looking margin in the book, arriving from the opposite
+ * direction.
+ *
+ * The real cost was never metered. `FIXED_MONTHLY_COST_CENTS` has held it since
+ * #85: the held number's rent and the recurring US 10DLC campaign fee, charged
+ * whether or not a single text goes out. The in-app underwater alert adds them
+ * (`overage-projection.ts` fixedMonthlyCostCents); this report did not, so two
+ * views of one cost model disagreed and the founder read the wrong one.
+ *
+ * That matters most for a paused workspace because those two lines are its
+ * ENTIRE cost, and because the pause fee is chosen by hand in a Stripe
+ * dashboard — against a number this report is the only place to see.
+ *
+ * `enable-us` is deliberately open during a pause (#525: the carrier wait is
+ * free in a quiet winter and the $29 is charged once per workspace ever), so a
+ * pause can acquire a campaign mid-hold. Allowed, disclosed on the screen, and
+ * accounted for here.
+ */
+describe("#525 the margin report can see the fixed cost it is paying", () => {
+  const report = reportScope();
+  const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
+  it("PC525-1: prices the campaign only for a workspace that has one", () => {
+    // Stated against the real constants, so the failure is "the campaign fee is
+    // missing" rather than "12.20 is not 1.10", whatever the fees become.
+    expect(report.fixedMonthlyCostCents(row({ us_texting_enabled: true }))).toBe(
+      FIXED_MONTHLY_COST_CENTS.perNumber + FIXED_MONTHLY_COST_CENTS.us10dlcCampaign,
+    );
+    // The guard has to be able to tell the branches apart, or it would pass
+    // just as happily against a function charging every Canada-only workspace
+    // $10/mo it does not owe — which fails in the other direction and mislabels
+    // them unprofitable.
+    expect(report.fixedMonthlyCostCents(row())).toBe(
+      FIXED_MONTHLY_COST_CENTS.perNumber,
+    );
+    // Rent scales with the numbers we actually hold.
+    expect(report.fixedMonthlyCostCents(row({ numbers_used: 3 }))).toBe(
+      3 * FIXED_MONTHLY_COST_CENTS.perNumber,
+    );
+  });
+
+  it("PC525-2: total cost is metered PLUS fixed, never metered alone", () => {
+    const metered = 250;
+    const paused = row({
+      paused_at: "2026-11-04T00:00:00.000Z",
+      paused_price_cents: PAUSED_FEE_CENTS,
+      us_texting_enabled: true,
+      provider_cost_cents: metered,
+    });
+    expect(report.costCents(paused)).toBe(
+      metered + FIXED_MONTHLY_COST_CENTS.perNumber +
+        FIXED_MONTHLY_COST_CENTS.us10dlcCampaign,
+    );
+    // The old answer, named. A paused workspace's metered cost is ~$0 by
+    // construction, so this reading made its margin look like pure profit.
+    expect(
+      report.costCents(paused),
+      "cost is being read from provider_cost_cents alone — the held number and " +
+        "the live 10DLC campaign are a paused workspace's entire cost, and " +
+        "they are missing from every margin in this report.",
+    ).not.toBe(metered);
+  });
+
+  it("PC525-3: a paused workspace carrying a campaign reads as unprofitable", async () => {
+    // The end-to-end statement, and the one that would have caught the defect:
+    // the holding fee is real money and so is the $11.10 we spend to hold the
+    // number and the campaign, and the report has to be able to say which is
+    // bigger.
+    const printed = await runReport([
+      row({ name: "Acme" }),
+      row({
+        company_id: "00000000-0000-4000-8000-000000000002",
+        name: "Winter Crew",
+        paused_at: "2026-11-04T00:00:00.000Z",
+        paused_price_cents: PAUSED_FEE_CENTS,
+        us_texting_enabled: true,
+      }),
+    ]);
+    expect(
+      printed,
+      "the paused workspace is being reported as profitable: it pays a ~$5 " +
+        "holding fee and we pay for its number and its live 10DLC campaign.",
+    ).toMatch(/unprofitable\s+1 of 2 \(Winter Crew\)/);
+    // And the fixed total is on the page as its own line, from the mirrored
+    // constants: two numbers rented, one campaign carried.
+    expect(printed).toContain(
+      `numbers + 10DLC    ${money(
+        2 * FIXED_MONTHLY_COST_CENTS.perNumber +
+          FIXED_MONTHLY_COST_CENTS.us10dlcCampaign,
+      )}`,
+    );
+  });
+
+  it("PC525-4: says what the paused cohort costs, beside what it collects", () => {
+    // The pause price is provisioned in a Stripe dashboard and is nowhere in
+    // this repository, so this is the only place the two figures meet. Printed
+    // side by side with NO verdict: #255's rule is that this report says what
+    // IS, because a price change on a base this small is unmeasurable before it
+    // is unfair.
+    return runReport([
+      row({ name: "Acme" }),
+      row({
+        company_id: "00000000-0000-4000-8000-000000000002",
+        name: "Winter Crew",
+        paused_at: "2026-11-04T00:00:00.000Z",
+        paused_price_cents: PAUSED_FEE_CENTS,
+        us_texting_enabled: true,
+      }),
+    ]).then((printed) => {
+      expect(printed).toContain(
+        `holding 1 number-set(s) and 1 live 10DLC campaign(s): ${money(
+          FIXED_MONTHLY_COST_CENTS.perNumber +
+            FIXED_MONTHLY_COST_CENTS.us10dlcCampaign,
+        )}/mo of ours`,
+      );
+      expect(printed).toContain(
+        `against ${money(stripeNetCents(PAUSED_FEE_CENTS))} of holding fees after Stripe`,
+      );
+    });
+  });
+
+  it("PC525-5: refuses to report at all against a snapshot with no US column", () => {
+    // Pointed at a database the migration has not reached, the campaign fee
+    // silently drops out of every cost figure and the paused cohort is the
+    // highest-margin row in the book again — the whole defect, restored without
+    // a word on the page.
+    const { us_texting_enabled: _dropped, ...legacy } = row();
+    expect(() => report.assertSnapshotShape([legacy])).toThrow(
+      /us_texting_enabled/,
+    );
+    expect(() => report.assertSnapshotShape([row()])).not.toThrow();
   });
 });

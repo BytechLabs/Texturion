@@ -156,6 +156,37 @@ fun NumbersSection(
         }
     }
 
+    // #525: is the plan paused? Asked here because the enable-US card charges a
+    // one-time fee for a capability the pause defers, and the card has to say so
+    // before somebody presses it.
+    //
+    // ASKED ONLY WHERE THE ANSWER COULD CHANGE A SENTENCE, the same discipline
+    // the hold read above follows. The pause is a Stripe round trip; the only
+    // reader whose words it changes is an owner looking at the enable-US card,
+    // which is drawn for a CA workspace without US texting and nothing else. An
+    // owner holds `billing.manage` (Capability.ALL), so this is never a 403.
+    //
+    // NOT KEYED ON `refreshKey`. Every realtime number, port and registration
+    // frame bumps that, and none of them can change whether a plan is paused —
+    // keying on it would spend a Stripe call per event for an answer that cannot
+    // have moved. Pausing and resuming both happen on the billing screen, which
+    // does its own read.
+    val mayEnableUs = company.country == "CA" && !company.us_texting_enabled
+    val mayPressEnableUs = SettingsRoleGate.canEnableUsTexting(scope.role)
+    var pause by remember(scope.companyId) { mutableStateOf<PauseRead>(PauseRead.Unasked) }
+    LaunchedEffect(mayEnableUs, mayPressEnableUs, scope.companyId) {
+        // Unasked, and staying that way. Nobody is drawing a sentence that
+        // depends on the answer, so there is nothing here to be wrong about.
+        if (!mayEnableUs || !mayPressEnableUs) return@LaunchedEffect
+        pause = PauseRead.Loading
+        pause = runCatching { PauseRead.Answered(scope.repo.pauseState(scope.companyId)) }
+            // A FAILED READ IS NOT "NOT PAUSED". [PauseRead.isPaused] is false
+            // for it either way, which leaves the card saying exactly what it
+            // said before this feature existed — the honest fallback, and the
+            // reason the paused wording is additive rather than a rewrite.
+            .getOrElse { PauseRead.Failed }
+    }
+
     when (val current = state) {
         is LoadState.Loading -> SettingsSectionSkeleton(cards = 3)
         is LoadState.Failed -> CenteredError(
@@ -218,7 +249,7 @@ fun NumbersSection(
             // apart.
             PortsBlock(scope, company, data.ports, data.numbers, onChanged = refresh)
             TextEnableBlock(scope, company, data.textEnablements, onChanged = refresh)
-            RegistrationBlock(scope, company, data.registration, onChanged = refresh)
+            RegistrationBlock(scope, company, data.registration, pause, onChanged = refresh)
         }
     }
 }

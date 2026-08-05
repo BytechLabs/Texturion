@@ -30,16 +30,56 @@ import type { Env } from "../env";
 import { deliverPush } from "./deliver";
 
 /**
+ * What the lock screen says, in each of the two situations approval can land in.
+ *
+ * NAMED CONSTANTS RATHER THAN LITERALS AT THE CALL SITE so a guard can assert
+ * against the shipped words instead of a phrase somebody retyped in a test — a
+ * test that quotes a string nobody renders cannot fail.
+ */
+export const REGISTRATION_APPROVED_PUSH = {
+  title: "Your texting is live",
+  // Names the thing they signed up to do, not the process that finished.
+  // "Campaign approved" is our vocabulary; "you can text customers" is theirs,
+  // and this is the notification that has to land.
+  body: "Carrier approval came through. You can text customers now.",
+} as const;
+
+/**
+ * #525 — approval landing on a PAUSED workspace.
+ *
+ * Registering during a pause is allowed on purpose (the carrier wait is free in
+ * a quiet winter, and the $29 is charged once per workspace ever), so approval
+ * routinely arrives for somebody every send path is refusing. Telling them they
+ * can text customers now would send them into the app to be turned away by
+ * `runPreSendGates`, holding a notification that contradicts it.
+ *
+ * Still opens with the approval, because it is genuinely good news and the whole
+ * argument for registering early: the wait is behind them rather than ahead of
+ * them in spring. What changes is the second sentence — what to do next is
+ * resume, not text.
+ */
+export const REGISTRATION_APPROVED_PAUSED_PUSH = {
+  title: "Your US registration is approved",
+  body: "Carrier approval came through. Texts send once you resume your plan.",
+} as const;
+
+/**
  * Tell the crew their US texting just went live.
  *
  * Best-effort by construction: this is a side effect of an already-applied
  * transition, and the email has already gone. A push failure must never wedge
  * the state machine or make the approval look like it did not happen.
+ *
+ * `paused` IS A REQUIRED ARGUMENT, not a lookup done here. The caller has just
+ * read the company row that carries `paused_at` and is choosing the matching
+ * email from the same fact — re-reading it would let the two channels disagree
+ * about one workspace, which is the failure this whole branch exists to prevent.
  */
 export async function pushRegistrationApproved(
   env: Env,
   db: SupabaseClient,
   companyId: string,
+  paused: boolean,
 ): Promise<void> {
   try {
     const { data: memberData, error: memberError } = await db
@@ -70,6 +110,9 @@ export async function pushRegistrationApproved(
     const recipients = audience.filter((userId) => prefs.get(userId) ?? true);
     if (recipients.length === 0) return;
 
+    const notice = paused
+      ? REGISTRATION_APPROVED_PAUSED_PUSH
+      : REGISTRATION_APPROVED_PUSH;
     const failures: unknown[] = [];
     await deliverPush(env, db, {
       category: "operational",
@@ -80,12 +123,14 @@ export async function pushRegistrationApproved(
       // waiting days for.
       content: { written: "us" },
       web: {
-        title: "Your texting is live",
-        // Names the thing they signed up to do, not the process that finished.
-        // "Campaign approved" is our vocabulary; "you can text customers" is
-        // theirs, and this is the notification that has to land.
-        body: "Carrier approval came through. You can text customers now.",
-        url: `${env.APP_ORIGIN}/inbox`,
+        title: notice.title,
+        body: notice.body,
+        // #525: the tap lands where the next action is. An inbox they cannot
+        // send from is the wrong destination for a notification whose whole
+        // message is "resume first".
+        url: paused
+          ? `${env.APP_ORIGIN}/settings/billing`
+          : `${env.APP_ORIGIN}/inbox`,
       },
       // Once per workspace, ever. A collapse key scoped to the company means a
       // redelivered webhook replaces rather than repeats.
