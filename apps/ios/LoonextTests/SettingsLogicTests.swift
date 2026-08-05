@@ -355,12 +355,27 @@ final class SettingsLogicTests: XCTestCase {
                 + "Re-point it before trusting it. Reached: \(names)"
         )
 
+        // A confirmation is banned on the way OUT, not everywhere beneath the
+        // card. `PauseOfferNote` asks before it pauses, and it is right to: that
+        // press starts a recurring charge, which is the one place in this
+        // subtree where a deliberate pause belongs. Banning the type outright
+        // said "no friction anywhere" when the rule is "no friction on the
+        // exit", and it turned a correct money confirmation into a failure.
+        //
+        // The exit is inside `leaving`, so that is where the ban applies. The
+        // `handOff()` check at the foot of this test is the other half: a modal
+        // is fine when a press of its own opens it, and never when the press
+        // that leaves does.
+        let cardSource = try cancelCardSource()
+        let leaving = try section(of: cardSource, from: "private var leaving: some View {")
+        XCTAssertFalse(
+            leaving.contains("ConfirmSheet"),
+            "an 'are you sure' step in `leaving` sits on the way out, which is the "
+                + "friction the rule forbids. A confirmation elsewhere under this "
+                + "card is fine when its own control opens it"
+        )
+
         for view in subtree {
-            XCTAssertFalse(
-                view.source.contains("ConfirmSheet"),
-                "\(view.name): an 'are you sure' step under this card is the friction "
-                    + "the rule forbids, wherever in the subtree it is declared"
-            )
             XCTAssertFalse(
                 view.source.contains(".fullScreenCover("),
                 "\(view.name): a full-screen cover under the cancel card is a second "
