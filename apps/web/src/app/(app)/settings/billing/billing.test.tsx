@@ -347,6 +347,15 @@ function renderCard(overrides: Partial<CompanyView> = {}): HTMLElement {
  *
  * Opacity is deliberately not checked. A dim exit is a styling argument; an
  * exit that cannot be pressed is the rule this whole card exists to keep.
+ *
+ * #524: AND THIS LIST CAN ALWAYS BE ADDED TO, which is why it is no longer the
+ * whole guarantee. `inert` on a wrapper, `style={{ pointerEvents: "none" }}` and
+ * a covering sibling all walk past everything above, and each was applied to the
+ * shipped tree and watched this suite stay green. What catches the mechanism
+ * nobody has thought of yet is the property rather than the list — see
+ * "#524 the exit renders the same whatever the pause read says" at the bottom of
+ * this file, and `exit-path.test.ts` beside it. This function stays because the
+ * three shapes it names are worth failing on by name.
  */
 function expectExitIsPressable(exit: HTMLElement, when = "the exit"): void {
   expect(exit.hasAttribute("disabled"), when).toBe(false);
@@ -2539,5 +2548,228 @@ describe("#277 the billing screen while paused", () => {
       leave.compareDocumentPosition(offer) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expectExitIsPressable(leave, "with the pause offer on the page");
+  });
+});
+
+/**
+ * #524 — the exit, in one sentence, instead of a list of ways to break it.
+ *
+ * # What was wrong with the guards above
+ *
+ * `expectExitIsPressable` names three mechanisms: the `disabled` attribute, the
+ * `pointer-events-none` token, and a collapsed wrapper. Eleven escapes were
+ * found across the three clients by applying them and watching the suites stay
+ * green, three of them here — `style={{ pointerEvents: "none" }}` (the inline
+ * form of a class the list already knew about), `inert` on a wrapper (React 19
+ * renders it; happy-dom ignores it), and a covering sibling with `absolute
+ * inset-0` (the list walks ANCESTORS, so something drawn on top is invisible to
+ * it). None of those is a separate bug. They are one bug three times: a list of
+ * ways to disable the exit can always be added to.
+ *
+ * # The sentence
+ *
+ * EVERYTHING A READER PASSES ON THE WAY TO THE EXIT, THE EXIT INCLUDED, IS
+ * BYTE-FOR-BYTE THE SAME WHATEVER THE PAUSE READ SAYS.
+ *
+ * No mechanism appears in that, and none appears below. A twelfth escape needs
+ * no twelfth assertion: to have any effect on somebody trying to leave, it has
+ * to change something about how the exit is drawn, and then the bytes differ.
+ *
+ * # Why the region STOPS at the exit
+ *
+ * Below it is the per-reason answer, which is SUPPOSED to follow the read — the
+ * plan switch waits for it (OFFER-P3), the paid pause replaces the hold answer
+ * (PAUSE-2). That is the whole point of the exit being last: everything the
+ * pause decides happens after somebody has already passed the way out. So the
+ * region compared here is exactly the part that may not move.
+ *
+ * # What this cannot do, and what covers it
+ *
+ * It proves the property for the five states a fixture can describe. It cannot
+ * prove there is no sixth. `exit-path.test.ts` beside this file reads the SOURCE
+ * and proves the dependency does not exist at all — for every input, including
+ * the ones nobody has written a fixture for. Neither half is the guarantee;
+ * together they are.
+ */
+describe("#524 the exit renders the same whatever the pause read says", () => {
+  /**
+   * Every answer `GET /v1/billing/pause` can leave a screen holding.
+   *
+   * Five, not four: the two that are not data-shaped are the ones that broke
+   * this before (a cold start and a failed read both report `isPending`-ish
+   * shapes that a naive gate reads as "wait"), and `eligible` is the one that
+   * puts a second control on the card.
+   */
+  const EVERY_PAUSE_READ: [name: string, apply: () => void][] = [
+    ["not read yet", () => {}],
+    [
+      "read failed",
+      () => {
+        pause.error = new ApiError(
+          "internal_error",
+          "Couldn't reach Stripe.",
+          502,
+        );
+      },
+    ],
+    [
+      "eligible",
+      () => {
+        pause.data = running({
+          eligible: true,
+          reason: null,
+          monthly_cents: ODD_CENTS,
+        });
+      },
+    ],
+    ["running", () => { pause.data = running(); }],
+    ["paused", () => { pause.data = pausedNow(); }],
+  ];
+
+  /**
+   * One element's opening tag, attributes sorted.
+   *
+   * Sorted because attribute ORDER is React's business and not a property
+   * anybody chose — a guard that failed on a reordered `class` and `style` would
+   * be noise, and noise is what gets a guard deleted.
+   */
+  function openingTag(element: Element): string {
+    const attributes = element
+      .getAttributeNames()
+      .map((name) => `${name}=${JSON.stringify(element.getAttribute(name))}`)
+      .sort();
+    return `<${element.tagName.toLowerCase()} ${attributes.join(" ")}>`;
+  }
+
+  /**
+   * Everything under `root`, in the order a reader meets it — stopping at the
+   * end of `stopAfter` when one is given.
+   *
+   * DOCUMENT ORDER rather than the ancestor chain, so a sibling drawn before the
+   * exit — the covering overlay — is inside the region rather than beside it.
+   * Stopping at the exit is what leaves the answer below it free to depend on
+   * the read, which it is supposed to.
+   *
+   * One node per LINE, deliberately. `outerHTML` compares the same bytes but
+   * fails as a single 12,000-character string, and a diff nobody can read is a
+   * guard people learn to re-run rather than fix.
+   */
+  function regionOf(root: Element, stopAfter?: Element): string {
+    const lines: string[] = [];
+    let done = false;
+    function visit(node: Node): void {
+      if (done) return;
+      if (node.nodeType === Node.TEXT_NODE) {
+        lines.push(JSON.stringify(node.nodeValue));
+        return;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      const element = node as Element;
+      lines.push(openingTag(element));
+      element.childNodes.forEach(visit);
+      lines.push(`</${element.tagName.toLowerCase()}>`);
+      if (element === stopAfter) done = true;
+    }
+    visit(root);
+    if (stopAfter && !done) {
+      throw new Error("the exit was not inside the region walked");
+    }
+    return lines.join("\n");
+  }
+
+  /** The exit, found the way somebody looking for the way out finds it. */
+  function theExit(): HTMLElement {
+    return screen.getByRole("button", { name: new RegExp(CANCEL_ACTION) });
+  }
+
+  /** The same `take` run once per state, each from a clean render. */
+  function inEveryState(take: () => string): Map<string, string> {
+    const shots = new Map<string, string>();
+    for (const [name, apply] of EVERY_PAUSE_READ) {
+      pause.data = undefined;
+      pause.error = null;
+      apply();
+      shots.set(name, take());
+      cleanup();
+    }
+    return shots;
+  }
+
+  function expectOneRendering(shots: Map<string, string>, what: string): void {
+    const [[reference, expected]] = [...shots];
+    for (const [name, actual] of shots) {
+      expect(
+        actual,
+        `\n\n${what}: what a reader meets on the way to the exit is different ` +
+          `when the pause read says "${name}" than when it says "${reference}".\n\n` +
+          `The way out may not depend on GET /v1/billing/pause in any way at ` +
+          `all — not disabled by it, not moved by it, not covered by it, not ` +
+          `restyled by it. Whatever this read decides, decide it BELOW the exit.\n`,
+      ).toBe(expected);
+    }
+  }
+
+  it("EXIT-R1: on arrival the whole card is one card, five times over", () => {
+    // Nothing has been answered, so nothing on this card is entitled to differ:
+    // the per-reason answer needs a reason, and there is none. That makes the
+    // comparable region the WHOLE card rather than a prefix of it — including
+    // everything below the exit, which is the only state in which that is a
+    // fair thing to demand.
+    expectOneRendering(
+      inEveryState(() => {
+        const { container } = render(
+          <CancelSubscriptionCard isOwner company={company()} />,
+        );
+        // Rendered at all, and findable as the way out. The crudest form of
+        // this defect is an exit that simply is not there.
+        theExit();
+        return regionOf(container);
+      }),
+      "the cancel card on arrival",
+    );
+  });
+
+  it("EXIT-R2: and with any of the six answered, everything down to it is", () => {
+    for (const { label } of CANCELLATION_REASONS) {
+      expectOneRendering(
+        inEveryState(() => {
+          const { container } = render(
+            <CancelSubscriptionCard isOwner company={company()} />,
+          );
+          pick(label);
+          return regionOf(container, theExit());
+        }),
+        `the cancel card with "${label}" answered`,
+      );
+    }
+  });
+
+  it("EXIT-R3: and on the page, where the pause put a card above everything", () => {
+    // Measured where the action is actually spent. The card the pause added
+    // sits at the TOP of this screen and IS supposed to appear and disappear
+    // with the read — so the region here is the cancel card itself plus every
+    // wrapper between it and the page, and deliberately not its neighbours.
+    expectOneRendering(
+      inEveryState(() => {
+        activeRole.current = "owner";
+        companyQuery.data = company({
+          subscription_status: "active",
+          canceled_at: null,
+        });
+        const { container } = render(<BillingSettingsPage />);
+        const card = theExit().closest("section");
+        if (card === null) throw new Error("the exit is not inside a card");
+        const wrappers: string[] = [];
+        for (
+          let node = card.parentElement;
+          node && node !== container;
+          node = node.parentElement
+        ) {
+          wrappers.unshift(openingTag(node));
+        }
+        return [...wrappers, regionOf(card)].join("\n");
+      }),
+      "the billing page down to the cancel card",
+    );
   });
 });

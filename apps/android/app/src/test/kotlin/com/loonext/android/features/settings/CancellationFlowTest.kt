@@ -252,6 +252,80 @@ class CancellationFlowTest {
         )
     }
 
+    /**
+     * #524 — THE PROPERTY, WHICH REPLACES THE ENUMERATION ABOVE.
+     *
+     * Every guard in this file up to this line names a MECHANISM: a control with
+     * `enabled =` on it, an `expanded` flag, a `ModalBottomSheet`, a second
+     * `return@SettingsCard`, a brace that stays open. Each one is real and each
+     * one stays. But a list of mechanisms is a list, and a list can always be
+     * added to — three escapes were applied to this exact screen and every test
+     * here stayed green, because none of them was on it:
+     *
+     *  - `&& pause.isRunning` on the exit's own call site, which is not a
+     *    control at all;
+     *  - `if (pause is PauseRead.Loading) return` placed ABOVE `SettingsCard {`,
+     *    which is in front of the role gate every window here measures from;
+     *  - `Modifier.height(0.dp)` on the button, which leaves it enabled,
+     *    present, and invisible.
+     *
+     * WHAT THIS ASSERTS INSTEAD, in one sentence: nothing that has to run for
+     * the cancel button to be drawn and pressed may name the pause read. That is
+     * a property of the code on the path rather than of any mechanism, so the
+     * twelfth escape — an alpha, a `heightIn`, a `pointerInput` that eats the
+     * tap — fails here without this test being touched. See [ExitPath] for how
+     * the path and the vocabulary are derived.
+     *
+     * WHY THE PAUSE SPECIFICALLY. It is the only asynchronous fact this screen
+     * reads, and it is a Stripe round trip. Anything on the way to the exit that
+     * waits on it turns a slow billing route into a person who cannot cancel,
+     * which is the exact failure the whole card is built against, re-created by
+     * the feature that was meant to be an alternative to leaving.
+     */
+    @Test
+    fun `nothing on the way to the exit consults the pause read`() {
+        assertEquals(
+            "the way out now depends on the pause read. Reaching Stripe having " +
+                "answered nothing is ONE press from landing on this screen, and it " +
+                "may not wait on, be hidden by, or be shrunk by a billing round " +
+                "trip. Whatever this reads, move it off the path — the pause is an " +
+                "answer rendered BELOW the button, never a condition in front of it",
+            emptyList<ExitPath.Finding>(),
+            ExitPath.findings(
+                readMainSource(ExitPath.BILLING_SECTION),
+                readMainSource(ExitPath.SETTINGS_LOGIC),
+            ),
+        )
+    }
+
+    /**
+     * ...AND THE GUARD ABOVE IS PROVEN BY BREAKING IT, EVERY RUN.
+     *
+     * A guard that has only ever passed is unproven. Each entry in
+     * [ExitPath.ESCAPES] is a real edit to the real shipped source — the three
+     * that walked past this file, plus one that launders the read through a
+     * plainly-named local so a scan for the word "pause" would not see it — and
+     * every one of them has to be reported.
+     *
+     * The edits are applied by exact match and the count is asserted, so an
+     * anchor that drifts FAILS rather than quietly making the proof vacuous.
+     * That is the failure mode this style of harness actually has.
+     */
+    @Test
+    fun `every escape that has walked past this file is caught by the property`() {
+        val billing = readMainSource(ExitPath.BILLING_SECTION)
+        val logic = readMainSource(ExitPath.SETTINGS_LOGIC)
+        ExitPath.ESCAPES.forEach { escape ->
+            val findings = ExitPath.findings(ExitPath.apply(billing, escape), logic)
+            assertTrue(
+                "`${escape.name}` walks past the exit-path property. It is a real " +
+                    "defect applied to the real source, so a guard that stays silent " +
+                    "on it is decorative",
+                findings.isNotEmpty(),
+            )
+        }
+    }
+
     @Test
     fun `no reason is pre-selected`() {
         assertTrue(

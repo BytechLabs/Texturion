@@ -212,9 +212,23 @@ class PauseOfferTest {
 
     // -- the money, which is the half a customer discovers on their card ------
 
-    /** Every money token in a string, as the reader sees it. */
+    /**
+     * Every money token in a string, as the reader sees it.
+     *
+     * A LEADING `$` IS NOT WHAT MAKES A NUMBER A PRICE. This matched only
+     * `$12.75`, so `You are charged 12.75 USD today.` was invisible to every
+     * assertion built on it - on the resume confirmation, which is the one
+     * surface in this feature where somebody agrees to a recurring charge.
+     * That sentence passed the whole suite.
+     *
+     * The bare-decimal arm is deliberate rather than defensive: this tree
+     * already carries `BillingCurrency.CAD` and `Locale.CANADA`, so a figure
+     * written `12,75 EUR` or `CA$12.75` is the ordinary shape of the next
+     * currency somebody adds rather than an exotic one.
+     */
     private fun moneyIn(text: String): List<String> =
-        Regex("\\$[0-9][0-9.,]*").findAll(text).map { it.value }.toList()
+        Regex("""[A-Z]{0,2}\$\s?[0-9][0-9.,]*|\b[0-9]+[.,][0-9]{2}\b""")
+            .findAll(text).map { it.value.trim() }.toList()
 
     /**
      * A pause fee, and the exact characters it must become on screen.
@@ -345,11 +359,37 @@ class PauseOfferTest {
         // Several amounts, so copy that happens to agree with one fixture cannot
         // pass by coincidence — and the round one, which is the branch that
         // drops the cents.
+        //
+        // ALL SIX FIELDS, AND THAT IS THE FIX RATHER THAN THOROUGHNESS. This
+        // swept `heading` and `body` only, which left the assertion above — a
+        // comparison against the literal [oddPrice] at ONE amount — as the sole
+        // guard on the other four. A literal satisfies itself: typing
+        // "You are charged $12.75 today." into `confirmBody` passed every test
+        // in this module, because at 1275 cents the injected figure IS the
+        // expected one and no other amount was ever tried on that field.
+        //
+        // `confirmBody` is the worst possible place for that hole. It is the
+        // resume confirmation — the sentence somebody reads immediately before
+        // agreeing to be charged the plan price again — so it is the one surface
+        // on this card where a made-up number is money changing hands rather
+        // than a wrong word. Swept across five amounts it cannot hold a constant
+        // at all: at 100 cents the injected "$12.75" is not "$1", and this
+        // fails naming both.
         listOf(100L, 499L, 500L, 1250L, 9999L).forEach { cents ->
             val each = pausedStateCopy(paused.copy(monthly_cents = cents), "Pro")!!
-            moneyIn("${each.heading} ${each.body}").forEach { token ->
+            val everything = listOf(
+                each.heading,
+                each.body,
+                each.resumeLabel,
+                each.confirmTitle,
+                each.confirmBody,
+                each.confirmLabel,
+            ).joinToString(" ")
+            moneyIn(everything).forEach { token ->
                 assertEquals(
-                    "the paused card quotes $token while the mirror said $cents cents",
+                    "the paused card quotes $token while the mirror said $cents cents. " +
+                        "Every figure on this card is `monthly_cents`, and the " +
+                        "confirmation is where somebody agrees to the charge",
                     formatMonthlyCents(cents),
                     token,
                 )
@@ -844,6 +884,15 @@ class PauseOfferTest {
      * gated on it, a slow or dead billing route would become a person who
      * cannot cancel — the exact failure the whole cancel screen is built
      * against, re-created by a feature meant to be an alternative to leaving.
+     *
+     * THREE NAMED MECHANISMS, WHICH IS THE LIMIT OF WHAT THIS CAN BE (#524). A
+     * disabled control, a read of its own, a dialog in the body: each is a real
+     * shape and each stays pinned here. But `Modifier.height(0.dp)` on the
+     * button is none of the three, and neither is a `return` above the card's
+     * body, and neither was caught. The property that catches all of them and
+     * the ones nobody has invented yet lives in [ExitPath], asserted next door
+     * in [CancellationFlowTest]: nothing on the path to the exit may name the
+     * pause read at all.
      */
     @Test
     fun `the way out is never gated on the pause`() {

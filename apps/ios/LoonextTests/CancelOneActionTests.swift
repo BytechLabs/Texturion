@@ -20,14 +20,35 @@ import XCTest
 ///
 /// # What it reads
 ///
-/// `CancelCard.leaving` — what is above the exit and what may switch it off —
-/// AND `CancelCard.body`, the chain that decides whether `leaving` is drawn at
-/// all. The second was added after the first proved insufficient: every exit
-/// assertion here was bounded by `leaving`, and
+/// FOUR PLACES, because the exit's reachability is decided in four and a guard
+/// bounded to one of them cannot see the others: the `CancelCard(` call site in
+/// `BillingSectionView` and what wraps it; `CancelCard.body`, the chain that
+/// decides whether `leaving` is drawn at all; `CancelCard.leaving`, from its
+/// first line down to the button; and the definition of every member either of
+/// those names — `canCancel`, `handOff()`, `consequence` — followed
+/// transitively. Each was added after the last proved insufficient, and the
+/// order tells the story: everything here was once bounded by `leaving`, and
 /// `} else if pauseChecking { ProgressView() } else { leaving }` in the body
 /// above deletes the way out without touching a character of the block being
 /// watched. It reads SettingsLogic.swift too, for the one property that lives
 /// there rather than here: no price is ever typed.
+///
+/// # One property, and the narrower ones underneath it
+///
+/// `testNothingOnTheWayToTheExitConsultsThePauseRead` is the whole rule:
+/// nothing on the path from arrival to the exit may DEPEND on the pause read.
+/// Everything below it is older and narrower — an exact inventory of
+/// `.disabled(…)`, a list of modifiers that kill a control by looks, a set of
+/// names allowed to decide whether the exit is drawn. Those stay, because each
+/// says something the general rule does not (a `.disabled(busy)` mentioning no
+/// pause is still a second condition on the way out), but each of them
+/// enumerates a MECHANISM, and five separate escapes were found against them by
+/// applying a mechanism the list did not contain: a second chained `.disabled(`,
+/// one on the card a line below, `canCancel` redefined to read the pause, a
+/// `guard` inside `handOff()`, and one hung on the `CancelCard(` call site.
+/// They were not five bugs. They were one bug five times, and the general rule
+/// is the answer to it: it asks what the exit DEPENDS ON rather than how it
+/// might be switched off, so a sixth mechanism needs no sixth assertion.
 ///
 /// # What it does not claim
 ///
@@ -101,31 +122,99 @@ final class CancelOneActionTests: XCTestCase {
         line.filter { $0 == character }.count
     }
 
-    /// The lines INSIDE the block a declaration opens.
+    /// A line with its string literals emptied and its interpolations kept.
     ///
-    /// Brace counting, which is enough here and nowhere near a Swift parser: no
-    /// string literal in that file contains a brace, and interpolation uses
-    /// parentheses. `testTheScanIsActuallyReadingTheScreen` is what notices if
-    /// that stops being true and the walk starts returning nonsense.
-    private func blockBody(_ lines: [String], startingWith needle: String) -> [String]? {
-        guard let start = lines.firstIndex(where: { trimmed($0).hasPrefix(needle) })
-        else { return nil }
-        var depth = 0
-        var started = false
-        var body: [String] = []
-        for index in start ..< lines.count {
-            let line = code(lines[index])
-            depth += count(line, "{")
-            depth -= count(line, "}")
-            if !started {
-                // The header line opens the block but is not inside it.
-                if depth > 0 { started = true }
+    /// A guard that reads NAMES has to stop reading the copy. `read` is both
+    /// the pause value this card is handed and an ordinary English word, and a
+    /// scan that tokenised `Text("…names, numbers, tags and when they opted
+    /// in…")` would start failing the day somebody writes a sentence with it
+    /// in. Interpolation is real code living inside a literal, so what is
+    /// inside `\(…)` is kept and the prose around it is blanked — the same
+    /// distinction `typesAPrice` makes, for the same reason.
+    ///
+    /// Blanked rather than deleted, so the walk that counts braces and
+    /// parentheses is looking at the same columns the compiler is.
+    private func withoutLiterals(_ line: String) -> String {
+        let characters = Array(line)
+        var out = ""
+        var inString = false
+        var interpolation = 0
+        var index = 0
+        while index < characters.count {
+            let character = characters[index]
+            if inString, interpolation == 0, character == "\\", index + 1 < characters.count,
+               characters[index + 1] == "(" {
+                interpolation = 1
+                out.append("  ")
+                index += 2
                 continue
             }
-            if depth <= 0 { return body }
-            body.append(lines[index])
+            if inString, interpolation > 0 {
+                if character == "(" { interpolation += 1 }
+                if character == ")" { interpolation -= 1 }
+                out.append(interpolation > 0 ? String(character) : " ")
+                index += 1
+                continue
+            }
+            if inString, character == "\\" {
+                out.append("  ")
+                index += 2
+                continue
+            }
+            if character == "\"" {
+                inString.toggle()
+                out.append(" ")
+                index += 1
+                continue
+            }
+            out.append(inString ? " " : String(character))
+            index += 1
+        }
+        return out
+    }
+
+    /// The code on a line: no whole-line comment, no string contents, no
+    /// trailing comment. In that order, because a `//` inside a URL literal is
+    /// not a comment and a `"` inside a comment is not a literal.
+    private func readable(_ line: String) -> String {
+        let text = withoutLiterals(code(line))
+        return text.components(separatedBy: "//").first ?? text
+    }
+
+    private func braceDelta(_ line: String) -> Int {
+        count(line, "{") - count(line, "}")
+    }
+
+    /// The lines INSIDE the block opened at `header`, as absolute indices.
+    ///
+    /// Brace counting, which is enough here and nowhere near a Swift parser:
+    /// `readable` has already emptied the string literals, so a brace inside a
+    /// sentence cannot move the walk. `testTheScanIsActuallyReadingTheScreen`
+    /// is what notices if it starts returning nonsense anyway.
+    private func blockRange(_ lines: [String], openedAt header: Int) -> Range<Int>? {
+        var depth = 0
+        var opened: Int?
+        for index in header ..< lines.count {
+            depth += braceDelta(readable(lines[index]))
+            guard let first = opened else {
+                // The header line opens the block but is not inside it.
+                if depth > 0 { opened = index + 1 }
+                continue
+            }
+            if depth <= 0 { return first ..< index }
         }
         return nil
+    }
+
+    private func blockRange(_ lines: [String], startingWith needle: String) -> Range<Int>? {
+        guard let start = lines.firstIndex(where: { trimmed($0).hasPrefix(needle) })
+        else { return nil }
+        return blockRange(lines, openedAt: start)
+    }
+
+    /// The lines INSIDE the block a declaration opens.
+    private func blockBody(_ lines: [String], startingWith needle: String) -> [String]? {
+        blockRange(lines, startingWith: needle).map { Array(lines[$0]) }
     }
 
     /// `CancelCard.body` — the chain that decides whether `leaving` is drawn at
@@ -197,20 +286,29 @@ final class CancelOneActionTests: XCTestCase {
             "if", "else", "switch", "guard", "let", "var", "case", "default",
             "true", "false", "nil", "self", "return", "some", "View", "in",
         ]
-        var words: [String] = []
+        return words(statement).filter { word in
+            !keywords.contains(word) && !(word.first?.isNumber ?? true)
+        }
+    }
+
+    /// Every word in a line, keywords included.
+    ///
+    /// `identifiers` throws `let`, `var` and `func` away, which is right for
+    /// asking what an expression consults and useless for asking what a line
+    /// DECLARES — that question is answered by finding the keyword itself.
+    private func words(_ text: String) -> [String] {
+        var found: [String] = []
         var current = ""
-        for character in statement {
+        for character in text {
             if character.isLetter || character.isNumber || character == "_" {
                 current.append(character)
             } else if !current.isEmpty {
-                words.append(current)
+                found.append(current)
                 current = ""
             }
         }
-        if !current.isEmpty { words.append(current) }
-        return words.filter { word in
-            !keywords.contains(word) && !(word.first?.isNumber ?? true)
-        }
+        if !current.isEmpty { found.append(current) }
+        return found
     }
 
     /// `CancelCard.leaving`, and where the way out sits inside it.
@@ -756,6 +854,647 @@ final class CancelOneActionTests: XCTestCase {
     // `typesAPrice` moved to TypedPriceScan.swift when #522 gave it a second
     // caller (the registration card). The walk is unchanged; see that file for
     // why it is a walk and not a pattern.
+
+    // MARK: - One property instead of a list of ways to break it
+
+    /// A line that decides something about the exit: where it came from, what
+    /// it says, the names it consults, and the pause-derived names that apply
+    /// where it lives.
+    ///
+    /// The taint set travels WITH the line because the two views on the path
+    /// share member names — both have a `scope`, a `company` and a `body` — and
+    /// one set for both would let the billing section's `body`, which reads the
+    /// pause on purpose, condemn the cancel card's, which does not.
+    private struct PathLine {
+        let place: String
+        let number: Int
+        let text: String
+        let names: [String]
+        let pauseNames: Set<String>
+    }
+
+    /// A `let`, `var` or `func`, and the lines it spans.
+    private struct Declared {
+        let name: String
+        let range: Range<Int>
+    }
+
+    /// The name a line declares, or nil.
+    ///
+    /// Found by looking for the KEYWORD rather than by skipping a list of
+    /// attributes and access modifiers. `@State private var opening = false`
+    /// and `private func handOff() {` have nothing in common on the left, and a
+    /// list of things to skip is exactly the kind of list this issue is about.
+    private func declaredName(_ line: String) -> String? {
+        let head = words(readable(line))
+        guard let keyword = head.firstIndex(where: { ["let", "var", "func"].contains($0) }),
+              keyword + 1 < head.count
+        else { return nil }
+        return head[keyword + 1]
+    }
+
+    private func nameAfter(_ keyword: String, in line: String) -> String? {
+        let head = words(readable(line))
+        guard let at = head.firstIndex(of: keyword), at + 1 < head.count else { return nil }
+        return head[at + 1]
+    }
+
+    /// Every `let`, `var` and `func` declared at the TOP LEVEL of `region`.
+    ///
+    /// Top level only, which is the point rather than a shortfall: a local
+    /// inside a view's body belongs to that body, and every body on the path is
+    /// read whole. Hoisting them would also lift `let price =
+    /// pauseAnswerPrice(…)` — which lives BELOW the exit, where the pause is
+    /// welcome — into the same namespace as the members that gate it.
+    private func declarations(_ lines: [String], in region: Range<Int>) -> [Declared] {
+        var found: [Declared] = []
+        var index = region.lowerBound
+        while index < region.upperBound {
+            guard let name = declaredName(lines[index]) else {
+                index += 1
+                continue
+            }
+            // Parentheses as well as braces, so a signature spread over several
+            // lines does not end the declaration before its body starts.
+            var braces = 0
+            var parens = 0
+            var end = index
+            for scan in index ..< region.upperBound {
+                let text = readable(lines[scan])
+                braces += braceDelta(text)
+                parens += count(text, "(") - count(text, ")")
+                end = scan
+                if braces <= 0, parens <= 0 { break }
+            }
+            found.append(Declared(name: name, range: index ..< (end + 1)))
+            index = end + 1
+        }
+        return found
+    }
+
+    /// Every block header the line at `index` sits inside, innermost first.
+    private func enclosingHeaders(_ lines: [String], of index: Int) -> [Int] {
+        var found: [Int] = []
+        var pending = 0
+        var scan = index - 1
+        while scan >= 0 {
+            let text = readable(lines[scan])
+            pending += count(text, "}")
+            pending -= count(text, "{")
+            if pending < 0 {
+                found.append(scan)
+                pending = 0
+            }
+            scan -= 1
+        }
+        return found
+    }
+
+    /// A block header, including the lines its condition is spread over.
+    ///
+    /// A continuation changes no braces, so nothing but the operators tells the
+    /// walk where the statement began — and it takes both shapes this codebase
+    /// writes, an operator leading the next line (`&& mayBuyAddOns(…)`) and one
+    /// trailing the previous (`if canManage,`). Android's guard read only the
+    /// line the `{` was on, which is how an added `&&` on a continuation walked
+    /// straight through it.
+    private func fullHeader(_ lines: [String], endingAt index: Int) -> [Int] {
+        let leading = ["&&", "||", ",", "+", "?", ":", "."]
+        let trailing = ["&&", "||", ",", "(", "?", ":", "=", "+"]
+        var rows = [index]
+        var scan = index - 1
+        while scan >= 0, rows.count < 10 {
+            let above = trimmed(readable(lines[scan]))
+            let below = trimmed(readable(lines[rows[0]]))
+            guard !above.isEmpty,
+                  leading.contains(where: { below.hasPrefix($0) })
+                      || trailing.contains(where: { above.hasSuffix($0) })
+            else { break }
+            rows.insert(scan, at: 0)
+            scan -= 1
+        }
+        return rows
+    }
+
+    /// The last line of the call starting at `index` — where its arguments
+    /// close, which is where anything chained onto it begins.
+    private func statementEnd(
+        _ lines: [String], from index: Int, in region: Range<Int>
+    ) -> Int {
+        var parens = 0
+        for scan in index ..< region.upperBound {
+            let text = readable(lines[scan])
+            parens += count(text, "(") - count(text, ")")
+            if parens <= 0 { return scan }
+        }
+        return index
+    }
+
+    /// Whatever is written after that closing parenthesis, on the same line.
+    ///
+    /// `CancelCard(…).disabled(pauseChecking)` puts the whole card, exit and
+    /// all, behind the pause read without occupying a line of its own.
+    private func statementTail(
+        _ lines: [String], from index: Int, in region: Range<Int>
+    ) -> String {
+        var parens = 0
+        for scan in index ..< region.upperBound {
+            let characters = Array(readable(lines[scan]))
+            var cut = characters.count
+            for (offset, character) in characters.enumerated() {
+                if character == "(" { parens += 1 }
+                if character == ")" {
+                    parens -= 1
+                    if parens <= 0 {
+                        cut = offset + 1
+                        break
+                    }
+                }
+            }
+            if parens <= 0 { return trimmed(String(characters[cut...])) }
+        }
+        return ""
+    }
+
+    /// Every view modifier that lands on the thing at `anchor` — its own chain,
+    /// and the chain of every container that closed around it.
+    ///
+    /// OUTWARD, not "the next few lines". SwiftUI ORs chained `.disabled(…)`,
+    /// so a second one under the first switches the exit off while the first
+    /// still reads exactly as required; and a modifier hung on the stack the
+    /// exit sits in, or on the card that stack sits in, never appears near the
+    /// button at all. The walk therefore follows the exit out to the root of
+    /// the block: a line is attached when the chain is still alive, and the
+    /// chain comes back to life every time a brace closes around the exit.
+    ///
+    /// A modifier that opens a block of its own — `.overlay { … }` — is
+    /// swallowed whole, so a condition hidden inside one is read rather than
+    /// ending the chain.
+    private func attachedModifiers(
+        _ lines: [String], in region: Range<Int>, anchor: Int
+    ) -> [Int] {
+        var depth = 0
+        for index in region.lowerBound ... anchor {
+            depth += braceDelta(readable(lines[index]))
+        }
+        var watermark = depth
+        var chained = true
+        var found: [Int] = []
+        var index = anchor + 1
+        while index < region.upperBound {
+            let text = readable(lines[index])
+            let head = trimmed(text)
+            if head.isEmpty {
+                index += 1
+                continue
+            }
+            if chained, head.hasPrefix(".") {
+                let opened = depth
+                found.append(index)
+                depth += braceDelta(text)
+                index += 1
+                while index < region.upperBound, depth > opened {
+                    found.append(index)
+                    depth += braceDelta(readable(lines[index]))
+                    index += 1
+                }
+                continue
+            }
+            depth += braceDelta(text)
+            if depth < watermark {
+                // A container that enclosed the exit just closed, so what
+                // follows applies to it — and therefore to the exit.
+                watermark = depth
+                chained = true
+            } else {
+                chained = false
+            }
+            index += 1
+        }
+        return found
+    }
+
+    /// The arguments a call hands down, as label to expression.
+    ///
+    /// Read so the taint follows the VALUE rather than a parameter's name or
+    /// its type: `read: pauseKnown` makes `read` a pause name inside the card
+    /// whether or not the parameter is still called that, and whether or not
+    /// its type still says "pause" out loud.
+    private func arguments(_ lines: [String], call: Range<Int>) -> [String: String] {
+        var text = ""
+        for index in call { text += readable(lines[index]) + " " }
+        guard let open = text.firstIndex(of: "(") else { return [:] }
+        var chunks: [String] = []
+        var current = ""
+        var depth = 0
+        for character in text[text.index(after: open)...] {
+            if "([{".contains(character) { depth += 1 }
+            if ")]}".contains(character) {
+                if depth == 0 { break }
+                depth -= 1
+            }
+            if character == ",", depth == 0 {
+                chunks.append(current)
+                current = ""
+                continue
+            }
+            current.append(character)
+        }
+        chunks.append(current)
+        var found: [String: String] = [:]
+        for chunk in chunks {
+            guard let colon = chunk.firstIndex(of: ":") else { continue }
+            let label = trimmed(String(chunk[..<colon]))
+            guard words(label).count == 1 else { continue }
+            found[label] = String(chunk[chunk.index(after: colon)...])
+        }
+        return found
+    }
+
+    /// The names inside `region` that carry the pause read, or are computed
+    /// from something that does.
+    ///
+    /// Two seeds and a fixpoint. A declaration is pause-derived when its own
+    /// text says "pause" in any casing, when it mentions a name already
+    /// pause-derived, or when it is HANDED one from outside. Assignments count
+    /// as well as initialisers, because `checking = pauseFetch.isLoading`
+    /// somewhere below is the same fact arriving through a different door than
+    /// `var checking = pauseFetch.isLoading` would.
+    ///
+    /// `substituting` replaces the lines read for one declaration, and has
+    /// exactly one caller and one reason: the block that HOLDS the exit renders
+    /// the pause offer below it, by design, so its own pause-derivedness is
+    /// judged on the part of it that is on the way to the exit rather than on
+    /// the part that is past it.
+    private func pauseDerived(
+        _ lines: [String],
+        in region: Range<Int>,
+        incoming: Set<String>,
+        substituting: [Int: [Int]] = [:]
+    ) -> Set<String> {
+        let declared = declarations(lines, in: region)
+        var found = incoming
+        var growing = true
+        while growing {
+            growing = false
+            for entry in declared where !found.contains(entry.name) {
+                let rows = substituting[entry.range.lowerBound] ?? Array(entry.range)
+                let text = rows.map { readable(lines[$0]) }.joined(separator: "\n")
+                guard text.lowercased().contains("pause")
+                    || identifiers(in: text).contains(where: { found.contains($0) })
+                else { continue }
+                found.insert(entry.name)
+                growing = true
+            }
+            for index in region {
+                // EVERY assignment on the line, not the first one.
+                //
+                // This read only the first ` = `, so
+                // `onRead: { pauseFetch = $0; leaveAllowed = $0 != .loading }`
+                // tainted `pauseFetch` (already tainted, so nothing changed) and
+                // never considered `leaveAllowed` - which then gated the exit
+                // from outside the taint set. Six separate escapes shared that
+                // one root, and each was a single line of ordinary SwiftUI.
+                for statement in statements(in: readable(lines[index])) {
+                    guard let target = assignmentTarget(statement),
+                          !found.contains(target)
+                    else { continue }
+                    let value = statement.components(separatedBy: " = ")
+                        .dropFirst().joined(separator: " = ")
+                    guard identifiers(in: value).contains(where: { found.contains($0) })
+                    else { continue }
+                    found.insert(target)
+                    growing = true
+                }
+            }
+        }
+        return found
+    }
+
+    /// A line split into the statements it actually contains.
+    ///
+    /// Swift lets a closure body hold several statements separated by `;`, and
+    /// a single line is the ordinary way to write a two-line callback. Treating
+    /// the line as one statement made the second assignment invisible.
+    private func statements(in text: String) -> [String] {
+        text.split(separator: ";").map(String.init)
+    }
+
+    /// What a line assigns to, taking the last component of the chain: the
+    /// value flowing in reaches the stored property however it is written to
+    /// (`self.error`, `set: { detail = … }`).
+    private func assignmentTarget(_ text: String) -> String? {
+        guard text.range(of: " = ") != nil else { return nil }
+        let left = text.components(separatedBy: " = ")[0]
+        // `let x = …` is a declaration and is read as one; taking it here too
+        // would be harmless but says something the declaration walk already did.
+        guard let last = words(left).last, !["let", "var", "case"].contains(last)
+        else { return nil }
+        return last
+    }
+
+    /// Every line that decides whether the exit is drawn, whether it can be
+    /// pressed, and what happens when it is.
+    ///
+    /// FOUR PLACES, because the reachability of one button is decided in four,
+    /// and a guard bounded to one of them cannot see the other three:
+    ///
+    ///   the call site   what the billing section wraps the card in, and
+    ///                   anything it hangs on the card once built.
+    ///   the card        every member that renders the block holding the exit —
+    ///                   found by walking the references BACK from that block,
+    ///                   so an intermediate view inserted between them is read
+    ///                   for the same reason the entry point is.
+    ///   the block       from its first line to the exit, plus every modifier
+    ///                   that lands on the exit or on anything that closed
+    ///                   around it. NOT the part below the exit: the pause
+    ///                   offer renders there on purpose.
+    ///   what it reaches every member either of those two views names, followed
+    ///                   transitively — which is how `canCancel`'s definition
+    ///                   and the body of `handOff()` are read without this
+    ///                   function naming either of them.
+    ///
+    /// The two views are found by walking OUT from the button rather than by
+    /// being named here, so a rename fails loudly rather than quietly reading
+    /// the wrong thing — or nothing.
+    private func theWayToTheExit() throws -> [PathLine]? {
+        let source = try billingSource()
+        guard let exit = source.firstIndex(where: { code($0).contains(exitLabel) }) else {
+            XCTFail(
+                "no \"\(exitLabel)\" in the billing screen — the way out moved or was renamed"
+            )
+            return nil
+        }
+        guard let cardHeader = enclosingHeaders(source, of: exit)
+            .first(where: { words(readable(source[$0])).contains("struct") }),
+            let cardName = nameAfter("struct", in: source[cardHeader]),
+            let cardRange = blockRange(source, openedAt: cardHeader)
+        else {
+            XCTFail(
+                "the exit is inside no struct — this guard cannot find the card it draws on"
+            )
+            return nil
+        }
+        guard let call = source.indices.first(where: { index in
+            !cardRange.contains(index) && readable(source[index]).contains(cardName + "(")
+        }) else {
+            XCTFail("\(cardName)( is built nowhere — the exit is on no screen")
+            return nil
+        }
+        let outward = enclosingHeaders(source, of: call)
+        guard let render = outward.first(where: { declaredName(source[$0]) != nil }),
+              let renderRange = blockRange(source, openedAt: render),
+              let sectionHeader = outward.first(where: {
+                  words(readable(source[$0])).contains("struct")
+              }),
+              let sectionRange = blockRange(source, openedAt: sectionHeader)
+        else {
+            XCTFail(
+                "\(cardName)( is inside no view — this guard cannot find its call site"
+            )
+            return nil
+        }
+
+        let sectionPause = pauseDerived(source, in: sectionRange, incoming: [])
+        let end = statementEnd(source, from: call, in: renderRange)
+        var handedDown: Set<String> = []
+        for (label, value) in arguments(source, call: call ..< (end + 1))
+        where identifiers(in: value).contains(where: { sectionPause.contains($0) }) {
+            handedDown.insert(label)
+        }
+
+        let cardMembers = declarations(source, in: cardRange)
+        guard let holder = cardMembers.first(where: { $0.range.contains(exit) }) else {
+            XCTFail("the exit is in no member of \(cardName) — this guard is reading nothing")
+            return nil
+        }
+        let slice = Array(holder.range.lowerBound ... exit)
+            + attachedModifiers(source, in: holder.range, anchor: exit)
+        let cardPause = pauseDerived(
+            source,
+            in: cardRange,
+            incoming: handedDown,
+            substituting: [holder.range.lowerBound: slice]
+        )
+
+        var path: [PathLine] = []
+        var taken: Set<Int> = []
+        func add(_ place: String, _ row: Int, _ pauseNames: Set<String>) {
+            let text = readable(source[row])
+            guard !taken.contains(row), !trimmed(text).isEmpty else { return }
+            taken.insert(row)
+            path.append(PathLine(
+                place: place,
+                number: row + 1,
+                text: trimmed(source[row]),
+                names: identifiers(in: text),
+                pauseNames: pauseNames
+            ))
+        }
+
+        // (1) the call site.
+        for gate in outward.prefix(while: { $0 != render }) {
+            for row in fullHeader(source, endingAt: gate) {
+                add("the call site", row, sectionPause)
+            }
+        }
+        for row in attachedModifiers(source, in: renderRange, anchor: end) {
+            add("the call site", row, sectionPause)
+        }
+        let tail = statementTail(source, from: call, in: renderRange)
+        if !tail.isEmpty {
+            path.append(PathLine(
+                place: "the call site",
+                number: end + 1,
+                text: tail,
+                names: identifiers(in: tail),
+                pauseNames: sectionPause
+            ))
+        }
+
+        // (2) every member of the card that leads to the block holding the exit.
+        var renders: Set<String> = [holder.name]
+        var growing = true
+        while growing {
+            growing = false
+            for entry in cardMembers where !renders.contains(entry.name) {
+                let text = entry.range.map { readable(source[$0]) }.joined(separator: "\n")
+                guard identifiers(in: text).contains(where: { renders.contains($0) })
+                else { continue }
+                renders.insert(entry.name)
+                growing = true
+            }
+        }
+        for entry in cardMembers
+        where renders.contains(entry.name) && entry.name != holder.name {
+            for row in entry.range { add("the card", row, cardPause) }
+        }
+
+        // (3) the block that holds the exit, up to and including the exit.
+        for row in slice { add("the block that holds the exit", row, cardPause) }
+
+        // (4) everything the three above name, followed to a fixpoint. Scoped
+        // per view: both structs declare a `body` and a `company`, and one
+        // shared namespace would drag the billing section's body — which reads
+        // the pause on purpose, one card higher up — onto the cancel card's path.
+        let sectionMembers = declarations(source, in: sectionRange)
+        var seen: Set<String> = []
+        var frontier: [(inCard: Bool, name: String)] = []
+        for line in path {
+            let inCard = line.place != "the call site"
+            for name in line.names { frontier.append((inCard: inCard, name: name)) }
+        }
+        while let next = frontier.popLast() {
+            let key = "\(next.inCard)|\(next.name)"
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            let members = next.inCard ? cardMembers : sectionMembers
+            let pauseNames = next.inCard ? cardPause : sectionPause
+            for entry in members where entry.name == next.name {
+                let rows = entry.range.lowerBound == holder.range.lowerBound
+                    ? slice : Array(entry.range)
+                for row in rows {
+                    add("what it reaches", row, pauseNames)
+                    for name in identifiers(in: readable(source[row])) {
+                        frontier.append((inCard: next.inCard, name: name))
+                    }
+                }
+            }
+        }
+        return path
+    }
+
+    /// # The property
+    ///
+    /// Nothing on the path from arrival to the exit may depend on the pause
+    /// read.
+    ///
+    /// Not "may not be disabled by it" — may not DEPEND on it. Every escape
+    /// this replaces worked by making some part of that path consult the pause
+    /// state, and each of the guards below could only see the particular way it
+    /// consulted it. A second chained `.disabled(`, one on the card a line
+    /// lower, `canCancel` redefined to read the answer, a `guard` at the top of
+    /// `handOff()`, a modifier on the `CancelCard(` call site: five mechanisms,
+    /// one fact. This asks for the fact.
+    ///
+    /// # Proven against fifteen mutations, including all five escapes
+    ///
+    /// Each was applied to a copy of the screen and run through this walk; each
+    /// produced an offender naming the line and the name it objected to. The
+    /// FIVE that were found against the guards below are the first five:
+    ///
+    ///   a second `.disabled(checking)` chained under `.disabled(opening)`
+    ///   `.disabled(checking)` on the card, one line below `leaving`'s brace
+    ///   `canCancel` redefined as `… && read.answer != nil`
+    ///   `guard read.answer != nil else { return }` first in `handOff()`
+    ///   `.disabled(pauseKnown.answer == nil)` under the `CancelCard(` call
+    ///
+    /// and the ten nobody had thought of yet, which is the point:
+    ///
+    ///   `.disabled(pauseChecking)`, a name nothing declares — caught by name
+    ///   `checking` only ASSIGNED the read, never initialised from it
+    ///   `).disabled(pauseKnown.answer == nil)` inline on the closing line
+    ///   `&& pauseKnown.answer == nil` on a CONTINUATION of the gate above
+    ///   `} else if checking { ProgressView() }` inside `CancelCard.body`
+    ///   a pause line rendered above the exit inside `leaving`
+    ///   a covering `.overlay { … }` whose condition reads the pause
+    ///   the press routed through a new helper that reads the pause
+    ///   a `Group` wrapped round the exit carrying `.disabled(checking)`
+    ///   `reasonQuestion`, which renders above the exit, gaining a pause branch
+    ///
+    /// Three changes that say nothing about the pause were run through it too
+    /// and stayed clean: a new line inside the pause offer BELOW the exit, the
+    /// word "read" appearing in the COPY above the button, and a branch above
+    /// it on `detail`. The last of those is still refused by
+    /// `testNothingBranchesOrOpensInFrontOfTheWayOut` on its own separate
+    /// grounds, which is the division of labour: that guard counts presses,
+    /// this one traces a dependency. A guard that fired on all three would be
+    /// deleted within the week.
+    ///
+    /// The WALK is what those fifteen prove; no Swift compiler runs on the
+    /// machine this was written on, so the assertion itself is first executed by
+    /// CI's `Gate / iOS`.
+    ///
+    /// # What it costs
+    ///
+    /// A member of the cancel card may not mention the pause above the exit,
+    /// and nothing the press reaches may either. If one of them ever genuinely
+    /// must, this guard is the place to argue for it — which is the difference
+    /// between a decision somebody made and a line that slipped in.
+    func testNothingOnTheWayToTheExitConsultsThePauseRead() throws {
+        guard let path = try theWayToTheExit() else { return }
+        var offenders: [String] = []
+        for line in path {
+            // Either the value is derived from the read, or the name says so
+            // itself — `pauseIsActive(company)` is declared in another file and
+            // is nobody's local, so the closure above could never reach it.
+            let hits = line.names.filter {
+                line.pauseNames.contains($0) || $0.lowercased().contains("pause")
+            }
+            guard !hits.isEmpty else { continue }
+            offenders.append(
+                "\(line.place) — BillingSection.swift:\(line.number): \(line.text)"
+                    + "   ← \(hits.joined(separator: ", "))"
+            )
+        }
+        XCTAssertEqual(
+            offenders, [String](),
+            "\n\nOn the way to the exit:\n  \(offenders.joined(separator: "\n  "))\n\n"
+                + "Nothing between landing on the billing screen and pressing \"\(exitLabel)\" "
+                + "may consult the pause read. Not 'may not disable the button' — may not "
+                + "CONSULT it: every escape this guard replaces worked by making some part of "
+                + "that path ask about the pause, and a guard that lists the ways to ask is a "
+                + "list somebody can add to. The read is welcome BELOW the exit, which is "
+                + "where the offer renders and where the answer is computed. Above it, or "
+                + "in anything the press reaches, a workspace whose read is slow or broken "
+                + "is a workspace that cannot leave.\n"
+        )
+    }
+
+    /// The walk above reads four places; this is what says it read them.
+    ///
+    /// A path that came back empty, or that swallowed the whole file, would
+    /// pass the property forever. The four anchors are one line from each
+    /// place, and the fifth assertion is the boundary that makes the guard
+    /// usable at all: the pause offer renders BELOW the exit, so a walk that
+    /// ran past the button would fail on the shipped screen — which is the same
+    /// as having no guard.
+    func testThePathToTheExitIsTheOneBeingRead() throws {
+        guard let path = try theWayToTheExit() else { return }
+        let source = try billingSource()
+        let numbers = Set(path.map { $0.number })
+        func row(_ needle: String) -> Int? {
+            source.firstIndex(where: { code($0).contains(needle) }).map { $0 + 1 }
+        }
+        for needle in [
+            "if company.subscriptionActive {",  // the call site
+            "if !canCancel {",                  // the card
+            exitLabel,                          // the block that holds the exit
+            "guard canCancel else",             // what the press reaches
+        ] {
+            guard let line = row(needle) else {
+                XCTFail("\"\(needle)\" is gone from the billing screen")
+                continue
+            }
+            XCTAssertTrue(
+                numbers.contains(line),
+                "the path does not include \"\(needle)\" (BillingSection.swift:\(line))"
+            )
+        }
+        guard let offer = row("PauseOfferNote(") else {
+            XCTFail("the pause offer is gone from the cancel card")
+            return
+        }
+        XCTAssertFalse(
+            numbers.contains(offer),
+            "the walk ran past the exit and into the pause offer, which renders below it"
+        )
+        XCTAssertTrue(
+            path.contains { $0.pauseNames.contains("read") },
+            "nothing on this screen is being treated as pause-derived — the value handed to "
+                + "the cancel card is no longer being followed, so the property is vacuous"
+        )
+    }
 
     // MARK: - The scan is reading something
 
