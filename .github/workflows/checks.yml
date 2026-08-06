@@ -196,6 +196,15 @@ jobs:
       - name: Guard destructive migrations
         run: node scripts/check-migrations.mjs
 
+      # #248 CL-13: `NULL <> '+1…'` is NULL, so an assertion written with `<>`
+      # takes the false branch when the value it is judging came back NULL —
+      # which is the state most defects produce. A mutation that stopped the
+      # consent ledger recording the phone survived its own test twice this way.
+      # Cheap, and it runs beside the migration guard because it is the same
+      # class of problem: a check that exists and does not fire.
+      - name: Guard NULL-blind SQL assertions
+        run: node scripts/check-sql-null-blind.mjs
+
       # #377: there is ONE deployed environment, so a variable that reaches
       # code without reaching the deploy reference is discovered in production
       # or on an invoice. The two env docs that used to disagree each shipped a

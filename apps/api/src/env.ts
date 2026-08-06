@@ -400,6 +400,16 @@ const envSchema = z.object({
    * skip it, like every other limiter here.
    */
   PUBLIC_LINK_RATE_LIMITER: rateLimiterSchema.optional(),
+
+  /**
+   * #248: the contact importers (CSV and vCard), keyed on company.
+   *
+   * Import is the one route where a customer hands us unbounded input. Rows
+   * and bytes were capped per request and the REQUESTS were not, so two
+   * thousand rows of reads-plus-upserts could be replayed as fast as the
+   * network allowed. Optional, like every other limiter here.
+   */
+  CONTACT_IMPORT_RATE_LIMITER: rateLimiterSchema.optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

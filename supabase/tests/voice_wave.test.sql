@@ -28,7 +28,7 @@ begin
   from information_schema.columns
   where table_schema='public' and table_name='phone_numbers' and column_name='voice_enabled';
   if ve_type is null then raise exception 'VW-1 FAILED: phone_numbers.voice_enabled missing'; end if;
-  if ve_type <> 'boolean' then raise exception 'VW-1 FAILED: voice_enabled is % (want boolean)', ve_type; end if;
+  if ve_type is distinct from 'boolean' then raise exception 'VW-1 FAILED: voice_enabled is % (want boolean)', ve_type; end if;
   if ve_null then raise exception 'VW-1 FAILED: voice_enabled must be NOT NULL'; end if;
   if ve_default not like '%false%' then raise exception 'VW-1 FAILED: voice_enabled default is % (want false)', ve_default; end if;
 
@@ -47,7 +47,7 @@ begin
   from information_schema.columns
   where table_schema='public' and table_name='companies' and column_name='mctb_enabled';
   if me_type is null then raise exception 'VW-2 FAILED: companies.mctb_enabled missing'; end if;
-  if me_type <> 'boolean' then raise exception 'VW-2 FAILED: mctb_enabled is % (want boolean)', me_type; end if;
+  if me_type is distinct from 'boolean' then raise exception 'VW-2 FAILED: mctb_enabled is % (want boolean)', me_type; end if;
   if me_null then raise exception 'VW-2 FAILED: mctb_enabled must be NOT NULL'; end if;
   if me_default not like '%false%' then raise exception 'VW-2 FAILED: mctb_enabled default is % (want false)', me_default; end if;
 
@@ -59,7 +59,7 @@ begin
   -- D43: forward_to_cell was DROPPED — it must NOT exist.
   select count(*) into fc_present from information_schema.columns
   where table_schema='public' and table_name='companies' and column_name='forward_to_cell';
-  if fc_present <> 0 then raise exception 'VW-2 FAILED: companies.forward_to_cell should be DROPPED (D43)'; end if;
+  if fc_present is distinct from 0 then raise exception 'VW-2 FAILED: companies.forward_to_cell should be DROPPED (D43)'; end if;
 
   raise notice 'VW-2 PASSED: companies mctb columns present, forward_to_cell dropped';
 end $$;
@@ -84,7 +84,7 @@ begin
   select data_type, is_nullable='YES' into cil_type, cil_null from information_schema.columns
   where table_schema='public' and table_name='companies' and column_name='caller_id_lookup';
   if cil_type is null then raise exception 'VW-3 FAILED: companies.caller_id_lookup missing'; end if;
-  if cil_type <> 'boolean' then raise exception 'VW-3 FAILED: caller_id_lookup is % (want boolean)', cil_type; end if;
+  if cil_type is distinct from 'boolean' then raise exception 'VW-3 FAILED: caller_id_lookup is % (want boolean)', cil_type; end if;
   if cil_null then raise exception 'VW-3 FAILED: caller_id_lookup must be NOT NULL'; end if;
 
   -- The CNAM display-name CHECK rejects a >15-char / non-alnum value.
@@ -126,7 +126,7 @@ declare n int; has_rls boolean;
 begin
   select count(*) into n from information_schema.tables
    where table_schema='public' and table_name='text_enablement_orders';
-  if n <> 1 then raise exception 'VW-5 FAILED: text_enablement_orders table missing'; end if;
+  if n is distinct from 1 then raise exception 'VW-5 FAILED: text_enablement_orders table missing'; end if;
 
   select relrowsecurity into has_rls from pg_class
    where oid = 'public.text_enablement_orders'::regclass;
@@ -205,7 +205,7 @@ begin
   -- The caller was upserted as a contact.
   select count(*) into contact_n from public.contacts
    where company_id='facade00-0000-4000-8000-000000000002' and phone_e164='+14165559000';
-  if contact_n <> 1 then raise exception 'VW-7 FAILED: caller contact not created'; end if;
+  if contact_n is distinct from 1 then raise exception 'VW-7 FAILED: caller contact not created'; end if;
 
   -- Queued outbound row, attributed to the owner (outbound actor CHECK).
   perform 1 from public.messages
@@ -220,7 +220,7 @@ begin
   select count(*) into ev from public.conversation_events
    where conversation_id=conv_id and type='missed_call' and actor_user_id is null
      and payload->>'call_id'='call-sess-1';
-  if ev <> 1 then raise exception 'VW-7 FAILED: expected 1 missed_call event, got %', ev; end if;
+  if ev is distinct from 1 then raise exception 'VW-7 FAILED: expected 1 missed_call event, got %', ev; end if;
 
   raise notice 'VW-7 PASSED: claim_missed_call_text threads a new caller + texts back';
 end $$;
@@ -257,7 +257,7 @@ begin
    join public.conversations c on c.id=m.conversation_id
    join public.contacts ct on ct.id=c.contact_id
    where ct.phone_e164='+14165559000' and m.direction='outbound';
-  if msg_n <> 1 then raise exception 'VW-8 FAILED: expected exactly 1 text, got %', msg_n; end if;
+  if msg_n is distinct from 1 then raise exception 'VW-8 FAILED: expected exactly 1 text, got %', msg_n; end if;
   perform 1 from public.messages where id=first_msg and status='queued';
   if not found then raise exception 'VW-8 FAILED: replay must hand back the original queued row'; end if;
 
@@ -271,7 +271,7 @@ begin
     'facade00-0000-4000-8000-000000000002',
     'facade00-0000-4000-8000-000000000003',
     '+14165559000', 'call-sess-1', 'dup', 1, 10800);
-  if res->>'skipped' <> 'duplicate' then
+  if res->>'skipped' is distinct from 'duplicate' then
     raise exception 'VW-8 FAILED: dispatched retry expected duplicate, got %', res;
   end if;
 
@@ -284,7 +284,7 @@ begin
 
   select count(*) into ev_n from public.conversation_events
    where type='missed_call' and payload->>'call_id'='call-sess-1';
-  if ev_n <> 1 then raise exception 'VW-8 FAILED: expected exactly 1 missed_call event, got %', ev_n; end if;
+  if ev_n is distinct from 1 then raise exception 'VW-8 FAILED: expected exactly 1 missed_call event, got %', ev_n; end if;
 
   raise notice 'VW-8 PASSED: a retried call never double-texts (replay-heal + duplicate)';
 end $$;
@@ -300,7 +300,7 @@ begin
     'facade00-0000-4000-8000-000000000002',
     'facade00-0000-4000-8000-000000000003',
     '+14165559000', 'call-sess-2', 'again', 1, 10800);
-  if res->>'skipped' <> 'throttled' then
+  if res->>'skipped' is distinct from 'throttled' then
     raise exception 'VW-9 FAILED: expected throttled, got %', res;
   end if;
   raise notice 'VW-9 PASSED: a second missed call within the window is throttled';
@@ -318,7 +318,7 @@ begin
     'facade00-0000-4000-8000-000000000002',
     'facade00-0000-4000-8000-000000000003',
     '+14165559111', 'call-sess-3', 'blocked', 1, 10800);
-  if res->>'skipped' <> 'recipient_opted_out' then
+  if res->>'skipped' is distinct from 'recipient_opted_out' then
     raise exception 'VW-10 FAILED: expected recipient_opted_out, got %', res;
   end if;
   raise notice 'VW-10 PASSED: opted-out caller is never texted';
@@ -336,7 +336,7 @@ begin
   res := public.claim_text_enablement_slot(
     'facade00-0000-4000-8000-000000000002', 'te-key-1',
     '+14165558000', 'CA', 2);
-  if res->>'outcome' <> 'created' then
+  if res->>'outcome' is distinct from 'created' then
     raise exception 'VW-11 FAILED: expected created, got %', res->>'outcome';
   end if;
   num_id := (res->'number'->>'id')::uuid;
@@ -354,11 +354,11 @@ begin
   res2 := public.claim_text_enablement_slot(
     'facade00-0000-4000-8000-000000000002', 'te-key-1',
     '+14165558000', 'CA', 2);
-  if res2->>'outcome' <> 'exists' then
+  if res2->>'outcome' is distinct from 'exists' then
     raise exception 'VW-11 FAILED: replay expected exists, got %', res2->>'outcome';
   end if;
   select count(*) into n from public.text_enablement_orders where provisioning_key='te-key-1';
-  if n <> 1 then raise exception 'VW-11 FAILED: replay created a duplicate order'; end if;
+  if n is distinct from 1 then raise exception 'VW-11 FAILED: replay created a duplicate order'; end if;
 
   raise notice 'VW-11 PASSED: claim_text_enablement_slot creates hosted rows + idempotent';
 end $$;
@@ -375,7 +375,7 @@ begin
   res := public.claim_text_enablement_slot(
     'facade00-0000-4000-8000-000000000002', 'te-key-2',
     '+14165557000', 'CA', 1);
-  if res->>'outcome' <> 'plan_limit' then
+  if res->>'outcome' is distinct from 'plan_limit' then
     raise exception 'VW-12 FAILED: expected plan_limit, got %', res->>'outcome';
   end if;
   raise notice 'VW-12 PASSED: text-enablement respects the plan number cap';
@@ -392,12 +392,12 @@ begin
   res := public.claim_text_enablement_slot(
     'facade00-0000-4000-8000-000000000002', 'te-key-3',
     '+14165550100', 'CA', 5); -- the fixture's own ACTIVE number
-  if res->>'outcome' <> 'number_taken' then
+  if res->>'outcome' is distinct from 'number_taken' then
     raise exception 'VW-13 FAILED: expected number_taken, got %', res;
   end if;
   -- Nothing was inserted for the rejected claim.
   select count(*) into n from public.text_enablement_orders where provisioning_key='te-key-3';
-  if n <> 0 then raise exception 'VW-13 FAILED: rejected claim left an order row'; end if;
+  if n is distinct from 0 then raise exception 'VW-13 FAILED: rejected claim left an order row'; end if;
   raise notice 'VW-13 PASSED: a live number cannot be double-claimed (number_taken)';
 end $$;
 
@@ -454,7 +454,7 @@ begin
     'facade00-0000-4000-8000-000000000002',        -- VW company…
     'facade00-0000-4000-8000-000000000023',        -- …the RIVAL's number
     '+14165559333', 'call-sess-xt', 'wrong pair', 1, 10800);
-  if res->>'skipped' <> 'not_found' then
+  if res->>'skipped' is distinct from 'not_found' then
     raise exception 'VW-16 FAILED: mismatched (company, number) expected not_found, got %', res;
   end if;
   raise notice 'VW-16 PASSED: a mismatched company/number pair is refused';
@@ -474,9 +474,9 @@ begin
     from information_schema.columns
     where table_schema='public' and table_name='text_enablement_orders' and column_name=col;
     if c_type is null then raise exception 'VW-17 FAILED: text_enablement_orders.% missing', col; end if;
-    if c_type <> 'integer' then raise exception 'VW-17 FAILED: % is % (want integer)', col, c_type; end if;
+    if c_type is distinct from 'integer' then raise exception 'VW-17 FAILED: % is % (want integer)', col, c_type; end if;
     if c_null then raise exception 'VW-17 FAILED: % must be NOT NULL', col; end if;
-    if c_default <> '0' then raise exception 'VW-17 FAILED: % default is % (want 0)', col, c_default; end if;
+    if c_default is distinct from '0' then raise exception 'VW-17 FAILED: % default is % (want 0)', col, c_default; end if;
   end loop;
 
   select string_agg(distinct r.rolname, ',') into leaked
@@ -510,11 +510,11 @@ begin
 
   -- Two units of a cap-2 budget count 1, 2 …
   res := public.bump_text_enablement_counter(ord_id, 'facade00-0000-4000-8000-000000000002', 'verification_requests', 2);
-  if (res->>'allowed')::boolean is not true or (res->>'count')::int <> 1 then
+  if (res->>'allowed')::boolean is not true or (res->>'count')::int is distinct from 1 then
     raise exception 'VW-18 FAILED: first bump expected allowed/count=1, got %', res;
   end if;
   res := public.bump_text_enablement_counter(ord_id, 'facade00-0000-4000-8000-000000000002', 'verification_requests', 2);
-  if (res->>'allowed')::boolean is not true or (res->>'count')::int <> 2 then
+  if (res->>'allowed')::boolean is not true or (res->>'count')::int is distinct from 2 then
     raise exception 'VW-18 FAILED: second bump expected allowed/count=2, got %', res;
   end if;
   -- … and the third is refused, leaving the counter AT the cap.
@@ -524,12 +524,12 @@ begin
   end if;
   select verification_requests, resubmit_count into vr, rc
     from public.text_enablement_orders where id=ord_id;
-  if vr <> 2 then raise exception 'VW-18 FAILED: capped bump incremented past the cap (%)', vr; end if;
-  if rc <> 0 then raise exception 'VW-18 FAILED: verification bumps leaked into resubmit_count (%)', rc; end if;
+  if vr is distinct from 2 then raise exception 'VW-18 FAILED: capped bump incremented past the cap (%)', vr; end if;
+  if rc is distinct from 0 then raise exception 'VW-18 FAILED: verification bumps leaked into resubmit_count (%)', rc; end if;
 
   -- resubmit_count is its own budget.
   res := public.bump_text_enablement_counter(ord_id, 'facade00-0000-4000-8000-000000000002', 'resubmit_count', 5);
-  if (res->>'allowed')::boolean is not true or (res->>'count')::int <> 1 then
+  if (res->>'allowed')::boolean is not true or (res->>'count')::int is distinct from 1 then
     raise exception 'VW-18 FAILED: resubmit bump expected allowed/count=1, got %', res;
   end if;
 
@@ -540,7 +540,7 @@ begin
     raise exception 'VW-18 FAILED: cross-company bump expected allowed=false, got %', res;
   end if;
   select verification_requests into vr from public.text_enablement_orders where id=ord_id;
-  if vr <> 2 then raise exception 'VW-18 FAILED: cross-company bump incremented (%)', vr; end if;
+  if vr is distinct from 2 then raise exception 'VW-18 FAILED: cross-company bump incremented (%)', vr; end if;
 
   -- An unknown counter name raises (never a silent no-op).
   begin
@@ -567,7 +567,7 @@ declare n int; has_rls boolean; pk text;
 begin
   select count(*) into n from information_schema.tables
    where table_schema='public' and table_name='inbound_notification_days';
-  if n <> 1 then raise exception 'VW-19 FAILED: inbound_notification_days table missing'; end if;
+  if n is distinct from 1 then raise exception 'VW-19 FAILED: inbound_notification_days table missing'; end if;
 
   select relrowsecurity into has_rls from pg_class
    where oid = 'public.inbound_notification_days'::regclass;
@@ -578,7 +578,7 @@ begin
   join lateral unnest(c.conkey) with ordinality as k(attnum, ordinality) on true
   join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum
   where c.conrelid = 'public.inbound_notification_days'::regclass and c.contype = 'p';
-  if pk <> 'company_id,day' then
+  if pk is distinct from 'company_id,day' then
     raise exception 'VW-19 FAILED: PK is % (want company_id,day)', pk;
   end if;
 
@@ -626,7 +626,7 @@ begin
   end if;
   select notify_count into cnt from public.inbound_notification_days
    where company_id='facade00-0000-4000-8000-000000000002' and day=today;
-  if cnt <> 1 then raise exception 'VW-20 FAILED: counter expected 1, got %', cnt; end if;
+  if cnt is distinct from 1 then raise exception 'VW-20 FAILED: counter expected 1, got %', cnt; end if;
 
   -- (b) Cross 80% (160 of 200): the warn is reported once and stamped.
   update public.inbound_notification_days set notify_count = 159
@@ -635,7 +635,7 @@ begin
     'facade00-0000-4000-8000-000000000002',
     'facade00-0000-4000-8000-000000000003',
     '+14166660002', 'hi', 'tx-vw20-2', 'UTC', 200, 200);
-  if (res->>'notify')::boolean is not true or (res->>'notification_alert')::int <> 80 then
+  if (res->>'notify')::boolean is not true or (res->>'notification_alert')::int is distinct from 80 then
     raise exception 'VW-20 FAILED: 160th claim expected notify + alert 80, got %', res;
   end if;
   select email_warned_at into warned from public.inbound_notification_days
@@ -658,7 +658,7 @@ begin
     'facade00-0000-4000-8000-000000000002',
     'facade00-0000-4000-8000-000000000003',
     '+14166660004', 'hi', 'tx-vw20-4', 'UTC', 200, 200);
-  if (res->>'notify')::boolean is not true or (res->>'notification_alert')::int <> 100 then
+  if (res->>'notify')::boolean is not true or (res->>'notification_alert')::int is distinct from 100 then
     raise exception 'VW-20 FAILED: 200th claim expected notify + alert 100, got %', res;
   end if;
   select email_capped_at into capped from public.inbound_notification_days
@@ -690,7 +690,7 @@ begin
   end if;
   select notify_count into cnt from public.inbound_notification_days
    where company_id='facade00-0000-4000-8000-000000000002' and day=today;
-  if cnt <> 202 then raise exception 'VW-20 FAILED: counter expected 202, got %', cnt; end if;
+  if cnt is distinct from 202 then raise exception 'VW-20 FAILED: counter expected 202, got %', cnt; end if;
 
   raise notice 'VW-20 PASSED: daily notification budget counts, warns once, caps once, and drops past the ceiling';
 end $$;
@@ -725,12 +725,12 @@ begin
 
     select count(*) into n from public.inbound_notification_days
      where company_id = 'facade00-0000-4000-8000-000000000002' and day = local_day;
-    if n <> 1 then
+    if n is distinct from 1 then
       raise exception 'VW-20b FAILED: no ledger row on the company local day %', local_day;
     end if;
     select count(*) into n from public.inbound_notification_days
      where company_id = 'facade00-0000-4000-8000-000000000002' and day = utc_day;
-    if n <> 0 then
+    if n is distinct from 0 then
       raise exception 'VW-20b FAILED: a row was written on the UTC day %', utc_day;
     end if;
 
@@ -762,7 +762,7 @@ begin
   select count(*) into n from public.inbound_notification_days
    where company_id = 'facade00-0000-4000-8000-000000000002'
      and day = (now() at time zone 'utc')::date;
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'VW-20c FAILED: no UTC-day fallback row';
   end if;
   perform 1 from public.messages where telnyx_message_id = 'tx-vw20c-1';
@@ -849,7 +849,7 @@ begin
     raise exception 'VW-20e FAILED: resets_at is not in the future: %', pause;
   end if;
   -- Midnight where the BUSINESS is, not where the server is.
-  if extract(hour from (resets at time zone 'America/Vancouver')) <> 0 then
+  if extract(hour from (resets at time zone 'America/Vancouver')) is distinct from 0 then
     raise exception 'VW-20e FAILED: resets_at is not local midnight: %',
       resets at time zone 'America/Vancouver';
   end if;

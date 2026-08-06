@@ -242,7 +242,7 @@ declare first_batch int; second_batch int;
 begin
   select count(*) into first_batch
     from public.api_claim_due_alerts(now(), 50);
-  if first_batch <> 1 then
+  if first_batch is distinct from 1 then
     raise exception 'OC-7: expected one due alert, claimed %', first_batch;
   end if;
 
@@ -251,7 +251,7 @@ begin
   -- crew about one unanswered call.
   select count(*) into second_batch
     from public.api_claim_due_alerts(now(), 50);
-  if second_batch <> 0 then
+  if second_batch is distinct from 0 then
     raise exception 'OC-7: a claimed alert was claimed again (%)', second_batch;
   end if;
 end $$;
@@ -281,7 +281,7 @@ begin
     '6a000000-0000-4000-8000-00000000b002'::uuid,
     '6a000000-0000-4000-8000-00000000000b'::uuid
   );
-  if first_result->>'outcome' <> 'acknowledged' then
+  if first_result->>'outcome' is distinct from 'acknowledged' then
     raise exception 'OC-8: the first acknowledgement failed (%)', first_result;
   end if;
 
@@ -290,7 +290,7 @@ begin
     '6a000000-0000-4000-8000-00000000b002'::uuid,
     '6a000000-0000-4000-8000-00000000000c'::uuid
   );
-  if second_result->>'outcome' <> 'already_acknowledged' then
+  if second_result->>'outcome' is distinct from 'already_acknowledged' then
     raise exception 'OC-8: a second tap also claimed it (%)', second_result;
   end if;
   if (second_result->>'acknowledged_by')::uuid
@@ -329,7 +329,7 @@ begin
   -- (b) and the sweep's own refusal, which must hold independently.
   select count(*) into due
     from public.api_claim_due_alerts(now() + interval '1 hour', 50);
-  if due <> 0 then
+  if due is distinct from 0 then
     raise exception 'OC-9b: an acknowledged alert was still due to widen (%)', due;
   end if;
 end $$;
@@ -345,7 +345,7 @@ begin
     '6a000000-0000-4000-8000-00000000b001'::uuid,
     '6a000000-0000-4000-8000-00000000000a'::uuid
   );
-  if result->>'outcome' <> 'not_found' then
+  if result->>'outcome' is distinct from 'not_found' then
     raise exception 'OC-10: acknowledged across a tenant boundary (%)', result;
   end if;
 end $$;
@@ -384,7 +384,7 @@ declare due int;
 begin
   select count(*) into due
     from public.api_claim_due_alerts(now(), 50);
-  if due <> 0 then
+  if due is distinct from 0 then
     raise exception
       'OC-11: the sweep widened an alert that was already acknowledged (%)', due;
   end if;

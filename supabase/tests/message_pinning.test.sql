@@ -33,10 +33,10 @@ begin
   if pinned_at_type is null then
     raise exception 'P-1 FAILED: messages.pinned_at column missing';
   end if;
-  if pinned_at_type <> 'timestamp with time zone' then
+  if pinned_at_type is distinct from 'timestamp with time zone' then
     raise exception 'P-1 FAILED: messages.pinned_at is % (want timestamptz)', pinned_at_type;
   end if;
-  if pinned_at_nullable <> 'YES' then
+  if pinned_at_nullable is distinct from 'YES' then
     raise exception 'P-1 FAILED: messages.pinned_at must be NULLable';
   end if;
 
@@ -47,10 +47,10 @@ begin
   if pinned_by_type is null then
     raise exception 'P-1 FAILED: messages.pinned_by_user_id column missing';
   end if;
-  if pinned_by_type <> 'uuid' then
+  if pinned_by_type is distinct from 'uuid' then
     raise exception 'P-1 FAILED: messages.pinned_by_user_id is % (want uuid)', pinned_by_type;
   end if;
-  if pinned_by_nullable <> 'YES' then
+  if pinned_by_nullable is distinct from 'YES' then
     raise exception 'P-1 FAILED: messages.pinned_by_user_id must be NULLable';
   end if;
   raise notice 'P-1 PASSED: pinned_at timestamptz NULL + pinned_by_user_id uuid NULL';
@@ -76,10 +76,10 @@ begin
   if ref_table is null then
     raise exception 'P-2 FAILED: no FK on messages.pinned_by_user_id';
   end if;
-  if ref_table <> 'profiles' then
+  if ref_table is distinct from 'profiles' then
     raise exception 'P-2 FAILED: pinned_by_user_id references % (want profiles)', ref_table;
   end if;
-  if del_action <> 'RESTRICT' then
+  if del_action is distinct from 'RESTRICT' then
     raise exception 'P-2 FAILED: pinned_by_user_id delete rule is % (want RESTRICT)', del_action;
   end if;
   raise notice 'P-2 PASSED: pinned_by_user_id FK → profiles ON DELETE RESTRICT';
@@ -160,12 +160,12 @@ begin
     'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     'dddddddd-dddd-4ddd-8ddd-ddd000000004', true,
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc');
-  if res->>'outcome' <> 'updated' then
+  if res->>'outcome' is distinct from 'updated' then
     raise exception 'P-4 FAILED: pin outcome is % (want updated)', res->>'outcome';
   end if;
   select pinned_at, pinned_by_user_id into v_pinned_at, v_pinned_by
   from public.messages where id = 'dddddddd-dddd-4ddd-8ddd-ddd000000004';
-  if v_pinned_at is null or v_pinned_by <> 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' then
+  if v_pinned_at is null or v_pinned_by is distinct from 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' then
     raise exception 'P-4 FAILED: pin did not stamp pinned_at + pinned_by_user_id';
   end if;
 
@@ -174,7 +174,7 @@ begin
     'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     'dddddddd-dddd-4ddd-8ddd-ddd000000004', true,
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc');
-  if res->>'outcome' <> 'unchanged' then
+  if res->>'outcome' is distinct from 'unchanged' then
     raise exception 'P-4 FAILED: re-pin outcome is % (want unchanged)', res->>'outcome';
   end if;
 
@@ -183,7 +183,7 @@ begin
     'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     'dddddddd-dddd-4ddd-8ddd-ddd000000004', false,
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc');
-  if res->>'outcome' <> 'updated' then
+  if res->>'outcome' is distinct from 'updated' then
     raise exception 'P-4 FAILED: unpin outcome is % (want updated)', res->>'outcome';
   end if;
   select pinned_at, pinned_by_user_id into v_pinned_at, v_pinned_by
@@ -197,7 +197,7 @@ begin
     'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     'dddddddd-dddd-4ddd-8ddd-ddd0000000ff', true,
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc');
-  if res->>'outcome' <> 'not_found' then
+  if res->>'outcome' is distinct from 'not_found' then
     raise exception 'P-4 FAILED: unknown id outcome is % (want not_found)', res->>'outcome';
   end if;
 
@@ -206,7 +206,7 @@ begin
     'dddddddd-dddd-4ddd-8ddd-ddddddddddde',
     'dddddddd-dddd-4ddd-8ddd-ddd000000004', true,
     'cccccccc-cccc-4ccc-8ccc-cccccccccccc');
-  if res->>'outcome' <> 'not_found' then
+  if res->>'outcome' is distinct from 'not_found' then
     raise exception 'P-4 FAILED: cross-company pin outcome is % (want not_found)', res->>'outcome';
   end if;
 
@@ -254,7 +254,7 @@ begin
   if latest->>'pinned_at' is null then
     raise exception 'P-5 FAILED: broadcast payload missing pinned_at after pin';
   end if;
-  if latest->>'pinned_by_user_id' <> 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' then
+  if latest->>'pinned_by_user_id' is distinct from 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' then
     raise exception 'P-5 FAILED: broadcast payload missing/incorrect pinned_by_user_id';
   end if;
   raise notice 'P-5 PASSED: pin toggle emits message.status carrying the pin fields';

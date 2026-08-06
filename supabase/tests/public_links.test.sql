@@ -86,7 +86,7 @@ begin
   if not (v_result->>'ok')::boolean then
     raise exception 'a valid token must resolve, got %', v_result::text;
   end if;
-  if v_result->>'subject_id' <> 'ea000000-0000-4000-8000-0000000000f1' then
+  if v_result->>'subject_id' is distinct from 'ea000000-0000-4000-8000-0000000000f1' then
     raise exception 'the subject must come back';
   end if;
 
@@ -96,7 +96,7 @@ begin
   if (v_result->>'ok')::boolean then
     raise exception 'a view token must not resolve for accept';
   end if;
-  if v_result->>'outcome' <> 'wrong_purpose' then
+  if v_result->>'outcome' is distinct from 'wrong_purpose' then
     raise exception 'expected wrong_purpose, got %', v_result->>'outcome';
   end if;
   -- And it must not leak the subject on the way out.
@@ -123,7 +123,7 @@ begin
   update public.public_links set expires_at = now() - interval '1 minute'
    where token_hash = pg_temp.h('old');
   v_result := public.api_resolve_public_link(pg_temp.h('old'), 'quote_view');
-  if v_result->>'outcome' <> 'expired' then
+  if v_result->>'outcome' is distinct from 'expired' then
     raise exception 'an expired link must not resolve, got %', v_result->>'outcome';
   end if;
 
@@ -136,7 +136,7 @@ begin
   );
   perform public.api_revoke_public_link(v_id, 'rotated');
   v_result := public.api_resolve_public_link(pg_temp.h('feed'), 'calendar_feed');
-  if v_result->>'outcome' <> 'revoked' then
+  if v_result->>'outcome' is distinct from 'revoked' then
     raise exception 'a revoked link must not resolve, got %', v_result->>'outcome';
   end if;
 
@@ -151,7 +151,7 @@ begin
     raise exception 'the first use of a single-use link must work';
   end if;
   v_result := public.api_resolve_public_link(pg_temp.h('pay'), 'payment');
-  if v_result->>'outcome' <> 'used_up' then
+  if v_result->>'outcome' is distinct from 'used_up' then
     raise exception 'the second use must be refused, got %', v_result->>'outcome';
   end if;
 end $$;
@@ -178,7 +178,7 @@ begin
   v_count := public.api_revoke_public_links_for_subject(
     'quote', 'ea000000-0000-4000-8000-0000000000f5'::uuid, 'withdrawn'
   );
-  if v_count <> 2 then
+  if v_count is distinct from 2 then
     raise exception 'expected both links to the quote revoked, got %', v_count;
   end if;
 

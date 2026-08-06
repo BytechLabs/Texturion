@@ -135,7 +135,7 @@ begin
   select count(*) into held
     from public.contact_addresses
    where contact_id = '8c000000-0000-4000-8000-0000000000d2'::uuid;
-  if held <> 3 then
+  if held is distinct from 3 then
     raise exception 'CF-4: expected three addresses on one contact, got %', held;
   end if;
 end $$;
@@ -156,7 +156,7 @@ begin
   select count(*) into orphans
     from public.contact_addresses
    where contact_id = '8c000000-0000-4000-8000-0000000000d2'::uuid;
-  if orphans <> 0 then
+  if orphans is distinct from 0 then
     raise exception 'CF-5: % address row(s) outlived their contact', orphans;
   end if;
 end $$;

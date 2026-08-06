@@ -145,13 +145,13 @@ begin
   if (res->>'eligible')::boolean then
     raise exception 'D1 FAILED: a live workspace was reported eligible for close-out';
   end if;
-  if jsonb_array_length(res->'closed') <> 0 then
+  if jsonb_array_length(res->'closed') is distinct from 0 then
     raise exception 'D1 FAILED: closed % row(s) on a live workspace',
       jsonb_array_length(res->'closed');
   end if;
   select status into st from public.phone_numbers
    where id = '52600000-0000-4000-8000-526000000401';
-  if st <> 'provision_failed' then
+  if st is distinct from 'provision_failed' then
     raise exception 'D1 FAILED: a LIVE workspace''s pending number was closed out (status %)', st;
   end if;
   raise notice 'D1 OK: a live workspace is never closed out — the row is a purchase, not a ghost';
@@ -262,7 +262,7 @@ begin
 
   select status into st from public.phone_numbers
    where id = '52600000-0000-4000-8000-526000000208';
-  if st <> 'suspended' then
+  if st is distinct from 'suspended' then
     raise exception 'D4 FAILED: the workspace''s real held number is now %', st;
   end if;
   raise notice 'D4 OK: every row one column away from a ghost survived, for that column''s reason';
@@ -280,7 +280,7 @@ declare st public.number_status;
 begin
   select status into st from public.phone_numbers
    where id = '52600000-0000-4000-8000-526000000301';
-  if st <> 'provision_failed' then
+  if st is distinct from 'provision_failed' then
     raise exception 'D5 FAILED: another workspace''s row was closed out (status %)', st;
   end if;
   raise notice 'D5 OK: the close-out never crosses a tenant boundary';
@@ -326,8 +326,8 @@ begin
   -- Read on the OTHER tenant, whose ghost is still open, so the report is read
   -- fresh rather than inferred from a pass that already happened.
   res := public.close_out_dead_provisioning('52600000-0000-4000-8000-52600000000b');
-  if jsonb_array_length(res->'closed') <> 1
-     or (res->'closed'->0->>'id') <> '52600000-0000-4000-8000-526000000301' then
+  if jsonb_array_length(res->'closed') is distinct from 1
+     or (res->'closed'->0->>'id') is distinct from '52600000-0000-4000-8000-526000000301' then
     raise exception 'D7 FAILED: B''s ghost was not reported closed: %', res->'closed';
   end if;
   if (res->'closed'->0->>'telnyx_order_id') is not null then
@@ -365,7 +365,7 @@ begin
   end if;
 
   res := public.close_out_dead_provisioning('52600000-0000-4000-8000-52600000000a');
-  if jsonb_array_length(res->'closed') <> 0 then
+  if jsonb_array_length(res->'closed') is distinct from 0 then
     raise exception 'D8 FAILED: a second pass closed % more row(s)',
       jsonb_array_length(res->'closed');
   end if;
@@ -398,10 +398,10 @@ begin
   res := public.close_out_dead_provisioning('52600000-0000-4000-8000-52600000000a');
   select status into st from public.phone_numbers
    where id = '52600000-0000-4000-8000-526000000109';
-  if st <> 'released' then
+  if st is distinct from 'released' then
     raise exception 'D9 FAILED: a ghost created after the webhook stayed % forever', st;
   end if;
-  if (res->'closed'->0->>'id') <> '52600000-0000-4000-8000-526000000109' then
+  if (res->'closed'->0->>'id') is distinct from '52600000-0000-4000-8000-526000000109' then
     raise exception 'D9 FAILED: the late ghost was not reported: %', res->'closed';
   end if;
   raise notice 'D9 OK: a ghost created tomorrow is closed out tomorrow';

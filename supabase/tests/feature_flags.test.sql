@@ -43,7 +43,7 @@ declare
   v_flags jsonb;
 begin
   v_flags := public.api_evaluate_flags('ce000000-0000-4000-8000-0000000000c2'::uuid);
-  if v_flags <> '{}'::jsonb then
+  if v_flags is distinct from '{}'::jsonb then
     raise exception
       'with no rows, evaluation must return {} so every key falls through to '
       'its code default; got %', v_flags::text;
@@ -61,7 +61,7 @@ begin
   v_result := public.api_set_feature_flag('kill:calls', false, null, false, 'incident', null);
 
   if (public.api_evaluate_flags('ce000000-0000-4000-8000-0000000000c2'::uuid) ->> 'kill:calls')
-     <> 'false' then
+     is distinct from 'false' then
     raise exception 'a global off must reach a workspace with no override';
   end if;
 
@@ -73,7 +73,7 @@ begin
     raise exception 'expected at least the 2 fixtures, got %',
       v_result->>'active_companies';
   end if;
-  if (v_result->>'reached_companies')::int <> 0 then
+  if (v_result->>'reached_companies')::int is distinct from 0 then
     raise exception 'a global off should reach nobody, got %', v_result->>'reached_companies';
   end if;
 end $$;
@@ -89,12 +89,12 @@ begin
     'kill:calls', 'ce000000-0000-4000-8000-0000000000c1'::uuid, true, 'testing the fix', null
   );
   if (public.api_evaluate_flags('ce000000-0000-4000-8000-0000000000c1'::uuid) ->> 'kill:calls')
-     <> 'true' then
+     is distinct from 'true' then
     raise exception 'an override ON must beat a global OFF';
   end if;
   -- And the workspace next door is untouched.
   if (public.api_evaluate_flags('ce000000-0000-4000-8000-0000000000c2'::uuid) ->> 'kill:calls')
-     <> 'false' then
+     is distinct from 'false' then
     raise exception 'an override must not leak to another workspace';
   end if;
 
@@ -105,11 +105,11 @@ begin
     'kill:ai', 'ce000000-0000-4000-8000-0000000000c2'::uuid, false, 'runaway cost', null
   );
   if (public.api_evaluate_flags('ce000000-0000-4000-8000-0000000000c2'::uuid) ->> 'kill:ai')
-     <> 'false' then
+     is distinct from 'false' then
     raise exception 'an override OFF must beat a global ON';
   end if;
   if (public.api_evaluate_flags('ce000000-0000-4000-8000-0000000000c1'::uuid) ->> 'kill:ai')
-     <> 'true' then
+     is distinct from 'true' then
     raise exception 'the other workspace must keep the global ON';
   end if;
 end $$;
@@ -123,13 +123,13 @@ begin
   perform public.api_set_feature_flag('rollout:demo', true, 100, true, 'internal first', null);
 
   if (public.api_evaluate_flags('ce000000-0000-4000-8000-0000000000c1'::uuid) ->> 'rollout:demo')
-     <> 'true' then
+     is distinct from 'true' then
     raise exception 'the internal cohort must receive an internal-only flag';
   end if;
   -- 100% AND internal-only must still mean internal only, or "internal" is
   -- just a label on a full rollout.
   if (public.api_evaluate_flags('ce000000-0000-4000-8000-0000000000c2'::uuid) ->> 'rollout:demo')
-     <> 'false' then
+     is distinct from 'false' then
     raise exception 'internal_only must exclude everyone else, even at 100 percent';
   end if;
 end $$;
@@ -149,7 +149,7 @@ begin
   -- that moved would flicker a feature under somebody mid-task.
   v_first := public.flag_bucket('rollout:x', 'ce000000-0000-4000-8000-0000000000c1'::uuid);
   v_second := public.flag_bucket('rollout:x', 'ce000000-0000-4000-8000-0000000000c1'::uuid);
-  if v_first <> v_second then
+  if v_first is distinct from v_second then
     raise exception 'a bucket must be stable, got % then %', v_first, v_second;
   end if;
   if v_first < 0 or v_first > 99 then
@@ -171,7 +171,7 @@ begin
   perform public.api_set_feature_flag('rollout:pct', true, 0, false, null, null);
   select count(*) into v_low from public.companies c
    where (public.api_evaluate_flags(c.id) ->> 'rollout:pct') = 'true';
-  if v_low <> 0 then
+  if v_low is distinct from 0 then
     raise exception '0 percent must reach nobody, reached %', v_low;
   end if;
 
@@ -179,7 +179,7 @@ begin
   select count(*) into v_high from public.companies c;
   select count(*) into v_low from public.companies c
    where (public.api_evaluate_flags(c.id) ->> 'rollout:pct') = 'true';
-  if v_low <> v_high then
+  if v_low is distinct from v_high then
     raise exception '100 percent must reach everybody: % of %', v_low, v_high;
   end if;
 
@@ -188,7 +188,7 @@ begin
   perform public.api_set_feature_flag('rollout:pct', false, 100, false, 'incident', null);
   select count(*) into v_low from public.companies c
    where (public.api_evaluate_flags(c.id) ->> 'rollout:pct') = 'true';
-  if v_low <> 0 then
+  if v_low is distinct from 0 then
     raise exception 'a global OFF must beat a 100 percent rollout, reached %', v_low;
   end if;
 end $$;
@@ -203,7 +203,7 @@ begin
     'kill:calls', 'ce000000-0000-4000-8000-0000000000c1'::uuid
   );
   if (public.api_evaluate_flags('ce000000-0000-4000-8000-0000000000c1'::uuid) ->> 'kill:calls')
-     <> 'false' then
+     is distinct from 'false' then
     raise exception 'clearing an override must fall back to the global switch';
   end if;
 end $$;

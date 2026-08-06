@@ -55,13 +55,13 @@ begin
   select * into u from public.company_ai_usage
    where company_id = co and feature = 'suggest_reply';
 
-  if u.outcome_used_count <> 2 then
+  if u.outcome_used_count is distinct from 2 then
     raise exception 'AO-1 FAILED: used = % (want 2)', u.outcome_used_count;
   end if;
-  if u.outcome_edited_count <> 1 then
+  if u.outcome_edited_count is distinct from 1 then
     raise exception 'AO-1 FAILED: edited = % (want 1)', u.outcome_edited_count;
   end if;
-  if u.outcome_discarded_count <> 1 then
+  if u.outcome_discarded_count is distinct from 1 then
     raise exception 'AO-1 FAILED: discarded = % (want 1)', u.outcome_discarded_count;
   end if;
   raise notice 'AO-1 PASSED: used/edited/discarded counted separately (2/1/1)';
@@ -94,7 +94,7 @@ begin
   select outcome_used_count + outcome_edited_count + outcome_discarded_count
     into v_after from public.company_ai_usage
    where company_id = co and feature = 'suggest_reply';
-  if v_after <> v_before then
+  if v_after is distinct from v_before then
     raise exception 'AO-2 FAILED: a rejected outcome still moved a counter (% -> %)',
       v_before, v_after;
   end if;
@@ -120,7 +120,7 @@ begin
 
   select count(*) into v_rows from public.company_ai_usage
    where company_id = co and feature = 'suggest_reply';
-  if v_rows <> 1 then
+  if v_rows is distinct from 1 then
     raise exception 'AO-3 FAILED: spend and outcomes are on % rows, want 1', v_rows;
   end if;
 
@@ -154,10 +154,10 @@ begin
   if u.company_id is null then
     raise exception 'AO-4 FAILED: an outcome with no reservation was dropped';
   end if;
-  if u.outcome_used_count <> 1 then
+  if u.outcome_used_count is distinct from 1 then
     raise exception 'AO-4 FAILED: used = % (want 1)', u.outcome_used_count;
   end if;
-  if u.request_count <> 0 then
+  if u.request_count is distinct from 0 then
     raise exception 'AO-4 FAILED: recording an outcome invented % request(s)',
       u.request_count;
   end if;
@@ -187,11 +187,11 @@ begin
     raise exception 'AO-5 FAILED: the report omits a feature with activity';
   end if;
 
-  if (v_entry ->> 'outcomes_recorded')::integer <> 4 then
+  if (v_entry ->> 'outcomes_recorded')::integer is distinct from 4 then
     raise exception 'AO-5 FAILED: outcomes_recorded = % (want 4)',
       v_entry ->> 'outcomes_recorded';
   end if;
-  if (v_entry ->> 'requests')::integer <> 1 then
+  if (v_entry ->> 'requests')::integer is distinct from 1 then
     raise exception 'AO-5 FAILED: requests = % (want 1)', v_entry ->> 'requests';
   end if;
   if v_entry ? 'acceptance_rate' or v_entry ? 'rate' then

@@ -47,7 +47,7 @@ begin
     '50000000-0000-4000-8000-0000000000c1'::uuid,
     '50000000-0000-4000-8000-00000000000a'::uuid,
     'conversations', 'Emergency queue', '{"status":"open"}'::jsonb, true);
-  if v_first->>'outcome' <> 'created' then
+  if v_first->>'outcome' is distinct from 'created' then
     raise exception 'SV-1: expected created, got %', v_first->>'outcome';
   end if;
   if (v_first->'view'->>'owner_user_id') is not null then
@@ -78,7 +78,7 @@ begin
     '50000000-0000-4000-8000-0000000000c1'::uuid,
     '50000000-0000-4000-8000-00000000000a'::uuid,
     'conversations', '  emergency QUEUE ', '{}'::jsonb, true);
-  if v->>'outcome' <> 'duplicate_name' then
+  if v->>'outcome' is distinct from 'duplicate_name' then
     raise exception 'SV-2: expected duplicate_name, got %', v->>'outcome';
   end if;
 end $$;
@@ -99,7 +99,7 @@ begin
     '50000000-0000-4000-8000-0000000000c1'::uuid,
     '50000000-0000-4000-8000-00000000000a'::uuid,
     'conversations', 'Emergency queue', '{}'::jsonb, false);
-  if v_mine->>'outcome' <> 'created' then
+  if v_mine->>'outcome' is distinct from 'created' then
     raise exception 'SV-3: a personal view may reuse a shared name, got %',
       v_mine->>'outcome';
   end if;
@@ -108,7 +108,7 @@ begin
     '50000000-0000-4000-8000-0000000000c1'::uuid,
     '50000000-0000-4000-8000-00000000000b'::uuid,
     'conversations', 'Emergency queue', '{}'::jsonb, false);
-  if v_theirs->>'outcome' <> 'created' then
+  if v_theirs->>'outcome' is distinct from 'created' then
     raise exception 'SV-3: two members may both name a view the same, got %',
       v_theirs->>'outcome';
   end if;
@@ -133,7 +133,7 @@ begin
       '50000000-0000-4000-8000-0000000000c1'::uuid,
       '50000000-0000-4000-8000-00000000000a'::uuid,
       'tasks', 'View ' || i::text, '{}'::jsonb, true);
-    if v->>'outcome' <> 'created' then
+    if v->>'outcome' is distinct from 'created' then
       raise exception 'SV-4: refused at % of %, outcome %', i, v_cap, v->>'outcome';
     end if;
   end loop;
@@ -142,10 +142,10 @@ begin
     '50000000-0000-4000-8000-0000000000c1'::uuid,
     '50000000-0000-4000-8000-00000000000a'::uuid,
     'tasks', 'One too many', '{}'::jsonb, true);
-  if v->>'outcome' <> 'cap' then
+  if v->>'outcome' is distinct from 'cap' then
     raise exception 'SV-4: expected cap, got %', v->>'outcome';
   end if;
-  if (v->>'limit')::int <> v_cap then
+  if (v->>'limit')::int is distinct from v_cap then
     raise exception 'SV-4: the refusal must say what the limit is';
   end if;
 
@@ -154,7 +154,7 @@ begin
     '50000000-0000-4000-8000-0000000000c1'::uuid,
     '50000000-0000-4000-8000-00000000000a'::uuid,
     'conversations', 'Still fine', '{}'::jsonb, true);
-  if v->>'outcome' <> 'created' then
+  if v->>'outcome' is distinct from 'created' then
     raise exception 'SV-4: one surface''s cap must not close the other';
   end if;
 end $$;
@@ -188,7 +188,7 @@ begin
        from unnest(v_ids) with ordinality as t(id, ord))
       || array['50000000-0000-4000-8000-00000000000a'::uuid]);
 
-  if v_moved <> array_length(v_ids, 1) then
+  if v_moved is distinct from array_length(v_ids, 1) then
     raise exception 'SV-5: moved % of %', v_moved, array_length(v_ids, 1);
   end if;
 
@@ -197,7 +197,7 @@ begin
      and surface = 'conversations' and owner_user_id is null
    order by position limit 1;
   v_last := v_ids[array_length(v_ids, 1)];
-  if v_first <> v_last then
+  if v_first is distinct from v_last then
     raise exception 'SV-5: the reversed order did not take';
   end if;
 end $$;
@@ -219,7 +219,7 @@ begin
     '50000000-0000-4000-8000-0000000000c1'::uuid,
     '50000000-0000-4000-8000-00000000000a'::uuid,
     'conversations', array[v_id]);
-  if v_moved <> 0 then
+  if v_moved is distinct from 0 then
     raise exception 'SV-6: reordered a view belonging to another member';
   end if;
 end $$;
@@ -270,7 +270,7 @@ begin
 
   select count(*) into v_left from public.saved_views
    where company_id = '50000000-0000-4000-8000-0000000000c1'::uuid;
-  if v_left <> 0 then
+  if v_left is distinct from 0 then
     raise exception 'SV-8: % views outlived their workspace', v_left;
   end if;
 end $$;

@@ -59,14 +59,14 @@ begin
 
   r := public.api_liveness_check(pg_temp.expectations(), now(), 360);
 
-  if jsonb_array_length(r->'overdue') <> 0 then
+  if jsonb_array_length(r->'overdue') is distinct from 0 then
     raise exception 'LV-2 FAILED: an unseen key alerted on its first check: %', r->'overdue';
   end if;
-  if jsonb_array_length(r->'seeded') <> 2 then
+  if jsonb_array_length(r->'seeded') is distinct from 2 then
     raise exception 'LV-2 FAILED: expected 2 seeded keys, got %', r->'seeded';
   end if;
   if (select count(*) from public.liveness_heartbeats
-       where key in ('test:fast','test:slow')) <> 2 then
+       where key in ('test:fast','test:slow')) is distinct from 2 then
     raise exception 'LV-2 FAILED: seeding did not write the rows';
   end if;
 
@@ -113,7 +113,7 @@ declare r jsonb;
 begin
   -- Still overdue, and we just alerted in LV-3.
   r := public.api_liveness_check(pg_temp.expectations(), now(), 360);
-  if jsonb_array_length(r->'overdue') <> 0 then
+  if jsonb_array_length(r->'overdue') is distinct from 0 then
     raise exception 'LV-4 FAILED: it alerted again immediately: %', r->'overdue';
   end if;
 

@@ -24,11 +24,17 @@ class MultipartClient(private val api: ApiClient, private val baseUrl: String) {
      * POST [path] with string [fields] plus one file part. Returns the raw
      * response body on 2xx; throws [ApiException] with the decoded envelope
      * code otherwise (unauthorized when the session can't be refreshed).
+     *
+     * [fields] is an ordered LIST of parts, not a map, because a multipart form
+     * is one and a map is not: #248's `column` is sent once per column of the
+     * uploaded file, and the map this took until then could not say a name twice.
+     * A shape that cannot express the answer the server asks for is a shape that
+     * quietly loses it.
      */
     suspend fun postFile(
         path: String,
         companyId: String,
-        fields: Map<String, String>,
+        fields: List<Pair<String, String>>,
         fileField: String,
         fileName: String,
         contentType: String,
@@ -94,7 +100,7 @@ suspend fun MultipartClient.uploadNoteFile(
 ): String = postFile(
     path = "/v1/attachments",
     companyId = companyId,
-    fields = mapOf("owner_type" to "note", "owner_id" to noteId),
+    fields = listOf("owner_type" to "note", "owner_id" to noteId),
     fileField = "file",
     fileName = fileName,
     contentType = contentType,

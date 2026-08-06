@@ -213,6 +213,28 @@ struct ImportResult: Codable, Sendable {
     let updated: Int
     let skipped: Int
     @Default<DefaultEmptyList<ImportRowError>> var errors: [ImportRowError]
+
+    /// #248 — rows that WERE imported and whose consent attestation the server
+    /// refused to write, because that person had already told this business to
+    /// stop. The carrier record wins over what a file claims about somebody.
+    ///
+    /// Deliberately not folded into `skipped`, and the server draws the same
+    /// line for the same reason: these rows landed. A client that added them to
+    /// the skipped count would be answering a second question wrongly.
+    @Default<DefaultZero> var consent_refused: Int = 0
+
+    /// Which rows, in the same `{row, reason}` shape as `errors` — so one list
+    /// renderer covers both, and so the reason can name the phone, which is
+    /// the workspace's next question.
+    @Default<DefaultEmptyList<ImportRowError>> var consent_refusals: [ImportRowError] = []
+
+    /// The server's own sentence about what a refusal means, or nil when it
+    /// refused nothing.
+    ///
+    /// Printed as it arrives. `ContactImport.consentRefusedNote` exists only
+    /// for the case this is absent while rows are not — see the note there for
+    /// why a second copy is safe here and normally would not be.
+    var consent_refused_note: String? = nil
 }
 
 /// #292/D49: how honest to be about the clock we are showing.

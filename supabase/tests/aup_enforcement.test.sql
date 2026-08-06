@@ -38,7 +38,7 @@ declare v_state text;
 begin
   select aup_enforcement into v_state
     from public.companies where id = '7c000000-0000-4000-8000-0000000000c1'::uuid;
-  if v_state <> 'none' then
+  if v_state is distinct from 'none' then
     raise exception 'AU-1: a new workspace defaults to %, not none', v_state;
   end if;
 end $$;
@@ -107,11 +107,11 @@ begin
   if v_row is null then
     raise exception 'AU-3: applying the ladder wrote no aup.rate_limited row';
   end if;
-  if v_row.before->>'aup_enforcement' <> 'none' then
+  if v_row.before->>'aup_enforcement' is distinct from 'none' then
     raise exception 'AU-3: the before state was %, not none',
       v_row.before->>'aup_enforcement';
   end if;
-  if v_row.after->>'aup_enforcement' <> 'rate_limited' then
+  if v_row.after->>'aup_enforcement' is distinct from 'rate_limited' then
     raise exception 'AU-3: the after state was %', v_row.after->>'aup_enforcement';
   end if;
   -- The evidence travels with the record, so the row is readable without
@@ -152,7 +152,7 @@ begin
    where company_id = '7c000000-0000-4000-8000-0000000000c1'::uuid
      and action like 'aup.%';
 
-  if v_after <> v_before then
+  if v_after is distinct from v_before then
     raise exception
       'AU-4: correcting the note wrote % new enforcement row(s)', v_after - v_before;
   end if;
@@ -194,7 +194,7 @@ begin
    where company_id = '7c000000-0000-4000-8000-0000000000c1'::uuid
      and action like 'aup.%';
 
-  if v_after <> v_before then
+  if v_after is distinct from v_before then
     raise exception
       'AU-8: re-asserting the same step wrote % new row(s)', v_after - v_before;
   end if;
@@ -226,7 +226,7 @@ begin
   select count(*) into v_count from public.audit_log
    where company_id = '7c000000-0000-4000-8000-0000000000c1'::uuid
      and action = 'aup.suspended';
-  if v_count <> 2 then
+  if v_count is distinct from 2 then
     raise exception
       'AU-5: expected 2 aup.suspended rows (AU-8''s and this one), got %', v_count;
   end if;
@@ -242,7 +242,7 @@ begin
   select count(*) into v_count from public.audit_log
    where company_id = '7c000000-0000-4000-8000-0000000000c1'::uuid
      and action = 'aup.lifted';
-  if v_count <> 2 then
+  if v_count is distinct from 2 then
     raise exception
       'AU-5: expected 2 aup.lifted rows (AU-8''s and this one), got %', v_count;
   end if;
@@ -255,7 +255,7 @@ begin
   -- rate_limited (AU-3) + suspend/lift (AU-8) + suspend/lift (AU-5) = 5.
   -- An exact count, so a trigger firing twice fails here rather than looking
   -- like thoroughness.
-  if v_count <> 5 then
+  if v_count is distinct from 5 then
     raise exception 'AU-5: the ladder produced % audit rows, not 5', v_count;
   end if;
 end $$;
@@ -299,7 +299,7 @@ begin
    where table_schema = 'public'
      and table_name = 'phone_numbers'
      and column_name like 'aup%';
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception
       'AU-7: phone_numbers now carries an aup column — the billing path and '
       'the enforcement path have met';
@@ -310,7 +310,7 @@ begin
    where table_schema = 'public'
      and table_name = 'companies'
      and column_name = 'aup_enforcement';
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception 'AU-7: companies.aup_enforcement is missing';
   end if;
 end $$;

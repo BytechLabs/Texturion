@@ -62,7 +62,7 @@ begin
     bad := bad || ' template-index-wrong:' || def;
   end loop;
 
-  if bad <> '' then
+  if bad is distinct from '' then
     raise exception 'G1 FAILED:%', bad;
   end if;
   raise notice 'G1 PASSED: trigram GIN indexes exist with the right predicates';
@@ -95,7 +95,7 @@ begin
   end if;
   if (select count(*) from pg_proc p
         join pg_namespace n on n.oid = p.pronamespace
-       where n.nspname = 'public' and p.proname = 'api_search_v2') <> 1 then
+       where n.nspname = 'public' and p.proname = 'api_search_v2') is distinct from 1 then
     raise exception 'G2 FAILED: api_search_v2 is overloaded — calls become ambiguous';
   end if;
   if has_function_privilege('anon', foid, 'execute') then
@@ -238,23 +238,23 @@ begin
   select * into f from gs_fixture;
 
   r := public.api_search_v2(f.cid_a, 'invoice', 10, 10, 10, 10, 10);
-  if jsonb_array_length(r->'conversations') <> 1
-     or (r->'conversations'->0->>'id')::uuid <> f.cv_a then
+  if jsonb_array_length(r->'conversations') is distinct from 1
+     or (r->'conversations'->0->>'id')::uuid is distinct from f.cv_a then
     raise exception 'G3 FAILED: invoice conversation hit wrong: %', r->'conversations';
   end if;
-  if r->'conversations'->0->>'direction' <> 'inbound' then
+  if r->'conversations'->0->>'direction' is distinct from 'inbound' then
     raise exception 'G3 FAILED: inbound hit direction wrong: %',
       r->'conversations'->0->>'direction';
   end if;
-  if (r->'conversations'->0->>'matched_message_id')::uuid <> f.m_a1 then
+  if (r->'conversations'->0->>'matched_message_id')::uuid is distinct from f.m_a1 then
     raise exception 'G3 FAILED: wrong matched message';
   end if;
 
   -- 'gutter' lives only in the note — the hit must be labeled direction='note'.
   r := public.api_search_v2(f.cid_a, 'gutter', 10, 10, 10, 10, 10);
-  if jsonb_array_length(r->'conversations') <> 1
-     or r->'conversations'->0->>'direction' <> 'note'
-     or (r->'conversations'->0->>'matched_message_id')::uuid <> f.m_a2 then
+  if jsonb_array_length(r->'conversations') is distinct from 1
+     or r->'conversations'->0->>'direction' is distinct from 'note'
+     or (r->'conversations'->0->>'matched_message_id')::uuid is distinct from f.m_a2 then
     raise exception 'G3 FAILED: note hit not exposed as direction=note: %',
       r->'conversations';
   end if;
@@ -281,13 +281,13 @@ begin
   -- Title substring: only the live A task — the soft-deleted 'Send the
   -- invoice reminder' and company B's identical title never surface.
   r := public.api_search_v2(f.cid_a, 'invoice', 10, 10, 10, 10, 10);
-  if jsonb_array_length(r->'tasks') <> 1 then
+  if jsonb_array_length(r->'tasks') is distinct from 1 then
     raise exception 'G4 FAILED: expected 1 task hit, got %', r->'tasks';
   end if;
   hit := r->'tasks'->0;
-  if (hit->>'id')::uuid <> f.t_a1
-     or hit->>'title' <> 'Send the invoice'
-     or (hit->>'conversation_id')::uuid <> f.cv_a
+  if (hit->>'id')::uuid is distinct from f.t_a1
+     or hit->>'title' is distinct from 'Send the invoice'
+     or (hit->>'conversation_id')::uuid is distinct from f.cv_a
      or (hit->>'done')::boolean is distinct from false
      or (hit->>'matched_at') is null then
     raise exception 'G4 FAILED: task hit shape wrong: %', hit;
@@ -296,15 +296,15 @@ begin
   -- Fuzzy description: 'furnac' (typo) matches 'furnace' inside the
   -- description via trigram word similarity — no substring, no title match.
   r := public.api_search_v2(f.cid_a, 'furnac', 10, 10, 10, 10, 10);
-  if jsonb_array_length(r->'tasks') <> 1
-     or (r->'tasks'->0->>'id')::uuid <> f.t_a1 then
+  if jsonb_array_length(r->'tasks') is distinct from 1
+     or (r->'tasks'->0->>'id')::uuid is distinct from f.t_a1 then
     raise exception 'G4 FAILED: fuzzy description match missed: %', r->'tasks';
   end if;
 
   -- Derived done: t_a2's source message is done → the hit says done=true.
   r := public.api_search_v2(f.cid_a, 'cleanup', 10, 10, 10, 10, 10);
-  if jsonb_array_length(r->'tasks') <> 1
-     or (r->'tasks'->0->>'id')::uuid <> f.t_a2
+  if jsonb_array_length(r->'tasks') is distinct from 1
+     or (r->'tasks'->0->>'id')::uuid is distinct from f.t_a2
      or (r->'tasks'->0->>'done')::boolean is distinct from true then
     raise exception 'G4 FAILED: derived done wrong: %', r->'tasks';
   end if;
@@ -326,15 +326,15 @@ begin
   select * into f from gs_fixture;
 
   r := public.api_search_v2(f.cid_a, 'invoise', 10, 10, 10, 10, 10);
-  if jsonb_array_length(r->'attachments') <> 1 then
+  if jsonb_array_length(r->'attachments') is distinct from 1 then
     raise exception 'G5 FAILED: fuzzy filename expected 1 hit, got %', r->'attachments';
   end if;
   hit := r->'attachments'->0;
-  if (hit->>'id')::uuid <> f.at_a1
-     or hit->>'file_name' <> 'invoice.pdf'
-     or hit->>'owner_type' <> 'note'
-     or (hit->>'conversation_id')::uuid <> f.cv_a
-     or hit->>'content_type' <> 'application/pdf'
+  if (hit->>'id')::uuid is distinct from f.at_a1
+     or hit->>'file_name' is distinct from 'invoice.pdf'
+     or hit->>'owner_type' is distinct from 'note'
+     or (hit->>'conversation_id')::uuid is distinct from f.cv_a
+     or hit->>'content_type' is distinct from 'application/pdf'
      or (hit->>'created_at') is null then
     raise exception 'G5 FAILED: attachment hit shape wrong: %', hit;
   end if;
@@ -342,8 +342,8 @@ begin
   -- Substring match too; still exactly one (the soft-deleted invoice-old.pdf
   -- never surfaces; B''s invoice.pdf is another company).
   r := public.api_search_v2(f.cid_a, 'invoice', 10, 10, 10, 10, 10);
-  if jsonb_array_length(r->'attachments') <> 1
-     or (r->'attachments'->0->>'id')::uuid <> f.at_a1 then
+  if jsonb_array_length(r->'attachments') is distinct from 1
+     or (r->'attachments'->0->>'id')::uuid is distinct from f.at_a1 then
     raise exception 'G5 FAILED: substring filename match wrong: %', r->'attachments';
   end if;
 
@@ -362,16 +362,16 @@ begin
   select * into f from gs_fixture;
 
   r := public.api_search_v2(f.cid_a, 'follow', 10, 10, 10, 10, 10);
-  if jsonb_array_length(r->'templates') <> 1
-     or (r->'templates'->0->>'id')::uuid <> f.tpl_a
-     or r->'templates'->0->>'name' <> 'Quote follow-up' then
+  if jsonb_array_length(r->'templates') is distinct from 1
+     or (r->'templates'->0->>'id')::uuid is distinct from f.tpl_a
+     or r->'templates'->0->>'name' is distinct from 'Quote follow-up' then
     raise exception 'G6 FAILED: template name match wrong: %', r->'templates';
   end if;
 
   -- 'checking' lives only in the body; the snippet must carry it.
   r := public.api_search_v2(f.cid_a, 'checking', 10, 10, 10, 10, 10);
-  if jsonb_array_length(r->'templates') <> 1
-     or (r->'templates'->0->>'id')::uuid <> f.tpl_a then
+  if jsonb_array_length(r->'templates') is distinct from 1
+     or (r->'templates'->0->>'id')::uuid is distinct from f.tpl_a then
     raise exception 'G6 FAILED: template body match wrong: %', r->'templates';
   end if;
   if r->'templates'->0->>'snippet' not like '%checking%'
@@ -395,30 +395,30 @@ begin
   select * into f from gs_fixture;
 
   r := public.api_search_v2(f.cid_b, 'invoice', 10, 10, 10, 10, 10);
-  if jsonb_array_length(r->'conversations') <> 1
-     or (r->'conversations'->0->>'id')::uuid <> f.cv_b then
+  if jsonb_array_length(r->'conversations') is distinct from 1
+     or (r->'conversations'->0->>'id')::uuid is distinct from f.cv_b then
     raise exception 'G7 FAILED: B conversations leaked/missed: %', r->'conversations';
   end if;
-  if jsonb_array_length(r->'tasks') <> 1
-     or (r->'tasks'->0->>'id')::uuid <> f.t_b1 then
+  if jsonb_array_length(r->'tasks') is distinct from 1
+     or (r->'tasks'->0->>'id')::uuid is distinct from f.t_b1 then
     raise exception 'G7 FAILED: B tasks leaked/missed: %', r->'tasks';
   end if;
-  if jsonb_array_length(r->'attachments') <> 1
-     or (r->'attachments'->0->>'id')::uuid <> f.at_b1 then
+  if jsonb_array_length(r->'attachments') is distinct from 1
+     or (r->'attachments'->0->>'id')::uuid is distinct from f.at_b1 then
     raise exception 'G7 FAILED: B attachments leaked/missed: %', r->'attachments';
   end if;
-  if jsonb_array_length(r->'templates') <> 1
-     or (r->'templates'->0->>'id')::uuid <> f.tpl_b then
+  if jsonb_array_length(r->'templates') is distinct from 1
+     or (r->'templates'->0->>'id')::uuid is distinct from f.tpl_b then
     raise exception 'G7 FAILED: B templates leaked/missed: %', r->'templates';
   end if;
 
   -- A company that owns nothing: every arm empty.
   r := public.api_search_v2(gen_random_uuid(), 'invoice', 10, 10, 10, 10, 10);
-  if jsonb_array_length(r->'conversations') <> 0
-     or jsonb_array_length(r->'contacts') <> 0
-     or jsonb_array_length(r->'tasks') <> 0
-     or jsonb_array_length(r->'attachments') <> 0
-     or jsonb_array_length(r->'templates') <> 0 then
+  if jsonb_array_length(r->'conversations') is distinct from 0
+     or jsonb_array_length(r->'contacts') is distinct from 0
+     or jsonb_array_length(r->'tasks') is distinct from 0
+     or jsonb_array_length(r->'attachments') is distinct from 0
+     or jsonb_array_length(r->'templates') is distinct from 0 then
     raise exception 'G7 FAILED: cross-tenant leak: %', r;
   end if;
 
@@ -438,13 +438,13 @@ begin
   select * into f from gs_fixture;
 
   r := public.api_search_v2(f.cid_a, 'invoice', 10, 0, 0, 0, 0);
-  if jsonb_array_length(r->'conversations') <> 1 then
+  if jsonb_array_length(r->'conversations') is distinct from 1 then
     raise exception 'G8 FAILED: conversations arm suppressed by other limits';
   end if;
-  if jsonb_array_length(r->'contacts') <> 0
-     or jsonb_array_length(r->'tasks') <> 0
-     or jsonb_array_length(r->'attachments') <> 0
-     or jsonb_array_length(r->'templates') <> 0 then
+  if jsonb_array_length(r->'contacts') is distinct from 0
+     or jsonb_array_length(r->'tasks') is distinct from 0
+     or jsonb_array_length(r->'attachments') is distinct from 0
+     or jsonb_array_length(r->'templates') is distinct from 0 then
     raise exception 'G8 FAILED: 0 limits not honored: %', r;
   end if;
 
@@ -498,32 +498,32 @@ begin
   -- A bare '%' is a wildcard pre-fix (would match all six). Escaped, it matches
   -- only the file whose name literally contains a percent sign.
   r := public.api_search_v2(cid, '%', 0, 0, 0, 10, 0);
-  if jsonb_array_length(r->'attachments') <> 1
-     or r->'attachments'->0->>'file_name' <> 'report 50% off.pdf' then
+  if jsonb_array_length(r->'attachments') is distinct from 1
+     or r->'attachments'->0->>'file_name' is distinct from 'report 50% off.pdf' then
     raise exception 'G9 FAILED: bare %% not escaped: %', r->'attachments';
   end if;
 
   -- A bare '_' is a single-char wildcard pre-fix. Escaped, only the underscore
   -- file surfaces — not underXscore.pdf.
   r := public.api_search_v2(cid, '_', 0, 0, 0, 10, 0);
-  if jsonb_array_length(r->'attachments') <> 1
-     or r->'attachments'->0->>'file_name' <> 'under_score.pdf' then
+  if jsonb_array_length(r->'attachments') is distinct from 1
+     or r->'attachments'->0->>'file_name' is distinct from 'under_score.pdf' then
     raise exception 'G9 FAILED: bare _ not escaped: %', r->'attachments';
   end if;
 
   -- '50%' must match the literal-'50%' file and NOT the '5000' row that a
   -- trailing-wildcard '%50%%' would have false-matched, nor any arbitrary row.
   r := public.api_search_v2(cid, '50%', 0, 0, 0, 10, 0);
-  if jsonb_array_length(r->'attachments') <> 1
-     or r->'attachments'->0->>'file_name' <> 'report 50% off.pdf' then
+  if jsonb_array_length(r->'attachments') is distinct from 1
+     or r->'attachments'->0->>'file_name' is distinct from 'report 50% off.pdf' then
     raise exception 'G9 FAILED: 50%% gave false positives: %', r->'attachments';
   end if;
 
   -- A single backslash: escaped to a literal, it finds the one file whose name
   -- contains a backslash (pre-fix a trailing '\' broke the pattern entirely).
   r := public.api_search_v2(cid, chr(92), 0, 0, 0, 10, 0);
-  if jsonb_array_length(r->'attachments') <> 1
-     or r->'attachments'->0->>'file_name' <> 'C' || chr(92) || 'Users' || chr(92) || 'home.pdf' then
+  if jsonb_array_length(r->'attachments') is distinct from 1
+     or r->'attachments'->0->>'file_name' is distinct from 'C' || chr(92) || 'Users' || chr(92) || 'home.pdf' then
     raise exception 'G9 FAILED: backslash not findable: %', r->'attachments';
   end if;
 
@@ -559,14 +559,14 @@ begin
   -- name-matched only — assert templates arm is simply untouched by the filter).
   r_hidden := public.api_search_v2(
     f.cid_a, 'invoice', 10, 10, 10, 10, 10, null, null, array[num]::uuid[]);
-  if jsonb_array_length(r_hidden->'conversations') <> 0
-     or jsonb_array_length(r_hidden->'tasks') <> 0
-     or jsonb_array_length(r_hidden->'attachments') <> 0 then
+  if jsonb_array_length(r_hidden->'conversations') is distinct from 0
+     or jsonb_array_length(r_hidden->'tasks') is distinct from 0
+     or jsonb_array_length(r_hidden->'attachments') is distinct from 0 then
     raise exception 'G10 FAILED: hidden number still surfaces in search: %', r_hidden;
   end if;
   -- Templates are not number-anchored, so the deny list must not touch them.
   if jsonb_array_length(r_hidden->'templates')
-     <> jsonb_array_length(r_open->'templates') then
+     is distinct from jsonb_array_length(r_open->'templates') then
     raise exception 'G10 FAILED: templates arm changed under the deny filter';
   end if;
 
@@ -602,21 +602,21 @@ begin
     '0201'
   ] loop
     r := public.api_search_v2(f.cid_a, q, 0, 10, 0, 0, 0);
-    if jsonb_array_length(r->'contacts') <> 1
-       or r->'contacts'->0->>'phone_e164' <> '+14165550201' then
+    if jsonb_array_length(r->'contacts') is distinct from 1
+       or r->'contacts'->0->>'phone_e164' is distinct from '+14165550201' then
       raise exception 'G11 FAILED: % did not find the contact: %', q, r;
     end if;
   end loop;
 
   -- A formatted number belonging to nobody here matches nobody here.
   r := public.api_search_v2(f.cid_a, '(519) 000-0000', 0, 10, 0, 0, 0);
-  if jsonb_array_length(r->'contacts') <> 0 then
+  if jsonb_array_length(r->'contacts') is distinct from 0 then
     raise exception 'G11 FAILED: an unrelated number matched: %', r;
   end if;
 
   -- A name search must be unaffected by the digits arm.
   r := public.api_search_v2(f.cid_a, 'Pat Rivera', 0, 10, 0, 0, 0);
-  if jsonb_array_length(r->'contacts') <> 1 then
+  if jsonb_array_length(r->'contacts') is distinct from 1 then
     raise exception 'G11 FAILED: name search regressed: %', r;
   end if;
 

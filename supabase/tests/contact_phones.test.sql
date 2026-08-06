@@ -117,7 +117,7 @@ begin
     from public.contacts
    where company_id = '9f000000-0000-4000-8000-0000000000c1'::uuid
      and phone_e164 = '+12125559602';
-  if v_contacts <> 0 then
+  if v_contacts is distinct from 0 then
     raise exception 'CP-3: a second contact was created for the landline';
   end if;
 
@@ -197,7 +197,7 @@ begin
    where c.company_id = '9f000000-0000-4000-8000-0000000000c1'::uuid
      and c.contact_id = '9f000000-0000-4000-8000-0000000000d1'::uuid
      and c.contact_phone_e164 = '+12125559602';
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception 'CP-5: % landline thread(s), expected exactly one', v_count;
   end if;
 end $$;
@@ -326,7 +326,7 @@ begin
   select count(*) into orphans
     from public.contact_phones
    where contact_id = '9f000000-0000-4000-8000-0000000000d3'::uuid;
-  if orphans <> 0 then
+  if orphans is distinct from 0 then
     raise exception 'CP-10: % number(s) outlived their contact', orphans;
   end if;
 end $$;

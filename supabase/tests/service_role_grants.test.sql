@@ -117,7 +117,7 @@ begin
 
   select count(*) into n from public.webhook_events
   where provider = 'telnyx' and event_id = 'grant-test-evt-1';
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'G4 FAILED: service_role SELECT did not see its own insert';
   end if;
 

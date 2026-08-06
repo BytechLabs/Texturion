@@ -82,10 +82,10 @@ declare v jsonb;
 begin
   v := public.api_member_holdings(
     '0f000000-0000-4000-8000-000000000001', '0f000000-0000-4000-8000-00000000000b');
-  if (v->>'conversations')::int <> 1 then
+  if (v->>'conversations')::int is distinct from 1 then
     raise exception 'OF-1 FAILED: conversations = % (want 1 — the closed one does not count)', v;
   end if;
-  if (v->>'tasks')::int <> 1 then
+  if (v->>'tasks')::int is distinct from 1 then
     raise exception 'OF-1 FAILED: tasks = % (want 1 — the finished one does not count)', v;
   end if;
   raise notice 'OF-1 PASSED: holdings counts only open work';
@@ -103,26 +103,26 @@ declare
   v jsonb;
 begin
   v := public.offboard_member(v_company, '0f000000-0000-4000-8000-000000000010');
-  if v->>'outcome' <> 'owner' then
+  if v->>'outcome' is distinct from 'owner' then
     raise exception 'OF-2 FAILED: owner offboarding returned %', v;
   end if;
 
   v := public.offboard_member(v_company, '0f000000-0000-4000-8000-0000000000ff');
-  if v->>'outcome' <> 'not_found' then
+  if v->>'outcome' is distinct from 'not_found' then
     raise exception 'OF-2 FAILED: unknown member returned %', v;
   end if;
 
   -- A destination who was never a member.
   v := public.offboard_member(v_company, '0f000000-0000-4000-8000-000000000011',
                               '0f000000-0000-4000-8000-0000000000fe');
-  if v->>'outcome' <> 'bad_destination' then
+  if v->>'outcome' is distinct from 'bad_destination' then
     raise exception 'OF-2 FAILED: stranger destination returned %', v;
   end if;
 
   -- And the leaver cannot be handed their own work.
   v := public.offboard_member(v_company, '0f000000-0000-4000-8000-000000000011',
                               '0f000000-0000-4000-8000-00000000000b');
-  if v->>'outcome' <> 'bad_destination' then
+  if v->>'outcome' is distinct from 'bad_destination' then
     raise exception 'OF-2 FAILED: self-destination returned %', v;
   end if;
 
@@ -151,10 +151,10 @@ declare
   v jsonb;
 begin
   v := public.offboard_member(v_company, '0f000000-0000-4000-8000-000000000011', v_keeper);
-  if v->>'outcome' <> 'deactivated' then
+  if v->>'outcome' is distinct from 'deactivated' then
     raise exception 'OF-3 FAILED: outcome %', v;
   end if;
-  if (v->>'conversations')::int <> 1 or (v->>'tasks')::int <> 1 then
+  if (v->>'conversations')::int is distinct from 1 or (v->>'tasks')::int is distinct from 1 then
     raise exception 'OF-3 FAILED: moved % (want 1 conversation, 1 task)', v;
   end if;
 
@@ -220,7 +220,7 @@ begin
   -- The keeper now holds what OF-3 handed them; offboard THEM with no
   -- destination and it must come loose rather than follow them out.
   v := public.offboard_member(v_company, '0f000000-0000-4000-8000-000000000012', null);
-  if (v->>'conversations')::int <> 1 or (v->>'tasks')::int <> 1 then
+  if (v->>'conversations')::int is distinct from 1 or (v->>'tasks')::int is distinct from 1 then
     raise exception 'OF-4 FAILED: release moved % (want 1 and 1)', v;
   end if;
   if exists (
@@ -239,10 +239,10 @@ begin
   -- Re-running against an already-deactivated member says so, and is a no-op
   -- for work that has already moved.
   v := public.offboard_member(v_company, '0f000000-0000-4000-8000-000000000012', null);
-  if v->>'outcome' <> 'already' then
+  if v->>'outcome' is distinct from 'already' then
     raise exception 'OF-4 FAILED: second run returned %', v;
   end if;
-  if (v->>'conversations')::int <> 0 or (v->>'tasks')::int <> 0 then
+  if (v->>'conversations')::int is distinct from 0 or (v->>'tasks')::int is distinct from 0 then
     raise exception 'OF-4 FAILED: second run moved % (want nothing left)', v;
   end if;
 
@@ -267,7 +267,7 @@ begin
     ('0f000000-0000-4000-8000-000000000072', v_keeper, now(), now());
 
   v_deleted := public.api_revoke_user_sessions(v_leaver);
-  if v_deleted <> 2 then
+  if v_deleted is distinct from 2 then
     raise exception 'OF-5 FAILED: revoked % sessions (want 2)', v_deleted;
   end if;
   if exists (select 1 from auth.sessions where user_id = v_leaver) then

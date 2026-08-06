@@ -230,7 +230,7 @@ begin
   if open_n < 2 then
     raise exception 'NA-3 FAILED: baseline conversations = % (want both)', open_n;
   end if;
-  if hidden_n <> open_n - 1 then
+  if hidden_n is distinct from open_n - 1 then
     raise exception
       'NA-3 FAILED: api_list_conversations returned % rows with a number denied '
       '(want % — exactly the hidden line removed)', hidden_n, open_n - 1;
@@ -244,7 +244,7 @@ begin
   if open_n < 2 then
     raise exception 'NA-3 FAILED: baseline calls = % (want both)', open_n;
   end if;
-  if hidden_n <> open_n - 1 then
+  if hidden_n is distinct from open_n - 1 then
     raise exception
       'NA-3 FAILED: api_list_calls returned % rows with a number denied (want %)',
       hidden_n, open_n - 1;
@@ -263,7 +263,7 @@ begin
   if open_n < 2 then
     raise exception 'NA-3 FAILED: baseline search hits = % (want both)', open_n;
   end if;
-  if hidden_n <> open_n - 1 then
+  if hidden_n is distinct from open_n - 1 then
     raise exception
       'NA-3 FAILED: api_search_v2 returned % conversation hits with a number '
       'denied (want %)', hidden_n, open_n - 1;
@@ -327,7 +327,7 @@ begin
   values (co, '36800000-0000-4000-8000-000000000031', 'spam_marked');
 
   r := public.api_spam_review(co, 20, hidden, 0, 0);
-  if jsonb_array_length(coalesce(r->'items', '[]'::jsonb)) <> 0 then
+  if jsonb_array_length(coalesce(r->'items', '[]'::jsonb)) is distinct from 0 then
     raise exception
       'NA-4 FAILED: the spam review strip surfaced a denied number: %', r;
   end if;
@@ -389,7 +389,7 @@ begin
       where c.company_id = co
         and c.phone_number_id = '36800000-0000-4000-8000-000000000011'),
     null, null, null, false, false, null, null, null, null, null, hidden);
-  if jsonb_array_length(res -> 'applied') <> 0 then
+  if jsonb_array_length(res -> 'applied') is distinct from 0 then
     raise exception 'NA-5 FAILED: a named conversation on a denied number was written';
   end if;
 
@@ -434,7 +434,7 @@ begin
 
   -- Unrestricted first, so the refusal is measured against a call that works.
   res := public.api_bulk_tasks(co, usr, 'mark_done', array[denied_task], null, null);
-  if jsonb_array_length(res -> 'applied') <> 1 then
+  if jsonb_array_length(res -> 'applied') is distinct from 1 then
     raise exception 'NA-6 FAILED: the unrestricted bulk call reached 0 tasks, so '
       'the deny assertion proves nothing';
   end if;
@@ -444,10 +444,10 @@ begin
 
   -- Denied: applied nothing, and SAID so rather than silently dropping it.
   res := public.api_bulk_tasks(co, usr, 'mark_done', array[denied_task], null, hidden);
-  if jsonb_array_length(res -> 'applied') <> 0 then
+  if jsonb_array_length(res -> 'applied') is distinct from 0 then
     raise exception 'NA-6 FAILED: a named task on a denied number was written';
   end if;
-  if jsonb_array_length(res -> 'failed') <> 1 then
+  if jsonb_array_length(res -> 'failed') is distinct from 1 then
     raise exception 'NA-6 FAILED: the denied task was dropped silently rather '
       'than reported — the caller would render a count that never happened';
   end if;

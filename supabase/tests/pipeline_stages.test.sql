@@ -72,7 +72,7 @@ declare
 begin
   select count(*) into v_stages from public.tags
    where company_id = v_company and pipeline_stage is not null;
-  if v_stages <> 4 then
+  if v_stages is distinct from 4 then
     raise exception 'PS-1: expected 4 seeded stages, found %', v_stages;
   end if;
 
@@ -81,7 +81,7 @@ begin
   select count(*) into v_views from public.saved_views
    where company_id = v_company and owner_user_id is null
      and surface = 'conversations';
-  if v_views <> 1 then
+  if v_views is distinct from 1 then
     raise exception 'PS-1: expected the shipped Quote sent view, found %', v_views;
   end if;
 end $$;
@@ -107,12 +107,12 @@ begin
   -- The view still points at the same tag.
   select filters into v_filters from public.saved_views
    where company_id = v_company and owner_user_id is null limit 1;
-  if (v_filters->>'tag_id') <> v_tag::text then
+  if (v_filters->>'tag_id') is distinct from v_tag::text then
     raise exception 'PS-2: the shipped view lost its tag on a rename';
   end if;
 
   -- And the stage key is untouched.
-  if (select pipeline_stage from public.tags where id = v_tag) <> 'quote_sent' then
+  if (select pipeline_stage from public.tags where id = v_tag) is distinct from 'quote_sent' then
     raise exception 'PS-2: a rename changed the stage';
   end if;
 end $$;
@@ -185,20 +185,20 @@ begin
   v_report := public.api_pipeline_report(
     v_company, now() - interval '30 days', now());
 
-  if (v_report->>'quoted')::int <> 3 then
+  if (v_report->>'quoted')::int is distinct from 3 then
     raise exception 'PS-4: quoted was %, expected 3', v_report->>'quoted';
   end if;
-  if (v_report->>'won')::int <> 1 then
+  if (v_report->>'won')::int is distinct from 1 then
     raise exception 'PS-4: won was %, expected 1', v_report->>'won';
   end if;
-  if (v_report->>'lost')::int <> 1 then
+  if (v_report->>'lost')::int is distinct from 1 then
     raise exception 'PS-4: lost was %, expected 1', v_report->>'lost';
   end if;
-  if (v_report->>'open')::int <> 1 then
+  if (v_report->>'open')::int is distinct from 1 then
     raise exception 'PS-4: open was %, expected 1', v_report->>'open';
   end if;
   -- 10 days quoted to 4 days won = 6 days, and it is the only win.
-  if round((v_report->>'median_days_to_win')::numeric) <> 6 then
+  if round((v_report->>'median_days_to_win')::numeric) is distinct from 6 then
     raise exception 'PS-4: median days to win was %',
       v_report->>'median_days_to_win';
   end if;
@@ -219,7 +219,7 @@ declare
 begin
   v_report := public.api_pipeline_report(
     v_company, now() - interval '60 days', now() - interval '30 days');
-  if (v_report->>'quoted')::int <> 0 then
+  if (v_report->>'quoted')::int is distinct from 0 then
     raise exception 'PS-5: an earlier window claimed % quotes', v_report->>'quoted';
   end if;
 end $$;
@@ -249,7 +249,7 @@ begin
 
   v_report := public.api_pipeline_report(
     v_company, now() - interval '30 days', now());
-  if (v_report->>'won')::int <> 1 then
+  if (v_report->>'won')::int is distinct from 1 then
     raise exception 'PS-6: re-tagging turned 1 win into %', v_report->>'won';
   end if;
 end $$;
@@ -264,7 +264,7 @@ begin
   v_report := public.api_pipeline_report(
     '51000000-0000-4000-8000-0000000000ff'::uuid,
     now() - interval '30 days', now());
-  if (v_report->>'quoted')::int <> 0 then
+  if (v_report->>'quoted')::int is distinct from 0 then
     raise exception 'PS-7: an unknown company reported % quotes',
       v_report->>'quoted';
   end if;

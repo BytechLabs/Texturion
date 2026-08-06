@@ -92,7 +92,7 @@ begin
      and id in ('2a000000-0000-4000-8000-000000000901',
                 '2a000000-0000-4000-8000-000000000902',
                 '2a000000-0000-4000-8000-000000000903');
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception 'P-1 FAILED: % of this suite''s workspace(s) read as paused '
       'with nothing having paused them', v_count;
   end if;
@@ -211,7 +211,7 @@ begin
 
   select count(*) into v_count from public.messages
    where company_id = '2a000000-0000-4000-8000-000000000901' and direction = 'outbound';
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception 'P-5 FAILED: % outbound row(s) were written by a refused send', v_count;
   end if;
   raise notice 'P-5 PASSED: a paused workspace cannot send, and nothing is queued';
@@ -263,7 +263,7 @@ begin
 
   if (select count(*) from public.messages
        where company_id = '2a000000-0000-4000-8000-000000000901'
-         and direction = 'outbound') <> v_before then
+         and direction = 'outbound') is distinct from v_before then
     raise exception 'P-7 FAILED: a refused auto-reply still wrote an outbound row';
   end if;
   raise notice 'P-7 PASSED: a paused workspace sends no away replies';
@@ -296,7 +296,7 @@ begin
   select count(*) into v_count from public.contacts
    where company_id = '2a000000-0000-4000-8000-000000000901'
      and phone_e164 = '+16135551902';
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception 'P-8 FAILED: a refused missed-call text still threaded the caller';
   end if;
   raise notice 'P-8 PASSED: a paused workspace texts nobody back, and threads nothing';
@@ -376,7 +376,7 @@ begin
   end if;
 
   select * into v_row from public.messages where id = v_msg;
-  if v_row.status <> 'failed' then
+  if v_row.status is distinct from 'failed' then
     raise exception 'P-10 FAILED: the message was requeued as % by a refused retry',
       v_row.status;
   end if;
@@ -653,9 +653,9 @@ begin
   -- The facts the claim already got right, asserted here so a future edit to
   -- this function cannot trade one of them for the pause fix.
   if v_company.canceled_at is not null
-     or v_company.subscription_status <> 'active'
-     or v_company.plan::text <> 'starter'
-     or v_company.stripe_subscription_id <> 'sub_pause_new' then
+     or v_company.subscription_status is distinct from 'active'
+     or v_company.plan::text is distinct from 'starter'
+     or v_company.stripe_subscription_id is distinct from 'sub_pause_new' then
     raise exception 'P-14 FAILED: the activation itself did not land (status %, plan %, sub %, canceled_at %)',
       v_company.subscription_status, coalesce(v_company.plan::text, 'null'),
       coalesce(v_company.stripe_subscription_id, 'null'),
@@ -721,7 +721,7 @@ begin
   end if;
   -- The same reading, applied to the column beside it: `plan` is coalesced, not
   -- overwritten, for exactly this reason.
-  if v_company.plan::text <> 'starter' then
+  if v_company.plan::text is distinct from 'starter' then
     raise exception 'P-15 FAILED: a null p_plan overwrote the stored plan with %',
       coalesce(v_company.plan::text, 'null');
   end if;
@@ -781,7 +781,7 @@ begin
   end if;
 
   if v_sub is not null
-     and v_sub <> p_subscription_id
+     and v_sub is distinct from p_subscription_id
      and v_status in ('active', 'past_due', 'unpaid') then
     return jsonb_build_object(
       'outcome', 'duplicate',
@@ -846,7 +846,7 @@ begin
     raise exception 'P-16 FAILED: with the pause clear REMOVED the resubscribe still '
       'cleared the pause, so P-14 is not testing that clear — something else is doing it';
   end if;
-  if v_company.subscription_status <> 'active' or v_company.plan is null then
+  if v_company.subscription_status is distinct from 'active' or v_company.plan is null then
     raise exception 'P-16 FAILED: the pre-fix claim left the company non-active, so the '
       'block below would be the cancellation and not the pause';
   end if;

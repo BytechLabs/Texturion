@@ -159,7 +159,7 @@ begin
   if conv_h::text = any(ids) then
     raise exception 'BC-2 FAILED: select-all reached a conversation on a denied number';
   end if;
-  if (select status from public.conversations where id = conv_h) <> 'open' then
+  if (select status from public.conversations where id = conv_h) is distinct from 'open' then
     raise exception 'BC-2 FAILED: the hidden conversation was modified';
   end if;
 
@@ -168,7 +168,7 @@ begin
     co, us, 'set_status', array[conv_h], null, null, null, false, false, null,
     null, null, 'closed', null, array[hidden]
   );
-  if jsonb_array_length(res -> 'applied') <> 0 then
+  if jsonb_array_length(res -> 'applied') is distinct from 0 then
     raise exception 'BC-2 FAILED: a named hidden id was applied';
   end if;
   if (res -> 'failed' -> 0 ->> 'id') is distinct from conv_h::text then
@@ -176,7 +176,7 @@ begin
   end if;
   -- The reason must not distinguish "hidden" from "absent": a restricted member
   -- who could tell them apart would learn the row exists.
-  if (res -> 'failed' -> 0 ->> 'reason') <> 'not_found' then
+  if (res -> 'failed' -> 0 ->> 'reason') is distinct from 'not_found' then
     raise exception 'BC-2 FAILED: the reason leaks that the row exists (%)',
       res -> 'failed' -> 0 ->> 'reason';
   end if;
@@ -198,10 +198,10 @@ begin
     co, us, 'set_status', array[other], null, null, null, false, false, null,
     null, null, 'closed', null, null
   );
-  if jsonb_array_length(res -> 'applied') <> 0 then
+  if jsonb_array_length(res -> 'applied') is distinct from 0 then
     raise exception 'BC-3 FAILED: reached another tenant''s conversation';
   end if;
-  if (select status from public.conversations where id = other) <> 'open' then
+  if (select status from public.conversations where id = other) is distinct from 'open' then
     raise exception 'BC-3 FAILED: another tenant''s row was modified';
   end if;
   raise notice 'BC-3 PASSED: tenant isolation';
@@ -235,25 +235,25 @@ begin
     co, us, 'set_status', array[c1, c3], null, null, null, false, false, null,
     null, null, 'closed', null, null
   );
-  if jsonb_array_length(res -> 'applied') <> 2 then
+  if jsonb_array_length(res -> 'applied') is distinct from 2 then
     raise exception 'BC-4 FAILED: expected 2 applied, got %',
       jsonb_array_length(res -> 'applied');
   end if;
 
   select a -> 'previous' ->> 'status' into prev
     from jsonb_array_elements(res -> 'applied') a where a ->> 'id' = c1::text;
-  if prev <> 'open' then
+  if prev is distinct from 'open' then
     raise exception 'BC-4 FAILED: c1 previous.status = % (want open)', prev;
   end if;
   select a -> 'previous' ->> 'status' into prev
     from jsonb_array_elements(res -> 'applied') a where a ->> 'id' = c3::text;
-  if prev <> 'closed' then
+  if prev is distinct from 'closed' then
     raise exception 'BC-4 FAILED: c3 previous.status = % (want closed — it was already closed)', prev;
   end if;
 
   -- Both are closed now.
   if (select count(*) from public.conversations
-       where id in (c1, c3) and status = 'closed') <> 2 then
+       where id in (c1, c3) and status = 'closed') is distinct from 2 then
     raise exception 'BC-4 FAILED: the status was not applied';
   end if;
 
@@ -266,7 +266,7 @@ begin
     raise exception 'BC-4 FAILED: previous.assigned_user_id should be null';
   end if;
   if (select assigned_user_id from public.conversations where id = c1)
-     <> 'bc000000-0000-4000-8000-00000000000a' then
+     is distinct from 'bc000000-0000-4000-8000-00000000000a' then
     raise exception 'BC-4 FAILED: assign did not apply';
   end if;
 
@@ -310,7 +310,7 @@ begin
     raise exception 'BC-5 FAILED: c2 did not have the tag but had_tag was true';
   end if;
   if (select count(*) from public.conversation_tags
-       where tag_id = tg and conversation_id in (c1, c2)) <> 2 then
+       where tag_id = tg and conversation_id in (c1, c2)) is distinct from 2 then
     raise exception 'BC-5 FAILED: the tag was not added to both';
   end if;
 
@@ -348,10 +348,10 @@ begin
   );
   acted := jsonb_array_length(res -> 'applied');
 
-  if listed <> acted then
+  if listed is distinct from acted then
     raise exception 'BC-6 FAILED: the list shows % open, bulk acted on %', listed, acted;
   end if;
-  if (res ->> 'matched')::int <> listed then
+  if (res ->> 'matched')::int is distinct from listed then
     raise exception 'BC-6 FAILED: matched = % but the list shows %',
       res ->> 'matched', listed;
   end if;
@@ -391,10 +391,10 @@ begin
   if (res ->> 'capped')::boolean is not true then
     raise exception 'BC-7 FAILED: capped was not reported';
   end if;
-  if (res ->> 'matched')::int <> cap + 1 then
+  if (res ->> 'matched')::int is distinct from cap + 1 then
     raise exception 'BC-7 FAILED: matched = % (want %)', res ->> 'matched', cap + 1;
   end if;
-  if jsonb_array_length(res -> 'applied') <> cap then
+  if jsonb_array_length(res -> 'applied') is distinct from cap then
     raise exception 'BC-7 FAILED: applied % rows (want the cap, %)',
       jsonb_array_length(res -> 'applied'), cap;
   end if;

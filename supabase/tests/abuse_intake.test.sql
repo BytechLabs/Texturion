@@ -35,7 +35,7 @@ begin
 
   select kind into v_kind
     from public.contact_messages where id = (v_result->>'id')::uuid;
-  if v_kind <> 'general' then
+  if v_kind is distinct from 'general' then
     raise exception 'AB-1: the default kind is %, not general', v_kind;
   end if;
 end $$;

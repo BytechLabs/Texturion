@@ -48,10 +48,10 @@ begin
   if v_row.email is null then
     raise exception 'MC-1 FAILED: the address was not lowercased on store';
   end if;
-  if v_row.consent_text <> 'Email me these numbers. I can unsubscribe any time.' then
+  if v_row.consent_text is distinct from 'Email me these numbers. I can unsubscribe any time.' then
     raise exception 'MC-1 FAILED: consent_text = %', v_row.consent_text;
   end if;
-  if v_row.consent_source <> 'compare_page' then
+  if v_row.consent_source is distinct from 'compare_page' then
     raise exception 'MC-1 FAILED: consent_source = %', v_row.consent_source;
   end if;
   if v_row.last_sent_at is not null then
@@ -60,7 +60,7 @@ begin
 
   -- An address with no @ is not an address.
   if (public.api_claim_marketing_contact('nonsense', 'compare_page', 'x')
-        ->> 'reason') <> 'validation_failed' then
+        ->> 'reason') is distinct from 'validation_failed' then
     raise exception 'MC-1 FAILED: a malformed address was accepted';
   end if;
   raise notice 'MC-1 PASSED: consent stored with its exact wording, lowercased';
@@ -88,14 +88,14 @@ begin
 
   select consent_at into v_second from public.marketing_contacts
    where email = 'prospect@example.test';
-  if v_second <> v_first then
+  if v_second is distinct from v_first then
     raise exception 'MC-2 FAILED: consent_at moved from % to %', v_first, v_second;
   end if;
 
   -- The newest wording and surface ARE updated: that is what they most recently
   -- agreed to, and the source is how a complaint gets traced to a page.
   if (select consent_source from public.marketing_contacts
-       where email = 'prospect@example.test') <> 'pricing_page' then
+       where email = 'prospect@example.test') is distinct from 'pricing_page' then
     raise exception 'MC-2 FAILED: the latest consent source was not recorded';
   end if;
   raise notice 'MC-2 PASSED: first consent preserved, latest wording recorded';
@@ -122,11 +122,11 @@ begin
   end loop;
 
   -- One row pre-existed, so exactly 2 more fit under a cap of 3.
-  if v_ok <> 2 then
+  if v_ok is distinct from 2 then
     raise exception 'MC-3 FAILED: % claims succeeded under a cap of 3 with 1 row already present (want 2)', v_ok;
   end if;
   if (public.api_claim_marketing_contact('over@example.test', 'compare_page', 'c', 3)
-        ->> 'reason') <> 'daily_cap' then
+        ->> 'reason') is distinct from 'daily_cap' then
     raise exception 'MC-3 FAILED: a claim over the cap was not reported as capped';
   end if;
   raise notice 'MC-3 PASSED: global daily cap holds at the boundary';
@@ -197,7 +197,7 @@ begin
   end if;
   -- The first unsubscribe time is the true one; a pre-fetch must not move it.
   if (select unsubscribed_at from public.marketing_contacts
-       where email = 'prospect@example.test') <> v_first then
+       where email = 'prospect@example.test') is distinct from v_first then
     raise exception 'MC-5 FAILED: a repeat unsubscribe moved unsubscribed_at';
   end if;
 
@@ -258,7 +258,7 @@ begin
   v_result := public.api_claim_marketing_contact(
     'angry@example.test', 'compare_page', 'consent', 500
   );
-  if (v_result ->> 'reason') <> 'suppressed' then
+  if (v_result ->> 'reason') is distinct from 'suppressed' then
     raise exception 'MC-6 FAILED: a complaint was reversed by a form submission (%)', v_result;
   end if;
   if exists (select 1 from public.marketing_contacts where email = 'angry@example.test') then
@@ -312,8 +312,8 @@ begin
     raise exception 'MC-7 FAILED: a live consent older than a year was deleted. '
       'That is the lawful basis for the sends we are still making.';
   end if;
-  if (v_pruned ->> 'unsubscribed_pruned')::int <> 1
-     or (v_pruned ->> 'never_sent_pruned')::int <> 1 then
+  if (v_pruned ->> 'unsubscribed_pruned')::int is distinct from 1
+     or (v_pruned ->> 'never_sent_pruned')::int is distinct from 1 then
     raise exception 'MC-7 FAILED: prune counts wrong: %', v_pruned;
   end if;
 

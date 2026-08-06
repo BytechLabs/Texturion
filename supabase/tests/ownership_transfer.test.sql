@@ -74,7 +74,7 @@ begin
     '0b000000-0000-4000-8000-000000000001',
     '0b000000-0000-4000-8000-00000000000b',
     '0b000000-0000-4000-8000-000000000012');
-  if v ->> 'outcome' <> 'forbidden' then
+  if v ->> 'outcome' is distinct from 'forbidden' then
     raise exception 'an admin named a backup owner: %', v;
   end if;
 
@@ -84,7 +84,7 @@ begin
     '0b000000-0000-4000-8000-000000000001',
     '0b000000-0000-4000-8000-00000000000a',
     '0b000000-0000-4000-8000-000000000010');
-  if v ->> 'outcome' <> 'self' then
+  if v ->> 'outcome' is distinct from 'self' then
     raise exception 'the owner named themselves as backup: %', v;
   end if;
 
@@ -92,7 +92,7 @@ begin
     '0b000000-0000-4000-8000-000000000001',
     '0b000000-0000-4000-8000-00000000000a',
     '0b000000-0000-4000-8000-000000000011');
-  if v ->> 'outcome' <> 'set' then
+  if v ->> 'outcome' is distinct from 'set' then
     raise exception 'the owner could not name a backup: %', v;
   end if;
   perform pg_temp.assert_sane('naming a backup');
@@ -107,27 +107,27 @@ begin
   -- A plain member is not the backup.
   v := public.api_claim_ownership(
     '0b000000-0000-4000-8000-000000000001','0b000000-0000-4000-8000-00000000000c');
-  if v ->> 'outcome' <> 'forbidden' then
+  if v ->> 'outcome' is distinct from 'forbidden' then
     raise exception 'a member who is not the backup started a claim: %', v;
   end if;
 
   -- Neither is somebody outside the workspace entirely.
   v := public.api_claim_ownership(
     '0b000000-0000-4000-8000-000000000001','0b000000-0000-4000-8000-00000000000d');
-  if v ->> 'outcome' <> 'forbidden' then
+  if v ->> 'outcome' is distinct from 'forbidden' then
     raise exception 'a stranger started a claim: %', v;
   end if;
 
   -- The named backup can.
   v := public.api_claim_ownership(
     '0b000000-0000-4000-8000-000000000001','0b000000-0000-4000-8000-00000000000b');
-  if v ->> 'outcome' <> 'claimed' then
+  if v ->> 'outcome' is distinct from 'claimed' then
     raise exception 'the named backup could not claim: %', v;
   end if;
   -- And nothing has moved yet. This is the whole safety property.
   if (select owner_user_id from public.companies
        where id = '0b000000-0000-4000-8000-000000000001')
-     <> '0b000000-0000-4000-8000-00000000000a' then
+     is distinct from '0b000000-0000-4000-8000-00000000000a' then
     raise exception 'starting a claim moved ownership immediately';
   end if;
   perform pg_temp.assert_sane('starting a claim');
@@ -139,7 +139,7 @@ declare v jsonb;
 begin
   v := public.api_accept_ownership(
     '0b000000-0000-4000-8000-000000000001','0b000000-0000-4000-8000-00000000000b');
-  if v ->> 'outcome' <> 'not_yet' then
+  if v ->> 'outcome' is distinct from 'not_yet' then
     raise exception 'a claim completed inside its waiting period: %', v;
   end if;
 end $$;
@@ -152,7 +152,7 @@ begin
     '0b000000-0000-4000-8000-000000000001',
     '0b000000-0000-4000-8000-00000000000a',
     '0b000000-0000-4000-8000-000000000012');
-  if v ->> 'outcome' <> 'in_flight' then
+  if v ->> 'outcome' is distinct from 'in_flight' then
     raise exception 'an offer was opened alongside a live claim: %', v;
   end if;
 end $$;
@@ -165,13 +165,13 @@ begin
   -- could keep a dead owner's workspace frozen forever.
   v := public.api_cancel_ownership_transfer(
     '0b000000-0000-4000-8000-000000000001','0b000000-0000-4000-8000-00000000000c');
-  if v ->> 'outcome' <> 'forbidden' then
+  if v ->> 'outcome' is distinct from 'forbidden' then
     raise exception 'an uninvolved member cancelled a handover: %', v;
   end if;
 
   v := public.api_cancel_ownership_transfer(
     '0b000000-0000-4000-8000-000000000001','0b000000-0000-4000-8000-00000000000a');
-  if v ->> 'outcome' <> 'canceled' then
+  if v ->> 'outcome' is distinct from 'canceled' then
     raise exception 'the owner could not veto a claim against them: %', v;
   end if;
   perform pg_temp.assert_sane('vetoing a claim');
@@ -183,7 +183,7 @@ declare v jsonb;
 begin
   v := public.api_claim_ownership(
     '0b000000-0000-4000-8000-000000000001','0b000000-0000-4000-8000-00000000000b');
-  if v ->> 'outcome' <> 'claimed' then
+  if v ->> 'outcome' is distinct from 'claimed' then
     raise exception 'a second claim after a veto was refused: %', v;
   end if;
   -- Fast-forward past the waiting period.
@@ -194,7 +194,7 @@ begin
 
   v := public.api_accept_ownership(
     '0b000000-0000-4000-8000-000000000001','0b000000-0000-4000-8000-00000000000b');
-  if v ->> 'outcome' <> 'accepted' then
+  if v ->> 'outcome' is distinct from 'accepted' then
     raise exception 'a ripe claim did not complete: %', v;
   end if;
   perform pg_temp.assert_sane('completing a claim');
@@ -206,15 +206,15 @@ do $$
 begin
   if (select owner_user_id from public.companies
        where id = '0b000000-0000-4000-8000-000000000001')
-     <> '0b000000-0000-4000-8000-00000000000b' then
+     is distinct from '0b000000-0000-4000-8000-00000000000b' then
     raise exception 'companies.owner_user_id did not move';
   end if;
   if (select role::text from public.company_members
-       where id = '0b000000-0000-4000-8000-000000000011') <> 'owner' then
+       where id = '0b000000-0000-4000-8000-000000000011') is distinct from 'owner' then
     raise exception 'the new owner has no owner membership';
   end if;
   if (select role::text from public.company_members
-       where id = '0b000000-0000-4000-8000-000000000010') <> 'admin' then
+       where id = '0b000000-0000-4000-8000-000000000010') is distinct from 'admin' then
     raise exception 'the outgoing owner was not left as an admin';
   end if;
   if (select deactivated_at from public.company_members
@@ -240,7 +240,7 @@ begin
     '0b000000-0000-4000-8000-000000000001',
     '0b000000-0000-4000-8000-00000000000a',
     '0b000000-0000-4000-8000-000000000012');
-  if v ->> 'outcome' <> 'forbidden' then
+  if v ->> 'outcome' is distinct from 'forbidden' then
     raise exception 'the former owner could still hand the business on: %', v;
   end if;
 
@@ -248,13 +248,13 @@ begin
     '0b000000-0000-4000-8000-000000000001',
     '0b000000-0000-4000-8000-00000000000b',
     '0b000000-0000-4000-8000-000000000012');
-  if v ->> 'outcome' <> 'offered' then
+  if v ->> 'outcome' is distinct from 'offered' then
     raise exception 'the owner could not offer ownership: %', v;
   end if;
   -- Still nothing moved.
   if (select owner_user_id from public.companies
        where id = '0b000000-0000-4000-8000-000000000001')
-     <> '0b000000-0000-4000-8000-00000000000b' then
+     is distinct from '0b000000-0000-4000-8000-00000000000b' then
     raise exception 'an unaccepted offer moved ownership';
   end if;
   perform pg_temp.assert_sane('offering ownership');
@@ -266,7 +266,7 @@ declare v jsonb;
 begin
   v := public.api_accept_ownership(
     '0b000000-0000-4000-8000-000000000001','0b000000-0000-4000-8000-00000000000a');
-  if v ->> 'outcome' <> 'forbidden' then
+  if v ->> 'outcome' is distinct from 'forbidden' then
     raise exception 'a bystander accepted somebody else''s offer: %', v;
   end if;
 end $$;
@@ -277,7 +277,7 @@ declare v jsonb;
 begin
   v := public.api_cancel_ownership_transfer(
     '0b000000-0000-4000-8000-000000000001','0b000000-0000-4000-8000-00000000000c');
-  if v ->> 'outcome' <> 'declined' then
+  if v ->> 'outcome' is distinct from 'declined' then
     raise exception 'the recipient could not decline: %', v;
   end if;
   perform pg_temp.assert_sane('declining an offer');
@@ -298,7 +298,7 @@ begin
 
   v := public.api_accept_ownership(
     '0b000000-0000-4000-8000-000000000001','0b000000-0000-4000-8000-00000000000c');
-  if v ->> 'outcome' <> 'expired' then
+  if v ->> 'outcome' is distinct from 'expired' then
     raise exception 'an expired offer was accepted: %', v;
   end if;
   perform public.api_cancel_ownership_transfer(
@@ -319,7 +319,7 @@ begin
 
   v := public.api_accept_ownership(
     '0b000000-0000-4000-8000-000000000001','0b000000-0000-4000-8000-00000000000c');
-  if v ->> 'outcome' <> 'no_member' then
+  if v ->> 'outcome' is distinct from 'no_member' then
     raise exception 'a removed member accepted ownership: %', v;
   end if;
   perform pg_temp.assert_sane('an offer to somebody since removed');
@@ -343,13 +343,13 @@ begin
     '0b000000-0000-4000-8000-000000000010');
 
   v := public.api_ownership_state('0b000000-0000-4000-8000-000000000001');
-  if v ->> 'owner_member_id' <> '0b000000-0000-4000-8000-000000000011' then
+  if v ->> 'owner_member_id' is distinct from '0b000000-0000-4000-8000-000000000011' then
     raise exception 'the owner member id is wrong: %', v;
   end if;
-  if v ->> 'backup_member_id' <> '0b000000-0000-4000-8000-000000000010' then
+  if v ->> 'backup_member_id' is distinct from '0b000000-0000-4000-8000-000000000010' then
     raise exception 'the backup member id is wrong: %', v;
   end if;
-  if v -> 'pending' <> 'null'::jsonb then
+  if v -> 'pending' is distinct from 'null'::jsonb then
     raise exception 'a finished handover is still reported as pending: %', v;
   end if;
 

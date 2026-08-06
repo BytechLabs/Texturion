@@ -144,7 +144,7 @@ begin
   --   written.
   -- The generic attachments table (D19) is append-only and deliberately has NO
   -- moddatetime trigger.
-  if n <> 19 then
+  if n is distinct from 19 then
     raise exception 'T5 FAILED: expected 19 set_updated_at triggers, found %', n;
   end if;
 
@@ -153,7 +153,7 @@ begin
   join pg_class c on c.oid = tg.tgrelid
   join pg_namespace ns on ns.oid = c.relnamespace
   where ns.nspname = 'auth' and c.relname = 'users' and tg.tgname = 'on_auth_user_created';
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'T5 FAILED: on_auth_user_created trigger missing on auth.users';
   end if;
 
@@ -166,7 +166,7 @@ begin
                       'phone_numbers_broadcast','registrations_broadcast',
                       'port_requests_broadcast','tasks_broadcast');
   -- 4 base broadcast triggers + port.updated (D16) + task.changed (D17/T1.3).
-  if n <> 6 then
+  if n is distinct from 6 then
     raise exception 'T5 FAILED: expected 6 broadcast triggers, found %', n;
   end if;
 
@@ -174,7 +174,7 @@ begin
   from pg_policies
   where schemaname = 'realtime' and tablename = 'messages'
     and policyname = 'company_topic_read';
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'T5 FAILED: company_topic_read policy missing on realtime.messages';
   end if;
   raise notice 'T5 PASSED: 17 moddatetime + auth-sync + 6 broadcast triggers, realtime policy present';
@@ -386,7 +386,7 @@ begin
   where id = '99999999-9999-4999-8999-999999999999'
     and body_tsv @@ websearch_to_tsquery('english', 'fox')
     and body_tsv @@ to_tsquery('english', 'jump');   -- stemming: jumps -> jump
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'T11 FAILED: body_tsv did not populate/match for the fixture message';
   end if;
   raise notice 'T11 PASSED: messages.body_tsv generated column populates (FTS matches)';
@@ -445,7 +445,7 @@ begin
   values ('telnyx', 'evt_schema_1', 'message.received', '{}'::jsonb)
   on conflict (provider, event_id) do nothing;
   get diagnostics n = row_count;
-  if n <> 0 then
+  if n is distinct from 0 then
     raise exception 'T13 FAILED: ON CONFLICT DO NOTHING inserted % row(s)', n;
   end if;
 
@@ -476,7 +476,7 @@ begin
   -- moddatetime overwrites even an explicit updated_at with now()
   select updated_at into u from public.contacts
   where id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
-  if u <> now() then
+  if u is distinct from now() then
     raise exception 'T14 FAILED: updated_at was not maintained by moddatetime (got %)', u;
   end if;
   raise notice 'T14 PASSED: moddatetime maintains updated_at on UPDATE';
@@ -707,7 +707,7 @@ begin
 
   select count(*) into n from realtime.messages
   where topic = 'company:cccccccc-cccc-4ccc-8ccc-cccccccccccc';
-  if n <> 0 then
+  if n is distinct from 0 then
     execute 'reset role';
     raise exception 'T19 FAILED: non-member can read another company''s topic (% rows)', n;
   end if;
@@ -729,7 +729,7 @@ declare
 begin
   select count(*) into n from storage.buckets
   where id = 'mms-media' and public = false and file_size_limit = 5242880;
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'T20 FAILED: private mms-media bucket (5 MB limit) missing';
   end if;
   raise notice 'T20 PASSED: private mms-media bucket present with 5 MB file limit';

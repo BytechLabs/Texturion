@@ -115,7 +115,7 @@ begin
     raise exception 'LC-1 FAILED: clock started at % but the text arrived at %',
       c.awaiting_reply_since, m;
   end if;
-  if c.chase_level <> 0 then
+  if c.chase_level is distinct from 0 then
     raise exception 'LC-1 FAILED: a fresh clock is at rung %, want 0', c.chase_level;
   end if;
 
@@ -216,7 +216,7 @@ begin
   if c.awaiting_reply_since is not null then
     raise exception 'LC-4 FAILED: claiming a lead left the clock running';
   end if;
-  if c.chase_level <> 0 then
+  if c.chase_level is distinct from 0 then
     raise exception 'LC-4 FAILED: claiming left the rung at %', c.chase_level;
   end if;
 
@@ -284,7 +284,7 @@ begin
   update public.companies set lead_chase_crew_enabled = false
    where id = '38800000-0000-4000-8000-000000000010';
   due := public.api_due_lead_chases(now(), 5, 100);
-  if due <> '[]'::jsonb then
+  if due is distinct from '[]'::jsonb then
     raise exception 'LC-5 FAILED: chasing is off and something was still due: %', due;
   end if;
   update public.companies set lead_chase_crew_enabled = true
@@ -338,7 +338,7 @@ begin
   update public.companies set lead_chase_crew_enabled = false
    where id = '38800000-0000-4000-8000-000000000010';
   due := public.api_due_lead_chases(now(), 5, 100);
-  if due <> '[]'::jsonb then
+  if due is distinct from '[]'::jsonb then
     raise exception 'LC-6 FAILED: rung 2 fired without the owner opting in: %', due;
   end if;
 
@@ -353,7 +353,7 @@ begin
    where id = '38800000-0000-4000-8000-000000000047';
 
   due := public.api_due_lead_chases(now(), 5, 100);
-  if due <> '[]'::jsonb then
+  if due is distinct from '[]'::jsonb then
     raise exception 'LC-6 FAILED: an unassigned thread was widened to a crew that already knows: %', due;
   end if;
   update public.companies set lead_chase_crew_enabled = false
@@ -379,16 +379,16 @@ begin
   second_claim := public.api_claim_lead_chases(
     array['38800000-0000-4000-8000-000000000041']::uuid[], 0::smallint);
 
-  if jsonb_array_length(first_claim) <> 1 then
+  if jsonb_array_length(first_claim) is distinct from 1 then
     raise exception 'LC-7 FAILED: the first run claimed % rows, want 1', jsonb_array_length(first_claim);
   end if;
-  if second_claim <> '[]'::jsonb then
+  if second_claim is distinct from '[]'::jsonb then
     raise exception 'LC-7 FAILED: a concurrent run re-claimed the same rung: %', second_claim;
   end if;
 
   select chase_level into lvl from public.conversations
    where id='38800000-0000-4000-8000-000000000041';
-  if lvl <> 1 then
+  if lvl is distinct from 1 then
     raise exception 'LC-7 FAILED: the rung advanced to % after two claims, want 1', lvl;
   end if;
 
@@ -416,7 +416,7 @@ begin
 
   claimed := public.api_claim_lead_chases(
     array['38800000-0000-4000-8000-000000000046']::uuid[], 0::smallint);
-  if claimed <> '[]'::jsonb then
+  if claimed is distinct from '[]'::jsonb then
     raise exception 'LC-8 FAILED: chased a lead that had just been answered: %', claimed;
   end if;
 

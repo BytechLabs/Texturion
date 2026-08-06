@@ -191,9 +191,13 @@ the existing CSV-import surface. **None of these send** — import populates con
 - **Normalize each `TEL` to E.164** against the company default country (US/CA, D2); drop
   un-normalizable / non-mobile-shaped numbers with a per-row reason.
 - A card with multiple valid `TEL`s → one contact per **distinct valid** number (contacts are phone-keyed).
-- Reuse the **exact upsert + dedupe + consent-attestation** the CSV importer enforces
-  (`consent_source='import'`, D4) — vCard is a second *parser* into the same idempotent upsert, not a
-  second pipeline. Same preview→confirm UI + per-row error report as CSV.
+- Reuse the **exact upsert + dedupe + consent-attestation** the CSV importer enforces — vCard is a
+  second *parser* into the same idempotent upsert, not a second pipeline. Same preview→confirm UI +
+  per-row error report as CSV.
+- **Corrected 2026-08-05 (#248):** the value is `consent_source='attested'` (`consent_source_t` is
+  `('inbound_sms','attested')`; there is no `'import'`), it is written **only where the contact has no
+  basis yet** (D4's amendment), and the attestation gate this bullet claimed was not actually on this
+  route until #248 added it.
 
 ### 3.3 Web Contacts Picker — progressive enhancement (client-only)
 - **Feature-detect:** `('contacts' in navigator) && ('ContactsManager' in window)`. Supported: **Chrome on

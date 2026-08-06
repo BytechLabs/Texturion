@@ -76,10 +76,10 @@ begin
   select count(*) into theirs from public.api_snoozed_conversation_ids(
     'da000000-0000-4000-8000-0000000000c1'::uuid,
     'da000000-0000-4000-8000-00000000000b'::uuid);
-  if mine <> 1 then
+  if mine is distinct from 1 then
     raise exception 'SN-1 FAILED: the person who deferred it sees % rows', mine;
   end if;
-  if theirs <> 0 then
+  if theirs is distinct from 0 then
     raise exception
       'SN-1 FAILED: a colleague sees the deferral too (% rows). The snooze is '
       'mine; the conversation is the crew''s.', theirs;
@@ -103,7 +103,7 @@ begin
   select count(*) into n from public.api_snoozed_conversation_ids(
     'da000000-0000-4000-8000-0000000000c1'::uuid,
     'da000000-0000-4000-8000-00000000000a'::uuid);
-  if n <> 0 then
+  if n is distinct from 0 then
     raise exception 'SN-2 FAILED: an elapsed snooze still hides the thread';
   end if;
   -- …and the row is still THERE, so "what did I defer" can explain itself.
@@ -133,7 +133,7 @@ values
 do $$
 declare n int;
 begin
-  if (select count(*) from public.conversation_snoozes) <> 2 then
+  if (select count(*) from public.conversation_snoozes) is distinct from 2 then
     raise exception 'SN-3 SETUP FAILED: expected two deferrals before the reply';
   end if;
 
@@ -148,7 +148,7 @@ begin
      'Any update on that price?');
 
   select count(*) into n from public.conversation_snoozes;
-  if n <> 0 then
+  if n is distinct from 0 then
     raise exception
       'SN-3 FAILED: % deferral(s) survived a customer reply. A customer '
       'actively trying to reach the business must never be hidden by somebody''s '
@@ -185,7 +185,7 @@ begin
      'da000000-0000-4000-8000-00000000000a'::uuid,
      'Checking with my supplier, back to you Thursday.');
 
-  if (select count(*) from public.conversation_snoozes) <> 1 then
+  if (select count(*) from public.conversation_snoozes) is distinct from 1 then
     raise exception
       'SN-4 FAILED: our OWN reply cleared the deferral. Answering and then '
       'deferring is the normal case, not a contradiction.';
@@ -207,7 +207,7 @@ begin
      'note',
      'Supplier said Thursday.');
 
-  if (select count(*) from public.conversation_snoozes) <> 1 then
+  if (select count(*) from public.conversation_snoozes) is distinct from 1 then
     raise exception 'SN-5 FAILED: an internal note cleared a deferral';
   end if;
   raise notice 'SN-5 PASSED: an internal note is not a customer reply';
@@ -289,7 +289,7 @@ begin
   select count(*) into mine from public.api_list_conversations(
     'da000000-0000-4000-8000-0000000000c1'::uuid,
     'da000000-0000-4000-8000-00000000000a'::uuid, 50);
-  if mine <> 0 then
+  if mine is distinct from 0 then
     raise exception
       'SN-9 FAILED: the default list still shows the % thread(s) I deferred. '
       'An opt-in exclusion is not a snooze.', mine;
@@ -298,7 +298,7 @@ begin
   select count(*) into theirs from public.api_list_conversations(
     'da000000-0000-4000-8000-0000000000c1'::uuid,
     'da000000-0000-4000-8000-00000000000b'::uuid, 50);
-  if theirs <> 1 then
+  if theirs is distinct from 1 then
     raise exception
       'SN-9 FAILED: my deferral hid the thread from a colleague (% rows). The '
       'conversation is still the crew''s.', theirs;
@@ -311,7 +311,7 @@ begin
     'da000000-0000-4000-8000-00000000000a'::uuid, 50,
     p_snoozed => 'only');
   if deferred is null
-     or (deferred->>'id') <> 'da000000-0000-4000-8000-0000000000e1' then
+     or (deferred->>'id') is distinct from 'da000000-0000-4000-8000-0000000000e1' then
     raise exception 'SN-9 FAILED: the snoozed view does not list the deferral';
   end if;
   if (deferred->>'snoozed_until') is null then
@@ -326,7 +326,7 @@ begin
     'da000000-0000-4000-8000-0000000000c1'::uuid,
     'da000000-0000-4000-8000-00000000000a'::uuid, 50,
     p_snoozed => 'all');
-  if mine <> 1 then
+  if mine is distinct from 1 then
     raise exception 'SN-9 FAILED: p_snoozed => ''all'' dropped a thread anyway';
   end if;
 
@@ -350,7 +350,7 @@ begin
   select count(*) into n from public.api_list_conversations(
     'da000000-0000-4000-8000-0000000000c1'::uuid,
     'da000000-0000-4000-8000-00000000000a'::uuid, 50);
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception
       'SN-10 FAILED: a thread whose snooze has elapsed is still hidden. It '
       'comes back by itself or the feature loses jobs.';
@@ -390,18 +390,18 @@ begin
     'da000000-0000-4000-8000-00000000000b'::uuid,
     now(), 20, null) into theirs;
 
-  if jsonb_array_length(mine->'triage'->'conversations') <> 0 then
+  if jsonb_array_length(mine->'triage'->'conversations') is distinct from 0 then
     raise exception
       'SN-11 FAILED: my focus queue still lists the thread I deferred';
   end if;
-  if (mine->'totals'->>'distinct_work')::int <> 0 then
+  if (mine->'totals'->>'distinct_work')::int is distinct from 0 then
     raise exception
       'SN-11 FAILED: the deferred thread still counts toward distinct_work (%). '
       'The headline number is the one a client renders as "N things need you".',
       mine->'totals'->>'distinct_work';
   end if;
 
-  if jsonb_array_length(theirs->'triage'->'conversations') <> 1 then
+  if jsonb_array_length(theirs->'triage'->'conversations') is distinct from 1 then
     raise exception
       'SN-11 FAILED: my deferral emptied a COLLEAGUE''s queue too. The snooze '
       'is mine; the work is still the crew''s.';
@@ -444,10 +444,10 @@ begin
     'da000000-0000-4000-8000-0000000000c1'::uuid,
     now() - interval '1 day', now() + interval '1 day') into without_snooze;
 
-  if (with_snooze->>'answered') <> (without_snooze->>'answered')
-     or (with_snooze->>'unanswered') <> (without_snooze->>'unanswered')
+  if (with_snooze->>'answered') is distinct from (without_snooze->>'answered')
+     or (with_snooze->>'unanswered') is distinct from (without_snooze->>'unanswered')
      or coalesce(with_snooze->>'median_seconds', '')
-        <> coalesce(without_snooze->>'median_seconds', '') then
+        is distinct from coalesce(without_snooze->>'median_seconds', '') then
     raise exception
       'SN-12 FAILED: a deferral changed the response-time numbers (% vs %). '
       'Deferring must not be a lever on the metric we sell.',
@@ -485,7 +485,7 @@ begin
   select count(*) into listed from public.api_list_conversations(
     'da000000-0000-4000-8000-0000000000c1'::uuid,
     'da000000-0000-4000-8000-00000000000a'::uuid, 50);
-  if listed <> 0 then
+  if listed is distinct from 0 then
     raise exception
       'SN-13 FAILED: a pending follow-up left the thread in the default list. '
       'Every existing read tests `until > now()` and must not need to know '
@@ -496,12 +496,12 @@ begin
     'da000000-0000-4000-8000-0000000000c1'::uuid,
     'da000000-0000-4000-8000-00000000000a'::uuid,
     now(), 20, null) into queued;
-  if jsonb_array_length(queued->'follow_ups') <> 0 then
+  if jsonb_array_length(queued->'follow_ups') is distinct from 0 then
     raise exception
       'SN-13 FAILED: a follow-up fired BEFORE its time. `until <= now()` is '
       'the whole mechanism.';
   end if;
-  if (queued->'totals'->>'distinct_work')::int <> 0 then
+  if (queued->'totals'->>'distinct_work')::int is distinct from 0 then
     raise exception
       'SN-13 FAILED: a pending follow-up counts as work waiting on me today';
   end if;
@@ -532,16 +532,16 @@ begin
     'da000000-0000-4000-8000-00000000000b'::uuid,
     now(), 20, null) into theirs;
 
-  if jsonb_array_length(mine->'follow_ups') <> 1 then
+  if jsonb_array_length(mine->'follow_ups') is distinct from 1 then
     raise exception
       'SN-14 FAILED: a due follow-up never reached the focus queue (% rows)',
       jsonb_array_length(mine->'follow_ups');
   end if;
   row := mine->'follow_ups'->0;
-  if (row->>'conversation_id') <> 'da000000-0000-4000-8000-0000000000e1' then
+  if (row->>'conversation_id') is distinct from 'da000000-0000-4000-8000-0000000000e1' then
     raise exception 'SN-14 FAILED: the wrong conversation came due';
   end if;
-  if (row->>'note') <> 'chase the quote' then
+  if (row->>'note') is distinct from 'chase the quote' then
     raise exception
       'SN-14 FAILED: the reminder arrived without the reason you gave it. '
       '"Chase this" with no context is a chore; "chase the quote" is a job.';
@@ -551,13 +551,13 @@ begin
   end if;
 
   -- It is MINE. A colleague never asked to be reminded of this.
-  if jsonb_array_length(theirs->'follow_ups') <> 0 then
+  if jsonb_array_length(theirs->'follow_ups') is distinct from 0 then
     raise exception
       'SN-14 FAILED: my reminder landed on a colleague''s queue too';
   end if;
 
   -- …and it counts as work, because the whole point is that it needs me.
-  if (mine->'totals'->>'follow_ups')::int <> 1 then
+  if (mine->'totals'->>'follow_ups')::int is distinct from 1 then
     raise exception 'SN-14 FAILED: the due follow-up has no total of its own';
   end if;
   if (mine->'totals'->>'distinct_work')::int < 1 then
@@ -597,7 +597,7 @@ begin
     'da000000-0000-4000-8000-0000000000c1'::uuid,
     'da000000-0000-4000-8000-00000000000a'::uuid,
     now(), 20, null) into queued;
-  if jsonb_array_length(queued->'follow_ups') <> 0 then
+  if jsonb_array_length(queued->'follow_ups') is distinct from 0 then
     raise exception 'SN-15 FAILED: the queue still says to chase them';
   end if;
   raise notice 'SN-15 PASSED: they answered, so there is nothing to chase';

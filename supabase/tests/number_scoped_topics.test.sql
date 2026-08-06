@@ -137,7 +137,7 @@ begin
     'number.updated', 'read.conversation']
   loop
     v_topics := pg_temp.topics_for(v_event);
-    if v_topics <> v_want then
+    if v_topics is distinct from v_want then
       raise exception 'NT-1 FAILED: % published to % (want %)',
         v_event, v_topics, v_want;
     end if;
@@ -163,7 +163,7 @@ begin
   values ('7c000000-0000-4000-8000-0000000000c1'::uuid, 'brand', 'pending');
 
   v_topics := pg_temp.topics_for('registration.updated');
-  if v_topics <> array[pg_temp.company_topic()] then
+  if v_topics is distinct from array[pg_temp.company_topic()] then
     raise exception 'NT-3 FAILED: registration.updated published to % (want the '
       'company topic only)', v_topics;
   end if;
@@ -173,7 +173,7 @@ begin
           '7c000000-0000-4000-8000-0000000000c1'::uuid, now());
 
   v_topics := pg_temp.topics_for('read.notifications');
-  if v_topics <> array[pg_temp.company_topic()] then
+  if v_topics is distinct from array[pg_temp.company_topic()] then
     raise exception 'NT-3 FAILED: read.notifications published to % (want the '
       'company topic only)', v_topics;
   end if;
@@ -208,7 +208,7 @@ begin
      'nt-session-1', 'inbound', 'ringing');
 
   v_topics := pg_temp.topics_for('call.updated');
-  if v_topics <> array[pg_temp.company_topic()] then
+  if v_topics is distinct from array[pg_temp.company_topic()] then
     raise exception 'NT-4 FAILED: a call with no number published to % (want the '
       'company topic alone)', v_topics;
   end if;
@@ -232,7 +232,7 @@ begin
      'nt-session-2', 'inbound', 'ringing');
 
   v_topics := pg_temp.topics_for('call.updated');
-  if v_topics <> array[pg_temp.number_topic()] then
+  if v_topics is distinct from array[pg_temp.number_topic()] then
     raise exception 'NT-4 FAILED: a call WITH a number published to % (want the '
       'per-number topic alone)', v_topics;
   end if;
@@ -268,7 +268,7 @@ begin
      '7c000000-0000-4000-8000-0000000000f1'::uuid, 'role', 'member', 'note');
 
   v_topics := pg_temp.topics_for('access.changed');
-  if v_topics <> array[pg_temp.company_topic()] then
+  if v_topics is distinct from array[pg_temp.company_topic()] then
     raise exception 'NT-5 FAILED: access.changed published to % (want the '
       'company topic — every member may already join it, so the announcement '
       'needs no new authorization)', v_topics;
@@ -282,7 +282,7 @@ begin
   select array_agg(k order by k) into v_keys
   from jsonb_object_keys(v_payload) k
   where k <> 'id';
-  if v_keys <> array['company_id'] then
+  if v_keys is distinct from array['company_id'] then
     raise exception 'NT-5 FAILED: the payload carries % — naming the number or '
       'the member leaks the restriction to everyone on the topic', v_keys;
   end if;
@@ -336,13 +336,13 @@ begin
   -- test exists to compensate for, and the reason the discovery signal below is
   -- not optional.
   v_topics := pg_temp.topics_for('number.updated');
-  if v_topics <> array[pg_temp.number_topic()] then
+  if v_topics is distinct from array[pg_temp.number_topic()] then
     raise exception 'NT-6 FAILED: number.updated published to %', v_topics;
   end if;
 
   -- And the discovery signal, on the topic every member is already joined to.
   v_topics := pg_temp.topics_for('access.changed');
-  if v_topics <> array[pg_temp.company_topic()] then
+  if v_topics is distinct from array[pg_temp.company_topic()] then
     raise exception 'NT-6 FAILED: a number change did not announce itself '
       'company-wide (topics %) — a new number would be unhearable', v_topics;
   end if;
@@ -354,7 +354,7 @@ begin
   from realtime.messages m where m.event = 'access.changed' limit 1;
   select array_agg(k order by k) into v_keys
   from jsonb_object_keys(v_payload) k where k <> 'id';
-  if v_keys <> array['company_id'] then
+  if v_keys is distinct from array['company_id'] then
     raise exception 'NT-6 FAILED: the discovery payload carries %', v_keys;
   end if;
   if v_payload::text like '%7c000000-0000-4000-8000-0000000000f1%' then

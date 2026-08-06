@@ -46,9 +46,9 @@ begin
   where table_schema='public' and table_name='messaging_registrations'
     and column_name='reactivation_count';
   if c_type is null then raise exception 'RC1 FAILED: messaging_registrations.reactivation_count missing'; end if;
-  if c_type <> 'integer' then raise exception 'RC1 FAILED: reactivation_count is % (want integer)', c_type; end if;
+  if c_type is distinct from 'integer' then raise exception 'RC1 FAILED: reactivation_count is % (want integer)', c_type; end if;
   if c_null then raise exception 'RC1 FAILED: reactivation_count must be NOT NULL'; end if;
-  if c_default <> '0' then raise exception 'RC1 FAILED: reactivation_count default is % (want 0)', c_default; end if;
+  if c_default is distinct from '0' then raise exception 'RC1 FAILED: reactivation_count default is % (want 0)', c_default; end if;
 
   perform 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where n.nspname='public' and p.proname='bump_registration_counter';
@@ -82,13 +82,13 @@ begin
   res := public.bump_registration_counter(
     'd7d7d7d7-d7d7-4d7d-8d7d-d7d000000001',
     'd7d7d7d7-d7d7-4d7d-8d7d-d7d7d7d7d7d7', 'submission_count', 2);
-  if (res->>'allowed')::boolean is not true or (res->>'count')::int <> 1 then
+  if (res->>'allowed')::boolean is not true or (res->>'count')::int is distinct from 1 then
     raise exception 'RC2 FAILED: first bump expected allowed/count=1, got %', res;
   end if;
   res := public.bump_registration_counter(
     'd7d7d7d7-d7d7-4d7d-8d7d-d7d000000001',
     'd7d7d7d7-d7d7-4d7d-8d7d-d7d7d7d7d7d7', 'submission_count', 2);
-  if (res->>'allowed')::boolean is not true or (res->>'count')::int <> 2 then
+  if (res->>'allowed')::boolean is not true or (res->>'count')::int is distinct from 2 then
     raise exception 'RC2 FAILED: second bump expected allowed/count=2, got %', res;
   end if;
   -- … and the third is refused, leaving the counter AT the cap.
@@ -101,20 +101,20 @@ begin
   select submission_count, reactivation_count into sc, rc
     from public.messaging_registrations
    where id = 'd7d7d7d7-d7d7-4d7d-8d7d-d7d000000001';
-  if sc <> 2 then raise exception 'RC2 FAILED: capped bump incremented past the cap (%)', sc; end if;
-  if rc <> 0 then raise exception 'RC2 FAILED: review bumps leaked into reactivation_count (%)', rc; end if;
+  if sc is distinct from 2 then raise exception 'RC2 FAILED: capped bump incremented past the cap (%)', sc; end if;
+  if rc is distinct from 0 then raise exception 'RC2 FAILED: review bumps leaked into reactivation_count (%)', rc; end if;
 
   -- reactivation_count is its own budget (#40: the post-grace path must not
   -- drain — nor be drained by — the review budget).
   res := public.bump_registration_counter(
     'd7d7d7d7-d7d7-4d7d-8d7d-d7d000000001',
     'd7d7d7d7-d7d7-4d7d-8d7d-d7d7d7d7d7d7', 'reactivation_count', 4);
-  if (res->>'allowed')::boolean is not true or (res->>'count')::int <> 1 then
+  if (res->>'allowed')::boolean is not true or (res->>'count')::int is distinct from 1 then
     raise exception 'RC2 FAILED: reactivation bump expected allowed/count=1, got %', res;
   end if;
   select submission_count into sc from public.messaging_registrations
    where id = 'd7d7d7d7-d7d7-4d7d-8d7d-d7d000000001';
-  if sc <> 2 then raise exception 'RC2 FAILED: reactivation bump leaked into submission_count (%)', sc; end if;
+  if sc is distinct from 2 then raise exception 'RC2 FAILED: reactivation bump leaked into submission_count (%)', sc; end if;
 
   -- A mismatched company never increments — backstop for a caller that
   -- skipped the company-scoped load.
@@ -126,7 +126,7 @@ begin
   end if;
   select submission_count into sc from public.messaging_registrations
    where id = 'd7d7d7d7-d7d7-4d7d-8d7d-d7d000000001';
-  if sc <> 2 then raise exception 'RC2 FAILED: cross-company bump incremented (%)', sc; end if;
+  if sc is distinct from 2 then raise exception 'RC2 FAILED: cross-company bump incremented (%)', sc; end if;
 
   -- An unknown counter raises (never a silent no-op)…
   begin

@@ -16,6 +16,7 @@ import com.loonext.android.core.model.ImportResult
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.OptOut
 import com.loonext.android.core.model.Page
+import com.loonext.android.core.contacts.ContactImport
 import com.loonext.android.core.net.ApiClient
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonNull
@@ -255,33 +256,74 @@ class ContactMutations(private val api: ApiClient, baseUrl: String) {
         companyId = companyId,
     )
 
-    /** Admin CSV import: multipart 'file', ≤2MB, ≤2000 rows. */
-    suspend fun importCsv(companyId: String, fileName: String, bytes: ByteArray): ImportResult =
-        api.json.decodeFromString(
-            multipart.postFile(
-                path = "/v1/contacts/import",
-                companyId = companyId,
-                fields = emptyMap(),
-                fileField = "file",
-                fileName = fileName,
-                contentType = "text/csv",
-                bytes = bytes,
-            ),
-        )
+    /**
+     * Admin CSV import: multipart 'file' plus the #226 consent attestation,
+     * bounded by ContactImportKind.CSV.
+     *
+     * [attested] has no default on purpose. It is somebody else's phone number
+     * arriving in a shared inbox, and the one thing this call must not be able
+     * to do is make the claim on its own — a defaulted `true` would put the
+     * attestation back where it was before #226, and a defaulted `false` would
+     * make forgetting it look like a network failure.
+     *
+     * [columns] is #248 round 3: one declaration per column of the file, in the
+     * shared `<index>:<action>:<header>` form, saying what every one of them is.
+     * NO DEFAULT, for the same reason [attested] has none — a default would let a
+     * caller reach this route without anybody having answered, and "nobody
+     * answered" is the single failure this whole mechanism exists to close.
+     */
+    suspend fun importCsv(
+        companyId: String,
+        fileName: String,
+        bytes: ByteArray,
+        attested: Boolean,
+        columns: List<String>,
+    ): ImportResult = api.json.decodeFromString(
+        multipart.postFile(
+            path = "/v1/contacts/import",
+            companyId = companyId,
+            fields = ContactImport.csvFields(attested, columns),
+            fileField = "file",
+            fileName = fileName,
+            contentType = "text/csv",
+            bytes = bytes,
+        ),
+    )
 
-    /** Admin vCard import: multipart 'file', ≤5MB, ≤2000 cards. */
-    suspend fun importVcard(companyId: String, fileName: String, bytes: ByteArray): ImportResult =
-        api.json.decodeFromString(
-            multipart.postFile(
-                path = "/v1/contacts/import-vcard",
-                companyId = companyId,
-                fields = emptyMap(),
-                fileField = "file",
-                fileName = fileName,
-                contentType = "text/vcard",
-                bytes = bytes,
-            ),
-        )
+    /**
+     * Admin vCard import: the same attestation, bounded by
+     * ContactImportKind.VCARD. A phone's address book is not a consent
+     * record — it is every number its owner ever dialled — so if either bulk
+     * door asks the question, this is the one that must.
+     *
+     * [properties] is the same rule as the CSV door's declaration, in the shape
+     * a .vcf allows: one `<PROPERTY>:<action>` per property the cards carry that
+     * the importer does not read. `CATEGORIES:DNC`, a `NOTE` saying they asked us
+     * to stop, and a label like `X-ABLabel=DO NOT CALL` are where a .vcf says
+     * do-not-text, and this door dropped all three in silence until round 3.
+     *
+     * Empty is now the RARE answer rather than the ordinary one: a property's
+     * PARAMETERS are enumerated too, so `TEL;TYPE=CELL` — which every phone on
+     * earth exports — is one question. Still no default either way, so it is said
+     * rather than assumed.
+     */
+    suspend fun importVcard(
+        companyId: String,
+        fileName: String,
+        bytes: ByteArray,
+        attested: Boolean,
+        properties: List<String>,
+    ): ImportResult = api.json.decodeFromString(
+        multipart.postFile(
+            path = "/v1/contacts/import-vcard",
+            companyId = companyId,
+            fields = ContactImport.vcardFields(attested, properties),
+            fileField = "file",
+            fileName = fileName,
+            contentType = "text/vcard",
+            bytes = bytes,
+        ),
+    )
 
 
     /** #246: the pairs that look like one customer, newest signal first. */

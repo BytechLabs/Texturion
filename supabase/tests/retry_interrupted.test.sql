@@ -108,7 +108,7 @@ begin
 
   select count(*) into v_count
     from public.claim_stuck_sends_for_retry(900, 1, 50);
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception
       'exactly the stuck row must be claimed, got % rows', v_count;
   end if;
@@ -122,7 +122,7 @@ begin
   -- ==========================================================================
   select auto_retry_count into v_attempts
     from public.messages where id = v_stuck;
-  if v_attempts <> 1 then
+  if v_attempts is distinct from 1 then
     raise exception 'the claim must record the attempt, got %', v_attempts;
   end if;
 
@@ -130,7 +130,7 @@ begin
   -- fail-out sweeper's, which is the unchanged fall-through.
   select count(*) into v_count
     from public.claim_stuck_sends_for_retry(900, 1, 50);
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception 'a claimed row must not be claimed twice, got %', v_count;
   end if;
 
@@ -138,7 +138,7 @@ begin
   select count(*) into v_count
     from public.messages
    where id in (v_fresh, v_sent, v_failed) and auto_retry_count <> 0;
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception 'the boundary rows must not have been claimed';
   end if;
 
@@ -166,7 +166,7 @@ begin
   -- The claim skips it: the ceiling is reached.
   select count(*) into v_count
     from public.claim_stuck_sends_for_retry(900, 1, 50);
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception 'a row at the ceiling must not be claimed again, got %', v_count;
   end if;
 
@@ -176,7 +176,7 @@ begin
     from public.messages
    where id = v_exhausted
      and status = 'failed' and error_code = 'send_interrupted';
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception 'a retried-and-still-stuck row must be failed out';
   end if;
 

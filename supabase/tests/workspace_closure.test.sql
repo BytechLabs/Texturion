@@ -77,19 +77,19 @@ declare
   v jsonb;
 begin
   v := public.close_workspace(v_company);
-  if v->>'outcome' <> 'closed' then
+  if v->>'outcome' is distinct from 'closed' then
     raise exception 'WC-2 FAILED: outcome %', v;
   end if;
   if (v->>'purge_after')::timestamptz <= now() then
     raise exception 'WC-2 FAILED: purge_after is not in the future: %', v;
   end if;
-  if jsonb_array_length(v->'user_ids') <> 2 then
+  if jsonb_array_length(v->'user_ids') is distinct from 2 then
     raise exception 'WC-2 FAILED: % members listed (want 2 — the deactivated one counts)', v->'user_ids';
   end if;
-  if jsonb_array_length(v->'phone_number_ids') <> 1 then
+  if jsonb_array_length(v->'phone_number_ids') is distinct from 1 then
     raise exception 'WC-2 FAILED: % numbers listed (want 1 — the released one does not)', v->'phone_number_ids';
   end if;
-  if v->>'stripe_subscription_id' <> 'sub_test_closing' then
+  if v->>'stripe_subscription_id' is distinct from 'sub_test_closing' then
     raise exception 'WC-2 FAILED: subscription not handed back: %', v;
   end if;
 
@@ -118,14 +118,14 @@ begin
   select purge_after into v_first from public.companies where id = v_company;
 
   v := public.close_workspace(v_company);
-  if v->>'outcome' <> 'already' then
+  if v->>'outcome' is distinct from 'already' then
     raise exception 'WC-3 FAILED: second close returned %', v;
   end if;
   if v ? 'phone_number_ids' then
     raise exception 'WC-3 FAILED: a repeat close handed back a cleanup list: %', v;
   end if;
 
-  if (select purge_after from public.companies where id = v_company) <> v_first then
+  if (select purge_after from public.companies where id = v_company) is distinct from v_first then
     raise exception 'WC-3 FAILED: the window moved on a repeat close';
   end if;
 
@@ -143,7 +143,7 @@ declare
   v jsonb;
 begin
   v := public.reopen_workspace(v_company);
-  if v->>'outcome' <> 'reopened' then
+  if v->>'outcome' is distinct from 'reopened' then
     raise exception 'WC-4 FAILED: reopen returned %', v;
   end if;
   if exists (
@@ -155,7 +155,7 @@ begin
 
   -- Reopening a live workspace says so rather than pretending it did something.
   v := public.reopen_workspace(v_company);
-  if v->>'outcome' <> 'not_closed' then
+  if v->>'outcome' is distinct from 'not_closed' then
     raise exception 'WC-4 FAILED: reopening a live workspace returned %', v;
   end if;
 
@@ -164,7 +164,7 @@ begin
   update public.companies set purge_after = now() - interval '1 minute'
    where id = v_company;
   v := public.reopen_workspace(v_company);
-  if v->>'outcome' <> 'too_late' then
+  if v->>'outcome' is distinct from 'too_late' then
     raise exception 'WC-4 FAILED: reopening past the window returned %', v;
   end if;
   if not exists (
@@ -184,11 +184,11 @@ do $$
 declare v jsonb;
 begin
   v := public.close_workspace('9c000000-0000-4000-8000-0000000000ff');
-  if v->>'outcome' <> 'not_found' then
+  if v->>'outcome' is distinct from 'not_found' then
     raise exception 'WC-5 FAILED: unknown workspace returned %', v;
   end if;
   v := public.reopen_workspace('9c000000-0000-4000-8000-0000000000ff');
-  if v->>'outcome' <> 'not_found' then
+  if v->>'outcome' is distinct from 'not_found' then
     raise exception 'WC-5 FAILED: reopening an unknown workspace returned %', v;
   end if;
   raise notice 'WC-5 PASSED: an unknown workspace is not a silent success';

@@ -92,7 +92,7 @@ begin
   select oriented_at into v_then
     from public.company_members
    where company_id = v_co1 and user_id = v_tech;
-  if v_then <> v_at then
+  if v_then is distinct from v_at then
     raise exception 'the timestamp moved on a repeat call: % -> %', v_at, v_then;
   end if;
 

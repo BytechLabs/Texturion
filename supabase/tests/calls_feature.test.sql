@@ -37,7 +37,7 @@ begin
     '77777777-7777-4777-8777-777000000001',
     'sess-c1', '+14165550111', 'answered', 240,
     now() - interval '5 minutes', now());
-  if v->>'outcome' <> 'answered' then
+  if v->>'outcome' is distinct from 'answered' then
     raise exception 'C-1 FAILED: first write outcome %', v->>'outcome';
   end if;
   -- Late AMD verdict: voicemail must WIN; a null caller must not erase.
@@ -46,13 +46,13 @@ begin
     '77777777-7777-4777-8777-777000000001',
     'sess-c1', null, 'voicemail', 0,
     now() - interval '5 minutes', null);
-  if v->>'outcome' <> 'voicemail' then
+  if v->>'outcome' is distinct from 'voicemail' then
     raise exception 'C-1 FAILED: voicemail did not win, got %', v->>'outcome';
   end if;
-  if (v->>'forward_seconds')::int <> 240 then
+  if (v->>'forward_seconds')::int is distinct from 240 then
     raise exception 'C-1 FAILED: seconds regressed to %', v->>'forward_seconds';
   end if;
-  if v->>'caller_e164' <> '+14165550111' then
+  if v->>'caller_e164' is distinct from '+14165550111' then
     raise exception 'C-1 FAILED: caller erased';
   end if;
   raise notice 'C-1 PASSED: api_upsert_call merge (voicemail wins, seconds max, caller sticks)';
@@ -73,7 +73,7 @@ begin
     raise exception 'C-2 FAILED: missed call did not thread';
   end if;
   -- #132: the first pass reports the event INSERT (the crew-alert claim)…
-  if v->>'event_inserted' <> 'true' then
+  if v->>'event_inserted' is distinct from 'true' then
     raise exception 'C-2 FAILED: fresh thread did not report event_inserted';
   end if;
   -- Replay: same ids back, no second event.
@@ -81,17 +81,17 @@ begin
     '77777777-7777-4777-8777-777000000000',
     '77777777-7777-4777-8777-777000000001',
     '+14165550111', 'sess-c1', 'missed', 0, true);
-  if v2->>'conversation_id' <> v->>'conversation_id' then
+  if v2->>'conversation_id' is distinct from v->>'conversation_id' then
     raise exception 'C-2 FAILED: replay threaded a different conversation';
   end if;
   -- …and the replay does NOT (a Telnyx redelivery never re-alerts).
-  if v2->>'event_inserted' <> 'false' then
+  if v2->>'event_inserted' is distinct from 'false' then
     raise exception 'C-2 FAILED: replay claimed event_inserted';
   end if;
   select count(*) into n from public.conversation_events
    where type = 'call_completed'
      and payload->>'call_session_id' = 'sess-c1';
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'C-2 FAILED: expected 1 call_completed event, got %', n;
   end if;
   raise notice 'C-2 PASSED: api_thread_call creates + audits once (idempotent)';
@@ -109,13 +109,13 @@ begin
     '77777777-7777-4777-8777-777000000000',
     '77777777-7777-4777-8777-777000000001',
     '+14165550999', 'sess-c3', 'answered', 120, false);
-  if v <> '{}'::jsonb then
+  if v is distinct from '{}'::jsonb then
     raise exception 'C-3 FAILED: stranger answered call threaded: %', v;
   end if;
   select count(*) into n from public.contacts
    where company_id = '77777777-7777-4777-8777-777000000000'
      and phone_e164 = '+14165550999';
-  if n <> 0 then
+  if n is distinct from 0 then
     raise exception 'C-3 FAILED: join-only threading created a contact';
   end if;
   raise notice 'C-3 PASSED: join-only threading never creates';
@@ -138,7 +138,7 @@ begin
   -- Unrestricted (null deny list): all three sessions visible.
   select count(*) into n from public.api_list_calls(
     '77777777-7777-4777-8777-777000000000', 50, null, null, null, null);
-  if n <> 3 then
+  if n is distinct from 3 then
     raise exception 'C-4 FAILED: unrestricted expected 3 rows, got %', n;
   end if;
 
@@ -146,14 +146,14 @@ begin
   select count(*) into n from public.api_list_calls(
     '77777777-7777-4777-8777-777000000000', 50, null, null, null,
     array['77777777-7777-4777-8777-777000000002']::uuid[]);
-  if n <> 2 then
+  if n is distinct from 2 then
     raise exception 'C-4 FAILED: deny-filtered expected 2 rows, got %', n;
   end if;
 
   -- Outcome filter narrows.
   select count(*) into n from public.api_list_calls(
     '77777777-7777-4777-8777-777000000000', 50, 'voicemail', null, null, null);
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'C-4 FAILED: outcome filter expected 1 row, got %', n;
   end if;
   raise notice 'C-4 PASSED: api_list_calls deny list + NULL-number visibility + outcome filter';
@@ -171,7 +171,7 @@ begin
     '77777777-7777-4777-8777-777000000000',
     '77777777-7777-4777-8777-777000000001',
     'sess-c6-out', '+14165550444', null, 0, now(), null, 'outbound');
-  if v->>'direction' <> 'outbound' then
+  if v->>'direction' is distinct from 'outbound' then
     raise exception 'C-6 FAILED: direction not persisted: %', v->>'direction';
   end if;
   -- Customer-leg hangup merges outcome/seconds; direction stays outbound.
@@ -179,7 +179,7 @@ begin
     '77777777-7777-4777-8777-777000000000',
     '77777777-7777-4777-8777-777000000001',
     'sess-c6-out', '+14165550444', 'answered', 192, now(), now(), 'inbound');
-  if v->>'direction' <> 'outbound' or v->>'outcome' <> 'answered' then
+  if v->>'direction' is distinct from 'outbound' or v->>'outcome' is distinct from 'answered' then
     raise exception 'C-6 FAILED: merge broke direction/outcome: % %',
       v->>'direction', v->>'outcome';
   end if;
@@ -196,13 +196,13 @@ begin
   -- 192; out_agent adds NOTHING (cost analysis only).
   secs := public.api_period_forward_seconds(
     '77777777-7777-4777-8777-777000000000', now() - interval '1 hour');
-  if secs <> 192 then
+  if secs is distinct from 192 then
     raise exception 'C-6 FAILED: billed pool expected 192 seconds, got %', secs;
   end if;
 
   dials := public.api_period_forwarded_calls(
     '77777777-7777-4777-8777-777000000000', now() - interval '1 hour');
-  if dials <> 2 then
+  if dials is distinct from 2 then
     raise exception 'C-6 FAILED: per-dial counter expected 2, got %', dials;
   end if;
   raise notice 'C-6 PASSED: outbound direction + billed pool + dial counter';
@@ -229,7 +229,7 @@ begin
     from public.conversation_events e
    where e.type = 'call_completed'
      and e.payload->>'call_session_id' = 'sess-c7-out';
-  if d <> 'outbound' then
+  if d is distinct from 'outbound' then
     raise exception 'C-7 FAILED: event direction %', d;
   end if;
   raise notice 'C-7 PASSED: outbound event direction';
@@ -272,11 +272,11 @@ begin
      'sess-c8-done', 'inbound', 'answered', now() - interval '6 hours');
 
   n := public.api_sweep_stale_calls();
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'C-8 FAILED: swept % rows (want exactly the stale one)', n;
   end if;
   select outcome into v_out from public.calls where call_session_id = 'sess-c8-stale';
-  if v_out <> 'missed' then
+  if v_out is distinct from 'missed' then
     raise exception 'C-8 FAILED: stale session outcome % (want missed)', v_out;
   end if;
   select outcome into v_out from public.calls where call_session_id = 'sess-c8-fresh';
@@ -284,7 +284,7 @@ begin
     raise exception 'C-8 FAILED: fresh in-flight session was swept';
   end if;
   select outcome into v_out from public.calls where call_session_id = 'sess-c8-done';
-  if v_out <> 'answered' then
+  if v_out is distinct from 'answered' then
     raise exception 'C-8 FAILED: resolved session was rewritten';
   end if;
   raise notice 'C-8 PASSED: stale-calls sweep flips only wedged sessions';
@@ -384,22 +384,22 @@ begin
      'sess-c11-inflight', 'inbound', null, 'ended_answered', now() - interval '1 minute');
 
   n := public.api_sweep_stale_calls();
-  if n <> 3 then
+  if n is distinct from 3 then
     raise exception 'C-11 FAILED: swept % rows (want the 3 aged mirror-terminal ones)', n;
   end if;
 
   select outcome, state into v_out, v_state
     from public.calls where call_session_id = 'sess-c11-ans';
-  if v_out <> 'answered' or v_state <> 'ended_answered' then
+  if v_out is distinct from 'answered' or v_state is distinct from 'ended_answered' then
     raise exception 'C-11 FAILED: answered mirror finalized as (%, %) - the sweep must derive the outcome FROM the mirror and never relabel it missed', v_out, v_state;
   end if;
   select outcome into v_out from public.calls where call_session_id = 'sess-c11-vm';
-  if v_out <> 'voicemail' then
+  if v_out is distinct from 'voicemail' then
     raise exception 'C-11 FAILED: voicemail mirror finalized as %', v_out;
   end if;
   select outcome, state into v_out, v_state
     from public.calls where call_session_id = 'sess-c11-rej';
-  if v_out <> 'missed' or v_state <> 'ended_rejected' then
+  if v_out is distinct from 'missed' or v_state is distinct from 'ended_rejected' then
     raise exception 'C-11 FAILED: rejected mirror finalized as (%, %)', v_out, v_state;
   end if;
   select outcome into v_out from public.calls where call_session_id = 'sess-c11-inflight';
@@ -409,11 +409,11 @@ begin
 
   -- The test hook: p_terminal_stale_before pulls the short window forward.
   n := public.api_sweep_stale_calls(null, now());
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'C-11 FAILED: explicit terminal window swept % rows', n;
   end if;
   select outcome into v_out from public.calls where call_session_id = 'sess-c11-inflight';
-  if v_out <> 'answered' then
+  if v_out is distinct from 'answered' then
     raise exception 'C-11 FAILED: explicit-window finalize wrote %', v_out;
   end if;
 
@@ -522,9 +522,9 @@ begin
     'nonce-does-not-exist', '+14165550300', '+14165552222', 'sess-victim-out', 120);
   if (v->>'authorized')::boolean is distinct from true
      or (v->>'replay')::boolean is distinct from true
-     or v->>'company_id' <> '77777777-7777-4777-8777-777000000000'
-     or v->>'phone_number_id' <> '77777777-7777-4777-8777-777000000002'
-     or v->>'session_id' <> 'sess-victim-out' then
+     or v->>'company_id' is distinct from '77777777-7777-4777-8777-777000000000'
+     or v->>'phone_number_id' is distinct from '77777777-7777-4777-8777-777000000002'
+     or v->>'session_id' is distinct from 'sess-victim-out' then
     raise exception 'C-12 FAILED: genuine outbound replay not authorized correctly (%)', v;
   end if;
 

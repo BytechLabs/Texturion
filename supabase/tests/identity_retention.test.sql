@@ -87,7 +87,7 @@ begin
     raise exception 'the prune removed more than the identity fields: %', v_row::text;
   end if;
 
-  if v_cleared <> 1 then
+  if v_cleared is distinct from 1 then
     raise exception 'expected exactly 1 row cleared, got %', v_cleared;
   end if;
 
@@ -127,7 +127,7 @@ end $$;
 
 do $$
 begin
-  if public.api_prune_abandoned_identity(30) <> 0 then
+  if public.api_prune_abandoned_identity(30) is distinct from 0 then
     raise exception
       'a second pass rewrote rows it had already cleared — the guard on there '
       'being something to remove is what keeps this a no-op on a quiet month';

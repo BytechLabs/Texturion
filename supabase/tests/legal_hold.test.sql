@@ -106,7 +106,7 @@ begin
      and legal_hold_at is null
      and id = 'ca000000-0000-4000-8000-0000000000c1'::uuid;
 
-  if v_eligible <> 0 then
+  if v_eligible is distinct from 0 then
     raise exception
       'a workspace under legal hold was eligible for purge — this is the '
       'failure that cannot be undone';
@@ -129,7 +129,7 @@ begin
   select count(*) into v_eligible from public.companies
    where purge_after <= now() and purged_at is null and legal_hold_at is null
      and id = 'ca000000-0000-4000-8000-0000000000c1'::uuid;
-  if v_eligible <> 1 then
+  if v_eligible is distinct from 1 then
     raise exception 'lifting the hold must restore purge eligibility';
   end if;
 

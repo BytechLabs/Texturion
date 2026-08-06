@@ -54,7 +54,7 @@ begin
     from public.contacts
    where company_id = '9c000000-0000-4000-8000-0000000000c1'::uuid
      and custom_values ilike '%Worcester%';
-  if v_found <> 1 then
+  if v_found is distinct from 1 then
     raise exception 'CV-1: searching a stored value found % row(s)', v_found;
   end if;
 
@@ -64,7 +64,7 @@ begin
     from public.contacts
    where company_id = '9c000000-0000-4000-8000-0000000000c1'::uuid
      and custom_values ilike '%4821%';
-  if v_found <> 1 then
+  if v_found is distinct from 1 then
     raise exception 'CV-1: only one field is searchable, found % for the gate code', v_found;
   end if;
 end $$;
@@ -82,7 +82,7 @@ begin
     from public.contacts
    where company_id = '9c000000-0000-4000-8000-0000000000c1'::uuid
      and custom_values ilike '%boiler%';
-  if v_found <> 0 then
+  if v_found is distinct from 0 then
     raise exception
       'CV-2: searching a field NAME returned % contact(s) — the keys are in the projection',
       v_found;
@@ -92,7 +92,7 @@ begin
     from public.contacts
    where company_id = '9c000000-0000-4000-8000-0000000000c1'::uuid
      and custom_values ilike '%gate_code%';
-  if v_found <> 0 then
+  if v_found is distinct from 0 then
     raise exception 'CV-2: the gate_code KEY is searchable';
   end if;
 end $$;
@@ -110,14 +110,14 @@ begin
   select custom_values into v_values
     from public.contacts
    where id = '9c000000-0000-4000-8000-0000000000d2'::uuid;
-  if coalesce(v_values, 'x') <> '' then
+  if coalesce(v_values, 'x') is distinct from '' then
     raise exception 'CV-3: an empty answer projected to "%"', v_values;
   end if;
 
   select custom_values into v_values
     from public.contacts
    where id = '9c000000-0000-4000-8000-0000000000d3'::uuid;
-  if coalesce(v_values, 'x') <> '' then
+  if coalesce(v_values, 'x') is distinct from '' then
     raise exception 'CV-3: a contact with no fields projected to "%"', v_values;
   end if;
 end $$;

@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -36,10 +37,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
@@ -64,8 +67,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -76,6 +81,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
+import com.loonext.android.core.contacts.ContactImport
+import com.loonext.android.core.contacts.ContactImportKind
+import com.loonext.android.core.contacts.ImportColumns
+import com.loonext.android.core.contacts.VCardProperties
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ContactFieldDef
@@ -83,6 +92,8 @@ import com.loonext.android.core.model.ImportResult
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.Page
+import com.loonext.android.core.net.ApiErrorCode
+import com.loonext.android.core.net.ApiException
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.DsChip
@@ -108,15 +119,51 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private const val CSV_IMPORT_MAX_BYTES = 2L * 1024 * 1024
-private const val VCARD_IMPORT_MAX_BYTES = 5L * 1024 * 1024
 private const val IMPORT_ERRORS_SHOWN = 50
 
-/** Which import a picked document feeds. */
-private enum class ImportKind(val rowWord: String) { Csv("Row"), Vcard("Card") }
-
 /** One finished import, kept with its kind so skipped rows label honestly. */
-private data class ImportReport(val kind: ImportKind, val result: ImportResult)
+private data class ImportReport(val kind: ContactImportKind, val result: ImportResult)
+
+/**
+ * #248 round 3 — a picked CSV waiting for somebody to say what its columns are.
+ *
+ * Nothing is uploaded until this is answered. A plain class rather than a `data
+ * class` on purpose, here and in the two below: it carries the file's BYTES, and
+ * a generated `equals` over a ByteArray compares references anyway while a
+ * generated `hashCode` would walk two megabytes every time Compose asked.
+ */
+private class ColumnStep(
+    val fileName: String,
+    val bytes: ByteArray,
+    val plan: ImportColumns.Plan,
+)
+
+/** The same, at the vCard door: properties these cards carry that we do not read. */
+private class PropertyStep(
+    val fileName: String,
+    val bytes: ByteArray,
+    val properties: List<String>,
+)
+
+/**
+ * One whole file the server refused, kept so the refusal can be READ rather than
+ * glimpsed — and, when this app could read the file, answered again.
+ */
+private class ImportRefusal(
+    val kind: ContactImportKind,
+    val fileName: String,
+    val bytes: ByteArray,
+    /** The server's own sentence, verbatim — it is the only thing that says why. */
+    val message: String,
+    /**
+     * The columns of this file, when it parsed. Present means the per-column
+     * question can be asked again: "missing `phone` column" and "the do-not-text
+     * column carries values it cannot read" are both answered by declaring
+     * differently, and re-picking the file to change one answer is how somebody
+     * decides to go and use a laptop instead.
+     */
+    val plan: ImportColumns.Plan?,
+)
 
 /**
  * The cached contacts list (#176): every page loaded so far plus its cursor,
@@ -228,10 +275,27 @@ private fun ContactListScreen(
         }.getOrDefault(emptyList())
     }
     var importMenuOpen by remember { mutableStateOf(false) }
-    var pendingImport by remember { mutableStateOf<ImportKind?>(null) }
+    // #248: the kind chosen from the menu, held while the attestation sheet is
+    // up, then handed to the document picker. Two states rather than one
+    // because the claim is made about a FILE — a sheet answered for a CSV must
+    // not follow the user into a vCard pick.
+    var attestingImport by remember { mutableStateOf<ContactImportKind?>(null) }
+    var pendingImport by remember { mutableStateOf<ContactImportKind?>(null) }
     var importing by remember { mutableStateOf(false) }
     var exporting by remember { mutableStateOf(false) }
     var importReport by remember { mutableStateOf<ImportReport?>(null) }
+    // #248 B1 — a whole file the server refused, held so the refusal can be READ
+    // rather than glimpsed. Plain `remember`, never `rememberSaveable`: this
+    // carries up to two megabytes of CSV, and a saveable would put that through
+    // a Bundle and end the process on a TransactionTooLargeException. Losing the
+    // sheet to a rotation is the correct trade — the file is still on the phone.
+    var importRefusal by remember { mutableStateOf<ImportRefusal?>(null) }
+    // #248 round 3 — a picked file waiting to be declared. Nothing reaches the
+    // wire until one of these is answered, which is why they sit between the
+    // picker and `upload` rather than beside it. Same `remember` reasoning as
+    // above: both hold the file's bytes.
+    var columnStep by remember { mutableStateOf<ColumnStep?>(null) }
+    var propertyStep by remember { mutableStateOf<PropertyStep?>(null) }
 
     LaunchedEffect(query) {
         if (query.isNotEmpty()) delay(250)
@@ -403,6 +467,84 @@ private fun ContactListScreen(
         }
     }
 
+    /**
+     * THE one place a bulk import is posted, for both doors and for the retry
+     * after a refusal.
+     *
+     * The claim is written once per door and nowhere else in this screen. It is
+     * only reachable from a file the attestation sheet let through the picker,
+     * or from a retry of that same file, so it is always somebody's deliberate
+     * tick — and a literal outside this function would be another way to make
+     * somebody else's consent claim, which is the whole of #226 and #248.
+     */
+    suspend fun upload(
+        kind: ContactImportKind,
+        fileName: String,
+        bytes: ByteArray,
+        /**
+         * What this file's columns (CSV) or properties (.vcf) were declared to
+         * be, already in the shared wire form. One list rather than two because
+         * the KIND already decides which field name it travels under, and a
+         * second parameter would be a second thing to get wrong.
+         */
+        declarations: List<String>,
+    ) {
+        importing = true
+        try {
+            val result = when (kind) {
+                ContactImportKind.CSV -> mutations.importCsv(
+                    companyId,
+                    fileName,
+                    bytes,
+                    attested = true,
+                    columns = declarations,
+                )
+                ContactImportKind.VCARD -> mutations.importVcard(
+                    companyId,
+                    fileName,
+                    bytes,
+                    attested = true,
+                    properties = declarations,
+                )
+            }
+            importReport = ImportReport(kind, result)
+            haptics.confirm()
+            onRefresh()
+        } catch (cause: Exception) {
+            // #248 B1 — `validation_failed` is the server having READ this file
+            // and found something a person has to change, and it answers in
+            // paragraphs: which column, why it stopped, and the three ways out.
+            // A Snackbar truncates that to a line and takes it away again, so
+            // the one refusal in the product somebody MUST read in full was the
+            // one they could not. Branching on the CODE, never on the sentence.
+            // Everything else — no network, signed out, too many imports — is
+            // weather or permissions, and a Snackbar carries those fine.
+            val api = cause as? ApiException
+            if (api?.code == ApiErrorCode.VALIDATION_FAILED) {
+                importRefusal = ImportRefusal(
+                    kind = kind,
+                    fileName = fileName,
+                    bytes = bytes,
+                    message = api.message,
+                    // Read from the FILE, not from the message. Parsing column
+                    // names back out of the server's prose would make this
+                    // screen break the day somebody rewords a sentence, and the
+                    // file is right here. Off the main thread: this walks every
+                    // cell of a file that may be two megabytes.
+                    plan = if (kind == ContactImportKind.CSV) {
+                        withContext(Dispatchers.Default) { ImportColumns.plan(bytes) }
+                    } else {
+                        null
+                    },
+                )
+            } else {
+                snackbar.showSnackbar(cause.userMessage())
+            }
+        } finally {
+            importing = false
+        }
+    }
+
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
@@ -411,52 +553,85 @@ private fun ContactListScreen(
         if (uri == null || kind == null) return@rememberLauncherForActivityResult
         importing = true
         scope.launch {
-            try {
+            val picked = try {
                 val (name, size) = describe(uri)
-                val maxBytes = when (kind) {
-                    ImportKind.Csv -> CSV_IMPORT_MAX_BYTES
-                    ImportKind.Vcard -> VCARD_IMPORT_MAX_BYTES
-                }
-                val sizeMessage = when (kind) {
-                    ImportKind.Csv -> "CSV files must be 2 MB or less."
-                    ImportKind.Vcard -> "vCard files must be 5 MB or less."
-                }
+                // Both figures come from the ported contract, so the phone can
+                // never promise a file the server would refuse (#248).
+                val maxBytes = kind.maxBytes
+                val sizeMessage = ContactImport.tooLargeMessage(kind)
                 if (size > maxBytes) {
                     snackbar.showSnackbar(sizeMessage)
-                    return@launch
+                    null
+                } else {
+                    val bytes = withContext(Dispatchers.IO) {
+                        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    } ?: throw IllegalStateException("no stream")
+                    if (bytes.size > maxBytes) { // providers may not report a size
+                        snackbar.showSnackbar(sizeMessage)
+                        null
+                    } else {
+                        name to bytes
+                    }
                 }
-                val bytes = withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                } ?: throw IllegalStateException("no stream")
-                if (bytes.size > maxBytes) { // providers may not report a size
-                    snackbar.showSnackbar(sizeMessage)
-                    return@launch
-                }
-                val result = when (kind) {
-                    ImportKind.Csv -> mutations.importCsv(companyId, name, bytes)
-                    ImportKind.Vcard -> mutations.importVcard(companyId, name, bytes)
-                }
-                importReport = ImportReport(kind, result)
-                haptics.confirm()
-                onRefresh()
             } catch (cause: Exception) {
                 snackbar.showSnackbar(cause.userMessage())
-            } finally {
-                importing = false
+                null
+            }
+            importing = false
+            if (picked == null) return@launch
+            val (name, bytes) = picked
+            // #248 round 3 — THE DECLARATION STEP. A picked file does not upload;
+            // it becomes a question. Off the main thread, because both of these
+            // walk a file that may be megabytes.
+            when (kind) {
+                ContactImportKind.CSV -> {
+                    val plan = withContext(Dispatchers.Default) { ImportColumns.plan(bytes) }
+                    // THE ROW CAP IS CHECKED BEFORE THE COLUMNS, which mirrors the
+                    // server's own ordering and is a courtesy rather than a gate:
+                    // the server refuses an over-cap file on its row count before
+                    // it looks at a single column, so asking about twelve columns
+                    // first would collect twelve answers and throw them away. This
+                    // can only ever end in the server's refusal — it never lets a
+                    // file through — and a file that will not parse (`plan` null)
+                    // takes the same road, because the sentence explaining it is
+                    // the server's to write.
+                    if (plan == null || plan.rowCount > ContactImport.MAX_ROWS) {
+                        upload(kind, name, bytes, emptyList())
+                    } else {
+                        columnStep = ColumnStep(name, bytes, plan)
+                    }
+                }
+                ContactImportKind.VCARD -> {
+                    val properties =
+                        withContext(Dispatchers.Default) { VCardProperties.undeclared(bytes) }
+                    // A plain FN/N/TEL export carries nothing we do not read, and
+                    // there is no question to ask about it. Anything else — the
+                    // CATEGORIES and NOTE that Apple and Google actually write —
+                    // stops here until somebody says what it means.
+                    if (properties.isEmpty()) {
+                        upload(kind, name, bytes, emptyList())
+                    } else {
+                        propertyStep = PropertyStep(name, bytes, properties)
+                    }
+                }
             }
         }
     }
 
-    fun pickCsv() {
-        pendingImport = ImportKind.Csv
+    /**
+     * Open the picker for a kind the user has just attested for. Private to
+     * the attestation sheet's confirm — the menu items set [attestingImport]
+     * instead, so there is no path from a tap to a file that skips the claim.
+     */
+    fun pickFileFor(kind: ContactImportKind) {
+        pendingImport = kind
         importLauncher.launch(
-            arrayOf("text/*", "application/csv", "application/vnd.ms-excel"),
+            when (kind) {
+                ContactImportKind.CSV ->
+                    arrayOf("text/*", "application/csv", "application/vnd.ms-excel")
+                ContactImportKind.VCARD -> arrayOf("text/*", "text/vcard", "text/x-vcard")
+            },
         )
-    }
-
-    fun pickVcard() {
-        pendingImport = ImportKind.Vcard
-        importLauncher.launch(arrayOf("text/*", "text/vcard", "text/x-vcard"))
     }
 
     Box(modifier.fillMaxSize()) {
@@ -579,8 +754,7 @@ private fun ContactListScreen(
                                 exporting = exporting,
                                 importMenuOpen = importMenuOpen,
                                 onImportMenuOpenChange = { importMenuOpen = it },
-                                onPickCsv = ::pickCsv,
-                                onPickVcard = ::pickVcard,
+                                onImport = { attestingImport = it },
                                 onExport = { exportLauncher.launch("contacts.csv") },
                             )
                         }
@@ -806,8 +980,7 @@ private fun ContactListScreen(
                                             exporting = exporting,
                                             importMenuOpen = importMenuOpen,
                                             onImportMenuOpenChange = { importMenuOpen = it },
-                                            onPickCsv = ::pickCsv,
-                                            onPickVcard = ::pickVcard,
+                                            onImport = { attestingImport = it },
                                             onExport = { exportLauncher.launch("contacts.csv") },
                                         )
                                     }
@@ -852,9 +1025,63 @@ private fun ContactListScreen(
         )
     }
 
+    attestingImport?.let { kind ->
+        ImportConsentSheet(
+            kind = kind,
+            onDismiss = { attestingImport = null },
+            onAttested = {
+                attestingImport = null
+                pickFileFor(kind)
+            },
+        )
+    }
+
     val report = importReport
     if (report != null) {
         ImportReportSheet(report = report, onDismiss = { importReport = null })
+    }
+
+    columnStep?.let { step ->
+        ImportColumnsSheet(
+            step = step,
+            onDismiss = { columnStep = null },
+            onConfirm = { declarations ->
+                columnStep = null
+                scope.launch {
+                    upload(ContactImportKind.CSV, step.fileName, step.bytes, declarations)
+                }
+            },
+        )
+    }
+
+    propertyStep?.let { step ->
+        ImportPropertiesSheet(
+            step = step,
+            onDismiss = { propertyStep = null },
+            onConfirm = { declarations ->
+                propertyStep = null
+                scope.launch {
+                    upload(ContactImportKind.VCARD, step.fileName, step.bytes, declarations)
+                }
+            },
+        )
+    }
+
+    importRefusal?.let { refusal ->
+        ImportRefusedSheet(
+            refusal = refusal,
+            onDismiss = { importRefusal = null },
+            // Back to the same question, never a resend of the same answer: the
+            // refusal is dropped and the per-column sheet opens on the file's
+            // own default guess again, so every retry is a complete declaration
+            // made by a person.
+            onEditColumns = refusal.plan?.let { plan ->
+                {
+                    importRefusal = null
+                    columnStep = ColumnStep(refusal.fileName, refusal.bytes, plan)
+                }
+            },
+        )
     }
 }
 
@@ -1090,6 +1317,10 @@ private fun ContactRow(contact: Contact, onClick: () -> Unit) {
 /**
  * Quiet footer under the list: the inset import pill (admin-gated, opens the
  * CSV/vCard menu) and the export-CSV text affordance.
+ *
+ * [onImport] carries the chosen kind rather than opening a picker: every import
+ * goes through the attestation sheet first (#248), and the footer must not know
+ * a shortcut past it.
  */
 @Composable
 private fun ListFooter(
@@ -1098,8 +1329,7 @@ private fun ListFooter(
     exporting: Boolean,
     importMenuOpen: Boolean,
     onImportMenuOpenChange: (Boolean) -> Unit,
-    onPickCsv: () -> Unit,
-    onPickVcard: () -> Unit,
+    onImport: (ContactImportKind) -> Unit,
     onExport: () -> Unit,
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1132,14 +1362,14 @@ private fun ListFooter(
                         text = { Text("CSV file") },
                         onClick = {
                             onImportMenuOpenChange(false)
-                            onPickCsv()
+                            onImport(ContactImportKind.CSV)
                         },
                     )
                     DropdownMenuItem(
                         text = { Text("vCard file (.vcf)") },
                         onClick = {
                             onImportMenuOpenChange(false)
-                            onPickVcard()
+                            onImport(ContactImportKind.VCARD)
                         },
                     )
                 }
@@ -1294,9 +1524,668 @@ internal fun CreateContactSheet(
 }
 
 /**
- * The import's authoritative outcome — imported/updated/skipped counts plus
- * the per-row reasons for everything skipped, labeled 'Row N' (CSV) or
- * 'Card N' (vCard) exactly as the server reported them.
+ * #248 — the claim, made once per file, before the picker opens.
+ *
+ * The server has demanded `consent_attested` on CSV import since #226 and this
+ * app never sent it, so the honest fix is not to start sending it: it is to
+ * give somebody the control that field is supposed to represent. A crew moving
+ * from another tool is uploading numbers belonging to people who agreed to hear
+ * from a DIFFERENT business, and this sheet is the only moment anybody in the
+ * flow is asked to think about that.
+ *
+ * Deliberate friction, and deliberately not a smart default: the box ships
+ * unticked and [ContactImport.Copy.CONTINUE] stays disabled until it is
+ * ticked. A pre-agreed consent box is not an attestation, and this is the one
+ * control in the app where pre-filling would be a lie about a person who is not
+ * in the room.
+ */
+@Composable
+private fun ImportConsentSheet(
+    kind: ContactImportKind,
+    onDismiss: () -> Unit,
+    onAttested: () -> Unit,
+) {
+    // Never hoisted, never remembered across sheets: each file is its own
+    // claim, so re-opening this asks again.
+    var attested by remember(kind) { mutableStateOf(false) }
+
+    AppSheet(onDismissRequest = onDismiss) {
+        // #180 contract: sheet roots scroll so the action row stays reachable
+        // on square viewports.
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 18.dp),
+        ) {
+            Text(ContactImport.Copy.TITLE, style = MaterialTheme.typography.titleMedium)
+            Text(
+                ContactImport.Copy.LEAD,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+
+            // The claim sits in its own container so it reads as a thing being
+            // agreed to rather than one more line of prose. Whole row toggles:
+            // a 20dp checkbox is not the hit target for a decision this size.
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+            ) {
+                Row(
+                    Modifier
+                        // toggleable, not Surface(onClick): the whole row is one
+                        // hit target AND announces as a checkbox with its state,
+                        // rather than as a button that says nothing about what
+                        // is currently claimed.
+                        .toggleable(
+                            value = attested,
+                            role = Role.Checkbox,
+                            onValueChange = { attested = it },
+                        )
+                        .padding(start = 6.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // onCheckedChange = null: the row above owns the toggle, so
+                    // there is one hit target and one semantics node.
+                    Checkbox(checked = attested, onCheckedChange = null)
+                    Text(
+                        ContactImport.Copy.ATTESTATION,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(start = 6.dp),
+                    )
+                }
+            }
+
+            // The three facts somebody needs before choosing a file, in the
+            // order they matter: what ticking records, what it cannot undo, and
+            // what the file may contain. All figures come from the ported
+            // contract (ContactImport), never from this sentence.
+            Column(
+                Modifier.padding(top = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                listOf(
+                    ContactImport.Copy.RECORDED,
+                    kind.optOutNote,
+                    ContactImport.limitsLine(kind),
+                ).forEach { line ->
+                    Text(
+                        line,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onDismiss) { Text(ContactImport.Copy.CANCEL) }
+                Button(enabled = attested, onClick = onAttested) {
+                    Text(ContactImport.Copy.CONTINUE)
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+/**
+ * #248 — the server refused this whole file, and this is where somebody reads
+ * why.
+ *
+ * The server's own sentence, verbatim, and this app deliberately does not parse
+ * it. Reading column names back out of English would put a compliance gate at
+ * the mercy of somebody rewording a sentence.
+ *
+ * [onEditColumns] is offered only for a CSV this app could read. Several of these
+ * refusals are answered by declaring the columns differently — nothing was
+ * declared `phone`, or the wrong column was declared the do-not-text one — and it
+ * re-opens the QUESTION rather than resending the answer: the per-column sheet
+ * starts again from the file's own default guess, so a retry is a complete
+ * declaration made by a person, exactly like the first one.
+ */
+@Composable
+private fun ImportRefusedSheet(
+    refusal: ImportRefusal,
+    onDismiss: () -> Unit,
+    onEditColumns: (() -> Unit)?,
+) {
+    AppSheet(onDismissRequest = onDismiss) {
+        // #180 contract: sheet roots scroll so the action row stays reachable.
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 18.dp),
+        ) {
+            Text(ContactImport.Refusal.TITLE, style = MaterialTheme.typography.titleMedium)
+
+            // The server's words, in a quiet container rather than error red:
+            // the title already said nothing imported, and four sentences of red
+            // prose is a paragraph nobody finishes. This is the one thing on
+            // this sheet that must actually be read.
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+            ) {
+                Text(
+                    refusal.message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(14.dp),
+                )
+            }
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onDismiss) { Text(ContactImport.Refusal.CLOSE) }
+                onEditColumns?.let { edit ->
+                    Button(onClick = edit) { Text(ContactImport.Refusal.EDIT_COLUMNS) }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+/**
+ * #248 ROUND 3 — EVERY column of the picked file, in front of a person, before
+ * one byte is uploaded.
+ *
+ * WHAT THIS REPLACED. Round two showed a person only the columns a shape test
+ * had decided were suspicious, after the server had already refused the file.
+ * That test had thresholds, thresholds have an outside, and three verifiers got
+ * messages delivered to people who had said stop by standing just outside them —
+ * four distinct answers, a value of 25 characters, the same answer on all sixty
+ * rows. There is no test here. Every column is asked about, including the ones
+ * this import recognised and the ones that are empty.
+ *
+ * NOTHING IS PRE-ANSWERED EXCEPT WHAT WAS RECOGNISED. The columns the detector
+ * claimed arrive filled in, because that is a real guess with a stated meaning
+ * shown on screen beside its values, and every one of them can be changed. The
+ * rest arrive blank and somebody has to say what they are — no client, this one
+ * or the wizard, may answer `ignore` for a column nobody looked at, and there is
+ * no "ignore the rest" control here.
+ *
+ * WHICH MEANS A FULLY RECOGNISED FILE IS ONE TAP, AND THAT IS ALLOWED — but only
+ * because of what is under the finger when it lands. `Phone,Name,Notes` whose
+ * Notes column reads "DO NOT CALL - asked us to stop" is answered by the detector
+ * end to end; the tap that sends it is defensible when those words are on the
+ * screen and indefensible when they are not, and the difference is the entire
+ * reason the tap exists. So EVERY column is drawn, in one loop, from
+ * [ImportColumns.sheetRows] — including the recognised ones, the empty ones, and
+ * the cell that ran past the end of the header row.
+ *
+ * THE VALUES ARE THE POINT. A header alone is not enough to recognise a column
+ * by — "Status" means nothing until you can see it holds `active` and
+ * `unsubscribed`, and at that point the answer is obvious and the opposite of
+ * the one somebody skimming would give.
+ *
+ * AND THE BUTTON IS BELOW THEM. Reaching Import on a wide file means scrolling
+ * the whole list past your eyes; a confirm above the columns would be a file
+ * sent by somebody who never scrolled. Pinned, because nothing else pins it.
+ */
+@Composable
+private fun ImportColumnsSheet(
+    step: ColumnStep,
+    onDismiss: () -> Unit,
+    onConfirm: (List<String>) -> Unit,
+) {
+    val columns = step.plan.columns
+    // Keyed on the step: a different file starts from its own guess, and nothing
+    // about one file's answer may survive into another's.
+    var answers by remember(step) {
+        mutableStateOf(columns.associate { it.index to it.guess })
+    }
+    val answered = columns.count { answers[it.index] != null }
+    // The one mistake a person can make here that the server will certainly
+    // refuse: two columns declared the same field, and a contact has one address.
+    // Caught before the upload rather than after it. This can only ever PREVENT a
+    // refusal — it can never let a file through — so it is a form check and not a
+    // gate, and the gate it stands in front of is still the server's.
+    val duplicated = answers.values
+        .filterNotNull()
+        .filter { it != ImportColumns.ACTION_IGNORE }
+        .groupingBy { it }
+        .eachCount()
+        .entries
+        .firstOrNull { it.value > 1 }
+        ?.key
+    val complete = answered == columns.size && duplicated == null
+
+    AppSheet(onDismissRequest = onDismiss) {
+        // #180 contract: sheet roots scroll so the action row stays reachable.
+        // The column list rides inside THIS scroll rather than owning one — two
+        // nested vertical scrollers fight each other for the same drag.
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 18.dp),
+        ) {
+            Text(ContactImport.Columns.TITLE, style = MaterialTheme.typography.titleMedium)
+            Text(
+                ContactImport.Columns.LEAD,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            // Opens at whatever the detector recognised rather than at zero: it
+            // is telling the truth about work already done, and a progress line
+            // that reads 0 of 7 on a screen that is four-sevenths finished is
+            // the reason people abandon a flow.
+            Text(
+                ContactImport.Columns.progressLine(answered, columns.size),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+
+            // ONE LOOP, OVER THE WHOLE FILE. Not two calls over two groups: the
+            // groups partitioned the file only for as long as both calls existed,
+            // and deleting the second one drew nothing at all for a file whose
+            // every column was recognised while every test in this app stayed
+            // green. `sheetRows` is a function a test can run, and it is the only
+            // thing standing between a picked file and these cards — nothing may
+            // filter, slice or re-sort `columns` between here and the screen.
+            Column(
+                Modifier.padding(top = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                for (row in ImportColumns.sheetRows(columns)) {
+                    // Non-null on the first column of a group, and only when both
+                    // groups exist — the rule lives beside the ordering it labels.
+                    row.heading?.let { heading ->
+                        Text(
+                            heading,
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.padding(top = 10.dp),
+                        )
+                    }
+                    ColumnDeclarationCard(
+                        column = row.column,
+                        action = answers[row.column.index],
+                        onAction = { answers = answers + (row.column.index to it) },
+                    )
+                }
+            }
+
+            // The consequence of a wrong answer, on the path to the button rather
+            // than above the list: this is the last thing read before committing,
+            // and it is the sentence that matters.
+            Text(
+                ContactImport.Columns.WRONG_COLUMN,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+            // A disabled button with no reason beside it is a dead end. Says which
+            // of the two things is wrong, never both at once.
+            if (!complete) {
+                Text(
+                    duplicated
+                        ?.let { ContactImport.Columns.duplicateHint(it) }
+                        ?: ContactImport.Columns.UNANSWERED_HINT,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onDismiss) { Text(ContactImport.Columns.CANCEL) }
+                Button(
+                    enabled = complete,
+                    onClick = {
+                        onConfirm(
+                            // mapNotNull, never an `?: ignore` default. An
+                            // unanswered column is left OUT of the declaration and
+                            // the SERVER refuses the file for it — so if the local
+                            // gate above is ever wrong, the failure is a refusal
+                            // rather than a column quietly dismissed on somebody's
+                            // behalf. That gate did silently break once during
+                            // this change (a lint matched the other sheet's copy
+                            // of the same line), which is exactly why the fallback
+                            // here must not be the permissive one.
+                            columns.mapNotNull { column ->
+                                answers[column.index]?.let { action ->
+                                    ImportColumns.format(
+                                        ImportColumns.Declaration(
+                                            index = column.index,
+                                            action = action,
+                                            header = column.header,
+                                        ),
+                                    )
+                                }
+                            },
+                        )
+                    },
+                ) {
+                    Text(ContactImport.Columns.CONFIRM)
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+/**
+ * One column, put in front of a person: where it is, what their file calls it,
+ * what it actually holds, and one control saying what it is.
+ *
+ * The position is shown as well as the name because the server names a column at
+ * fault by position ("column 3"), and because two columns in one file are
+ * allowed to share a header — a name on its own cannot always say which.
+ */
+@Composable
+private fun ColumnDeclarationCard(
+    column: ImportColumns.Column,
+    action: String?,
+    onAction: (String) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 12.dp)) {
+            Text(
+                ContactImport.Columns.positionLabel(column.index),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                // Verbatim and quoted, never tidied: they have to find this exact
+                // string in their own spreadsheet.
+                ContactImport.Columns.headerLabel(column.header),
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                modifier = Modifier.padding(top = 1.dp),
+            )
+            Text(
+                ContactImport.Columns.valuesLine(column.samples),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+            Box(Modifier.padding(top = 8.dp)) {
+                // An unanswered control is outlined and reads "Choose…", so the
+                // work left on the screen is visible without reading a word.
+                Surface(
+                    onClick = { open = true },
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (action == null) {
+                        MaterialTheme.colorScheme.surface
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainerHighest
+                    },
+                ) {
+                    Row(
+                        Modifier.padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            action?.let { ContactImport.Columns.actionLabel(it) }
+                                ?: ContactImport.Columns.CHOOSE,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (action == null) {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                        )
+                        Icon(
+                            Icons.Outlined.ExpandMore,
+                            contentDescription = null,
+                            modifier = Modifier.padding(start = 4.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                    // ImportColumns.ACTIONS, in ITS order: `ignore` is last and
+                    // `opted_out` sits immediately above it, so somebody reaching
+                    // for "this says nothing" passes their eye over "do not text"
+                    // on the way. The two answers are one tap apart and one of
+                    // them texts everybody the column was protecting.
+                    for (option in ImportColumns.ACTIONS) {
+                        DropdownMenuItem(
+                            text = { Text(ContactImport.Columns.actionLabel(option)) },
+                            onClick = {
+                                open = false
+                                onAction(option)
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * #248 ROUND 3 — the same question at the vCard door, which had no gate at all.
+ *
+ * `CATEGORIES:DNC`, a `NOTE` saying they asked us to stop, and a label like
+ * `X-ABLabel=DO NOT CALL` beside a number are where a .vcf says do-not-text.
+ * They are what Apple and Google actually export, and this app uploaded all
+ * three without a word while the file's consent attestation was written over
+ * the top.
+ *
+ * Only the properties these cards actually carry are listed, and only the ones
+ * the importer does not read. Two answers, because a property is present or it
+ * is not: there is no field to route it into.
+ *
+ * THIS SHEET IS NO LONGER RARE, and the docblock here used to say it was — "a
+ * plain FN/N/TEL export never sees this sheet at all", which stopped being true
+ * the day a PARAMETER became something to declare. `TEL;TYPE=CELL` is what every
+ * phone on earth exports, so the ordinary card now asks one question, and the
+ * ordinary answer is "says nothing about texting". That cost is argued in
+ * `CONTACT_IMPORT_VCARD_PROPERTY_FIELD`: a parameter is free text, `TYPE=DNC` is
+ * a real export, and Apple writes "DO NOT CALL" into `X-ABLabel` on the TEL line
+ * itself — so any rule exempting the common parameters would be a vocabulary,
+ * and a vocabulary is what two rounds of this issue died to.
+ */
+@Composable
+private fun ImportPropertiesSheet(
+    step: PropertyStep,
+    onDismiss: () -> Unit,
+    onConfirm: (List<String>) -> Unit,
+) {
+    var answers by remember(step) { mutableStateOf(emptyMap<String, String>()) }
+    val complete = answers.size == step.properties.size
+
+    AppSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 18.dp),
+        ) {
+            Text(ContactImport.Properties.TITLE, style = MaterialTheme.typography.titleMedium)
+            Text(
+                ContactImport.Properties.LEAD,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            // Only when one is actually on the list. `TEL;TYPE` is not a word, and
+            // somebody meeting it cold cannot answer it — but a file carrying only
+            // CATEGORIES and NOTE needs no lesson about a punctuation mark that is
+            // not on their screen.
+            if (step.properties.any { it.contains(';') }) {
+                Text(
+                    ContactImport.Properties.PARAMETER_NOTE,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
+            Text(
+                ContactImport.Columns.progressLine(answers.size, step.properties.size),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+            Column(
+                Modifier.padding(top = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                step.properties.forEach { property ->
+                    PropertyDeclarationCard(
+                        property = property,
+                        action = answers[property],
+                        onAction = { answers = answers + (property to it) },
+                    )
+                }
+            }
+            // How blunt the blocking answer is, said before it is chosen rather
+            // than discovered afterwards.
+            Text(
+                ContactImport.Properties.COARSE,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+            if (!complete) {
+                Text(
+                    ContactImport.Properties.UNANSWERED_HINT,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = onDismiss) { Text(ContactImport.Properties.CANCEL) }
+                Button(
+                    enabled = complete,
+                    onClick = {
+                        onConfirm(
+                            // mapNotNull for the same reason as the column sheet:
+                            // an unanswered property is left OUT, and the server
+                            // refuses the file rather than this app deciding a
+                            // `CATEGORIES` nobody looked at means nothing.
+                            step.properties.mapNotNull { property ->
+                                answers[property]?.let { VCardProperties.format(property, it) }
+                            },
+                        )
+                    },
+                ) {
+                    Text(ContactImport.Properties.CONFIRM)
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+/** One vCard property and the two things it can be said to mean. */
+@Composable
+private fun PropertyDeclarationCard(
+    property: String,
+    action: String?,
+    onAction: (String) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 12.dp)) {
+            Text(
+                // The property name as the file spells it — `CATEGORIES`, `NOTE`
+                // — because that is what they will find if they open the .vcf.
+                property,
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+            )
+            Box(Modifier.padding(top = 8.dp)) {
+                Surface(
+                    onClick = { open = true },
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (action == null) {
+                        MaterialTheme.colorScheme.surface
+                    } else {
+                        MaterialTheme.colorScheme.surfaceContainerHighest
+                    },
+                ) {
+                    Row(
+                        Modifier.padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            action?.let { ContactImport.Properties.actionLabel(it) }
+                                ?: ContactImport.Properties.CHOOSE,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (action == null) {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                        )
+                        Icon(
+                            Icons.Outlined.ExpandMore,
+                            contentDescription = null,
+                            modifier = Modifier.padding(start = 4.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                    for (option in VCardProperties.ACTIONS) {
+                        DropdownMenuItem(
+                            text = { Text(ContactImport.Properties.actionLabel(option)) },
+                            onClick = {
+                                open = false
+                                onAction(option)
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The import's authoritative outcome — imported/updated/skipped counts, the
+ * rows whose consent attestation was refused (#248), and the per-row reasons
+ * for everything skipped, labeled 'Row N' (CSV) or 'Card N' (vCard) exactly as
+ * the server reported them.
+ *
+ * This sheet is the only moment anybody learns what the file actually did. It
+ * opens once and is dismissed for good, so anything the server bothered to
+ * report has to be readable here or it is not reported at all.
  */
 @Composable
 private fun ImportReportSheet(report: ImportReport, onDismiss: () -> Unit) {
@@ -1312,6 +2201,10 @@ private fun ImportReportSheet(report: ImportReport, onDismiss: () -> Unit) {
         ) {
             Text("Import finished", style = MaterialTheme.typography.titleMedium)
             Text(
+                // Three dispositions, and only three. The refused rows are
+                // already inside `imported`/`updated` — adding a fourth figure
+                // here would invite the reader to add it to the total and would
+                // put a compliance fact in the same breath as a tally.
                 listOf(
                     "${result.imported} imported",
                     "${result.updated} updated",
@@ -1321,6 +2214,66 @@ private fun ImportReportSheet(report: ImportReport, onDismiss: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
             )
+            // #248 — the rows the file was WRONG about. These people arrived,
+            // and the workspace's attestation was not recorded against them
+            // because they had already asked this business to stop.
+            //
+            // Above the skipped list on purpose: a skipped row is one that never
+            // landed and can be fixed by editing the file, while this is a
+            // standing carrier fact about somebody now in the crew's contact
+            // list. Ranked by consequence, not by the order the server happened
+            // to send them.
+            if (result.consent_refused > 0) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    // The app already has ONE colour for "this person is
+                    // blocked" — the errorContainer chip on every contact row
+                    // and on the detail header. Reusing it makes this sheet and
+                    // the contact list tell a single story, which matters more
+                    // than the token's Material name: nothing here failed, and
+                    // the heading above already said the import finished.
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp),
+                ) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text(
+                            ContactImport.consentRefusedHeadline(result.consent_refused),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                        // The server's sentence, verbatim. It is the one place
+                        // the consequence is spelled out — that they were
+                        // imported, that the opt-out stands, and that the
+                        // attestation was not recorded — and paraphrasing it on
+                        // three clients is how the record starts disagreeing
+                        // with itself.
+                        result.consent_refused_note?.let { note ->
+                            Text(
+                                note,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(top = 5.dp),
+                            )
+                        }
+                        ImportRowList(
+                            rows = result.consent_refusals,
+                            rowWord = report.kind.rowWord,
+                            // The SERVER's count, not the list's length: the
+                            // headline above quotes that number, and the two
+                            // must never be able to disagree on one screen.
+                            total = result.consent_refused,
+                            reasonColor = MaterialTheme.colorScheme.onErrorContainer,
+                            overflowColor = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
+            }
             if (result.errors.isNotEmpty()) {
                 Text(
                     "Skipped rows:",
@@ -1328,29 +2281,7 @@ private fun ImportReportSheet(report: ImportReport, onDismiss: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 4.dp),
                 )
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 280.dp)
-                        .verticalScroll(rememberScrollState()),
-                ) {
-                    result.errors.take(IMPORT_ERRORS_SHOWN).forEach { rowError ->
-                        Text(
-                            "${report.kind.rowWord} ${rowError.row} · ${rowError.reason}",
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(vertical = 2.dp),
-                        )
-                    }
-                    val hidden = result.errors.size - IMPORT_ERRORS_SHOWN
-                    if (hidden > 0) {
-                        Text(
-                            "…and $hidden more.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 2.dp),
-                        )
-                    }
-                }
+                ImportRowList(rows = result.errors, rowWord = report.kind.rowWord)
             }
             Box(
                 Modifier
@@ -1361,6 +2292,60 @@ private fun ImportReportSheet(report: ImportReport, onDismiss: () -> Unit) {
                 TextButton(onClick = onDismiss) { Text("Done") }
             }
             Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
+/**
+ * A bounded list of the server's own per-row reasons, rendered verbatim and
+ * labelled with the word the door this import came through uses — 'Row 12' for
+ * a CSV, 'Card 12' for a .vcf, because a vCard has no line 12 to look at.
+ *
+ * Shared by the skipped rows and the refused ones (#248) so the two cannot
+ * drift on the only thing that is easy to get wrong here: what happens past
+ * [IMPORT_ERRORS_SHOWN]. A list that silently stops at fifty under-reports
+ * exactly when there is the most to report, so the remainder is always counted
+ * out loud.
+ *
+ * [total] is how many rows there ARE, which is a different fact from how many
+ * arrived in [rows] — and until #248 round 2 it was never different, because the
+ * refusal count was always zero. Now that a carrier STOP produces one, the two
+ * numbers can disagree, and the screen that would print "40 refused" over five
+ * rows with nothing saying the rest existed is this one. Defaults to the list's
+ * own length, which is the honest answer for the skipped rows: the server sends
+ * no separate count for those.
+ */
+@Composable
+private fun ImportRowList(
+    rows: List<ImportResult.ImportRowError>,
+    rowWord: String,
+    modifier: Modifier = Modifier,
+    total: Int = rows.size,
+    reasonColor: Color = Color.Unspecified,
+    overflowColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
+    Column(
+        modifier
+            .fillMaxWidth()
+            .heightIn(max = 280.dp)
+            .verticalScroll(rememberScrollState()),
+    ) {
+        val shown = rows.take(IMPORT_ERRORS_SHOWN)
+        shown.forEach { rowError ->
+            Text(
+                "$rowWord ${rowError.row} · ${rowError.reason}",
+                style = MaterialTheme.typography.bodySmall,
+                color = reasonColor,
+                modifier = Modifier.padding(vertical = 2.dp),
+            )
+        }
+        ContactImport.overflowLine(total, shown.size)?.let { line ->
+            Text(
+                line,
+                style = MaterialTheme.typography.bodySmall,
+                color = overflowColor,
+                modifier = Modifier.padding(vertical = 2.dp),
+            )
         }
     }
 }

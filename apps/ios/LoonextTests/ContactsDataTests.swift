@@ -81,10 +81,20 @@ final class ContactsDataTests: XCTestCase {
         )
     }
 
-    func testImportSourcedConsentReadsAsRecorded() {
+    /// #248. This case used to pass `ConsentSource.imported` — a fourth value,
+    /// `"import"`, that this app had written down and the database has never
+    /// been able to produce (`consent_source_t` is `('inbound_sms','attested')`
+    /// and nothing else). It read as a documented third way consent could
+    /// arrive, which is precisely the thing nobody should believe about an
+    /// import: a file does not carry a basis. The constant is gone; the
+    /// FALLTHROUGH it was exercising is real and still needs holding, because a
+    /// value some later migration adds must still say a basis exists rather
+    /// than dropping back to the teaching line, which invites somebody to
+    /// attest a consent that is already recorded.
+    func testAConsentSourceThisBuildDoesNotKnowStillReadsAsRecorded() {
         XCTAssertEqual(
             consentLine(
-                consentSource: ConsentSource.imported,
+                consentSource: "some_basis_a_later_migration_added",
                 consentAt: nil,
                 consentAttestedBy: nil,
                 memberName: memberName,

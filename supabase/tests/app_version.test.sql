@@ -73,11 +73,11 @@ begin
   select count(*), count(minimum_version) into v_rows, v_set
     from public.app_release_policy;
 
-  if v_rows <> 3 then
+  if v_rows is distinct from 3 then
     raise exception 'expected one policy row per platform, found %', v_rows;
   end if;
   -- The mechanism exists and demands nothing until somebody decides otherwise.
-  if v_set <> 0 then
+  if v_set is distinct from 0 then
     raise exception 'migration must ship with every floor NULL, found % set', v_set;
   end if;
 end $$;
@@ -169,7 +169,7 @@ begin
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'api_authorize_request';
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception
       'expected exactly ONE api_authorize_request, found % — a defaulted '
       'parameter added by create-or-replace makes every shorter call ambiguous',
@@ -251,11 +251,11 @@ begin
 
   v_result := public.api_set_release_policy('android', '2.0.0', '2.0.0', 'Security fix', 'https://x/y', v_user);
 
-  if (v_result->>'blocked_sessions')::int <> 2 then
+  if (v_result->>'blocked_sessions')::int is distinct from 2 then
     raise exception 'expected 2 blocked live sessions (1.0.0 and the unknown), got %',
       v_result->>'blocked_sessions';
   end if;
-  if (v_result->>'active_sessions')::int <> 3 then
+  if (v_result->>'active_sessions')::int is distinct from 3 then
     raise exception 'expected 3 active sessions in the window, got %',
       v_result->>'active_sessions';
   end if;
@@ -270,10 +270,10 @@ declare
   v_policy jsonb;
 begin
   v_policy := public.api_app_release_policy('android');
-  if v_policy->>'minimum_version' <> '2.0.0' then
+  if v_policy->>'minimum_version' is distinct from '2.0.0' then
     raise exception 'the android floor should read back, got %', v_policy::text;
   end if;
-  if v_policy->>'message' <> 'Security fix' then
+  if v_policy->>'message' is distinct from 'Security fix' then
     raise exception 'the reason must travel with the demand';
   end if;
 

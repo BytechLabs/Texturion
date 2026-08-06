@@ -31,7 +31,7 @@ begin
   from information_schema.columns
   where table_schema='public' and table_name='companies' and column_name='business_hours';
   if bh_type is null then raise exception 'SF-1 FAILED: companies.business_hours missing'; end if;
-  if bh_type <> 'jsonb' then raise exception 'SF-1 FAILED: business_hours is % (want jsonb)', bh_type; end if;
+  if bh_type is distinct from 'jsonb' then raise exception 'SF-1 FAILED: business_hours is % (want jsonb)', bh_type; end if;
   if bh_null then raise exception 'SF-1 FAILED: business_hours must be NOT NULL'; end if;
   if bh_default is null or bh_default not like '%{}%' then
     raise exception 'SF-1 FAILED: business_hours default is % (want {})', bh_default;
@@ -42,7 +42,7 @@ begin
   from information_schema.columns
   where table_schema='public' and table_name='companies' and column_name='away_enabled';
   if ae_type is null then raise exception 'SF-1 FAILED: companies.away_enabled missing'; end if;
-  if ae_type <> 'boolean' then raise exception 'SF-1 FAILED: away_enabled is % (want boolean)', ae_type; end if;
+  if ae_type is distinct from 'boolean' then raise exception 'SF-1 FAILED: away_enabled is % (want boolean)', ae_type; end if;
   if ae_null then raise exception 'SF-1 FAILED: away_enabled must be NOT NULL'; end if;
   if ae_default not like '%false%' then raise exception 'SF-1 FAILED: away_enabled default is % (want false)', ae_default; end if;
 
@@ -64,7 +64,7 @@ begin
   from information_schema.columns
   where table_schema='public' and table_name='conversations' and column_name='last_auto_reply_at';
   if c_type is null then raise exception 'SF-2 FAILED: conversations.last_auto_reply_at missing'; end if;
-  if c_type <> 'timestamp with time zone' then
+  if c_type is distinct from 'timestamp with time zone' then
     raise exception 'SF-2 FAILED: last_auto_reply_at is % (want timestamptz)', c_type;
   end if;
   if not c_null then raise exception 'SF-2 FAILED: last_auto_reply_at must be NULLable'; end if;
@@ -178,7 +178,7 @@ begin
   select count(*) into ev_count from public.conversation_events
    where conversation_id='99999999-9999-4999-8999-999000000003'
      and type='auto_reply_sent' and actor_user_id is null;
-  if ev_count <> 1 then raise exception 'SF-5 FAILED: expected 1 auto_reply_sent event, got %', ev_count; end if;
+  if ev_count is distinct from 1 then raise exception 'SF-5 FAILED: expected 1 auto_reply_sent event, got %', ev_count; end if;
 
   raise notice 'SF-5 PASSED: claim_auto_reply inserts, stamps throttle, logs event';
 end $$;
@@ -192,7 +192,7 @@ begin
   res := public.claim_auto_reply(
     '99999999-9999-4999-8999-999999999999',
     '99999999-9999-4999-8999-999000000003', 'again', 1, 10800);
-  if res->>'skipped' <> 'throttled' then
+  if res->>'skipped' is distinct from 'throttled' then
     raise exception 'SF-6 FAILED: expected throttled, got %', res;
   end if;
   raise notice 'SF-6 PASSED: claim_auto_reply throttles a repeat within the window';
@@ -213,7 +213,7 @@ begin
   res := public.claim_auto_reply(
     '99999999-9999-4999-8999-999999999999',
     '99999999-9999-4999-8999-999000000003', 'blocked', 1, 10800);
-  if res->>'skipped' <> 'recipient_opted_out' then
+  if res->>'skipped' is distinct from 'recipient_opted_out' then
     raise exception 'SF-7 FAILED: expected recipient_opted_out, got %', res;
   end if;
 

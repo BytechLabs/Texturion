@@ -129,7 +129,7 @@ declare
 begin
   select count(*) into v_convs from public.conversations where company_id = v_new;
   select count(*) into v_msgs from public.messages where company_id = v_new;
-  if v_convs <> 0 or v_msgs <> 0 then
+  if v_convs is distinct from 0 or v_msgs is distinct from 0 then
     raise exception
       'NR-2 FAILED: the new owner sees % conversation(s) and % message(s) from the '
       'previous owner of this number', v_convs, v_msgs;
@@ -181,20 +181,20 @@ declare
 begin
   select count(*) into v_rows
     from public.phone_numbers where number_e164 = '+12125557788';
-  if v_rows <> 2 then
+  if v_rows is distinct from 2 then
     raise exception 'NR-4 FAILED: expected 2 rows for one reissued E.164, found %', v_rows;
   end if;
 
   select status into v_old_status from public.phone_numbers
    where company_id = 'ce000000-0000-4000-8000-0000000000a1';
-  if v_old_status <> 'released' then
+  if v_old_status is distinct from 'released' then
     raise exception 'NR-4 FAILED: the old row is % rather than released', v_old_status;
   end if;
 
   -- Exactly one is live. Two active rows for one number would mean two
   -- workspaces could send from it at once.
   if (select count(*) from public.phone_numbers
-       where number_e164 = '+12125557788' and status = 'active') <> 1 then
+       where number_e164 = '+12125557788' and status = 'active') is distinct from 1 then
     raise exception 'NR-4 FAILED: more than one workspace holds this number as active';
   end if;
   raise notice 'NR-4 PASSED: released row retained, exactly one live owner';
@@ -217,7 +217,7 @@ begin
   insert into public.opt_outs (company_id, phone_e164, source)
   values (v_new, '+16135551234', 'manual');
 
-  if (select count(*) from public.opt_outs where phone_e164 = '+16135551234') <> 2 then
+  if (select count(*) from public.opt_outs where phone_e164 = '+16135551234') is distinct from 2 then
     raise exception
       'NR-5 FAILED: two companies cannot each hold their own opt-out for one person';
   end if;

@@ -38,7 +38,7 @@ begin
   if done_at_type is null then
     raise exception 'D14-1 FAILED: messages.done_at column missing';
   end if;
-  if done_at_type <> 'timestamp with time zone' then
+  if done_at_type is distinct from 'timestamp with time zone' then
     raise exception 'D14-1 FAILED: messages.done_at is % (want timestamptz)', done_at_type;
   end if;
   if not done_at_null then
@@ -53,7 +53,7 @@ begin
   if done_by_type is null then
     raise exception 'D14-1 FAILED: messages.done_by_user_id column missing';
   end if;
-  if done_by_type <> 'uuid' then
+  if done_by_type is distinct from 'uuid' then
     raise exception 'D14-1 FAILED: messages.done_by_user_id is % (want uuid)', done_by_type;
   end if;
   if not done_by_null then
@@ -89,11 +89,11 @@ begin
   if ref_table is null then
     raise exception 'D14-2 FAILED: no FK on messages.done_by_user_id';
   end if;
-  if ref_table <> 'profiles' then
+  if ref_table is distinct from 'profiles' then
     raise exception 'D14-2 FAILED: done_by_user_id references % (want profiles)', ref_table;
   end if;
   -- information_schema spells ON DELETE RESTRICT as 'RESTRICT'.
-  if del_action <> 'RESTRICT' then
+  if del_action is distinct from 'RESTRICT' then
     raise exception 'D14-2 FAILED: done_by_user_id delete rule is % (want RESTRICT)', del_action;
   end if;
   raise notice 'D14-2 PASSED: done_by_user_id FK → profiles ON DELETE RESTRICT';
@@ -222,7 +222,7 @@ begin
     and payload->>'message_id' = 'ffffffff-ffff-4fff-8fff-fff000000004'
     and id <> all (before_ids);
 
-  if new_count <> 1 then
+  if new_count is distinct from 1 then
     raise exception 'D14-5 FAILED: done toggle emitted % new message.status broadcasts (want 1)', new_count;
   end if;
 
@@ -241,7 +241,7 @@ begin
     raise exception 'D14-5 FAILED: broadcast payload done_by_user_id wrong (payload=%)', new_payload;
   end if;
   -- status is still present and unchanged.
-  if new_payload->>'status' <> 'received' then
+  if new_payload->>'status' is distinct from 'received' then
     raise exception 'D14-5 FAILED: broadcast payload status changed (payload=%)', new_payload;
   end if;
   raise notice 'D14-5 PASSED: done toggle broadcasts message.status with done fields (status unchanged)';
@@ -272,7 +272,7 @@ begin
     and payload->>'message_id' = 'ffffffff-ffff-4fff-8fff-fff000000004'
     and id <> all (before_ids);
 
-  if new_count <> 1 then
+  if new_count is distinct from 1 then
     raise exception 'D14-6 FAILED: clearing done emitted % new message.status broadcasts (want 1)', new_count;
   end if;
 
@@ -317,7 +317,7 @@ begin
     and event = 'message.status'
     and payload->>'message_id' = 'ffffffff-ffff-4fff-8fff-fff000000004';
 
-  if after_n <> before_n then
+  if after_n is distinct from before_n then
     raise exception 'D14-7 FAILED: body-only update spuriously broadcast message.status';
   end if;
   raise notice 'D14-7 PASSED: no message.status broadcast when status/done unchanged';
@@ -343,7 +343,7 @@ begin
   if tz_type is null then
     raise exception 'D15-1 FAILED: companies.timezone column missing';
   end if;
-  if tz_type <> 'text' then
+  if tz_type is distinct from 'text' then
     raise exception 'D15-1 FAILED: companies.timezone is % (want text)', tz_type;
   end if;
   if tz_null then
@@ -355,7 +355,7 @@ begin
 
   select timezone into fixture_tz from public.companies
   where id = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
-  if fixture_tz <> 'America/Toronto' then
+  if fixture_tz is distinct from 'America/Toronto' then
     raise exception 'D15-1 FAILED: fixture company timezone is % (want default America/Toronto)', fixture_tz;
   end if;
   raise notice 'D15-1 PASSED: companies.timezone text NOT NULL default America/Toronto (applied on insert)';
@@ -378,7 +378,7 @@ begin
   from pg_proc p
   join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and p.proname = 'api_create_company';
-  if fn_count <> 1 then
+  if fn_count is distinct from 1 then
     raise exception 'D15-2 FAILED: expected 1 api_create_company overload, found %', fn_count;
   end if;
 
@@ -386,7 +386,7 @@ begin
   from pg_proc p
   join pg_namespace n on n.oid = p.pronamespace
   where n.nspname = 'public' and p.proname = 'api_create_company';
-  if arg_count <> 6 then
+  if arg_count is distinct from 6 then
     raise exception 'D15-2 FAILED: api_create_company takes % args (want 6 incl. p_timezone)', arg_count;
   end if;
 
@@ -396,7 +396,7 @@ begin
     'America/Vancouver');
   select timezone into persisted
   from public.companies where id = (created->>'id')::uuid;
-  if persisted <> 'America/Vancouver' then
+  if persisted is distinct from 'America/Vancouver' then
     raise exception 'D15-2 FAILED: explicit p_timezone not persisted (got %)', persisted;
   end if;
 
@@ -405,7 +405,7 @@ begin
     'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'TZ Default Co', 'CA', '604', true);
   select timezone into persisted
   from public.companies where id = (created->>'id')::uuid;
-  if persisted <> 'America/Toronto' then
+  if persisted is distinct from 'America/Toronto' then
     raise exception 'D15-2 FAILED: omitted p_timezone did not default (got %)', persisted;
   end if;
   raise notice 'D15-2 PASSED: api_create_company(6-arg) persists p_timezone; omitted → default';

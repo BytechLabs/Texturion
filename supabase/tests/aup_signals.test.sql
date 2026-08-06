@@ -115,7 +115,7 @@ begin
 
   -- Both sent the same volume today. Raw volume cannot tell them apart, which
   -- is exactly why it is not the signal.
-  if v_blaster.sent_24h <> 160 or v_roofer.sent_24h <> 160 then
+  if v_blaster.sent_24h is distinct from 160 or v_roofer.sent_24h is distinct from 160 then
     raise exception 'both should have sent 160: blaster=% roofer=%',
       v_blaster.sent_24h, v_roofer.sent_24h;
   end if;
@@ -225,11 +225,11 @@ begin
     from public.api_aup_signals(14)
    where company_id = 'a5000000-0000-4000-8000-0000000000c9'::uuid;
 
-  if v_found <> 1 then
+  if v_found is distinct from 1 then
     raise exception
       'AS-9: a workspace with every send blocked is absent from the signals';
   end if;
-  if v_blocks <> 12 then
+  if v_blocks is distinct from 12 then
     raise exception 'AS-9: expected 12 rejections, got %', v_blocks;
   end if;
 end $$;

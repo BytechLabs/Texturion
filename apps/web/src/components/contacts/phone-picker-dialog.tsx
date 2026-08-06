@@ -22,6 +22,7 @@ import {
   PICKER_PROPERTIES,
 } from "@/lib/contacts/contacts-picker";
 
+import { ImportConsentCheck } from "./import-consent-check";
 import { ImportSummaryView } from "./import-summary-view";
 
 /**
@@ -43,11 +44,18 @@ export function PhonePickerDialog({
   const [pickError, setPickError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [picking, setPicking] = useState(false);
+  // Asked before the picker opens, and it has to be: the browser only allows
+  // `select()` inside the tap gesture, so there is no moment between choosing
+  // the contacts and importing them in which to ask. Being in someone's phone
+  // is not consent to be texted by their business, which is exactly why this
+  // door needs the question as much as the file ones do.
+  const [consentAttested, setConsentAttested] = useState(false);
 
   function reset() {
     setPickError(null);
     setResult(null);
     setPicking(false);
+    setConsentAttested(false);
     importContacts.reset();
   }
 
@@ -86,17 +94,24 @@ export function PhonePickerDialog({
       return;
     }
 
-    const csv = pickedContactsToCsv(rows);
+    // #248 round 3: the declaration comes back WITH the file, from the function
+    // that wrote the header — this door has no file to show anybody and no
+    // header a person chose, so the only honest declaration is the one written
+    // by whatever decided the columns.
+    const { csv, columns } = pickedContactsToCsv(rows);
     const file = new File([csv], "phone-contacts.csv", { type: "text/csv" });
-    importContacts.mutate(file, {
-      onSuccess: (summary) => setResult(summary),
-      onError: (cause) =>
-        setPickError(
-          cause instanceof ApiError
-            ? cause.message
-            : "The import didn't go through. Try again.",
-        ),
-    });
+    importContacts.mutate(
+      { file, consentAttested, columns },
+      {
+        onSuccess: (summary) => setResult(summary),
+        onError: (cause) =>
+          setPickError(
+            cause instanceof ApiError
+              ? cause.message
+              : "The import didn't go through. Try again.",
+          ),
+      },
+    );
   }
 
   const busy = picking || importContacts.isPending;
@@ -123,18 +138,31 @@ export function PhonePickerDialog({
             <DialogHeader>
               <DialogTitle>Import from your phone</DialogTitle>
               <DialogDescription>
+                {/* "Nothing is texted" used to close this paragraph; the
+                    attestation below now says it, louder and next to the
+                    button it qualifies, and saying it twice on one screen
+                    makes both copies easier to skip. */}
                 Choose contacts from your device. We&apos;ll import the ones with
                 a valid US or Canada number. Existing numbers are updated, not
-                duplicated. Nothing is texted.
+                duplicated.
               </DialogDescription>
             </DialogHeader>
+            <ImportConsentCheck
+              source="picked"
+              checked={consentAttested}
+              disabled={busy}
+              onCheckedChange={setConsentAttested}
+            />
             <div className="flex flex-col items-center gap-4 py-4">
               <Smartphone
                 className="size-8 text-muted-foreground"
                 strokeWidth={1.5}
                 aria-hidden
               />
-              <Button onClick={() => void pick()} disabled={busy}>
+              <Button
+                onClick={() => void pick()}
+                disabled={busy || !consentAttested}
+              >
                 {picking
                   ? "Opening your contacts…"
                   : importContacts.isPending

@@ -53,13 +53,13 @@ begin
     '8e000000-0000-4000-8000-0000000000c1'::uuid,
     '8e000000-0000-4000-8000-00000000000a'::uuid
   );
-  if v_result->>'outcome' <> 'queued' then
+  if v_result->>'outcome' is distinct from 'queued' then
     raise exception 'SE-1: the dump was not queued (%)', v_result;
   end if;
 
   select kind into v_kind
     from public.data_exports where id = (v_result->>'export_id')::uuid;
-  if v_kind <> 'workspace' then
+  if v_kind is distinct from 'workspace' then
     raise exception 'SE-1: the default kind is now %, not workspace', v_kind;
   end if;
 end $$;
@@ -83,7 +83,7 @@ begin
     'conversation_history',
     '{"contact_id": "8e000000-0000-4000-8000-0000000000d1", "from": "2026-07-01", "to": "2026-07-31"}'::jsonb
   );
-  if v_result->>'outcome' <> 'queued' then
+  if v_result->>'outcome' is distinct from 'queued' then
     raise exception 'SE-2: the scoped export was not queued (%)', v_result;
   end if;
 
@@ -107,7 +107,7 @@ begin
     '8e000000-0000-4000-8000-0000000000c1'::uuid,
     '8e000000-0000-4000-8000-00000000000a'::uuid
   );
-  if v_again->>'outcome' <> 'in_flight' then
+  if v_again->>'outcome' is distinct from 'in_flight' then
     raise exception 'SE-3: a second workspace dump was queued alongside the first';
   end if;
 
@@ -118,7 +118,7 @@ begin
     'conversation_history',
     '{}'::jsonb
   );
-  if v_again->>'outcome' <> 'in_flight' then
+  if v_again->>'outcome' is distinct from 'in_flight' then
     raise exception 'SE-3: a second scoped export was queued alongside the first';
   end if;
 end $$;
@@ -138,7 +138,7 @@ begin
     from public.data_exports
    where company_id = '8e000000-0000-4000-8000-0000000000c1'::uuid
      and status in ('pending', 'running');
-  if v_in_flight <> 2 then
+  if v_in_flight is distinct from 2 then
     raise exception
       'SE-4: % export(s) in flight, expected one of each kind — a scoped export is queued behind the dump',
       v_in_flight;
@@ -219,7 +219,7 @@ begin
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'request_data_export';
-  if v_forms <> 1 then
+  if v_forms is distinct from 1 then
     raise exception 'SE-7: % overloads of request_data_export, expected one', v_forms;
   end if;
 end $$;
@@ -245,12 +245,12 @@ begin
     p_kind       => 'usage_summary',
     p_filters    => jsonb_build_object('from', '2026-06-01T00:00:00Z')
   );
-  if v_result->>'outcome' <> 'queued' then
+  if v_result->>'outcome' is distinct from 'queued' then
     raise exception 'SE-8: a usage export was not queued (%)', v_result;
   end if;
   select kind into v_kind
     from public.data_exports where id = (v_result->>'export_id')::uuid;
-  if v_kind <> 'usage_summary' then
+  if v_kind is distinct from 'usage_summary' then
     raise exception 'SE-8: the kind was stored as %, not usage_summary', v_kind;
   end if;
 
@@ -287,12 +287,12 @@ begin
     p_kind       => 'tasks',
     p_filters    => jsonb_build_object('state', 'open')
   );
-  if v_result->>'outcome' <> 'queued' then
+  if v_result->>'outcome' is distinct from 'queued' then
     raise exception 'SE-9: a task export was not queued (%)', v_result;
   end if;
   select kind into v_kind
     from public.data_exports where id = (v_result->>'export_id')::uuid;
-  if v_kind <> 'tasks' then
+  if v_kind is distinct from 'tasks' then
     raise exception 'SE-9: the kind was stored as %, not tasks', v_kind;
   end if;
 
@@ -329,7 +329,7 @@ begin
       p_user_id    => '8e000000-0000-4000-8000-00000000000a'::uuid,
       p_kind       => v_kind
     );
-    if v_result->>'outcome' <> 'queued' then
+    if v_result->>'outcome' is distinct from 'queued' then
       raise exception 'SE-10: kind % waited behind another kind (%)', v_kind, v_result;
     end if;
   end loop;
@@ -341,7 +341,7 @@ begin
     p_user_id    => '8e000000-0000-4000-8000-00000000000a'::uuid,
     p_kind       => 'tasks'
   );
-  if v_result->>'outcome' <> 'in_flight' then
+  if v_result->>'outcome' is distinct from 'in_flight' then
     raise exception 'SE-10: a second task export was queued rather than joined (%)', v_result;
   end if;
 end $$;

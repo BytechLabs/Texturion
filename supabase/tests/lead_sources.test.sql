@@ -311,7 +311,7 @@ begin
       '7c000000-0000-4000-8000-0000000000c1'::uuid,
       now() - interval '1 day', now() + interval '1 day')
    where lead_source_id is null;
-  if coalesce(v_unknown, 0) <> 1 then
+  if coalesce(v_unknown, 0) is distinct from 1 then
     raise exception 'LS-8: expected 1 unattributed conversation, got %', v_unknown;
   end if;
 
@@ -323,7 +323,7 @@ begin
       '7c000000-0000-4000-8000-0000000000c1'::uuid,
       now() - interval '1 day', now() + interval '1 day')
    where lead_source_id = '7c000000-0000-4000-8000-0000000000e1'::uuid;
-  if coalesce(v_truck, 0) <> 1 or coalesce(v_manual, 0) <> 0 then
+  if coalesce(v_truck, 0) is distinct from 1 or coalesce(v_manual, 0) is distinct from 0 then
     raise exception 'LS-8: truck should be 1 by number / 0 by person, got % / %',
       v_truck, v_manual;
   end if;

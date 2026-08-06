@@ -45,7 +45,7 @@ begin
   end if;
 
   select * into d from public.billing_disputes where stripe_dispute_id = 'dp_1';
-  if d.amount_cents <> 2900 or d.fee_cents <> 1500 then
+  if d.amount_cents is distinct from 2900 or d.fee_cents is distinct from 1500 then
     raise exception 'BD-1 FAILED: amounts wrong (% + %)', d.amount_cents, d.fee_cents;
   end if;
   -- The payment intent is the only id shared by the charge, the dispute and
@@ -60,7 +60,7 @@ begin
   end if;
   -- NOT a subscription_status change: Stripe leaves it active, and mirroring a
   -- fiction into that column would break every consumer of it.
-  if c.subscription_status <> 'active' then
+  if c.subscription_status is distinct from 'active' then
     raise exception 'BD-1 FAILED: subscription_status was altered to %', c.subscription_status;
   end if;
 
@@ -83,7 +83,7 @@ begin
 
   select count(*) into n from public.billing_disputes
    where stripe_dispute_id = 'dp_orphan' and company_id is null;
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'BD-2 FAILED: an unattributable dispute was not recorded';
   end if;
 
@@ -112,12 +112,12 @@ begin
   if d.company_id is null then
     raise exception 'BD-3 FAILED: a later event with no company erased the attribution';
   end if;
-  if d.status <> 'under_review' then
+  if d.status is distinct from 'under_review' then
     raise exception 'BD-3 FAILED: status did not advance (%)', d.status;
   end if;
   -- The fee only ever grows: Stripe sometimes reports it late, and taking the
   -- smaller number would under-report what the dispute actually cost.
-  if d.fee_cents <> 1500 then
+  if d.fee_cents is distinct from 1500 then
     raise exception 'BD-3 FAILED: fee went backwards to %', d.fee_cents;
   end if;
 
@@ -162,21 +162,21 @@ declare h jsonb;
 begin
   h := public.api_dispute_health(now(), 120);
 
-  if (h->>'disputes')::int <> 2 then
+  if (h->>'disputes')::int is distinct from 2 then
     raise exception 'BD-5 FAILED: expected 2 disputes in the window, got %', h->>'disputes';
   end if;
-  if (h->>'unattributed')::int <> 1 then
+  if (h->>'unattributed')::int is distinct from 1 then
     raise exception 'BD-5 FAILED: the unattributable one was not counted: %', h;
   end if;
   -- 2900 + 9900 amounts, 1500 + 1500 fees.
-  if (h->>'cost_cents')::int <> 15800 then
+  if (h->>'cost_cents')::int is distinct from 15800 then
     raise exception 'BD-5 FAILED: cost was % cents, expected 15800 (amounts + fees)', h->>'cost_cents';
   end if;
 
   -- Outside the window is outside the number.
   update public.billing_disputes set opened_at = now() - interval '400 days';
   h := public.api_dispute_health(now(), 120);
-  if (h->>'disputes')::int <> 0 then
+  if (h->>'disputes')::int is distinct from 0 then
     raise exception 'BD-5 FAILED: old disputes leaked into the window: %', h;
   end if;
 

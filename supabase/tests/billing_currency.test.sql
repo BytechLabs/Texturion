@@ -37,7 +37,7 @@ begin
     from public.companies
    where id = '7c000000-0000-4000-8000-0000000000c1'::uuid;
 
-  if v_currency <> 'usd' then
+  if v_currency is distinct from 'usd' then
     raise exception 'BC-1 FAILED: a workspace that predates this migration is '
       'on %, not usd. Existing customers must be grandfathered — their '
       'subscription currency is already pinned at Stripe.', v_currency;
@@ -137,7 +137,7 @@ begin
     from public.companies
    where id = '7c000000-0000-4000-8000-0000000000c1'::uuid;
 
-  if v_currency <> 'cad' then
+  if v_currency is distinct from 'cad' then
     raise exception 'BC-5 FAILED: a pre-checkout workspace could not change '
       'currency, so the default could never be corrected.';
   end if;
@@ -185,11 +185,11 @@ begin
       'assumes US cents, and a CAD year read that way overstates that '
       'tenant''s revenue by the whole exchange rate.';
   end if;
-  if v_open ->> 'currency' <> 'cad' then
+  if v_open ->> 'currency' is distinct from 'cad' then
     raise exception 'BC-6 FAILED: a year collected in cad is reported as %.',
       v_open ->> 'currency';
   end if;
-  if (v_open ->> 'amount_cents')::int <> 39000 then
+  if (v_open ->> 'amount_cents')::int is distinct from 39000 then
     raise exception 'BC-6 FAILED: the amount changed on the way out (%).',
       v_open ->> 'amount_cents';
   end if;

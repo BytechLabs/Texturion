@@ -38,13 +38,13 @@ declare
 begin
   result := public.provision_number_slot(
     'c0000000-0000-4000-8000-000000000001', 'key-starter-1', '212', 'US', 1);
-  if result->>'outcome' <> 'created' then
+  if result->>'outcome' is distinct from 'created' then
     raise exception 'P1 FAILED: expected created, got %', result->>'outcome';
   end if;
-  if (result->'number'->>'status') <> 'provisioning' then
+  if (result->'number'->>'status') is distinct from 'provisioning' then
     raise exception 'P1 FAILED: expected provisioning row, got %', result->'number'->>'status';
   end if;
-  if (result->'number'->>'requested_area_code') <> '212' then
+  if (result->'number'->>'requested_area_code') is distinct from '212' then
     raise exception 'P1 FAILED: requested_area_code not copied';
   end if;
   raise notice 'P1 PASSED: first claim creates a provisioning row';
@@ -61,14 +61,14 @@ begin
   select id into first_id from public.phone_numbers where provisioning_key = 'key-starter-1';
   result := public.provision_number_slot(
     'c0000000-0000-4000-8000-000000000001', 'key-starter-1', '212', 'US', 1);
-  if result->>'outcome' <> 'exists' then
+  if result->>'outcome' is distinct from 'exists' then
     raise exception 'P2 FAILED: expected exists, got %', result->>'outcome';
   end if;
-  if (result->'number'->>'id')::uuid <> first_id then
+  if (result->'number'->>'id')::uuid is distinct from first_id then
     raise exception 'P2 FAILED: replay returned a different row';
   end if;
   if (select count(*) from public.phone_numbers
-      where company_id = 'c0000000-0000-4000-8000-000000000001') <> 1 then
+      where company_id = 'c0000000-0000-4000-8000-000000000001') is distinct from 1 then
     raise exception 'P2 FAILED: duplicate key created a second row';
   end if;
   raise notice 'P2 PASSED: idempotency-key replay returns the same row';
@@ -83,11 +83,11 @@ declare
 begin
   result := public.provision_number_slot(
     'c0000000-0000-4000-8000-000000000001', 'key-starter-2', '212', 'US', 1);
-  if result->>'outcome' <> 'plan_limit' then
+  if result->>'outcome' is distinct from 'plan_limit' then
     raise exception 'P3 FAILED: expected plan_limit, got %', result->>'outcome';
   end if;
   if (select count(*) from public.phone_numbers
-      where company_id = 'c0000000-0000-4000-8000-000000000001') <> 1 then
+      where company_id = 'c0000000-0000-4000-8000-000000000001') is distinct from 1 then
     raise exception 'P3 FAILED: plan_limit still inserted a row';
   end if;
   raise notice 'P3 PASSED: count-vs-plan check blocks the 2nd starter number';
@@ -105,7 +105,7 @@ begin
    where provisioning_key = 'key-starter-1';
   result := public.provision_number_slot(
     'c0000000-0000-4000-8000-000000000001', 'key-starter-3', '212', 'US', 1);
-  if result->>'outcome' <> 'created' then
+  if result->>'outcome' is distinct from 'created' then
     raise exception 'P4 FAILED: expected created after release, got %', result->>'outcome';
   end if;
   raise notice 'P4 PASSED: released rows do not consume the allowance';
@@ -120,17 +120,17 @@ declare
 begin
   result := public.provision_number_slot(
     'c0000000-0000-4000-8000-000000000002', 'key-pro-1', '415', 'US', 2);
-  if result->>'outcome' <> 'created' then
+  if result->>'outcome' is distinct from 'created' then
     raise exception 'P5 FAILED: pro 1st number, got %', result->>'outcome';
   end if;
   result := public.provision_number_slot(
     'c0000000-0000-4000-8000-000000000002', 'key-pro-2', '628', 'US', 2);
-  if result->>'outcome' <> 'created' then
+  if result->>'outcome' is distinct from 'created' then
     raise exception 'P5 FAILED: pro 2nd number, got %', result->>'outcome';
   end if;
   result := public.provision_number_slot(
     'c0000000-0000-4000-8000-000000000002', 'key-pro-3', '628', 'US', 2);
-  if result->>'outcome' <> 'plan_limit' then
+  if result->>'outcome' is distinct from 'plan_limit' then
     raise exception 'P5 FAILED: pro 3rd number should hit plan_limit, got %', result->>'outcome';
   end if;
   raise notice 'P5 PASSED: pro allowance admits 2, blocks the 3rd';
@@ -145,12 +145,12 @@ declare
 begin
   result := public.provision_number_slot(
     'c0000000-0000-4000-8000-000000000003', 'key-sole-1', '303', 'US', 2);
-  if result->>'outcome' <> 'created' then
+  if result->>'outcome' is distinct from 'created' then
     raise exception 'P6 FAILED: sole-prop 1st number, got %', result->>'outcome';
   end if;
   result := public.provision_number_slot(
     'c0000000-0000-4000-8000-000000000003', 'key-sole-2', '303', 'US', 2);
-  if result->>'outcome' <> 'sole_prop_cap' then
+  if result->>'outcome' is distinct from 'sole_prop_cap' then
     raise exception 'P6 FAILED: expected sole_prop_cap, got %', result->>'outcome';
   end if;
   raise notice 'P6 PASSED: sole-prop brands are capped at 1 number';
@@ -209,7 +209,7 @@ begin
 
   r := public.claim_provisioning_lease(v_row_id, 180);
   if r is null then raise exception 'P9 FAILED: first claim returned null'; end if;
-  if (r->>'id')::uuid <> v_row_id then raise exception 'P9 FAILED: wrong row returned'; end if;
+  if (r->>'id')::uuid is distinct from v_row_id then raise exception 'P9 FAILED: wrong row returned'; end if;
 
   r := public.claim_provisioning_lease(v_row_id, 180);
   if r is not null then
@@ -241,7 +241,7 @@ begin
   k1 := public.claim_order_idempotency_key(v_row_id);
   k2 := public.claim_order_idempotency_key(v_row_id);
   if k1 is null then raise exception 'P10 FAILED: no key returned'; end if;
-  if k1 <> k2 then raise exception 'P10 FAILED: key not stable (% vs %)', k1, k2; end if;
+  if k1 is distinct from k2 then raise exception 'P10 FAILED: key not stable (% vs %)', k1, k2; end if;
 
   -- Cleared (the OrderDeadError / taken-fallback path) → a fresh reorder mints
   -- a NEW key rather than replaying a dead/rejected order.
@@ -286,10 +286,10 @@ begin
 
   result := public.provision_number_slot(
     'c0000000-0000-4000-8000-000000000002', 'key-chosen-1', '415', 'US', 2, '+14155550142');
-  if result->>'outcome' <> 'created' then
+  if result->>'outcome' is distinct from 'created' then
     raise exception 'P12 FAILED: expected created, got %', result->>'outcome';
   end if;
-  if (result->'number'->>'chosen_number_e164') <> '+14155550142' then
+  if (result->'number'->>'chosen_number_e164') is distinct from '+14155550142' then
     raise exception 'P12 FAILED: chosen_number_e164 not persisted (got %)',
       result->'number'->>'chosen_number_e164';
   end if;
@@ -327,15 +327,15 @@ begin
     where company_id = 'c0000000-0000-4000-8000-000000000001' and status <> 'released';
   result := public.provision_number_slot(
     'c0000000-0000-4000-8000-000000000001', 'key-cap-1', '212', 'US', 1, null, 3);
-  if result->>'outcome' <> 'provision_cap' then
+  if result->>'outcome' is distinct from 'provision_cap' then
     raise exception 'P13 FAILED: expected provision_cap, got %', result->>'outcome';
   end if;
-  if (result->>'limit')::int <> 3 then
+  if (result->>'limit')::int is distinct from 3 then
     raise exception 'P13 FAILED: cap limit not echoed (got %)', result->>'limit';
   end if;
   if (select count(*) from public.phone_numbers
       where company_id = 'c0000000-0000-4000-8000-000000000001' and status <> 'released')
-     <> v_before then
+     is distinct from v_before then
     raise exception 'P13 FAILED: a capped call still inserted a row';
   end if;
 
@@ -344,11 +344,11 @@ begin
     where id = 'c0000000-0000-4000-8000-000000000001';
   result := public.provision_number_slot(
     'c0000000-0000-4000-8000-000000000001', 'key-cap-2', '212', 'US', 1, null, 3);
-  if result->>'outcome' <> 'created' then
+  if result->>'outcome' is distinct from 'created' then
     raise exception 'P13 FAILED: expected created under cap, got %', result->>'outcome';
   end if;
   if (select number_provision_count from public.companies
-      where id = 'c0000000-0000-4000-8000-000000000001') <> 1 then
+      where id = 'c0000000-0000-4000-8000-000000000001') is distinct from 1 then
     raise exception 'P13 FAILED: counter did not increment on created';
   end if;
 
@@ -368,7 +368,7 @@ begin
   -- Starter Co currently holds 1 non-released number (P1). Included=1 → full.
   result := public.provision_number_slot(
     'c0000000-0000-4000-8000-000000000001', 'key-p14-a', '212', 'US', 1);
-  if result->>'outcome' <> 'plan_limit' or (result->>'max')::int <> 1 then
+  if result->>'outcome' is distinct from 'plan_limit' or (result->>'max')::int is distinct from 1 then
     raise exception 'P14 FAILED: expected plan_limit max 1, got %', result;
   end if;
 
@@ -383,7 +383,7 @@ begin
   -- …and the SAME claim now admits (max = 1 included + 1 paid).
   result := public.provision_number_slot(
     'c0000000-0000-4000-8000-000000000001', 'key-p14-b', '212', 'US', 1);
-  if result->>'outcome' <> 'created' then
+  if result->>'outcome' is distinct from 'created' then
     raise exception 'P14 FAILED: paid capacity did not admit, got %', result->>'outcome';
   end if;
 
@@ -404,7 +404,7 @@ begin
   -- Formula: desired = max(0, 2 - 1) = 1 = current capacity → nothing to shrink
   -- (but the epoch still bumps — a credit may follow any claim).
   result := public.claim_extra_lower('c0000000-0000-4000-8000-000000000001', 1);
-  if (result->>'allowed')::boolean or (result->>'desired')::int <> 1
+  if (result->>'allowed')::boolean or (result->>'desired')::int is distinct from 1
      or (result->>'epoch') is null then
     raise exception 'P15 FAILED: expected allowed=false desired=1 with epoch, got %', result;
   end if;
@@ -413,11 +413,11 @@ begin
   update public.phone_numbers set status = 'released'
    where provisioning_key = 'key-p14-b';
   result := public.claim_extra_lower('c0000000-0000-4000-8000-000000000001', 1);
-  if not (result->>'allowed')::boolean or (result->>'desired')::int <> 0 then
+  if not (result->>'allowed')::boolean or (result->>'desired')::int is distinct from 0 then
     raise exception 'P15 FAILED: expected allowed=true desired=0, got %', result;
   end if;
   if (select paid_extra_numbers from public.companies
-      where id = 'c0000000-0000-4000-8000-000000000001') <> 0 then
+      where id = 'c0000000-0000-4000-8000-000000000001') is distinct from 0 then
     raise exception 'P15 FAILED: capacity column not shrunk';
   end if;
 
@@ -426,7 +426,7 @@ begin
   -- number.
   result := public.provision_number_slot(
     'c0000000-0000-4000-8000-000000000001', 'key-p15-c', '212', 'US', 1);
-  if result->>'outcome' <> 'plan_limit' or (result->>'max')::int <> 1 then
+  if result->>'outcome' is distinct from 'plan_limit' or (result->>'max')::int is distinct from 1 then
     raise exception 'P15 FAILED: post-claim admit not blocked, got %', result;
   end if;
 
@@ -472,7 +472,7 @@ begin
     'c0000000-0000-4000-8000-000000000001', 2, (result->>'epoch')::bigint);
   if not (result->>'applied')::boolean
      or (select paid_extra_numbers from public.companies
-         where id = 'c0000000-0000-4000-8000-000000000001') <> 2 then
+         where id = 'c0000000-0000-4000-8000-000000000001') is distinct from 2 then
     raise exception 'P16 FAILED: fresh-epoch raise refused: %', result;
   end if;
 

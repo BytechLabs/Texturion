@@ -1,0 +1,45 @@
+-- ===========================================================================
+-- [#248] The index behind "have we already announced this opt-out?".
+--
+-- The importer used to decide which `opted_out` timeline events to emit by
+-- diffing the file against the opt-out state it read BEFORE its own writes. A
+-- run that wrote the opt-outs and then died left those numbers standing, so the
+-- re-run — the recovery procedure that route tells people to use — saw nothing
+-- to announce, and the timeline entry was lost forever. Asking what has been
+-- ANNOUNCED is answerable from durable state, so the re-run repairs it; this is
+-- the index that makes asking affordable, for up to 2000 phones inside one
+-- Worker request.
+--
+-- ONE STATEMENT, ALONE IN A FILE, AND THAT IS THE WHOLE REASON THIS FILE EXISTS.
+--
+--   It must be CONCURRENTLY. `conversation_events` is one of the largest tables
+--   in the product; a plain CREATE INDEX holds ACCESS EXCLUSIVE for the entire
+--   build, which means every message, every call and every timeline read blocks
+--   until it finishes — a migration indistinguishable from an outage while it
+--   runs. And the queue is the real damage: one blocked DDL statement puts every
+--   reader behind it.
+--
+--   CONCURRENTLY cannot run inside a pipeline. The migration runner sends a
+--   file's statements as one extended-protocol pipeline, and Postgres refuses:
+--   "CREATE INDEX CONCURRENTLY cannot be executed within a pipeline"
+--   (SQLSTATE 25001). This was found by running it, not by reasoning about it —
+--   `supabase migration up` applied it happily and `supabase db reset`, which is
+--   what CI runs, did not.
+--
+--   A file with a single statement is not a pipeline. So the statement gets a
+--   file. Nothing else may be added here, ever; a second statement turns this
+--   back into a pipeline and breaks the deploy.
+--
+-- IF A BUILD IS CANCELLED it leaves an INVALID index behind, and `if not
+-- exists` would then skip it forever — present in `pg_indexes`, passing every
+-- existence check we have, and never used by the planner. Recovery is one
+-- statement, run by hand, and then re-running this migration:
+--
+--     drop index concurrently public.conversation_events_opted_out_phone_idx;
+--
+-- It is deliberately NOT automated here, because automating it would require a
+-- second statement in this file.
+-- ===========================================================================
+create index concurrently if not exists conversation_events_opted_out_phone_idx
+  on public.conversation_events (company_id, (payload ->> 'phone_e164'))
+  where type = 'opted_out';

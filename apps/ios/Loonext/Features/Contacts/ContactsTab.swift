@@ -2,27 +2,32 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-private let csvImportMaxBytes = 2 * 1024 * 1024
-private let vcardImportMaxBytes = 5 * 1024 * 1024
 private let importErrorsShown = 50
-
-/// Which import a picked document feeds.
-private enum ImportKind {
-    case csv, vcard
-
-    /// Skipped rows label honestly: 'Row N' (CSV) or 'Card N' (vCard).
-    var rowWord: String { self == .csv ? "Row" : "Card" }
-    var maxBytes: Int { self == .csv ? csvImportMaxBytes : vcardImportMaxBytes }
-    var sizeMessage: String {
-        self == .csv ? "CSV files must be 2 MB or less." : "vCard files must be 5 MB or less."
-    }
-}
 
 /// One finished import, kept with its kind so skipped rows label honestly.
 private struct ImportReport: Identifiable {
     let id = UUID()
-    let kind: ImportKind
+    let kind: ContactImportKind
     let result: ImportResult
+}
+
+/// One import the server refused outright — nothing was written.
+///
+/// #248. The refusal that matters names the columns or properties this file
+/// carries that the declaration did not account for, one at a time, and asks for
+/// a person to look at them. That is a paragraph, and a paragraph does not fit
+/// in the five-second notice line under the search box — it was shown at 11.5pt
+/// in muted grey and then deleted itself, which is a refusal nobody was told
+/// about.
+private struct ImportRefusal: Identifiable {
+    let id = UUID()
+    let kind: ContactImportKind
+    /// The server's sentence, printed exactly as it arrived. It names the
+    /// columns in the file's own spelling, and rewording it here would mean
+    /// picking those names back out of prose — a parse that breaks silently the
+    /// first time the sentence changes, taking the answer to "which column?"
+    /// with it.
+    let message: String
 }
 
 /// The exported CSV bytes. The server emits a UTF-8 BOM so Excel round-trips
@@ -120,9 +125,14 @@ struct ContactsTab: View {
     @State private var exporting = false
     @State private var exportedCsv: ExportedCsv?
     @State private var importing = false
-    @State private var pendingImport: ImportKind?
+    @State private var pendingImport: ContactImportKind?
     @State private var importPresented = false
+    /// #248: a picked file waiting on its consent attestation. Nothing is
+    /// uploaded while this is set.
+    @State private var importCandidate: ContactImportCandidate?
     @State private var importReport: ImportReport?
+    /// #248: an import the server refused outright, held until it is read.
+    @State private var importRefusal: ImportRefusal?
     @State private var notice: String?
 
     // #459: the phone's own address book, its own group below the crew's.
@@ -241,8 +251,21 @@ struct ContactsTab: View {
                 AppRouter.shared.openContactId = created.id
             }
         }
+        .sheet(item: $importCandidate) { candidate in
+            // #248: raised between picking the file and uploading it, so the
+            // attestation is made about a file whose name is on screen — and so
+            // an oversized file is refused before anybody is asked to swear to
+            // anything. Dismissing without confirming uploads nothing.
+            ContactImportConsentSheet(candidate: candidate) { confirmed in
+                importCandidate = nil
+                runImport(confirmed)
+            }
+        }
         .sheet(item: $importReport) { report in
             ImportReportSheet(report: report)
+        }
+        .sheet(item: $importRefusal) { refusal in
+            ImportRefusedSheet(refusal: refusal)
         }
         .sheet(item: $exportedCsv) { export in
             CsvShareSheet(url: export.url) { completed in
@@ -266,7 +289,7 @@ struct ContactsTab: View {
             guard case .success(let urls) = result, let url = urls.first, let kind else {
                 return
             }
-            runImport(kind: kind, url: url)
+            stageImport(kind: kind, url: url)
         }
     }
 
@@ -679,11 +702,19 @@ struct ContactsTab: View {
         }
     }
 
-    private func runImport(kind: ImportKind, url: URL) {
-        importing = true
+    /// Read the picked file and check it against the shared bounds, then raise
+    /// the consent sheet. Nothing leaves the phone in here.
+    ///
+    /// The bytes are read NOW rather than at upload time: the document picker's
+    /// URL is only readable inside the security-scoped access granted with it,
+    /// and that access cannot be held open across a sheet somebody is reading.
+    ///
+    /// The `Task` also buys the runloop turn between the file importer
+    /// dismissing and the next sheet presenting — two presentations in the same
+    /// turn is how a sheet silently fails to appear.
+    private func stageImport(kind: ContactImportKind, url: URL) {
         notice = nil
         Task {
-            defer { importing = false }
             let accessing = url.startAccessingSecurityScopedResource()
             defer { if accessing { url.stopAccessingSecurityScopedResource() } }
             let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? -1
@@ -699,26 +730,87 @@ struct ContactsTab: View {
                 notice = kind.sizeMessage
                 return
             }
+            var candidate = ContactImportCandidate(
+                kind: kind,
+                fileName: url.lastPathComponent,
+                bytes: bytes
+            )
+            // #248 round 3: read what the file actually carries before anything
+            // is uploaded, so the questions are asked beside the attestation
+            // they make honest rather than after a refusal — and so the person
+            // answering can see the VALUES.
+            //
+            // The two doors ask different questions because the two formats can
+            // only say do-not-text in different places: a CSV in a column, a
+            // .vcf in a property.
+            switch kind {
+            case .csv:
+                let review = await ContactColumns.reviewFile(bytes)
+                if review.rowCount > kind.maxRecords {
+                    notice = kind.rowCapMessage
+                    return
+                }
+                candidate.columns = review.columns
+            case .vcard:
+                candidate.properties = await VCardProperties.scanFile(bytes)
+            }
+            importCandidate = candidate
+        }
+    }
+
+    /// Upload a candidate the reader has attested to.
+    ///
+    /// Takes the whole candidate rather than a `consentAttested: true` of its
+    /// own — the attestation is set in one place, the consent sheet's confirm,
+    /// and nothing between there and the wire re-states it.
+    private func runImport(_ candidate: ContactImportCandidate) {
+        importing = true
+        notice = nil
+        Task {
+            defer { importing = false }
             do {
                 let result: ImportResult
-                switch kind {
+                switch candidate.kind {
                 case .csv:
                     result = try await mutations.importCsv(
                         companyId: companyId,
-                        fileName: url.lastPathComponent,
-                        bytes: bytes
+                        fileName: candidate.fileName,
+                        bytes: candidate.bytes,
+                        consentAttested: candidate.consentAttested,
+                        columns: candidate.declaredColumns
                     )
                 case .vcard:
                     result = try await mutations.importVcard(
                         companyId: companyId,
-                        fileName: url.lastPathComponent,
-                        bytes: bytes
+                        fileName: candidate.fileName,
+                        bytes: candidate.bytes,
+                        consentAttested: candidate.consentAttested,
+                        properties: candidate.declaredProperties
                     )
                 }
-                importReport = ImportReport(kind: kind, result: result)
+                importReport = ImportReport(kind: candidate.kind, result: result)
                 refreshKey += 1
             } catch {
-                notice = error.userMessage
+                // #248: an import the server REFUSED is a terminal answer
+                // about a file somebody just chose, and it can be a paragraph —
+                // the columns nobody accounted for, named one by one. The notice
+                // line is a five-second snackbar under the search box, which is
+                // where that paragraph went to die: read by nobody, gone before
+                // it could be acted on, and the refusal silent all over again.
+                //
+                // Only the two codes that mean "the server considered THIS FILE
+                // and said no". A dropped connection or a 500 is not a fact
+                // about the file, and putting it on paper would train people to
+                // dismiss the sheet that matters.
+                let code = (error as? ApiError)?.code
+                if code == ApiErrorCode.validationFailed || code == ApiErrorCode.rateLimited {
+                    importRefusal = ImportRefusal(
+                        kind: candidate.kind,
+                        message: error.userMessage
+                    )
+                } else {
+                    notice = error.userMessage
+                }
             }
         }
     }
@@ -937,64 +1029,235 @@ struct CreateContactSheet: View {
     }
 }
 
-/// The import's authoritative outcome — imported/updated/skipped counts plus
-/// the per-row reasons for everything skipped, labeled 'Row N' (CSV) or
-/// 'Card N' (vCard) exactly as the server reported them.
+/// The import's authoritative outcome — imported/updated/skipped counts, what
+/// the file's consent attestation could NOT be written to (#248), and the
+/// per-row reasons for everything skipped, labeled 'Row N' (CSV) or 'Card N'
+/// (vCard) exactly as the server reported them.
+///
+/// The consent section is the reason this screen was rebuilt. `ContactImportConsentSheet`
+/// promises, before a byte is uploaded, that "anyone who has texted STOP stays
+/// blocked" — and until the server started reporting refusals there was no
+/// receipt for that promise anywhere in the product. A promise with no receipt
+/// is the same silence #248 fixed underneath.
 @MainActor
 private struct ImportReportSheet: View {
     let report: ImportReport
 
     @Environment(\.dismiss) private var dismiss
 
+    /// The consent half of the answer, decided once rather than re-derived by
+    /// each of the three places below that ask about it.
+    private let consent: ImportConsentOutcome
+
+    /// An import that refused an attestation opens tall enough to show the
+    /// refusal without a drag.
+    ///
+    /// A notice below the fold of a medium sheet is a notice most people never
+    /// see, which is the silent refusal all over again. Both detents stay
+    /// available so the reader can still shrink it — the sheet chooses where to
+    /// START, it does not trap anybody.
+    @State private var detent: PresentationDetent
+
+    init(report: ImportReport) {
+        self.report = report
+        let consent = ImportConsentOutcome(report.result)
+        self.consent = consent
+        _detent = State(initialValue: consent.isEmpty ? .medium : .large)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                summary
+                if !consent.isEmpty { consentSection }
+                if !report.result.errors.isEmpty { skippedSection }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        // Pinned rather than last in the scroll: once a long refusal list is on
+        // screen, a Done button at the bottom of the content is a button
+        // somebody has to scroll past forty rows to reach.
+        .safeAreaInset(edge: .bottom) { doneBar }
+        .background(BrandColor.canvas.ignoresSafeArea())
+        .presentationDetents([.medium, .large], selection: $detent)
+    }
+
+    private var summary: some View {
+        VStack(alignment: .leading, spacing: 4) {
             Text("Import finished")
                 .font(.golos(15, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
-            Text(
-                [
-                    "\(report.result.imported) imported",
-                    "\(report.result.updated) updated",
-                    "\(report.result.skipped) skipped",
-                ].joined(separator: " · ")
-            )
-            .font(.golos(12.5))
-            .foregroundStyle(BrandColor.muted600)
-            if !report.result.errors.isEmpty {
-                Text("Skipped rows:")
-                    .font(.golos(11, weight: .semibold))
-                    .foregroundStyle(BrandColor.muted500)
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(
-                            Array(report.result.errors.prefix(importErrorsShown).enumerated()),
-                            id: \.offset
-                        ) { _, rowError in
-                            Text("\(report.kind.rowWord) \(rowError.row) — \(rowError.reason)")
-                                .font(.golos(11))
-                                .foregroundStyle(BrandColor.muted700)
-                        }
-                        let hidden = report.result.errors.count - importErrorsShown
-                        if hidden > 0 {
-                            Text("…and \(hidden) more.")
-                                .font(.golos(11))
-                                .foregroundStyle(BrandColor.muted500)
-                        }
+            Text(report.result.volumeSummary)
+                .font(.golos(12.5))
+                .monospacedDigit()
+                .foregroundStyle(BrandColor.muted600)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// What the attestation could not cover, above the skipped rows.
+    ///
+    /// Above, because it is the consequential half: a skipped row is a typo
+    /// somebody fixes in a spreadsheet, and this is a person who told this
+    /// business to stop. On paper rather than as another line of the summary,
+    /// for the same reason the count is not a fourth term — a figure in a run
+    /// of figures is a figure people read past.
+    private var consentSection: some View {
+        PaperCard {
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 6) {
+                    // Baseline rather than top: an 11pt glyph top-aligned
+                    // against 12.5pt text sits visibly high, and the optical
+                    // correction is what makes the two read as one line.
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: "hand.raised.fill")
+                            .font(.scaled(11, weight: .medium))
+                            .foregroundStyle(BrandColor.destructive)
+                        Text(consent.heading)
+                            .font(.golos(12.5, weight: .semibold))
+                            .foregroundStyle(BrandColor.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(consent.note)
+                        .font(.golos(11.5))
+                        .foregroundStyle(BrandColor.muted700)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .frame(maxHeight: 280)
+                // One element: the heading and the sentence explaining it are
+                // one thought, and VoiceOver reading them as two makes the
+                // second sound like an unrelated paragraph.
+                .accessibilityElement(children: .combine)
+                if !consent.rows.isEmpty { rowList(consent.rows) }
+                // #248 B8: the heading carries the COUNT and the list carries
+                // the rows, and a count larger than its list is a heading
+                // reading "40 people" over five lines. A reader counts the
+                // lines and concludes the heading is wrong — which is how a
+                // number nobody believes stops being read at all.
+                if let unlisted = consent.unlistedLine {
+                    Text(unlisted)
+                        .font(.golos(11))
+                        .foregroundStyle(BrandColor.muted500)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            .padding(.horizontal, 15)
+            .padding(.vertical, 13)
+        }
+    }
+
+    private var skippedSection: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text("Skipped rows")
+                .font(.golos(11, weight: .semibold))
+                .foregroundStyle(BrandColor.muted500)
+            PaperCard {
+                rowList(report.result.errors)
+                    .padding(.horizontal, 15)
+                    .padding(.vertical, 13)
+            }
+        }
+    }
+
+    /// One renderer for both lists — the server reports skipped rows and
+    /// refused rows in the same shape, and `rowLine` is what keeps the label
+    /// honest between a CSV's rows and a .vcf's cards.
+    private func rowList(_ rows: [ImportResult.ImportRowError]) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            ForEach(Array(rows.prefix(importErrorsShown).enumerated()), id: \.offset) { _, row in
+                Text(report.kind.rowLine(row))
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted700)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            let hidden = rows.count - importErrorsShown
+            if hidden > 0 {
+                Text("…and \(hidden) more.")
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.muted500)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var doneBar: some View {
+        HStack {
+            Spacer()
+            Button("Done") { dismiss() }
+                .tint(BrandColor.olive)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(BrandColor.canvas)
+        .overlay(alignment: .top) { RowDivider() }
+    }
+}
+
+/// An import the server refused — on paper, until somebody closes it.
+///
+/// #248. The refusal this exists for names the columns nobody accounted for and
+/// asks for a person to look at them, which is an instruction, not a status. An instruction that deletes itself after five seconds is an
+/// instruction nobody followed, and the file it was about is still sitting in
+/// somebody's Files app carrying a "Do Not Call" column.
+///
+/// It says NOTHING WAS IMPORTED in its own voice above the server's paragraph:
+/// the paragraph explains why, and the first thing anybody needs to know is
+/// whether they now have half a contact book.
+@MainActor
+private struct ImportRefusedSheet: View {
+    let refusal: ImportRefusal
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Nothing was imported")
+                        .font(.golos(15, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                    Text(refusal.kind.label + " · no contacts were added or changed")
+                        .font(.golos(12.5))
+                        .foregroundStyle(BrandColor.muted600)
+                }
+                .accessibilityElement(children: .combine)
+                PaperCard {
+                    HStack(alignment: .top, spacing: 11) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.scaled(13, weight: .medium))
+                            .foregroundStyle(BrandColor.destructive)
+                        Text(refusal.message)
+                            .font(.golos(12))
+                            .foregroundStyle(BrandColor.muted700)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 15)
+                    .padding(.vertical, 13)
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .safeAreaInset(edge: .bottom) {
             HStack {
                 Spacer()
                 Button("Done") { dismiss() }
                     .tint(BrandColor.olive)
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(BrandColor.canvas)
+            .overlay(alignment: .top) { RowDivider() }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(BrandColor.canvas.ignoresSafeArea())
-        .presentationDetents([.medium, .large])
+        // Opens LARGE and stays there. The message is the whole point of the
+        // sheet, and a medium detent puts the half that names the columns below
+        // the fold.
+        .presentationDetents([.large])
     }
 }
 

@@ -8,6 +8,8 @@ import {
 import type { ImportResult } from "@/lib/api/types";
 import { summarizeImport } from "@/lib/contacts/import-summary";
 
+import { ImportConsentRefused } from "./import-consent-refused";
+
 /**
  * Shared "Import finished" summary body for the vCard and phone-picker dialogs
  * (D20 §3.2/§3.3). Renders the API's authoritative
@@ -33,6 +35,11 @@ export function ImportSummaryView({
         <DialogTitle>Import finished</DialogTitle>
         <DialogDescription>{summary.headline}</DialogDescription>
       </DialogHeader>
+      {/* Above the skipped rows on purpose. Skipped rows are a chore the person
+          already half expects — bad numbers in a spreadsheet. This is the
+          surprising item and the consequential one: people who are now in their
+          list and must not be texted. The unexpected fact leads. */}
+      <ImportConsentRefused result={result} />
       {summary.hasErrors && (
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">{errorsHeading}</p>

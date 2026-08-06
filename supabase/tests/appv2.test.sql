@@ -72,7 +72,7 @@ begin
   if has_rls is null then raise exception 'A1 FAILED: public.tasks table missing'; end if;
   if not has_rls then raise exception 'A1 FAILED: RLS not enabled on tasks'; end if;
   select count(*) into n_pol from pg_policies where schemaname='public' and tablename='tasks';
-  if n_pol <> 0 then raise exception 'A1 FAILED: tasks has % RLS policies (want 0)', n_pol; end if;
+  if n_pol is distinct from 0 then raise exception 'A1 FAILED: tasks has % RLS policies (want 0)', n_pol; end if;
   raise notice 'A1 PASSED: tasks exists, RLS enabled, deny-by-default (0 policies)';
 end $$;
 
@@ -125,7 +125,7 @@ begin
     join pg_attribute att on att.attrelid=con.conrelid and att.attnum=con.conkey[1]
     where con.conrelid='public.tasks'::regclass and con.contype='f'
   loop
-    if want ? r.col and (want->>r.col) <> r.del then
+    if want ? r.col and (want->>r.col) is distinct from r.del then
       raise exception 'A3 FAILED: tasks.% ON DELETE is % (want %)', r.col, r.del, want->>r.col;
     end if;
   end loop;
@@ -187,7 +187,7 @@ begin
           'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
 
   if (select count(*) from public.tasks
-      where message_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004' and deleted_at is null) <> 1 then
+      where message_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004' and deleted_at is null) is distinct from 1 then
     raise exception 'A5 FAILED: expected exactly one LIVE task after re-promote';
   end if;
   raise notice 'A5 PASSED: one live task per message; re-promote after soft-delete works';
@@ -291,7 +291,7 @@ begin
   if has_rls is null then raise exception 'A9 FAILED: public.attachments table missing'; end if;
   if not has_rls then raise exception 'A9 FAILED: RLS not enabled on attachments'; end if;
   select count(*) into n_pol from pg_policies where schemaname='public' and tablename='attachments';
-  if n_pol <> 0 then raise exception 'A9 FAILED: attachments has % RLS policies (want 0)', n_pol; end if;
+  if n_pol is distinct from 0 then raise exception 'A9 FAILED: attachments has % RLS policies (want 0)', n_pol; end if;
 
   select exists (select 1 from information_schema.columns
     where table_schema='public' and table_name='attachments' and column_name='updated_at') into has_upd;
@@ -299,7 +299,7 @@ begin
 
   select count(*) into n_trig from pg_trigger
   where tgrelid='public.attachments'::regclass and not tgisinternal;
-  if n_trig <> 0 then
+  if n_trig is distinct from 0 then
     raise exception 'A9 FAILED: attachments must have no triggers (append-only; no moddatetime), found %', n_trig;
   end if;
   raise notice 'A9 PASSED: attachments exists, RLS deny-by-default, append-only (no updated_at, no triggers)';
@@ -382,7 +382,7 @@ begin
   select count(*) into n_generic from public.attachments
   where company_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7'
     and conversation_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003' and deleted_at is null;
-  if n_generic <> 2 then
+  if n_generic is distinct from 2 then
     raise exception 'A12 FAILED: generic gallery arm returned % rows (want 2: note+task)', n_generic;
   end if;
   raise notice 'A12 PASSED: gallery arms have the right shapes (generic conversation-scoped; MMS needs the messages join)';
@@ -426,8 +426,8 @@ begin
     into gs_t, gs_null, gs_def from information_schema.columns
     where table_schema='public' and table_name='contacts' and column_name='geocode_status';
 
-  if lat_t <> 'double precision' then raise exception 'A14 FAILED: contacts.lat type % (want double precision)', lat_t; end if;
-  if lng_t <> 'double precision' then raise exception 'A14 FAILED: contacts.lng type % (want double precision)', lng_t; end if;
+  if lat_t is distinct from 'double precision' then raise exception 'A14 FAILED: contacts.lat type % (want double precision)', lat_t; end if;
+  if lng_t is distinct from 'double precision' then raise exception 'A14 FAILED: contacts.lng type % (want double precision)', lng_t; end if;
   if ga_t is null or ga_t not like 'timestamp%' then raise exception 'A14 FAILED: contacts.geocoded_at not timestamptz'; end if;
   if gs_t is null then raise exception 'A14 FAILED: contacts.geocode_status missing'; end if;
   if gs_null then raise exception 'A14 FAILED: contacts.geocode_status must be NOT NULL'; end if;
@@ -511,7 +511,7 @@ begin
   select count(*) into n from public.conversation_events
   where conversation_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003'
     and type in ('task_created','message_done');
-  if n <> 2 then raise exception 'A16 FAILED: expected 2 new audit rows, got %', n; end if;
+  if n is distinct from 2 then raise exception 'A16 FAILED: expected 2 new audit rows, got %', n; end if;
   raise notice 'A16 PASSED: new event types write with a non-null conversation_id (audit reuse)';
 end $$;
 
@@ -552,7 +552,7 @@ begin
   from storage.buckets where id='attachments';
   if pub is null then raise exception 'A18 FAILED: attachments storage bucket missing'; end if;
   if pub then raise exception 'A18 FAILED: attachments bucket must be private'; end if;
-  if lim <> 26214400 then raise exception 'A18 FAILED: attachments bucket file_size_limit % (want 26214400 = 25 MB)', lim; end if;
+  if lim is distinct from 26214400 then raise exception 'A18 FAILED: attachments bucket file_size_limit % (want 26214400 = 25 MB)', lim; end if;
   if mimes is null or array_length(mimes,1) < 1 then raise exception 'A18 FAILED: attachments bucket has no allowed_mime_types'; end if;
   if not ('image/jpeg' = any(mimes) and 'application/pdf' = any(mimes)) then
     raise exception 'A18 FAILED: attachments allow-list missing image/jpeg or application/pdf';
@@ -613,20 +613,20 @@ begin
     'b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004',       -- message
     null, null, null, null,                       -- title/desc/assignee/due
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');       -- actor
-  if res->>'outcome' <> 'created' then
+  if res->>'outcome' is distinct from 'created' then
     raise exception 'A20 FAILED: create_task outcome % (want created)', res->>'outcome';
   end if;
   v_task_id := (res->'task'->>'id')::uuid;
-  if (res->'task'->>'conversation_id') <> 'b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003' then
+  if (res->'task'->>'conversation_id') is distinct from 'b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003' then
     raise exception 'A20 FAILED: create_task did not resolve conversation_id from the message';
   end if;
-  if (res->'task'->>'title') <> 'fix the sink please' then
+  if (res->'task'->>'title') is distinct from 'fix the sink please' then
     raise exception 'A20 FAILED: title snippet default wrong: %', res->'task'->>'title';
   end if;
   select count(*) into n_events from public.conversation_events
    where conversation_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003'
      and type='task_created' and (payload->>'task_id')::uuid=v_task_id;
-  if n_events <> 1 then raise exception 'A20 FAILED: want exactly 1 task_created event, got %', n_events; end if;
+  if n_events is distinct from 1 then raise exception 'A20 FAILED: want exactly 1 task_created event, got %', n_events; end if;
 
   -- A foreign / non-existent message id → no_message (no task, no event).
   res := public.create_task(
@@ -634,7 +634,7 @@ begin
     'b7b7b7b7-b7b7-4b7b-8b7b-b7b7000000ff',        -- not a message in this company
     null, null, null, null,
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
-  if res->>'outcome' <> 'no_message' then
+  if res->>'outcome' is distinct from 'no_message' then
     raise exception 'A20 FAILED: foreign message outcome % (want no_message)', res->>'outcome';
   end if;
 
@@ -644,7 +644,7 @@ begin
     'b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004',
     null, null, null, null,
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
-  if res->>'outcome' <> 'conflict' then
+  if res->>'outcome' is distinct from 'conflict' then
     raise exception 'A20 FAILED: re-promote outcome % (want conflict)', res->>'outcome';
   end if;
 
@@ -658,7 +658,7 @@ begin
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a700000002',        -- deactivated member
     null,
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
-  if res->>'outcome' <> 'not_member' then
+  if res->>'outcome' is distinct from 'not_member' then
     raise exception 'A20 FAILED: inactive assignee outcome % (want not_member)', res->>'outcome';
   end if;
   if exists (select 1 from public.tasks where message_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004' and deleted_at is null) then
@@ -691,56 +691,56 @@ begin
     'b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7', v_task_id,
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7',
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
-  if res->>'outcome' <> 'updated' then raise exception 'A21 FAILED: assign outcome %', res->>'outcome'; end if;
+  if res->>'outcome' is distinct from 'updated' then raise exception 'A21 FAILED: assign outcome %', res->>'outcome'; end if;
   select count(*) into n from public.conversation_events
    where type='task_assigned' and (payload->>'task_id')::uuid=v_task_id
      and payload->>'from_user_id' is null
      and (payload->>'to_user_id')='a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7';
-  if n <> 1 then raise exception 'A21 FAILED: want 1 task_assigned(from=null,to=owner), got %', n; end if;
+  if n is distinct from 1 then raise exception 'A21 FAILED: want 1 task_assigned(from=null,to=owner), got %', n; end if;
 
   -- re-assign to the SAME user → unchanged (no write, no event).
   res := public.assign_task(
     'b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7', v_task_id,
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7',
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
-  if res->>'outcome' <> 'unchanged' then raise exception 'A21 FAILED: re-assign outcome % (want unchanged)', res->>'outcome'; end if;
+  if res->>'outcome' is distinct from 'unchanged' then raise exception 'A21 FAILED: re-assign outcome % (want unchanged)', res->>'outcome'; end if;
   select count(*) into n from public.conversation_events
    where type='task_assigned' and (payload->>'task_id')::uuid=v_task_id;
-  if n <> 1 then raise exception 'A21 FAILED: unchanged re-assign wrote an extra event (got %)', n; end if;
+  if n is distinct from 1 then raise exception 'A21 FAILED: unchanged re-assign wrote an extra event (got %)', n; end if;
 
   -- assign an INACTIVE member → not_member, no write.
   res := public.assign_task(
     'b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7', v_task_id,
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a700000002',
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
-  if res->>'outcome' <> 'not_member' then raise exception 'A21 FAILED: inactive assignee outcome %', res->>'outcome'; end if;
+  if res->>'outcome' is distinct from 'not_member' then raise exception 'A21 FAILED: inactive assignee outcome %', res->>'outcome'; end if;
 
   -- update due_at → task_due_set; title/description-only later writes no event.
   res := public.update_task(
     'b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7', v_task_id,
     null, null, '2026-08-01T12:00:00Z'::timestamptz, false,
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
-  if res->>'outcome' <> 'updated' then raise exception 'A21 FAILED: update due outcome %', res->>'outcome'; end if;
+  if res->>'outcome' is distinct from 'updated' then raise exception 'A21 FAILED: update due outcome %', res->>'outcome'; end if;
   select count(*) into n from public.conversation_events
    where type='task_due_set' and (payload->>'task_id')::uuid=v_task_id;
-  if n <> 1 then raise exception 'A21 FAILED: want 1 task_due_set, got %', n; end if;
+  if n is distinct from 1 then raise exception 'A21 FAILED: want 1 task_due_set, got %', n; end if;
 
   -- title-only update → updated, but NO new event (only due_at is audited).
   res := public.update_task(
     'b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7', v_task_id,
     'Renamed', null, null, false,
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
-  if res->>'outcome' <> 'updated' then raise exception 'A21 FAILED: title update outcome %', res->>'outcome'; end if;
+  if res->>'outcome' is distinct from 'updated' then raise exception 'A21 FAILED: title update outcome %', res->>'outcome'; end if;
   select count(*) into n from public.conversation_events where (payload->>'task_id')::uuid=v_task_id;
   -- events so far: 1 task_created + 1 task_assigned + 1 task_due_set = 3 (title write adds none)
-  if n <> 3 then raise exception 'A21 FAILED: title-only update changed the event count (got %, want 3)', n; end if;
+  if n is distinct from 3 then raise exception 'A21 FAILED: title-only update changed the event count (got %, want 3)', n; end if;
 
   -- clearing due via p_clear_due writes another task_due_set(due_at=null).
   res := public.update_task(
     'b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7', v_task_id,
     null, null, null, true,
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
-  if res->>'outcome' <> 'updated' then raise exception 'A21 FAILED: clear due outcome %', res->>'outcome'; end if;
+  if res->>'outcome' is distinct from 'updated' then raise exception 'A21 FAILED: clear due outcome %', res->>'outcome'; end if;
   if (select due_at from public.tasks where id=v_task_id) is not null then
     raise exception 'A21 FAILED: p_clear_due did not null due_at';
   end if;
@@ -783,7 +783,7 @@ begin
   res := public.delete_task(
     'b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7', v_task_id,
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
-  if res->>'outcome' <> 'deleted' then raise exception 'A22 FAILED: delete outcome % (want deleted)', res->>'outcome'; end if;
+  if res->>'outcome' is distinct from 'deleted' then raise exception 'A22 FAILED: delete outcome % (want deleted)', res->>'outcome'; end if;
 
   -- task is soft-deleted.
   if exists (select 1 from public.tasks where id=v_task_id and deleted_at is null) then
@@ -792,13 +792,13 @@ begin
   -- NO live attachment remains for the task (the orphan-gallery guarantee).
   select count(*) into n_live_att from public.attachments
    where owner_type='task' and owner_id=v_task_id and deleted_at is null;
-  if n_live_att <> 0 then
+  if n_live_att is distinct from 0 then
     raise exception 'A22 FAILED: % live attachment(s) left after delete_task (orphan-gallery gap)', n_live_att;
   end if;
   -- task_deleted event written once.
   select count(*) into n_ev from public.conversation_events
    where type='task_deleted' and (payload->>'task_id')::uuid=v_task_id;
-  if n_ev <> 1 then raise exception 'A22 FAILED: want 1 task_deleted event, got %', n_ev; end if;
+  if n_ev is distinct from 1 then raise exception 'A22 FAILED: want 1 task_deleted event, got %', n_ev; end if;
   -- messages.done_at untouched.
   select done_at into msg_done from public.messages where id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004';
   if msg_done is null then raise exception 'A22 FAILED: delete_task cleared messages.done_at (it must not)'; end if;
@@ -807,7 +807,7 @@ begin
   res := public.delete_task(
     'b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7', v_task_id,
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
-  if res->>'outcome' <> 'not_found' then raise exception 'A22 FAILED: re-delete outcome % (want not_found)', res->>'outcome'; end if;
+  if res->>'outcome' is distinct from 'not_found' then raise exception 'A22 FAILED: re-delete outcome % (want not_found)', res->>'outcome'; end if;
 
   raise notice 'A22 PASSED: delete_task atomically soft-deletes task + attachments + writes task_deleted (no gallery orphans); done_at untouched';
 end $$;
@@ -872,34 +872,34 @@ begin
     'b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7',
     'b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004', true,
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
-  if res->>'outcome' <> 'updated' then raise exception 'A24 FAILED: mark-done outcome % (want updated)', res->>'outcome'; end if;
+  if res->>'outcome' is distinct from 'updated' then raise exception 'A24 FAILED: mark-done outcome % (want updated)', res->>'outcome'; end if;
 
   select done_at, done_by_user_id into v_done_at, v_done_by
    from public.messages where id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004';
-  if v_done_at is null or v_done_by <> 'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7' then
+  if v_done_at is null or v_done_by is distinct from 'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7' then
     raise exception 'A24 FAILED: done_at/done_by not stamped by set_message_done';
   end if;
   select count(*) into n_done from public.conversation_events
    where conversation_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003' and type='message_done'
      and (payload->>'message_id')::uuid='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004';
-  if n_done <> 1 then raise exception 'A24 FAILED: want 1 message_done event, got %', n_done; end if;
+  if n_done is distinct from 1 then raise exception 'A24 FAILED: want 1 message_done event, got %', n_done; end if;
 
   -- Idempotent: re-mark done → unchanged, NO second event, no write.
   res := public.set_message_done(
     'b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7',
     'b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004', true,
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
-  if res->>'outcome' <> 'unchanged' then raise exception 'A24 FAILED: redundant mark outcome % (want unchanged)', res->>'outcome'; end if;
+  if res->>'outcome' is distinct from 'unchanged' then raise exception 'A24 FAILED: redundant mark outcome % (want unchanged)', res->>'outcome'; end if;
   select count(*) into n_done from public.conversation_events
    where conversation_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003' and type='message_done';
-  if n_done <> 1 then raise exception 'A24 FAILED: idempotent mark wrote a 2nd message_done event (got %)', n_done; end if;
+  if n_done is distinct from 1 then raise exception 'A24 FAILED: idempotent mark wrote a 2nd message_done event (got %)', n_done; end if;
 
   -- Undo → clears both columns + exactly one message_undone audit.
   res := public.set_message_done(
     'b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7',
     'b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004', false,
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
-  if res->>'outcome' <> 'updated' then raise exception 'A24 FAILED: undo outcome % (want updated)', res->>'outcome'; end if;
+  if res->>'outcome' is distinct from 'updated' then raise exception 'A24 FAILED: undo outcome % (want updated)', res->>'outcome'; end if;
   select done_at, done_by_user_id into v_done_at, v_done_by
    from public.messages where id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004';
   if v_done_at is not null or v_done_by is not null then
@@ -907,14 +907,14 @@ begin
   end if;
   select count(*) into n_undone from public.conversation_events
    where conversation_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003' and type='message_undone';
-  if n_undone <> 1 then raise exception 'A24 FAILED: want 1 message_undone event, got %', n_undone; end if;
+  if n_undone is distinct from 1 then raise exception 'A24 FAILED: want 1 message_undone event, got %', n_undone; end if;
 
   -- Company-scoped: a foreign company_id → not_found, and writes nothing.
   res := public.set_message_done(
     'c7c7c7c7-c7c7-4c7c-8c7c-c7c7c7c7c7c7',
     'b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004', true,
     'a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7');
-  if res->>'outcome' <> 'not_found' then raise exception 'A24 FAILED: cross-company outcome % (want not_found)', res->>'outcome'; end if;
+  if res->>'outcome' is distinct from 'not_found' then raise exception 'A24 FAILED: cross-company outcome % (want not_found)', res->>'outcome'; end if;
   select done_at into v_done_at from public.messages where id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004';
   if v_done_at is not null then raise exception 'A24 FAILED: cross-company call mutated the message'; end if;
 
@@ -967,7 +967,7 @@ begin
   join pg_attribute att on att.attrelid=con.conrelid and att.attnum=con.conkey[1]
   where con.conrelid='public.messages'::regclass and con.contype='f' and att.attname='task_id';
   if del is null then raise exception 'A26 FAILED: messages.task_id is not a FK'; end if;
-  if del <> 'n' then raise exception 'A26 FAILED: messages.task_id ON DELETE is % (want n=SET NULL)', del; end if;
+  if del is distinct from 'n' then raise exception 'A26 FAILED: messages.task_id ON DELETE is % (want n=SET NULL)', del; end if;
 
   -- index present (leads with task_id)
   select exists (
@@ -990,7 +990,7 @@ begin
   values ('b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7','b7b7b7b7-b7b7-4b7b-8b7b-b7b700000003',
           'note','ordered the part', null, v_task_id)
   returning id into v_note_id;
-  if (select task_id from public.messages where id=v_note_id) <> v_task_id then
+  if (select task_id from public.messages where id=v_note_id) is distinct from v_task_id then
     raise exception 'A26 FAILED: note did not link to the task';
   end if;
   -- hard-delete the task → the note survives with task_id cleared (SET NULL)
@@ -1046,7 +1046,7 @@ begin
     raise exception 'A27 FAILED: promoting a note did not link it back to the task';
   end if;
 
-  if public.delete_task(v_company, v_task, v_actor)->>'outcome' <> 'deleted' then
+  if public.delete_task(v_company, v_task, v_actor)->>'outcome' is distinct from 'deleted' then
     raise exception 'A27 FAILED: delete_task did not report deleted';
   end if;
   if (select task_id from public.messages where id = v_note) is not null then
@@ -1054,7 +1054,7 @@ begin
   end if;
 
   res := public.create_task(v_company, v_note, null, null, null, null, v_actor);
-  if res->>'outcome' <> 'created' then
+  if res->>'outcome' is distinct from 'created' then
     raise exception 'A27 FAILED: re-promoting outcome % (want created)', res->>'outcome';
   end if;
   if (select task_id from public.messages where id = v_note)

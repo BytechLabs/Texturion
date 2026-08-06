@@ -7,7 +7,17 @@ import {
 
 import { useCompanyId } from "@/lib/company/provider";
 
-import type { Locale } from "@loonext/shared";
+import {
+  CONTACT_IMPORT_COLUMN_FIELD,
+  CONTACT_IMPORT_CONSENT_FIELD,
+  CONTACT_IMPORT_CONSENT_VALUE,
+  CONTACT_IMPORT_VCARD_PROPERTY_FIELD,
+  formatContactImportColumn,
+  formatVCardProperty,
+  type ContactImportColumnDeclaration,
+  type Locale,
+  type VCardPropertyDeclaration,
+} from "@loonext/shared";
 
 import { apiFetch } from "./client";
 import { keys } from "./keys";
@@ -253,6 +263,87 @@ export function useDeleteContact() {
 }
 
 /**
+ * A file to import, and the person's answer to why those people may be texted.
+ *
+ * The attestation is a REQUIRED argument rather than something this layer
+ * supplies, and that is the whole point. #226 made `consent_attested` mandatory
+ * server-side and no client ever sent it, so every import 422'd against a field
+ * the UI had no control for; the obvious repair — append `"true"` here — would
+ * have been worse, because then the product asserts on the customer's behalf
+ * that a few thousand strangers agreed to be texted. A basis nobody was asked
+ * for is a manufactured one. So the caller must have collected a real answer,
+ * and a caller that has not gets a server refusal rather than a silent yes.
+ */
+export interface ContactImportRequest {
+  file: File | Blob;
+  /** True only when a human ticked the attestation on this screen. */
+  consentAttested: boolean;
+  /**
+   * #248 round 3 — one answer per COLUMN of the attached file, complete.
+   *
+   * Same rule as the attestation and for the same reason: this layer never
+   * writes one, and it never fills a gap. The server refuses a file whose
+   * columns are not all accounted for, and round two's client answered that
+   * refusal by echoing the server's own error sentence back — post, regex the
+   * column names out of the 422, post again, 200, message delivered, no human
+   * anywhere in it. There is nothing to echo now: the declaration is complete
+   * or the request is refused, and the caller already has the file.
+   */
+  columns?: readonly ContactImportColumnDeclaration[];
+  /**
+   * The vCard door's half of the same rule: one answer per PROPERTY the cards
+   * carry that the importer does not read. `CATEGORIES:DNC` and a `NOTE` saying
+   * they asked us to stop are the only two places a .vcf can say do-not-text,
+   * and that door had no gate at all.
+   */
+  properties?: readonly VCardPropertyDeclaration[];
+}
+
+/**
+ * The multipart body both import doors post. Shared so the CSV route and the
+ * vCard route cannot drift on the field name again — the drift is what #226
+ * shipped, and it was invisible because the server-side gate had a test and
+ * neither client did.
+ */
+export function importFormData({
+  file,
+  consentAttested,
+  columns = [],
+  properties = [],
+}: ContactImportRequest): FormData {
+  const formData = new FormData();
+  formData.append("file", file);
+  // Absent, not "false", when unattested: the server's gate is a strict
+  // equality against the one passing value, so an omitted field and a false one
+  // fail identically — and omitting keeps this function from ever writing an
+  // answer the person did not give.
+  if (consentAttested) {
+    formData.append(CONTACT_IMPORT_CONSENT_FIELD, CONTACT_IMPORT_CONSENT_VALUE);
+  }
+  // Repeated once per column rather than joined, and printed by the SHARED
+  // formatter rather than assembled here. Two reasons: a header may contain a
+  // comma or a colon and `form.getAll` has no quoting rules to get wrong, and
+  // the wire form puts the index first BECAUSE the index is the identity —
+  // round two matched its field on a normalised header, so every header with no
+  // ASCII alphanumerics collapsed to the same empty string and two columns
+  // could not be told apart. A client that hand-rolled the string would be free
+  // to get that order wrong.
+  for (const column of columns) {
+    formData.append(
+      CONTACT_IMPORT_COLUMN_FIELD,
+      formatContactImportColumn(column),
+    );
+  }
+  for (const property of properties) {
+    formData.append(
+      CONTACT_IMPORT_VCARD_PROPERTY_FIELD,
+      formatVCardProperty(property),
+    );
+  }
+  return formData;
+}
+
+/**
  * POST /v1/contacts/import — CSV multipart (owner/admin). Returns
  * `{ imported, updated, skipped, errors }` for the G6 import summary.
  */
@@ -260,15 +351,12 @@ export function useImportContacts() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (file: File | Blob) => {
-      const formData = new FormData();
-      formData.append("file", file);
-      return apiFetch<ImportResult>("/v1/contacts/import", {
+    mutationFn: (request: ContactImportRequest) =>
+      apiFetch<ImportResult>("/v1/contacts/import", {
         method: "POST",
         companyId,
-        formData,
-      });
-    },
+        formData: importFormData(request),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: keys.contacts.lists(companyId),

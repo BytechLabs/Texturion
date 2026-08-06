@@ -50,7 +50,7 @@ declare v bigint;
 begin
   v := public.api_period_inbound_segments(
     '66666666-6666-4666-8666-666000000000', now() - interval '30 days');
-  if v <> 5 then
+  if v is distinct from 5 then
     raise exception 'M-1 FAILED: expected 5 inbound segments in period, got %', v;
   end if;
   raise notice 'M-1 PASSED: api_period_inbound_segments sums in-period inbound (null=1), excludes outbound + pre-period';
@@ -85,7 +85,7 @@ begin
   select count(*) into v_count from public.usage_alerts
    where company_id = '66666666-6666-4666-8666-666000000000'
      and period_start = '2026-06-01T00:00:00Z';
-  if v_count <> 3 then
+  if v_count is distinct from 3 then
     raise exception 'M-3 FAILED: expected 3 metric rows at one threshold, got %', v_count;
   end if;
 
@@ -202,7 +202,7 @@ begin
     ('66666666-6666-4666-8666-666000000000', '66666666-6666-4666-8666-666000000001', 'sess-0', 'leg-old-1', 'inbound', 999, now() - interval '40 days');
   v := public.api_period_voice_seconds(
     '66666666-6666-4666-8666-666000000000', now() - interval '30 days');
-  if v <> 55 then
+  if v is distinct from 55 then
     raise exception 'M-6 FAILED: expected 55 in-period voice seconds (30+25), got %', v;
   end if;
   raise notice 'M-6 PASSED: api_period_voice_seconds sums both legs in-period, excludes pre-period';
@@ -246,7 +246,7 @@ begin
   select count(*) into fn_count
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'api_period_outbound_mms';
-  if fn_count <> 0 then
+  if fn_count is distinct from 0 then
     raise exception 'M-9 FAILED: api_period_outbound_mms still exists — the #103 retirement migration did not run';
   end if;
   raise notice 'M-9 PASSED: api_period_outbound_mms is dropped (#103 — MMS meters as segments)';
@@ -264,7 +264,7 @@ declare v bigint;
 begin
   v := public.api_period_forward_seconds(
     '66666666-6666-4666-8666-666000000000', now() - interval '30 days');
-  if v <> 25 then
+  if v is distinct from 25 then
     raise exception 'M-10 FAILED: expected 25 in-period forward seconds, got %', v;
   end if;
   raise notice 'M-10 PASSED: api_period_forward_seconds sums the forward leg only, in-period';
@@ -298,7 +298,7 @@ begin
   select count(*) into stamped
     from public.call_records
    where call_leg_id = 'leg-fwd-1' and stripe_reported_at is not null;
-  if stamped <> 1 then
+  if stamped is distinct from 1 then
     raise exception 'M-12 FAILED: stripe_reported_at stamp did not land';
   end if;
   raise notice 'M-12 PASSED: call_records.stripe_reported_at exists and stamps';

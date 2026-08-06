@@ -56,12 +56,12 @@ begin
     from public.api_template_usage('54000000-0000-4000-8000-0000000000c1'::uuid)
    where template_id = '54000000-0000-4000-8000-0000000000e1'::uuid;
 
-  if v_uses <> 2 then
+  if v_uses is distinct from 2 then
     raise exception 'TU-1: expected 2 uses, got %', v_uses;
   end if;
   -- The half that matters: a template edited every time is a defect report
   -- nobody filed, and a count that lumps the two together cannot say so.
-  if v_edits <> 1 then
+  if v_edits is distinct from 1 then
     raise exception 'TU-1: expected 1 edit, got %', v_edits;
   end if;
 end $$;
@@ -82,7 +82,7 @@ begin
 
   select count(*) into v_count from public.template_uses
    where template_id = '54000000-0000-4000-8000-0000000000e9'::uuid;
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception 'TU-2: one workspace wrote a use against another''s template';
   end if;
 end $$;
@@ -119,7 +119,7 @@ begin
   if r.template_id is null then
     raise exception 'TU-4: an unused template is missing from the list';
   end if;
-  if r.uses <> 0 then
+  if r.uses is distinct from 0 then
     raise exception 'TU-4: an unused template reported % uses', r.uses;
   end if;
   if r.last_used is not null then
@@ -136,7 +136,7 @@ begin
   select template_id into v_first
     from public.api_template_usage('54000000-0000-4000-8000-0000000000c1'::uuid)
    limit 1;
-  if v_first <> '54000000-0000-4000-8000-0000000000e1'::uuid then
+  if v_first is distinct from '54000000-0000-4000-8000-0000000000e1'::uuid then
     raise exception 'TU-5: the list did not lead with the most-used template';
   end if;
 end $$;
@@ -157,13 +157,13 @@ begin
   select count(*) into v_listed
     from public.api_template_usage('54000000-0000-4000-8000-0000000000c1'::uuid)
    where template_id = '54000000-0000-4000-8000-0000000000e1'::uuid;
-  if v_listed <> 0 then
+  if v_listed is distinct from 0 then
     raise exception 'TU-6: a deleted template is still in the list';
   end if;
 
   select count(*) into v_rows from public.template_uses
    where template_id = '54000000-0000-4000-8000-0000000000e1'::uuid;
-  if v_rows <> 2 then
+  if v_rows is distinct from 2 then
     raise exception 'TU-6: a soft delete destroyed the history (% rows left)', v_rows;
   end if;
 
@@ -187,14 +187,14 @@ begin
   select id into v_first
     from public.api_templates_by_use('54000000-0000-4000-8000-0000000000c1'::uuid)
    limit 1;
-  if v_first <> '54000000-0000-4000-8000-0000000000e1'::uuid then
+  if v_first is distinct from '54000000-0000-4000-8000-0000000000e1'::uuid then
     raise exception 'TU-6a: the picker did not lead with the most-used template';
   end if;
 
   select count(*) into v_count
     from public.api_templates_by_use('54000000-0000-4000-8000-0000000000c1'::uuid)
    where id = '54000000-0000-4000-8000-0000000000e2'::uuid;
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception 'TU-6a: a never-used template is missing from the picker';
   end if;
 end $$;
@@ -249,7 +249,7 @@ begin
   select count(*) into v_count
     from public.api_templates_by_use('54000000-0000-4000-8000-0000000000c1'::uuid)
    where id = '54000000-0000-4000-8000-0000000000e2'::uuid;
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception 'TU-6c: a deleted template is still in the picker';
   end if;
 
@@ -271,7 +271,7 @@ begin
 
   select count(*) into v_rows from public.template_uses
    where template_id = '54000000-0000-4000-8000-0000000000e1'::uuid;
-  if v_rows <> 0 then
+  if v_rows is distinct from 0 then
     raise exception 'TU-7: the ledger outlived its template (% rows)', v_rows;
   end if;
 end $$;

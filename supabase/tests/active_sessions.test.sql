@@ -56,7 +56,7 @@ begin
   if (v ->> 'session_revoked')::boolean then
     raise exception 'a brand-new session must not read as revoked: %', v;
   end if;
-  if v #>> '{member,role}' <> 'member' then
+  if v #>> '{member,role}' is distinct from 'member' then
     raise exception 'the membership half must answer in the same call: %', v;
   end if;
   if not exists (select 1 from public.user_sessions
@@ -90,7 +90,7 @@ begin
     p_user_id    => 'a5000000-0000-4000-8000-00000000000b',
     p_session_id => 'a5000000-0000-4000-8000-000000000100',
     p_company_id => 'a5000000-0000-4000-8000-0000000000ff');
-  if v -> 'member' <> 'null'::jsonb then
+  if v -> 'member' is distinct from 'null'::jsonb then
     raise exception 'a foreign company must resolve to no member: %', v;
   end if;
 end $$;
@@ -117,7 +117,7 @@ begin
     p_actor       => 'a5000000-0000-4000-8000-00000000000b',
     p_reason      => 'self');
 
-  if (v ->> 'sessions')::int <> 1 then
+  if (v ->> 'sessions')::int is distinct from 1 then
     raise exception 'exactly one session should have been revoked: %', v;
   end if;
   -- The sharpest part of #236: the phone stops receiving customer message
@@ -151,7 +151,7 @@ begin
     raise exception 'a revoked session must fail its NEXT request: %', v;
   end if;
   -- And it learns nothing about the workspace on the way out.
-  if v -> 'member' <> 'null'::jsonb then
+  if v -> 'member' is distinct from 'null'::jsonb then
     raise exception 'a revoked session must not receive a membership: %', v;
   end if;
 end $$;
@@ -175,10 +175,10 @@ do $$
 declare v jsonb;
 begin
   v := public.api_list_user_sessions(array['a5000000-0000-4000-8000-00000000000b']::uuid[]);
-  if jsonb_array_length(v) <> 1 then
+  if jsonb_array_length(v) is distinct from 1 then
     raise exception 'the list should hold exactly the one live session: %', v;
   end if;
-  if v #>> '{0,session_id}' <> 'a5000000-0000-4000-8000-000000000101' then
+  if v #>> '{0,session_id}' is distinct from 'a5000000-0000-4000-8000-000000000101' then
     raise exception 'the wrong session survived: %', v;
   end if;
 end $$;
@@ -260,7 +260,7 @@ do $$
 declare v int;
 begin
   v := public.api_prune_user_sessions(now() - interval '90 days');
-  if v <> 2 then
+  if v is distinct from 2 then
     raise exception 'the reaper should have taken exactly the two dead rows: %', v;
   end if;
   -- Live at any age. Somebody who signs in once and stays signed in for a

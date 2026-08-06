@@ -189,7 +189,7 @@ begin
   where schemaname = 'public'
     and indexname in ('attachments_quarantined_idx', 'message_attachments_quarantined_idx')
     and indexdef ilike '%where (quarantined_at is not null)%';
-  if n <> 2 then
+  if n is distinct from 2 then
     raise exception
       'expected 2 PARTIAL quarantine indexes, found %. A full index makes every '
       'clean workspace pay for a feature it never uses.', n;

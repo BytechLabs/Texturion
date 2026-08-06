@@ -90,10 +90,10 @@ do $$
 declare result jsonb;
 begin
   result := public.api_storage_usage('d3d3d3d3-d3d3-4d3d-8d3d-d3d300000002');
-  if (result->>'attachments_bytes')::bigint <> 0 then
+  if (result->>'attachments_bytes')::bigint is distinct from 0 then
     raise exception 'SA-2 FAILED: empty company attachments_bytes = % (want 0)', result->>'attachments_bytes';
   end if;
-  if (result->>'mms_bytes')::bigint <> 0 then
+  if (result->>'mms_bytes')::bigint is distinct from 0 then
     raise exception 'SA-2 FAILED: empty company mms_bytes = % (want 0)', result->>'mms_bytes';
   end if;
   raise notice 'SA-2 PASSED: empty company sums to zeros';
@@ -135,16 +135,16 @@ begin
      'd3.../2','image/gif',null,'https://media.telnyx.com/d3-2');
 
   result := public.api_storage_usage('d3d3d3d3-d3d3-4d3d-8d3d-d3d300000001');
-  if (result->>'attachments_bytes')::bigint <> 3500 then
+  if (result->>'attachments_bytes')::bigint is distinct from 3500 then
     raise exception 'SA-3 FAILED: attachments_bytes = % (want 3500: live rows only, both owner types)', result->>'attachments_bytes';
   end if;
-  if (result->>'mms_bytes')::bigint <> 750 then
+  if (result->>'mms_bytes')::bigint is distinct from 750 then
     raise exception 'SA-3 FAILED: mms_bytes = % (want 750; NULL size_bytes contributes 0)', result->>'mms_bytes';
   end if;
 
   -- Company B sees only its own live row.
   other := public.api_storage_usage('d3d3d3d3-d3d3-4d3d-8d3d-d3d300000002');
-  if (other->>'attachments_bytes')::bigint <> 777 then
+  if (other->>'attachments_bytes')::bigint is distinct from 777 then
     raise exception 'SA-3 FAILED: company B attachments_bytes = % (want 777 — tenant isolation)', other->>'attachments_bytes';
   end if;
   raise notice 'SA-3 PASSED: live-only, tenant-scoped sums (attachments 3500, mms 750)';
@@ -160,7 +160,7 @@ begin
   select count(*) into n from pg_indexes
   where schemaname='public' and tablename='message_attachments'
     and indexname='message_attachments_company_id_idx';
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'SA-4 FAILED: message_attachments_company_id_idx missing';
   end if;
   raise notice 'SA-4 PASSED: message_attachments(company_id) index present';
@@ -231,7 +231,7 @@ begin
      and a.owner_type = 'note'
      and a.deleted_at is null
      and m.task_id = v_note_task;
-  if v_att_count <> 1 then
+  if v_att_count is distinct from 1 then
     raise exception 'SA-5 FAILED: derived union count = % for the promoted note (want 1)', v_att_count;
   end if;
 
@@ -300,7 +300,7 @@ begin
   -- rejected claims wrote nothing.
   select coalesce(sum(size_bytes),0)::int8 into v_live
     from public.attachments where company_id = v_company and deleted_at is null;
-  if v_live <> 1000 then
+  if v_live is distinct from 1000 then
     raise exception 'SA-6 FAILED: live bytes = % (want 1000 — no overshoot)', v_live;
   end if;
 
@@ -365,13 +365,13 @@ begin
 
   -- Exactly-at boundary: 600 + 400 = 1000 <= 1000 → allowed, row written.
   v_r := public.claim_signed_url_egress(v_company, v_since, 'attachments', 400, 1000);
-  if (v_r->>'allowed')::boolean is not true or (v_r->>'used_bytes')::int8 <> 1000 then
+  if (v_r->>'allowed')::boolean is not true or (v_r->>'used_bytes')::int8 is distinct from 1000 then
     raise exception 'SA-8 FAILED: at-boundary claim: %', v_r;
   end if;
 
   -- One byte over: rejected, nothing written, used_bytes reports the total.
   v_r := public.claim_signed_url_egress(v_company, v_since, 'mms-media', 1, 1000);
-  if (v_r->>'allowed')::boolean is not false or (v_r->>'used_bytes')::int8 <> 1000 then
+  if (v_r->>'allowed')::boolean is not false or (v_r->>'used_bytes')::int8 is distinct from 1000 then
     raise exception 'SA-8 FAILED: over-boundary claim: %', v_r;
   end if;
 
@@ -392,7 +392,7 @@ begin
   -- Ledger total is exactly the boundary; the rejected claims wrote nothing.
   select coalesce(sum(bytes),0)::int8 into v_total
     from public.egress_events where company_id = v_company;
-  if v_total <> 1000 then
+  if v_total is distinct from 1000 then
     raise exception 'SA-8 FAILED: ledger total = % (want 1000 — no overshoot)', v_total;
   end if;
 
@@ -426,8 +426,8 @@ begin
       {"key":"mms-media/b.jpg","bucket":"mms-media","bytes":200}]'::jsonb,
     1000);
   if (v_r->>'allowed')::boolean is not true
-     or (v_r->>'claimed_bytes')::int8 <> 500
-     or (v_r->>'used_bytes')::int8 <> 500 then
+     or (v_r->>'claimed_bytes')::int8 is distinct from 500
+     or (v_r->>'used_bytes')::int8 is distinct from 500 then
     raise exception 'SA-8b FAILED: first claim: %', v_r;
   end if;
 
@@ -439,8 +439,8 @@ begin
       {"key":"mms-media/b.jpg","bucket":"mms-media","bytes":200}]'::jsonb,
     1000);
   if (v_r->>'allowed')::boolean is not true
-     or (v_r->>'claimed_bytes')::int8 <> 0
-     or (v_r->>'used_bytes')::int8 <> 500 then
+     or (v_r->>'claimed_bytes')::int8 is distinct from 0
+     or (v_r->>'used_bytes')::int8 is distinct from 500 then
     raise exception 'SA-8b FAILED: repeat claim was charged: %', v_r;
   end if;
 
@@ -450,8 +450,8 @@ begin
     '[{"key":"attachments/a.pdf","bucket":"attachments","bytes":300},
       {"key":"attachments/c.pdf","bucket":"attachments","bytes":100}]'::jsonb,
     1000);
-  if (v_r->>'claimed_bytes')::int8 <> 100
-     or (v_r->>'used_bytes')::int8 <> 600 then
+  if (v_r->>'claimed_bytes')::int8 is distinct from 100
+     or (v_r->>'used_bytes')::int8 is distinct from 600 then
     raise exception 'SA-8b FAILED: mixed page: %', v_r;
   end if;
 
@@ -461,7 +461,7 @@ begin
     '[{"key":"attachments/d.pdf","bucket":"attachments","bytes":50},
       {"key":"attachments/d.pdf","bucket":"attachments","bytes":50}]'::jsonb,
     1000);
-  if (v_r->>'claimed_bytes')::int8 <> 50 then
+  if (v_r->>'claimed_bytes')::int8 is distinct from 50 then
     raise exception 'SA-8b FAILED: intra-page duplicate charged twice: %', v_r;
   end if;
 
@@ -474,15 +474,15 @@ begin
     '[{"key":"attachments/a.pdf","bucket":"attachments","bytes":400}]'::jsonb,
     1000);
   if (v_r->>'allowed')::boolean is not false
-     or (v_r->>'claimed_bytes')::int8 <> 0
-     or (v_r->>'used_bytes')::int8 <> 650 then
+     or (v_r->>'claimed_bytes')::int8 is distinct from 0
+     or (v_r->>'used_bytes')::int8 is distinct from 650 then
     raise exception 'SA-8b FAILED: over-boundary re-exposure: %', v_r;
   end if;
 
   -- Ledger: one row per charged object, totalling what was charged.
   select count(*), coalesce(sum(bytes),0)::int8 into v_rows, v_total
     from public.egress_events where company_id = v_company;
-  if v_rows <> 4 or v_total <> 650 then
+  if v_rows is distinct from 4 or v_total is distinct from 650 then
     raise exception 'SA-8b FAILED: ledger = % rows / % bytes (want 4 / 650)',
       v_rows, v_total;
   end if;
@@ -509,11 +509,11 @@ begin
     ('d3d3d3d3-d3d3-4d3d-8d3d-d3d300000001', 'mms-media',   999, now() - interval '10 days');
 
   v := public.api_period_egress_bytes('d3d3d3d3-d3d3-4d3d-8d3d-d3d300000001', now() - interval '1 day');
-  if v <> 250 then
+  if v is distinct from 250 then
     raise exception 'SA-9 FAILED: window sum = % (want 250: in-window, own-company only)', v;
   end if;
   v := public.api_period_egress_bytes('d3d3d3d3-d3d3-4d3d-8d3d-d3d300000001', now() - interval '30 days');
-  if v <> 1249 then
+  if v is distinct from 1249 then
     raise exception 'SA-9 FAILED: wide-window sum = % (want 1249)', v;
   end if;
 
@@ -575,7 +575,7 @@ begin
   select coalesce(array_agg(name), '{}') into v_names
     from public.api_orphan_attachment_objects(now() - interval '15 minutes', 10000) as name
    where name like 'sa11/%';
-  if v_names <> array['sa11/orphan-old'] then
+  if v_names is distinct from array['sa11/orphan-old'] then
     raise exception 'SA-11 FAILED: orphan objects = % (want {sa11/orphan-old})', v_names;
   end if;
 

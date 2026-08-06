@@ -1,4 +1,6 @@
-import { buildImportCsv, type ImportMapping } from "./csv-import";
+import type { ContactImportColumnDeclaration } from "@loonext/shared";
+
+import { csvEscape } from "./csv-import";
 
 /**
  * Web Contacts Picker — progressive enhancement (D20 §3.3 / APP-FEATURES-V2
@@ -115,17 +117,48 @@ export function mapPickedContacts(picked: readonly PickedContact[]): PickedRow[]
 }
 
 /**
- * Serialize picked rows into the canonical import CSV (`phone,name` header)
- * the API's POST /v1/contacts/import consumes — reusing `buildImportCsv` so the
- * picker path is byte-identical to a CSV upload of the same data. `name` is
- * included only when at least one row carries one, so empty names never write
- * a header column that would blank existing contact names on re-import.
+ * Serialize picked rows into the canonical import CSV the API's POST
+ * /v1/contacts/import consumes, WITH the declaration that describes it.
+ *
+ * `name` is included only when at least one row carries one, so empty names
+ * never write a header column that would blank existing contact names on
+ * re-import.
+ *
+ * THE DECLARATION IS RETURNED WITH THE FILE, not derived from it later by
+ * whoever posts it. #248 round 3 makes the API refuse any file whose columns
+ * are not all accounted for, and this is the one door where there is no file to
+ * show anybody and no header a person chose: we authored both, one line above.
+ * A caller left to work out the declaration for a file it did not write would
+ * be guessing at exactly the thing the declaration exists to stop being
+ * guessed at — so the function that decides the header states what it means,
+ * and the two can never drift apart.
+ *
+ * There is no `ignore` here and there never can be: the picker asks the browser
+ * for `name` and `tel` and gets nothing else, so every column it writes is one
+ * it is about to map.
  */
-export function pickedContactsToCsv(rows: readonly PickedRow[]): string {
-  const dataRows = rows.map((row) => [row.phone, row.name]);
+export interface PickedContactsCsv {
+  csv: string;
+  columns: ContactImportColumnDeclaration[];
+}
+
+export function pickedContactsToCsv(
+  rows: readonly PickedRow[],
+): PickedContactsCsv {
   const hasName = rows.some((row) => row.name !== "");
-  const mapping: ImportMapping = hasName
-    ? { phone: 0, name: 1 }
-    : { phone: 0 };
-  return buildImportCsv(dataRows, mapping);
+  const headers = hasName ? ["phone", "name"] : ["phone"];
+  const lines = [headers.join(",")];
+  for (const row of rows) {
+    lines.push(
+      (hasName ? [row.phone, row.name] : [row.phone]).map(csvEscape).join(","),
+    );
+  }
+  return {
+    csv: lines.join("\r\n"),
+    columns: headers.map((header, index) => ({
+      index,
+      action: header as "phone" | "name",
+      header,
+    })),
+  };
 }

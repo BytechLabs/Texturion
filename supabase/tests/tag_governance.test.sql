@@ -88,7 +88,7 @@ declare r record;
 begin
   select * into r from public.api_tag_usage('53000000-0000-4000-8000-0000000000c1'::uuid)
    where tag_id = '53000000-0000-4000-8000-0000000000a1'::uuid;
-  if r.uses <> 2 then
+  if r.uses is distinct from 2 then
     raise exception 'TG-1: Warranty used %, expected 2', r.uses;
   end if;
   if r.last_used is null then
@@ -111,20 +111,20 @@ begin
     '53000000-0000-4000-8000-0000000000a2'::uuid,   -- from: the duplicate
     '53000000-0000-4000-8000-0000000000a1'::uuid);  -- into: the survivor
 
-  if v_result->>'outcome' <> 'merged' then
+  if v_result->>'outcome' is distinct from 'merged' then
     raise exception 'TG-2: outcome was %', v_result->>'outcome';
   end if;
 
   -- All three conversations now carry the survivor, and only once each.
   select count(*) into v_left from public.conversation_tags
    where tag_id = '53000000-0000-4000-8000-0000000000a1'::uuid;
-  if v_left <> 3 then
+  if v_left is distinct from 3 then
     raise exception 'TG-2: survivor carries % conversations, expected 3', v_left;
   end if;
 
   select count(*) into v_on_e3 from public.conversation_tags
    where conversation_id = '53000000-0000-4000-8000-0000000000e3'::uuid;
-  if v_on_e3 <> 1 then
+  if v_on_e3 is distinct from 1 then
     raise exception 'TG-2: the both-tagged thread has % rows, expected 1', v_on_e3;
   end if;
 
@@ -166,12 +166,12 @@ begin
     '53000000-0000-4000-8000-0000000000a3'::uuid,
     '53000000-0000-4000-8000-0000000000a4'::uuid);
 
-  if v_result->>'outcome' <> 'merged' then
+  if v_result->>'outcome' is distinct from 'merged' then
     raise exception 'TG-3: outcome was %', v_result->>'outcome';
   end if;
   select pipeline_stage into v_stage from public.tags
    where id = '53000000-0000-4000-8000-0000000000a4'::uuid;
-  if v_stage <> 'won' then
+  if v_stage is distinct from 'won' then
     raise exception 'TG-3: the stage was dropped, survivor has %', v_stage;
   end if;
 end $$;
@@ -195,7 +195,7 @@ begin
     '53000000-0000-4000-8000-0000000000a5'::uuid,
     '53000000-0000-4000-8000-0000000000a4'::uuid);
 
-  if v_result->>'outcome' <> 'two_stages' then
+  if v_result->>'outcome' is distinct from 'two_stages' then
     raise exception 'TG-4: two stages merged, outcome %', v_result->>'outcome';
   end if;
   -- Both survive the refusal.
@@ -215,7 +215,7 @@ begin
     '53000000-0000-4000-8000-0000000000c9'::uuid,   -- a company that is not ours
     '53000000-0000-4000-8000-0000000000a1'::uuid,
     '53000000-0000-4000-8000-0000000000a4'::uuid);
-  if v_result->>'outcome' <> 'not_found' then
+  if v_result->>'outcome' is distinct from 'not_found' then
     raise exception 'TG-5: a cross-tenant merge returned %', v_result->>'outcome';
   end if;
 end $$;
@@ -230,7 +230,7 @@ begin
     '53000000-0000-4000-8000-0000000000c1'::uuid,
     '53000000-0000-4000-8000-0000000000a1'::uuid,
     '53000000-0000-4000-8000-0000000000a1'::uuid);
-  if v_result->>'outcome' <> 'same_tag' then
+  if v_result->>'outcome' is distinct from 'same_tag' then
     raise exception 'TG-6: self-merge returned %', v_result->>'outcome';
   end if;
   if not exists (select 1 from public.tags
@@ -283,7 +283,7 @@ begin
   if r.refused then
     raise exception 'TG-8: a locked workspace refused an EXISTING tag';
   end if;
-  if r.id <> '53000000-0000-4000-8000-0000000000a1'::uuid then
+  if r.id is distinct from '53000000-0000-4000-8000-0000000000a1'::uuid then
     raise exception 'TG-8: the existing tag was not returned';
   end if;
 

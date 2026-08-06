@@ -157,6 +157,34 @@ data class ImportResult(
     val updated: Int,
     val skipped: Int,
     val errors: List<ImportRowError> = emptyList(),
+    /**
+     * #248 — how many rows ARRIVED but could not carry the file's consent
+     * attestation, because those people have already told this business to
+     * stop. The file claims everybody in it agreed; the carrier record says
+     * otherwise about these, and the carrier record wins.
+     *
+     * Deliberately NOT folded into [skipped], for the same reason the server
+     * named it separately: these contacts were imported. Reporting them as
+     * skipped would be a second wrong answer about the same rows.
+     *
+     * Defaulted so this app still decodes an API that predates #248 — a server
+     * that could not refuse anything refused nothing, which is what 0 says.
+     */
+    val consent_refused: Int = 0,
+    /**
+     * Which rows, in the same `{row, reason}` shape as [errors] — the
+     * workspace's next question after "how many" is always "which of them?".
+     */
+    val consent_refusals: List<ImportRowError> = emptyList(),
+    /**
+     * The server's own sentence about what a refusal means, rendered verbatim
+     * and never paraphrased.
+     *
+     * Not hand-ported into Kotlin: it is already on the wire, and a second copy
+     * here could drift out of step with the record the workspace is shown. Null
+     * whenever nothing was refused, which is how the server sends it.
+     */
+    val consent_refused_note: String? = null,
 ) {
     @Serializable
     data class ImportRowError(val row: Int, val reason: String)

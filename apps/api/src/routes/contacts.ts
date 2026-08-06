@@ -15,12 +15,26 @@
  *          only), with the app-side opt-out state.
  *   PATCH  /v1/contacts/:id         M   — name/address/notes + consent
  *          attestation (§5 D4: consent_source='attested', consent_at,
- *          consent_attested_by + consent_attested event).
+ *          consent_attested_by + consent_attested event), refused whole over a
+ *          standing opt-out or an existing basis (#248 — the same rule the
+ *          importers follow, at the third door that writes these columns).
  *   DELETE /v1/contacts/:id         M   — soft delete (deleted_at).
- *   POST   /v1/contacts/import     O/A  — CSV multipart (phone,name,address,
- *          notes,opted_out?): E.164-normalize, per-row upsert clearing
- *          deleted_at, opted_out=true → opt_outs source='import' + events;
- *          returns { imported, updated, skipped, errors }.
+ *   POST   /v1/contacts/import     O/A  — CSV multipart (phone, name or
+ *          first/last, address, notes, opted_out?): E.164-normalize, per-row
+ *          upsert clearing deleted_at, opted_out=true → opt_outs
+ *          source='import' + events; returns
+ *          { imported, updated, skipped, errors, consent_refused,
+ *            consent_refusals, consent_refused_note }. Requires the #226
+ *          consent attestation, which is written ONLY to contacts that have no
+ *          basis yet AND no standing opt-out (#248) — an import may lower a
+ *          contact's standing, never raise it. EVERY column of the file must be
+ *          declared up front, mapped or ignored, by index (#248 round 3,
+ *          `declaredColumns`): nothing is silently dropped, because a dropped
+ *          column may be the one saying who not to text.
+ *   POST   /v1/contacts/import-vcard O/A — the same upsert behind a second
+ *          parser, same attestation, same rule; every vCard property the parser
+ *          does not read must be declared too (`declaredVCardProperties`), so
+ *          `CATEGORIES:DNC` and a do-not-contact `NOTE` cannot pass unread.
  *   POST   /v1/contacts/:id/opt-out         M — manual opt-out
  *          (source='manual') + event; enforced app-side at send time (§5).
  *   POST   /v1/contacts/:id/opt-out/revoke  M — revoke + event.
@@ -38,10 +52,16 @@ import { resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { answerersByCall } from "../calls/answerers";
 import { getDb } from "../db";
-import { getEnv } from "../env";
+import { getEnv, type Env } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { buildPage, encodeCursor } from "../http/pagination";
-import { csvSafeText, parseCsvRows, serializeCsv } from "./core/csv";
+import {
+  CsvUnterminatedQuoteError,
+  csvSafeText,
+  parseCsvRows,
+  serializeCsv,
+  type CsvRow,
+} from "./core/csv";
 import {
   insertConversationEvents,
   latestConversationId,
@@ -63,10 +83,40 @@ import {
   CONTACT_FIELD_KINDS,
   CONTACT_FIELD_OPTIONS_CAP,
   CONTACT_FIELD_VALUE_MAX,
+  CONTACT_IMPORT_COLUMN_FIELD,
+  CONTACT_IMPORT_CONSENT_FIELD,
+  CONTACT_IMPORT_CONSENT_REFUSED_NOTE,
+  CONTACT_IMPORT_CONSENT_REQUIRED,
+  CONTACT_IMPORT_CONSENT_VALUE,
+  CONTACT_IMPORT_IGNORE,
+  CONTACT_IMPORT_MAX_BYTES,
+  CONTACT_IMPORT_MAX_ROWS,
+  CONTACT_IMPORT_UNREADABLE_ENCODING,
+  CONTACT_IMPORT_VCARD_PROPERTY_FIELD,
   type ContactFieldKind,
+  type ContactImportColumnDeclaration,
+  type ContactImportMapping,
   contactFieldValueError,
-  detectContactColumns,
+  contactImportColumnCount,
+  contactImportColumnMismatchMessage,
+  contactImportConsentRefusedReason,
+  contactImportUndeclaredColumnsMessage,
+  contactImportUndeclaredPropertiesMessage,
+  contactImportUnreadableFlagMessage,
+  contactImportUnterminatedQuoteMessage,
+  formatContactImportColumn,
+  formatVCardProperty,
+  joinContactName,
   LOCALES,
+  mappingFromDeclarations,
+  parseContactImportColumn,
+  parseVCardProperty,
+  readContactFlag,
+  unreadableFlagValues,
+  VCARD_IMPORT_MAX_BYTES,
+  VCARD_IMPORT_MAX_CARDS,
+  VCARD_MAPPED_PROPERTIES,
+  type VCardPropertyDeclaration,
 } from "@loonext/shared";
 
 import { capture } from "../analytics/posthog";
@@ -202,8 +252,13 @@ const patchSchema = z
     { message: "Provide at least one field to update." },
   );
 
-/** Rows a single import may carry — bounds URL sizes and Worker CPU. */
-const IMPORT_MAX_ROWS = 2000;
+/**
+ * Rows a single import may carry — bounds URL sizes and Worker CPU. Shared
+ * (#248) so the wizard's dry run, both phone apps and this route quote one
+ * number: a client that promised a 3000-row file would import and a server that
+ * refused it was a broken promise made at the worst possible moment.
+ */
+const IMPORT_MAX_ROWS = CONTACT_IMPORT_MAX_ROWS;
 /** Chunk size for batched PostgREST calls during import. */
 const IMPORT_CHUNK = 200;
 /**
@@ -213,8 +268,674 @@ const IMPORT_CHUNK = 200;
  * generous multipart overhead; the post-parse text-length checks remain the
  * exact backstop for chunked requests that carry no Content-Length.
  */
-const MAX_CSV_IMPORT_BODY_BYTES = 3 * 1024 * 1024; // 2 MB CSV + overhead
-const MAX_VCARD_IMPORT_BODY_BYTES = 6 * 1024 * 1024; // 5 MB .vcf + overhead
+const MAX_CSV_IMPORT_BODY_BYTES = CONTACT_IMPORT_MAX_BYTES + 1024 * 1024;
+const MAX_VCARD_IMPORT_BODY_BYTES = VCARD_IMPORT_MAX_BYTES + 1024 * 1024;
+
+/**
+ * #248: the attestation gate both bulk doors stand behind.
+ *
+ * #226 put it on the CSV route and the vCard route never grew one, so the only
+ * bulk-contact door with no consent question at all was the one a phone's
+ * address book goes through — the exact inverse of what #226 was for. It is one
+ * `form.get` and one throw, and it belongs to both or to neither.
+ *
+ * Checked BEFORE the file is parsed so a caller cannot spend the upload and
+ * only then be told. Only the literal `"true"` passes: a field that also
+ * accepts "false" is not an attestation.
+ */
+function assertConsentAttested(form: FormData): void {
+  if (form.get(CONTACT_IMPORT_CONSENT_FIELD) !== CONTACT_IMPORT_CONSENT_VALUE) {
+    throw new ApiError("validation_failed", CONTACT_IMPORT_CONSENT_REQUIRED);
+  }
+}
+
+/**
+ * #248: refuse a file that is not UTF-8 text, rather than mangling it.
+ *
+ * Excel's "Unicode Text" save is UTF-16, and `File.text()` decodes it as UTF-8,
+ * which leaves the zero byte between every ASCII character intact. Those NULs
+ * travelled the entire route — through the parser, the declaration gate and the
+ * consent decision — and died at Postgres with `unsupported Unicode escape
+ * sequence`, which reached the customer as a 500. Refusing the file is a fine
+ * answer. Crashing on it is not, and a 500 tells the workspace nothing about
+ * what to do next.
+ *
+ * ON THE DECODED TEXT, not sniffed from a byte-order mark: a BOM-less UTF-16
+ * export and a binary spreadsheet renamed `.csv` both land here, and what they
+ * have in common is the thing that actually breaks. A NUL is never legitimate
+ * in either format — CSV is text and vCard is line-oriented text — so this
+ * cannot refuse a file somebody meant to send.
+ *
+ * BOTH DOORS, for the same reason `assertConsentAttested` is at both: the
+ * defect is in how the bytes were decoded, and a .vcf saved as UTF-16 decodes
+ * exactly as badly.
+ */
+function assertDecodableText(text: string): void {
+  if (text.includes("\u0000")) {
+    throw new ApiError("validation_failed", CONTACT_IMPORT_UNREADABLE_ENCODING);
+  }
+}
+
+/**
+ * #248 round 3 — THE HEADLINE. The API door takes a COMPLETE declaration, or
+ * the request is refused.
+ *
+ * Two rounds tried to classify the columns this importer drops. Round one asked
+ * about the header WORD and a file headed "Do Not Call" imported attested, with
+ * a real text delivered. Round two asked about the SHAPE of the values, which is
+ * a vocabulary of numbers, and three independent verifiers got messages
+ * delivered through it: four distinct answers, a 25-character value, the same
+ * answer on all sixty rows, a four-row file, a cell past the end of the header
+ * row, a column mapped somewhere inert, and — the worst of them — a 422 whose
+ * own sentence named the columns, re-posted with them echoed back, 200.
+ *
+ * So the question is not asked. NOTHING IS SILENTLY DROPPED: every column is
+ * either mapped to a field or explicitly dismissed, by index, up front. See
+ * CONTACT_IMPORT_COLUMN_FIELD for the contract and for what it does NOT
+ * guarantee — a scripted caller can declare everything ignorable and we cannot
+ * tell. What is closed is the silent case, which is every real accident.
+ *
+ * REFUSING THE WHOLE FILE, not the flagged rows, and not just the attestation.
+ *
+ *   Refusing rows requires knowing which way a column points, and that is the
+ *   vocabulary problem wearing a hat: `y` under "Do Not Call" and `y` under
+ *   "OK to Text" are opposite instructions.
+ *
+ *   Refusing only the ATTESTATION would not protect anybody: `runPreSendGates`
+ *   asks `opt_outs` whether a number may be texted and never asks whether a
+ *   contact has a consent basis. An import that withholds the attestation and
+ *   creates the contacts anyway still ends with a message reaching them.
+ *
+ * Returns the declarations rather than just validating them, because the
+ * MAPPING comes from here too: the person's answer is the mapping, so a
+ * `Description` column reading "DO NOT CONTACT" can be declared `opted_out`
+ * instead of being claimed by `notes` and filed as a note while the text went
+ * out. Checked before the first write, and it throws, so the answer is the same
+ * whichever client posted the file.
+ */
+function declaredColumns(
+  form: FormData,
+  headers: readonly string[],
+  dataRows: readonly (readonly string[])[],
+): ContactImportColumnDeclaration[] {
+  const refuse = (detail: string): never => {
+    throw new ApiError(
+      "validation_failed",
+      contactImportColumnMismatchMessage(detail),
+    );
+  };
+  // The column count comes from the DATA. A cell past the end of the header row
+  // is a column with a blank name and it is answered for like any other — every
+  // loop in round two was bounded by `headers.length`, so that cell was never
+  // looked at by any rule at all.
+  const total = contactImportColumnCount(headers, dataRows);
+  const byIndex = new Map<number, ContactImportColumnDeclaration>();
+  const byField = new Map<string, ContactImportColumnDeclaration>();
+  for (const raw of form.getAll(CONTACT_IMPORT_COLUMN_FIELD)) {
+    if (typeof raw !== "string") {
+      refuse(`a \`${CONTACT_IMPORT_COLUMN_FIELD}\` field was not text`);
+      continue;
+    }
+    const declaration = parseContactImportColumn(raw);
+    if (!declaration) {
+      refuse(`\`${raw}\` is not \`<index>:<field or ignore>:<header>\``);
+      continue;
+    }
+    if (declaration.index >= total) {
+      refuse(
+        `column ${declaration.index + 1} was declared and this file has ` +
+          `${total} column${total === 1 ? "" : "s"}`,
+      );
+    }
+    if (byIndex.has(declaration.index)) {
+      refuse(`column ${declaration.index + 1} is declared twice`);
+    }
+    // The header is what catches a declaration built from some OTHER file —
+    // yesterday's export, the wrong branch of an integration. The index is the
+    // identity; this is the confirmation that the identity refers to the file
+    // actually attached.
+    const expected = (headers[declaration.index] ?? "").trim();
+    if (declaration.header.trim() !== expected) {
+      refuse(
+        `column ${declaration.index + 1} was declared as ` +
+          `"${declaration.header.trim()}" and this file calls it ` +
+          `"${expected}"`,
+      );
+    }
+    if (declaration.action !== CONTACT_IMPORT_IGNORE) {
+      const claimed = byField.get(declaration.action);
+      if (claimed) {
+        refuse(
+          `columns ${claimed.index + 1} and ${declaration.index + 1} were ` +
+            `both declared \`${declaration.action}\`, and a contact has one`,
+        );
+      }
+      byField.set(declaration.action, declaration);
+    }
+    byIndex.set(declaration.index, declaration);
+  }
+
+  const undeclared: { index: number; header: string }[] = [];
+  for (let index = 0; index < total; index += 1) {
+    if (!byIndex.has(index)) {
+      undeclared.push({ index, header: (headers[index] ?? "").trim() });
+    }
+  }
+  if (undeclared.length > 0) {
+    throw new ApiError(
+      "validation_failed",
+      contactImportUndeclaredColumnsMessage(undeclared, total),
+    );
+  }
+  return [...byIndex.values()].sort((a, b) => a.index - b.index);
+}
+
+/**
+ * The other half, one level down: the column declared as do-not-text has to be
+ * READABLE.
+ *
+ * A "Do Not Contact" column of `Subscribed`/`Unsubscribed` was identified
+ * correctly and then read as nobody opted out, because anything that was not
+ * `yes` was silently false. Not resolvable by a declaration — this column was
+ * declared the thing that decides who may be texted, so the only honest fix is
+ * in the file.
+ */
+function assertFlagColumnReadable(
+  headers: readonly string[],
+  dataRows: readonly (readonly string[])[],
+  mapping: ContactImportMapping,
+): void {
+  const flagCol = mapping.opted_out;
+  if (flagCol === undefined) return;
+  const unreadable = unreadableFlagValues(dataRows, flagCol);
+  if (unreadable.length > 0) {
+    throw new ApiError(
+      "validation_failed",
+      contactImportUnreadableFlagMessage(headers[flagCol] ?? "", unreadable),
+    );
+  }
+}
+
+/**
+ * #248 round 3 — the same rule at the vCard door, which had no gate at all.
+ *
+ * `CATEGORIES:DNC` and `NOTE:DO NOT CONTACT - asked us to stop` are the only two
+ * places the format allows a do-not-text instruction, they are what Apple and
+ * Google actually export, and this parser dropped both without a word while the
+ * file's attestation was written over the top.
+ *
+ * A .vcf has no columns to count, so the enumeration is of the PROPERTIES the
+ * cards actually carry. Every one the importer does not read has to be declared
+ * `ignore` or `opted_out`; see CONTACT_IMPORT_VCARD_PROPERTY_FIELD for why
+ * those are the only two answers worth having here.
+ *
+ * Returns the declarations that answered a property these cards actually
+ * carried — so the caller can block the cards somebody marked (the only
+ * direction an import is allowed to move a standing) and record what this
+ * workspace claimed on the audit row.
+ */
+function declaredVCardProperties(
+  form: FormData,
+  cards: readonly { properties: string[] }[],
+): VCardPropertyDeclaration[] {
+  const present = new Set<string>();
+  for (const card of cards) {
+    for (const property of card.properties) present.add(property);
+  }
+  for (const mapped of VCARD_MAPPED_PROPERTIES) present.delete(mapped);
+
+  const answered: VCardPropertyDeclaration[] = [];
+  for (const raw of form.getAll(CONTACT_IMPORT_VCARD_PROPERTY_FIELD)) {
+    if (typeof raw !== "string") continue;
+    const declaration = parseVCardProperty(raw);
+    // A declaration for a property no card carries is ignored rather than
+    // refused: an integration that always sends its full vocabulary is not
+    // making a claim about a file, and there is nothing here for it to hide.
+    if (!declaration || !present.delete(declaration.property)) continue;
+    answered.push(declaration);
+  }
+  if (present.size > 0) {
+    throw new ApiError(
+      "validation_failed",
+      contactImportUndeclaredPropertiesMessage([...present].sort()),
+    );
+  }
+  return answered;
+}
+
+/**
+ * #248: bound the one door a customer hands us unbounded input through.
+ *
+ * Rows and bytes are capped per request, and nothing capped the requests. Two
+ * thousand rows is ten pre-check reads plus ten upserts plus the opt-out
+ * passes, all inside one Worker request, and a script (or a retry loop in a
+ * client somebody wrote) could run that as fast as the network allowed, on an
+ * account that pays us nothing for it.
+ *
+ * SIX A MINUTE (wrangler.jsonc), because three contradicted our own
+ * instructions: a file over the row cap is met with "split the file and import
+ * in parts", and an 8000-row book is four parts — the fourth of which the
+ * limiter refused, on somebody's first day, with a message about scripts. The
+ * number has to leave room for the behaviour the product asked for, and six
+ * still makes a fan-out of hundreds of thousands take hours.
+ *
+ * Keyed on the COMPANY, not the user: the cost is the workspace's, and keying
+ * on the member would let one crew run seats-many imports at once.
+ *
+ * Binding absent in dev/tests → skipped, exactly like every other limiter here.
+ */
+export async function assertImportWithinRateLimit(
+  env: Env,
+  companyId: string,
+): Promise<void> {
+  const limiter = env.CONTACT_IMPORT_RATE_LIMITER;
+  if (!limiter) return;
+  const { success } = await limiter.limit({ key: `contact-import:${companyId}` });
+  if (!success) {
+    throw new ApiError(
+      "rate_limited",
+      "Too many imports in a row. Wait a minute and upload the file again — " +
+        "an import that was interrupted picks up where it left off.",
+    );
+  }
+}
+
+/**
+ * The three consent-refusal fields, built once from ONE list.
+ *
+ * #248 round 2 (B8): the count and the list were assembled independently at
+ * each of the two import routes, and web deliberately renders the NUMBER. So a
+ * list that was ever truncated — for a response-size limit, say — would print
+ * "40 refused" above five rows with nothing saying the rest existed, and no
+ * test on either side would have noticed. Deriving the count from the list it
+ * ships with makes them one fact.
+ *
+ * THE LIST IS NEVER TRUNCATED. It is bounded by the row cap, and every refusal
+ * names a person this workspace must not text. If that ever has to change, the
+ * count must stay whole and the clients need an overflow line before it does —
+ * which is exactly what the guard on this will fail and ask for.
+ */
+function refusalReport(refusals: { row: number; reason: string }[]): {
+  consent_refused: number;
+  consent_refusals: { row: number; reason: string }[];
+  consent_refused_note: string | null;
+} {
+  return {
+    consent_refused: refusals.length,
+    consent_refusals: refusals,
+    consent_refused_note:
+      refusals.length > 0 ? CONTACT_IMPORT_CONSENT_REFUSED_NOTE : null,
+  };
+}
+
+/** What an import decided about ONE contact's consent columns. */
+interface ImportConsent {
+  /** The columns to write — usually none. */
+  columns: Record<string, unknown>;
+  /**
+   * True when a standing opt-out this FILE did not know about refused an
+   * attestation the import would otherwise have written. Reported back to the
+   * workspace; see CONTACT_IMPORT_CONSENT_REFUSED_NOTE for why.
+   */
+  refused: boolean;
+}
+
+/**
+ * The consent columns an import may write on ONE contact — and the whole point
+ * is that it is usually none of them.
+ *
+ * TWO rules, and they refuse for different reasons.
+ *
+ * AN EXISTING BASIS IS NEVER REPLACED. An import used to stamp
+ * `attested / now / whoever ran it` on every row it touched, and the upsert
+ * merges on conflict, so re-importing a file rewrote the recorded basis of
+ * contacts that already had one. A customer who texted this business first on
+ * 12 March — implied consent, with the inbound message as evidence — became
+ * "consent recorded by Sam, today" because Sam re-uploaded last year's
+ * spreadsheet. That is worse than losing the record: it replaces strong
+ * evidence (they contacted us) with weak evidence (someone says so), and the
+ * ledger cannot even record the change, because `contacts_record_consent` only
+ * fires on the null → value transition. The contact panel would then show an
+ * attestation the ledger has no row for. So a row that already says anything
+ * about why this business may text this person keeps what it says — `coalesce`
+ * semantics, matching what `thread_inbound_message` has always done on the same
+ * three columns.
+ *
+ * A STANDING OPT-OUT REFUSES OUTRIGHT, whether or not there is a basis to keep.
+ * This is the one that decides whether the importer may ship. A competitor
+ * export has NO `opted_out` column — that is the ordinary shape of the file
+ * this feature exists to accept — so a customer who texted STOP last month
+ * arrives in it looking exactly like everyone else, and the file's attestation
+ * says they agreed. Writing it would put "the workspace states this person
+ * consented, today" into an append-only ledger that already holds their
+ * revocation, over a carrier block only they can lift. The carrier record is
+ * the truth; a spreadsheet is a claim about the past. `opted_out=true` in the
+ * file blocks it for the same reason from the other direction: a file that
+ * attests everyone agreed and then marks one row opted out has contradicted
+ * itself, and the restriction is the half to believe.
+ *
+ * A row with NO basis and no opt-out — brand new, or one of the contacts a
+ * vCard import created before this route asked the question — takes the
+ * attestation, which is a genuine first record and does fire the ledger.
+ */
+function importConsent(
+  existing: { consent_at: string | null; consent_source: string | null } | undefined,
+  optedOut: { standing: boolean; inFile: boolean },
+  importedAt: string,
+  userId: string,
+): ImportConsent {
+  // THE OPT-OUT IS ASKED FIRST, and the order is the whole answer to "why did
+  // it say 0 refused?". Asking about the existing basis first made the refusal
+  // silent for the exact case this feature was proved on: a carrier STOP always
+  // leaves a basis behind, because `thread_inbound_message` stamps
+  // `consent_source='inbound_sms'` on the STOP message itself. So a workspace
+  // uploading a competitor export containing forty people who had texted STOP
+  // was told 0 refused, and every client dutifully showed nothing, because the
+  // number they were given was zero.
+  //
+  // `columns` is `{}` down either branch, so nothing about what gets WRITTEN
+  // moves with this order — an existing basis is still never replaced. Only
+  // whether the workspace is told changes.
+  if (optedOut.standing || optedOut.inFile) {
+    // Reported only where the file and the record DISAGREE. A row the uploader
+    // themselves marked opted out is not news to them, and a count inflated by
+    // rows they already know about is a count they learn to ignore.
+    return { columns: {}, refused: optedOut.standing && !optedOut.inFile };
+  }
+  if (existing && (existing.consent_at !== null || existing.consent_source !== null)) {
+    // Nothing was going to be written, so nothing was refused — reporting a
+    // refusal here would name rows the import never intended to touch.
+    return { columns: {}, refused: false };
+  }
+  return {
+    columns: {
+      // The same source a by-hand add writes (§5 D4), because it is the same
+      // claim: a member vouching for consent obtained off-platform.
+      consent_source: "attested",
+      consent_at: importedAt,
+      consent_attested_by: userId,
+    },
+    refused: false,
+  };
+}
+
+/**
+ * The consent basis every one of these phones already has, keyed by phone.
+ *
+ * Absent from the map = no such contact (a brand-new row). Present = the row
+ * exists, and its two consent columns decide whether an import may write its
+ * own. Soft-deleted rows are included on purpose: an import resurrects them
+ * (`deleted_at: null`), and a contact coming back is not a reason to forget why
+ * they agreed in the first place.
+ */
+async function existingConsentBasis(
+  db: Db,
+  companyId: string,
+  phones: string[],
+): Promise<Map<string, { consent_at: string | null; consent_source: string | null }>> {
+  const basis = new Map<
+    string,
+    { consent_at: string | null; consent_source: string | null }
+  >();
+  for (let i = 0; i < phones.length; i += IMPORT_CHUNK) {
+    const chunk = phones.slice(i, i + IMPORT_CHUNK);
+    const found = unwrap<
+      { phone_e164: string; consent_at: string | null; consent_source: string | null }[]
+    >(
+      await db
+        .from("contacts")
+        .select("phone_e164,consent_at,consent_source")
+        .eq("company_id", companyId)
+        .in("phone_e164", chunk),
+      "import pre-check",
+    );
+    for (const row of found) {
+      basis.set(row.phone_e164, {
+        consent_at: row.consent_at ?? null,
+        consent_source: row.consent_source ?? null,
+      });
+    }
+  }
+  return basis;
+}
+
+/**
+ * Which of these phones this workspace is currently forbidden to text.
+ *
+ * The question `importConsent` cannot answer on its own, and the reason the
+ * importer could manufacture consent over a live STOP: the decision was made by
+ * reading `contacts.consent_at` alone, and an opt-out is not written there. It
+ * lives in `opt_outs`, keyed on the PHONE rather than the contact, because a
+ * STOP can arrive from a number this workspace has no contact for at all — so
+ * "does this contact have a consent basis" and "may we text this number" are
+ * genuinely two reads.
+ *
+ * A SET, not a map of sources: every active opt-out refuses the attestation the
+ * same way, whoever recorded it. The distinction that does matter — that only
+ * the customer can lift a `stop_keyword` — belongs to `revokeOptOut`, and it is
+ * unreachable from here because an import never revokes anything.
+ *
+ * BATCHED in the same IMPORT_CHUNK shape as everything else here. A per-row
+ * query would be 2000 round trips inside one Worker request, which is not a
+ * check that ships — it is a check that times out and gets removed.
+ *
+ * Answers the import's OTHER opt-out question too (which phones are already
+ * actively opted out, so the file does not re-emit a timeline event for them),
+ * which is why this replaces the narrower pre-check rather than joining it: two
+ * reads of the same table in one request that could disagree is a bug waiting
+ * to be written.
+ */
+async function standingOptOuts(
+  db: Db,
+  companyId: string,
+  phones: string[],
+): Promise<Set<string>> {
+  const standing = new Set<string>();
+  for (let i = 0; i < phones.length; i += IMPORT_CHUNK) {
+    const chunk = phones.slice(i, i + IMPORT_CHUNK);
+    const found = unwrap<{ phone_e164: string }[]>(
+      await db
+        .from("opt_outs")
+        .select("phone_e164")
+        .eq("company_id", companyId)
+        // Active only. A revoked row is a customer who texted START, and
+        // holding that against them forever would make the import the one path
+        // that never lets anybody back in.
+        .is("revoked_at", null)
+        .in("phone_e164", chunk),
+      "import opt-out pre-check",
+    );
+    for (const row of found) standing.add(row.phone_e164);
+  }
+  return standing;
+}
+
+/**
+ * Which of these phones this workspace has ALREADY been told about — i.e. which
+ * ones already carry an `opted_out` timeline event.
+ *
+ * #248 round 2 (B3). The import decided which events to emit by comparing the
+ * file against the opt-out state read BEFORE its own writes, so the announcement
+ * could be lost permanently: an import that wrote 250 opt-outs and then died at
+ * the contacts upsert left those numbers standing, and the re-run — the recovery
+ * procedure this route tells people to use — saw them as already opted out and
+ * emitted nothing. The data recovered. The audit trail could not, ever, because
+ * the state change it keyed on had already happened.
+ *
+ * Asking what has been ANNOUNCED instead of what has CHANGED is what makes the
+ * re-run repair it: the question is answered from durable state rather than from
+ * a diff that only existed during the first attempt.
+ *
+ * Only asked about phones the pre-write read already found standing — the ones
+ * this import is genuinely turning on are new by definition, and on the ordinary
+ * import that set is empty and this costs nothing. Backed by a partial index on
+ * (company_id, payload->>'phone_e164') where type = 'opted_out'.
+ */
+async function announcedOptOuts(
+  db: Db,
+  companyId: string,
+  phones: string[],
+): Promise<Set<string>> {
+  const announced = new Set<string>();
+  for (let i = 0; i < phones.length; i += IMPORT_CHUNK) {
+    const chunk = phones.slice(i, i + IMPORT_CHUNK);
+    const found = unwrap<{ payload: { phone_e164?: string } | null }[]>(
+      await db
+        .from("conversation_events")
+        .select("payload")
+        .eq("company_id", companyId)
+        .eq("type", "opted_out")
+        .in("payload->>phone_e164", chunk),
+      "import opt-out event pre-check",
+    );
+    for (const row of found) {
+      const phone = row.payload?.phone_e164;
+      if (phone) announced.add(phone);
+    }
+  }
+  return announced;
+}
+
+/**
+ * The opt-outs an import writes BEFORE it writes any contact.
+ *
+ * Extracted (#248 round 3) because the vCard door needs it too. That door used
+ * to have no way of lowering anybody's standing at all — a `CATEGORIES:DNC`
+ * card had nowhere to go even once somebody read it — and a second hand-written
+ * copy of this transition is how one of them would eventually stop matching the
+ * other on the detail that matters.
+ *
+ * AN IMPORT MAY ADD AN OPT-OUT; IT MAY NEVER REWRITE ONE THAT IS STANDING.
+ * There is a single opt_outs row per (company, phone), so a plain upsert
+ * overwrote `source` on an ACTIVE row: a carrier STOP became source='import',
+ * and the revoke guard that makes a STOP unrevokable stopped firing. The app
+ * would then let someone "opt them back in" while the carrier block stood, so
+ * every send failed 40300 against a contact the UI showed as textable. Only the
+ * customer can lift a STOP.
+ *
+ * Same two-step transition the manual opt-out route uses: revive a REVOKED row,
+ * otherwise insert and let an existing active row win. Both steps are
+ * idempotent, which is what makes re-uploading the file the whole recovery
+ * procedure.
+ */
+async function writeImportOptOuts(
+  db: Db,
+  companyId: string,
+  userId: string,
+  phones: readonly string[],
+): Promise<void> {
+  if (phones.length === 0) return;
+  for (let i = 0; i < phones.length; i += IMPORT_CHUNK) {
+    const chunk = phones.slice(i, i + IMPORT_CHUNK);
+    unwrap(
+      await db
+        .from("opt_outs")
+        .update({ source: "import", created_by: userId, revoked_at: null })
+        .eq("company_id", companyId)
+        .in("phone_e164", chunk)
+        .not("revoked_at", "is", null)
+        .select("id"),
+      "import opt-out revive",
+    );
+  }
+  for (let i = 0; i < phones.length; i += IMPORT_CHUNK) {
+    const rows = phones.slice(i, i + IMPORT_CHUNK).map((phone) => ({
+      company_id: companyId,
+      phone_e164: phone,
+      source: "import",
+      created_by: userId,
+      revoked_at: null,
+    }));
+    unwrap(
+      await db
+        .from("opt_outs")
+        .upsert(rows, {
+          onConflict: "company_id,phone_e164",
+          // An active row is left exactly as it is, whatever its source.
+          ignoreDuplicates: true,
+        })
+        .select("id"),
+      "import opt-out insert",
+    );
+  }
+}
+
+/**
+ * The timeline half of the same act, which needs the contact ids and so comes
+ * after the contacts exist — a record of the block, after the block itself.
+ *
+ * Extracted alongside `writeImportOptOuts` and for the same reason: whichever
+ * door wrote the restriction owes the workspace the announcement.
+ */
+async function announceImportOptOuts(
+  db: Db,
+  companyId: string,
+  userId: string,
+  phones: readonly string[],
+  contactIdByPhone: Map<string, string>,
+): Promise<void> {
+  if (phones.length === 0) return;
+  // Attach each event to the contact's most recent conversation when one
+  // exists (SPEC §6 conversation_events rule), else null.
+  const contactIds = phones
+    .map((phone) => contactIdByPhone.get(phone))
+    .filter((id): id is string => id !== undefined);
+  const latestByContact = new Map<string, string>();
+  for (let i = 0; i < contactIds.length; i += IMPORT_CHUNK) {
+    const chunk = contactIds.slice(i, i + IMPORT_CHUNK);
+    const conversations = unwrap<{ id: string; contact_id: string }[]>(
+      await db
+        .from("conversations")
+        .select("id,contact_id")
+        .eq("company_id", companyId)
+        .in("contact_id", chunk)
+        .order("last_message_at", { ascending: false })
+        .order("id", { ascending: false }),
+      "import conversations lookup",
+    );
+    for (const row of conversations) {
+      if (!latestByContact.has(row.contact_id)) {
+        latestByContact.set(row.contact_id, row.id);
+      }
+    }
+  }
+  const events: ConversationEventRow[] = phones.map((phone) => {
+    const contactId = contactIdByPhone.get(phone);
+    return {
+      company_id: companyId,
+      conversation_id: (contactId && latestByContact.get(contactId)) || null,
+      actor_user_id: userId,
+      type: "opted_out",
+      payload: { phone_e164: phone, source: "import" },
+    };
+  });
+  await insertConversationEvents(db, events);
+}
+
+/**
+ * Group upsert rows so every row in one PostgREST request carries identical
+ * keys.
+ *
+ * PostgREST derives the column list from the FIRST row of a batch, so a batch
+ * of mixed shapes silently drops whatever the first row happened not to have.
+ * The importer used to hand-split on the one key that varied (`name`); it now
+ * varies on four (`name`, and the three consent columns, which are written only
+ * for contacts with no basis yet), and a hand-written split of every
+ * combination is a bug waiting for the next optional column. Grouping by the
+ * key set itself cannot go stale.
+ */
+function groupByKeySet(
+  rows: Record<string, unknown>[],
+): Record<string, unknown>[][] {
+  const groups = new Map<string, Record<string, unknown>[]>();
+  for (const row of rows) {
+    const signature = Object.keys(row).sort().join(",");
+    const group = groups.get(signature);
+    if (group) group.push(row);
+    else groups.set(signature, [row]);
+  }
+  return [...groups.values()];
+}
 
 /**
  * Reset the geocode cache (D25) when a contact's address is written, so the
@@ -232,8 +953,6 @@ function geocodeReset(address: string | null): Record<string, unknown> {
     geocode_status: address === null ? "no_address" : "pending",
   };
 }
-
-const TRUTHY_CSV = new Set(["true", "1", "yes", "y"]);
 
 /**
  * #291 — clear the primary flag on a contact's other addresses.
@@ -278,6 +997,44 @@ async function findContact(
   );
   return rows[0] ?? null;
 }
+
+/**
+ * #248 round 2 (B4) — what the THIRD attestation door says when it refuses.
+ *
+ * `PATCH /v1/contacts/:id { consent_attested: true }` wrote
+ * `attested / now / this member` with no opt-out check of any kind, over a live
+ * `stop_keyword` row, and then read `opt_outs` twelve lines later purely to
+ * decorate the response — the fact was already in hand and unused. Both bulk
+ * doors were fixed in round one and this one was not, which is how a rule that
+ * lives at a call site rather than in one place fails: it gets applied wherever
+ * somebody was looking.
+ *
+ * The whole request is refused rather than the attestation being dropped
+ * quietly. This door is a person pressing a button about one customer, and a
+ * response that looks like success while the one thing they asked for did not
+ * happen is how the record ends up with a hole nobody was told about — the same
+ * defect the import's refusal note exists to prevent. A saved name alongside a
+ * refused attestation would also make the failure invisible in the UI, so the
+ * edit stands or falls whole.
+ */
+export const CONSENT_ATTEST_REFUSED_OPTED_OUT =
+  "This customer has asked this business to stop texting them, so consent " +
+  "cannot be recorded against them — only they can lift that, by texting " +
+  "START from their own phone. Nothing in this edit was saved.";
+
+/**
+ * And the other rule the importer already follows: an existing basis is never
+ * replaced. "They texted us first on 12 March" is strong evidence; overwriting
+ * it with "Sam says so, today" is weaker evidence AND an unrecordable change —
+ * `contacts_record_consent` only fires on the null → value transition, so the
+ * ledger cannot even hold the rewrite. `importConsent`'s docblock calls that
+ * outcome worse than losing the record. The importer coalesces; this door used
+ * to overwrite, on the same three columns, from the same product.
+ */
+export const CONSENT_ATTEST_ALREADY_RECORDED =
+  "This customer's consent is already on record and it stands — recording it " +
+  "again would replace what actually happened with today's date. Nothing in " +
+  "this edit was saved.";
 
 /** #246: which contact survives the merge. */
 const mergeSchema = z.object({ into_contact_id: z.uuid() });
@@ -584,8 +1341,13 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
 /** Max contacts a single export streams (bounds Worker memory/CPU). */
 const EXPORT_MAX_ROWS = 50_000;
 
-/** Export column order — round-trips with the CSV importer (D20 §3.1). */
-const EXPORT_HEADER = [
+/**
+ * Export column order — round-trips with the CSV importer (D20 §3.1).
+ *
+ * Exported (#248 round 3) so the round-trip guard exports, re-imports and
+ * compares against the ONE list rather than a copy of it retyped into a test.
+ */
+export const EXPORT_HEADER = [
   "name",
   "phone",
   "tags",
@@ -1210,6 +1972,38 @@ contactsRoutes.patch("/contacts/:id", requireCapability("conversations.note"), a
   // records who last edited the contact.
   patch.updated_by_user_id = userId;
 
+  // Read ONCE, and used twice: to decide whether an attestation may be recorded
+  // at all (#248 B4) and to decorate the response below. It was already being
+  // read for the response — the fact this door needed was in the same query all
+  // along, one write too late. AFTER the patch is built, so a request that was
+  // never going to be valid is still answered without asking the database
+  // anything about opt-outs.
+  const optOuts = unwrap<{ id: string; source: string }[]>(
+    await db
+      .from("opt_outs")
+      .select("id,source")
+      .eq("company_id", companyId)
+      .eq("phone_e164", contact.phone_e164 as string)
+      .is("revoked_at", null)
+      .limit(1),
+    "opt-out lookup",
+  );
+
+  if (body.consent_attested === true) {
+    // An import may lower a contact's standing, never raise it — and neither
+    // may anything else. Same rule as `importConsent`, same two reasons, in the
+    // same order: the restriction first, because a carrier STOP always leaves a
+    // basis behind (`thread_inbound_message` stamps `inbound_sms` on the STOP
+    // message itself), so asking about the basis first would answer the wrong
+    // question with the wrong sentence.
+    if (optOuts.length > 0) {
+      throw new ApiError("validation_failed", CONSENT_ATTEST_REFUSED_OPTED_OUT);
+    }
+    if (contact.consent_at !== null || contact.consent_source !== null) {
+      throw new ApiError("validation_failed", CONSENT_ATTEST_ALREADY_RECORDED);
+    }
+  }
+
   const rows = unwrap<Record<string, unknown>[]>(
     await db
       .from("contacts")
@@ -1236,17 +2030,9 @@ contactsRoutes.patch("/contacts/:id", requireCapability("conversations.note"), a
   // A client that writes this response into the cache its detail screen renders
   // from would otherwise lose `opted_out` on an ordinary edit, and start
   // offering to opt out someone who already had. Editing a note must not change
-  // consent state, even in appearance.
-  const optOuts = unwrap<{ id: string; source: string }[]>(
-    await db
-      .from("opt_outs")
-      .select("id,source")
-      .eq("company_id", companyId)
-      .eq("phone_e164", rows[0].phone_e164 as string)
-      .is("revoked_at", null)
-      .limit(1),
-    "opt-out lookup",
-  );
+  // consent state, even in appearance. Read above, before the write — a PATCH
+  // cannot change a contact's phone, so the answer is the same one, and one
+  // read that two decisions share cannot disagree with itself.
   return c.json({
     ...rows[0],
     opted_out: optOuts.length > 0,
@@ -1283,6 +2069,10 @@ contactsRoutes.post(
   async (c) => {
     // #36: declared-size gate BEFORE formData() buffers the whole body (§10).
     assertBodyWithinLimit(c, MAX_CSV_IMPORT_BODY_BYTES);
+    // #248: and before we buffer it, whether this workspace may import at all
+    // right now. A limiter checked after the read is a limiter that still paid
+    // for the read.
+    await assertImportWithinRateLimit(getEnv(c.env), c.get("companyId"));
     let form: FormData;
     try {
       form = await c.req.raw.formData();
@@ -1308,24 +2098,35 @@ contactsRoutes.post(
     // door with no question at all, and it is the highest-volume door: a
     // thousand numbers arriving with no recorded basis is exactly the file a
     // plaintiff's lawyer or a carrier audit asks about.
-    //
-    // Checked BEFORE the CSV is parsed so a caller cannot spend the upload and
-    // then be told. `z.literal(true)` because only an explicit yes means
-    // anything — a checkbox that accepts "false" is not an attestation.
-    const attested = form.get("consent_attested");
-    if (attested !== "true") {
+    assertConsentAttested(form);
+    const text = typeof file === "string" ? file : await file.text();
+    if (text.length > CONTACT_IMPORT_MAX_BYTES) {
       throw new ApiError(
         "validation_failed",
-        "consent_attested: confirm that everyone in this file agreed to be " +
-          "texted by this business before importing them.",
+        `file: too large (max ${CONTACT_IMPORT_MAX_BYTES / (1024 * 1024)} MB).`,
       );
     }
-    const text = typeof file === "string" ? file : await file.text();
-    if (text.length > 2 * 1024 * 1024) {
-      throw new ApiError("validation_failed", "file: too large (max 2 MB).");
-    }
+    // Before the parser touches it: a UTF-16 save decodes into text full of NUL
+    // bytes, which parsed into plausible-looking rows and died at Postgres as a
+    // 500 (#248 H5).
+    assertDecodableText(text);
 
-    const parsed = parseCsvRows(text);
+    let parsed: CsvRow[];
+    try {
+      parsed = parseCsvRows(text);
+    } catch (cause) {
+      // An unterminated quote swallows every following row to EOF, and the
+      // import used to answer 200 with ordinary counts and no error row for the
+      // contacts it ate. Refused whole, naming the line, because the parser
+      // cannot say which rows it lost — see CsvUnterminatedQuoteError.
+      if (cause instanceof CsvUnterminatedQuoteError) {
+        throw new ApiError(
+          "validation_failed",
+          contactImportUnterminatedQuoteMessage(cause.line),
+        );
+      }
+      throw cause;
+    }
     const rows = parsed.map((row) => row.cells);
     if (rows.length < 2) {
       throw new ApiError(
@@ -1333,28 +2134,52 @@ contactsRoutes.post(
         "file: CSV must have a header row and at least one data row.",
       );
     }
-    // Header detection is shared with the web importer (@loonext/shared), so a
-    // file exported from another tool ("Phone Number", "Mobile", "Cell") lands
-    // the same way whichever client posted it. Web rewrote the header before
-    // uploading and the phones did not, so the same file that imported from a
-    // laptop was rejected from a phone.
-    const mapping = detectContactColumns(rows[0].map((cell) => cell.trim()));
-    const phoneCol = mapping.phone ?? -1;
-    if (phoneCol === -1) {
-      throw new ApiError("validation_failed", "file: missing `phone` column.");
-    }
-    const nameCol = mapping.name ?? -1;
-    const addressCol = mapping.address ?? -1;
-    const notesCol = mapping.notes ?? -1;
-    const optedOutCol = mapping.opted_out ?? -1;
-
+    const headers = rows[0].map((cell) => cell.trim());
     const dataRows = parsed.slice(1);
+    // THE ROW CAP RUNS FIRST, and the ordering is a guarantee rather than a
+    // preference: everything below walks every cell of every row, and this is
+    // what bounds that walk. Moving it down turns a refused file into work we
+    // did anyway.
     if (dataRows.length > IMPORT_MAX_ROWS) {
       throw new ApiError(
         "validation_failed",
         `file: too many rows (max ${IMPORT_MAX_ROWS}).`,
       );
     }
+    // #248 round 3: every column of this file is now answered for, by index,
+    // before anything else happens — and the answer is where the MAPPING comes
+    // from. Header detection is still shared with the clients
+    // (@loonext/shared), but only as the default guess the person confirmed:
+    // the server takes their answer, so a column this importer would have
+    // claimed for `notes` can be declared the do-not-text column and actually
+    // block those rows.
+    const declarations = declaredColumns(
+      form,
+      headers,
+      dataRows.map((row) => row.cells),
+    );
+    const mapping = mappingFromDeclarations(declarations);
+    const phoneCol = mapping.phone ?? -1;
+    if (phoneCol === -1) {
+      throw new ApiError("validation_failed", "file: missing `phone` column.");
+    }
+    assertFlagColumnReadable(
+      headers,
+      dataRows.map((row) => row.cells),
+      mapping,
+    );
+    const nameCol = mapping.name ?? -1;
+    // #248: split first/last columns are the shape most CRM and phone exports
+    // use, and the detector used to read the first-name column as the whole
+    // name — silently, with every row reported "ready". A crew that switched
+    // ended up with a book of first names.
+    const firstNameCol = mapping.first_name ?? -1;
+    const lastNameCol = mapping.last_name ?? -1;
+    const hasNameColumn =
+      nameCol !== -1 || firstNameCol !== -1 || lastNameCol !== -1;
+    const addressCol = mapping.address ?? -1;
+    const notesCol = mapping.notes ?? -1;
+    const optedOutCol = mapping.opted_out ?? -1;
 
     const companyId = c.get("companyId");
     const userId = c.get("userId");
@@ -1362,6 +2187,8 @@ contactsRoutes.post(
 
     const errors: { row: number; reason: string }[] = [];
     interface ImportRow {
+      /** The line in the uploaded file this contact's kept row came from. */
+      row: number;
       phone: string;
       cells: string[];
       optedOut: boolean;
@@ -1383,36 +2210,58 @@ contactsRoutes.post(
         });
         return;
       }
-      if (byPhone.has(phone)) {
+      // Read BEFORE the duplicate check, because the duplicate check used to
+      // `return` above this line and take the restriction with it. A file that
+      // listed the same person twice — once plain, once flagged opted out, which
+      // is what a merge of two exports looks like — kept the first row and threw
+      // the second away, and the row it threw away was the one saying "do not
+      // text this person".
+      //
+      // `readContactFlag` is shared, so the wizard's preview, both phone apps
+      // and this route read the cell the same way — and it cannot return the
+      // permissive answer for a value it does not understand, because
+      // `assertFlagColumnReadable` above has already refused the file if any
+      // cell in this column is unreadable.
+      const optedOut =
+        optedOutCol !== -1 && readContactFlag(cells[optedOutCol]) === true;
+      const seen = byPhone.get(phone);
+      if (seen) {
+        // The extra ROW is still discarded, and still reported: which of two
+        // spellings of a name to keep is a judgement we should not make
+        // silently. The RESTRICTION is not the row's, though — it is the
+        // person's, and an opt-out anywhere in the file is true of them
+        // whichever row happened to carry it. Never the reverse: a later plain
+        // row cannot clear a flag an earlier one set.
+        if (optedOut) seen.optedOut = true;
         errors.push({
           row: rowNumber,
           reason: `duplicate phone in file: ${phone}`,
         });
         return;
       }
-      const optedOut =
-        optedOutCol !== -1 &&
-        TRUTHY_CSV.has((cells[optedOutCol] ?? "").trim().toLowerCase());
-      byPhone.set(phone, { phone, cells, optedOut });
+      byPhone.set(phone, { row: rowNumber, phone, cells, optedOut });
     });
 
     const entries = [...byPhone.values()];
     const phones = entries.map((entry) => entry.phone);
 
-    // Pre-existing contacts, for imported-vs-updated counting.
-    const existingPhones = new Set<string>();
-    for (let i = 0; i < phones.length; i += IMPORT_CHUNK) {
-      const chunk = phones.slice(i, i + IMPORT_CHUNK);
-      const found = unwrap<{ phone_e164: string }[]>(
-        await db
-          .from("contacts")
-          .select("phone_e164")
-          .eq("company_id", companyId)
-          .in("phone_e164", chunk),
-        "import pre-check",
-      );
-      for (const row of found) existingPhones.add(row.phone_e164);
-    }
+    // Two reads, in parallel, before anything is written.
+    //
+    // Pre-existing contacts, for imported-vs-updated counting — and, since
+    // #248, for the consent basis each one already carries. The same read
+    // answers both questions, so honouring an existing basis costs no round
+    // trip: see importConsent for why it must be honoured.
+    //
+    // And every standing opt-out among these phones, which is the fact that
+    // decides whether the file's attestation may be applied to a row at all.
+    // Parallel rather than sequential because neither informs the other and
+    // this is the request's whole latency budget: 2000 rows is ten chunks of
+    // each.
+    const [existingBasis, standing] = await Promise.all([
+      existingConsentBasis(db, companyId, phones),
+      standingOptOuts(db, companyId, phones),
+    ]);
+    const existingPhones = new Set(existingBasis.keys());
 
     // Per-row upsert on (company_id, phone_e164) clearing deleted_at. Every
     // row in a batch carries the same keys (only the columns present in the
@@ -1432,6 +2281,28 @@ contactsRoutes.post(
     // same moment as far as the ledger is concerned, and a per-row now() would
     // make the evidence chain look like a thousand separate events.
     const importedAt = new Date().toISOString();
+
+    // #248: the consent decision for every row, made once, from both reads, and
+    // BEFORE anything is written — so a row's fate does not depend on how far
+    // the import got.
+    const refusals: { row: number; reason: string }[] = [];
+    const consentByPhone = new Map<string, Record<string, unknown>>();
+    for (const entry of entries) {
+      const decision = importConsent(
+        existingBasis.get(entry.phone),
+        { standing: standing.has(entry.phone), inFile: entry.optedOut },
+        importedAt,
+        userId,
+      );
+      consentByPhone.set(entry.phone, decision.columns);
+      if (decision.refused) {
+        refusals.push({
+          row: entry.row,
+          reason: contactImportConsentRefusedReason(entry.phone),
+        });
+      }
+    }
+
     const upsertRows = entries.map(({ phone, cells }) => {
       const row: Record<string, unknown> = {
         company_id: companyId,
@@ -1441,13 +2312,11 @@ contactsRoutes.post(
         // as its creator. A constant key, so the batching invariant holds.
         created_by_user_id: userId,
       };
-      // #226: the basis the importer attested to, on every row the file
-      // creates. `attested` is the same source a by-hand add writes (§5 D4),
-      // because it is the same claim — a member is vouching for consent they
-      // obtained off-platform. Constant keys, so the batching invariant holds.
-      row.consent_source = "attested";
-      row.consent_at = importedAt;
-      row.consent_attested_by = userId;
+      // #226 basis, #248 rule: written only where there is none AND nothing
+      // standing forbids it. A contact who texted this business first keeps
+      // `inbound_sms` and the date they did it, however many times the
+      // spreadsheet is re-uploaded; a contact who texted STOP gets nothing.
+      Object.assign(row, consentByPhone.get(phone) ?? {});
       // A blank name cell means "this file says nothing about the name", never
       // "erase the name you already have". The column is decided for the whole
       // file, so one nameless row among named ones used to null out an existing
@@ -1456,8 +2325,15 @@ contactsRoutes.post(
       // wizard reported it as a plain "updated" row.
       //
       // Rows are grouped below so each batch keeps one key set.
-      if (nameCol !== -1) {
-        const name = unguard(cell(cells, nameCol));
+      if (hasNameColumn) {
+        // #248: first/last are joined here so the stored name is the person,
+        // whichever shape the file used. joinContactName is shared, so the
+        // wizard's preview promises exactly what lands.
+        const name = joinContactName({
+          first: firstNameCol === -1 ? null : unguard(cell(cells, firstNameCol)),
+          last: lastNameCol === -1 ? null : unguard(cell(cells, lastNameCol)),
+          full: nameCol === -1 ? null : unguard(cell(cells, nameCol)),
+        });
         if (name !== null) row.name = name;
       }
       if (addressCol !== -1) {
@@ -1475,133 +2351,108 @@ contactsRoutes.post(
       if (notesCol !== -1) row.notes = cell(cells, notesCol);
       return row;
     });
-    const contactIdByPhone = new Map<string, string>();
-    // PostgREST derives the column list from the first row of a batch, so every
-    // row in one request must carry the same keys. Rows that omit `name`
-    // (a blank cell, which must not erase an existing name) are sent as their
-    // own group rather than being padded back to a null.
-    const withName = upsertRows.filter((row) => "name" in row);
-    const withoutName = upsertRows.filter((row) => !("name" in row));
-    for (const group of [withName, withoutName]) {
-      for (let i = 0; i < group.length; i += IMPORT_CHUNK) {
-        const chunk = group.slice(i, i + IMPORT_CHUNK);
-        const upserted = unwrap<{ id: string; phone_e164: string }[]>(
-          await db
-            .from("contacts")
-            .upsert(chunk, { onConflict: "company_id,phone_e164" })
-            .select("id,phone_e164"),
-          "import upsert",
-        );
-        for (const row of upserted) contactIdByPhone.set(row.phone_e164, row.id);
-      }
-    }
-
     // opted_out=true → opt_outs rows (source='import', SPEC §5) + events for
     // numbers that were not already actively opted out.
     const optedOutPhones = entries
       .filter((entry) => entry.optedOut)
       .map((entry) => entry.phone);
-    if (optedOutPhones.length > 0) {
-      const alreadyActive = new Set<string>();
-      for (let i = 0; i < optedOutPhones.length; i += IMPORT_CHUNK) {
-        const chunk = optedOutPhones.slice(i, i + IMPORT_CHUNK);
-        const found = unwrap<{ phone_e164: string }[]>(
-          await db
-            .from("opt_outs")
-            .select("phone_e164")
-            .eq("company_id", companyId)
-            .is("revoked_at", null)
-            .in("phone_e164", chunk),
-          "import opt-out pre-check",
-        );
-        for (const row of found) alreadyActive.add(row.phone_e164);
-      }
+    // Which of them this import has to ANNOUNCE on the timeline.
+    //
+    // Not "which ones changed": that was read from the state before this run's
+    // own writes, so a re-run after a half-finished import saw the opt-outs it
+    // had already written and stayed silent forever (see `announcedOptOuts`).
+    // A number that is standing AND already has its event is the ordinary
+    // case — a customer who texted STOP months ago, listed again in a file —
+    // and it stays silent, so re-uploading the same book does not pile up
+    // duplicate events.
+    const alreadyStanding = optedOutPhones.filter((phone) => standing.has(phone));
+    const announced =
+      alreadyStanding.length > 0
+        ? await announcedOptOuts(db, companyId, alreadyStanding)
+        : new Set<string>();
+    const newlyOptedOut = optedOutPhones.filter(
+      (phone) => !standing.has(phone) || !announced.has(phone),
+    );
 
-      // An import may ADD an opt-out; it may never rewrite one that is already
-      // standing. There is a single opt_outs row per (company, phone), so a
-      // plain upsert overwrote `source` on an ACTIVE row: a carrier STOP became
-      // source='import', and the revoke guard that makes a STOP unrevokable
-      // stopped firing. The app would then let someone "opt them back in" while
-      // the carrier block stood, so every send failed 40300 against a contact
-      // the UI showed as textable. Only the customer can lift a STOP.
+    const contactIdByPhone = new Map<string, string>();
+    try {
+      // ===================================================================
+      // RESTRICTIONS FIRST (#248).
       //
-      // Same two-step transition the manual opt-out route uses: revive a
-      // REVOKED row, otherwise insert and let an existing active row win.
-      const optOutRows = optedOutPhones.map((phone) => ({
-        company_id: companyId,
-        phone_e164: phone,
-        source: "import",
-        created_by: userId,
-        revoked_at: null,
-      }));
-      for (let i = 0; i < optedOutPhones.length; i += IMPORT_CHUNK) {
-        const chunk = optedOutPhones.slice(i, i + IMPORT_CHUNK);
-        unwrap(
-          await db
-            .from("opt_outs")
-            .update({ source: "import", created_by: userId, revoked_at: null })
-            .eq("company_id", companyId)
-            .in("phone_e164", chunk)
-            .not("revoked_at", "is", null)
-            .select("id"),
-          "import opt-out revive",
-        );
-      }
-      for (let i = 0; i < optOutRows.length; i += IMPORT_CHUNK) {
-        unwrap(
-          await db
-            .from("opt_outs")
-            .upsert(optOutRows.slice(i, i + IMPORT_CHUNK), {
-              onConflict: "company_id,phone_e164",
-              // An active row is left exactly as it is, whatever its source.
-              ignoreDuplicates: true,
-            })
-            .select("id"),
-          "import opt-out insert",
-        );
-      }
+      // Everything below is one synchronous pass with no transaction around
+      // it, so any of it may be the last thing that runs. That makes the ORDER
+      // a safety property rather than a style choice: whichever prefix
+      // completes has to be a state we can live in.
+      //
+      // Contacts used to be written first, so every partial failure landed on
+      // the MOST PERMISSIVE state the file could produce — contacts created,
+      // the file's attestation stamped on them, and not one of the opt-outs it
+      // declared. A half-finished import that blocked people who should be
+      // blocked and created no contacts costs somebody a re-upload; the
+      // reverse costs a text to a person who said stop.
+      // ===================================================================
+      await writeImportOptOuts(db, companyId, userId, optedOutPhones);
 
-      const newlyOptedOut = optedOutPhones.filter(
-        (phone) => !alreadyActive.has(phone),
-      );
-      if (newlyOptedOut.length > 0) {
-        // Attach each event to the contact's most recent conversation when
-        // one exists (SPEC §6 conversation_events rule), else null.
-        const contactIds = newlyOptedOut
-          .map((phone) => contactIdByPhone.get(phone))
-          .filter((id): id is string => id !== undefined);
-        const latestByContact = new Map<string, string>();
-        for (let i = 0; i < contactIds.length; i += IMPORT_CHUNK) {
-          const chunk = contactIds.slice(i, i + IMPORT_CHUNK);
-          const conversations = unwrap<{ id: string; contact_id: string }[]>(
+      // PostgREST derives the column list from the first row of a batch, so
+      // every row in one request must carry the same keys. Rows that omit
+      // `name` (a blank cell, which must not erase an existing name) or the
+      // consent columns (a contact whose basis is already recorded, or who is
+      // opted out) are sent as their own group rather than padded back to null.
+      for (const group of groupByKeySet(upsertRows)) {
+        for (let i = 0; i < group.length; i += IMPORT_CHUNK) {
+          const chunk = group.slice(i, i + IMPORT_CHUNK);
+          const upserted = unwrap<{ id: string; phone_e164: string }[]>(
             await db
-              .from("conversations")
-              .select("id,contact_id")
-              .eq("company_id", companyId)
-              .in("contact_id", chunk)
-              .order("last_message_at", { ascending: false })
-              .order("id", { ascending: false }),
-            "import conversations lookup",
+              .from("contacts")
+              .upsert(chunk, { onConflict: "company_id,phone_e164" })
+              .select("id,phone_e164"),
+            "import upsert",
           );
-          for (const row of conversations) {
-            if (!latestByContact.has(row.contact_id)) {
-              latestByContact.set(row.contact_id, row.id);
-            }
+          for (const row of upserted) {
+            contactIdByPhone.set(row.phone_e164, row.id);
           }
         }
-        const events: ConversationEventRow[] = newlyOptedOut.map((phone) => {
-          const contactId = contactIdByPhone.get(phone);
-          return {
-            company_id: companyId,
-            conversation_id:
-              (contactId && latestByContact.get(contactId)) || null,
-            actor_user_id: userId,
-            type: "opted_out",
-            payload: { phone_e164: phone, source: "import" },
-          };
-        });
-        await insertConversationEvents(db, events);
       }
+
+      // The timeline entries come LAST because they are the only part that
+      // needs the contact ids — a record of the block, after the block itself.
+      await announceImportOptOuts(
+        db,
+        companyId,
+        userId,
+        newlyOptedOut,
+        contactIdByPhone,
+      );
+    } catch (cause) {
+      // A half-finished import that leaves no trace is the part of #248's D4
+      // that a job table would have fixed by accident. This fixes it directly:
+      // the audit log carries the attempt, so "where did these 200 contacts
+      // come from, and why is there no import row" has an answer. The throw
+      // stands — a 200 on an import that did not finish would be the lie.
+      await recordAuditFromRequest(db, c, {
+        companyId,
+        action: "contacts.imported",
+        targetType: "contact",
+        after: {
+          // What was asked for, not what landed: we genuinely do not know how
+          // much landed, and a made-up count is worse than an honest bound.
+          attempted: phones.length,
+          skipped: errors.length,
+          // #248 round 2: the refusals are DECIDED before the first write, so
+          // they are known here — and this is the one path where the response
+          // body never reaches anybody, because the caller gets a 500. Leaving
+          // it off meant a failed import reported its refused rows NOWHERE,
+          // which is precisely the case a carrier audit asks about.
+          consent_refused: refusals.length,
+          // #248 round 3: what this workspace SAID its columns were. On the
+          // failed path too, because a half-finished import is exactly when
+          // somebody asks what the file claimed to be.
+          columns: declarations.map(formatContactImportColumn),
+          source: "csv",
+          outcome: "failed",
+        },
+      });
+      throw cause;
     }
 
     const imported = phones.filter((p) => !existingPhones.has(p)).length;
@@ -1626,6 +2477,18 @@ contactsRoutes.post(
         imported,
         updated: phones.length - imported,
         skipped: errors.length,
+        // #248: the rows whose attestation was refused. On the audit row as
+        // well as in the response, because this is the number a carrier audit
+        // or a demand letter is about, and a response body is gone the moment
+        // the tab closes.
+        consent_refused: refusals.length,
+        // #248 round 3: the workspace's own statement about what every column
+        // of this file meant. It is a CLAIM — the server cannot know a person
+        // read the values — so it belongs where claims go, next to the consent
+        // attestation it stands beside. Headers are the file's structure, not
+        // the customers in it, so this stays inside the "counts, never
+        // contacts" rule above.
+        columns: declarations.map(formatContactImportColumn),
         source: "csv",
       },
     });
@@ -1634,12 +2497,16 @@ contactsRoutes.post(
       updated: phones.length - imported,
       skipped: errors.length,
       errors,
+      // #248: what the file's attestation did NOT cover, and which rows. Named
+      // separately from `skipped` because these rows were imported — calling
+      // them skipped would be a second wrong answer.
+      ...refusalReport(refusals),
     });
   },
 );
 
 /** Max cards a single .vcf may carry — same CPU bound as the CSV importer. */
-const VCARD_MAX_CARDS = IMPORT_MAX_ROWS;
+const VCARD_MAX_CARDS = VCARD_IMPORT_MAX_CARDS;
 
 /**
  * POST /v1/contacts/import-vcard (D20 §3.2) — owner/admin (the §10 matrix,
@@ -1648,10 +2515,17 @@ const VCARD_MAX_CARDS = IMPORT_MAX_ROWS;
  * phone), normalizes every TEL to E.164 against the company default country
  * (US/CA), drops un-normalizable numbers with a per-row reason. A card with
  * multiple valid TELs yields one contact per DISTINCT valid number (contacts
- * are phone-keyed). Reuses the exact idempotent upsert + dedupe the CSV
- * importer enforces (clears deleted_at; consent_source is not in the shipped
- * enum's import value, so — like the CSV path — it is left untouched). Same
+ * are phone-keyed). Reuses the exact idempotent upsert + dedupe + consent
+ * attestation the CSV importer enforces — including #248's rule that a contact
+ * who already has a recorded basis keeps it. Same
  * { imported, updated, skipped, errors } shape as CSV.
+ *
+ * #248 round 3: and the same declaration rule, in the shape this format allows.
+ * Every property the cards carry that this parser does not read has to be
+ * declared `ignore` or `opted_out` — `CATEGORIES` and `NOTE` are the only two
+ * places a .vcf can say do-not-text, and both used to be dropped in silence.
+ * A property declared `opted_out` writes the same `opt_outs` rows and timeline
+ * events the CSV importer's flag column does, restrictions first.
  */
 contactsRoutes.post(
   "/contacts/import-vcard",
@@ -1659,6 +2533,8 @@ contactsRoutes.post(
   async (c) => {
     // #36: declared-size gate BEFORE formData() buffers the whole body (§10).
     assertBodyWithinLimit(c, MAX_VCARD_IMPORT_BODY_BYTES);
+    // #248: both bulk doors share one budget — see assertImportWithinRateLimit.
+    await assertImportWithinRateLimit(getEnv(c.env), c.get("companyId"));
     let form: FormData;
     try {
       form = await c.req.raw.formData();
@@ -1675,10 +2551,22 @@ contactsRoutes.post(
     if (file === null) {
       throw new ApiError("validation_failed", "file: missing .vcf file field.");
     }
+    // #248: the same attestation the CSV route has demanded since #226. A phone
+    // address book is not a consent record — it is every number the owner has
+    // ever dialled, plumbers and school runs and their mother included — so if
+    // either bulk door asks the question, this is the one that must.
+    assertConsentAttested(form);
     const text = typeof file === "string" ? file : await file.text();
-    if (text.length > 5 * 1024 * 1024) {
-      throw new ApiError("validation_failed", "file: too large (max 5 MB).");
+    if (text.length > VCARD_IMPORT_MAX_BYTES) {
+      throw new ApiError(
+        "validation_failed",
+        `file: too large (max ${VCARD_IMPORT_MAX_BYTES / (1024 * 1024)} MB).`,
+      );
     }
+    // The same door check as the CSV route, for the same reason: a .vcf saved
+    // as UTF-16 decodes exactly as badly, and a phone's export is the file most
+    // likely to have been round-tripped through a desktop program (#248 H5).
+    assertDecodableText(text);
 
     const cards = parseVCards(text);
     if (cards.length === 0) {
@@ -1693,17 +2581,40 @@ contactsRoutes.post(
         `file: too many cards (max ${VCARD_MAX_CARDS}).`,
       );
     }
+    // #248 round 3: the card cap first, for the same reason the CSV route's row
+    // cap is first — the walk below reads every property of every card, and the
+    // cap is what bounds it. Then: every property these cards carry that this
+    // importer does not read has to be answered for. `CATEGORIES:DNC` and a
+    // `NOTE` saying they asked us to stop were dropped here without a word.
+    const propertyDeclarations = declaredVCardProperties(form, cards);
+    const blockingProperties = new Set(
+      propertyDeclarations
+        .filter((declaration) => declaration.action === "opted_out")
+        .map((declaration) => declaration.property),
+    );
 
     const companyId = c.get("companyId");
     const userId = c.get("userId");
     const db = getDb(getEnv(c.env));
 
     const errors: { row: number; reason: string }[] = [];
-    // One entry per DISTINCT valid E.164 across the whole file; first name wins.
-    const byPhone = new Map<string, { name: string | null }>();
+    // One entry per DISTINCT valid E.164 across the whole file; first name
+    // wins, and the card it came from is kept so a refusal can name it.
+    const byPhone = new Map<
+      string,
+      { name: string | null; row: number; optedOut: boolean }
+    >();
 
     cards.forEach((card, index) => {
       const cardNumber = index + 1; // 1-based card position
+      // Somebody looked at this property and said a card carrying it must not
+      // be texted. Read BEFORE the duplicate check below, and OR-ed into a
+      // number already seen, for the reason the CSV route learned the hard way:
+      // the restriction belongs to the person, not to the row that happened to
+      // carry it, and a discarded duplicate must not take it away.
+      const optedOut = card.properties.some((property) =>
+        blockingProperties.has(property),
+      );
       const valid = new Set<string>();
       for (const rawTel of card.tels) {
         const phone = normalizeNanpPhone(rawTel);
@@ -1722,59 +2633,139 @@ contactsRoutes.post(
         return;
       }
       for (const phone of valid) {
-        if (byPhone.has(phone)) {
+        const seen = byPhone.get(phone);
+        if (seen) {
+          if (optedOut) seen.optedOut = true;
           errors.push({
             row: cardNumber,
             reason: `duplicate phone in file: ${phone}`,
           });
           continue;
         }
-        byPhone.set(phone, { name: card.name });
+        byPhone.set(phone, { name: card.name, row: cardNumber, optedOut });
       }
     });
 
     const entries = [...byPhone.entries()];
     const phones = entries.map(([phone]) => phone);
 
-    // Pre-existing contacts → imported-vs-updated counting (mirrors CSV).
-    const existingPhones = new Set<string>();
-    for (let i = 0; i < phones.length; i += IMPORT_CHUNK) {
-      const chunk = phones.slice(i, i + IMPORT_CHUNK);
-      const found = unwrap<{ phone_e164: string }[]>(
-        await db
-          .from("contacts")
-          .select("phone_e164")
-          .eq("company_id", companyId)
-          .in("phone_e164", chunk),
-        "vcard pre-check",
-      );
-      for (const row of found) existingPhones.add(row.phone_e164);
-    }
+    // Pre-existing contacts → imported-vs-updated counting, and the consent
+    // basis each already carries (mirrors CSV, #248). Plus every standing
+    // opt-out among these numbers: a phone's address book has no column for
+    // "this person told us to stop", so this route is the one where the file
+    // CANNOT know, and the attestation would otherwise be written over a live
+    // STOP every single time.
+    const [existingBasis, standing] = await Promise.all([
+      existingConsentBasis(db, companyId, phones),
+      standingOptOuts(db, companyId, phones),
+    ]);
+    const existingPhones = new Set(existingBasis.keys());
 
     // Idempotent upsert on (company_id, phone_e164), clearing deleted_at — the
     // exact CSV path. A name is written only when the card carried one, so a
     // re-import of a card without a name never nulls an existing name.
-    const upsertRows = entries.map(([phone, { name }]) => {
-      const row: Record<string, unknown> = {
-        company_id: companyId,
-        phone_e164: phone,
-        deleted_at: null,
-        // #191 attribution: the importer is the creator (same as the CSV path).
-        created_by_user_id: userId,
-      };
-      if (name !== null) row.name = name;
-      return row;
-    });
-    for (let i = 0; i < upsertRows.length; i += IMPORT_CHUNK) {
-      unwrap(
-        await db
-          .from("contacts")
-          .upsert(upsertRows.slice(i, i + IMPORT_CHUNK), {
-            onConflict: "company_id,phone_e164",
-          })
-          .select("id"),
-        "vcard upsert",
+    const importedAt = new Date().toISOString();
+    const refusals: { row: number; reason: string }[] = [];
+    const upsertRows = entries.map(
+      ([phone, { name, row: cardNumber, optedOut }]) => {
+        const row: Record<string, unknown> = {
+          company_id: companyId,
+          phone_e164: phone,
+          deleted_at: null,
+          // #191 attribution: the importer is the creator (same as the CSV path).
+          created_by_user_id: userId,
+        };
+        const decision = importConsent(
+          existingBasis.get(phone),
+          // #248 round 3: `inFile` is no longer always false here. A .vcf says
+          // do-not-text in exactly one way — a property somebody declared as
+          // meaning it — and a file that attests everyone agreed while carrying
+          // a card marked DNC has contradicted itself, so the restriction is
+          // the half to believe. Everything else standing is a disagreement
+          // between the file and the record, and every one of those is reported.
+          { standing: standing.has(phone), inFile: optedOut },
+          importedAt,
+          userId,
+        );
+        Object.assign(row, decision.columns);
+        if (decision.refused) {
+          refusals.push({
+            row: cardNumber,
+            reason: contactImportConsentRefusedReason(phone),
+          });
+        }
+        if (name !== null) row.name = name;
+        return row;
+      },
+    );
+    // The blocked numbers, and which of them this import has to announce — the
+    // same two questions the CSV route asks, answered from durable state so a
+    // re-run after a half-finished import repairs the timeline rather than
+    // staying silent forever. See `announcedOptOuts`.
+    const optedOutPhones = entries
+      .filter(([, entry]) => entry.optedOut)
+      .map(([phone]) => phone);
+    const alreadyStanding = optedOutPhones.filter((phone) => standing.has(phone));
+    const announced =
+      alreadyStanding.length > 0
+        ? await announcedOptOuts(db, companyId, alreadyStanding)
+        : new Set<string>();
+    const newlyOptedOut = optedOutPhones.filter(
+      (phone) => !standing.has(phone) || !announced.has(phone),
+    );
+    const contactIdByPhone = new Map<string, string>();
+    try {
+      // RESTRICTIONS FIRST, the same order and for the same reason as the CSV
+      // route: there is no transaction around any of this, so whichever prefix
+      // completes has to be a state we can live in. Contacts first would mean a
+      // partial failure landing on contacts created, the file's attestation
+      // stamped on them, and not one of the blocks it declared.
+      await writeImportOptOuts(db, companyId, userId, optedOutPhones);
+      // Grouped by key set, like the CSV path. This route never was: a nameless
+      // card landing first in a chunk made PostgREST drop `name` from the whole
+      // batch, so importing a phone book that starts with a bare number saved
+      // every following contact as a number with no name.
+      for (const group of groupByKeySet(upsertRows)) {
+        for (let i = 0; i < group.length; i += IMPORT_CHUNK) {
+          const upserted = unwrap<{ id: string; phone_e164: string }[]>(
+            await db
+              .from("contacts")
+              .upsert(group.slice(i, i + IMPORT_CHUNK), {
+                onConflict: "company_id,phone_e164",
+              })
+              .select("id,phone_e164"),
+            "vcard upsert",
+          );
+          for (const row of upserted) {
+            contactIdByPhone.set(row.phone_e164, row.id);
+          }
+        }
+      }
+      await announceImportOptOuts(
+        db,
+        companyId,
+        userId,
+        newlyOptedOut,
+        contactIdByPhone,
       );
+    } catch (cause) {
+      // Same reason as the CSV route: a partial import that left no audit row
+      // is a set of contacts nobody can account for. See there.
+      await recordAuditFromRequest(db, c, {
+        companyId,
+        action: "contacts.imported",
+        targetType: "contact",
+        after: {
+          attempted: phones.length,
+          skipped: errors.length,
+          // Known before the first write here too — see the CSV route.
+          consent_refused: refusals.length,
+          properties: propertyDeclarations.map(formatVCardProperty),
+          source: "vcard",
+          outcome: "failed",
+        },
+      });
+      throw cause;
     }
 
     const imported = phones.filter((p) => !existingPhones.has(p)).length;
@@ -1798,6 +2789,11 @@ contactsRoutes.post(
         imported,
         updated: phones.length - imported,
         skipped: errors.length,
+        consent_refused: refusals.length,
+        // #248 round 3: what this workspace said the cards' unread properties
+        // meant — the vCard door's half of the same claim the CSV door records
+        // as `columns`.
+        properties: propertyDeclarations.map(formatVCardProperty),
         source: "vcard",
       },
     });
@@ -1806,6 +2802,10 @@ contactsRoutes.post(
       updated: phones.length - imported,
       skipped: errors.length,
       errors,
+      // #248: the same three fields the CSV route answers with. A client that
+      // has to branch on which door it used would eventually show the note on
+      // one and not the other.
+      ...refusalReport(refusals),
     });
   },
 );

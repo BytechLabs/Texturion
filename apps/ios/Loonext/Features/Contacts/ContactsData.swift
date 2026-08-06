@@ -246,37 +246,73 @@ struct ContactMutations: Sendable {
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// Admin CSV import: multipart 'file', ≤2MB, ≤2000 rows.
+    /// Admin CSV import — bounds and the attestation field both come from
+    /// `ContactImport`, which is the port of the shared contract.
+    ///
+    /// `consentAttested` has no default. #226 shipped the server gate with no
+    /// client sending the field, and every CSV import from this app has 422'd
+    /// since; a default here would let the next call site skip the question the
+    /// same way. Passing `false` posts nothing and lets the server say why.
+    ///
+    /// `columns` has no default for the same reason, one door along (#248 round
+    /// 3): a caller that quietly sent none would be refused by the server for a
+    /// file it had already read, and a caller that quietly assembled one from
+    /// its own guesses would have told the server that somebody accounted for
+    /// columns nobody was ever shown. The declaration is a person's, and it
+    /// arrives here already built out of answered menus.
     func importCsv(
         companyId: String,
         fileName: String,
-        bytes: Data
+        bytes: Data,
+        consentAttested: Bool,
+        columns: [ContactImportColumnDeclaration]
     ) async throws -> ImportResult {
         let data = try await multipart.postFile(
             path: "/v1/contacts/import",
             companyId: companyId,
-            fields: [],
+            fields: ContactImport.formFields(
+                consentAttested: consentAttested,
+                columns: columns,
+                // A CSV has no vCard properties. Empty rather than absent: both
+                // doors go through the one function that knows the field names.
+                properties: []
+            ),
             fileField: "file",
             fileName: fileName,
-            contentType: "text/csv",
+            contentType: ContactImportKind.csv.contentType,
             bytes: bytes
         )
         return try JSONDecoder().decode(ImportResult.self, from: data)
     }
 
-    /// Admin vCard import: multipart 'file', ≤5MB, ≤2000 cards.
+    /// Admin vCard import. #248 put the same attestation in front of this door:
+    /// it was the only bulk-contact route that never asked for a basis, which
+    /// made it the inverse of what #226 was for.
+    ///
+    /// Round 3 gave it the accounting too. A .vcf has no columns, but it has
+    /// PROPERTIES, and `CATEGORIES:DNC` and a `NOTE` saying they asked us to
+    /// stop are the only two places the format can say do-not-text — both of
+    /// which this door used to drop without a word.
     func importVcard(
         companyId: String,
         fileName: String,
-        bytes: Data
+        bytes: Data,
+        consentAttested: Bool,
+        properties: [VCardPropertyDeclaration]
     ) async throws -> ImportResult {
         let data = try await multipart.postFile(
             path: "/v1/contacts/import-vcard",
             companyId: companyId,
-            fields: [],
+            fields: ContactImport.formFields(
+                consentAttested: consentAttested,
+                // A .vcf has no columns. Empty rather than absent, for the same
+                // reason the CSV door sends no properties.
+                columns: [],
+                properties: properties
+            ),
             fileField: "file",
             fileName: fileName,
-            contentType: "text/vcard",
+            contentType: ContactImportKind.vcard.contentType,
             bytes: bytes
         )
         return try JSONDecoder().decode(ImportResult.self, from: data)
@@ -307,18 +343,31 @@ struct ContactMutations: Sendable {
 
 // MARK: - Consent
 
+/// The two values `consent_source_t` has, and it has no others.
+///
+/// There used to be a third here, `imported = "import"`, and the database has
+/// never been able to produce it — the enum is
+/// `create type consent_source_t as enum ('inbound_sms','attested')`. It read
+/// as a documented third way consent could arrive, which is precisely the thing
+/// nobody should believe about an import: a file does not carry a basis, so an
+/// imported contact is either attested by the person who uploaded it or has no
+/// consent at all.
 enum ConsentSource {
     static let inboundSms = "inbound_sms"
     static let attested = "attested"
-    static let imported = "import"
 }
 
 /// The consent card's one line, ported from the web contact page's
 /// ConsentLine so the copy never drifts:
 ///  - no consent recorded → the teaching sentence,
 ///  - inbound_sms → "Texted you first · Jul 8",
-///  - anything else (attested/import) → "Consent recorded by {member} · Jul 8"
-///    (the attester resolved against GET /v1/members; omitted when unknown).
+///  - anything else → "Consent recorded by {member} · Jul 8" (the attester
+///    resolved against GET /v1/members; omitted when unknown).
+///
+/// "Anything else" is `attested` today, and stays a fallthrough rather than a
+/// match on it: a source a later migration adds must still say that a basis
+/// exists, not drop back to the teaching line that invites somebody to attest
+/// one that is already there.
 func consentLine(
     consentSource: String?,
     consentAt: String?,

@@ -101,19 +101,19 @@ begin
     from public.api_signup_attribution(90, 1)
    where landing_path = '/compare';
 
-  if v_plumbers.signups <> 2 or v_plumbers.activated <> 1 then
+  if v_plumbers.signups is distinct from 2 or v_plumbers.activated is distinct from 1 then
     raise exception 'SA-1 FAILED: /for/plumbers reported % signups / % activated, '
       'expected 2 / 1.', v_plumbers.signups, v_plumbers.activated;
   end if;
 
-  if v_compare.activated <> 0 then
+  if v_compare.activated is distinct from 0 then
     raise exception 'SA-1 FAILED: /compare counted % activation(s). Its only '
       'outbound message was a draft that never reached the carrier — counting '
       'it would mean a page scores for customers who never texted anyone.',
       v_compare.activated;
   end if;
 
-  if v_plumbers.activation_rate <> 0.5000 then
+  if v_plumbers.activation_rate is distinct from 0.5000 then
     raise exception 'SA-1 FAILED: /for/plumbers rate was %, expected 0.5000.',
       v_plumbers.activation_rate;
   end if;
@@ -137,7 +137,7 @@ begin
       'from the report. Coverage has to be visible on the same screen as the '
       'conclusion, or the attributed pages read as 100%% of growth.';
   end if;
-  if v_row.signups <> 1 then
+  if v_row.signups is distinct from 1 then
     raise exception 'SA-2 FAILED: expected 1 unattributed signup, got %.',
       v_row.signups;
   end if;
@@ -157,7 +157,7 @@ begin
     from public.api_signup_attribution(90, 10)
    where not is_small;
 
-  if v_small <> 0 then
+  if v_small is distinct from 0 then
     raise exception 'SA-3 FAILED: % row(s) cleared a floor of 10 on fixtures '
       'that top out at 2 signups. Ranking those is the decision the floor '
       'exists to prevent.', v_small;
@@ -190,7 +190,7 @@ begin
     from public.api_signup_attribution(90, 1)
    where landing_path = '/for/plumbers';
 
-  if v_rows <> 1 then
+  if v_rows is distinct from 1 then
     raise exception 'SA-4 FAILED: /for/plumbers reported % signups inside a '
       '90-day window holding one. A page is judged on what it produced '
       'recently, not on everything it ever produced.', v_rows;
@@ -204,7 +204,7 @@ begin
     from public.api_signup_attribution(90, 1)
    where landing_path = '/for/plumbers';
 
-  if v_rows <> 0 then
+  if v_rows is distinct from 0 then
     raise exception 'SA-4 FAILED: a deleted workspace is still being credited '
       'to the page that produced it.';
   end if;

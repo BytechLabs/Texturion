@@ -98,18 +98,18 @@ begin
     'America/New_York', 'area_code',
     now() + interval '26 hours');
 
-  if v_res->>'outcome' <> 'scheduled' then
+  if v_res->>'outcome' is distinct from 'scheduled' then
     raise exception 'SM-1 FAILED: expected scheduled, got %', v_res->>'outcome';
   end if;
 
   select * into v_row from public.scheduled_messages
    where id = (v_res->'scheduled_message'->>'id')::uuid;
 
-  if v_row.body <> 'Still thinking about that quote?' then
+  if v_row.body is distinct from 'Still thinking about that quote?' then
     raise exception 'SM-1 FAILED: body not trimmed, got %', v_row.body;
   end if;
-  if v_row.clock_source <> 'area_code'
-     or v_row.clock_timezone <> 'America/New_York' then
+  if v_row.clock_source is distinct from 'area_code'
+     or v_row.clock_timezone is distinct from 'America/New_York' then
     raise exception 'SM-1 FAILED: clock provenance not stored (% / %)',
       v_row.clock_source, v_row.clock_timezone;
   end if;
@@ -117,7 +117,7 @@ begin
     raise exception 'SM-1 FAILED: inbound watermark not captured, so a reply '
       'arriving before fire time could never be noticed';
   end if;
-  if v_row.status <> 'pending' then
+  if v_row.status is distinct from 'pending' then
     raise exception 'SM-1 FAILED: expected pending, got %', v_row.status;
   end if;
 
@@ -143,7 +143,7 @@ begin
     'yesterday', now() - interval '1 minute',
     'America/New_York', 'contact', now() + interval '1 day');
 
-  if v_past->>'outcome' <> 'in_the_past' then
+  if v_past->>'outcome' is distinct from 'in_the_past' then
     raise exception 'SM-2 FAILED: a past send_at was accepted (%)', v_past;
   end if;
 
@@ -154,10 +154,10 @@ begin
     'in two years', now() + interval '2 years',
     'America/New_York', 'contact', now() + interval '2 years');
 
-  if v_far->>'outcome' <> 'too_far_out' then
+  if v_far->>'outcome' is distinct from 'too_far_out' then
     raise exception 'SM-2 FAILED: a send two years out was accepted (%)', v_far;
   end if;
-  if (v_far->>'limit_days')::int <> 90 then
+  if (v_far->>'limit_days')::int is distinct from 90 then
     raise exception 'SM-2 FAILED: the horizon was not reported to the caller';
   end if;
 
@@ -181,7 +181,7 @@ begin
     'wrong tenant', now() + interval '1 hour',
     'America/New_York', 'company', now() + interval '2 days');
 
-  if v_res->>'outcome' <> 'not_found' then
+  if v_res->>'outcome' is distinct from 'not_found' then
     raise exception 'SM-3 FAILED: scheduled into another tenant''s thread (%)',
       v_res;
   end if;
@@ -221,7 +221,7 @@ begin
   -- A second worker in the same window gets nothing.
   v_second := public.api_claim_due_scheduled_messages(
     now() + interval '90 minutes', 10, 300);
-  if jsonb_array_length(v_second) <> 0 then
+  if jsonb_array_length(v_second) is distinct from 0 then
     raise exception 'SM-4 FAILED: a second worker claimed a leased row — that '
       'is the same text sent to the customer twice';
   end if;
@@ -259,30 +259,30 @@ begin
   )->'scheduled_message'->>'id')::uuid;
 
   v_fired := public.api_fire_scheduled_message(v_id, 1);
-  if v_fired->>'outcome' <> 'fired' then
+  if v_fired->>'outcome' is distinct from 'fired' then
     raise exception 'SM-5 FAILED: expected fired, got %', v_fired->>'outcome';
   end if;
 
   select * into v_message from public.messages
    where id = (v_fired->'message'->>'id')::uuid;
 
-  if v_message.direction <> 'outbound' or v_message.status <> 'queued' then
+  if v_message.direction is distinct from 'outbound' or v_message.status is distinct from 'queued' then
     raise exception 'SM-5 FAILED: the message must land queued+outbound so the '
       '#411 interrupted-send retry owns the crash window (got % / %)',
       v_message.direction, v_message.status;
   end if;
-  if v_message.body <> 'the quote is 400' then
+  if v_message.body is distinct from 'the quote is 400' then
     raise exception 'SM-5 FAILED: the body did not survive to the message';
   end if;
 
   select * into v_row from public.scheduled_messages where id = v_id;
-  if v_row.status <> 'sent' or v_row.sent_message_id <> v_message.id then
+  if v_row.status is distinct from 'sent' or v_row.sent_message_id is distinct from v_message.id then
     raise exception 'SM-5 FAILED: the intent was not closed against the message';
   end if;
 
   -- A replayed job tick must not send it again.
   v_again := public.api_fire_scheduled_message(v_id, 1);
-  if v_again->>'outcome' <> 'gone' then
+  if v_again->>'outcome' is distinct from 'gone' then
     raise exception 'SM-5 FAILED: fired twice — the customer gets it twice';
   end if;
 
@@ -320,18 +320,18 @@ begin
     v_id,
     '5d000000-0000-4000-8000-0000000000c1'::uuid,
     '5d000000-0000-4000-8000-00000000000a'::uuid);
-  if v_cancel->>'outcome' <> 'canceled' then
+  if v_cancel->>'outcome' is distinct from 'canceled' then
     raise exception 'SM-6 FAILED: cancel did not take';
   end if;
 
   v_fired := public.api_fire_scheduled_message(v_id, 1);
-  if v_fired->>'outcome' <> 'gone' then
+  if v_fired->>'outcome' is distinct from 'gone' then
     raise exception 'SM-6 FAILED: a cancelled message fired anyway (%)', v_fired;
   end if;
 
   select count(*) into v_after from public.messages
    where conversation_id = '5d000000-0000-4000-8000-0000000000e1'::uuid;
-  if v_after <> v_before then
+  if v_after is distinct from v_before then
     raise exception 'SM-6 FAILED: a message row was written for a cancelled send';
   end if;
 
@@ -362,7 +362,7 @@ begin
 
   v_held := public.api_hold_scheduled_message(
     v_id, 'your subscription is paused, so we did not send this yet');
-  if v_held->>'outcome' <> 'held' then
+  if v_held->>'outcome' is distinct from 'held' then
     raise exception 'SM-7 FAILED: hold did not take';
   end if;
 
@@ -418,7 +418,7 @@ begin
   -- COUNT fails with the reason rather than with "cannot extract elements from
   -- an object" eight frames down. A count satisfies rule 3 and makes rule 2
   -- impossible, which is exactly the plausible half-implementation.
-  if jsonb_typeof(v_expired) <> 'array' then
+  if jsonb_typeof(v_expired) is distinct from 'array' then
     raise exception 'SM-8 FAILED: the sweep returned % rather than the rows. '
       'A count expires the work and leaves nobody able to say WHICH message is '
       'not going, which is the silent disappearance docs/DECISIONS.md rules out',
@@ -433,7 +433,7 @@ begin
   end if;
 
   select * into v_row from public.scheduled_messages where id = v_id;
-  if v_row.status <> 'expired' then
+  if v_row.status is distinct from 'expired' then
     raise exception 'SM-8 FAILED: expected expired, got %', v_row.status;
   end if;
   if v_row.held_reason is null then
@@ -474,7 +474,7 @@ begin
   end if;
 
   select * into v_row from public.scheduled_messages where id = v_id;
-  if v_row.status <> 'canceled' or v_row.held_reason is null then
+  if v_row.status is distinct from 'canceled' or v_row.held_reason is null then
     raise exception 'SM-9 FAILED: cancelled without notice (% / %)',
       v_row.status, v_row.held_reason;
   end if;
@@ -542,10 +542,10 @@ begin
     'one too many', now() + interval '1 hour',
     'America/New_York', 'contact', now() + interval '5 days');
 
-  if v_res->>'outcome' <> 'thread_cap' then
+  if v_res->>'outcome' is distinct from 'thread_cap' then
     raise exception 'SM-11 FAILED: the per-thread cap did not hold (%)', v_res;
   end if;
-  if (v_res->>'limit')::int <> 20 then
+  if (v_res->>'limit')::int is distinct from 20 then
     raise exception 'SM-11 FAILED: the cap was not reported to the caller';
   end if;
 

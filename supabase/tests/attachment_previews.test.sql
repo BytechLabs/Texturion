@@ -68,7 +68,7 @@ begin
   -- to, so neither may under-count.
   -- ==========================================================================
   v := public.api_storage_usage(v_co);
-  if (v ->> 'attachments_bytes')::bigint <> 20971520 + 184320 then
+  if (v ->> 'attachments_bytes')::bigint is distinct from 20971520 + 184320 then
     raise exception 'the preview must be counted as stored: %', v;
   end if;
 
@@ -88,7 +88,7 @@ begin
   returning id into v_a2;
 
   v := public.api_storage_usage(v_co);
-  if (v ->> 'attachments_bytes')::bigint <> 20971520 + 184320 + 90000 then
+  if (v ->> 'attachments_bytes')::bigint is distinct from 20971520 + 184320 + 90000 then
     raise exception 'a null original size must not lose the preview: %', v;
   end if;
 
@@ -109,25 +109,25 @@ begin
           'ab/preview-3.jpg', 45000);
 
   v := public.api_storage_usage('ab000000-0000-4000-8000-0000000000c2'::uuid);
-  if (v ->> 'attachments_bytes')::bigint <> 45000 then
+  if (v ->> 'attachments_bytes')::bigint is distinct from 45000 then
     raise exception
       'a workspace whose originals are all unsized still stores its previews: %',
       v;
   end if;
   if (select stored_bytes from public.api_storage_fleet(30, 200)
-       where company_id = 'ab000000-0000-4000-8000-0000000000c2'::uuid) <> 45000 then
+       where company_id = 'ab000000-0000-4000-8000-0000000000c2'::uuid) is distinct from 45000 then
     raise exception 'the fleet report loses the same bytes';
   end if;
 
   -- The fleet report reads the same rows and must agree with the per-company
   -- number, or the two surfaces tell an owner and ops different things.
   if (select stored_bytes from public.api_storage_fleet(30, 200)
-       where company_id = v_co) <> 20971520 + 184320 + 90000 then
+       where company_id = v_co) is distinct from 20971520 + 184320 + 90000 then
     raise exception 'the fleet report disagrees with the company usage read';
   end if;
   -- Added-in-window is the same rows, so it carries the previews too.
   if (select added_bytes from public.api_storage_fleet(30, 200)
-       where company_id = v_co) <> 20971520 + 184320 + 90000 then
+       where company_id = v_co) is distinct from 20971520 + 184320 + 90000 then
     raise exception 'the growth figure must count previews too';
   end if;
 
@@ -136,7 +136,7 @@ begin
   -- ==========================================================================
   update public.attachments set deleted_at = now() where id = v_a2;
   v := public.api_storage_usage(v_co);
-  if (v ->> 'attachments_bytes')::bigint <> 20971520 + 184320 then
+  if (v ->> 'attachments_bytes')::bigint is distinct from 20971520 + 184320 then
     raise exception 'a deleted row must take its preview with it: %', v;
   end if;
 
@@ -216,7 +216,7 @@ begin
 
   -- A second upload of the same bytes finds the first.
   v := public.api_attachment_by_content(v_co, repeat('a', 64));
-  if v ->> 'storage_path' <> 'ab/shared.pdf' then
+  if v ->> 'storage_path' is distinct from 'ab/shared.pdf' then
     raise exception 'the twin must be found: %', v;
   end if;
 

@@ -15,7 +15,12 @@
  *
  * E.164 normalization and per-row consent/upsert are the ROUTE's job — this
  * parser only extracts raw name + raw TEL strings, one entry per distinct TEL.
+ *
+ * #248 round 3: it also enumerates everything it did NOT read, because the
+ * route can only demand a declaration for what the parser told it about. See
+ * `properties` below.
  */
+import { vcardParameterProperty } from "@loonext/shared";
 
 /** One card's extracted data: a display name and its raw TEL strings. */
 export interface ParsedVCard {
@@ -23,6 +28,24 @@ export interface ParsedVCard {
   name: string | null;
   /** Raw TEL values, de-duplicated within the card, in document order. */
   tels: string[];
+  /**
+   * #248 round 3: every property this card carried, upper-cased, once each —
+   * INCLUDING the ones below that this parser reads, and including each
+   * PARAMETER as `<PROPERTY>;<PARAM>` (see `vcardParameterProperty`) and each
+   * line that carries no value at all.
+   *
+   * The vCard door had no gate of any kind: `CATEGORIES:DNC` and a `NOTE`
+   * saying they asked us to stop are the only two places the format lets a
+   * card say do-not-text, they are what Apple and Google actually export, and
+   * both were dropped here without a word while the file's consent attestation
+   * was written over the top.
+   *
+   * Reported by the PARSER rather than guessed at by the route, because the
+   * route cannot see what it was never told about — which is the whole shape of
+   * the defect. A property nobody has thought of yet is in this list on the day
+   * it first appears.
+   */
+  properties: string[];
 }
 
 /** Unfold RFC-folded lines: a line starting with SPACE or TAB continues prior. */
@@ -48,9 +71,30 @@ function unfold(text: string): string[] {
  */
 interface ContentLine {
   name: string;
-  value: string;
+  /** Parameter names, upper-cased, once each, in document order. */
+  params: string[];
+  /** Text after the first unquoted colon — null when the line has none. */
+  value: string | null;
 }
 
+/**
+ * #248 round 3: A LINE WITH NO VALUE IS STILL A LINE SOMEBODY WROTE.
+ *
+ * This used to return null the moment it could not find an unquoted colon, and
+ * `properties.add` ran after it — so two shapes were dropped before the gate
+ * could ask about them, and a message was delivered through each:
+ *
+ *   `DO-NOT-CALL` on its own line. Not a content line by the RFC, which is a
+ *   statement about the format and not about what the file was trying to say.
+ *
+ *   `CATEGORIES;TYPE="a:DNC` — an unbalanced quote in a parameter, so the only
+ *   colon on the line reads as quoted and there is no value. The property is
+ *   CATEGORIES, one of the two places a .vcf can say do-not-text, and it went
+ *   unasked because of a typo in a parameter.
+ *
+ * So the name is parsed whether or not a value follows, and `value: null` says
+ * there was nothing to read — only something to declare.
+ */
 function parseContentLine(line: string): ContentLine | null {
   // Find the first unquoted colon.
   let colon = -1;
@@ -63,19 +107,32 @@ function parseContentLine(line: string): ContentLine | null {
       break;
     }
   }
-  if (colon === -1) return null;
 
-  const namePart = line.slice(0, colon);
-  const value = line.slice(colon + 1);
+  const namePart = colon === -1 ? line : line.slice(0, colon);
+  const value = colon === -1 ? null : line.slice(colon + 1);
 
-  // name;PARAM=x;PARAM2=y → property name is the segment before the first ';'.
-  const semi = namePart.indexOf(";");
-  let propName = (semi === -1 ? namePart : namePart.slice(0, semi)).trim();
+  // name;PARAM=x;PARAM2=y → the property is the segment before the first ';',
+  // and each segment after it is a PARAMETER this parser does not read.
+  const segments = namePart.split(";");
+  let propName = (segments[0] ?? "").trim();
   // Strip a group prefix ("item1.TEL" / "GROUP.FN" → "TEL" / "FN").
   const dot = propName.lastIndexOf(".");
   if (dot !== -1) propName = propName.slice(dot + 1);
+  if (propName === "") return null;
 
-  return { name: propName.toUpperCase(), value };
+  const params: string[] = [];
+  for (const segment of segments.slice(1)) {
+    // `TYPE=CELL` → TYPE; a valueless `PREF` is its own name. Everything to the
+    // RIGHT of the `=` is the free text nobody read, and it is the reason the
+    // parameter has to be declared at all.
+    const equals = segment.indexOf("=");
+    const param = (equals === -1 ? segment : segment.slice(0, equals))
+      .trim()
+      .toUpperCase();
+    if (param !== "" && !params.includes(param)) params.push(param);
+  }
+
+  return { name: propName.toUpperCase(), params, value };
 }
 
 /** Unescape RFC text-value escapes for FN/N (\\ \, \; \n). */
@@ -120,14 +177,16 @@ export function parseVCards(text: string): ParsedVCard[] {
   let fn: string | null = null;
   let nName: string | null = null;
   let tels: string[] = [];
+  let properties = new Set<string>();
 
   const flush = () => {
     if (!inCard) return;
-    cards.push({ name: fn ?? nName, tels });
+    cards.push({ name: fn ?? nName, tels, properties: [...properties] });
     inCard = false;
     fn = null;
     nName = null;
     tels = [];
+    properties = new Set<string>();
   };
 
   for (const line of lines) {
@@ -146,6 +205,23 @@ export function parseVCards(text: string): ParsedVCard[] {
 
     const parsed = parseContentLine(line);
     if (!parsed) continue;
+    // #248: recorded BEFORE the three branches below, so a property is in the
+    // list whether or not this parser has an opinion about it. Recording it
+    // inside the branches would report exactly the properties we already read,
+    // which is the one thing that tells the route nothing.
+    properties.add(parsed.name);
+    // #248 round 3: AND ITS PARAMETERS. `TEL;TYPE=CELL;X-ABLabel=DO NOT
+    // CALL:+1613…` is Apple's inline shape — the property is TEL, TEL is
+    // mapped, and everything after the first `;` was discarded, so the one
+    // sentence on the line saying not to text this person was the one part
+    // nobody looked at. The grouped `item1.X-ABLabel:` form was always caught,
+    // which is precisely what made this one look covered.
+    for (const param of parsed.params) {
+      properties.add(vcardParameterProperty(parsed.name, param));
+    }
+    // Nothing to read, only to declare: the name and its parameters are on the
+    // list above, and the branches below all want a value.
+    if (parsed.value === null) continue;
     if (parsed.name === "FN") {
       const name = unescapeText(parsed.value);
       if (name !== "") fn = name;

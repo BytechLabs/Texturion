@@ -109,7 +109,7 @@ begin
      'fa000000-0000-4000-8000-0000000000c1',
      'fa000000-0000-4000-8000-0000000000d1'
    );
-  if companies <> 3 then
+  if companies is distinct from 3 then
     raise exception
       'GF-2 FAILED: only % of 3 workspaces got a seat in one run', companies;
   end if;
@@ -154,7 +154,7 @@ begin
    )
    order by q.ord
    limit 1;
-  if first_company <> 'fa000000-0000-4000-8000-0000000000c1' then
+  if first_company is distinct from 'fa000000-0000-4000-8000-0000000000c1' then
     raise exception 'GF-3 FAILED: the fewest-pending company was not first (got %)',
       first_company;
   end if;
@@ -183,7 +183,7 @@ begin
      and c.address is not null
      and c.geocode_status in ('pending', 'failed');
 
-  if queue_total <> cron_total then
+  if queue_total is distinct from cron_total then
     raise exception
       'GF-4 FAILED: the queue sees % rows, the cron predicate sees %',
       queue_total, cron_total;
@@ -202,7 +202,7 @@ begin
           '2 Done Street', 'ok');
 
   if (select count(*) from public.api_geocode_contact_queue(10000, 10000))
-     <> queue_total then
+     is distinct from queue_total then
     raise exception
       'GF-4 FAILED: a deleted, addressless, or already-located row entered the queue';
   end if;
@@ -224,13 +224,13 @@ begin
 
   -- NEW has 20 pending, 1 located ('ok'), 1 with no address. The soft-deleted row
   -- counts nowhere.
-  if (progress ->> 'contacts_pending')::int <> 20 then
+  if (progress ->> 'contacts_pending')::int is distinct from 20 then
     raise exception 'GF-5 FAILED: pending = % (want 20)', progress ->> 'contacts_pending';
   end if;
-  if (progress ->> 'contacts_located')::int <> 1 then
+  if (progress ->> 'contacts_located')::int is distinct from 1 then
     raise exception 'GF-5 FAILED: located = % (want 1)', progress ->> 'contacts_located';
   end if;
-  if (progress ->> 'contacts_without_address')::int <> 1 then
+  if (progress ->> 'contacts_without_address')::int is distinct from 1 then
     raise exception 'GF-5 FAILED: without_address = % (want 1)',
       progress ->> 'contacts_without_address';
   end if;

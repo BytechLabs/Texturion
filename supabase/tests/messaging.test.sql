@@ -79,15 +79,15 @@ begin
 
   select * into v_conv from public.conversations
    where id = (res->>'conversation_id')::uuid;
-  if v_conv.status <> 'new' or v_conv.closed_at is not null
-     or v_conv.contact_id <> v_contact.id then
+  if v_conv.status is distinct from 'new' or v_conv.closed_at is not null
+     or v_conv.contact_id is distinct from v_contact.id then
     raise exception 'M1 FAILED: conversation not created as open/new';
   end if;
 
   select * into v_msg from public.messages where id = (res->>'message_id')::uuid;
-  if v_msg.direction <> 'inbound' or v_msg.status <> 'received'
-     or v_msg.telnyx_message_id <> 'tx-m1-1'
-     or v_msg.body <> 'Hi, do you do gutters?' then
+  if v_msg.direction is distinct from 'inbound' or v_msg.status is distinct from 'received'
+     or v_msg.telnyx_message_id is distinct from 'tx-m1-1'
+     or v_msg.body is distinct from 'Hi, do you do gutters?' then
     raise exception 'M1 FAILED: message row wrong';
   end if;
   raise notice 'M1 PASSED: rule 5 creates contact + new conversation + message';
@@ -118,15 +118,15 @@ begin
     '30000000-0000-4000-8000-000000000001',
     '+16135551000', 'Second message', 'tx-m2-1');
 
-  if (res->>'conversation_id')::uuid <> v_conv_id then
+  if (res->>'conversation_id')::uuid is distinct from v_conv_id then
     raise exception 'M2 FAILED: appended to a different conversation';
   end if;
   select count(*) into v_count from public.messages where conversation_id = v_conv_id;
-  if v_count <> 2 then
+  if v_count is distinct from 2 then
     raise exception 'M2 FAILED: expected 2 messages, found %', v_count;
   end if;
   select last_message_at into v_lma from public.conversations where id = v_conv_id;
-  if v_lma <> now() then
+  if v_lma is distinct from now() then
     raise exception 'M2 FAILED: last_message_at not bumped (%)', v_lma;
   end if;
   raise notice 'M2 PASSED: rule 2 appends to the open conversation and bumps last_message_at';
@@ -153,10 +153,10 @@ begin
     '+16135551000', 'Are you there?', 'tx-m3-1');
 
   select status into v_status from public.conversations where id = v_conv_id;
-  if v_status <> 'open' then
+  if v_status is distinct from 'open' then
     raise exception 'M3 FAILED: waiting conversation not flipped to open (status=%)', v_status;
   end if;
-  if (res->>'conversation_id')::uuid <> v_conv_id then
+  if (res->>'conversation_id')::uuid is distinct from v_conv_id then
     raise exception 'M3 FAILED: message went to a different conversation';
   end if;
   raise notice 'M3 PASSED: inbound flips waiting -> open';
@@ -187,11 +187,11 @@ begin
   if (res2->>'created')::boolean then
     raise exception 'M4 FAILED: duplicate delivery reported created=true';
   end if;
-  if (res1->>'message_id') <> (res2->>'message_id') then
+  if (res1->>'message_id') is distinct from (res2->>'message_id') then
     raise exception 'M4 FAILED: duplicate delivery produced a different message id';
   end if;
   select count(*) into v_count from public.messages where telnyx_message_id = 'tx-m4-1';
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception 'M4 FAILED: % rows for one telnyx_message_id', v_count;
   end if;
 
@@ -211,11 +211,11 @@ begin
     raise exception 'M4 FAILED: pre-inserted telnyx id reported created=true';
   end if;
   select count(*) into v_count from public.messages where telnyx_message_id = 'tx-m4-2';
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception 'M4 FAILED: raced insert duplicated the message';
   end if;
   select last_message_at into v_lma from public.conversations where id = v_conv_id;
-  if v_lma <> now() - interval '2 hours' then
+  if v_lma is distinct from now() - interval '2 hours' then
     raise exception 'M4 FAILED: duplicate delivery bumped last_message_at';
   end if;
   raise notice 'M4 PASSED: duplicate telnyx_message_id -> one message, created=false, no re-bump';
@@ -244,11 +244,11 @@ begin
     '30000000-0000-4000-8000-000000000001',
     '+16135551000', 'CLICK THIS LINK', 'tx-m5-1');
 
-  if (res->>'conversation_id')::uuid <> v_conv_id then
+  if (res->>'conversation_id')::uuid is distinct from v_conv_id then
     raise exception 'M5 FAILED: spam inbound did not absorb into the spam conversation';
   end if;
   select * into v_conv from public.conversations where id = v_conv_id;
-  if v_conv.status <> 'closed' or v_conv.closed_at is null or not v_conv.is_spam then
+  if v_conv.status is distinct from 'closed' or v_conv.closed_at is null or not v_conv.is_spam then
     raise exception 'M5 FAILED: spam conversation did not stay closed+spam';
   end if;
   raise notice 'M5 PASSED: rule 3 spam absorb (stays closed, stays spam)';
@@ -279,11 +279,11 @@ begin
     '30000000-0000-4000-8000-000000000001',
     '+16135551000', 'Following up!', 'tx-m6-1');
 
-  if (res->>'conversation_id')::uuid <> v_conv_id then
+  if (res->>'conversation_id')::uuid is distinct from v_conv_id then
     raise exception 'M6 FAILED: inbound within 30 days did not reopen the closed conversation';
   end if;
   select * into v_conv from public.conversations where id = v_conv_id;
-  if v_conv.status <> 'new' or v_conv.closed_at is not null then
+  if v_conv.status is distinct from 'new' or v_conv.closed_at is not null then
     raise exception 'M6 FAILED: reopened conversation not status=new/closed_at=null';
   end if;
   raise notice 'M6 PASSED: rule 4 reopens a conversation closed within 30 days';
@@ -318,7 +318,7 @@ begin
   end if;
   select * into v_new_conv from public.conversations
    where id = (res->>'conversation_id')::uuid;
-  if v_new_conv.status <> 'new' or v_new_conv.closed_at is not null then
+  if v_new_conv.status is distinct from 'new' or v_new_conv.closed_at is not null then
     raise exception 'M7 FAILED: new conversation not open/new';
   end if;
   raise notice 'M7 PASSED: rule 5 creates a new conversation after the 30-day window';
@@ -469,13 +469,13 @@ begin
     raise exception 'G1 FAILED: fresh send reported existing=true';
   end if;
   select * into v_msg from public.messages where id = (res#>>'{message,id}')::uuid;
-  if v_msg.direction <> 'outbound' or v_msg.status <> 'queued'
-     or v_msg.segments <> 1 or v_msg.idempotency_key <> 'idem-g1-1'
-     or v_msg.sent_by_user_id <> '10000000-0000-4000-8000-000000000001' then
+  if v_msg.direction is distinct from 'outbound' or v_msg.status is distinct from 'queued'
+     or v_msg.segments is distinct from 1 or v_msg.idempotency_key is distinct from 'idem-g1-1'
+     or v_msg.sent_by_user_id is distinct from '10000000-0000-4000-8000-000000000001' then
     raise exception 'G1 FAILED: queued message row wrong';
   end if;
   if (select last_message_at from public.conversations
-       where id = '50000000-0000-4000-8000-000000000001') <> now() then
+       where id = '50000000-0000-4000-8000-000000000001') is distinct from now() then
     raise exception 'G1 FAILED: last_message_at not bumped by outbound send';
   end if;
   raise notice 'G1 PASSED: valid send inserts the queued row atomically';
@@ -504,13 +504,13 @@ begin
   if not (res2->>'existing')::boolean then
     raise exception 'G2 FAILED: duplicate key not reported existing=true';
   end if;
-  if (res1#>>'{message,id}') <> (res2#>>'{message,id}') then
+  if (res1#>>'{message,id}') is distinct from (res2#>>'{message,id}') then
     raise exception 'G2 FAILED: duplicate key returned a different row';
   end if;
   select count(*) into v_count from public.messages
    where company_id = '20000000-0000-4000-8000-000000000001'
      and idempotency_key = 'idem-g2-1';
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception 'G2 FAILED: % rows for one idempotency key', v_count;
   end if;
   raise notice 'G2 PASSED: duplicate idempotency key returns the existing row';
@@ -534,7 +534,7 @@ begin
   end if;
   select count(*) into v_count from public.messages
    where company_id = '20000000-0000-4000-8000-000000000002';
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception 'G3 FAILED: message inserted despite rejection';
   end if;
   raise notice 'G3 PASSED: past_due company rejected with subscription_inactive';
@@ -719,7 +719,7 @@ begin
   end if;
 
   select * into v_msg from public.messages where id = v_id;
-  if v_msg.status <> 'queued'
+  if v_msg.status is distinct from 'queued'
      or v_msg.error_code is not null or v_msg.error_detail is not null then
     raise exception 'R1 FAILED: row not requeued cleanly (status %, code %)',
       v_msg.status, v_msg.error_code;
@@ -819,7 +819,7 @@ begin
   end if;
 
   select * into v_msg from public.messages where id = v_id;
-  if v_msg.status <> 'queued' or v_msg.error_code is not null then
+  if v_msg.status is distinct from 'queued' or v_msg.error_code is not null then
     raise exception 'R3 FAILED: stuck row not requeued cleanly (status %, code %)',
       v_msg.status, v_msg.error_code;
   end if;
@@ -855,7 +855,7 @@ begin
   end if;
 
   select * into v_msg from public.messages where id = v_id;
-  if v_msg.status <> 'failed' or v_msg.error_code is distinct from 'send_interrupted' then
+  if v_msg.status is distinct from 'failed' or v_msg.error_code is distinct from 'send_interrupted' then
     raise exception 'R4 FAILED: rejected stuck row not failed out (status %, code %)',
       v_msg.status, v_msg.error_code;
   end if;
@@ -889,7 +889,7 @@ begin
   end if;
 
   select * into v_msg from public.messages where id = v_id;
-  if v_msg.status <> 'failed' or v_msg.error_detail is distinct from 'network error' then
+  if v_msg.status is distinct from 'failed' or v_msg.error_detail is distinct from 'network error' then
     raise exception 'R5 FAILED: rejected failed row was modified (status %, detail %)',
       v_msg.status, v_msg.error_detail;
   end if;
@@ -987,12 +987,12 @@ begin
   returning id into v_dispatched;
 
   v_count := public.fail_stuck_outbound_sends(900);
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception 'R7 FAILED: expected exactly 1 flipped row, got %', v_count;
   end if;
 
   select * into v_msg from public.messages where id = v_stuck;
-  if v_msg.status <> 'failed'
+  if v_msg.status is distinct from 'failed'
      or v_msg.error_code is distinct from 'send_interrupted'
      or v_msg.error_detail is null then
     raise exception 'R7 FAILED: stuck row not failed out (status %, code %)',
@@ -1009,7 +1009,7 @@ begin
 
   -- Idempotent: a second sweep finds nothing left to flip.
   v_count := public.fail_stuck_outbound_sends(900);
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception 'R7 FAILED: second sweep flipped % rows (want 0)', v_count;
   end if;
 
@@ -1028,7 +1028,7 @@ begin
   from information_schema.columns
   where table_schema='public' and table_name='webhook_events' and column_name='claimed_at';
   if c_type is null then raise exception 'R8 FAILED: webhook_events.claimed_at missing'; end if;
-  if c_type <> 'timestamp with time zone' then
+  if c_type is distinct from 'timestamp with time zone' then
     raise exception 'R8 FAILED: claimed_at is % (want timestamptz)', c_type;
   end if;
   if not c_null then raise exception 'R8 FAILED: claimed_at must be NULLable'; end if;
@@ -1110,7 +1110,7 @@ begin
   -- to choose which sentence the crew reads.
   select payload->>'reason' into v_reason
   from public.conversation_events where id = v_id;
-  if v_reason <> 'type_mismatch' then
+  if v_reason is distinct from 'type_mismatch' then
     raise exception 'R9 FAILED: reason round-tripped as % (want type_mismatch)', v_reason;
   end if;
 

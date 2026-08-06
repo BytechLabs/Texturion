@@ -78,20 +78,20 @@ declare
   v jsonb;
 begin
   v := public.account_deletion_preview(v_owner);
-  if v->>'blocked_by' <> 'owner' then
+  if v->>'blocked_by' is distinct from 'owner' then
     raise exception 'DA-1 FAILED: an owner was not blocked: %', v;
   end if;
-  if jsonb_array_length(v->'owned') <> 1
-     or (v->'owned'->0->>'name') <> 'Account Co' then
+  if jsonb_array_length(v->'owned') is distinct from 1
+     or (v->'owned'->0->>'name') is distinct from 'Account Co' then
     raise exception 'DA-1 FAILED: the blocked preview did not name the workspace: %', v;
   end if;
 
   -- And the deletion itself refuses too, not just the preview.
   v := public.delete_account(v_owner);
-  if v->>'outcome' <> 'owner' then
+  if v->>'outcome' is distinct from 'owner' then
     raise exception 'DA-1 FAILED: delete_account let an owner through: %', v;
   end if;
-  if (select display_name from public.profiles where user_id = v_owner) <> 'Dana Owner' then
+  if (select display_name from public.profiles where user_id = v_owner) is distinct from 'Dana Owner' then
     raise exception 'DA-1 FAILED: a refused deletion still stripped the profile';
   end if;
 
@@ -112,10 +112,10 @@ begin
   if v->>'blocked_by' is not null then
     raise exception 'DA-2 FAILED: a plain member was blocked: %', v;
   end if;
-  if (v->>'memberships')::int <> 1 then
+  if (v->>'memberships')::int is distinct from 1 then
     raise exception 'DA-2 FAILED: memberships = % (want 1)', v;
   end if;
-  if (v->>'conversations')::int <> 1 then
+  if (v->>'conversations')::int is distinct from 1 then
     raise exception 'DA-2 FAILED: open conversations = % (want 1)', v;
   end if;
   raise notice 'DA-2 PASSED: the preview reports what deleting would touch';
@@ -133,7 +133,7 @@ declare
   v_name text;
 begin
   v := public.delete_account(v_tech);
-  if v->>'outcome' <> 'deleted' then
+  if v->>'outcome' is distinct from 'deleted' then
     raise exception 'DA-3 FAILED: outcome %', v;
   end if;
 
@@ -143,7 +143,7 @@ begin
   if v_name is null then
     raise exception 'DA-3 FAILED: the profile row was removed, breaking attribution';
   end if;
-  if v_name <> '' then
+  if v_name is distinct from '' then
     raise exception 'DA-3 FAILED: the display name survived as %', v_name;
   end if;
 
@@ -174,10 +174,10 @@ declare
   v jsonb;
 begin
   v := public.delete_account(v_tech);
-  if v->>'outcome' <> 'deleted' then
+  if v->>'outcome' is distinct from 'deleted' then
     raise exception 'DA-4 FAILED: a repeat deletion returned %', v;
   end if;
-  if (v->>'personal_rows')::int <> 0 then
+  if (v->>'personal_rows')::int is distinct from 0 then
     raise exception 'DA-4 FAILED: a repeat deletion removed % rows', v;
   end if;
   raise notice 'DA-4 PASSED: deleting twice is a safe no-op';

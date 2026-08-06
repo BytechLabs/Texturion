@@ -129,7 +129,7 @@ begin
   end if;
 
   first_row := result->0;
-  if first_row->>'conversation_id' <> 'd1000000-0000-4000-8000-000000000042' then
+  if first_row->>'conversation_id' is distinct from 'd1000000-0000-4000-8000-000000000042' then
     raise exception 'SR-2 FAILED: the strongest signal did not sort first (got %)',
       first_row->>'conversation_id';
   end if;
@@ -224,7 +224,7 @@ begin
   result := public.api_spam_review(
     'd1000000-0000-4000-8000-000000000010', 20,
     array['d1000000-0000-4000-8000-000000000020']::uuid[]);
-  if jsonb_array_length(result) <> 0 then
+  if jsonb_array_length(result) is distinct from 0 then
     raise exception 'SR-5 FAILED: hidden-number threads leaked into the review strip';
   end if;
   raise notice 'SR-5 PASSED: hidden numbers stay hidden here too';

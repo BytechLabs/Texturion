@@ -28,7 +28,7 @@ declare
 begin
   -- Unset means the D77 default, and the caller is told the number rather than
   -- having to know that NULL means seven years.
-  if public.effective_retention_days('cb000000-0000-4000-8000-0000000000c1'::uuid) <> 2555 then
+  if public.effective_retention_days('cb000000-0000-4000-8000-0000000000c1'::uuid) is distinct from 2555 then
     raise exception 'an unset workspace must resolve to the D77 default';
   end if;
 
@@ -36,7 +36,7 @@ begin
   v_result := public.api_set_retention(
     'cb000000-0000-4000-8000-0000000000c1'::uuid, 365, null
   );
-  if (v_result->>'retention_days')::int <> 365 then
+  if (v_result->>'retention_days')::int is distinct from 365 then
     raise exception 'shortening did not take: %', v_result::text;
   end if;
   if (v_result->>'is_default')::boolean then
@@ -71,7 +71,7 @@ begin
     'cb000000-0000-4000-8000-0000000000c1'::uuid, null, null
   );
   if not (v_result->>'is_default')::boolean
-     or (v_result->>'retention_days')::int <> 2555 then
+     or (v_result->>'retention_days')::int is distinct from 2555 then
     raise exception 'clearing must return to the D77 default: %', v_result::text;
   end if;
 end $$;
