@@ -323,57 +323,160 @@ function renderCard(overrides: Partial<CompanyView> = {}): HTMLElement {
 }
 
 /**
- * The way out, checked the way a person meets it rather than the way the DOM
- * reports it.
+ * #524 — what happy-dom actually does with a click, measured rather than
+ * assumed.
  *
- * `expect(leave.hasAttribute("disabled")).toBe(false)` is the obvious check and
- * it is not enough. happy-dom applies NO CSS, so
- * `className={pause.isPending ? "pointer-events-none opacity-50" : undefined}`
- * on this button leaves it enabled, visible, un-hidden and perfectly clickable
- * by `fireEvent` — while a real person cannot press it for the whole cold-start
- * read. Every one of the 83 tests in this file passed with that edit in place.
+ * Every line below was established by rendering the shape and reading the
+ * result, because the previous version of this guard was built on a claim that
+ * turned out to be half wrong ("happy-dom applies NO CSS" — it computes CSS
+ * perfectly well; what it does not do is gate event dispatch on it).
  *
- * It is not a contrived mutation either: `pointer-events-none` appears in five
- * places under `apps/web/src`, and every shadcn button in the tree ships
- * `disabled:pointer-events-none` in its own class list (`call-bar.test.tsx`
- * documents that pattern), so reaching for the unprefixed token is one
- * keystroke away from a pattern already in the file being edited.
+ *   disabled                    HONOURED. `fireEvent.click` on a disabled
+ *                               button does not reach the handler. This is the
+ *                               ONLY mechanism in the list that the press
+ *                               catches on its own.
+ *   style={{pointerEvents}}     IGNORED at dispatch. `getComputedStyle` reports
+ *                               "none", and the click still fires.
+ *   .pointer-events-none        IGNORED at dispatch, and invisible to
+ *   (a Tailwind class)          `getComputedStyle` as well — no Tailwind sheet
+ *                               is loaded in this environment, so the token
+ *                               resolves to nothing. (A rule in a real `<style>`
+ *                               element IS resolved; Tailwind's is not there.)
+ *   inert                       IGNORED entirely. React 19 renders `inert=""`,
+ *                               happy-dom parses it onto `.inert`, the click
+ *                               fires, and `getByRole` still finds the button.
+ *   a covering sibling          IMPOSSIBLE TO SEE. There is no layout:
+ *                               `getBoundingClientRect()` is 0×0 for every
+ *                               element and `document.elementFromPoint` is not
+ *                               implemented at all, so no hit test exists.
  *
- * THE TOKEN, NOT THE SUBSTRING, and up the whole ancestor chain. A
- * `toContain("pointer-events-none")` check would read true for every button
- * here — that `disabled:` variant is inert until the button really IS disabled,
- * which is asserted separately on the line above — and a wrapper carrying the
- * class kills the child just as dead as the child carrying it.
- *
- * Opacity is deliberately not checked. A dim exit is a styling argument; an
- * exit that cannot be pressed is the rule this whole card exists to keep.
- *
- * #524: AND THIS LIST CAN ALWAYS BE ADDED TO, which is why it is no longer the
- * whole guarantee. `inert` on a wrapper, `style={{ pointerEvents: "none" }}` and
- * a covering sibling all walk past everything above, and each was applied to the
- * shipped tree and watched this suite stay green. What catches the mechanism
- * nobody has thought of yet is the property rather than the list — see
- * "#524 the exit renders the same whatever the pause read says" at the bottom of
- * this file, and `exit-path.test.ts` beside it. This function stays because the
- * three shapes it names are worth failing on by name.
+ * So: press the control and require the effect, and where the press is
+ * structurally blind, say what is being stood in for instead of claiming a
+ * guarantee this environment cannot give. That division is the whole shape of
+ * the two functions below.
  */
-function expectExitIsPressable(exit: HTMLElement, when = "the exit"): void {
-  expect(exit.hasAttribute("disabled"), when).toBe(false);
 
+/**
+ * What would swallow a click on `exit` in a real browser and does not here.
+ *
+ * NOT A CATALOGUE OF WAYS TO DISABLE A CONTROL — that list can always be added
+ * to, and three rounds of trying produced eleven escapes across the clients.
+ * It is the shim that makes the PRESS below mean in happy-dom what it means in
+ * Chrome, and it is deliberately the smaller half: `disabled` is absent from it
+ * precisely because the press already covers that one, and a future mechanism
+ * that ends up as `disabled` (or as a handler that returns early, or as a
+ * control that never renders) is covered without anybody adding a line.
+ *
+ * Returned as sentences rather than asserted in place so the failure names the
+ * element and the mechanism, and so a caller reads one property with one
+ * message instead of a column of near-identical expectations.
+ */
+function whatSwallowsTheClick(exit: HTMLElement): string[] {
+  const found: string[] = [];
   for (let node: HTMLElement | null = exit; node; node = node.parentElement) {
-    expect(
-      (node.getAttribute("class") ?? "").split(/\s+/),
-      `${when}: <${node.tagName.toLowerCase()}> makes the exit unclickable`,
-    ).not.toContain("pointer-events-none");
+    const where = `<${node.tagName.toLowerCase()}>`;
+    // The computed property, which covers the inline `style={{ pointerEvents:
+    // "none" }}` form AND any real stylesheet rule in the document.
+    if (window.getComputedStyle(node).pointerEvents === "none") {
+      found.push(`${where} computes pointer-events: none`);
+    }
+    // …and the Tailwind token, separately, because no Tailwind sheet is loaded
+    // here for the line above to resolve. THE TOKEN, NOT THE SUBSTRING: every
+    // shadcn button in this tree ships `disabled:pointer-events-none` in its
+    // own class list, and that variant is dead until the button really is
+    // disabled, which the press settles on its own.
+    if (
+      (node.getAttribute("class") ?? "").split(/\s+/).includes("pointer-events-none")
+    ) {
+      found.push(`${where} carries the class pointer-events-none`);
+    }
+    // React 19 renders `inert` as a real attribute and omits it for `false`, so
+    // presence is the whole test. It is the standard 2026 answer to "make this
+    // non-interactive while loading", which is exactly why it has to be here.
+    if (node.hasAttribute("inert")) {
+      found.push(`${where} is inert`);
+    }
+    // Not a click-swallower in any browser — `aria-disabled` is advisory — but a
+    // control that TELLS a screen reader it is dead has taken the way out away
+    // from the person least able to work around it. Listed here rather than in
+    // a separate guard because the caller's question is the same one.
+    if (node.getAttribute("aria-disabled") === "true") {
+      found.push(`${where} says aria-disabled to anybody listening`);
+    }
   }
+  // A collapse, an accordion or a Radix trigger wrapped around this card costs
+  // a press without ever touching an attribute on the button itself.
+  const behind = exit.closest("[hidden], [aria-hidden='true'], [data-state='closed']");
+  if (behind !== null) {
+    found.push(`<${behind.tagName.toLowerCase()}> hides the exit behind a state`);
+  }
+  return found;
+}
 
-  // Not disabled, not CSS-dead, and not put behind something: a collapse, an
-  // accordion or a Radix trigger wrapped around this card would cost a press
-  // without ever touching the `disabled` attribute.
+/**
+ * The way out, checked by TAKING it.
+ *
+ * # Why this replaced a list
+ *
+ * The previous guard enumerated three mechanisms — the `disabled` attribute, the
+ * `pointer-events-none` token, and a collapsed wrapper — and every round of
+ * that produced a new escape that walked straight past it. `inert` on a wrapper,
+ * `style={{ pointerEvents: "none" }}`, and a covering `absolute inset-0` sibling
+ * were each applied to the shipped tree and watched this suite stay green. None
+ * of them is a separate defect. They are one defect three times, because a list
+ * of ways to make a control unclickable cannot be finished.
+ *
+ * So the assertion is the OBSERVABLE the person has, not the mechanism: press
+ * the button, and require that the thing it exists to do happened. Every escape
+ * anybody has invented produces the same failure here — nothing reached Stripe —
+ * and so does the twelfth, without this function learning about it. In
+ * particular it catches two whole families the source-level and rendered-bytes
+ * guards below are structurally blind to, because those two are both scoped to
+ * the pause read:
+ *
+ *   - a gate on something ELSE. `disabled={portal.isPending ||
+ *     exportContacts.isPending}` holds the door shut while a CSV downloads, and
+ *     has nothing to do with `GET /v1/billing/pause`.
+ *   - a guard inside the handler. `leave()` returning early draws a button that
+ *     is enabled, visible, and does nothing — iOS's fifth escape, said in
+ *     TypeScript.
+ *
+ * # What the press CANNOT see here, and what stands in
+ *
+ * happy-dom honours `disabled` at dispatch and nothing else (see the block
+ * above — each line of it was measured). `whatSwallowsTheClick` is the shim for
+ * the CSS and `inert` families, so that in this environment the press means what
+ * it means in a browser.
+ *
+ * The one gap left over is geometric: an element drawn ON TOP of the exit. There
+ * is no layout in happy-dom — every rect is 0×0 and `elementFromPoint` does not
+ * exist — so no hit test is available to any test in this file, and pretending
+ * otherwise would be the decorative guard in a new costume. What covers it is
+ * EXIT-R1/R2/R3 at the bottom of this file, which compare the rendered bytes of
+ * everything down to the exit across every state the pause read can be in: an
+ * overlay that appears with a loading state changes those bytes. An
+ * UNCONDITIONAL cover is caught by neither, and that is stated rather than
+ * papered over — it is a visible edit to this card's own markup rather than a
+ * state nobody rendered.
+ */
+function expectTheExitLeaves(exit: HTMLElement, when = "the exit"): void {
   expect(
-    exit.closest("[hidden], [aria-hidden='true'], [data-state='closed']"),
-    when,
-  ).toBeNull();
+    whatSwallowsTheClick(exit),
+    `\n\n${when}: the way out is drawn but cannot be pressed.\n`,
+  ).toEqual([]);
+
+  // A DELTA, not `toHaveBeenCalledTimes(1)`. Several callers press the exit
+  // themselves as well, and a helper that assumed it was the first press would
+  // either duplicate their assertion or quietly disagree with it.
+  const before = portal.mutate.mock.calls.length;
+  fireEvent.click(exit);
+  expect(
+    portal.mutate.mock.calls.length - before,
+    `\n\n${when}: pressing the way out did not open the billing portal. ` +
+      `Cancelling may never take more steps or more time than subscribing ` +
+      `did, so the exit has to WORK on the first press, in every state this ` +
+      `screen can be in.\n`,
+  ).toBe(1);
 }
 
 /**
@@ -478,11 +581,11 @@ describe("#277 saying why, on the way out", () => {
     render(<CancelSubscriptionCard isOwner company={company()} />);
 
     // No click, no expand, no sheet: the control that leaves is in the FIRST
-    // render, enabled.
+    // render, and pressing it goes straight to Stripe.
     const leave = screen.getByRole("button", {
       name: new RegExp(CANCEL_ACTION),
     });
-    expectExitIsPressable(leave, "on arrival");
+    expectTheExitLeaves(leave, "on arrival");
 
     // And it is one of exactly two buttons, which is what pins the absence of
     // BOTH a trigger in front of the card and a dismiss beside the confirm.
@@ -506,11 +609,9 @@ describe("#277 saying why, on the way out", () => {
 
   it("CR-4: ONE action reaches Stripe with nothing answered", () => {
     // The whole rule. No second dialog, no "are you sure", no
-    // disabled-until-you-pick. One click from this screen to the portal.
-    const leave = renderCard();
-    expectExitIsPressable(leave, "nothing answered");
-
-    fireEvent.click(leave);
+    // disabled-until-you-pick. One click from this screen to the portal, and
+    // the press IS the assertion — see `expectTheExitLeaves`.
+    expectTheExitLeaves(renderCard(), "nothing answered");
     expect(portal.mutate).toHaveBeenCalledTimes(1);
   });
 
@@ -720,6 +821,33 @@ const HOLD_STATED_WITHOUT_ANCHOR = new RegExp(
 );
 
 /**
+ * #524 — a third shape, and the same defect one layer up: a sentence stating as
+ * a fact something this screen never read.
+ *
+ * "Texting stops at the end of your billing period" tells the reader texting is
+ * currently on. A paused workspace's texting stopped the day they paused, and
+ * the paused card at the top of the same screen says so. Where the two above
+ * catch a DURATION with no anchor, this catches a future event stated with no
+ * acknowledgement that it may already have happened.
+ *
+ * WHAT COUNTS AS QUALIFIED IS A SHAPE, NOT A SENTENCE. Pinning the exact clause
+ * that ships would make this a ceiling on the wording — the trap where a guard
+ * starts failing on a correct rewrite and gets deleted. So it asks only that
+ * some acknowledgement follows within a short window, keyed on the two words
+ * that do that job in English. THE HONEST LIMIT: a rewrite that hedges without
+ * either word ("texting stops then, unless it stopped when you paused") trips
+ * this and would have to widen the shape deliberately. That direction of error
+ * is the cheap one — the expensive one is a tidy-up that quietly drops the
+ * qualifier and leaves the contradiction back on the screen.
+ *
+ * The 40-character window is just longer than the shipped clause. Two claims
+ * close enough together for one's qualifier to cover the other would slip
+ * through; that is not a shape this copy has ever taken, and widening the window
+ * to rule it out would start swallowing unrelated sentences instead.
+ */
+const TEXTING_STOPS_UNQUALIFIED = /texting stops\b(?![\s\S]{0,40}?(alread|yet))/i;
+
+/**
  * The offer, or the absence of one, for the reason somebody just picked.
  *
  * Throws rather than returning null, so a test that means to assert copy can
@@ -779,10 +907,9 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
       leave.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
 
-    // And leaving is unchanged: one action, pressable, nothing in the way.
-    expectExitIsPressable(leave, "with the answer up");
+    // And leaving is unchanged: one press, and it lands.
     expect(screen.queryByRole("dialog")).toBeNull();
-    fireEvent.click(leave);
+    expectTheExitLeaves(leave, "with the answer up");
     expect(portal.mutate).toHaveBeenCalledTimes(1);
   });
 
@@ -1146,10 +1273,8 @@ describe("#277 the paid pause, on the cancel card", () => {
       leave.compareDocumentPosition(screen.getByText(heading())) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expectExitIsPressable(leave, "with the pause offered");
     expect(screen.queryByRole("dialog")).toBeNull();
-
-    fireEvent.click(leave);
+    expectTheExitLeaves(leave, "with the pause offered");
     expect(portal.mutate).toHaveBeenCalledTimes(1);
     // And pressing the exit does not quietly pause anybody on the way out.
     expect(pausePlan.mutate).not.toHaveBeenCalled();
@@ -1243,8 +1368,7 @@ describe("#277 the paid pause, on the cancel card", () => {
 
     expect(screen.getByRole("alert").textContent).toBe(refusal);
     // And the way out is exactly where it was, still one press.
-    expectExitIsPressable(leave, "after the pause was refused");
-    fireEvent.click(leave);
+    expectTheExitLeaves(leave, "after the pause was refused");
     expect(portal.mutate).toHaveBeenCalledTimes(1);
   });
 
@@ -1360,13 +1484,10 @@ describe("#277 the paid pause, on the cancel card", () => {
       portal.mutate.mockClear();
 
       const leave = renderCard();
-      // Not disabled, not made unclickable by a class, and not put behind a
-      // collapse — see `expectExitIsPressable`, and note that the CSS-dead
-      // variant of this defect is invisible to `fireEvent` below.
-      expectExitIsPressable(leave, name);
       expect(screen.queryByRole("dialog"), name).toBeNull();
-
-      fireEvent.click(leave);
+      // Pressed, and required to have LANDED — see `expectTheExitLeaves`. The
+      // question is never how a state took the exit away, only whether it did.
+      expectTheExitLeaves(leave, name);
       expect(portal.mutate, name).toHaveBeenCalledTimes(1);
       cleanup();
     }
@@ -1542,7 +1663,7 @@ describe("#277 the answers a paused workspace gets on the cancel card", () => {
       ).toBeNull();
       // And none of this touches the way out, which is the rule that outranks
       // the whole feature.
-      expectExitIsPressable(leave, name);
+      expectTheExitLeaves(leave, name);
       cleanup();
     }
 
@@ -2377,10 +2498,8 @@ describe("#277 the billing screen while paused", () => {
     const leave = screen.getByRole("button", {
       name: new RegExp(CANCEL_ACTION),
     });
-    expectExitIsPressable(leave, "on a paused workspace");
     expect(screen.queryByRole("dialog")).toBeNull();
-
-    fireEvent.click(leave);
+    expectTheExitLeaves(leave, "on a paused workspace");
     expect(portal.mutate).toHaveBeenCalledTimes(1);
   });
 
@@ -2476,13 +2595,10 @@ describe("#277 the billing screen while paused", () => {
       const leave = screen.getByRole("button", {
         name: new RegExp(CANCEL_ACTION),
       });
-      // Every way this exit can be taken away without being removed: the
-      // attribute, a class that makes it CSS-dead, and a collapse around the
-      // card. See `expectExitIsPressable`.
-      expectExitIsPressable(leave, name);
+      // Taken, from the page. However a state might have taken this control
+      // away, the observable is the same one: nothing reached Stripe.
       expect(screen.queryByRole("dialog"), name).toBeNull();
-
-      fireEvent.click(leave);
+      expectTheExitLeaves(leave, name);
       expect(portal.mutate, name).toHaveBeenCalledTimes(1);
       cleanup();
     }
@@ -2510,6 +2626,60 @@ describe("#277 the billing screen while paused", () => {
     expect(document.body.textContent).toContain(
       "resume first, then switch plans",
     );
+  });
+
+  it("PAGE-PAUSE-7: nothing tells a PAUSED reader their texting is about to stop", () => {
+    // #524 — THE SCREEN MAY NOT CLAIM A STATE IT HAS NOT READ.
+    //
+    // "Texting stops at the end of your billing period" is a claim that texting
+    // is on. For a paused workspace it stopped the day they paused, and the
+    // paused card at the top of this same screen says "texting is off" in as
+    // many words. Two sentences, one screen, disagreeing — read by somebody
+    // deciding whether to give up a phone number.
+    //
+    // MEASURED ON THE PAGE, because that is where the contradiction is. Each
+    // sentence is defensible alone; what is wrong is the pair, and a card-level
+    // test cannot see a pair that lives on two cards. Both surfaces that carry
+    // the claim are swept: the cancel card's standing header, and the notice a
+    // scheduled cancellation puts at the top (a pause is a price swap, so
+    // `cancel_at_period_end` can be set on a workspace that is also paused).
+    //
+    // AND THE FIX IS NOT ALLOWED TO BE "BRANCH ON THE PAUSE READ". Both
+    // sentences sit above the exit, and EXIT-R1/R2/R3 below require everything
+    // down to the exit to be byte-for-byte identical whatever the read says —
+    // a sentence that changes length when a Stripe round trip lands is an exit
+    // that moves under somebody's thumb. So the copy is qualified instead, and
+    // is true for either reader without asking anybody anything.
+    const surfaces: [name: string, mount: () => void][] = [
+      ["paused, owner", () => renderPaused()],
+      [
+        "paused, cancellation already scheduled",
+        () => renderPaused({ cancel_at_period_end: true }),
+      ],
+      [
+        "paused, a bookkeeper who cannot cancel",
+        () => {
+          renderPaused();
+          cleanup();
+          activeRole.current = "admin";
+          render(<BillingSettingsPage />);
+        },
+      ],
+    ];
+
+    for (const [name, mount] of surfaces) {
+      mount();
+      const copy = document.body.textContent ?? "";
+
+      // NOT VACUOUS. A screen that simply dropped the sentence would satisfy
+      // the ban below while telling somebody nothing about what cancelling
+      // costs them, so the claim has to be PRESENT and qualified rather than
+      // absent. This half is what stops the guard passing for the wrong reason.
+      expect(copy.toLowerCase(), `${name}: says nothing about texting at all`)
+        .toContain("texting stops");
+      expect(copy, name).not.toMatch(TEXTING_STOPS_UNQUALIFIED);
+      cleanup();
+    }
   });
 
   it("PAGE-PAUSE-5: the offer stays BELOW the exit on the page too", () => {
@@ -2547,33 +2717,31 @@ describe("#277 the billing screen while paused", () => {
     expect(
       leave.compareDocumentPosition(offer) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expectExitIsPressable(leave, "with the pause offer on the page");
+    expectTheExitLeaves(leave, "with the pause offer on the page");
   });
 });
 
 /**
  * #524 — the exit, in one sentence, instead of a list of ways to break it.
  *
- * # What was wrong with the guards above
+ * # The third of three, and what each one is for
  *
- * `expectExitIsPressable` names three mechanisms: the `disabled` attribute, the
- * `pointer-events-none` token, and a collapsed wrapper. Eleven escapes were
- * found across the three clients by applying them and watching the suites stay
- * green, three of them here — `style={{ pointerEvents: "none" }}` (the inline
- * form of a class the list already knew about), `inert` on a wrapper (React 19
- * renders it; happy-dom ignores it), and a covering sibling with `absolute
- * inset-0` (the list walks ANCESTORS, so something drawn on top is invisible to
- * it). None of those is a separate bug. They are one bug three times: a list of
- * ways to disable the exit can always be added to.
+ * `expectTheExitLeaves` PRESSES the control and requires Stripe to have been
+ * reached. That is the primary guard, it is blind to mechanism, and it is the
+ * only one of the three that catches a gate on something other than the pause
+ * — an export in flight, a guard inside `leave()`. Its blind spot is geometric:
+ * happy-dom has no layout, so an element drawn ON TOP of the exit cannot be
+ * detected by any click-based check.
  *
- * # The sentence
+ * That blind spot is this describe block. Its sentence:
  *
  * EVERYTHING A READER PASSES ON THE WAY TO THE EXIT, THE EXIT INCLUDED, IS
  * BYTE-FOR-BYTE THE SAME WHATEVER THE PAUSE READ SAYS.
  *
- * No mechanism appears in that, and none appears below. A twelfth escape needs
- * no twelfth assertion: to have any effect on somebody trying to leave, it has
- * to change something about how the exit is drawn, and then the bytes differ.
+ * No mechanism appears in that, and none appears below. A covering sibling that
+ * arrives with a loading state changes those bytes, and so does the twelfth
+ * escape nobody has invented: to have any effect on somebody trying to leave, it
+ * has to change something about how the exit is drawn.
  *
  * # Why the region STOPS at the exit
  *
@@ -2588,8 +2756,9 @@ describe("#277 the billing screen while paused", () => {
  * It proves the property for the five states a fixture can describe. It cannot
  * prove there is no sixth. `exit-path.test.ts` beside this file reads the SOURCE
  * and proves the dependency does not exist at all — for every input, including
- * the ones nobody has written a fixture for. Neither half is the guarantee;
- * together they are.
+ * the ones nobody has written a fixture for. And neither of those two sees a
+ * regression that has nothing to do with the pause, which is what the press is
+ * for. No one of the three is the guarantee; together they are.
  */
 describe("#524 the exit renders the same whatever the pause read says", () => {
   /**

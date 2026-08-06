@@ -608,6 +608,29 @@ private fun planPrice(plan: String, billingCurrency: String?, country: String?):
     return formatMoney(PLAN_PRICE_CENTS.getValue(currency).getValue(plan), currency) + "/mo"
 }
 
+/**
+ * What the plan card lists under the plan name — the terms of a plan that is
+ * RUNNING.
+ *
+ * #524: out of the composable, because these five sentences are a claim about
+ * what this workspace may do today and the branch that decides whether to print
+ * them is one of the things that regressed. Inside a `forEach` in a card body
+ * they could only be guarded by reading the file as text; here a test can render
+ * the screen and ask whether these exact lines are on it, and the answer is the
+ * same strings the screen paints rather than a phrase retyped into an assertion.
+ *
+ * Every line is either a fact about the plan or a limit on it — none of them is
+ * true of a paused or a lapsed workspace, which is why the render site gates
+ * them on the pause read rather than on "we have no pause in hand".
+ */
+fun planAllowanceLines(facts: PlanFacts): List<String> = listOf(
+    "Texting for your crew, bound by fair use",
+    "Calling included on every plan, never an add-on",
+    "Extra texts bill under fair use, up to a cap you control",
+    "${facts.seats} team members",
+    "${facts.numbers} phone number" + if (facts.numbers == 1) "" else "s",
+)
+
 /** Included outbound segments (SPEC §2) — for downgrade checklists only;
  *  live figures always come from GET /v1/usage. */
 fun planIncludedSegments(plan: String?): Long = when (plan) {
@@ -1611,6 +1634,38 @@ fun planStateUnknownNote(pause: PauseRead): String? = when (pause) {
             "either way. Your plan and your number are untouched."
 
     else -> null
+}
+
+/**
+ * #524 — the cancel card, corrected for the one reader its standing sentence
+ * cannot serve.
+ *
+ * THE SENTENCE THAT WAS FALSE. The cancel card opens with "your plan runs to
+ * the end of your billing period, and you can't send once it ends", which used
+ * to read "texting stops at the end of your billing period" — a promise of
+ * texting until then, made to somebody whose texting stopped the day they
+ * paused, on the same screen as a card telling them so. The header is now true
+ * for both readers and says nothing about the pause, because it sits ABOVE the
+ * button that leaves and may not change shape when a Stripe round trip lands.
+ * This is the rest of the truth, and the render site puts it BELOW that button.
+ *
+ * WHAT IT ADDS is the fact a paused reader is most likely to be wrong about,
+ * and it is not the reassuring half: pausing is the thing that has been keeping
+ * the release clock off their number, and cancelling starts it. That is the
+ * same contrast [pauseOfferCopy] makes to somebody choosing between the two —
+ * said here to somebody who already chose the pause and is now on their way out
+ * anyway.
+ *
+ * ONLY AN ANSWERED READ SPEAKS. [PauseRead.isPaused] is false while the read is
+ * in flight and false after one that failed, so an unread pause says nothing at
+ * all rather than guessing in either direction.
+ */
+fun pausedCancelNote(pause: PauseRead): String? = if (pause.isPaused) {
+    "Your plan is paused, so texting is already off — what cancelling ends is the " +
+        "plan itself. It also starts the $CANCELLATION_GRACE_DAYS-day clock on your " +
+        "number, which is the clock a pause keeps off it."
+} else {
+    null
 }
 
 /**

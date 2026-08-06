@@ -21,6 +21,14 @@ kotlinxCoroutines = "1.11.0"
 coil = "3.5.0"
 firebaseMessaging = "25.1.1"
 telnyx = "3.5.0"
+# #524: the Android framework on the JVM, so a Compose test can PRESS a control
+# and assert what happened. Every guard on the cancel button before this read the
+# source and asked whether it looked disabled — a question with a different
+# answer for `enabled = false`, a zero-height modifier, an early return above the
+# card, a condition at the call site and a guard inside the click handler, which
+# is why three of those shipped past a green suite. A press has one answer for
+# all of them, including the ones nobody has written down.
+robolectric = "4.16.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -50,6 +58,11 @@ coil-network-okhttp = { group = "io.coil-kt.coil3", name = "coil-network-okhttp"
 junit = { group = "junit", name = "junit", version = "4.13.2" }
 mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver3", version.ref = "okhttp" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
+robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+# Versioned by the compose BOM above, like every other compose artifact here —
+# the test rule and the runtime it drives have to be the same Compose.
+compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging", version.ref = "firebaseMessaging" }
 firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashlytics", version = "20.1.0" }
 telnyx-webrtc = { group = "com.github.team-telnyx", name = "telnyx-webrtc-android", version.ref = "telnyx" }

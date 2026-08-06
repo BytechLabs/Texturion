@@ -90,6 +90,10 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        // #524: Robolectric renders the real composables, so it needs the real
+        // merged manifest and the real resource table. Without this the Compose
+        // test rule cannot launch its host activity at all.
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
@@ -141,4 +145,14 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.mockwebserver)
     testImplementation(libs.kotlinx.coroutines.test)
+    // #524: press the control, then assert the effect happened. A source scan
+    // can only ask whether a control LOOKS disabled, and every escape that has
+    // shipped past this suite disabled it a way the scan had not been taught.
+    testImplementation(libs.robolectric)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
+    // The empty activity `createAndroidComposeRule` launches lives in this
+    // artifact's manifest, which only reaches the merged debug manifest from
+    // `debugImplementation`.
+    debugImplementation(libs.compose.ui.test.manifest)
 }

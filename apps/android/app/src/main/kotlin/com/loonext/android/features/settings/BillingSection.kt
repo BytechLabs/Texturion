@@ -392,11 +392,11 @@ private fun CancelCard(
             // makes a promise and withdraws it one line later, which reads as a
             // runaround rather than as information.
             ReadOnlyLine(
-                "Only the owner can cancel this plan. When they do, texting stops at " +
-                    "the end of the billing period. The number is held for " +
-                    "$CANCELLATION_GRACE_DAYS days from the day they cancel — not from " +
-                    "that date — in case they change their mind. After that it is " +
-                    "released for good.",
+                "Only the owner can cancel this plan. When they do, the plan runs to " +
+                    "the end of the billing period and nothing sends after that. The " +
+                    "number is held for $CANCELLATION_GRACE_DAYS days from the day they " +
+                    "cancel — not from that date — in case they change their mind. " +
+                    "After that it is released for good.",
             )
             Spacer(Modifier.height(8.dp))
             // Said plainly rather than by omission. The portal an admin or a
@@ -421,11 +421,23 @@ private fun CancelCard(
         // where you have about 30. `runGraceJob` measures `now - canceled_at`,
         // and `canceled_at` is stamped when cancelling is REQUESTED — so the
         // period end is not on the clock at all.
+        //
+        // #524: AND IT NO LONGER PROMISES TEXTING UNTIL THEN. "Texting stops at
+        // the end of your billing period" is false for somebody already paused,
+        // whose texting stopped the day they paused — on the same screen as a
+        // plan card saying so. What is true for both readers is that the PLAN
+        // runs to the period end and that nothing sends after it, so that is
+        // what this says, and it says it without consulting the pause read:
+        // this sentence sits above the button that leaves, and a sentence that
+        // reflowed when a Stripe round trip landed would move the exit out from
+        // under a thumb. The paused reader's own sentence is under the button,
+        // where everything the read decides on this card already lives.
         ReadOnlyLine(
-            "Cancel anytime. Texting stops at the end of your billing period. Your " +
-                "number is held for $CANCELLATION_GRACE_DAYS days from the day you " +
-                "cancel — not from that date — in case you change your mind. After " +
-                "that it is released for good.",
+            "Cancel anytime. Your plan runs to the end of your billing period, and " +
+                "you can't send once it ends. Your number is held for " +
+                "$CANCELLATION_GRACE_DAYS days from the day you cancel — not from " +
+                "that date — in case you change your mind. After that it is released " +
+                "for good.",
         )
 
         // Spacing is what tells the four groups apart. A divider or an inner
@@ -550,6 +562,17 @@ private fun CancelCard(
             },
         ) { Text(if (opening) "Opening…" else "Continue to cancel") }
         InlineError(error)
+        // #524: what the sentence at the top of this card cannot say, for the
+        // one reader it would otherwise mislead.
+        //
+        // UNDER THE BUTTON, like every other thing the pause read decides here.
+        // Above it, this would appear the moment a Stripe round trip landed and
+        // push the exit down the screen — the regression this whole card is
+        // built against, arriving as a correction to the card's own copy.
+        pausedCancelNote(pause)?.let { note ->
+            Spacer(Modifier.height(12.dp))
+            ReadOnlyLine(note)
+        }
         // Under the button on purpose — see the header. Renders nothing for the
         // four answers we have nothing honest to say to, and nothing at all
         // until somebody chooses one.
@@ -1325,13 +1348,7 @@ private fun PlanCard(
             // pause at all. Blanking the plan's own terms would punish the one
             // reader who has no control on this card to be misled about, and the
             // pill — the only thing that CLAIMS a state — is already withheld.
-            listOf(
-                "Texting for your crew, bound by fair use",
-                "Calling included on every plan, never an add-on",
-                "Extra texts bill under fair use, up to a cap you control",
-                "${facts.seats} team members",
-                "${facts.numbers} phone number" + if (facts.numbers == 1) "" else "s",
-            ).forEach { line ->
+            planAllowanceLines(facts).forEach { line ->
                 Text(
                     "· $line",
                     style = MaterialTheme.typography.bodySmall,

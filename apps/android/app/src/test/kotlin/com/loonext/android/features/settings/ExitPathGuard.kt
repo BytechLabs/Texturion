@@ -68,14 +68,34 @@ package com.loonext.android.features.settings
  * must produce a finding. A guard that has only ever passed is unproven. Adding
  * a twelfth escape to that list is optional — it documents an attempt, it does
  * not extend the check.
+ *
+ * AND IT IS THE SECOND LINE NOW, NOT THE ANSWER (#524). Everything above is
+ * still true and still cheap, but it is a scan, and the limit of a scan is
+ * plainly stated: it sees blockers keyed on THE PAUSE READ, because that is the
+ * vocabulary it derives. A blocker keyed on anything else — a flag nobody has
+ * invented yet, a covering overlay that consults nothing at all — walks past it
+ * untouched. [BillingPressTest] is the guard that cannot be walked past: it
+ * renders this screen in all four [PauseRead] states, presses the button, and
+ * requires the Stripe session to have been minted and the browser opened. Every
+ * escape in the list below fails there too, and so does the one nobody has
+ * thought of, because they all produce the same observable — the press did
+ * nothing. Read this file as the fast, structural first opinion.
  */
 internal object ExitPath {
 
     /** The call that puts the card carrying the exit on the screen. */
     private const val EXIT_CARD = "CancelCard("
 
-    /** The words on the button that leaves. */
-    private const val EXIT_LABEL = "Continue to cancel"
+    /**
+     * The words on the button that leaves.
+     *
+     * Not private: [BillingPressTest] presses this button for real, and the two
+     * must name the same control. Written once here because this object is the
+     * thing that fails loudly when the shipped label drifts — see the check in
+     * [findings] — so the press test inherits that anchor rather than carrying a
+     * second copy of the string that nothing verifies.
+     */
+    const val EXIT_LABEL = "Continue to cancel"
 
     /** The two files the property is read out of. */
     const val BILLING_SECTION = "features/settings/BillingSection.kt"

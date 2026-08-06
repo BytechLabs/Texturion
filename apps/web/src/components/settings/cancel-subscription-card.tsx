@@ -77,12 +77,31 @@ const DETAIL_COUNTDOWN_FROM = 200;
  * the expensive direction to be wrong in, so the anchor is named out loud, in
  * the same words the scheduled-cancellation notice at the top of this screen
  * uses and the seasonal answer a few lines below it now uses.
+ *
+ * #524 — AND IT DOES NOT NARRATE A STATE IT HAS NOT READ. "Texting stops at the
+ * end of your billing period" is a claim that texting is on, and for a paused
+ * workspace it is false: their texting stopped the day they paused, and the
+ * paused card at the top of this same screen says so in as many words. Two
+ * sentences on one screen, disagreeing, at the moment somebody is deciding
+ * whether to give up a phone number.
+ *
+ * THE FIX IS NOT TO BRANCH ON THE PAUSE READ, and that is worth saying because
+ * branching is the obvious repair. This paragraph sits ABOVE the exit, and the
+ * rule that outranks everything on this card is that the way out never depends
+ * on `GET /v1/billing/pause` — a sentence whose length changes when a Stripe
+ * round trip lands is an exit that moves under somebody's thumb. (EXIT-R1/R2/R3
+ * in `billing.test.tsx` pin exactly that, and a pause-aware sentence here fails
+ * them.) So the card stops reporting whether texting is on — which is the paused
+ * card's job, not this one's — and describes only what CANCELLING does, to the
+ * plan and to the number. One clause carries the paused reader, and it needs no
+ * read to be true for either of them.
  */
 export const CANCEL_CONSEQUENCE =
-  "Cancel anytime. Texting stops at the end of your billing period, and we " +
-  `hold your number for ${CANCELLATION_GRACE_DAYS} days from the day you ` +
-  "cancel — not from that date, so the hold can run out soon after texting " +
-  "stops. After that the number is released for good.";
+  "Cancel anytime. Your plan runs to the end of the billing period and does " +
+  "not renew — texting stops then, if it has not stopped already. We hold " +
+  `your number for ${CANCELLATION_GRACE_DAYS} days from the day you cancel, ` +
+  "not from the day the plan ends, so the hold can run out soon afterwards. " +
+  "After that the number is released for good.";
 export const CANCEL_QUESTION = "If you want to say why, it helps us fix it.";
 export const CANCEL_QUESTION_NOTE =
   "Optional, and it changes nothing about cancelling.";
@@ -119,13 +138,17 @@ export const CANCEL_ACTION = "Continue to cancel";
  * The anchor matters MORE here, not less: this is the copy an admin relays to
  * the owner, so an admin who reads the deadline wrong passes the wrong deadline
  * on. See CANCEL_CONSEQUENCE for where the 30 days are actually counted from.
+ *
+ * #524: and it carries the same qualifier, for the same reason. An admin on a
+ * paused workspace is looking at the paused card too.
  */
 export const CANCEL_ADMIN_CONSEQUENCE =
-  "Only the owner can cancel this plan. When they do, texting stops at the " +
-  `end of the billing period, and we hold the number for ` +
-  `${CANCELLATION_GRACE_DAYS} days from the day they cancel — not from that ` +
-  "date, so the hold can run out soon after texting stops. After that the " +
-  "number is released for good.";
+  "Only the owner can cancel this plan. When they do, the plan runs to the " +
+  "end of the billing period and does not renew — texting stops then, if it " +
+  "has not stopped already. We hold the number for " +
+  `${CANCELLATION_GRACE_DAYS} days from the day they cancel, not from the ` +
+  "day the plan ends, so the hold can run out soon afterwards. After that " +
+  "the number is released for good.";
 export const CANCEL_ADMIN_NOTE =
   "The payment portal an admin reaches is the card screen and has no " +
   "cancellation on it, so this is not something to go looking for there.";

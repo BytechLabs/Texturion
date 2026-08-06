@@ -493,6 +493,59 @@ final class SettingsLogicTests: XCTestCase {
         )
     }
 
+    /// #524 — the standing header may not date a stop that has already happened.
+    ///
+    /// The card's `description` renders in every state of the pause read and for
+    /// every reader. It used to open "Texting stops at the end of your billing
+    /// period", which is false for somebody already paused: their texting
+    /// stopped the day they paused, and the paused plan card an inch above this
+    /// one says exactly that. One screen, two sentences, and the false one
+    /// addressed to the very reader the true one was written for.
+    ///
+    /// NO PAUSE IN THIS STRING, and that half is the load-bearing one. The only
+    /// source of "is this workspace paused" on this client is
+    /// `GET /v1/billing/pause` — `paused_at` is deliberately kept off
+    /// `CompanyView` — so a pause-aware sentence here would put the pause read on
+    /// the path to "Continue to cancel", which
+    /// `CancelOneActionTests.testNothingOnTheWayToTheExitConsultsThePauseRead`
+    /// refuses for the whole card. It would also still be wrong in the two states
+    /// a branch cannot reach, the read in flight and the read that failed. So the
+    /// clause is written true for both footings instead of chosen between them.
+    ///
+    /// Proven by putting the old clause back — `"Cancel anytime. Texting stops at
+    /// the end of your billing period"` — which fires the first assertion quoting
+    /// it; and by branching the string on `read.answer`, which fires the second.
+    func testTheStandingCancelCopyDatesNoStopItHasNotRead() throws {
+        let copy = try section(of: cancelCardSource(), from: "private var consequence: String {")
+        let lowered = copy.lowercased()
+        for claim in ["texting stops", "texting and calling stop", "calling stops"] {
+            XCTAssertFalse(
+                lowered.contains(claim),
+                "\n\nThe cancel card's standing header claims \"\(claim)\".\n\n"
+                    + "It is read by a paused workspace too, whose texting stopped weeks "
+                    + "ago, and by one whose pause read has not landed or has failed. A "
+                    + "sentence at the top of this card has to be true on both footings "
+                    + "without asking which one it is on.\n"
+            )
+        }
+        XCTAssertFalse(
+            lowered.contains("pause"),
+            "\n\n\(copy)\n\n"
+                + "This string is an argument to the card that holds the way out, so "
+                + "reading the pause here puts a Stripe round-trip in front of somebody "
+                + "leaving — and it would still print the wrong sentence while the read "
+                + "is in flight and after it has failed.\n"
+        )
+        // ...and the deadline is still named, from the constant the release job
+        // measures against rather than as a number typed into a sentence.
+        XCTAssertEqual(
+            2, copy.components(separatedBy: "\\(cancellationGraceDays) days").count - 1,
+            "\n\n\(copy)\n\n"
+                + "Both readers are told how long the number is held, and both read it "
+                + "off `cancellationGraceDays` — which is what `runGraceJob` counts to.\n"
+        )
+    }
+
     // MARK: - Answering that reason (#277 follow-up)
     //
     // Hand-ported from `packages/shared/src/cancellation-offers.test.ts`, which

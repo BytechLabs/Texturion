@@ -177,16 +177,27 @@ function StatusNotices({ company }: { company: CompanyView }) {
             then; we hold your number for 30 days", which invites the reader to
             count from the period end and can overstate the real deadline by
             most of a month. The exact date cannot be shown here (nothing has
-            stamped `canceled_at` yet), so the anchor is named instead. */}
+            stamped `canceled_at` yet), so the anchor is named instead.
+
+            #524 — AND "Texting stops then" IS FALSE FOR A PAUSED READER. A
+            pause is a price swap rather than a cancellation, so Stripe can hold
+            `cancel_at_period_end` on a workspace that is ALSO paused, and this
+            notice then sits on the same screen as the paused card saying
+            texting is already off. The qualifier is unconditional rather than
+            branched on `GET /v1/billing/pause`: this notice renders above the
+            cancel card, and EXIT-R3 requires everything down to the exit to be
+            byte-for-byte identical whatever that read says. A sentence that
+            reflows when a Stripe round trip lands is an exit that moves under
+            somebody's thumb. PAGE-PAUSE-7 pins both halves. */}
         <p className="text-sm">
           Your plan is set to cancel
           {company.current_period_end
             ? ` on ${fullDate(company.current_period_end)}`
             : " at the end of this period"}
-          . Texting stops then. Your number is held for{" "}
-          {CANCELLATION_GRACE_DAYS} days from the day you cancelled — not from
-          that date — so it can be released soon afterwards. You can undo this
-          from the payment portal.
+          . Texting stops then, if it has not stopped already. Your number is
+          held for {CANCELLATION_GRACE_DAYS} days from the day you cancelled —
+          not from that date — so it can be released soon afterwards. You can
+          undo this from the payment portal.
         </p>
         <div className="mt-2">
           <PortalButton label="Keep my plan" />

@@ -50,19 +50,108 @@ import XCTest
 /// is the answer to it: it asks what the exit DEPENDS ON rather than how it
 /// might be switched off, so a sixth mechanism needs no sixth assertion.
 ///
+/// # The second half of that idea, and what #524 found missing (2026-08)
+///
+/// The general rule catches everything that CONSULTS the pause, and three of
+/// those five escapes were re-applied to prove it does. What it cannot see is a
+/// dead exit that mentions no pause at all — and three of those were applied one
+/// line below `leaving`'s closing brace and walked through every assertion in
+/// this file: `.disabled(exporting)`, `.frame(height: 0)`, and `.opacity(0.4)`
+/// with `.allowsHitTesting(false)`. Each leaves somebody who came here to cancel
+/// pressing a button that does nothing, and none of them is about the pause, so
+/// the general property is silent and the narrower guards were reading the wrong
+/// window — they sliced from `leaving`, and SwiftUI hands enabledness and hit
+/// testing DOWN from every container above it.
+///
+/// The answer is not a longer list of killers. `testTheOnlyModifiersOnTheWayOut
+/// AreTheOnesArguedFor` walks the exit out to the `CancelCard(` call site and
+/// requires every modifier it collects to be one somebody wrote down, so a
+/// mechanism nobody has invented yet fails for being unlisted rather than for
+/// being recognised. The list of ways to kill a control cannot be finished; the
+/// list of things allowed to touch this one can.
+///
+/// And `testOnlyTheReaderAndTheSubscriptionDecideWhetherTheExitIsDrawn` now
+/// reads what its permitted names MEAN rather than allowlisting the names — see
+/// `definitionRows`.
+///
 /// # What it does not claim
 ///
-/// Not that the screen is usable, not that the button works, and not that a
-/// press reaches Stripe — those need a device. It claims the structural facts
-/// that decay silently: the exit exists in every state but the two about the
-/// reader and the subscription, it is disabled by its own request and nothing
-/// else, nothing about the pause renders or branches in front of it, the offer
-/// sits below it, and the plan card states no fact it has not read.
+/// NOT THAT A PRESS DOES ANYTHING. The web and Android halves of #524 answer
+/// this constraint by clicking the exit and asserting the handler ran, which is
+/// blind to HOW something was disabled. That is the better guard and it is not
+/// available here: `Gate / iOS` is the only Swift compiler this repository has,
+/// there is no UI test target, and nothing in this file can render a view, let
+/// alone tap one. What is written above is the strongest thing that can be
+/// asserted from the source, and it is weaker — it says the set of things able
+/// to affect the button is exactly the set somebody accounted for, which is a
+/// claim about the code rather than about the press.
+///
+/// So: not that the screen is usable, not that the button works, and not that a
+/// press reaches Stripe. It claims the structural facts that decay silently: the
+/// exit exists in every state but the two about the reader and the subscription,
+/// it is disabled by its own request and nothing else, nothing lands on it that
+/// was not argued for, nothing about the pause renders or branches in front of
+/// it, the offer sits below it, and the plan card states no fact it has not
+/// read.
 final class CancelOneActionTests: XCTestCase {
     /// The label on the button that leaves. If this string moves, every test
     /// here fails with "not found" rather than passing vacuously — see
     /// `testTheScanIsActuallyReadingTheScreen`.
     private let exitLabel = "Continue to cancel"
+
+    /// #524 — EVERY modifier allowed to land on that button, as written.
+    ///
+    /// # An allowlist, and that is the whole point
+    ///
+    /// Three rounds of this constraint produced eleven escapes across the three
+    /// clients, and every round answered by adding the newest mechanism to a
+    /// list of forbidden ones: `.disabled`, then a SECOND `.disabled` chained
+    /// under the first, then `.opacity` and `.allowsHitTesting`, then a zero
+    /// height, then `inert`, then a covering overlay. A list of ways to make a
+    /// control unpressable cannot be finished — the next one is being written
+    /// by whoever ships the next loading state — so this file stops keeping one.
+    ///
+    /// What CAN be finished is the other list. Six modifiers reach this button
+    /// today, counting the ones hung on the stack it sits in and on the card
+    /// that stack sits in. Anything else fails, whatever it is called and
+    /// whatever it does, and a seventh needs no seventh assertion.
+    ///
+    /// # It is pinned with its arguments, on purpose
+    ///
+    /// `.disabled(opening)` is permitted; `.disabled(anything else)` is not, and
+    /// neither is `.padding` grown a second argument. That makes this the one
+    /// guard in the file a harmless edit can fail — nudging the padding here
+    /// fails it. That is the intended price. This is the list of everything
+    /// allowed to touch the control somebody presses to stop paying us, on a
+    /// screen where the constraint has already regressed once, and the fix for a
+    /// legitimate change is one line HERE, next to the reason. A guard that let
+    /// the chain change quietly is the guard that was already here.
+    ///
+    /// # Why each of the six is allowed
+    ///
+    ///   buttonStyle / tint / padding  paint. Neither hit-testing nor
+    ///                                 enabledness passes through them.
+    ///   disabled(opening)             the handoff this button itself started,
+    ///                                 and the only condition that may ever
+    ///                                 switch it off. `testTheWayOutIsDisabled
+    ///                                 OnlyByItsOwnRequest` says the same thing
+    ///                                 from the other direction.
+    ///   frame(maxWidth:)              the stack the exit sits in, filling the
+    ///                                 card. It names no height: a `.frame` that
+    ///                                 did would be a different string and would
+    ///                                 fail here, which is how Android's
+    ///                                 zero-height escape is refused.
+    ///   sheet(item: $exported)        presents on a value this CARD sets, from
+    ///                                 a press on "Export contacts" — never on
+    ///                                 the pause read, and never on arrival.
+    private let permittedOnTheExit: Set<String> = [
+        ".buttonStyle(.borderedProminent)",
+        ".tint(BrandColor.olive)",
+        ".disabled(opening)",
+        ".padding(.top, 10)",
+        ".frame(maxWidth: .infinity, alignment: .leading)",
+        ".sheet(item: $exported) { file in",
+    ]
 
     // MARK: - Reading the screen
 
@@ -366,8 +455,9 @@ final class CancelOneActionTests: XCTestCase {
         XCTAssertEqual(".disabled(opening)", onTheExit.map(trimmed))
     }
 
-    /// Proven by adding `.opacity(0.5)` and again by `.allowsHitTesting(false)`
-    /// under the exit; both fired this assertion quoting the line.
+    /// Proven four ways: `.opacity(0.5)` and `.allowsHitTesting(false)` under
+    /// the exit, and both again one line below `leaving`'s closing brace, where
+    /// the earlier version of this test could not see them.
     ///
     /// THE CSS-DEAD EXIT, in Swift. Web shipped
     /// `className={pause.isPending ? "pointer-events-none opacity-50" : undefined}`
@@ -376,19 +466,103 @@ final class CancelOneActionTests: XCTestCase {
     /// happy-dom applies no CSS and every `disabled` check sailed past. These are
     /// the three modifiers that do the same thing here — the button stays
     /// enabled, and the press stops landing or the control stops being readable.
+    ///
+    /// THE WHOLE CARD, not the block the button is written in. This read
+    /// `leaving` alone, and `.opacity(0.4)` with `.allowsHitTesting(false)` on
+    /// the `SettingsCard` one line outside it kills the exit exactly as well —
+    /// SwiftUI hands both down to every descendant. The window is now the card
+    /// plus everything on the exit's chain outside it; see `chainOntoTheExit`.
+    ///
+    /// It is the cheap second line now rather than the answer. The answer is
+    /// `testTheOnlyModifiersOnTheWayOutAreTheOnesArguedFor`, which does not care
+    /// what a killer is called; this stays because it costs nothing, it names
+    /// the three where a reader will meet them, and it covers the parts of the
+    /// card that are not on the exit's own chain at all.
     func testTheWayOutIsNotSwitchedOffByLooksEither() throws {
-        guard let found = try leavingBody() else { return }
+        let source = try billingSource()
+        guard let card = blockBody(source, startingWith: "private struct CancelCard: View {")
+        else {
+            XCTFail("CancelCard is gone from the billing screen")
+            return
+        }
+        guard let chain = try chainOntoTheExit() else { return }
         let killers = [".allowsHitTesting(", ".hidden()", ".opacity("]
-        let offenders = found.body.map(code)
+        let offenders = (card.map(code) + chain.map { $0.text })
             .filter { line in killers.contains(where: { line.contains($0) }) }
             .map(trimmed)
         XCTAssertEqual(
             offenders, [String](),
-            "\n\nIn `leaving`:\n  \(offenders.joined(separator: "\n  "))\n\n"
+            "\n\nOn the cancel card:\n  \(offenders.joined(separator: "\n  "))\n\n"
                 + "A control that is enabled but takes no touches, or is drawn at half "
                 + "opacity to say so, is a disabled exit that no `.disabled` check can "
                 + "see. If one of these is ever genuinely needed here, this guard is the "
                 + "place to argue for it.\n"
+        )
+    }
+
+    /// #524 — nothing reaches the button that has not been argued for.
+    ///
+    /// Proven against seven mutations, each of which fired the first assertion
+    /// below naming the modifier and the member it was hung on. The first three
+    /// are the ones that mattered: applied one line below `leaving`'s closing
+    /// brace, they left all sixteen assertions that came before this one green.
+    ///
+    ///   `.disabled(exporting)`        on the card. A second condition, using a
+    ///                                 real member that says nothing about the
+    ///                                 pause. Exit dead while a CSV builds.
+    ///   `.frame(height: 0)`           on the card. Android's escape, ported:
+    ///                                 exit present, enabled, nought points tall.
+    ///   `.opacity(0.4)` +             on the card. The CSS-dead exit in Swift.
+    ///   `.allowsHitTesting(false)`
+    ///   `.opacity(0.5)`               directly under the exit, and
+    ///   `.allowsHitTesting(false)`    separately. Caught here as well as by the
+    ///                                 blocklist above, which is the point of
+    ///                                 keeping both.
+    ///   `.disabled(pauseChecking)`    on the card. The one that started this,
+    ///                                 caught here for being unlisted and by the
+    ///                                 general property for saying "pause".
+    ///   `.disabled(pauseKnown        on the `CancelCard(` call. Likewise twice.
+    ///     .answer == nil)`
+    ///
+    /// That is the difference this guard is for: it never asks HOW a control was
+    /// switched off, only whether anything new is touching it, so the mechanism
+    /// nobody has invented yet needs no assertion of its own.
+    ///
+    /// # What it does not claim
+    ///
+    /// Not that a press reaches Stripe. `Gate / iOS` is the only compiler this
+    /// repository has and there is no UI test target, so nothing here can press
+    /// anything — the web and Android halves of #524 assert the effect of a
+    /// click, and this cannot. What it claims is narrower and honest: the set of
+    /// things able to affect that button is exactly the set somebody wrote down.
+    func testTheOnlyModifiersOnTheWayOutAreTheOnesArguedFor() throws {
+        guard let chain = try chainOntoTheExit() else { return }
+        let unexpected = chain
+            .filter { !permittedOnTheExit.contains($0.text) }
+            .map { "\($0.place): \($0.text)" }
+        XCTAssertEqual(
+            unexpected, [String](),
+            "\n\nLanding on \"\(exitLabel)\" and not accounted for:\n  "
+                + unexpected.joined(separator: "\n  ")
+                + "\n\nSwiftUI hands enabledness, hit testing, opacity and size down to "
+                + "every descendant, so a modifier on the stack the exit sits in — or on "
+                + "the card that stack sits in, or on the `CancelCard(` call itself — "
+                + "reaches the button as surely as one written under it. This guard does "
+                + "not know which of them are dangerous and deliberately does not try: "
+                + "the list of ways to kill a control cannot be finished, and the list of "
+                + "things allowed to touch this one can. If the new modifier is genuinely "
+                + "needed, add it to `permittedOnTheExit` with the reason — that line is "
+                + "the argument, and having to write it is the guard.\n"
+        )
+        // ...and the list is what is there NOW, rather than a record of what
+        // used to be. An allowlist nobody prunes is an allowlist that permits a
+        // killer somebody removed on purpose, the day it comes back.
+        let present = Set(chain.map { $0.text })
+        XCTAssertEqual(
+            permittedOnTheExit.subtracting(present).sorted(), [String](),
+            "\n\nAllowed but no longer on the way out — delete these:\n  "
+                + permittedOnTheExit.subtracting(present).sorted().joined(separator: "\n  ")
+                + "\n"
         )
     }
 
@@ -544,6 +718,78 @@ final class CancelOneActionTests: XCTestCase {
                 + "screen for as long as it is true, which is a longer outage than any "
                 + "disabled button.\n"
         )
+
+        // ...and each permitted name still MEANS what it was permitted for.
+        //
+        // #524: the allowlist above reads NAMES, and a name is not a promise.
+        // `canCancel` can keep its name and start reading the pause, at which
+        // point every line of the branch chain is still word-for-word legal and
+        // a workspace whose read has not landed has no cancel card at all.
+        // Proven twice: `canCancel` redefined as
+        // `SettingsRoleGate.canCancelSubscription(scope.role) && read.answer != nil`,
+        // and the same laundered through a member introduced for it
+        // (`… && settled`, where `settled` is `read.answer != nil`). Both fire
+        // the assertion below quoting the definition and the name it objected
+        // to, and neither moves the offenders list above by a character.
+        guard let path = try theWayToTheExit() else { return }
+        let cardPause = path.first(where: { $0.place != "the call site" })?.pauseNames ?? []
+        for name in permitted.sorted() {
+            let rows = try definitionRows(of: [name], hops: 2)
+            guard !rows.isEmpty else {
+                XCTFail(
+                    "`\(name)` decides whether the way out is drawn and is declared in "
+                        + "neither file — this half of the guard is reading nothing"
+                )
+                continue
+            }
+            var hits: Set<String> = []
+            for row in rows {
+                for found in identifiers(in: readable(row))
+                where found != name
+                    && (cardPause.contains(found) || found.lowercased().contains("pause")) {
+                    hits.insert("\(trimmed(row))   ← \(found)")
+                }
+            }
+            XCTAssertEqual(
+                hits.sorted(), [String](),
+                "\n\n`\(name)` is defined as:\n  \(hits.sorted().joined(separator: "\n  "))"
+                    + "\n\nThis name is on the short list of things allowed to decide "
+                    + "whether the exit is drawn, and what it is allowed to mean is 'who "
+                    + "is reading' and 'is there a subscription to cancel'. Reading the "
+                    + "pause through it keeps every line of the branch chain legal while "
+                    + "deleting the cancel card from a screen whose read is slow or "
+                    + "broken.\n"
+            )
+        }
+    }
+
+    /// The lines that DEFINE a name, followed out of this file when the answer
+    /// lives in the other one.
+    ///
+    /// BOTH FILES, because `canCancel` IS `SettingsRoleGate
+    /// .canCancelSubscription(scope.role)`, which is declared in
+    /// SettingsLogic.swift. One hop would read a call rather than a rule.
+    ///
+    /// TWO HOPS, which is a bound rather than a shortfall. Two reaches the role
+    /// gate itself and a member introduced to launder the read through, which
+    /// are the shapes this exists for. Following to a fixpoint instead drags
+    /// `scope`, `company` and most of the settings module along behind them, and
+    /// a guard that reads everything says nothing. On the shipped tree the two
+    /// permitted names resolve to fourteen and ten lines respectively.
+    private func definitionRows(of names: Set<String>, hops: Int) throws -> [String] {
+        guard hops > 0, !names.isEmpty else { return [] }
+        var rows: [String] = []
+        var next: Set<String> = []
+        for lines in [try billingSource(), try logicSource()] {
+            for entry in declarations(lines, in: 0 ..< lines.count)
+            where names.contains(entry.name) {
+                for row in entry.range {
+                    rows.append(lines[row])
+                    next.formUnion(identifiers(in: readable(lines[row])))
+                }
+            }
+        }
+        return rows + (try definitionRows(of: next.subtracting(names), hops: hops - 1))
     }
 
     /// Proven by replacing the call with the plain
@@ -1032,7 +1278,7 @@ final class CancelOneActionTests: XCTestCase {
     /// ending the chain.
     private func attachedModifiers(
         _ lines: [String], in region: Range<Int>, anchor: Int
-    ) -> [Int] {
+    ) -> Attached {
         var depth = 0
         for index in region.lowerBound ... anchor {
             depth += braceDelta(readable(lines[index]))
@@ -1040,6 +1286,7 @@ final class CancelOneActionTests: XCTestCase {
         var watermark = depth
         var chained = true
         var found: [Int] = []
+        var heads: [Int] = []
         var index = anchor + 1
         while index < region.upperBound {
             let text = readable(lines[index])
@@ -1051,6 +1298,7 @@ final class CancelOneActionTests: XCTestCase {
             if chained, head.hasPrefix(".") {
                 let opened = depth
                 found.append(index)
+                heads.append(index)
                 depth += braceDelta(text)
                 index += 1
                 while index < region.upperBound, depth > opened {
@@ -1071,6 +1319,113 @@ final class CancelOneActionTests: XCTestCase {
             }
             index += 1
         }
+        return Attached(rows: found, heads: heads)
+    }
+
+    /// A modifier chain, split two ways because two guards ask different
+    /// questions of the one walk.
+    ///
+    /// `rows` is every line the chain occupies: the taint walk wants those,
+    /// because a condition hidden inside `.overlay { … }` is code on the path to
+    /// the exit however deep it sits. `heads` is the modifiers THEMSELVES, one
+    /// entry each, which is what an inventory of "things allowed to touch this
+    /// button" has to count — a line from inside a modifier's block is not a
+    /// modifier on the button.
+    private struct Attached {
+        let rows: [Int]
+        let heads: [Int]
+    }
+
+    /// #524 — every modifier that lands on the exit, from the button outward to
+    /// the screen that builds the card.
+    ///
+    /// # Why it does not stop at a brace
+    ///
+    /// `attachedModifiers` already follows the exit out to the root of the
+    /// member that draws it, which was enough while every guard here believed
+    /// the exit's reachability was settled inside `leaving`. It is not.
+    /// `leaving` is rendered by `CancelCard.body`, which hangs its own chain on
+    /// the `SettingsCard` around it, and SwiftUI hands `isEnabled` — and hit
+    /// testing, and opacity, and a zero height — down to every descendant. Three
+    /// regressions were applied one line below `leaving`'s closing brace and
+    /// walked through all sixteen assertions in this file:
+    /// `.disabled(exporting)`, `.frame(height: 0)`, and `.opacity(0.4)` with
+    /// `.allowsHitTesting(false)`. None of them says anything about the pause,
+    /// so the general property could not see them either; each one leaves
+    /// somebody who came here to cancel with a button that does nothing.
+    ///
+    /// So the walk goes OUT: out of the member holding the button, then out of
+    /// whichever member renders THAT one, until nothing renders the current one,
+    /// and finally out of the card altogether to the `CancelCard(` call. The
+    /// members are found by reference rather than by name, so inserting a view
+    /// between `body` and `leaving` is read for the same reason `leaving` is.
+    ///
+    /// HEADS ONLY. A line from inside `.sheet { … }` is code the taint walk
+    /// wants and is not a modifier on the button, so it is not counted here.
+    private func chainOntoTheExit() throws -> [(place: String, text: String)]? {
+        let source = try billingSource()
+        guard let exit = source.firstIndex(where: { code($0).contains(exitLabel) }) else {
+            XCTFail(
+                "no \"\(exitLabel)\" in the billing screen — the way out moved or was renamed"
+            )
+            return nil
+        }
+        guard let cardHeader = enclosingHeaders(source, of: exit)
+            .first(where: { words(readable(source[$0])).contains("struct") }),
+            let cardName = nameAfter("struct", in: source[cardHeader]),
+            let cardRange = blockRange(source, openedAt: cardHeader)
+        else {
+            XCTFail(
+                "the exit is inside no struct — this guard cannot find the card it draws on"
+            )
+            return nil
+        }
+        let members = declarations(source, in: cardRange)
+        var found: [(place: String, text: String)] = []
+
+        var anchor = exit
+        var current = members.first(where: { $0.range.contains(exit) })
+        // A member cannot be its own ancestor, and a cycle would spin forever.
+        var visited: Set<String> = []
+        while let member = current, !visited.contains(member.name) {
+            visited.insert(member.name)
+            for row in attachedModifiers(source, in: member.range, anchor: anchor).heads {
+                found.append((place: member.name, text: trimmed(readable(source[row]))))
+            }
+            func renders(_ entry: Declared) -> Int? {
+                guard entry.name != member.name else { return nil }
+                return entry.range.first(where: {
+                    identifiers(in: readable(source[$0])).contains(member.name)
+                })
+            }
+            guard let parent = members.first(where: { renders($0) != nil }),
+                  let at = renders(parent)
+            else { break }
+            anchor = at
+            current = parent
+        }
+
+        // ...and out of the card entirely. A modifier on the `CancelCard(` call
+        // lands on everything inside it, exit included, without occupying a line
+        // anywhere near the button.
+        guard let call = source.indices.first(where: { index in
+            !cardRange.contains(index) && readable(source[index]).contains(cardName + "(")
+        }), let render = enclosingHeaders(source, of: call)
+            .first(where: { declaredName(source[$0]) != nil }),
+            let renderRange = blockRange(source, openedAt: render)
+        else {
+            XCTFail("\(cardName)( is built nowhere — the exit is on no screen")
+            return nil
+        }
+        let site = "the \(cardName)( call site"
+        let end = statementEnd(source, from: call, in: renderRange)
+        for row in attachedModifiers(source, in: renderRange, anchor: end).heads {
+            found.append((place: site, text: trimmed(readable(source[row]))))
+        }
+        // `CancelCard(…).disabled(…)` written inline, which occupies no line of
+        // its own and so appears in no walk that counts lines.
+        let tail = statementTail(source, from: call, in: renderRange)
+        if !tail.isEmpty { found.append((place: site, text: tail)) }
         return found
     }
 
@@ -1269,7 +1624,7 @@ final class CancelOneActionTests: XCTestCase {
             return nil
         }
         let slice = Array(holder.range.lowerBound ... exit)
-            + attachedModifiers(source, in: holder.range, anchor: exit)
+            + attachedModifiers(source, in: holder.range, anchor: exit).rows
         let cardPause = pauseDerived(
             source,
             in: cardRange,
@@ -1298,7 +1653,7 @@ final class CancelOneActionTests: XCTestCase {
                 add("the call site", row, sectionPause)
             }
         }
-        for row in attachedModifiers(source, in: renderRange, anchor: end) {
+        for row in attachedModifiers(source, in: renderRange, anchor: end).rows {
             add("the call site", row, sectionPause)
         }
         let tail = statementTail(source, from: call, in: renderRange)

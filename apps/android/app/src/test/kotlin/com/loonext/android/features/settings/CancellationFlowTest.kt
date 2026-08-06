@@ -281,6 +281,14 @@ class CancellationFlowTest {
      * waits on it turns a slow billing route into a person who cannot cancel,
      * which is the exact failure the whole card is built against, re-created by
      * the feature that was meant to be an alternative to leaving.
+     *
+     * AND IT IS STILL A SCAN, WHICH IS WHY IT IS NO LONGER THE ANSWER. It reads
+     * source and derives a vocabulary; a blocker keyed on something other than
+     * the pause is outside that vocabulary and outside this test. The guard that
+     * cannot be walked past is [BillingPressTest], which renders this screen and
+     * PRESSES the button in every state the read can be in. This one stays
+     * because it is cheap, it runs without a device, and it fails at the line
+     * that introduced the problem rather than at the effect that went missing.
      */
     @Test
     fun `nothing on the way to the exit consults the pause read`() {

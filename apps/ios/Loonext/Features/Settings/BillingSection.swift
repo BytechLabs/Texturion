@@ -1218,17 +1218,51 @@ private struct CancelCard: View {
     /// The same correction is made in the scheduled-cancellation notice at the
     /// top of this screen and in the shared seasonal answer, and all three now
     /// say it the same way round.
+    ///
+    /// # IT MAY NOT DATE A STOP THAT HAS ALREADY HAPPENED (#524)
+    ///
+    /// This is STANDING copy: it renders in every state of the pause read, for
+    /// every reader, above everything else on the card. It used to open
+    /// "Texting stops at the end of your billing period", which is false for
+    /// somebody already paused — their texting stopped the day they paused — and
+    /// it sat one card below the paused plan card saying texting is already off.
+    /// Two sentences on one screen, and the false one was addressed to exactly
+    /// the reader the true one was written for.
+    ///
+    /// # Why it is fixed by rewriting rather than by branching
+    ///
+    /// A pause-aware sentence here would have to consult the pause read, and
+    /// there is no other source: `paused_at` is deliberately kept off
+    /// `CompanyView` (see `BillingPause` in Core.swift), so the only answer on
+    /// this client comes from `GET /v1/billing/pause`. Two things forbid that.
+    /// It is on the way to "Continue to cancel" — this string is an argument to
+    /// the card that holds the exit — and nothing on that path may depend on a
+    /// read that can be slow or fail. And a branch would still be WRONG in the
+    /// two states it cannot reach: while the read is in flight and after it has
+    /// failed, a branched sentence prints whichever claim was chosen as the
+    /// default, at which point a paused reader is reading the old defect again.
+    ///
+    /// So the clause is written to be true in all four states instead. "Nothing
+    /// changes until the end of your billing period" holds for a paused
+    /// workspace (the hold and the holding fee both continue) and for an
+    /// unpaused one; and the reader's real question — do I lose service the
+    /// moment I press this — is answered by a condition they resolve
+    /// themselves rather than by one we have to read. The hold's anchor moves
+    /// with it, from "the day texting stops" to the day the plan ends, which is
+    /// the date the sentence before actually put in their head.
     private var consequence: String {
         canCancel
-            ? "Cancel anytime. Texting stops at the end of your billing period. Your "
-                + "number is held for \(cancellationGraceDays) days from the day you "
-                + "cancel — not from the day texting stops — so it can go back to the "
-                + "phone company soon after. After that it is released for good."
-            : "Only the owner can cancel this plan. When they do, texting stops at the "
-                + "end of the billing period. The number is held for "
-                + "\(cancellationGraceDays) days from the day they cancel — not from the "
-                + "day texting stops — so it can go back to the phone company soon "
+            ? "Cancel anytime. Nothing changes until the end of your billing period — "
+                + "if your texting is on, it stays on until then. Your number is held "
+                + "for \(cancellationGraceDays) days from the day you cancel — not from "
+                + "the day your plan ends — so it can go back to the phone company soon "
                 + "after. After that it is released for good."
+            : "Only the owner can cancel this plan. When they do, nothing changes until "
+                + "the end of the billing period — if your texting is on, it stays on "
+                + "until then. The number is held for \(cancellationGraceDays) days from "
+                + "the day they cancel — not from the day the plan ends — so it can go "
+                + "back to the phone company soon after. After that it is released for "
+                + "good."
     }
 
     var body: some View {

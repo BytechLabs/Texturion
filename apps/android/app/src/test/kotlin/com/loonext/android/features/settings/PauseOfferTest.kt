@@ -241,17 +241,49 @@ class PauseOfferTest {
      * to a recurring charge here, so the one thing that may not be
      * self-referential is the amount.
      *
-     * 1275 RATHER THAN THE 500 EVERY OTHER FIXTURE IN THIS FILE USES, and that
-     * is the fix rather than a preference. The paused-state price was asserted
-     * as `heading.contains("$5")` against a 500-cent fixture — which is exactly
-     * what a heading with "$5" typed into it produces, so the guard passed on
-     * the defect it was written to catch. 1275 is a figure no hardcode in this
-     * tree would produce, and it exercises the formatter's fractional branch,
-     * which a round number never reaches. It is not a plan price, so it cannot
-     * collide with the price book either.
+     * TWO FIXTURES, ONE PER SURFACE, AND THEY MAY NEVER BE THE SAME NUMBER —
+     * #524, adopted from web (1275/500) and iOS (1275/940). The offer and the
+     * paused card are different copy for different moments, but they are built
+     * side by side in one file out of one formatter, so a constant typed into a
+     * shared sentence satisfies every literal assertion in reach of it. That is
+     * not hypothetical: the paused price was once asserted as
+     * `heading.contains("$5")` against a 500-cent fixture, which is exactly what
+     * a heading with "$5" written into it produces, and the guard passed on the
+     * defect it was written to catch.
+     *
+     * Split across two amounts, no single injected figure can satisfy both — and
+     * [the two proving amounts are never the same] fails if a later edit quietly
+     * points them at one number again. Neither is round, so both exercise the
+     * formatter's fractional branch; neither is a plan price, so neither can
+     * collide with the price book. The round-number branch is covered by the
+     * sweeps below, which run several amounts including whole dollars.
      */
-    private val oddCents = 1275L
-    private val oddPrice = "\$12.75"
+    private val offerCents = 1275L
+    private val offerPrice = "\$12.75"
+
+    private val pausedCents = 940L
+    private val pausedPrice = "\$9.40"
+
+    /**
+     * ...AND THE SPLIT IS A PROPERTY, NOT A COINCIDENCE OF TWO CONSTANTS.
+     *
+     * The whole value of the pair is that they differ. Pointed at one number —
+     * by a tidy-up, or by somebody making a fixture "consistent" — the two
+     * literal assertions below become satisfiable by one injected sentence
+     * again, silently, with both tests still green.
+     */
+    @Test
+    fun `the two proving amounts are never the same`() {
+        assertTrue(
+            "the offer and the paused card must be proved with DIFFERENT figures, " +
+                "or one hardcoded price satisfies both",
+            offerCents != pausedCents && offerPrice != pausedPrice,
+        )
+        // And each literal really is what the shipped formatter makes of its own
+        // amount, so the pair cannot drift into asserting nothing.
+        assertEquals(offerPrice, formatMonthlyCents(offerCents))
+        assertEquals(pausedPrice, formatMonthlyCents(pausedCents))
+    }
 
     /**
      * THE FIGURE IS THE API'S, TO THE CENT, and it is on the control.
@@ -261,7 +293,7 @@ class PauseOfferTest {
      */
     @Test
     fun `the price the API sent is on the offer and on both buttons`() {
-        val copy = pauseOfferCopy(offered(cents = 537L))!!
+        val copy = pauseOfferCopy(offered(cents = offerCents))!!
         listOf(
             "heading" to copy.heading,
             "body" to copy.body,
@@ -271,7 +303,7 @@ class PauseOfferTest {
         ).forEach { (where, text) ->
             assertTrue(
                 "$where must name the real monthly figure: $text",
-                text.contains("\$5.37"),
+                text.contains(offerPrice),
             )
         }
         // Whole dollars stay whole — a trailing .00 on a plan price reads as
@@ -317,16 +349,71 @@ class PauseOfferTest {
     }
 
     /**
+     * NO FIGURE ON THIS SCREEN IS TYPED. Every one is cents from the API, run
+     * through [formatMonthlyCents] or [planFacts].
+     *
+     * BOTH FILES, WHICH IS THE WHOLE POINT (#524). The screen is
+     * `BillingSection.kt` and every sentence it renders is built in
+     * `SettingsLogic.kt`, so the iOS twin of this guard shipped for a while
+     * pointed at the screen alone — at the file where the words are NOT. A price
+     * typed into a sentence is invisible from there, and the sweeps above only
+     * see the surfaces they were told to look at: a figure written into a
+     * sentence nobody added to a list is a number with no read behind it,
+     * shown to somebody about to agree to a recurring charge.
+     *
+     * SLICED, AND HERE IS THE ONE THING THE SLICE LEAVES OUT. Above
+     * `CANCELLATION_REASONS`, `SettingsLogic.kt` carries the merge-field tidier,
+     * whose `Regex(...)` replacement template is the string "$1" — a
+     * backreference, not a price, and a scan reading "a `$` then a digit" cannot
+     * tell them apart. Everything above the cut is a price BOOK rather than a
+     * sentence and has its own pins: `pins the shared price book against the
+     * TypeScript it was ported from` in [CancellationOfferTest],
+     * [ExtraNumberPriceTest] and [RegistrationFeeTest] all read those
+     * declarations directly.
+     */
+    @Test
+    fun `no price is typed into the billing screen or into its words`() {
+        val cut = "val CANCELLATION_REASONS"
+        val logic = withoutComments(readMainSource(settingsLogic))
+        val at = logic.indexOf(cut)
+        assertTrue(
+            "`$cut` is gone from $settingsLogic, so this guard no longer knows where " +
+                "the sentences start. Re-anchor it rather than deleting it",
+            at > 0,
+        )
+
+        val typed = Regex("\\\$\\s?[0-9]")
+        listOf(
+            billingSection to withoutComments(readMainSource(billingSection)),
+            settingsLogic to logic.substring(at),
+        ).forEach { (file, source) ->
+            val offenders = typed.findAll(source)
+                .map { source.substring(it.range.first, minOf(source.length, it.range.last + 20)) }
+                .toList()
+            assertEquals(
+                "a figure is written into $file: $offenders. Prices on this screen " +
+                    "arrive from the API as cents and are formatted by " +
+                    "`formatMonthlyCents` or `planFacts` — a typed one is a charge " +
+                    "with no read behind it, and it agrees with the sweeps above " +
+                    "exactly until the day the price changes",
+                emptyList<String>(),
+                offenders,
+            )
+        }
+    }
+
+    /**
      * The paused state quotes THE MIRROR — what this workspace is being charged
      * — and where the mirror has no figure it names none. Today's catalog price
      * substituted into the gap would be quoting a charge nobody is on.
      *
-     * ASSERTED AGAINST A FIGURE NO HARDCODE PRODUCES. This used to read
-     * `heading.contains("$5")` over a 500-cent fixture, which is what a heading
-     * with "$5" written into it says too — the assertion and the defect were the
-     * same string. See [oddCents]. The offer above has had a sweep like this
-     * since it was written; the paused state, which is the surface somebody
-     * reads every month while being charged, had a check that could not fail.
+     * ASSERTED AGAINST ITS OWN FIGURE, WHICH IS NOT THE OFFER'S. This used to
+     * read `heading.contains("$5")` over a 500-cent fixture, which is what a
+     * heading with "$5" written into it says too — the assertion and the defect
+     * were the same string. It is now [pausedCents], deliberately a different
+     * amount from the one the offer is proved with, so no single price typed
+     * into a sentence these two surfaces share can satisfy both. See
+     * [offerCents].
      */
     @Test
     fun `the paused state names the mirror's figure, or no figure at all`() {
@@ -334,20 +421,20 @@ class PauseOfferTest {
             eligible = false,
             reason = "already_paused",
             paused_at = "2026-01-15T09:00:00Z",
-            monthly_cents = oddCents,
+            monthly_cents = pausedCents,
             resume_plan = "pro",
         )
         val copy = pausedStateCopy(paused, "Pro")!!
         assertTrue(
             "the paused heading must name what this workspace is actually charged: " +
                 "${copy.heading}",
-            copy.heading.contains(oddPrice),
+            copy.heading.contains(pausedPrice),
         )
         assertEquals(
             "the paused card quotes a figure the mirror did not send. Every amount " +
                 "on it is `monthly_cents` — this is what the customer's statement " +
                 "says, and a second number here is a charge they did not agree to",
-            listOf(oddPrice),
+            listOf(pausedPrice),
             moneyIn(
                 listOf(
                     copy.heading, copy.body, copy.resumeLabel,
@@ -362,10 +449,10 @@ class PauseOfferTest {
         //
         // ALL SIX FIELDS, AND THAT IS THE FIX RATHER THAN THOROUGHNESS. This
         // swept `heading` and `body` only, which left the assertion above — a
-        // comparison against the literal [oddPrice] at ONE amount — as the sole
-        // guard on the other four. A literal satisfies itself: typing
-        // "You are charged $12.75 today." into `confirmBody` passed every test
-        // in this module, because at 1275 cents the injected figure IS the
+        // comparison against the literal [pausedPrice] at ONE amount — as the
+        // sole guard on the other four. A literal satisfies itself: typing
+        // "You are charged $9.40 today." into `confirmBody` passed every test in
+        // this module, because at that one amount the injected figure IS the
         // expected one and no other amount was ever tried on that field.
         //
         // `confirmBody` is the worst possible place for that hole. It is the
@@ -373,8 +460,8 @@ class PauseOfferTest {
         // agreeing to be charged the plan price again — so it is the one surface
         // on this card where a made-up number is money changing hands rather
         // than a wrong word. Swept across five amounts it cannot hold a constant
-        // at all: at 100 cents the injected "$12.75" is not "$1", and this
-        // fails naming both.
+        // at all: at 100 cents an injected "$9.40" is not "$1", and this fails
+        // naming both.
         listOf(100L, 499L, 500L, 1250L, 9999L).forEach { cents ->
             val each = pausedStateCopy(paused.copy(monthly_cents = cents), "Pro")!!
             val everything = listOf(
@@ -404,6 +491,58 @@ class PauseOfferTest {
         assertTrue(
             "and it must name no amount rather than borrow one: ${noFigure.heading}",
             moneyIn(noFigure.heading + noFigure.body).isEmpty(),
+        )
+    }
+
+    /**
+     * #524 — the sentence a paused reader is given INSTEAD of the promise the
+     * cancel card's standing header used to make them.
+     *
+     * That header read "Texting stops at the end of your billing period", which
+     * is a promise of texting until then made to somebody whose texting stopped
+     * the day they paused — on the same screen as the card telling them so. The
+     * header is now true for both readers and says nothing about the pause,
+     * because it renders ABOVE the button that leaves and may not reflow when a
+     * Stripe round trip lands. [pausedCancelNote] is the rest of the truth, and
+     * the render site puts it below that button.
+     *
+     * ONLY AN ANSWERED READ SPEAKS, which is the same rule every other claim on
+     * this screen follows: a read in flight and a read that failed are not
+     * permission to tell somebody their plan is paused.
+     *
+     * WHAT IT MAY NOT DO is quote a price. The amount lives on the paused card
+     * above, where it is the mirror's own figure; a second copy of it down here
+     * is a number with no read behind it.
+     */
+    @Test
+    fun `only a workspace we were TOLD is paused is told what cancelling starts`() {
+        listOf(
+            PauseRead.Unasked,
+            PauseRead.Loading,
+            PauseRead.Failed,
+            PauseRead.Answered(offered()),
+        ).forEach { read ->
+            assertNull(
+                "$read is not an answer that this workspace is paused, so it may not " +
+                    "be told anything about being paused",
+                pausedCancelNote(read),
+            )
+        }
+
+        val note = pausedCancelNote(
+            PauseRead.Answered(
+                PauseState(paused_at = "2026-01-15T09:00:00Z", monthly_cents = pausedCents),
+            ),
+        )!!
+        assertTrue(
+            "the reader has to be told that the thing cancelling starts is the clock " +
+                "a pause has been keeping off their number: $note",
+            note.contains("$CANCELLATION_GRACE_DAYS-day"),
+        )
+        assertTrue(
+            "and it must not quote an amount: the figure belongs to the paused card, " +
+                "which reads it off the mirror. $note",
+            moneyIn(note).isEmpty(),
         )
     }
 
@@ -1094,7 +1233,7 @@ class PauseOfferTest {
     fun `the answer's own plan switch waits for the read, exactly as the card does`() {
         val running = PauseRead.Answered(offered())
         val paused = PauseRead.Answered(
-            PauseState(paused_at = "2026-01-15T09:00:00Z", monthly_cents = oddCents),
+            PauseState(paused_at = "2026-01-15T09:00:00Z", monthly_cents = pausedCents),
         )
 
         listOf<PauseRead>(PauseRead.Unasked, PauseRead.Loading, PauseRead.Failed, paused)
