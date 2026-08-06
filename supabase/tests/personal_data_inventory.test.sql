@@ -27,6 +27,12 @@ declare
   classified text[] := array[
     -- §1 contact data (the customer's customer)
     'contacts', 'messages', 'conversations', 'conversation_events',
+    -- #247: the cached thread catch-up. Classified with `messages` and not as
+    -- a derived cache, because every line of it is a quotation from the thread
+    -- by construction — s.183 treats "the substance, meaning or purport" of a
+    -- communication as the communication, and an erasure that took the bodies
+    -- and left this would leave the customer's words under another name.
+    'conversation_summaries',
     'attachments', 'message_attachments', 'calls', 'call_member_legs',
     'opt_outs', 'blocked_senders', 'contact_consent_events', 'tasks',
     'number_port_outs',

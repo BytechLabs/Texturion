@@ -150,6 +150,7 @@ const SUITES = [
   "paid_pause",
   "number_allowance",
   "dead_provisioning",
+  "thread_summary",
 ];
 
 const args = process.argv.slice(2);

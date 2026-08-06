@@ -296,6 +296,26 @@ export {
 } from "./voicemail-intake";
 
 /**
+ * #247 — when a thread has earned a catch-up, and what the three sections are
+ * called. One rule and one set of headings, because the server decides whether
+ * to spend and the clients decide whether to offer, and those two must be the
+ * same decision.
+ */
+export {
+  isThreadSummarySection,
+  shouldOfferThreadSummary,
+  THREAD_SUMMARY_ATTRIBUTION,
+  THREAD_SUMMARY_IDLE_DAYS,
+  THREAD_SUMMARY_IDLE_MIN_MESSAGES,
+  THREAD_SUMMARY_IDLE_MS,
+  THREAD_SUMMARY_MIN_MESSAGES,
+  THREAD_SUMMARY_SECTION_IDS,
+  THREAD_SUMMARY_SECTIONS,
+  type ThreadSummaryOffer,
+  type ThreadSummarySection,
+} from "./thread-summary";
+
+/**
  * #312: the legal entity and mailing address, read by BOTH the marketing site's
  * identity surfaces and the Worker that has to print an address in a commercial
  * email footer. One fact, one place, so the two cannot disagree.

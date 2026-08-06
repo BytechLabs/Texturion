@@ -740,7 +740,13 @@ export type AiOutcomeFeature =
   // transcript above it reports nothing from a client — for one reason: this
   // one is HANDED OVER for review, so what a person did with it is visible.
   // That is the argument for returning text instead of posting the note.
-  | "call_wrapup";
+  | "call_wrapup"
+  // #247: the thread catch-up. Only "used" is ever reported for it, and only
+  // when somebody opens a cited message — the one deliberate act a client can
+  // see. "Read it and got on with the job" is a person NOT doing something, and
+  // three clients inventing three scroll heuristics for it would produce a
+  // number nobody could interpret. See THREAD_SUMMARY_FEATURE_SPEC.outcomes.
+  | "thread_summary";
 
 export function reportAiOutcome(
   companyId: string,

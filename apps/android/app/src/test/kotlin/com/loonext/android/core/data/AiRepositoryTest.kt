@@ -145,6 +145,7 @@ class AiRepositoryTest {
                 transcribe_voicemail = false,
                 voicemail_intake = true,
                 call_wrapup = false,
+                summarize_threads = false,
             ),
         )
         val recorded = server.takeRequest()
@@ -161,9 +162,16 @@ class AiRepositoryTest {
         // #507: call_wrapup joins them, and it is the same trap — it defaults
         // to ON, so a client that dropped the field could never turn dictation
         // off for a workspace that asked for it off.
+        //
+        // #247: summarize_threads is the same trap once more, and this test is
+        // what caught it. It also defaults to ON and it authorises the broadest
+        // disclosure of the five — a whole conversation rather than one message
+        // — so a workspace that turned catch-ups off and had the field dropped
+        // would keep sending threads it had explicitly said no to.
         assertEquals(
             """{"enrich_task_address":true,"enrich_task_due":true,"suggest_replies":true,""" +
-                """"transcribe_voicemail":false,"voicemail_intake":true,"call_wrapup":false}""",
+                """"transcribe_voicemail":false,"voicemail_intake":true,"call_wrapup":false,""" +
+                """"summarize_threads":false}""",
             recorded.body?.utf8(),
         )
     }

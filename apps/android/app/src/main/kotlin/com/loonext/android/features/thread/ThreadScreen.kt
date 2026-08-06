@@ -118,6 +118,7 @@ import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.compose.OnMyWay
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
+import com.loonext.android.core.model.shouldOfferThreadSummaryFor
 import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.features.attachments.openOriginal
@@ -684,6 +685,37 @@ private fun ThreadLoaded(
                 },
             )
         }
+
+        // #247 — the catch-up, last in the strip stack and directly above the
+        // messages it is about. Below spam/snooze/pinned deliberately: each of
+        // those is a fact about the thread's standing, and this is a reading
+        // aid. A summary must never sit above the question "is this even a
+        // customer".
+        ThreadSummaryCard(
+            state = catchUpState(
+                // The same rule the server enforces before it reserves
+                // anything, so the control is absent rather than offering
+                // something that answers "there was nothing to summarise".
+                offered = shouldOfferThreadSummaryFor(controller.messages, System.currentTimeMillis()),
+                reading = controller.summarizing,
+                summary = controller.summary,
+            ),
+            onAsk = {
+                haptics.tap()
+                controller.askForSummary()
+            },
+            // The citation, made real. Reuses the pinned banner's jump exactly:
+            // page back until the message is loaded, then flash it in place. A
+            // line that could not be reached would make the attribution a
+            // disclaimer, which is the one thing this card must not become.
+            onOpenMessage = { messageId ->
+                scope.launch {
+                    if (controller.ensureMessageLoaded(messageId)) {
+                        jumpToMessageId = messageId
+                    }
+                }
+            },
+        )
 
         Box(Modifier.weight(1f)) {
             if (timeline.isEmpty()) {

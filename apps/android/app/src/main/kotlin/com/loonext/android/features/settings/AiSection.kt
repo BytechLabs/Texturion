@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.dp
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.CompanyAiSettings
 import com.loonext.android.core.model.MemberRole
+import com.loonext.android.core.model.THREAD_SUMMARY_IDLE_DAYS
+import com.loonext.android.core.model.THREAD_SUMMARY_MIN_MESSAGES
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
@@ -173,6 +175,38 @@ fun AiSection(scope: SettingsScope) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.End,
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                // #247. BEFORE the replying card, because that is the order the
+                // day happens in: you open a thread you have lost the thread of,
+                // you read it, and then you answer. A catch-up is a reading aid.
+                SettingsCard(title = "When you open a long thread") {
+                    LabeledSwitchRow(
+                        label = "Let Lou catch you up",
+                        // The disclosure is the first sentence, not the last.
+                        // This is the broadest thing Lou is asked to read — a
+                        // whole conversation rather than one message, one field
+                        // or one recording — and a workspace that said yes to
+                        // drafting has not thereby said yes to this.
+                        //
+                        // The threshold is interpolated from the shipped
+                        // constant, never typed: a number in settings copy that
+                        // disagrees with the rule is how a person learns not to
+                        // trust the settings screen.
+                        supporting = "On a thread of $THREAD_SUMMARY_MIN_MESSAGES messages " +
+                            "or more — or a shorter one nobody has touched in " +
+                            "$THREAD_SUMMARY_IDLE_DAYS days — offer a short catch-up: what " +
+                            "they asked, what you said, what is still open. Lou reads the " +
+                            "conversation to write it, and every line quotes a real message " +
+                            "you can tap straight to. It is only ever offered, never " +
+                            "automatic, and it changes nothing about which threads you see " +
+                            "or the order they come in.",
+                        checked = settings.summarize_threads,
+                        enabled = canEdit,
+                        onCheckedChange = { checked ->
+                            toggle(settings, settings.copy(summarize_threads = checked))
+                        },
                     )
                 }
                 Spacer(Modifier.height(12.dp))

@@ -18,6 +18,7 @@ import {
   VOICEMAIL_TRANSCRIPT_FEATURE_SPEC,
 } from "../calls/voicemail-transcript";
 import { SUGGEST_REPLY_FEATURE_SPEC } from "../messaging/reply-suggestions";
+import { THREAD_SUMMARY_FEATURE_SPEC } from "../messaging/thread-summary";
 import { ENRICHMENT_FEATURE_SPEC } from "../tasks/enrichment";
 
 import type { CompanyAiSettings } from "./settings";
@@ -66,6 +67,11 @@ export interface AiFeatureUsage {
  */
 export const AI_USAGE_FEATURES = [
   SUGGEST_REPLY_FEATURE_SPEC,
+  // #247: beside drafting, because they are the two halves of the same thread —
+  // one reads it, the other answers it — and because a crew comparing the two
+  // caps should see them next to each other. The catch-up's is a third of
+  // drafting's, deliberately.
+  THREAD_SUMMARY_FEATURE_SPEC,
   ENRICHMENT_FEATURE_SPEC,
   VOICEMAIL_TRANSCRIPT_FEATURE_SPEC,
   // Beneath the transcript it reads, which is also the order the two happen in.

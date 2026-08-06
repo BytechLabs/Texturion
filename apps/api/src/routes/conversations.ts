@@ -34,7 +34,11 @@
  *   DELETE /v1/conversations/:id/tags/:tag_id detach.
  */
 import type { BusinessHours, HoursException } from "@loonext/shared";
-import { TAGS_PER_WORKSPACE, roleHasCapability } from "@loonext/shared";
+import {
+  TAGS_PER_WORKSPACE,
+  roleHasCapability,
+  shouldOfferThreadSummary,
+} from "@loonext/shared";
 import {
   CALL_WRAPUP_FEATURE_SPEC,
   CALL_WRAPUP_MAX_BYTES,
@@ -91,6 +95,19 @@ import {
   type SuggestionMessage,
   threadTextOf,
 } from "../messaging/reply-suggestions";
+import {
+  buildSummaryMessages,
+  parseSummaryOutput,
+  sanitizeSummary,
+  selectSummaryWindow,
+  summaryEnvelopeShape,
+  THREAD_SUMMARY_CONTEXT_MESSAGES,
+  THREAD_SUMMARY_FEATURE_SPEC,
+  THREAD_SUMMARY_MAX_OUTPUT_TOKENS,
+  THREAD_SUMMARY_MODEL,
+  type SummaryLine,
+  type SummaryMessage,
+} from "../messaging/thread-summary";
 import {
   ATTACHMENTS_BUCKET,
   ATTACHMENT_SIGNED_URL_TTL_SECONDS,
@@ -1189,6 +1206,7 @@ const aiOutcomeSchema = z.object({
     "voicemail_transcript",
     "voicemail_intake",
     "call_wrapup",
+    "thread_summary",
   ]),
   // Three outcomes, never a rate. #431's own devil's advocate is right that
   // acceptance is noisy: a discard can mean "the draft was wrong" or "I wanted to
@@ -1455,6 +1473,447 @@ conversationsRoutes.post(
       : c.json({ suggestions, business_unknown: businessUnknown });
   },
 );
+
+// --------------------------------------------------------------------------
+/**
+ * POST /v1/conversations/:id/summary (#247) — the catch-up.
+ *
+ * A tech comes off a roof at 4pm to a thread nobody has read since Tuesday.
+ * This returns three short sections — what they asked, what we said, what is
+ * still open — each line carrying the id of the message it came from.
+ *
+ * WHAT THIS IS NOT, and the order matters:
+ *
+ *   It is NOT a record. The thread is the record. Every line taps through to
+ *   one real message, which is what makes the attribution line true rather
+ *   than a disclaimer.
+ *
+ *   It is NOT a decision. Nothing here reorders an inbox, badges a row, or
+ *   hides anything. #247 is right that urgency triage which hides a thread is a
+ *   product that loses somebody a job — and the ranking half of that ask is
+ *   already built deterministically (api_for_you's 0-3 urgency ladder, the
+ *   awaiting-reply clock, EMERGENCY_KEYWORDS). A model-scored second ranking
+ *   beside a working deterministic one would be two systems disagreeing about
+ *   what matters, which is worse than either alone.
+ *
+ *   It NEVER outranks carrier truth. The opt-out state is read from `opt_outs`
+ *   and `conversations.opt_out_hint_at` — facts, deterministically — and rides
+ *   back in its own fields on EVERY response shape, including the refusals and
+ *   the cache hits. If that read fails we refuse the summary entirely rather
+ *   than return a tidy paragraph that might be the only thing somebody reads
+ *   before texting a person who said STOP.
+ *
+ * Everything degrades to `lines: []` with a reason: toggle off, spam, too short
+ * to bother, no binding, rate-limited, over the monthly cap, model timeout, or
+ * output that failed the citation rules. A busy inbox gets silence, never an
+ * error box.
+ *
+ * TWO DIFFERENT GATES, asking two different questions.
+ *
+ * The CAPABILITY is `conversations.note`, matching every other AI feature. It
+ * is tempting to ask only for `conversations.read`, since a catch-up is a
+ * reading aid and changes nothing a customer can see — and that is wrong, for a
+ * reason the #315 gate lint is right to insist on: this spends from a monthly
+ * budget the WHOLE WORKSPACE shares, 500 catch-ups between all of them. A
+ * read-only observer is an accountant or a consultant; letting one burn the
+ * crew's month is not a self-scoped write, and the thread they wanted to
+ * understand is right there to read.
+ *
+ * The NUMBER LEVEL (#106) is 'read', not 'text'. The capability says you are
+ * crew; this says whether you may see THIS thread at all. Reply drafting needs
+ * 'text' because a draft you cannot send is a dead end — a catch-up on a thread
+ * you can only read is still the whole point.
+ */
+// --------------------------------------------------------------------------
+conversationsRoutes.post(
+  "/conversations/:id/summary",
+  requireCapability("conversations.note"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const companyId = c.get("companyId");
+    const env = getEnv(c.env);
+    const db = getDb(env);
+
+    const conversation = await findConversation(db, companyId, id);
+    if (!conversation) {
+      return errorResponse(c, "not_found", "No such conversation.");
+    }
+    await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: conversation.phone_number_id as string | null,
+      need: "read",
+    });
+
+    // Carrier truth, established BEFORE anything else can succeed. A summary
+    // that reached somebody without it is a tidy paragraph standing where a
+    // legally binding STOP should be, and the summary is the thing a hurried
+    // person reads instead of the thread.
+    const optOut = await readOptOutState(db, companyId, conversation);
+    if (!optOut.ok) {
+      // Deliberately a refusal and not a degraded success. Everything else here
+      // fails open onto "no catch-up, the thread is still there"; this one
+      // fails closed onto the same place, for a different reason.
+      return c.json({
+        lines: [],
+        reason: "unavailable" as const,
+        opt_out: null,
+        opt_out_hint_at: null,
+      });
+    }
+    const carrier = {
+      opt_out: optOut.optOut,
+      opt_out_hint_at: (conversation.opt_out_hint_at as string | null) ?? null,
+    };
+
+    // #250: a thread somebody marked spam never spends AI budget, on the
+    // HUMAN's flag rather than the classifier's suspicion — the same line
+    // reply drafting draws, and for the same reason.
+    if (conversation.is_spam) {
+      return c.json({ lines: [], reason: "spam" as const, ...carrier });
+    }
+
+    const settings = await loadAiSettings(db, companyId);
+    if (!settings.summarize_threads) {
+      return c.json({ lines: [], reason: "disabled" as const, ...carrier });
+    }
+
+    // Customer-visible history only, newest-first, hard-capped at the window.
+    // INTERNAL NOTES ARE EXCLUDED BY THIS FILTER and it is load-bearing twice
+    // over: a note is where a crew writes "this guy never pays", and a summary
+    // is a paragraph that could carry it anywhere.
+    const history = unwrap<
+      { id: string; direction: string; body: string | null; created_at: string }[]
+    >(
+      await db
+        .from("messages")
+        .select("id,direction,body,created_at")
+        .eq("company_id", companyId)
+        .eq("conversation_id", id)
+        .in("direction", ["inbound", "outbound"])
+        .order("created_at", { ascending: false })
+        .limit(THREAD_SUMMARY_CONTEXT_MESSAGES),
+      "thread summary history",
+    );
+    const window: SummaryMessage[] = selectSummaryWindow(
+      history
+        .slice()
+        .reverse()
+        // Filtered, NOT coerced. The obvious mapping is
+        // `row.direction === "inbound" ? "inbound" : "outbound"`, and it turns
+        // any direction we did not expect — a note, or whatever the next
+        // migration adds — into a message from the business. The PostgREST
+        // filter above is what keeps notes out today; this is what keeps them
+        // out if that filter is ever loosened, and a note reaching a model in
+        // the shape of something the crew said to the customer is the worst
+        // version of this whole feature going wrong.
+        .filter(
+          (row): row is typeof row & { direction: "inbound" | "outbound" } =>
+            row.direction === "inbound" || row.direction === "outbound",
+        )
+        .map((row) => ({
+          id: row.id,
+          direction: row.direction,
+          body: row.body ?? "",
+          created_at: row.created_at,
+        })),
+    );
+    const newest = window[window.length - 1];
+
+    // The free pre-filter, before anything is reserved or spent. The identical
+    // rule lives in shared and the clients apply it to decide whether the
+    // control is even on screen, so this refusal is a backstop rather than a
+    // surprise. A summary of a four-message thread is slower to read than the
+    // thread.
+    if (
+      !newest ||
+      !shouldOfferThreadSummary({
+        messageCount: window.length,
+        idleMs: Math.max(0, Date.now() - Date.parse(newest.created_at)),
+      })
+    ) {
+      return c.json({ lines: [], reason: "too_short" as const, ...carrier });
+    }
+
+    // THE CACHE. Re-opening an unchanged thread costs nothing — which is a cost
+    // requirement before it is a latency one, this being the largest input the
+    // product sends.
+    const cached = await readCachedSummary(db, companyId, id);
+    if (cached && cached.last_message_id === newest.id) {
+      // A STORED EMPTY SUMMARY IS AN ANSWER, not a missing one. This exact
+      // thread state already went to the model and nothing survived the rules,
+      // so pressing again buys the same nothing at full price — and
+      // `unusable_output` is the one refusal a person is likely to retry,
+      // because it looks like a glitch. Cached against the same
+      // `last_message_id` as a successful summary, so any new message on the
+      // thread gets a fresh attempt.
+      if (cached.lines.length === 0) {
+        return c.json({
+          lines: [],
+          reason: "unusable_output" as const,
+          cached: true,
+          ...carrier,
+        });
+      }
+      // Cited lines are re-checked against the window we JUST read, so a
+      // message purged since the summary was written cannot leave a line
+      // tapping through to nothing. Cheap, because the window is already here.
+      const live = new Set(window.map((message) => message.id));
+      const lines = cached.lines.filter((line) => live.has(line.message_id));
+      if (lines.length > 0) {
+        return c.json({ lines, cached: true, truncated: cached.truncated, ...carrier });
+      }
+    }
+
+    // No binding (local dev/tests): say nothing rather than pretend.
+    if (!env.AI) {
+      return c.json({ lines: [], reason: "unavailable" as const, ...carrier });
+    }
+    // The same two limiters reply drafting uses, and the member one matters
+    // more here: the monthly cap is a COMPANY ceiling a third the size, so one
+    // runaway client would eat the whole crew's month faster.
+    if (env.AI_REPLY_RATE_LIMITER) {
+      const { success } = await env.AI_REPLY_RATE_LIMITER.limit({ key: companyId });
+      if (!success) {
+        return c.json({ lines: [], reason: "rate_limited" as const, ...carrier });
+      }
+    }
+    if (env.AI_MEMBER_RATE_LIMITER) {
+      const { success } = await env.AI_MEMBER_RATE_LIMITER.limit({
+        key: `${companyId}:${c.get("userId")}`,
+      });
+      if (!success) {
+        return c.json({ lines: [], reason: "rate_limited" as const, ...carrier });
+      }
+    }
+
+    // Best effort, but NOT silent: a catch-up is worth having with a generic
+    // "the business", and a discarded error here degrades every summary quietly
+    // with nothing anywhere to say why.
+    const [company, contact] = await Promise.all([
+      db
+        .from("companies")
+        .select("name,timezone")
+        .eq("id", companyId)
+        .limit(1)
+        .then((r) => {
+          if (r.error) console.error("thread summary company lookup:", r.error.message);
+          return (r.data?.[0] as { name: string | null; timezone: string | null } | undefined) ?? null;
+        }),
+      db
+        .from("contacts")
+        .select("name")
+        .eq("company_id", companyId)
+        .eq("id", conversation.contact_id as string)
+        .limit(1)
+        .then((r) => {
+          if (r.error) console.error("thread summary contact lookup:", r.error.message);
+          return (r.data?.[0] as { name: string | null } | undefined) ?? null;
+        }),
+    ]);
+
+    const prompt = buildSummaryMessages({
+      companyName: company?.name ?? "",
+      contactName: contact?.name?.trim() || null,
+      messages: window,
+      timezone: company?.timezone ?? "America/Toronto",
+      now: new Date(),
+    });
+
+    // One door onto the model (ai/run.ts): it owns the opt-in, the monthly cap,
+    // the alert before the cap, and the timeout.
+    const run = await runAiFeature(env, db, {
+      companyId,
+      spec: THREAD_SUMMARY_FEATURE_SPEC,
+      model: THREAD_SUMMARY_MODEL,
+      input: { messages: prompt, max_tokens: THREAD_SUMMARY_MAX_OUTPUT_TOKENS },
+      settings,
+    });
+    if (!run.ok) {
+      return c.json({ lines: [], reason: run.reason, ...carrier });
+    }
+
+    const parsed = parseSummaryOutput(run.raw);
+    const report = sanitizeSummary(parsed, window);
+    // The thread is longer than the window, so the card must not read as
+    // covering the whole history. Computed from the raw row count, before
+    // `selectSummaryWindow` trimmed it.
+    const truncated = history.length >= THREAD_SUMMARY_CONTEXT_MESSAGES;
+    if (report.kept.length === 0) {
+      // The model answered and nothing survived — most often because it wrote
+      // lines it could not point at, which is precisely the failure the
+      // citation rule exists to catch. Worth distinguishing from an unreachable
+      // model: it means the prompt or the rules are what need work.
+      console.error(
+        `thread summary unusable: ${parsed.length} candidate(s), 0 passed ` +
+          `(${JSON.stringify(report.dropped)})`,
+      );
+      // CACHED, exactly like a success. This used to return before the write,
+      // so the most expensive call this product makes was the only one with no
+      // memory of having been made — and the refusal it returns is the one a
+      // person retries, because it reads as a glitch rather than as an answer.
+      // The diagnostics below ride on the call that really happened; the cached
+      // repeat carries the reason alone.
+      await writeCachedSummary(db, companyId, id, newest.id, [], truncated);
+      return c.json({
+        lines: [],
+        reason: "unusable_output" as const,
+        // Counts only, never any line text — safe to hand back to the
+        // workspace that asked, and what turns "nothing to show" from a shrug
+        // into something anyone can act on.
+        dropped: { candidates: parsed.length, ...report.dropped },
+        // The envelope's KEY NAMES only. Zero candidates with nothing dropped
+        // means we did not recognise the shape at all, and this is what names it.
+        envelope: summaryEnvelopeShape(run.raw),
+        ...carrier,
+      });
+    }
+
+    await writeCachedSummary(db, companyId, id, newest.id, report.kept, truncated);
+
+    const discarded = Object.values(report.dropped).reduce((a, b) => a + b, 0);
+    return c.json({
+      lines: report.kept,
+      truncated,
+      ...carrier,
+      // The tally rides along whenever anything was discarded, not only when
+      // everything was: a card that came back thinner than it should have is
+      // the same question ("which rule fired?") asked more quietly.
+      ...(discarded > 0
+        ? { dropped: { candidates: parsed.length, ...report.dropped } }
+        : {}),
+    });
+  },
+);
+
+/**
+ * The opt-out standing for this thread's contact, as a FACT.
+ *
+ * Never inferred, never model output, and never best-effort: `ok: false` means
+ * we could not establish it, and the caller refuses the summary rather than
+ * shipping a paragraph that might be the only thing somebody reads before
+ * texting a person who said STOP. Carrier truth outranks a tidy card.
+ */
+async function readOptOutState(
+  db: Db,
+  companyId: string,
+  conversation: Record<string, unknown>,
+): Promise<
+  | { ok: true; optOut: { source: string; at: string } | null }
+  | { ok: false }
+> {
+  const contact = await db
+    .from("contacts")
+    .select("phone_e164")
+    .eq("company_id", companyId)
+    .eq("id", conversation.contact_id as string)
+    .limit(1);
+  if (contact.error) {
+    console.error("thread summary opt-out contact lookup:", contact.error.message);
+    return { ok: false };
+  }
+  const phone = (contact.data?.[0] as { phone_e164?: string } | undefined)?.phone_e164;
+  // No phone on the contact is not an unknown standing, it is a thread that
+  // cannot have one. Nothing to warn about, so the summary proceeds.
+  if (!phone) return { ok: true, optOut: null };
+
+  const rows = await db
+    .from("opt_outs")
+    .select("source,created_at")
+    .eq("company_id", companyId)
+    .eq("phone_e164", phone)
+    .is("revoked_at", null)
+    .limit(1);
+  if (rows.error) {
+    console.error("thread summary opt-out lookup:", rows.error.message);
+    return { ok: false };
+  }
+  const row = rows.data?.[0] as { source: string; created_at: string } | undefined;
+  return {
+    ok: true,
+    optOut: row ? { source: row.source, at: row.created_at } : null,
+  };
+}
+
+/**
+ * Write-through, for a catch-up AND for the finding that this thread state
+ * produces nothing usable.
+ *
+ * BOTH OUTCOMES ARE CACHED, and the empty one is the one that was missing. A
+ * summary is the largest input this product sends, so a request that spends the
+ * unit and returns nothing is the most expensive thing here — and it returns the
+ * one reason a person retries. Anchoring it to the same `last_message_id` keeps
+ * the contract identical to a success: unchanged thread, no second call; a new
+ * message, a fresh attempt.
+ *
+ * Failing to cache costs one repeat model call and must never cost the person
+ * their catch-up, so the error is logged and swallowed.
+ */
+async function writeCachedSummary(
+  db: Db,
+  companyId: string,
+  conversationId: string,
+  lastMessageId: string,
+  lines: SummaryLine[],
+  truncated: boolean,
+): Promise<void> {
+  const stored = await db.from("conversation_summaries").upsert(
+    {
+      conversation_id: conversationId,
+      company_id: companyId,
+      last_message_id: lastMessageId,
+      lines: { lines, truncated },
+      model: THREAD_SUMMARY_MODEL,
+      created_at: new Date().toISOString(),
+    },
+    { onConflict: "conversation_id" },
+  );
+  if (stored.error) {
+    console.error("thread summary cache write failed:", stored.error.message);
+  }
+}
+
+/** The stored catch-up for one thread, or null when there is none to reuse. */
+async function readCachedSummary(
+  db: Db,
+  companyId: string,
+  conversationId: string,
+): Promise<
+  | { last_message_id: string; lines: SummaryLine[]; truncated: boolean }
+  | null
+> {
+  const rows = await db
+    .from("conversation_summaries")
+    .select("last_message_id,lines,model")
+    .eq("company_id", companyId)
+    .eq("conversation_id", conversationId)
+    .limit(1);
+  if (rows.error) {
+    // A cache that cannot be read costs a model call, never the feature.
+    console.error("thread summary cache read failed:", rows.error.message);
+    return null;
+  }
+  const row = rows.data?.[0] as
+    | { last_message_id: string; lines: unknown; model: string }
+    | undefined;
+  if (!row) return null;
+  // A summary written by a model we no longer call is not something to serve
+  // silently. Ignoring it re-summarises once and then the row is current again.
+  if (row.model !== THREAD_SUMMARY_MODEL) return null;
+  const payload = row.lines as { lines?: unknown; truncated?: unknown } | null;
+  // A payload we cannot read is NOT an empty summary. Since an empty one is now
+  // an answer the caller serves without calling the model, the two have to stay
+  // distinguishable: a row whose shape we do not recognise falls through to a
+  // fresh summary, which costs one call, rather than becoming a refusal a
+  // workspace can never get past.
+  if (!Array.isArray(payload?.lines)) return null;
+  return {
+    last_message_id: row.last_message_id,
+    lines: payload.lines as SummaryLine[],
+    truncated: payload.truncated === true,
+  };
+}
 
 // --------------------------------------------------------------------------
 // POST /conversations/:id/wrap-up-transcript  (#507 Phase 1)

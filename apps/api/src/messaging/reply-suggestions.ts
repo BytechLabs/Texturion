@@ -76,8 +76,14 @@ export const SUGGEST_REPLY_TIMEOUT_MS = 8000;
  * 320 was sized for the drafts alone, so a model that added a label per draft,
  * or simply wrote at its natural length, ran into the ceiling mid-object: the
  * JSON never closed, nothing parsed, and the composer reported having nothing
- * to say. Output tokens on this model cost $0.287 per million, so the headroom
- * is worth about two ten-thousandths of a cent per call.
+ * to say. The headroom is worth a fraction of a cent per call: see
+ * `billing/workers-ai-prices.ts` for what output tokens on this model cost.
+ *
+ * THIS LINE USED TO QUOTE A PRICE, and it quoted the wrong one for as long as
+ * it existed — $0.287 per million output tokens, which the published table
+ * carries for `@cf/meta/llama-3.1-8b-instruct-fp8` and not for the model this
+ * file names. Nothing noticed, because nothing computed anything from it. A
+ * provider rate belongs in one place that a guard can execute.
  */
 export const SUGGEST_REPLY_MAX_OUTPUT_TOKENS = 700;
 /** Hard ceiling on how many customer-visible messages the model can see. */

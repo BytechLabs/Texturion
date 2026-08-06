@@ -878,6 +878,16 @@ export interface CompanyAiSettings {
    * decorative, and no copy attached to this flag may blur it.
    */
   call_wrapup: boolean;
+  /**
+   * #247: whether Lou will read a long thread and write a short catch-up for
+   * somebody coming back to it cold — what was asked, what we said, what is
+   * still open, each line citing the message it came from.
+   *
+   * Off removes the control and nothing else. The thread stays exactly as
+   * readable as it was, which is why every failure in this feature degrades to
+   * silence rather than to an error.
+   */
+  summarize_threads: boolean;
 }
 
 /** POST /v1/conversations/:id/reply-suggestions — up to three reviewed drafts. */

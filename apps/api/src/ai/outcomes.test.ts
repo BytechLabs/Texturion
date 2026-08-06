@@ -106,7 +106,16 @@ describe("#431 — every AI feature says what its own outcomes mean", () => {
         .filter((kind) => spec.outcomes[kind] === null)
         .map((kind) => `${spec.key}.${kind}`),
     );
+    //
+    // #247 adds the MIRROR IMAGE of the voicemail pair and it is worth reading
+    // as one: a thread catch-up can only observe the positive act (somebody
+    // tapped a cited line and landed on the message it came from), and cannot
+    // observe the negative — "read it and got on with the job" is again a
+    // person not doing something. It also has nothing to edit, because a
+    // summary is not a draft.
     expect(missing.sort()).toEqual([
+      "thread_summary.discarded",
+      "thread_summary.edited",
       "voicemail_intake.edited",
       "voicemail_intake.used",
       "voicemail_transcript.edited",

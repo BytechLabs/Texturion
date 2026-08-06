@@ -290,6 +290,50 @@ export default function AiSettingsPage() {
               />
             </div>
           </SettingsCard>
+          {/* #247. Last, and its own card rather than a line inside "When you
+              reply to a customer": drafting produces something you SEND, and
+              this produces something you READ. Grouped with sending, the
+              natural question would be "does the customer see this?" — and the
+              answer, never, is exactly what the placement should not put in
+              doubt.
+              *Applying: Chunking — one card per moment, and this is a different
+              moment from all four above it.* */}
+          <SettingsCard title="When you come back to a long thread">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-2">
+                <div className="space-y-0.5">
+                  <Label htmlFor="ai-catchup" className="text-sm font-medium">
+                    Let Lou catch you up
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    On a long or long-quiet thread, Lou will read the recent
+                    messages and show what the customer asked, what your crew
+                    said, and what&rsquo;s still open. Only when someone asks
+                    for it &mdash; nothing runs on its own.
+                  </p>
+                </div>
+                {/* The two claims worth making about this one specifically,
+                    and both are about trust rather than function: it quotes
+                    rather than paraphrases, and it changes nothing. Set apart
+                    from the description because they are a different KIND of
+                    statement — a boundary, not a feature.
+                    *Applying: Relationship Strength.* */}
+                <p className="text-sm text-muted-foreground">
+                  Every line points at the message it came from, so you can
+                  check it in a tap. Your internal notes are never read, nothing
+                  is ever sent, and your inbox order never changes.
+                </p>
+              </div>
+              <Switch
+                id="ai-catchup"
+                checked={settings.data.summarize_threads}
+                disabled={!canEdit || update.isPending}
+                onCheckedChange={(checked) =>
+                  toggle("summarize_threads", checked)
+                }
+              />
+            </div>
+          </SettingsCard>
           {!canEdit && (
             <p className="text-sm text-muted-foreground">
               Only owners and admins can change these.

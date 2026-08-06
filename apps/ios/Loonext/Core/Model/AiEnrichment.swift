@@ -96,6 +96,14 @@ struct CompanyAiSettings: Codable, Sendable {
     /// bearing: one for a lagging server, one for a caller building a settings
     /// value by hand.
     @Default<DefaultTrue> var call_wrapup: Bool
+    /// #247: offer a catch-up on a long or long-forgotten thread.
+    ///
+    /// True by default, here and on the server (`DEFAULT_AI_SETTINGS`), for the
+    /// reason D117 gives for making the voicemail intake the exception: nothing
+    /// here reaches a stranger. It is read by the crew, about a conversation
+    /// they can already read, and every line taps through to the message it came
+    /// from.
+    @Default<DefaultTrue> var summarize_threads: Bool
 
     init(
         enrich_task_address: Bool,
@@ -104,7 +112,8 @@ struct CompanyAiSettings: Codable, Sendable {
         business_description: String? = nil,
         transcribe_voicemail: Bool = true,
         voicemail_intake: Bool = false,
-        call_wrapup: Bool = true
+        call_wrapup: Bool = true,
+        summarize_threads: Bool = true
     ) {
         self.enrich_task_address = enrich_task_address
         self.enrich_task_due = enrich_task_due
@@ -113,6 +122,7 @@ struct CompanyAiSettings: Codable, Sendable {
         self.transcribe_voicemail = transcribe_voicemail
         self.voicemail_intake = voicemail_intake
         self.call_wrapup = call_wrapup
+        self.summarize_threads = summarize_threads
     }
 
     /// Any enrichment on → the make-task sheet should call /tasks/enrich.

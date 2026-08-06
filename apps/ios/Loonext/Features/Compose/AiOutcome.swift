@@ -24,6 +24,7 @@ enum AiOutcome {
     static let featureSuggestReply = "suggest_reply"
     static let featureEnrich = "enrich"
     static let featureVoicemailTranscript = "voicemail_transcript"
+    static let featureThreadSummary = "thread_summary"
 
     /// What happened to a reply Lou drafted.
     ///
@@ -76,6 +77,26 @@ enum AiOutcome {
         if suggested.contains(where: { $0.cleared || $0.edited }) { return edited }
         return used
     }
+
+    /// #247: a catch-up line somebody tapped through to the message it cites.
+    ///
+    /// The MIRROR IMAGE of the voicemail absence below, and it is worth saying
+    /// why the same reasoning lands the other way up. The spec
+    /// (`THREAD_SUMMARY_FEATURE_SPEC`) records `used: "opened a cited message"`
+    /// and null for the other two, so this is the one counter that exists.
+    ///
+    /// Tapping is a deliberate act a client can see, and it means something
+    /// precise: the line was worth checking, and the citation that makes this
+    /// feature safe was actually used. `edited` cannot happen — a summary is not
+    /// editable — and "read it and got on with the job" is a person NOT doing
+    /// something, which no client can observe without inventing a heuristic out
+    /// of scroll and unmount timing. Three platforms inventing three different
+    /// heuristics would make the number worthless.
+    ///
+    /// Reported ONCE per catch-up, on the first tap. A person who checks three
+    /// lines used one catch-up, not three, and the outcome lands on the same
+    /// ledger row as the single unit that was spent.
+    static let openedCitedMessage = used
 
     // Voicemail transcripts are NOT decided here, and the absence is deliberate.
     //

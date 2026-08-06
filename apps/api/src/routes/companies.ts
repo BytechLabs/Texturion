@@ -608,6 +608,8 @@ const aiSettingsSchema = z
     voicemail_intake: z.boolean().optional(),
     /** #507: dictate a post-call wrap-up rather than typing it. */
     call_wrapup: z.boolean().optional(),
+    /** #247: summarise a long or long-forgotten thread on demand. */
+    summarize_threads: z.boolean().optional(),
   })
   .strict();
 
@@ -672,7 +674,7 @@ companiesRoutes.patch(
       .from("company_ai_settings")
       .select(
         "enrich_task_address,enrich_task_due,suggest_replies," +
-          "transcribe_voicemail,voicemail_intake,call_wrapup",
+          "transcribe_voicemail,voicemail_intake,call_wrapup,summarize_threads",
       )
       .eq("company_id", c.get("companyId"))
       .maybeSingle();
@@ -690,6 +692,10 @@ companiesRoutes.patch(
       // #507: same null-means-leave-it reasoning — a client that predates
       // dictation must not turn it back on for a workspace that switched it off.
       p_call_wrapup: body.call_wrapup ?? null,
+      // #247: and again. This is the third toggle added after clients shipped,
+      // which is why the RPC defaults every one of them to null rather than to
+      // the column default.
+      p_summarize_threads: body.summarize_threads ?? null,
     });
     if (error) {
       throw new Error(`upsert_company_ai_settings failed: ${error.message}`);
@@ -708,6 +714,9 @@ companiesRoutes.patch(
       // will actually be asked.
       voicemail_intake: row.voicemail_intake,
       call_wrapup: row.call_wrapup,
+      // #247: the switch that decides whether whole threads leave for
+      // inference. "Who turned this on" is a question a privacy review asks.
+      summarize_threads: row.summarize_threads,
     });
     // The business description is deliberately absent from the diff: it is the
     // owner's own words about their business, and the log records shape, not
@@ -729,6 +738,7 @@ companiesRoutes.patch(
       transcribe_voicemail: row.transcribe_voicemail,
       voicemail_intake: row.voicemail_intake,
       call_wrapup: row.call_wrapup,
+      summarize_threads: row.summarize_threads,
     });
   },
 );

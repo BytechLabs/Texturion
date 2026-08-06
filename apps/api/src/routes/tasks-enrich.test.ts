@@ -371,6 +371,15 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
       // exception below it — a dictation is text a member reads and edits
       // before it becomes anything, and no stranger ever hears it.
       call_wrapup: true,
+      // #247: on, for the same reason, and it is the one worth pausing over.
+      // It sends MORE of a customer's words than anything else here — up to
+      // forty messages of a thread rather than one message or one recording —
+      // so "a bigger disclosure deserves an opt-in" is a real position. It does
+      // not reach D89's exception, which is about a feature a STRANGER
+      // experiences, and the difference from reply drafting (default-on since
+      // 20260724090000) is one of degree: same thread, same model, same
+      // workspace's own service.
+      summarize_threads: true,
     });
   });
 

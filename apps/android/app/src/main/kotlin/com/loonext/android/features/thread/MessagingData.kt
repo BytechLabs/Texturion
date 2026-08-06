@@ -8,6 +8,7 @@ import com.loonext.android.features.inbox.SavedViewCounts
 import com.loonext.android.features.inbox.SavedViewPage
 import com.loonext.android.core.model.AttachmentReport
 import com.loonext.android.core.model.AttachmentUrl
+import com.loonext.android.core.model.CarrierStanding
 import com.loonext.android.core.model.ComposeResult
 import com.loonext.android.core.model.BulkConversationsResult
 import kotlinx.serialization.json.putJsonArray
@@ -31,6 +32,8 @@ import com.loonext.android.core.model.ScheduledMessageEnvelope
 import com.loonext.android.core.model.ScheduledMessagePage
 import com.loonext.android.core.model.SearchResult
 import com.loonext.android.core.model.Tag
+import com.loonext.android.core.model.THREAD_SUMMARY_NOT_ALLOWED
+import com.loonext.android.core.model.ThreadSummary
 import com.loonext.android.core.model.TagMergeResult
 import com.loonext.android.core.model.TagUsage
 import com.loonext.android.core.model.Task
@@ -39,6 +42,9 @@ import com.loonext.android.core.model.Template
 import com.loonext.android.core.model.Usage
 import com.loonext.android.core.data.taskAddressJson
 import com.loonext.android.core.net.ApiClient
+import com.loonext.android.core.net.ApiErrorCode
+import com.loonext.android.core.net.ApiException
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -761,6 +767,64 @@ class MessagingRepository(private val api: ApiClient) {
             companyId = companyId,
         )
 
+    // --- Catch-up (#247) -------------------------------------------------------
+
+    /**
+     * POST /v1/conversations/:id/summary — three cited sections for a thread
+     * that is long, or long enough forgotten, to be expensive to re-read.
+     *
+     * NOT cached here, and the reason is the opposite of the drafting one. The
+     * SERVER caches this against the thread's last message id, so re-asking an
+     * unchanged thread costs nothing and still comes back fresh if a message
+     * arrived. A second cache on the device could only serve a catch-up that
+     * predates a message the person can see on screen — the one failure that
+     * matters most for a surface whose whole claim is "this is what the thread
+     * says".
+     *
+     * Never rejects: every failure resolves to no lines and a reason the card
+     * explains in place, and nothing else changes. A catch-up that fails must
+     * leave the thread exactly as it was, because the thread was always the
+     * record.
+     *
+     * WHICH reason is the part that had a defect. Every non-cancellation
+     * exception used to become `model_error` — "Couldn't reach Lou just now.
+     * Try again." — including the one refusal that has nothing to do with Lou
+     * and cannot be fixed by trying again: a member whose ROLE may not spend
+     * the workspace's catch-ups. See [threadSummaryReasonFor].
+     *
+     * WHAT ELSE A MANUFACTURED REFUSAL HAS TO CARRY: the contact's standing.
+     * See [threadSummaryRefusal] — a failed re-ask used to take the customer's
+     * STOP off the card with it.
+     */
+    suspend fun threadSummary(
+        companyId: String,
+        conversationId: String,
+        /**
+         * The last standing the SERVER stated for this thread, or null if it
+         * has never stated one (a first ask).
+         *
+         * No default value, deliberately. A call site that forgets this
+         * argument is one that drops a customer's STOP off the card at the
+         * press that failed, and a defaulted parameter is how that forgetting
+         * happens silently — there is nothing else about the resulting refusal
+         * that looks wrong.
+         */
+        standing: CarrierStanding?,
+    ): ThreadSummary = try {
+        api.post("/v1/conversations/$conversationId/summary", companyId = companyId)
+    } catch (e: CancellationException) {
+        // The reader left the thread mid-request: never swallow cancellation.
+        throw e
+    } catch (cause: ApiException) {
+        threadSummaryRefusal(threadSummaryReasonFor(cause.code), standing)
+    } catch (_: Exception) {
+        // Everything that is not an answer from the server: a decode mismatch
+        // (our bug), an unexpected throw. Nothing here can name a cause the
+        // reader could act on, so it keeps the sentence that at least says the
+        // catch-up did not happen.
+        threadSummaryRefusal("model_error", standing)
+    }
+
     // --- Opt-out ---------------------------------------------------------------
 
     suspend fun optOut(companyId: String, contactId: String): OptOut =
@@ -855,6 +919,69 @@ class MessagingRepository(private val api: ApiClient) {
     suspend fun conversationTasks(companyId: String, conversationId: String): Page<Task> =
         api.get("/v1/conversations/$conversationId/tasks", companyId = companyId)
 }
+
+// ---------------------------------------------------------------------------
+// The catch-up (#247)
+// ---------------------------------------------------------------------------
+
+/**
+ * What to tell the reader when the summary route refused with an error
+ * envelope, keyed on the SPEC §7 [ApiErrorCode] it sent.
+ *
+ * KEYED ON THE CODE, NEVER ON THE STATUS, and that is the whole care in this
+ * function. Six codes share the 403: `forbidden`, `sending_suspended`,
+ * `registration_pending`, `recipient_opted_out`, `mfa_required` and
+ * `mfa_challenge_required`. Only the first of them is a statement about what
+ * this reader's role may do, and a mapping written as `httpStatus == 403` would
+ * tell somebody being asked for a second factor that their role is too small.
+ *
+ * What this DOES cover: `forbidden`, which on this route can only come from
+ * `requireCapability("conversations.note")` — the per-number gate is called
+ * with `need: "read"`, and that gate answers `not_found` rather than
+ * `forbidden` (apps/api/src/auth/number-access.ts).
+ *
+ * What it does NOT cover, said plainly rather than implied: every other code
+ * keeps `model_error`, whose sentence is "Couldn't reach Lou just now. Try
+ * again." That is honest for the 5xx and the network drop and merely vague for
+ * the rest; it is not a claim that the cause was the model. A code that
+ * deserves its own sentence should get one here rather than a comment.
+ */
+fun threadSummaryReasonFor(code: String): String = when (code) {
+    ApiErrorCode.FORBIDDEN -> THREAD_SUMMARY_NOT_ALLOWED
+    else -> "model_error"
+}
+
+/**
+ * The refusal this client writes when the server wrote none.
+ *
+ * THE DEFECT IT FIXES. `opt_out` and `opt_out_hint_at` ride on every answer the
+ * ROUTE sends, and the card draws the carrier warning from them. A 403 and a
+ * dead socket are the two answers the route did not send: this client invents
+ * them, and it used to invent them with both fields empty. So a workspace whose
+ * customer had texted STOP was told so on the card, pressed "try again", the
+ * request failed — and the warning went, on the answer that replaced it, for
+ * good. One user action, and the same press behaved differently on the web.
+ *
+ * WHAT THE TWO FIELDS MEAN HERE, since it is not what they mean on a response
+ * and a comment claiming otherwise would be the worse failure: they are the last
+ * standing the server stated for THIS thread, which is at most one request old.
+ * Still a deterministic `opt_outs` read the server performed, still never
+ * inferred and never model output — but not a read taken at this instant,
+ * because no read happened at this instant. It is superseded by the next real
+ * answer, including one that states the STOP is lifted, since that answer
+ * carries its own two fields and replaces this whole object.
+ *
+ * A [CarrierStanding] and nothing else. Carrying the displaced answer forward
+ * with a fresh reason stamped on it would be the easier change and the wrong
+ * one: it would leave Lou's last reading of the thread on screen underneath a
+ * failure, which is a stale catch-up wearing a current one's clothes.
+ */
+fun threadSummaryRefusal(reason: String, standing: CarrierStanding?): ThreadSummary =
+    ThreadSummary(
+        reason = reason,
+        opt_out = standing?.optOut,
+        opt_out_hint_at = standing?.optOutHintAt,
+    )
 
 // ---------------------------------------------------------------------------
 // The destination clock (#225 / D49)

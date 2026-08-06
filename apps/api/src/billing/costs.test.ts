@@ -141,10 +141,17 @@ describe("#380 — every AI cost centre is priced, and says so where it is decla
     // over the registry so a new feature raises the number here instead of
     // going uncounted.
     //
-    // 355¢ = $3.55: the previous 205¢ plus the crew wrap-up's 1,500 x 0.1¢
-    // (#507). The wrap-up cap was sized DOWN to keep this number defensible —
-    // see CALL_WRAPUP_MONTHLY_CAP, which explains why it is 1,500 and not the
-    // 2,000 that would have doubled the ceiling.
+    // 375¢ = $3.75: the previous 355¢ plus the thread catch-up's 500 x 0.04¢
+    // (#247), a 5.6% rise for the feature with the LARGEST input in the
+    // product. That is not a coincidence and it is the whole argument for
+    // THREAD_SUMMARY_MONTHLY_CAP being 500 rather than the 1,500 every other
+    // on-demand feature gets: at 1,500 this line would read 415¢, a 17% rise
+    // paid for the least proven surface here. Sizing the cap is how a cost
+    // centre buys its place on this line, and the cap is the cheap thing to
+    // raise later.
+    //
+    // Before it: 205¢ plus the crew wrap-up's 1,500 x 0.1¢ (#507), whose cap
+    // was sized DOWN for the same reason — see CALL_WRAPUP_MONTHLY_CAP.
     // Worth seeing next to D78's realtime receptionist, which costs 13.6¢ for a
     // single two-minute call — more than every AI feature in the product can
     // spend for a whole tenant in a whole month, ten times over.
@@ -152,6 +159,6 @@ describe("#380 — every AI cost centre is priced, and says so where it is decla
       (total, spec) => total + spec.cap * spec.unitCostCents,
       0,
     );
-    expect(atCap).toBeCloseTo(355, 6); // $3.55
+    expect(atCap).toBeCloseTo(375, 6); // $3.75
   });
 });

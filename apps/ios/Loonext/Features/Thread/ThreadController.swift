@@ -46,6 +46,25 @@ final class ThreadController {
     private(set) var pinnedMessages: [Message] = []
     private(set) var pendingSends: [PendingSend] = []
 
+    /// #247: the catch-up, and whether anybody has asked for one yet.
+    ///
+    /// Starts `.idle` on every open, deliberately. The server caches against the
+    /// thread's last message id, so re-opening an unchanged thread costs
+    /// nothing anyway — and a card that reappeared already-expanded would show a
+    /// catch-up written before the three messages that arrived since, which is
+    /// the manufactured false memory #247 warns about.
+    ///
+    /// It starts on `.unknown` rather than on an empty standing, which are not
+    /// the same claim: nobody has told this thread anything about the carrier
+    /// yet, and "they have not opted out" is a sentence only an answer earns.
+    private(set) var catchUp: ThreadCatchUpState = .idle(.unknown)
+    /// One outcome per catch-up, not per tap.
+    ///
+    /// A person who checks three cited lines used ONE catch-up and spent one
+    /// unit; three `used` reports against a single ledger row would make the
+    /// number say something that is not true.
+    @ObservationIgnored private var catchUpOutcomeReported = false
+
     /// #233: texts written for this thread that have not gone yet.
     ///
     /// Kept OUT of ``messages`` on purpose. A scheduled message has no delivery
@@ -936,6 +955,74 @@ final class ThreadController {
             messageId: message.id,
             conversationId: conversationId,
             text: text
+        )
+    }
+
+    // MARK: - #247 the catch-up
+
+    /// Is this thread long enough, or forgotten for long enough, to be worth a
+    /// catch-up?
+    ///
+    /// The identical rule the server applies before it reserves anything
+    /// (`shouldOfferThreadSummary`), so the control is never on screen to answer
+    /// "there was nothing to summarise". Computed from the LOADED page, which
+    /// makes it a lower bound on a long paged thread — under-offering costs a
+    /// scroll somebody was doing anyway, over-offering spends a unit to be told
+    /// no.
+    var catchUpOffer: ThreadCatchUpOffer {
+        threadCatchUpOffer(for: messages)
+    }
+
+    /// One tap, one AI unit. Never automatic on open, and never on an inbound.
+    ///
+    /// A thread is the largest input this product hands a model, and a trigger
+    /// that fired on new messages would make the spend scale with the CUSTOMER's
+    /// behaviour rather than the crew's. Re-entrancy is refused for the same
+    /// reason a re-roll is: every ask is real money.
+    func askForCatchUp() {
+        if catchUp.isLoading { return }
+        // `asking()` rather than a `.loading` written here: the pending state
+        // keeps the carrier standing the last answer carried. A STOP is not
+        // Lou's to withdraw and does not stop being true while a second request
+        // is in flight — see `ThreadCatchUpState`.
+        catchUp = catchUp.asking()
+        catchUpOutcomeReported = false
+        Task {
+            let answer = await repo.summarizeThread(
+                companyId: companyId,
+                conversationId: conversationId
+            )
+            // `answered(...)` for the same reason, one hop later and worse: an
+            // ask that was rejected came back with no response to read a
+            // standing from, and a phase assembled here out of one would state
+            // that the carrier is fine — permanently, rather than for the length
+            // of a request. See `ThreadCatchUpAnswer`.
+            catchUp = catchUp.answered(answer)
+        }
+    }
+
+    /// Put the card away. Nothing is re-fetched if it is asked for again within
+    /// the same open thread — the server's cache answers for free.
+    ///
+    /// `putAway()` rather than a bare `.idle`, because this is the FIRST half of
+    /// a re-ask on this client: a shown card has a Hide and no ask control, so
+    /// every second request goes through here. Dropping the carrier standing at
+    /// this hop would lose it before `asking()` ever ran.
+    func hideCatchUp() {
+        catchUp = catchUp.putAway()
+    }
+
+    /// #431/#247: somebody tapped a line through to the message it cites.
+    ///
+    /// The one observable outcome this feature has, and the reason it is the
+    /// POSITIVE one: the citation that makes a catch-up safe was actually used.
+    /// Reported once per catch-up (see `catchUpOutcomeReported`).
+    func reportCatchUpOpened() {
+        guard !catchUpOutcomeReported else { return }
+        catchUpOutcomeReported = true
+        reportAiOutcome(
+            feature: AiOutcome.featureThreadSummary,
+            outcome: AiOutcome.openedCitedMessage
         )
     }
 

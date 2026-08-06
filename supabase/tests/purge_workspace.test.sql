@@ -50,6 +50,17 @@ insert into public.messages (id, company_id, conversation_id, direction, body, s
 values ('a9000000-0000-4000-8000-000000000050','a9000000-0000-4000-8000-000000000001',
         'a9000000-0000-4000-8000-000000000040','inbound','Gutters?','received');
 
+-- #247: the cached catch-up, which paraphrases what the customer said. Present
+-- in the fixture so the survivor check below has something to catch — a
+-- teardown assertion with no row of that kind behind it passes on an empty
+-- table and proves nothing.
+insert into public.conversation_summaries
+  (conversation_id, company_id, last_message_id, lines, model)
+values ('a9000000-0000-4000-8000-000000000040','a9000000-0000-4000-8000-000000000001',
+        'a9000000-0000-4000-8000-000000000050',
+        '{"lines":[{"section":"asked","text":"asked about gutters"}]}'::jsonb,
+        '@cf/meta/llama-3.1-8b-instruct-fast');
+
 insert into public.tasks
   (id, company_id, message_id, conversation_id, title, created_by_user_id)
 values ('a9000000-0000-4000-8000-000000000060','a9000000-0000-4000-8000-000000000001',
@@ -133,6 +144,12 @@ begin
 
   -- Everything company-scoped is gone...
   if exists (select 1 from public.messages where company_id = v_company)
+     -- #247: a catch-up is a QUOTATION of the customer's messages, so an
+     -- erasure that took the bodies and left this would leave their words in
+     -- the workspace under a different table name. Named here rather than
+     -- trusted to the cascade: this survivor list is hand-written, so a table
+     -- nobody adds is a table nobody checks.
+     or exists (select 1 from public.conversation_summaries where company_id = v_company)
      or exists (select 1 from public.conversations where company_id = v_company)
      or exists (select 1 from public.contacts where company_id = v_company)
      or exists (select 1 from public.phone_numbers where company_id = v_company)

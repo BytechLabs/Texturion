@@ -30,6 +30,8 @@ import com.loonext.android.core.scheduled.ScheduledSend
 import com.loonext.android.features.compose.ScheduleOutcome
 import com.loonext.android.core.model.Tag
 import com.loonext.android.core.model.Task
+import com.loonext.android.core.model.ThreadSummary
+import com.loonext.android.core.model.standing
 import com.loonext.android.core.model.Usage
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiDecodeException
@@ -117,6 +119,21 @@ class ThreadController(
     var events by mutableStateOf<List<ConversationEvent>>(emptyList())
         private set
     var pinnedMessages by mutableStateOf<List<Message>>(emptyList())
+        private set
+
+    /**
+     * #247 — Lou's catch-up for this thread, once somebody has asked for one.
+     *
+     * Null until asked, and it stays null on its own: this is the largest input
+     * the product sends, so it is never fetched speculatively when a thread
+     * opens. NOT persisted in the snapshot either — a catch-up restored from
+     * disk could describe a thread as it was before messages the reader can see
+     * on screen, and a stale summary is the one failure this feature cannot
+     * afford.
+     */
+    var summary by mutableStateOf<ThreadSummary?>(null)
+        private set
+    var summarizing by mutableStateOf(false)
         private set
     var pendingSends by mutableStateOf<List<PendingSend>>(emptyList())
         private set
@@ -1107,6 +1124,48 @@ class ThreadController(
      * there would be nothing for an Undo to call. An action that cannot be
      * reversed should not advertise that it can.
      */
+    /**
+     * #247 — ask Lou to catch this reader up on the thread.
+     *
+     * Only ever called from a tap. The guard is not politeness: each call
+     * reserves from a monthly ceiling the WHOLE workspace shares, so a double
+     * tap while one is in flight would spend twice for one answer.
+     *
+     * The repository never rejects, so there is no catch here and no snackbar:
+     * a failure comes back as a reason the card itself explains in place. A
+     * catch-up that could not be had is not an error worth interrupting
+     * somebody with — the thread is right there, and it was always the record.
+     *
+     * [summary] is deliberately NOT cleared before the request. The card reads
+     * it for one thing while `summarizing` is true — the carrier warning — and
+     * blanking it here would take a customer's STOP off the screen at the press,
+     * which reads as a tidy-up and is a defect. See ThreadSummaryCard (2).
+     */
+    fun askForSummary() {
+        if (summarizing) return
+        summarizing = true
+        // Read at the press, off the answer currently on the card. A request the
+        // server never answers has no `opt_outs` read of its own, and this is
+        // the only thing that can put one on the refusal this client writes for
+        // it — see `threadSummaryRefusal`.
+        //
+        // It is not sticky and must not become so: it lives exactly as long as
+        // the answer it came from, so a real answer saying the STOP has been
+        // lifted replaces it with that answer's own silence. Holding it past
+        // that would leave a lifted block standing on the card forever, which is
+        // worse than never having shown one.
+        val standing = summary?.standing
+        scope.launch {
+            try {
+                summary = repo.threadSummary(companyId, conversationId, standing)
+            } finally {
+                // In a finally so a cancelled scope (the reader left the thread)
+                // cannot strand the flag and lock the control out on return.
+                summarizing = false
+            }
+        }
+    }
+
     fun clearSpamSuspicion() {
         scope.launch {
             try {

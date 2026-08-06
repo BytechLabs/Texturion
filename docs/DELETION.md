@@ -61,6 +61,7 @@ whatever the company-level policy says.
 | 3 | `message_mentions` | `restrict` → `conversations` (cascades from `messages`, but the order matters) |
 | 4 | `message_attachments` | cascades from `messages`; delete first so the Storage sweep below has the paths |
 | 5 | `attachments` | cascades from `conversations`; same reason — the paths are needed |
+| 6 | `conversation_summaries` | cascades from both `messages` and `conversations` (#247), and listed anyway: a catch-up quotes the customer's own words, so an erasure that reached the bodies and left this behind would leave those words in the workspace under another table name |
 | 6 | `messages` | `restrict` → `conversations`. **Bodies erased**; see *What survives* |
 | 7 | `conversation_events` | cascades from `conversations`, `restrict` → `companies` |
 | 8 | `conversations` | `restrict` → `contacts` **and** → `phone_numbers` |

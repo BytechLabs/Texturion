@@ -199,6 +199,20 @@ describe("GET /v1/usage", () => {
           outcomesRecorded: 20,
         },
         {
+          // #247: beside drafting, because they are the two halves of the same
+          // thread — one reads it, the other answers it. The cap is a THIRD of
+          // drafting's and the screen shows both, which is the point: a crew
+          // comparing them should see that the catch-up is rationed harder, and
+          // why (largest input in the product, least proven surface).
+          key: "thread_summary",
+          label: "thread catch-up",
+          used: 0,
+          cap: 500,
+          enabled: true,
+          outcomes: [],
+          outcomesRecorded: 0,
+        },
+        {
           key: "enrich",
           label: "task enrichment",
           used: 0,

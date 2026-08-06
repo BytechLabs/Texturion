@@ -19,6 +19,7 @@ import {
   useMessages,
 } from "@/lib/api/messages";
 import { flattenPages } from "@/lib/api/pagination";
+import { offerThreadSummary } from "@/lib/api/thread-summary";
 import type { Message } from "@/lib/api/types";
 import { contactDisplayName } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,7 @@ import {
 } from "./pinned-banner";
 import { DayDivider, SystemLine } from "./system-line";
 import { ThreadFilterBar } from "./thread-filter-bar";
+import { ThreadSummaryCard } from "./thread-summary-card";
 import {
   ALL_CATEGORIES_ON,
   enabledCategories,
@@ -90,6 +92,22 @@ export function MessageList({
     for (const m of messages) byId.set(m.id, m);
     return sortPinned([...byId.values()]);
   }, [pinnedQuery.data, messages]);
+
+  // #247: the customer-visible half of the thread — what Lou is allowed to read
+  // and therefore the only thing that decides whether a catch-up is offered or
+  // has gone stale. INTERNAL NOTES ARE EXCLUDED, matching the server's filter
+  // exactly: a note is not part of the conversation, so a crew leaving three of
+  // them must not make a five-message thread look worth summarising, and must
+  // not make an existing catch-up look out of date when nothing was said.
+  const visibleMessages = useMemo(
+    () =>
+      messages.filter(
+        (m) => m.direction === "inbound" || m.direction === "outbound",
+      ),
+    [messages],
+  );
+  const offersCatchUp = offerThreadSummary(visibleMessages);
+  const newestVisibleMessageId = visibleMessages[visibleMessages.length - 1]?.id;
 
   // §4.3: the done/undone timeline lines join the LIVE message body by id.
   // Built from the loaded message set — a cache-miss degrades to "a message"
@@ -433,6 +451,32 @@ export function MessageList({
             </div>
           </div>
         </>
+      )}
+      {/* #247, BELOW the pinned strip on purpose: a pin is a crew member's own
+          deliberate act and a catch-up is Lou's reading of the thread, so the
+          human record sits above the machine one. Same reading track, same
+          chrome, so the two read as one family of strips rather than as an
+          AI feature bolted on top.
+          Keyed by conversation so switching threads cannot leave one thread's
+          catch-up standing over another's messages.
+          The rule is asked twice on purpose: here so a thread that is not worth
+          a catch-up renders no empty wrapper and mounts no hooks, and again
+          inside the card so the component is correct wherever it is used. */}
+      {offersCatchUp && (
+        <div className="shrink-0 px-4 pb-1 pt-2 md:px-6 md:pt-1">
+          <div className="mx-auto w-full max-w-[42rem]">
+            <ThreadSummaryCard
+              key={conversationId}
+              conversationId={conversationId}
+              offered={offersCatchUp}
+              newestMessageId={newestVisibleMessageId}
+              // The SAME jump the pinned banner and the done lines use, so a
+              // cited message that is filtered out or on an older page still
+              // resolves instead of dead-ending.
+              onJump={scrollToMessage}
+            />
+          </div>
+        </div>
       )}
       <div
         ref={scrollRef}

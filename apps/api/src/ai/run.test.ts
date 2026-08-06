@@ -29,6 +29,7 @@ const SETTINGS = {
   transcribe_voicemail: true,
   voicemail_intake: true,
   call_wrapup: true,
+  summarize_threads: true,
 };
 
 /** A Supabase double: only the reservation RPC and the settings read matter. */

@@ -267,6 +267,16 @@ data class CompanyAiSettings(
      * customer. D117 is why that line is the whole design and not a detail.
      */
     val call_wrapup: Boolean = true,
+    /**
+     * #247: whether a long or long-forgotten thread can be summarised on demand.
+     *
+     * The broadest disclosure of the five — a whole conversation leaves for
+     * inference rather than one message, one field, or one recording — which is
+     * why it is its own toggle rather than folded into drafting. A workspace
+     * comfortable with Lou drafting a reply from the last twelve messages has
+     * not thereby agreed to send forty.
+     */
+    val summarize_threads: Boolean = true,
 )
 
 /** Matches the column's CHECK constraint (migration 20260724120000). */

@@ -211,6 +211,7 @@ describe("the cost posture", () => {
         transcribe_voicemail: true,
         voicemail_intake: false,
         call_wrapup: true,
+        summarize_threads: true,
       }),
     ).toBe(false);
   });

@@ -258,6 +258,32 @@ private struct ThreadBody: View {
                     }
                 }
 
+                // #247: the catch-up, LAST in the banner stack and immediately
+                // above the stream it summarises. Every banner above it is a
+                // fact about the conversation — is this a customer, is this
+                // deferred, what did somebody pin — and those outrank one
+                // machine's reading of the thread. Nothing here reorders or
+                // hides anything: it sits on top of the inbox, and the inbox is
+                // still the inbox.
+                ThreadSummaryCard(
+                    offer: controller.catchUpOffer,
+                    state: controller.catchUp,
+                    onAsk: { controller.askForCatchUp() },
+                    onOpenMessage: { messageId in
+                        // The pinned banner's exact path: load the message if it
+                        // is beyond the first page, then jump. A cited line that
+                        // scrolled to nothing would break the one promise this
+                        // card makes.
+                        controller.reportCatchUpOpened()
+                        Task {
+                            if await controller.ensureMessageLoaded(messageId) {
+                                jumpToMessageId = messageId
+                            }
+                        }
+                    },
+                    onHide: { controller.hideCatchUp() }
+                )
+
                 timelinePane(names: names, contactName: contactName)
 
                 presenceStrip(detail: detail)

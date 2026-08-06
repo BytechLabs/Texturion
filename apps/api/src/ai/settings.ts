@@ -49,6 +49,16 @@ export interface CompanyAiSettings {
    * never the call itself. D117 is why that distinction is load-bearing.
    */
   call_wrapup: boolean;
+  /**
+   * #247: whether a long or long-forgotten thread can be summarised on demand.
+   *
+   * The broadest disclosure of the five — a whole conversation leaves for
+   * inference rather than one message, one field, or one recording — which is
+   * why it is named separately on the public page rather than folded into the
+   * drafting toggle. A workspace that is comfortable with Lou drafting a reply
+   * from the last twelve messages has not thereby agreed to send forty.
+   */
+  summarize_threads: boolean;
 }
 
 /**
@@ -68,12 +78,28 @@ export const DEFAULT_AI_SETTINGS: CompanyAiSettings = {
   // On, like the rest: the output is text a member reads and edits before it
   // becomes anything, and the monthly cap bounds the spend.
   call_wrapup: true,
+  /**
+   * #247: on, and the counter-argument is worth recording rather than skipping.
+   *
+   * A catch-up sends MORE of a customer's words than anything else in the
+   * product, so "a bigger disclosure deserves an opt-in" is a real position. It
+   * does not reach the one exception this codebase actually has: D89 makes
+   * voicemail intake opt-in because it changes what a STRANGER hears in the
+   * business's own name, which is a thing done to somebody who never agreed to
+   * anything with us. This changes nothing anyone outside the crew can observe.
+   *
+   * And the difference from reply drafting is one of degree, not of kind: the
+   * same thread, to the same model, in the same workspace's own service, forty
+   * messages instead of twelve. An opt-in here would mostly mean the feature is
+   * never found, while the disclosure page names it in its own row either way.
+   */
+  summarize_threads: true,
 };
 
 /** The columns that make up the settings row, for a `select`. */
 export const AI_SETTINGS_COLUMNS =
   "enrich_task_address,enrich_task_due,suggest_replies,business_description," +
-  "transcribe_voicemail,voicemail_intake,call_wrapup";
+  "transcribe_voicemail,voicemail_intake,call_wrapup,summarize_threads";
 
 /** Company AI toggles, falling back to the defaults when the row is absent. */
 export async function loadAiSettings(

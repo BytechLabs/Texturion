@@ -30,7 +30,8 @@ export interface AiDisclosure {
     | "suggest_reply"
     | "voicemail_transcript"
     | "voicemail_intake"
-    | "call_wrapup";
+    | "call_wrapup"
+    | "thread_summary";
   /** What a customer would call it. */
   label: string;
   /** Exactly what leaves the product for this feature. No euphemisms. */
@@ -109,6 +110,23 @@ export const AI_DISCLOSURES: readonly AiDisclosure[] = [
       "the crew member's own dictation after a call has ended, to write it " +
       "down as a note. Never the call itself and never the customer's voice",
     models: ["@cf/openai/whisper-large-v3-turbo", "@cf/openai/whisper"],
+    defaultOn: true,
+  },
+  {
+    key: "thread_summary",
+    label: "Thread catch-ups",
+    // The widest disclosure in this list, and it says the number out loud. A
+    // customer reading "the recent messages in that conversation" under
+    // suggested replies would not conclude that a different feature sends forty
+    // of them, and the difference between twelve and forty is exactly the kind
+    // of thing this page exists to stop being left to inference. The figure is
+    // THREAD_SUMMARY_CONTEXT_MESSAGES, asserted against the constant by test so
+    // it cannot become last quarter's number.
+    sends:
+      "up to the 40 most recent messages in that conversation, to write a " +
+      "short catch-up for somebody on the crew who has not read it. Internal " +
+      "notes are never included",
+    models: ["@cf/meta/llama-3.1-8b-instruct-fast"],
     defaultOn: true,
   },
 ] as const;

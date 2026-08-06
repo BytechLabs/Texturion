@@ -35,6 +35,9 @@ declare
     'company_ai_settings', 'company_ai_usage',
     'company_members', 'company_modules', 'contact_consent_events',
     'contacts', 'conversation_events', 'conversation_snoozes',
+    -- #247: the cached thread catch-up, which paraphrases a customer's own
+    -- messages.
+    'conversation_summaries',
     'conversations', 'data_exports', 'egress_events', 'email_ledger',
     'grace_notices', 'high_priority_push_budget', 'high_priority_push_days',
     'inbound_notification_days', 'invites', 'job_ratings',

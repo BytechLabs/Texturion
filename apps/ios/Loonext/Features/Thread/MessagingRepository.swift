@@ -640,6 +640,51 @@ struct MessagingRepository: Sendable {
         return result
     }
 
+    /// POST /v1/conversations/:id/summary (#247) — the catch-up.
+    ///
+    /// Three short sections, every line carrying the id of the message it came
+    /// from. Sent only when somebody taps for it: this is the largest input the
+    /// product hands a model, and an automatic ask would make the spend scale
+    /// with the CUSTOMER's behaviour rather than the crew's.
+    ///
+    /// NOT cached on the device, and deliberately. The server caches against the
+    /// thread's last message id, so re-opening an unchanged thread already costs
+    /// nothing — a second cache here would be one this client cannot invalidate
+    /// when a new message lands, and a catch-up that silently predates the last
+    /// three messages is the manufactured false memory #247 is about.
+    ///
+    /// NEVER throws. Any failure resolves to a rejection with a reason, so the
+    /// thread degrades to exactly what it was before anybody asked.
+    ///
+    /// The reason for a failed REQUEST is the failure's own structural code, and
+    /// never a reason this file made up. Every throw used to become
+    /// `model_error`, which told a `read_only` member that Lou was unreachable
+    /// when what actually happened is that their role may not spend the
+    /// workspace's AI budget. See `threadCatchUpFailureReason`.
+    ///
+    /// AND IT NEVER BUILDS A RESPONSE THE SERVER DID NOT SEND. This used to
+    /// return a `ThreadCatchUp` assembled here, which is a different claim from
+    /// the one it had: a real refusal reports the contact's carrier standing
+    /// alongside its reason, and one written on the device reports null. The
+    /// card could not tell the two apart, so a rejected re-ask read as "nobody
+    /// has opted out" and a workspace that had been STOPped stopped being told
+    /// so. `ThreadCatchUpAnswer` is that distinction, kept.
+    func summarizeThread(
+        companyId: String,
+        conversationId: String
+    ) async -> ThreadCatchUpAnswer {
+        do {
+            let result: ThreadCatchUp = try await api.post(
+                "/v1/conversations/\(conversationId)/summary",
+                body: JSONValue.object([:]),
+                companyId: companyId
+            )
+            return .answered(result)
+        } catch {
+            return .rejected(reason: threadCatchUpFailureReason(error))
+        }
+    }
+
     /// POST /v1/ai/outcome (#431) — record what a human did with one piece of AI
     /// output.
     ///

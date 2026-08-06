@@ -39,10 +39,10 @@ struct AiSectionView: View {
     private func content(_ settings: CompanyAiSettings) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(
-                "Lou is the assistant built into Loonext. It drafts replies and "
-                    + "fills in task details from what a customer already wrote. "
-                    + "Every suggestion is yours to review and edit; Lou never sends "
-                    + "anything on its own."
+                "Lou is the assistant built into Loonext. It drafts replies, fills "
+                    + "in task details from what a customer already wrote, and reads "
+                    + "a long thread back to you. Every suggestion is yours to review "
+                    + "and edit; Lou never sends anything on its own."
             )
             .font(.golos(12.5))
             .foregroundStyle(BrandColor.muted600)
@@ -67,7 +67,8 @@ struct AiSectionView: View {
                                 replies: settings.suggest_replies,
                                 transcribe: settings.transcribe_voicemail,
                                 intake: settings.voicemail_intake,
-                                wrapup: settings.call_wrapup
+                                wrapup: settings.call_wrapup,
+                                catchUp: settings.summarize_threads
                             )
                         }
                     )
@@ -86,7 +87,8 @@ struct AiSectionView: View {
                                 replies: settings.suggest_replies,
                                 transcribe: settings.transcribe_voicemail,
                                 intake: settings.voicemail_intake,
-                                wrapup: settings.call_wrapup
+                                wrapup: settings.call_wrapup,
+                                catchUp: settings.summarize_threads
                             )
                         }
                     )
@@ -151,7 +153,8 @@ struct AiSectionView: View {
                             replies: $0,
                             transcribe: settings.transcribe_voicemail,
                             intake: settings.voicemail_intake,
-                            wrapup: settings.call_wrapup
+                            wrapup: settings.call_wrapup,
+                            catchUp: settings.summarize_threads
                         )
                     }
                 )
@@ -172,7 +175,8 @@ struct AiSectionView: View {
                             replies: settings.suggest_replies,
                             transcribe: $0,
                             intake: settings.voicemail_intake,
-                            wrapup: settings.call_wrapup
+                            wrapup: settings.call_wrapup,
+                            catchUp: settings.summarize_threads
                         )
                     }
                 )
@@ -198,7 +202,8 @@ struct AiSectionView: View {
                             replies: settings.suggest_replies,
                             transcribe: settings.transcribe_voicemail,
                             intake: $0,
-                            wrapup: settings.call_wrapup
+                            wrapup: settings.call_wrapup,
+                            catchUp: settings.summarize_threads
                         )
                     }
                 )
@@ -233,7 +238,42 @@ struct AiSectionView: View {
                             replies: settings.suggest_replies,
                             transcribe: settings.transcribe_voicemail,
                             intake: settings.voicemail_intake,
-                            wrapup: $0
+                            wrapup: $0,
+                            catchUp: settings.summarize_threads
+                        )
+                    }
+                )
+            }
+
+            // #247. Its own card, and last, because it is the only Lou setting
+            // about a conversation that has ALREADY happened — every other one
+            // sits at a moment somebody is about to write something. It is also
+            // the largest thing this product sends a model, so the copy has to
+            // say what leaves and what the catch-up is not.
+            //
+            // "Never a record" is the load-bearing sentence. A wrong summary is
+            // worse than none, because a crew ACTS on it, and this card is
+            // exactly where somebody deciding whether to trust it would look.
+            SettingsCard(title: "When you open a thread you've lost track of") {
+                LabeledToggleRow(
+                    label: "Let Lou catch you up",
+                    supporting: "On a long or long-forgotten thread, offer a short "
+                        + "read of what they asked, what you said, and what's still "
+                        + "open. Every line points at the message it came from, so "
+                        + "you can check it in one tap. It's Lou's reading of the "
+                        + "thread, never a record of it \u{2014} and it never hides "
+                        + "or reorders anything in your inbox.",
+                    isOn: settings.summarize_threads,
+                    enabled: canEdit && !saving,
+                    onChange: {
+                        save(
+                            address: settings.enrich_task_address,
+                            due: settings.enrich_task_due,
+                            replies: settings.suggest_replies,
+                            transcribe: settings.transcribe_voicemail,
+                            intake: settings.voicemail_intake,
+                            wrapup: settings.call_wrapup,
+                            catchUp: $0
                         )
                     }
                 )
@@ -281,6 +321,7 @@ struct AiSectionView: View {
                     transcribeVoicemail: previous.transcribe_voicemail,
                     voicemailIntake: previous.voicemail_intake,
                     callWrapup: previous.call_wrapup,
+                    summarizeThreads: previous.summarize_threads,
                     businessDescription: next
                 )
                 state = .ready(saved)
@@ -293,13 +334,21 @@ struct AiSectionView: View {
         }
     }
 
+    /// Every toggle on every save, none of them defaulted.
+    ///
+    /// The whole pair-of-booleans shape is deliberate: the PATCH reads an ABSENT
+    /// field as "leave it alone", so a defaulted parameter here would let a call
+    /// site that forgot one silently write the default over somebody's choice. A
+    /// new toggle is meant to break every call site until each has said what it
+    /// means to do with it.
     private func save(
         address: Bool,
         due: Bool,
         replies: Bool,
         transcribe: Bool,
         intake: Bool,
-        wrapup: Bool
+        wrapup: Bool,
+        catchUp: Bool
     ) {
         guard case .ready(let previous) = state else { return }
         state = .ready(
@@ -310,7 +359,8 @@ struct AiSectionView: View {
                 business_description: previous.business_description,
                 transcribe_voicemail: transcribe,
                 voicemail_intake: intake,
-                call_wrapup: wrapup
+                call_wrapup: wrapup,
+                summarize_threads: catchUp
             )
         )
         saving = true
@@ -323,7 +373,8 @@ struct AiSectionView: View {
                     suggestReplies: replies,
                     transcribeVoicemail: transcribe,
                     voicemailIntake: intake,
-                    callWrapup: wrapup
+                    callWrapup: wrapup,
+                    summarizeThreads: catchUp
                 )
                 state = .ready(saved)
             } catch {

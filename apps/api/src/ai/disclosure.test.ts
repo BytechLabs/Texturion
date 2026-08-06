@@ -26,6 +26,10 @@ import { VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL, VOICEMAIL_TRANSCRIPT_MODEL } from 
 import { DEFAULT_AI_SETTINGS } from "./settings";
 import { AI_USAGE_FEATURES } from "./usage";
 import { SUGGEST_REPLY_MODEL } from "../messaging/reply-suggestions";
+import {
+  THREAD_SUMMARY_CONTEXT_MESSAGES,
+  THREAD_SUMMARY_MODEL,
+} from "../messaging/thread-summary";
 import { ENRICHMENT_MODEL } from "../tasks/enrichment";
 
 describe("every AI feature is publicly disclosed", () => {
@@ -51,6 +55,26 @@ describe("every AI feature is publicly disclosed", () => {
       VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL,
     ]);
     expect(models.get("voicemail_intake")).toEqual([VOICEMAIL_INTAKE_MODEL]);
+    expect(models.get("thread_summary")).toEqual([THREAD_SUMMARY_MODEL]);
+  });
+
+  it("#247 — the catch-up's disclosure states the window it actually sends", () => {
+    // The one disclosure in this list that names a QUANTITY, because the
+    // quantity is the disclosure: every other AI feature sends one message, one
+    // field or one recording, and this one sends a conversation. A customer
+    // reading "the recent messages" under suggested replies would not conclude
+    // that a different feature sends forty of them.
+    //
+    // Asserted against the constant the route actually passes to PostgREST, so
+    // the sentence cannot go on claiming a window somebody has since widened.
+    // That is the same failure #389 was: a fact about the data, kept in step
+    // with the data by memory.
+    const row = AI_DISCLOSURES.find((entry) => entry.key === "thread_summary");
+    expect(row?.sends).toContain(String(THREAD_SUMMARY_CONTEXT_MESSAGES));
+    // And it must say what does NOT leave. Notes are excluded by the route's
+    // direction filter; a page that omitted it would leave a crew to assume
+    // their private "this guy never pays" went to a model.
+    expect(row?.sends).toContain("notes are never included");
   });
 
   it("says what each feature sends, in words a customer can act on", () => {

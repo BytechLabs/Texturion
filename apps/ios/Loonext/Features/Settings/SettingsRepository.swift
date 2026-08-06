@@ -124,6 +124,7 @@ struct SettingsRepository: Sendable {
         transcribeVoicemail: Bool,
         voicemailIntake: Bool,
         callWrapup: Bool,
+        summarizeThreads: Bool,
         businessDescription: String? = nil
     ) async throws -> CompanyAiSettings {
         var body: [String: JSONValue] = [
@@ -140,6 +141,10 @@ struct SettingsRepository: Sendable {
             // Required rather than defaulted for the same reason: a new call
             // site has to say what it means to do with it.
             "call_wrapup": .bool(callWrapup),
+            // #247: same argument a third time. Absent means "leave it alone",
+            // so a save that dropped this could turn catch-ups off and never
+            // turn them back on.
+            "summarize_threads": .bool(summarizeThreads),
         ]
         // Omitted leaves whatever is stored; an empty string clears it. A
         // toggle save must never wipe the description as a side effect.

@@ -66,6 +66,7 @@ function changedSettings(after: Record<string, unknown>): string {
     transcribe_voicemail: "voicemail transcripts",
     voicemail_intake: "asking callers what the job is",
     call_wrapup: "dictating a wrap-up after a call",
+    summarize_threads: "thread catch-ups",
   };
   const named = Object.keys(after)
     .map((key) => NAMES[key] ?? key.replace(/_/g, " "))

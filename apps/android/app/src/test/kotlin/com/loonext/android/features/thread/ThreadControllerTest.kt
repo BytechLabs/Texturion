@@ -12,10 +12,15 @@ import com.loonext.android.core.model.ConversationDetailContact
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.MessageStatus
+import com.loonext.android.core.model.OPT_OUT_SOURCE_STOP
 import com.loonext.android.core.model.Page
 import com.loonext.android.core.net.ApiClient
+import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.features.compose.NoteFileUploader
 import com.loonext.android.ui.common.LoadState
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,6 +35,7 @@ import mockwebserver3.RecordedRequest
 import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
 
@@ -40,6 +46,21 @@ import org.junit.Test
  * event ever fired (the dropped-frame it heals), and (b) MERGE rather than
  * replace — since foregrounding is frequent, a user who scrolled back must keep
  * their loaded pages across every pause/resume and socket re-JOIN.
+ *
+ * #247 also lives here, for the two things ThreadSummaryCardTest cannot see.
+ * Both are about the same fact — the customer's carrier standing — surviving a
+ * press of "try again", and both are properties of a coroutine and a piece of
+ * mutable state rather than of a pure rule:
+ *
+ *   in flight   the warning survives only because this controller does NOT
+ *               clear [ThreadController.summary] before sending the next
+ *               request. A "tidy-up" that blanked the field first would put the
+ *               customer's STOP back in the hole it was just dug out of with
+ *               every pure test still green.
+ *   and after   the warning survives a press that FAILS only because this
+ *               controller reads the standing off the answer on screen and
+ *               hands it to the repository, which is the one thing that can put
+ *               an `opt_outs` read on a refusal no server sent.
  */
 class ThreadControllerTest {
 
@@ -61,6 +82,21 @@ class ThreadControllerTest {
     /** The one older page reachable behind [OLDER_CURSOR]. */
     private val olderPage = Page(data = listOf(msg("m1", T1)), next_cursor = null)
 
+    /** What POST /summary answers with. Raw JSON, so a test writes a wire shape. */
+    @Volatile
+    private var summaryBody = """{"lines":[]}"""
+
+    /**
+     * The status POST /summary answers with. 200 unless a test is about the
+     * press that does NOT get through — the case where the repository writes the
+     * refusal itself and there is no body for the carrier fields to ride on.
+     */
+    @Volatile
+    private var summaryStatus = 200
+
+    /** Set to hold the next POST /summary open; null lets it answer at once. */
+    private val summaryGate = AtomicReference<CountDownLatch?>(null)
+
     @Before
     fun setUp() {
         server = MockWebServer()
@@ -79,6 +115,15 @@ class ThreadControllerTest {
                         path == "/v1/conversations/c1/messages" &&
                         url.queryParameter("cursor") == OLDER_CURSOR ->
                         MockResponse(code = 200, body = respJson.encodeToString(olderPage))
+
+                    // #247's catch-up. Held open by [summaryGate] when a test
+                    // needs the in-flight window to be observable at all —
+                    // without it the second ask starts and finishes between two
+                    // statements and there is nothing to look at.
+                    request.method == "POST" && path == "/v1/conversations/c1/summary" -> {
+                        summaryGate.get()?.await(5, TimeUnit.SECONDS)
+                        MockResponse(code = summaryStatus, body = summaryBody)
+                    }
 
                     // Every other secondary read is refetched inside runCatching,
                     // so an empty page (or a decode miss) is tolerated by design.
@@ -121,7 +166,134 @@ class ThreadControllerTest {
         assertEquals(listOf("m3", "m2", "m1"), ids(controller))
     }
 
+    /**
+     * #247 — the customer's STOP is still on the card while the re-ask is in
+     * flight.
+     *
+     * THE DEFECT, in the order a person lives it: a refusal comes back carrying
+     * the contact's standing, the card says texts are blocked, they press "try
+     * again" — and the warning goes. It is absent for as long as the request
+     * takes, which is precisely the stretch in which somebody stops reading the
+     * card and starts acting. A warning that disappears when you touch something
+     * is one a person concludes they imagined.
+     *
+     * Driven through the whole stack rather than through [catchUpState] alone,
+     * because the pure rule can only hold the half of this that is a rule. The
+     * other half is that [ThreadController.askForSummary] leaves `summary`
+     * standing while it awaits — no `= null` first, which reads like an
+     * innocuous tidy-up and is the entire defect.
+     */
+    @Test
+    fun `a re-ask keeps the customer's STOP on screen while it is in flight`() {
+        val controller = controller()
+        controller.start()
+        awaitUntil { controller.load is LoadState.Ready }
+
+        // A refusal that carries the contact's standing — the shape the route
+        // sends most, since `opt_out` rides on every answer including the
+        // refusals. `model_error` because it is a reason the card offers a
+        // second press on; an unfixable one could never reach this window.
+        summaryBody = """{"lines":[],"reason":"model_error","opt_out":""" +
+            """{"source":"$OPT_OUT_SOURCE_STOP","at":"$T1"}}"""
+        controller.askForSummary()
+        awaitUntil { !controller.summarizing && controller.summary != null }
+        val shown = noteOnScreen(controller)
+        assertNotNull("the refusal never carried the STOP to begin with", shown)
+
+        // The press. The gate holds the server mid-answer so the in-flight card
+        // can be read at all.
+        val gate = CountDownLatch(1)
+        summaryGate.set(gate)
+        controller.askForSummary()
+        awaitUntil { controller.summarizing }
+        assertEquals(
+            "the customer's STOP came off the card the instant somebody pressed " +
+                "'try again' and stayed off for the length of the request — the " +
+                "one fact here that a hurried reader must not miss, missing at " +
+                "the one moment they are acting on it",
+            shown,
+            noteOnScreen(controller),
+        )
+
+        gate.countDown()
+        summaryGate.set(null)
+        awaitUntil { !controller.summarizing }
+        assertEquals("the answer that landed lost it again", shown, noteOnScreen(controller))
+    }
+
+    /**
+     * #247 — and the press that never reaches the server.
+     *
+     * THE SAME DEFECT ONE STEP LATER, and the worse half of it. The test above
+     * covers the window while a re-ask is in flight; this one covers what lands
+     * at the end of it when the request failed. The route puts `opt_out` on
+     * every answer it sends, so there was no answer here to put it on — the
+     * repository writes the refusal itself, it used to write it with both
+     * carrier fields empty, and that refusal REPLACES the one that carried the
+     * fact. The warning came back for the length of the spinner and then went
+     * for good, which is a card that has settled on saying nothing.
+     *
+     * Driven through the controller because that is where the standing is read:
+     * `askForSummary` takes it off the answer on screen at the press and hands
+     * it to the repository. A pure test of either half passes with the two ends
+     * unconnected.
+     */
+    @Test
+    fun `a re-ask the server never answers still says the texts are blocked`() {
+        val controller = controller()
+        controller.start()
+        awaitUntil { controller.load is LoadState.Ready }
+
+        // A refusal the ROUTE sent, carrying the contact's standing. Its reason
+        // is one of the eight only a server body can carry, which is what makes
+        // it distinguishable from the one this client writes below.
+        summaryBody = """{"lines":[],"reason":"unusable_output","opt_out":""" +
+            """{"source":"$OPT_OUT_SOURCE_STOP","at":"$T1"}}"""
+        controller.askForSummary()
+        awaitUntil { !controller.summarizing && controller.summary != null }
+        val shown = noteOnScreen(controller)
+        assertNotNull("the refusal never carried the STOP to begin with", shown)
+
+        // The press that does not get through. A 500 with no error envelope on
+        // it, so there is nothing for the client to decode and nothing for the
+        // carrier fields to ride in on.
+        //
+        // Waiting on `summarizing` rather than on the summary changing, because
+        // it cannot be watched for a change: `askForSummary` sets the flag
+        // before it suspends, and the refusal that lands is — by design — equal
+        // to the answer it replaces wherever the reader can tell. Compose's
+        // state does not even rewrite the reference.
+        summaryStatus = 500
+        summaryBody = "boom"
+        controller.askForSummary()
+        awaitUntil { !controller.summarizing }
+        assertEquals(
+            "the press did not actually fail, so this test proves nothing",
+            threadSummaryReasonFor(ApiErrorCode.INTERNAL_ERROR),
+            controller.summary?.reason,
+        )
+        assertEquals(
+            "the request failed and the workspace stopped being told its texts " +
+                "are blocked — not for the length of the press, but from then on, " +
+                "because the refusal this client wrote replaced the answer that " +
+                "carried the fact and carried none of it",
+            shown,
+            noteOnScreen(controller),
+        )
+    }
+
     // --- Harness --------------------------------------------------------------
+
+    /**
+     * The carrier line the card would be drawing right now, from the two pieces
+     * of controller state ThreadScreen feeds it.
+     *
+     * Mirrors the call site rather than reaching past it: `offered` is true
+     * because this thread is being asked about, and the other two are read live
+     * so the assertion is about the controller and not about a fixture.
+     */
+    private fun noteOnScreen(c: ThreadController): String? =
+        catchUpCarrierNote(catchUpState(offered = true, reading = c.summarizing, summary = c.summary))
 
     private fun controller(): ThreadController {
         val api = ApiClient(
