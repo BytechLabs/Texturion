@@ -41,3 +41,15 @@ a127f9abb61ba8b8cd05f878d4b1908f0335f1f9:apps/web/scripts/indexnow-ping.mjs:gene
 # The deployment env reference: a table of EXAMPLE FORMATS, so an operator
 # knows what shape each secret should be before pasting the real one.
 59e0e2a217c74fa8bc1dfbf121cddc916bb841d6:docs/deploy/06-env-reference.md:stripe-access-token:25
+
+# A test's idempotency key. `generic-api-key` fires on the NAME plus the
+# entropy (3.90), not on anything about the value: it is a made-up UUID that
+# exists so two POSTs in one test can claim to be the same request. Nothing
+# accepts it and nothing ever did.
+#
+# Third test fixture in this file to trip the same rule, which is the actual
+# lesson — a random-looking constant whose name contains "key" or "secret"
+# will do this every time. Fixtures should use a visibly patterned value
+# (`11111111-1111-...`) so the entropy floor is never reached and no entry is
+# needed here at all.
+ef37c6d58565582d0015bbf4798a5161bda78efb:apps/api/src/routes/billing.held-numbers.test.ts:generic-api-key:31
