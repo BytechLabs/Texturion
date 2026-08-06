@@ -91,8 +91,18 @@ jobs:
           sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
           gitleaks version
 
+      # `--verbose` is not noise here, it is the whole point. Without it
+      # gitleaks prints "leaks found: 1" and nothing else — no file, no line,
+      # no rule, no fingerprint — and this job sat red for four pushes because
+      # that number is not something anybody can act on. `--redact` still
+      # blanks the value, so a public log gains the location and not the
+      # credential, which is the only combination worth printing.
+      #
+      # The fingerprint it prints is the exact string `.gitleaksignore` wants,
+      # so a false positive can be answered in one line instead of by widening
+      # a path allowlist.
       - name: Scan history
-        run: gitleaks detect --config .gitleaks.toml --redact --no-banner --exit-code 1
+        run: gitleaks detect --config .gitleaks.toml --redact --verbose --no-banner --exit-code 1
 
       # ---------------------------------------------------------------------
       # Prove the scanner is not a no-op.
