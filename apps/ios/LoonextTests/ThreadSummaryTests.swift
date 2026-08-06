@@ -423,7 +423,7 @@ final class ThreadSummaryTests: XCTestCase {
         // the only thing between them and texting somebody who said stop.
         let result = ThreadCatchUp(
             lines: [line(ThreadSummarySectionId.open, "they never got the invoice")],
-            opt_out: ThreadSummaryOptOut(source: "stop", at: "2026-07-12T08:00:00Z")
+            opt_out: ThreadSummaryOptOut(source: optOutSourceStop, at: "2026-07-12T08:00:00Z")
         )
         let notice = threadCatchUpOptOutNotice(result.carrier)
         XCTAssertNotNil(notice)
@@ -443,7 +443,7 @@ final class ThreadSummaryTests: XCTestCase {
             notice,
             threadCatchUpOptOutNotice(
                 ThreadCatchUp(
-                    opt_out: ThreadSummaryOptOut(source: "stop", at: "2026-07-12T08:00:00Z")
+                    opt_out: ThreadSummaryOptOut(source: optOutSourceStop, at: "2026-07-12T08:00:00Z")
                 ).carrier
             )
         )
@@ -455,7 +455,7 @@ final class ThreadSummaryTests: XCTestCase {
         // first even when the second is what somebody asked for.
         let full = ThreadCatchUp(
             lines: (0..<5).map { line(ThreadSummarySectionId.asked, "line \($0)") },
-            opt_out: ThreadSummaryOptOut(source: "stop", at: "2026-07-12T08:00:00Z")
+            opt_out: ThreadSummaryOptOut(source: optOutSourceStop, at: "2026-07-12T08:00:00Z")
         )
         XCTAssertNotNil(threadCatchUpOptOutNotice(full.carrier))
     }
@@ -491,7 +491,7 @@ final class ThreadSummaryTests: XCTestCase {
         let answered = ThreadCatchUpState.shown(
             ThreadCatchUp(
                 lines: [line(ThreadSummarySectionId.open, "they never got the invoice")],
-                opt_out: ThreadSummaryOptOut(source: "stop", at: "2026-07-12T08:00:00Z")
+                opt_out: ThreadSummaryOptOut(source: optOutSourceStop, at: "2026-07-12T08:00:00Z")
             )
         )
         let pending = answered.asking()
@@ -532,7 +532,7 @@ final class ThreadSummaryTests: XCTestCase {
         // here would take the re-ask down with it.
         let hidden = ThreadCatchUpState.shown(
             ThreadCatchUp(
-                opt_out: ThreadSummaryOptOut(source: "stop", at: "2026-07-12T08:00:00Z")
+                opt_out: ThreadSummaryOptOut(source: optOutSourceStop, at: "2026-07-12T08:00:00Z")
             )
         ).putAway()
         XCTAssertNotNil(threadCatchUpOptOutNotice(hidden.carrier))
@@ -553,7 +553,7 @@ final class ThreadSummaryTests: XCTestCase {
         let stated = ThreadCatchUpState.shown(
             ThreadCatchUp(
                 lines: [line(ThreadSummarySectionId.open, "they never got the invoice")],
-                opt_out: ThreadSummaryOptOut(source: "stop", at: "2026-07-12T08:00:00Z")
+                opt_out: ThreadSummaryOptOut(source: optOutSourceStop, at: "2026-07-12T08:00:00Z")
             )
         )
         let turnedAway = stated.putAway().asking().answered(
