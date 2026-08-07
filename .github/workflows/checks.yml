@@ -235,6 +235,20 @@ jobs:
       - name: Guard native text scaling
         run: node scripts/check-native-a11y.mjs
 
+      # #522: three passes over the same class. #328 found plan prices typed as
+      # "$29/mo" on both phones; #522 found the registration fee typed as "$29"
+      # while Stripe invoices a Canadian workspace CA$39, and the extra-number
+      # line typed as "$5/mo" for a line the card takes US$5 for. Each fix was
+      # correct and the next one still arrived, because nothing was watching —
+      # the #522 adversarial pass proved it by inserting `$444/mo` into a phone
+      # settings screen and watching every suite on both platforms stay green.
+      # The web app imports `formatMoney` from shared and cannot drift this way;
+      # the phones hand-port it, which is exactly where a literal survives review
+      # (the copy reads fine, the figure is even right in USD, and the reader who
+      # is charged in CAD is nowhere in the diff). Source-only, so it runs here.
+      - name: Guard typed prices on the phones
+        run: node scripts/check-money-literals.mjs
+
       # #376: `packages/shared` is shared by two of four clients, so every rule
       # Android and iOS need exists three times. The generated vectors are what
       # the Kotlin and Swift suites assert against — if a shared rule changes and
