@@ -43,8 +43,27 @@ on:
 # NEVER cancel a run on main. The old CI config cancelled main's older runs,
 # which was harmless when every green commit deployed and destroys releases now
 # that only one does — a cancelled run has no success to act on.
+#
+# #532 — AND `cancel-in-progress: false` WAS NOT ENOUGH TO MEAN THAT.
+#
+# It protects a run that is IN PROGRESS. It says nothing about a run that is
+# PENDING, and GitHub allows only ONE pending run per group: queuing a new one
+# cancels the one already waiting. With a single `main` group, three pushes in
+# quick succession gate the first and the third and silently drop the second.
+# Observed, not theorised — run 31220088319 for 7f000ccc finished `cancelled`
+# with zero jobs, having never started.
+#
+# Harmless that time only because the next push was a descendant, so gating the
+# child gated the parent's content. The case that is not harmless is a RELEASE
+# commit: cancel its pending run and release-please never runs, no versions are
+# cut, `releases_created` is never true, `ship` never fires, and nothing reports
+# a failure. That is the exact silence D50 was written to end, arriving through a
+# different door.
+#
+# So the group is now PER COMMIT: nothing ever queues, so nothing can be
+# cancelled while waiting, and every commit on main is gated.
 concurrency:
-  group: main
+  group: main-${{ github.sha }}
   cancel-in-progress: false
 
 permissions:
@@ -125,5 +144,23 @@ jobs:
       always() &&
       (github.event_name == 'workflow_dispatch' ||
        needs.release.outputs.released == 'true')
+    # #532: the serialisation the run-level `main` group was really protecting,
+    # moved to the job that needs it.
+    #
+    # Two ships must never interleave — `supabase db push` and two
+    # `wrangler deploy`s against production is the one place in this pipeline
+    # where overlap corrupts rather than merely wastes. The run-level group used
+    # to provide that as a side effect of serialising EVERYTHING, which is what
+    # made a pending run cancellable.
+    #
+    # Stated here rather than relied upon from `ship.yml`'s own `concurrency`,
+    # because whether a reusable workflow's group is honoured under
+    # `workflow_call` is exactly the ambiguity that should not sit under a
+    # production migration. A job-level group unambiguously is. `ship.yml` keeps
+    # its own as a second belt; if both apply they agree, and if only one does it
+    # is this one.
+    concurrency:
+      group: ship-production
+      cancel-in-progress: false
     uses: ./.github/workflows/ship.yml
     secrets: inherit
