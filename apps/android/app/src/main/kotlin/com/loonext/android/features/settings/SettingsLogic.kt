@@ -1675,10 +1675,31 @@ fun planStateUnknownNote(pause: PauseRead): String? = when (pause) {
  * in flight and false after one that failed, so an unread pause says nothing at
  * all rather than guessing in either direction.
  */
+/*
+ * #529 — AND IT NAMES WHERE THE CLOCK IS COUNTED FROM.
+ *
+ * This said "It also starts the 30-day clock on your number" and stopped there.
+ * A duration with no anchor is the single most expensive kind of sentence on this
+ * card, and this reader is the one most likely to anchor it wrongly: they are
+ * being told about a clock in the same breath as "your plan runs to the end of
+ * the billing period", so "30 days" reads as 30 days from THAT. It is 30 days
+ * from the day they cancel — `runGraceJob` measures `now - companies.canceled_at`
+ * and Stripe stamps that column at the time of the REQUEST, not the period end.
+ * Somebody who cancels on day 2 of a monthly period counts about 59 days and has
+ * about 30, and what they lose at the end of the miscount is the number on the
+ * side of their van.
+ *
+ * Found by the web client's OFFER-13, which asserts that every duration anywhere
+ * on that card names its anchor, and which this copy would have failed. Nothing
+ * on Android checks it — the note is Android-only, so no shared assertion ever
+ * read it. The sentence is now the same shape as `CANCEL_CONSEQUENCE` on web:
+ * the number of days, and immediately what they are counted from.
+ */
 fun pausedCancelNote(pause: PauseRead): String? = if (pause.isPaused) {
     "Your plan is paused, so texting is already off — what cancelling ends is the " +
-        "plan itself. It also starts the $CANCELLATION_GRACE_DAYS-day clock on your " +
-        "number, which is the clock a pause keeps off it."
+        "plan itself. It also starts the clock on your number: " +
+        "$CANCELLATION_GRACE_DAYS days from the day you cancel, not from the day " +
+        "the plan ends. That is the clock a pause keeps off it."
 } else {
     null
 }

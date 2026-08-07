@@ -537,7 +537,29 @@ class PauseOfferTest {
         assertTrue(
             "the reader has to be told that the thing cancelling starts is the clock " +
                 "a pause has been keeping off their number: $note",
-            note.contains("$CANCELLATION_GRACE_DAYS-day"),
+            note.contains("$CANCELLATION_GRACE_DAYS days"),
+        )
+        // #529: AND WHERE THE CLOCK IS COUNTED FROM. This asserted
+        // `contains("30-day")` and nothing else, so it pinned a spelling rather
+        // than a fact — the note said "starts the 30-day clock on your number"
+        // with no anchor at all and this test was green.
+        //
+        // The anchor is the expensive half. `runGraceJob` measures
+        // `now - companies.canceled_at`, and Stripe stamps that at the time of
+        // the REQUEST; this sentence arrives one breath after "your plan runs to
+        // the end of the billing period", so an unanchored "30 days" reads as 30
+        // days from THAT. Somebody who cancels on day 2 of a month counts about
+        // 59 days and has about 30, and loses the number on the side of the van.
+        //
+        // The web client asserts this for every duration anywhere on its cancel
+        // card (OFFER-13). This note is Android-only, so no shared assertion ever
+        // read it — which is how it shipped without the clause.
+        assertTrue(
+            "the note names $CANCELLATION_GRACE_DAYS days without saying where they " +
+                "are counted from. A duration with no anchor on this card is read " +
+                "from the period end, which is most of a month later than the truth: " +
+                "$note",
+            note.contains("from the day you cancel"),
         )
         assertTrue(
             "and it must not quote an amount: the figure belongs to the paused card, " +
