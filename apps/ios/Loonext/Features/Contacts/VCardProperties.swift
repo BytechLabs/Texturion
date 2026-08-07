@@ -57,8 +57,14 @@ struct VCardPropertyDeclaration: Hashable, Sendable {
 /// One property these cards actually carry, and what a person needs to answer
 /// for it.
 struct VCardProperty: Identifiable, Hashable, Sendable {
-    /// Upper-cased, group prefix and parameters stripped — the shape the server
-    /// reports and matches on.
+    /// Upper-cased with any group prefix dropped — the shape the server reports
+    /// and matches on.
+    ///
+    /// A PARAMETER IS ONE OF THESE TOO, named `TEL;TYPE` (see
+    /// `VCardProperties.parameterProperty`). It used to say "parameters stripped",
+    /// and that was the defect: the server demands a declaration for each one, so
+    /// stripping them meant every real Apple export was refused for a token this
+    /// app had never put on the screen.
     let name: String
 
     /// How many cards carry it. "3 of 60 cards" is the difference between a
@@ -153,6 +159,21 @@ enum VCardProperties {
     /// reading cannot go on being asked about here.
     static let mapped = ["FN", "N", "TEL", "BEGIN", "END", "VERSION"]
 
+    /// How a PARAMETER is named as a thing to be declared: `TEL;TYPE`.
+    ///
+    /// The server's spelling, from the shared contract, and it has to match
+    /// exactly: a token spelled differently is a declaration answering a question
+    /// nobody asked, and the upload is refused for the one still outstanding.
+    ///
+    /// `TEL` is mapped and `TEL;TYPE` is NOT, which is the whole point. The
+    /// exemption belongs to a property name, never to the parameters hanging off
+    /// it — `TEL;TYPE=CELL;X-ABLabel=DO NOT CALL:+1613…` is Apple's inline shape,
+    /// and the one sentence on that line saying not to text this person lives in a
+    /// parameter of a mapped property.
+    static func parameterProperty(_ property: String, _ parameter: String) -> String {
+        "\(property);\(parameter)"
+    }
+
     /// Every property these cards carry that the importer does not read, in the
     /// order the file first used them.
     static func scan(_ text: String) -> [VCardProperty] {
@@ -188,22 +209,43 @@ enum VCardProperties {
                 continue
             }
             guard inCard, let parsed = contentLine(line) else { continue }
-            if skip.contains(parsed.name) { continue }
-            if !order.contains(parsed.name) { order.append(parsed.name) }
-            onThisCard.insert(parsed.name)
 
-            let value = parsed.value.trimmingCharacters(in: .whitespacesAndNewlines)
-            if value.isEmpty { continue }
-            var distinct = seen[parsed.name] ?? []
-            // ALWAYS counted, bounded only for showing. This used to stop
-            // inserting at `sampleLimit`, which meant the set could never say how
-            // many values a property really carried — so "and more" was the only
-            // thing it could honestly print, and "and more" is what #528 found.
-            if distinct.insert(value.lowercased()).inserted,
-                (samples[parsed.name]?.count ?? 0) < ContactColumns.valueCeiling {
-                samples[parsed.name, default: []].append(value)
+            // EVERY token the server will demand a declaration for: the property
+            // AND each of its parameters, each carrying the text a person needs to
+            // read. The mapped exemption is applied PER TOKEN rather than per
+            // line, which is the fix — `TEL` is mapped and `TEL;TYPE` is not, so
+            // skipping the whole line because its property was mapped left every
+            // parameter of every mapped property out of the declaration. Real
+            // Apple and Google exports put `TEL;TYPE=CELL` on nearly every card,
+            // so the server refused the upload for a token this app had never
+            // shown, and no answer on the screen could satisfy it.
+            var tokens: [(name: String, value: String)] = [
+                (parsed.name, parsed.value ?? "")
+            ]
+            for param in parsed.params {
+                tokens.append(
+                    (parameterProperty(parsed.name, param.name), param.value)
+                )
             }
-            seen[parsed.name] = distinct
+
+            for token in tokens {
+                if skip.contains(token.name) { continue }
+                if !order.contains(token.name) { order.append(token.name) }
+                onThisCard.insert(token.name)
+
+                let value = token.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if value.isEmpty { continue }
+                var distinct = seen[token.name] ?? []
+                // ALWAYS counted, bounded only for showing. This used to stop
+                // inserting at `sampleLimit`, which meant the set could never say
+                // how many values a property really carried — so "and more" was
+                // the only thing it could honestly print.
+                if distinct.insert(value.lowercased()).inserted,
+                    (samples[token.name]?.count ?? 0) < ContactColumns.valueCeiling {
+                    samples[token.name, default: []].append(value)
+                }
+                seen[token.name] = distinct
+            }
         }
         flush()
 
@@ -256,15 +298,31 @@ enum VCardProperties {
         return lines
     }
 
-    /// Split a content line into its property name and raw value.
+    /// Split a content line into its property name, its parameters, and its value.
     ///
     /// The value begins after the first colon that is not inside a quoted
     /// parameter (`TEL;TYPE="work,voice":…`). The name is everything before the
-    /// first `;`, with a group prefix (`item1.CATEGORIES`) stripped and the
+    /// first `;`, each segment after it is a parameter carrying the free text to
+    /// its right, with a group prefix (`item1.CATEGORIES`) stripped and the
     /// result upper-cased — all four of those are what the server does, and a
     /// port that skipped any one of them would report a property name the
     /// server never asks about while missing the one it does.
-    private static func contentLine(_ line: String) -> (name: String, value: String)? {
+    /// One parameter on a content line: its name, and the free text after the `=`.
+    private struct ContentParameter {
+        let name: String
+        let value: String
+    }
+
+    /// A content line split the way the server splits it.
+    private struct ContentLine {
+        let name: String
+        let params: [ContentParameter]
+        /// `nil` when the line carried no colon — nothing to read, only something
+        /// to declare.
+        let value: String?
+    }
+
+    private static func contentLine(_ line: String) -> ContentLine? {
         var inQuotes = false
         var found: String.Index? = nil
         var cursor = line.startIndex
@@ -278,17 +336,44 @@ enum VCardProperties {
             }
             cursor = line.index(after: cursor)
         }
-        guard let colon = found else { return nil }
 
-        var name = String(line[line.startIndex ..< colon])
-        if let semi = name.firstIndex(of: ";") {
-            name = String(name[name.startIndex ..< semi])
-        }
-        name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A LINE WITH NO COLON IS STILL A LINE SOMEBODY WROTE. This used to return
+        // nil the moment it could not find one, which dropped `DO-NOT-CALL` and
+        // `CATEGORIES;TYPE="a:DNC` before either could be asked about.
+        let namePart = found.map { String(line[line.startIndex ..< $0]) } ?? line
+        let value = found.map { String(line[line.index(after: $0)...]) }
+
+        let segments = namePart.split(separator: ";", omittingEmptySubsequences: false)
+        var name = String(segments.first ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         if let dot = name.lastIndex(of: ".") {
             name = String(name[name.index(after: dot)...])
         }
-        return (name: name.uppercased(), value: String(line[line.index(after: colon)...]))
+        // Nil for one case only, and the server returns it for the same one: a
+        // line whose property name is empty. There is no token to declare and
+        // nothing a person could answer about it.
+        if name.isEmpty { return nil }
+
+        var params: [ContentParameter] = []
+        for segment in segments.dropFirst() {
+            let text = String(segment)
+            let equals = text.firstIndex(of: "=")
+            // `TYPE=CELL` is the parameter TYPE; a valueless `PREF` is its own
+            // name. Everything to the RIGHT of the `=` is the free text nobody
+            // read, and it is the reason the parameter has to be declared at all.
+            let rawName = equals.map { String(text[text.startIndex ..< $0]) } ?? text
+            let paramName = rawName
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .uppercased()
+            if paramName.isEmpty { continue }
+            var raw = (equals.map { String(text[text.index(after: $0)...]) } ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if raw.hasPrefix("\"") { raw.removeFirst() }
+            if raw.hasSuffix("\"") { raw.removeLast() }
+            params.append(ContentParameter(name: paramName, value: raw))
+        }
+
+        return ContentLine(name: name.uppercased(), params: params, value: value)
     }
 
     // MARK: - What the sheet says about them

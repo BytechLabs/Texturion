@@ -988,24 +988,93 @@ final class ContactImportColumnsTests: XCTestCase {
             "END:VCARD",
         ].joined(separator: "\r\n")
         let found = VCardProperties.scan(text)
-        XCTAssertEqual(found.map(\.name), ["CATEGORIES", "NOTE", "X-ABLABEL"])
-        // Counted per CARD, in file order.
-        XCTAssertEqual(found[0].cards, 2)
-        XCTAssertEqual(found[1].cards, 1)
+        // `TEL;TYPE` IS IN THIS LIST, and its absence was #528's iOS defect. This
+        // assertion used to read ["CATEGORIES", "NOTE", "X-ABLABEL"] — with the
+        // parameterised TEL line sitting in the fixture above, unenumerated, while
+        // the test passed. The server demands a declaration for every parameter of
+        // every property including the mapped ones, so leaving it out refused the
+        // whole upload for a token this app never showed.
+        XCTAssertEqual(
+            found.map(\.name),
+            ["TEL;TYPE", "CATEGORIES", "NOTE", "X-ABLABEL"]
+        )
+        // Keyed by NAME, not by position: the order is file order and a new token
+        // appearing ahead of the others should not be an assertion about NOTE.
+        let byName = Dictionary(uniqueKeysWithValues: found.map { ($0.name, $0) })
+        // Counted per CARD. Both cards carry a parameterised TEL.
+        XCTAssertEqual(byName["CATEGORIES"]?.cards, 2)
+        XCTAssertEqual(byName["TEL;TYPE"]?.cards, 2)
+        XCTAssertEqual(byName["NOTE"]?.cards, 1)
         // The folded line is rejoined — Google wraps a long NOTE across four
         // lines, and a reader that did not join them would drop the sentence
         // saying they asked us to stop.
-        XCTAssertEqual(found[1].samples, ["DO NOT CONTACT - asked us to stop"])
+        XCTAssertEqual(byName["NOTE"]?.samples, ["DO NOT CONTACT - asked us to stop"])
         // Both spellings on the screen, so "coarse in the safe direction" is a
         // choice somebody makes with the evidence in front of them.
-        XCTAssertEqual(found[0].samples, ["DNC", "Friends"])
+        XCTAssertEqual(byName["CATEGORIES"]?.samples, ["DNC", "Friends"])
+        // The parameter's own text, quotes off — `TYPE="work,voice"` is the value
+        // a person reads to decide, and Apple's inline `X-ABLabel=DO NOT CALL`
+        // lives in exactly this position.
+        XCTAssertEqual(byName["TEL;TYPE"]?.samples, ["CELL", "work,voice"])
     }
 
-    /// A card of nothing but what the importer reads asks nothing.
+    /// A parameter of a MAPPED property still has to be declared.
     ///
-    /// A gate that fires on an ordinary Apple export is a gate everybody learns
-    /// to route around.
-    func testACardCarryingOnlyMappedPropertiesAsksNothing() {
+    /// The exemption belongs to a property name and never to what hangs off it.
+    /// `TEL` is read, so it is exempt; `TEL;X-ABLABEL` is not read by anything,
+    /// and on Apple's inline shape it is where the instruction lives.
+    func testAParameterOfAMappedPropertyIsStillReported() {
+        let text = [
+            "BEGIN:VCARD",
+            "VERSION:3.0",
+            "FN:Dave Chen",
+            "TEL;TYPE=CELL;X-ABLabel=DO NOT CALL:+16135550100",
+            "END:VCARD",
+        ].joined(separator: "\r\n")
+        let found = VCardProperties.scan(text)
+        XCTAssertEqual(found.map(\.name), ["TEL;TYPE", "TEL;X-ABLABEL"])
+        let label = found.first { $0.name == "TEL;X-ABLABEL" }
+        XCTAssertEqual(label?.samples, ["DO NOT CALL"])
+        // TEL itself is read, so it is not asked about.
+        XCTAssertFalse(found.contains { $0.name == "TEL" })
+    }
+
+    /// A line with no colon is still a line somebody wrote.
+    ///
+    /// It used to be dropped the moment no colon was found, so `DO-NOT-CALL` on
+    /// its own line was never enumerated here — while the server counted it and
+    /// refused the upload for it.
+    func testALineWithNoColonIsStillReported() {
+        let text = [
+            "BEGIN:VCARD",
+            "VERSION:3.0",
+            "FN:Dave Chen",
+            "DO-NOT-CALL",
+            "END:VCARD",
+        ].joined(separator: "\r\n")
+        let found = VCardProperties.scan(text)
+        XCTAssertEqual(found.map(\.name), ["DO-NOT-CALL"])
+        // Nothing to read, only something to declare — so no values beside it.
+        XCTAssertEqual(found[0].samples, [])
+        XCTAssertEqual(found[0].cards, 1)
+    }
+
+    /// A card of nothing but PROPERTIES the importer reads still asks about their
+    /// parameters — and that is the server's rule, not this app's preference.
+    ///
+    /// This test used to assert `scan(text).isEmpty`, reasoning that a gate firing
+    /// on an ordinary Apple export is one everybody learns to route around. The
+    /// reasoning is sound and the assertion was still wrong: the server's own
+    /// suite sends `[TEL;TYPE, TEL;VALUE]` as the declarations an ordinary export
+    /// must carry, so it demands both. An app that asked about neither produced a
+    /// screen with nothing on it, a declaration with nothing in it, and a 422
+    /// naming a token the person had never been shown. Fail-closed and total.
+    ///
+    /// The noise is a KNOWN cost, accepted on purpose. Exempting the ubiquitous
+    /// parameter names would be a vocabulary, and this issue has already lost two
+    /// rounds to vocabularies — `TYPE=DNC` is a real export, so no parameter name
+    /// is safe to wave through. Whatever changes here changes in the server first.
+    func testACardCarryingOnlyMappedPropertiesStillAsksAboutTheirParameters() {
         let text = [
             "BEGIN:VCARD",
             "VERSION:4.0",
@@ -1014,7 +1083,12 @@ final class ContactImportColumnsTests: XCTestCase {
             "TEL;VALUE=uri:tel:+14165550100",
             "END:VCARD",
         ].joined(separator: "\n")
-        XCTAssertTrue(VCardProperties.scan(text).isEmpty)
+        let found = VCardProperties.scan(text)
+        XCTAssertEqual(found.map(\.name), ["TEL;VALUE"])
+        // N and FN carry a `;`-heavy value, NOT parameters: the split happens on
+        // the name side of the colon only, so `N:Chen;Dave;;;` is one mapped
+        // property and asks nothing.
+        XCTAssertFalse(found.contains { $0.name.hasPrefix("N;") })
     }
 
     /// Anything outside a card is not a property of anybody's.
