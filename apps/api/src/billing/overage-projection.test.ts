@@ -140,6 +140,11 @@ describe("projectUsage (per-volume cost + overage revenue)", () => {
     expect(projectUsage(u, "starter", 3, 1)).toEqual({
       costCents: 1501,
       overageRevenueGrossCents: 0,
+      // #522: the same overage as VOLUMES, which the customer-facing route
+      // prices in the customer's own currency. 400 outbound is under the 500
+      // allowance and 10 minutes is under 2,500, so both are zero.
+      overageSegments: 0,
+      overageVoiceMinutes: 0,
     });
   });
 
@@ -168,6 +173,8 @@ describe("projectUsage (per-volume cost + overage revenue)", () => {
     expect(projectUsage(u, "starter", null, 2)).toEqual({
       costCents: 2300, // 2000 * 1.15
       overageRevenueGrossCents: 4500, // (2000 - 500) * 3c
+      overageSegments: 1500, // #522: 2000 - 500, priced per currency elsewhere
+      overageVoiceMinutes: 0,
     });
   });
 
@@ -178,6 +185,8 @@ describe("projectUsage (per-volume cost + overage revenue)", () => {
     expect(projectUsage(u, "starter", 3, 3)).toEqual({
       costCents: 3600,
       overageRevenueGrossCents: 500,
+      overageSegments: 0,
+      overageVoiceMinutes: 500, // #522: 3000 - 2500
     });
   });
 
@@ -189,6 +198,8 @@ describe("projectUsage (per-volume cost + overage revenue)", () => {
     expect(projectUsage(u, "starter", 3, 3)).toEqual({
       costCents: 9000,
       overageRevenueGrossCents: 5000,
+      overageSegments: 0,
+      overageVoiceMinutes: 5000, // #522: 7500 - 2500
     });
   });
 
@@ -213,6 +224,10 @@ describe("projectUsage (per-volume cost + overage revenue)", () => {
     expect(projectUsage(u, "starter", 3, 2)).toEqual({
       costCents: 10000, // 10000 * 1.0
       overageRevenueGrossCents: 0,
+      // #522: inbound is free to the customer, so it produces no billable
+      // volume in either currency — which is exactly why it is the loss driver.
+      overageSegments: 0,
+      overageVoiceMinutes: 0,
     });
   });
 });

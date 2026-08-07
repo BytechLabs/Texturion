@@ -147,6 +147,10 @@ describe("GET /v1/usage", () => {
       status: expect.stringMatching(/^(quiet|pacing)$/),
       period_start: "2026-06-15T00:00:00+00:00",
       period_end: "2026-07-15T00:00:00+00:00",
+      // #522: the currency every *_cents figure here is quoted in. A company row
+      // with no billing_currency resolves to USD, which is what every workspace
+      // is actually charged today.
+      currency: "usd",
       included_segments: 500,
       used_segments: 620,
       inbound_segments: INBOUND_USED,
@@ -426,6 +430,7 @@ describe("GET /v1/usage", () => {
     });
     expect(await res.json()).toEqual({
       status: "quiet",
+      currency: "usd",
       period_start: null,
       period_end: null,
       included_segments: 0,
@@ -594,5 +599,104 @@ describe("GET /v1/usage — what a member may not see (#515)", () => {
     // the field had been deleted outright.
     expect(body.projected_overage_cents).not.toBeNull();
     expect(body.period_end).not.toBeNull();
+  });
+});
+
+/**
+ * #522 — the largest divergence the currency audit found.
+ *
+ * Every figure on this screen was priced at the USD rate book while
+ * `packages/shared` already held the CAD one and `stripe-setup` filed exactly
+ * those amounts. A Canadian Starter 120 segments over read "$3.60" for an
+ * overage its card is charged CA$4.80 for — a wrong number about money, on the
+ * screen a customer opens *because* they are worried about money.
+ *
+ * The rates are 3¢/2.5¢ USD against 4¢/3.5¢ CAD, so the two are never equal and
+ * a test that fixes the currency cannot pass by accident.
+ */
+describe("GET /v1/usage prices in the workspace's own currency (#522)", () => {
+  it("quotes a CAD workspace the CAD segment rate, not the USD one", async () => {
+    const sb = usageStub({ ...starterCompany, billing_currency: "cad" }, 620);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
+      companyId: COMPANY_ID,
+    });
+    const body = (await res.json()) as {
+      currency: string;
+      projected_overage_cents: number;
+    };
+
+    expect(body.currency).toBe("cad");
+    // 120 over × 4¢ CAD = 480. At the USD rate it would read 360, which is the
+    // exact figure the issue reported.
+    expect(body.projected_overage_cents).toBe(480);
+  });
+
+  it("still quotes a USD workspace the USD rate", async () => {
+    const sb = usageStub({ ...starterCompany, billing_currency: "usd" }, 620);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
+      companyId: COMPANY_ID,
+    });
+    const body = (await res.json()) as {
+      currency: string;
+      projected_overage_cents: number;
+    };
+
+    expect(body.currency).toBe("usd");
+    expect(body.projected_overage_cents).toBe(360); // 120 × 3¢
+  });
+
+  it("reads a missing currency as USD rather than refusing to price", async () => {
+    // A row read before the column existed. Answering "unknown" on a usage
+    // screen would be worse than answering USD, which is what every workspace
+    // was actually charged then.
+    const sb = usageStub(starterCompany, 620);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
+      companyId: COMPANY_ID,
+    });
+    const body = (await res.json()) as {
+      currency: string;
+      projected_overage_cents: number;
+    };
+
+    expect(body.currency).toBe("usd");
+    expect(body.projected_overage_cents).toBe(360);
+  });
+
+  it("prices the month-end projection in the same currency as the rest", async () => {
+    // The subtle one. `projectedOverageChargesCents` is USD BY DESIGN — it is
+    // subtracted from our USD provider costs in the margin model — so reading it
+    // straight onto this payload would put two currencies on one screen. The
+    // route prices the projected VOLUMES instead.
+    const cad = usageStub({ ...starterCompany, billing_currency: "cad" }, 900);
+    stubFetch(jwksRoute(auth), cad.route);
+    const cadRes = await apiRequest(app, env, await auth.token(), "/v1/usage", {
+      companyId: COMPANY_ID,
+    });
+    const cadBody = (await cadRes.json()) as {
+      overage_projection: { projected_overage_cents: number };
+    };
+
+    const usd = usageStub({ ...starterCompany, billing_currency: "usd" }, 900);
+    stubFetch(jwksRoute(auth), usd.route);
+    const usdRes = await apiRequest(app, env, await auth.token(), "/v1/usage", {
+      companyId: COMPANY_ID,
+    });
+    const usdBody = (await usdRes.json()) as {
+      overage_projection: { projected_overage_cents: number };
+    };
+
+    // Both are the same volume extrapolated the same way; only the price book
+    // differs, and CAD is dearer on every tier. Asserted as a RATIO rather than
+    // a literal because the extrapolation depends on the wall clock.
+    expect(usdBody.overage_projection.projected_overage_cents).toBeGreaterThan(0);
+    expect(cadBody.overage_projection.projected_overage_cents).toBeGreaterThan(
+      usdBody.overage_projection.projected_overage_cents,
+    );
   });
 });

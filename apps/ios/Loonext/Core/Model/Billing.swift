@@ -121,6 +121,16 @@ struct Usage: Codable, Sendable {
     /// #178 presentation status; the default keeps pre-#178 payloads decoding
     /// as the calm state (unknown values also render quiet).
     @Default<DefaultUsageStatusQuiet> var status: String
+    /// #522: the currency EVERY `*_cents` figure on this payload is quoted in.
+    ///
+    /// The server states it rather than leaving this client to pair the numbers
+    /// with `companies.billing_currency` read separately — those two can
+    /// disagree, and the failure is silent: the screen labels a CAD figure USD.
+    /// `var … = nil` rather than `let` so it does not become a required
+    /// memberwise-init parameter at every existing construction site, and so a
+    /// payload from a server that predates it decodes as USD, which is what
+    /// every workspace was actually charged then.
+    var currency: String? = nil
     let period_start: String?
     let period_end: String?
     @Default<DefaultZero> var included_segments: Int

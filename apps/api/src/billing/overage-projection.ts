@@ -142,12 +142,26 @@ export interface OverageDecision {
   revenueCents: number;
   /** revenueCents - extrapolatedCostCents (negative = projected loss). */
   marginCents: number;
-  /** Projected month-end TOTAL overage the CUSTOMER will be billed, in cents
-   *  (gross, before Stripe) — outbound-segment overage PLUS voice-minute
-   *  overage (both metered surfaces). Customer-facing "$X extra this period".
-   *  Distinct from the internal cost/margin above, which are ours and must not
-   *  be exposed to the customer. */
+  /**
+   * Projected month-end TOTAL overage in cents (gross, before Stripe) —
+   * outbound-segment overage PLUS voice-minute overage (both metered surfaces).
+   * Distinct from the internal cost/margin above, which are ours and must not be
+   * exposed to the customer.
+   *
+   * #522: USD, like everything else this function returns. It reads as the
+   * customer-facing "$X extra this period" and was rendered as one, which is how
+   * a Canadian workspace came to be shown $30.00 for an overage its card is
+   * charged CA$40 for. A customer-facing surface prices
+   * {@link OverageDecision.projectedOverageSegments} and
+   * {@link OverageDecision.projectedOverageVoiceMinutes} instead.
+   */
   projectedOverageChargesCents: number;
+  /** #522: the same projection as a VOLUME, for pricing in the customer's own
+   *  currency. No exchange rate is involved anywhere — the arithmetic is simply
+   *  done twice, once per price book. */
+  projectedOverageSegments: number;
+  /** #522: projected forwarded minutes beyond the allowance (see above). */
+  projectedOverageVoiceMinutes: number;
   /** Days elapsed in the current period at `now`. */
   elapsedDays: number;
   /** Nominal length of the current period in days. */
@@ -208,13 +222,39 @@ export function voiceCeilingSeconds(
 export interface ProjectedUsage {
   /** Provider cost of all extrapolated flow usage, in cents (full outbound). */
   costCents: number;
-  /** Billable overage revenue (GROSS), in cents — outbound segments beyond the
-   *  quota at 3¢/2.5¢ PLUS forwarded minutes beyond the voice allowance at
-   *  1¢/min (D36) — offsets its own cost so a paying-heavy tenant is not
-   *  flagged. NB: voice overage sells ~0.2¢/min UNDER its 1.2¢ combined-leg
-   *  cost (founder call, D36) — counting the revenue keeps the warning honest
-   *  without hiding that structural sliver, which stays inside costCents. */
+  /**
+   * Billable overage revenue (GROSS), in cents — outbound segments beyond the
+   * quota at 3¢/2.5¢ PLUS forwarded minutes beyond the voice allowance at
+   * 1¢/min (D36) — offsets its own cost so a paying-heavy tenant is not
+   * flagged. NB: voice overage sells ~0.2¢/min UNDER its 1.2¢ combined-leg
+   * cost (founder call, D36) — counting the revenue keeps the warning honest
+   * without hiding that structural sliver, which stays inside costCents.
+   *
+   * ALWAYS USD, and #522 is the reason to say so out loud. This figure exists to
+   * be subtracted from `costCents`, and our costs are what Telnyx and Cloudflare
+   * invoice US — in US dollars, whatever the customer pays in. Pricing it in the
+   * customer's currency would compare CA$ revenue against US$ cost and overstate
+   * every Canadian tenant's margin by about a third, which is the opposite of
+   * what this projection is for.
+   *
+   * Customer-facing surfaces must NOT render this. They price
+   * {@link ProjectedUsage.overageSegments} and
+   * {@link ProjectedUsage.overageVoiceMinutes} at the customer's own rates.
+   */
   overageRevenueGrossCents: number;
+  /**
+   * #522: the projected overage VOLUMES, which have no currency at all.
+   *
+   * The customer-facing figure and the internal margin figure need the same
+   * arithmetic in two different price books, and a volume is the one form that
+   * serves both without an exchange rate anywhere. `GET /v1/usage` prices these
+   * at `OVERAGE_CENTS_PER_SEGMENT[currency]` and
+   * `VOICE_OVERAGE_CENTS_PER_MINUTE[currency]`; this module prices them in USD
+   * above and never asks what the customer is billed in.
+   */
+  overageSegments: number;
+  /** Projected forwarded minutes beyond the voice allowance (see above). */
+  overageVoiceMinutes: number;
 }
 
 /**
@@ -290,12 +330,19 @@ export function projectUsage(
     0,
     projectedVoiceSeconds / 60 - PLAN_VOICE_MINUTES[plan],
   );
+  const overageSegments = Math.max(0, projectedOutbound - includedSegments);
+  // USD, deliberately — see the field's own comment. The customer-facing
+  // equivalent is computed from the volumes below, at the customer's rates.
   const overageRevenueGrossCents =
-    Math.max(0, projectedOutbound - includedSegments) *
-      PLAN_OVERAGE_CENTS_PER_SEGMENT[plan] +
+    overageSegments * PLAN_OVERAGE_CENTS_PER_SEGMENT[plan] +
     projectedVoiceOverageMinutes * VOICE_OVERAGE_CENTS_PER_MINUTE;
 
-  return { costCents, overageRevenueGrossCents };
+  return {
+    costCents,
+    overageRevenueGrossCents,
+    overageSegments,
+    overageVoiceMinutes: projectedVoiceOverageMinutes,
+  };
 }
 
 /** Current stored stock priced as the month's storage cost, in cents. */
@@ -367,6 +414,8 @@ export function overageDecision(
     revenueCents,
     marginCents,
     projectedOverageChargesCents: projected.overageRevenueGrossCents,
+    projectedOverageSegments: projected.overageSegments,
+    projectedOverageVoiceMinutes: projected.overageVoiceMinutes,
     elapsedDays,
     periodDays,
   };

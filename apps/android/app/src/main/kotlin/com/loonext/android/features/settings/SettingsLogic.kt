@@ -526,6 +526,21 @@ fun formatMonthlyCents(cents: Long): String {
 }
 
 /** "$12.34" — always two decimals (projected overage dollars). */
+/**
+ * Money in the reader's OWN currency: a bare "$", always two decimals.
+ *
+ * #522: the bare sign is correct here and the reason is worth stating, because
+ * the neighbouring [formatMoney] exists precisely to add a "US$"/"CA$" prefix.
+ * Every figure this formats is the workspace's own money — `GET /v1/usage` prices
+ * the segment overage, the voice overage and the month-end projection at
+ * `OVERAGE_CENTS_PER_SEGMENT[their currency]` — and a Canadian reading their own
+ * invoice should see "$40.00", not "CA$40.00". The qualifier belongs on a
+ * FOREIGN price.
+ *
+ * So this is only right as long as the amount really is the reader's currency.
+ * Use [formatMoney] for anything filed in one currency and quoted to everybody,
+ * like the USD-only extra-number line.
+ */
 fun formatCents(cents: Long): String =
     "$" + String.format(Locale.US, "%.2f", cents / 100.0)
 

@@ -67,6 +67,16 @@ data class Usage(
     /** #178 presentation status; the default keeps pre-#178 cached payloads
      *  decoding as the calm state (unknown values also render quiet). */
     val status: String = UsageStatus.QUIET,
+    /**
+     * #522: the currency EVERY *_cents figure on this payload is quoted in.
+     *
+     * The server states it rather than leaving this client to pair the numbers
+     * with `companies.billing_currency` read separately — those two can
+     * disagree, and the failure is silent: the screen labels a CAD figure USD.
+     * Defaults to USD so a payload from a server that predates it reads as what
+     * every workspace was actually charged then.
+     */
+    val currency: String? = null,
     val period_start: String? = null,
     val period_end: String? = null,
     val included_segments: Long = 0,

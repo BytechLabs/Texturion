@@ -413,6 +413,17 @@ func formatMonthlyCents(_ cents: Int) -> String {
 }
 
 /// "$12.34" — always two decimals (projected overage dollars).
+///
+/// #522: the bare "$" is correct here, and worth saying because `formatMoneyIn`
+/// right below exists precisely to add a "US$"/"CA$" prefix. Every figure this
+/// formats is the workspace's OWN money — `GET /v1/usage` prices the segment
+/// overage, the voice overage and the month-end projection at that workspace's
+/// own rates — and a Canadian reading their own invoice should see "$40.00", not
+/// "CA$40.00". The qualifier belongs on a foreign price.
+///
+/// Which makes this right only while the amount really is the reader's currency.
+/// Use `formatMoneyIn` for anything filed in one currency and quoted to
+/// everybody, like the USD-only extra-number line.
 func formatCents(_ cents: Int) -> String {
     "$" + String(format: "%.2f", locale: settingsPosixLocale, Double(cents) / 100.0)
 }

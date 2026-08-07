@@ -50,11 +50,20 @@ import { unwrap } from "./core/http";
 import { readAiUsage } from "../ai/usage";
 import {
   PLAN_INCLUDED_SEGMENTS,
-  PLAN_OVERAGE_CENTS_PER_SEGMENT,
   PLAN_VOICE_MINUTES,
-  VOICE_OVERAGE_CENTS_PER_MINUTE,
   type PlanId,
 } from "./core/plans";
+// #522: the CUSTOMER-FACING rates, aliased on import because the USD-only
+// scalars in ./core/plans carry the same two names. Those exist for the internal
+// cost-vs-revenue model, which must stay in the currency our providers invoice
+// us in; these are what the customer will actually be charged. Reading the wrong
+// one is how a Canadian workspace came to be shown $30.00 for an overage its
+// card is charged CA$40 for.
+import {
+  billingCurrencyOf,
+  OVERAGE_CENTS_PER_SEGMENT as OVERAGE_CENTS_BY_CURRENCY,
+  VOICE_OVERAGE_CENTS_PER_MINUTE as VOICE_OVERAGE_CENTS_BY_CURRENCY,
+} from "@loonext/shared";
 
 interface CompanyUsageRow {
   plan: PlanId | null;
@@ -73,6 +82,9 @@ interface CompanyUsageRow {
   paused_at: string | null;
   /** #277: what a PAUSED plan line actually bills. Null when not paused. */
   paused_price_cents: number | null;
+  /** #522: what Stripe charges this workspace. Read through
+   *  `billingCurrencyOf`, so absent or unrecognised means USD. */
+  billing_currency?: string | null;
 }
 
 /** DESIGN G8: the usage screen renders a 6-month history. */
@@ -92,7 +104,9 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
         // not at the plan price its `plan` column still names. `paused_at` is
         // the field it branches on — the fee is null whenever the amount cannot
         // be read — so dropping either one puts the plan price back.
-        "plan,current_period_start,current_period_end,overage_cap_multiplier,us_texting_enabled,paid_extra_numbers,paused_at,paused_price_cents",
+        "plan,current_period_start,current_period_end,overage_cap_multiplier,us_texting_enabled,paid_extra_numbers,paused_at,paused_price_cents," +
+          // #522: every figure below that the customer reads is priced in this.
+          "billing_currency",
       )
       .eq("id", companyId)
       .is("deleted_at", null)
@@ -104,12 +118,22 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
     return errorResponse(c, "not_found", "No such company.");
   }
 
+  // #522: the price book every customer-facing figure below is quoted from.
+  // Resolved once, so the segment overage, the voice overage and the month-end
+  // projection cannot end up quoted in two different currencies on one screen.
+  const currency = billingCurrencyOf(company.billing_currency);
+
   if (company.plan === null || company.current_period_start === null) {
     // Pre-checkout: no numbers → no conversations → no notes/media, so the
     // storage arm is truthfully zero without querying (same posture as the
     // segment fields).
     return c.json({
       status: "quiet",
+      // #522: the currency every *_cents figure below is quoted in. Sent rather
+      // than left for each client to pair with a column it read separately — a
+      // figure on the wire without its currency is exactly how a card came to
+      // promise CA$39 for a fee Stripe invoices at US$29.
+      currency,
       period_start: null,
       period_end: null,
       included_segments: 0,
@@ -303,6 +327,11 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
 
   return c.json({
     status,
+    // #522: the currency every *_cents figure below is quoted in. Sent rather
+    // than left for each client to pair with a column it read separately — a
+    // figure on the wire without its currency is exactly how a card came to
+    // promise CA$39 for a fee Stripe invoices at US$29.
+    currency,
     period_start: seesMoney ? company.current_period_start : null,
     period_end: seesMoney ? company.current_period_end : null,
     included_segments: included,
@@ -311,13 +340,21 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
     overage_segments: overage,
     cap_segments: seesMoney ? capSegments : null,
     projected_overage_cents: seesMoney
-      ? Math.round(overage * PLAN_OVERAGE_CENTS_PER_SEGMENT[company.plan])
+      ? Math.round(overage * OVERAGE_CENTS_BY_CURRENCY[currency][company.plan])
       : null,
     overage_projection: seesMoney
       ? {
           trending_over: projection.trendingOver,
+          // #522: priced from the projected VOLUMES rather than read off
+          // `projectedOverageChargesCents`, which is USD by design (it is the
+          // figure the internal margin model subtracts from our USD provider
+          // costs). Same arithmetic, the customer's price book — and no exchange
+          // rate anywhere, because a volume has no currency to convert.
           projected_overage_cents: Math.round(
-            projection.projectedOverageChargesCents,
+            projection.projectedOverageSegments *
+              OVERAGE_CENTS_BY_CURRENCY[currency][company.plan] +
+              projection.projectedOverageVoiceMinutes *
+                VOICE_OVERAGE_CENTS_BY_CURRENCY[currency],
           ),
         }
       : null,
@@ -378,7 +415,7 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
           : Math.round(includedVoiceMinutes * multiplier),
       overage_minutes: voiceOverageMinutes,
       projected_overage_cents: Math.round(
-        (voiceOverageSeconds / 60) * VOICE_OVERAGE_CENTS_PER_MINUTE,
+        (voiceOverageSeconds / 60) * VOICE_OVERAGE_CENTS_BY_CURRENCY[currency],
       ),
       // #134: always true since D42 (grandfathered retired with the module);
       // kept for API-shape stability with deployed web bundles.

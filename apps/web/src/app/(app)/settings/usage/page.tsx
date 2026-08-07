@@ -1,5 +1,6 @@
 "use client";
 
+import type { BillingCurrency } from "@loonext/shared";
 import { Gauge, OctagonPause, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
@@ -22,10 +23,25 @@ import { capSegments, normalizeMultiplier } from "@/lib/settings/cap-control";
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
-function dollars(cents: number): string {
+/**
+ * #522: money in the currency the workspace is actually charged in.
+ *
+ * This hardcoded `currency: "USD"` — harmless while every workspace really was
+ * billed USD, and actively wrong the moment one is not: the API now prices these
+ * figures at the customer's own rates, so a hardcoded label would have printed a
+ * CA$40 overage as "US$40". Worse than the bug it replaced, which is exactly the
+ * trap this issue keeps setting.
+ *
+ * The currency arrives ON the payload rather than being read from the company
+ * row, so the number and its label cannot come from two different places.
+ */
+function dollars(cents: number, currency: BillingCurrency = "usd"): string {
   return (cents / 100).toLocaleString(undefined, {
     style: "currency",
-    currency: "USD",
+    currency: currency.toUpperCase(),
+    // A Canadian reading their own invoice should see "$40.00", not "CA$40.00" —
+    // the qualifier belongs on a foreign price, and this is their own money.
+    currencyDisplay: "narrowSymbol",
   });
 }
 
@@ -143,7 +159,7 @@ function PacingCard({ usage }: { usage: Usage }) {
               <>
                 At this pace, that&apos;s about{" "}
                 <span className="font-medium tabular-nums text-foreground">
-                  {dollars(projected)}
+                  {dollars(projected, usage.currency)}
                 </span>{" "}
                 in extra charges by the end of the period.
               </>
@@ -354,7 +370,7 @@ function UsageDetails({ usage }: { usage: Usage }) {
                 </span>{" "}
                 past included so far,{" "}
                 <span className="tabular-nums">
-                  {dollars(usage.projected_overage_cents)}
+                  {dollars(usage.projected_overage_cents, usage.currency)}
                 </span>{" "}
                 at the overage rate.
               </p>

@@ -1549,6 +1549,17 @@ export interface Usage {
   status: UsageStatus;
   period_start: string | null;
   period_end: string | null;
+  /**
+   * #522: the currency EVERY `*_cents` figure on this payload is quoted in —
+   * the segment overage, the voice overage and the month-end projection.
+   *
+   * The server states it rather than leaving each client to pair the numbers
+   * with `companies.billing_currency` read separately, because those two can
+   * disagree and the failure is silent: the screen labels a CAD figure as USD.
+   * Optional so a Worker deployed before this shipped is read as USD, which is
+   * what every workspace was actually charged then.
+   */
+  currency?: BillingCurrency;
   included_segments: number;
   used_segments: number;
   /** #12: inbound segments received this period (visibility only, not billed). */
