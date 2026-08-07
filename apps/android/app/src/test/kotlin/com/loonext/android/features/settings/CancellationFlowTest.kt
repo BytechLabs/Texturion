@@ -318,13 +318,31 @@ class CancellationFlowTest {
      * The edits are applied by exact match and the count is asserted, so an
      * anchor that drifts FAILS rather than quietly making the proof vacuous.
      * That is the failure mode this style of harness actually has.
+     *
+     * #529: and it is now a SEPARATE failure from this one. Drift used to throw
+     * from inside this loop, turning this test red under this name — so a reader
+     * who had just changed the exit path saw "every escape ... is caught by the
+     * property FAILED" and read it as their change being caught. Two escapes were
+     * reported as caught on exactly that basis and neither had been. The test
+     * below owns drift; this one refuses to speak about it.
      */
     @Test
     fun `every escape that has walked past this file is caught by the property`() {
         val billing = readMainSource(ExitPath.BILLING_SECTION)
         val logic = readMainSource(ExitPath.SETTINGS_LOGIC)
         ExitPath.ESCAPES.forEach { escape ->
-            val findings = ExitPath.findings(ExitPath.apply(billing, escape), logic)
+            val applied = ExitPath.apply(billing, escape)
+            if (applied is ExitPath.Applied.StaleAnchor) {
+                // Not `fail(...)` with the proof's own wording: this test's name
+                // is about the property catching things, and the one thing this
+                // failure must never be mistaken for is a catch. The message says
+                // so in its first line.
+                throw AssertionError(applied.toString())
+            }
+            val findings = ExitPath.findings(
+                (applied as ExitPath.Applied.Broken).source,
+                logic,
+            )
             assertTrue(
                 "`${escape.name}` walks past the exit-path property. It is a real " +
                     "defect applied to the real source, so a guard that stays silent " +
@@ -332,6 +350,68 @@ class CancellationFlowTest {
                 findings.isNotEmpty(),
             )
         }
+    }
+
+    /**
+     * #529 — the guard's own staleness, asked about by name.
+     *
+     * The escapes above are textual edits anchored on the lines a real regression
+     * edits, so the FIRST genuine change to the exit's call site or the button's
+     * argument list drifts them. That is not a defect in the anchors; it is the
+     * exit path changing shape. But it has to announce itself as that.
+     *
+     * Before this test, the only place drift could surface was inside the proof
+     * loop, and a red proof loop reads as a catch. Now there is a test whose NAME
+     * is the diagnosis, so the two are told apart in the run output rather than in
+     * the stack trace nobody opens.
+     */
+    /**
+     * #529 (A9) — the OTHER reason the exit can vanish, which the pause property
+     * is structurally unable to see.
+     *
+     * The adversary added `&& company.plan != null` to the exit's call site. That
+     * withdraws the cancel card permanently from a workspace with a live
+     * subscription and no plan column, and it mentions the pause read nowhere — so
+     * the taint fixpoint stayed silent, correctly, because it is answering a
+     * different question. It was reported as caught. What actually happened is that
+     * two escape anchors sit on the line it edits, and their drift turned the proof
+     * loop red.
+     *
+     * So: an ALLOWLIST OF TWO, not a search for suspect conditions. There are
+     * exactly two reasons this card may be absent — the reader cannot manage
+     * billing, and there is no live subscription to cancel — and any third
+     * condition, of any shape, takes the way out away from somebody. A list of
+     * forbidden conditions could always be added to; a list of the two permitted
+     * ones cannot be walked past.
+     */
+    @Test
+    fun `only two conditions may stand between arrival and the exit`() {
+        val open = ExitPath.exitConditions(readMainSource(ExitPath.BILLING_SECTION))
+        assertEquals(
+            "a condition was added between landing on the billing screen and the " +
+                "card that carries the way out. Only two may stand there: whether " +
+                "the reader can manage billing, and whether there is a live " +
+                "subscription to cancel. Anything else withdraws the exit from " +
+                "somebody permanently, and no notice anywhere says it has happened.",
+            listOf("canManage", "company.subscriptionActive"),
+            open,
+        )
+    }
+
+    @Test
+    fun `every escape still anchors to the shipped source`() {
+        val billing = readMainSource(ExitPath.BILLING_SECTION)
+        val stale = ExitPath.ESCAPES
+            .map { ExitPath.apply(billing, it) }
+            .filterIsInstance<ExitPath.Applied.StaleAnchor>()
+        assertTrue(
+            "the exit path has changed shape and ${stale.size} of " +
+                "${ExitPath.ESCAPES.size} escapes can no longer be applied to it. " +
+                "Nothing has been caught and nothing has been proven — re-anchor " +
+                "them, then confirm each still walks past the property. " +
+                stale.joinToString(separator = "; "),
+            stale.isEmpty(),
+        )
     }
 
     @Test

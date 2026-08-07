@@ -177,19 +177,116 @@ internal object ExitPath {
         ),
     )
 
-    /** Apply an escape, failing loudly when an anchor has drifted. */
-    fun apply(source: String, escape: Escape): String {
+    /**
+     * The outcome of applying an escape — and the reason this is a RESULT rather
+     * than a return value with an exception beside it.
+     *
+     * #529: `apply` used to `check()` the anchor count and throw. The throw was
+     * correct and its message was clear, and it was still the wrong shape,
+     * because of WHERE it surfaced: inside the loop of
+     * `every escape that has walked past this file is caught by the property`.
+     * So a drifted anchor turned that test red, under that name, and a reader
+     * seeing it go red after making a change read it as the property catching
+     * their change. Two escapes were reported as caught on that basis and neither
+     * had been.
+     *
+     * The two failures now cannot be confused, because they are different types
+     * reaching different tests with different names. Drift is not a weaker catch;
+     * it is the guard telling you it has stopped being able to look.
+     */
+    sealed interface Applied {
+        /** The escape landed. `source` is the shipped file with the defect in it. */
+        data class Broken(val source: String) : Applied
+
+        /**
+         * An anchor no longer matches exactly once, so this escape proves nothing
+         * about anything.
+         *
+         * ALWAYS EXPECTED EVENTUALLY, which is the part worth understanding: the
+         * needles are anchored on the very lines a real regression edits, so the
+         * first genuine change to the exit's call site or the button's argument
+         * list will land here. That is not a flaw in the anchors — it is the exit
+         * path changing shape, which is exactly when these proofs need re-reading
+         * rather than trusting.
+         */
+        data class StaleAnchor(
+            val escape: String,
+            val needle: String,
+            val occurrences: Int,
+        ) : Applied {
+            override fun toString(): String =
+                "THIS IS NOT A CAUGHT ESCAPE — the guard has gone stale.\n\n" +
+                    "The escape `$escape` no longer applies to the shipped source: " +
+                    "its anchor matches $occurrences times instead of once, so " +
+                    "applying it would prove nothing either way.\n\n" +
+                    "These anchors sit on the lines a real regression edits, so this " +
+                    "is what a genuine change to the exit path looks like from here. " +
+                    "Re-anchor the edit against the new shape and check the escape " +
+                    "still walks past the property — do not drop it, and do not read " +
+                    "this failure as the property having caught something.\n\n" +
+                    "The anchor that no longer matches:\n$needle"
+        }
+    }
+
+    /** Apply an escape, reporting drift as drift rather than as a failed proof. */
+    fun apply(source: String, escape: Escape): Applied {
         var out = source.replace("\r\n", "\n")
         escape.edits.forEach { (needle, replacement) ->
             val occurrences = out.split(needle).size - 1
-            check(occurrences == 1) {
-                "the escape `${escape.name}` no longer applies: its anchor matches " +
-                    "$occurrences times, so proving the guard with it would prove " +
-                    "nothing. Re-anchor the edit rather than dropping it.\n$needle"
+            if (occurrences != 1) {
+                return Applied.StaleAnchor(escape.name, needle, occurrences)
             }
             out = out.replace(needle, replacement)
         }
-        return out
+        return Applied.Broken(out)
+    }
+
+    /**
+     * #529 (A9) — every `if` condition still open at the `CancelCard(` call site.
+     *
+     * WHY THIS EXISTS BESIDE THE PAUSE PROPERTY, which is the interesting part.
+     * The property above asks whether the path to the exit consults the PAUSE
+     * READ, and it is the right question for the eleven escapes that all reduced
+     * to that. It cannot see A9:
+     *
+     *     if (company.subscriptionActive && company.plan != null) { CancelCard(
+     *
+     * That withdraws the cancel card permanently from a workspace with a live
+     * subscription and no plan column — nothing to do with the pause read, so the
+     * taint fixpoint is silent, correctly. It was reported as caught; it was not.
+     * What failed was two escape anchors drifting off the line it edits.
+     *
+     * So this asks the other question, and asks it as an ALLOWLIST OF TWO rather
+     * than a search for suspicious words. There are exactly two reasons the exit
+     * may not be on screen — the reader cannot manage billing, and there is no
+     * live subscription to cancel — and a third condition of any shape withdraws
+     * the way out from somebody. An allowlist cannot be defeated by a mechanism
+     * nobody has written down yet, which is the failure mode every list-of-bad-
+     * things guard on this screen has already had.
+     */
+    fun exitConditions(billingSource: String): List<String> {
+        val code = blank(billingSource.replace("\r\n", "\n"))
+        val section = body(code, "fun BillingSection(")
+        val exitCard = code.indexOf(EXIT_CARD, section.first)
+        check(exitCard in section.first until section.second) {
+            "the billing screen no longer calls `$EXIT_CARD` — see `findings`"
+        }
+        val open = ArrayDeque<String>()
+        var i = section.first
+        while (i < exitCard) {
+            when (code[i]) {
+                '{' -> open.addLast(header(code, i))
+                '}' -> if (open.isNotEmpty()) open.removeLast()
+            }
+            i++
+        }
+        // Only the `if`s. A `Column(...) {` or a `SettingsCard(...) {` is layout
+        // and cannot withhold the card; an `if` is the only header that decides
+        // whether the call happens at all.
+        return open
+            .map { it.trim() }
+            .filter { it.startsWith("if (") }
+            .map { it.removePrefix("if (").removeSuffix(")").trim() }
     }
 
     /**
