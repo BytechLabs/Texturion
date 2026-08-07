@@ -42,6 +42,20 @@ const VOICE_METER_EVENT_NAME = "voice_seconds";
 const VOICE_INCLUDED_MINUTES = { starter: 2500, pro: 6000 } as const;
 /** 1¢ per minute ÷ 60 — 12 decimal places, Stripe's maximum precision. */
 const VOICE_OVERAGE_CENTS_PER_SECOND = "0.016666666667";
+/**
+ * #522: CA1.5¢ per minute ÷ 60, which divides exactly. The per-minute figure is
+ * not a new decision — `VOICE_OVERAGE_CENTS_PER_MINUTE.cad` in
+ * packages/shared/src/billing-currency.ts has said 1.5 since CAD was priced;
+ * this is the first place that files it.
+ *
+ * WHY IT MATTERS MORE THAN THE OTHER GAPS. Calling is included on every plan, so
+ * a per-plan voice overage price rides EVERY checkout session. Stripe refuses an
+ * entire session that carries a recurring price with no amount in the session's
+ * currency — so the day an operator files CAD on the licensed prices while these
+ * two stayed USD-only, Canadian onboarding stops working altogether, at the one
+ * moment nobody is watching this file.
+ */
+const VOICE_OVERAGE_CENTS_PER_SECOND_CAD = "0.025";
 
 /** Stripe Tax: "Software as a service (SaaS) - business use" (SPEC §2). */
 const SAAS_TAX_CODE = "txcd_10103000";
@@ -419,16 +433,24 @@ try {
       `Loonext — ${mod.label}`,
     );
     if (mod.id === "voice") voiceProductId = product.id;
-    // #522: NO `currency_options`, and that is the honest state rather than an
-    // oversight. `regions_ca` is the only module left and it is not sellable
-    // (SELLABLE_MODULES in src/billing/company-modules.ts excludes it — it
-    // gates nothing until multi-region provisioning ships), so no CAD figure
-    // has ever been decided for it and inventing one here would file a price
-    // nobody chose. The day it becomes sellable it needs one: Stripe refuses a
-    // subscription item whose price carries no option in the subscription's
-    // currency, so a CAD workspace could not add it at all. That day is caught
-    // by the "a sellable module must be chargeable in every currency" guard in
-    // src/billing/stripe-catalog-currency.test.ts.
+    // #522: NO `currency_options`, and it is a decision for `regions_ca` but a
+    // KNOWN GAP for the two extra-number prices that also ride this loop.
+    //
+    // `regions_ca` is not sellable (SELLABLE_MODULES in
+    // src/billing/company-modules.ts excludes it — it gates nothing until
+    // multi-region provisioning ships), so no CAD figure has ever been decided
+    // for it and inventing one here would file a price nobody chose. That day
+    // is caught by the "a sellable module must be chargeable in every currency"
+    // guard in src/billing/stripe-catalog-currency.test.ts.
+    //
+    // The extra-number prices ARE sellable, today. No CAD amount has been
+    // decided for them either — the CAD book was priced item by item and there
+    // is no multiplier to derive one from (2900→3900, 7900→10900, 3→4, 2.5→3.5,
+    // 1→1.5 are five different ratios) — so this file still cannot invent one.
+    // Stripe refuses a subscription item whose price carries no option in the
+    // subscription's currency, so a genuinely CAD-billed workspace cannot buy an
+    // extra number at all. `extraNumberBlockedReason` in @loonext/shared says so
+    // in a sentence instead of letting Stripe say it in an error code.
     const price = await ensurePrice(`loonext_module_${mod.id}_licensed`, {
       product: product.id,
       currency: "usd",
@@ -462,6 +484,20 @@ try {
           unit_amount_decimal: Stripe.Decimal.from(VOICE_OVERAGE_CENTS_PER_SECOND),
         },
       ],
+      currency_options: {
+        cad: {
+          tiers: [
+            { up_to: VOICE_INCLUDED_MINUTES.starter * 60, unit_amount: 0 },
+            {
+              up_to: "inf",
+              unit_amount_decimal: Stripe.Decimal.from(
+                VOICE_OVERAGE_CENTS_PER_SECOND_CAD,
+              ),
+            },
+          ],
+          tax_behavior: "exclusive",
+        },
+      },
       tax_behavior: "exclusive",
     },
   );
@@ -478,6 +514,20 @@ try {
         unit_amount_decimal: Stripe.Decimal.from(VOICE_OVERAGE_CENTS_PER_SECOND),
       },
     ],
+    currency_options: {
+      cad: {
+        tiers: [
+          { up_to: VOICE_INCLUDED_MINUTES.pro * 60, unit_amount: 0 },
+          {
+            up_to: "inf",
+            unit_amount_decimal: Stripe.Decimal.from(
+              VOICE_OVERAGE_CENTS_PER_SECOND_CAD,
+            ),
+          },
+        ],
+        tax_behavior: "exclusive",
+      },
+    },
     tax_behavior: "exclusive",
   });
 

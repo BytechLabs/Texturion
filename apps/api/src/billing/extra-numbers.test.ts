@@ -69,6 +69,10 @@ describe("extraNumberPurchasable (#80 gates)", () => {
     currentCount: 2,
     country: "US",
     usTextingEnabled: true,
+    // #522: USD is what every workspace is actually charged today (the catalog
+    // is USD-only, so checkout records `usd` whatever the country suggested),
+    // which is why these vectors keep their meaning with the field added.
+    billingCurrency: "usd",
   };
 
   it("allows a US-enabled Pro company any number of extras", () => {

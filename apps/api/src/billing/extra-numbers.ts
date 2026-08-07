@@ -109,6 +109,8 @@ export function extraNumberPurchasable(args: {
   currentCount: number;
   country: string;
   usTextingEnabled: boolean;
+  /** #522: companies.billing_currency — what Stripe actually charges. */
+  billingCurrency: string;
 }): { ok: true } | { ok: false; reason: string } {
   // An unknown country is refused rather than assumed: this gate guards a
   // charge, and the provisioner only orders NANP numbers.
@@ -123,6 +125,7 @@ export function extraNumberPurchasable(args: {
     currentCount: args.currentCount,
     country: args.country,
     usTextingEnabled: args.usTextingEnabled,
+    billingCurrency: args.billingCurrency,
   });
   return reason === null ? { ok: true } : { ok: false, reason };
 }

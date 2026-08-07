@@ -6,6 +6,7 @@ import {
   OVERAGE_CENTS_PER_SEGMENT,
   PLAN_PRICE_CENTS,
   US_REGISTRATION_FEE_CENTS,
+  VOICE_OVERAGE_CENTS_PER_MINUTE,
 } from "@loonext/shared";
 import { describe, expect, it } from "vitest";
 
@@ -57,7 +58,12 @@ const FIGURES: [label: string, cents: number][] = [
  * proves nothing about the price that is actually broken.
  */
 function priceBody(lookupKey: string): string {
-  const call = SCRIPT.indexOf(`ensurePrice("${lookupKey}"`);
+  // Whitespace-tolerant: prettier wraps a long call so the lookup key lands on
+  // its own line, and matching `ensurePrice("<key>"` literally made two prices
+  // unfindable for no reason but their formatting.
+  const call = SCRIPT.search(
+    new RegExp(`ensurePrice\\(\\s*"${lookupKey}"`),
+  );
   if (call === -1) throw new Error(`no ensurePrice("${lookupKey}") in the script`);
   const open = SCRIPT.indexOf("{", call);
   let depth = 0;
@@ -89,6 +95,14 @@ const CHARGEABLE_PRICES: [lookupKey: string, cadCents: number | null][] = [
   ["loonext_us_registration", US_REGISTRATION_FEE_CENTS.cad],
   ["loonext_starter_year", PLAN_PREPAY_YEAR_CENTS.cad.starter],
   ["loonext_pro_year", PLAN_PREPAY_YEAR_CENTS.cad.pro],
+  // #522: the two the first pass missed, and the ones it could least afford to.
+  // Calling is included on every plan, so a per-plan voice overage price rides
+  // EVERY checkout session — a recurring price with no CAD amount makes Stripe
+  // refuse the whole session, so these two USD-only would have taken Canadian
+  // onboarding down entirely the day the licensed prices gained CAD. Tiered, so
+  // the amount itself is asserted by the per-minute test below.
+  ["loonext_starter_voice_overage", null],
+  ["loonext_pro_voice_overage", null],
 ];
 
 describe("the Stripe catalog script and the shared price book agree (#328)", () => {
@@ -113,6 +127,38 @@ describe("the Stripe catalog script and the shared price book agree (#328)", () 
     );
     expect(SCRIPT).toContain(`"${OVERAGE_CENTS_PER_SEGMENT.usd.pro}"`);
     expect(SCRIPT).toContain(`"${OVERAGE_CENTS_PER_SEGMENT.cad.pro}"`);
+  });
+
+  /**
+   * #522 — both voice overage rates, rated to the second.
+   *
+   * Stripe bills the voice meter in SECONDS, so the catalog files per-minute ÷
+   * 60 rather than the figure in the price book. Asserting the per-second string
+   * alone would let the two drift apart in the one direction that matters: this
+   * recomputes it from `VOICE_OVERAGE_CENTS_PER_MINUTE`, so changing the price
+   * book without refiling the catalog fails here rather than silently billing
+   * last quarter's rate.
+   */
+  it("files both voice overage rates, derived from the per-minute price book", () => {
+    for (const currency of BILLING_CURRENCIES) {
+      const perMinute = VOICE_OVERAGE_CENTS_PER_MINUTE[currency];
+      const perSecond = perMinute / 60;
+      // 12 decimal places is Stripe's maximum precision, and the script writes
+      // the trailing zeros off. Comparing the parsed NUMBER rather than the
+      // string is what lets "0.025" satisfy a 1.5/60 expectation.
+      const filed = [...SCRIPT.matchAll(/"(0\.0\d+)"/g)].map((m) =>
+        Number(m[1]),
+      );
+      expect(
+        filed.some((value) => Math.abs(value - perSecond) < 1e-9),
+        `the voice overage is ${perMinute}¢/min in ${currency} ` +
+          `(packages/shared/src/billing-currency.ts), which is ${perSecond}¢ ` +
+          `per second, and no such figure appears in scripts/stripe-setup.ts. ` +
+          `Calling is included on every plan, so this price rides every ` +
+          `checkout session: in ${currency} it is either filed correctly or ` +
+          `Canadian onboarding refuses outright.`,
+      ).toBe(true);
+    }
   });
 
   it.each(CHARGEABLE_PRICES)(

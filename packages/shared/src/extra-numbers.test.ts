@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   canBuyExtraNumber,
+  EXTRA_NUMBER_CURRENCY,
   extraNumberBlockedReason,
   STARTER_MAX_TOTAL_NUMBERS,
 } from "./extra-numbers";
@@ -23,6 +24,7 @@ describe("extraNumberBlockedReason", () => {
         currentCount: 2,
         country: "CA",
         usTextingEnabled: false,
+        billingCurrency: "usd",
       }),
     ).toBeNull();
   });
@@ -33,6 +35,7 @@ describe("extraNumberBlockedReason", () => {
       currentCount: 2,
       country: "US",
       usTextingEnabled: false,
+      billingCurrency: "usd",
     });
     expect(reason).toBe(
       "An extra number needs US texting turned on for your workspace first.",
@@ -46,6 +49,7 @@ describe("extraNumberBlockedReason", () => {
         currentCount: 2,
         country: "US",
         usTextingEnabled: true,
+        billingCurrency: "usd",
       }),
     ).toBe(true);
   });
@@ -57,6 +61,7 @@ describe("extraNumberBlockedReason", () => {
         currentCount: STARTER_MAX_TOTAL_NUMBERS,
         country,
         usTextingEnabled: true,
+        billingCurrency: "usd",
       });
       expect(reason, `${country} should still hit the Starter cap`).toContain(
         "Starter tops out",
@@ -71,6 +76,7 @@ describe("extraNumberBlockedReason", () => {
         currentCount: 1,
         country: "CA",
         usTextingEnabled: false,
+        billingCurrency: "usd",
       }),
     ).toBe(true);
   });
@@ -79,13 +85,84 @@ describe("extraNumberBlockedReason", () => {
     // The string is the only thing the customer is told, so a blocked case
     // that says nothing is worse than no gate at all.
     const blocked = [
-      { plan: "us-unapproved", args: { plan: "pro" as const, currentCount: 2, country: "US" as const, usTextingEnabled: false } },
-      { plan: "starter-capped", args: { plan: "starter" as const, currentCount: 2, country: "CA" as const, usTextingEnabled: false } },
+      { plan: "us-unapproved", args: { plan: "pro" as const, currentCount: 2, country: "US" as const, usTextingEnabled: false, billingCurrency: "usd" } },
+      { plan: "starter-capped", args: { plan: "starter" as const, currentCount: 2, country: "CA" as const, usTextingEnabled: false, billingCurrency: "usd" } },
     ];
     for (const { plan, args } of blocked) {
       const reason = extraNumberBlockedReason(args);
       expect(reason, `${plan} must explain itself`).toBeTruthy();
       expect(reason!.length, `${plan} must explain itself`).toBeGreaterThan(20);
     }
+  });
+});
+
+/**
+ * #522 — a Stripe subscription bills in ONE currency, and every item on it has
+ * to carry an amount in that currency. The extra-number prices are filed in USD
+ * only, and no CAD figure exists to file: the CAD book was priced item by item
+ * with five different ratios, so there is no rule that yields one for a $5 line.
+ *
+ * So the honest answer is a sentence, not a failed charge. These tests pin BOTH
+ * halves — that it refuses, and that it refuses nobody it shouldn't.
+ */
+describe("extra numbers are a USD line (#522)", () => {
+  const canadianPro = {
+    plan: "pro" as const,
+    currentCount: 2,
+    country: "CA" as const,
+    usTextingEnabled: false,
+  };
+
+  it("refuses a workspace billed in another currency, and says why", () => {
+    const reason = extraNumberBlockedReason({
+      ...canadianPro,
+      billingCurrency: "cad",
+    });
+    expect(reason).toContain("US dollars");
+    // Names a way forward rather than stopping at "unavailable".
+    expect(reason).toContain("support");
+  });
+
+  it("allows the same workspace when USD is what it is actually charged", () => {
+    // The state of every workspace today, Canadian ones included: the catalog
+    // is USD-only, so checkout records `usd` whatever the country suggested.
+    // A country-based gate would have refused this sale for no reason.
+    expect(
+      canBuyExtraNumber({ ...canadianPro, billingCurrency: "usd" }),
+    ).toBeTruthy();
+  });
+
+  it("is not fooled by case or padding", () => {
+    expect(
+      canBuyExtraNumber({ ...canadianPro, billingCurrency: " USD " }),
+    ).toBeTruthy();
+    expect(
+      canBuyExtraNumber({ ...canadianPro, billingCurrency: "CAD" }),
+    ).toBe(false);
+  });
+
+  it("keys on the CHARGED currency, never on the country", () => {
+    // The distinction the whole issue turned on. A Canadian workspace is not a
+    // CAD workspace — `companies.billing_currency` is, and it is written from
+    // what Stripe actually charged.
+    expect(
+      canBuyExtraNumber({
+        ...canadianPro,
+        country: "US",
+        usTextingEnabled: true,
+        billingCurrency: "cad",
+      }),
+    ).toBe(false);
+  });
+
+  it("agrees with the constant it is enforcing", () => {
+    // If someone files a CAD amount and updates the constant, this gate must
+    // stop firing rather than needing to be found and deleted.
+    expect(
+      canBuyExtraNumber({
+        ...canadianPro,
+        billingCurrency: EXTRA_NUMBER_CURRENCY,
+      }),
+    ).toBeTruthy();
   });
 });

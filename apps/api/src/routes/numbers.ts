@@ -2,6 +2,7 @@ import {
   isValidBusinessHours,
   isValidHoursExceptions,
   NANP_AREA_CODES,
+  billingCurrencyOf,
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
@@ -263,7 +264,11 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
     .from("companies")
     .select(
       "id,country,subscription_status,plan,us_texting_enabled," +
-        "stripe_subscription_id,paid_capacity_epoch,paused_at",
+        "stripe_subscription_id,paid_capacity_epoch,paused_at," +
+        // #522: what Stripe actually charges this workspace. The extra-number
+        // prices are filed in USD only, so a subscription billed in anything
+        // else cannot take one.
+        "billing_currency",
     )
     .eq("id", companyId)
     .limit(1);
@@ -281,6 +286,8 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
     paid_capacity_epoch: number;
     /** #277 pause. Optional: a row read before the column shipped has no key. */
     paused_at?: string | null;
+    /** #328/#522. Read through `billingCurrencyOf` — absent means USD. */
+    billing_currency?: string | null;
   } | null;
   if (!company) throw new ApiError("not_found", "Company not found.");
 
@@ -406,6 +413,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
       currentCount,
       country: company.country,
       usTextingEnabled: company.us_texting_enabled,
+      billingCurrency: billingCurrencyOf(company.billing_currency),
     });
     if (!purchasable.ok) {
       return errorResponse(c, "conflict", purchasable.reason);

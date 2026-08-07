@@ -740,6 +740,27 @@ private struct AddNumberCard: View {
     @State private var pending = false
     @State private var error: String?
 
+    /// #522: three cases, and the third is the one that matters. With no
+    /// recognised plan there is NO figure to name, and this card is a consent
+    /// surface — so it states the shape of the charge rather than inventing an
+    /// amount, which is the one thing a consent surface must never do. Mirrors
+    /// the same three branches on Android.
+    private func extraDescription(
+        nextIsExtra: Bool,
+        extraPrice: String?
+    ) -> String {
+        if !nextIsExtra {
+            return "Choose the number your customers will text. It's included in "
+                + "your plan — no extra cost."
+        }
+        if let extraPrice {
+            return "An extra number is \(extraPrice), billed today. Your message "
+                + "allowance is shared — an extra number doesn't add messages."
+        }
+        return "An extra number is billed to your plan today. Your message "
+            + "allowance is shared — an extra number doesn't add messages."
+    }
+
     var body: some View {
         if SettingsRoleGate.canManageNumbers(scope.role),
            company.subscriptionActive,
@@ -751,28 +772,40 @@ private struct AddNumberCard: View {
             let liveCount = numbers.filter { $0.status != NumberStatus.released }.count
             let starterAtCap = company.plan == "starter" && liveCount >= 2
             let nextIsExtra = liveCount >= facts.numbers
-            // Extra numbers are US numbers, and only once US texting is on.
-            // Offering the picker anyway sold something the server would
-            // refuse; a Canadian workspace tapping Add got an error instead of
-            // an answer.
-            let extraBlocked = nextIsExtra
-                && !(company.country == "US" && company.us_texting_enabled)
-            if !starterAtCap, extraBlocked {
+            // #464: the rule here was `!(country == "US" && us_texting_enabled)`,
+            // which is the bug that issue reported — `us_texting_enabled` is the
+            // 10DLC gate and is never true for a Canadian workspace, so it
+            // refused every Canadian customer forever and told them an extra
+            // number "is a US number", which is not true. The API, the web app
+            // and Android all moved to the shared rule; this client did not.
+            let extraBlockedReason = extraNumberBlockedReason(
+                country: company.country,
+                usTextingEnabled: company.us_texting_enabled,
+                billingCurrency: company.billing_currency
+            )
+            if !starterAtCap, nextIsExtra, let extraBlockedReason {
                 SettingsCard(title: "Add a number") {
                     ReadOnlyLine(
-                        "Your plan's numbers are all in use. An extra number is "
-                            + "a US number, so it needs US texting enabled first."
+                        "Your plan's numbers are all in use. \(extraBlockedReason)"
                     )
                 }
             } else if !starterAtCap {
-                let extraPrice = company.plan == "pro" ? "$4/mo" : "$5/mo"
+                // #522: this was `company.plan == "pro" ? "$4/mo" : "$5/mo"` —
+                // two prices typed into the one card that asks for consent to
+                // the charge, in a currency the workspace may not be billed in.
+                // The extra-number book is USD-only, so a Canadian owner read
+                // "$5" (which to them means CA$5) for a line their card takes
+                // US$5 for.
+                let extraPrice = extraNumberMonthly(
+                    company.plan,
+                    audience: company.billedIn
+                )
                 SettingsCard(
                     title: "Add a number",
-                    description: nextIsExtra
-                        ? "An extra number is \(extraPrice), billed today. Your message allowance is "
-                            + "shared — an extra number doesn't add messages."
-                        : "Choose the number your customers will text. It's included in your plan — "
-                            + "no extra cost."
+                    description: extraDescription(
+                        nextIsExtra: nextIsExtra,
+                        extraPrice: extraPrice
+                    )
                 ) {
                     Button("Choose a number") {
                         // One key per attempt-intent: reused across retries of

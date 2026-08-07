@@ -43,7 +43,28 @@ export interface ExtraNumberEligibility {
   country: NumberCountry;
   /** 10DLC approval. Meaningful for US only; never true for a CA workspace. */
   usTextingEnabled: boolean;
+  /**
+   * #522: the currency this workspace is actually billed in
+   * (`companies.billing_currency`), NOT a guess from its country. A Canadian
+   * workspace reads `usd` here whenever that is what Stripe charged it, which
+   * is every workspace today.
+   *
+   * Required rather than optional on purpose: this interface exists so four
+   * codebases decide eligibility once, and an optional field is one three of
+   * them forget.
+   */
+  billingCurrency: string;
 }
+
+/**
+ * The currency the extra-number prices are filed in — USD only.
+ *
+ * Not an oversight and not derivable: the CAD price book was decided item by
+ * item and its ratios are all different (2900→3900, 7900→10900, 3→4, 2.5→3.5,
+ * 1→1.5), so there is no rule that yields a CAD figure for a $5 or $4 line.
+ * Until someone decides one, this is the honest state.
+ */
+export const EXTRA_NUMBER_CURRENCY = "usd";
 
 /**
  * Why this company cannot buy one more number, or null when it can.
@@ -64,6 +85,27 @@ export function extraNumberBlockedReason(
     args.currentCount >= STARTER_MAX_TOTAL_NUMBERS
   ) {
     return `Starter tops out at ${STARTER_MAX_TOTAL_NUMBERS} numbers (1 included + 1 extra). Move to Pro for more.`;
+  }
+  // #522: a Stripe subscription bills in ONE currency, and every item on it has
+  // to carry an amount in that currency. The extra-number prices are filed in
+  // USD only (see EXTRA_NUMBER_CURRENCY for why no CAD figure exists to file),
+  // so adding one to a subscription billed in anything else is refused by
+  // Stripe outright.
+  //
+  // Said here, in a sentence, rather than left to surface as a failed charge and
+  // a "Something went wrong". Nothing is attempted, so no money moves and the
+  // reason names what would have to change.
+  //
+  // Fires for nobody today: the catalog is USD-only, so `checkoutCurrency`
+  // records `usd` for every workspace including Canadian ones. It starts
+  // mattering the day CAD is genuinely filed — which is exactly the day this
+  // would otherwise have become a support ticket nobody could explain.
+  if (args.billingCurrency.trim().toLowerCase() !== EXTRA_NUMBER_CURRENCY) {
+    return (
+      "Extra numbers are priced in US dollars and can't be added to a " +
+      "subscription billed in another currency yet. Contact support and we'll " +
+      "sort it out."
+    );
   }
   return null;
 }

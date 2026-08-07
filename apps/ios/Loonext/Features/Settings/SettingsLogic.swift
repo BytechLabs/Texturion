@@ -524,6 +524,86 @@ func usRegistrationFeeCents(_ currency: BillingCurrency) -> Int {
     }
 }
 
+// MARK: - Extra numbers (#464 / #522)
+
+/// The currency the extra-number prices are filed in — EXTRA_NUMBER_CURRENCY in
+/// packages/shared/src/extra-numbers.ts.
+///
+/// USD only, and not derivable: the CAD book was priced item by item and its
+/// ratios all differ (2900→3900, 7900→10900, 3→4, 2.5→3.5, 1→1.5), so there is
+/// no rule that yields a CAD figure for a $5 line.
+let extraNumberCurrency: BillingCurrency = .usd
+
+/// Monthly price per extra number in the minor unit —
+/// EXTRA_NUMBER_MONTHLY_CENTS (#80: $5 Starter, $4 Pro).
+///
+/// Looked up STRICTLY rather than defaulted to Starter: a workspace with no plan
+/// is not a Starter workspace, and quoting it Starter's price would name a figure
+/// for a purchase that cannot happen.
+func extraNumberMonthlyCents(_ plan: String?) -> Int? {
+    switch plan {
+    case "starter": return 500
+    case "pro": return 400
+    default: return nil
+    }
+}
+
+/// "US$5/mo" to a CAD workspace, "$5/mo" to a USD one — nil when there is no
+/// plan whose price book applies.
+///
+/// #522: this card is where consent to the charge is given, so the bare "$5" it
+/// used to print was the defect in miniature — to a Canadian reader "$5" means
+/// CA$5 for a line the card takes US$5 for. `formatMoneyIn` states the currency
+/// exactly when it differs from the reader's.
+func extraNumberMonthly(_ plan: String?, audience: BillingCurrency) -> String? {
+    guard let cents = extraNumberMonthlyCents(plan) else { return nil }
+    return formatMoneyIn(cents, extraNumberCurrency, audience: audience) + "/mo"
+}
+
+/// Why this workspace cannot buy one more number, or nil when it can.
+///
+/// Hand-port of `extraNumberBlockedReason` in packages/shared/src/extra-numbers.ts,
+/// which the API, the web app and Android all already used. iOS did not, and
+/// carried the pre-#464 rule instead:
+///
+///     !(country == "US" && us_texting_enabled)
+///
+/// `usTextingEnabled` is the 10DLC gate and is NEVER true for a Canadian
+/// workspace, because Canada has no such registration — so that condition
+/// refused every Canadian customer forever, and told them "an extra number is a
+/// US number", which is not true. The Starter total cap is checked by the caller,
+/// which already counts live numbers.
+func extraNumberBlockedReason(
+    country: String,
+    usTextingEnabled: Bool,
+    billingCurrency: String?
+) -> String? {
+    if country != "US" && country != "CA" {
+        return "Extra numbers are available for US and Canadian workspaces."
+    }
+    // US only: the carriers must approve the brand before a US number can text.
+    if country == "US" && !usTextingEnabled {
+        return "An extra number needs US texting turned on for your workspace first."
+    }
+    // #522: a Stripe subscription bills in ONE currency and every item on it has
+    // to carry an amount in that currency, so a USD-only price cannot join a
+    // subscription billed in another. Better a sentence than a tap that becomes
+    // an error.
+    //
+    // A nil or unrecognised value reads as USD, matching `billingCurrencyOf` on
+    // the server: this must never refuse a sale because a field was missing from
+    // an older response.
+    let currency = billingCurrency?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    if let currency, !currency.isEmpty, currency != extraNumberCurrency.rawValue {
+        return "Extra numbers are priced in US dollars and can't be added to a "
+            + "subscription billed in another currency yet. Contact support and "
+            + "we'll sort it out."
+    }
+    return nil
+}
+
 /// #525 — the invitation a paused workspace reads above the button.
 ///
 /// TWO PARTS RATHER THAN ONE PARAGRAPH: the heading is the answer to the

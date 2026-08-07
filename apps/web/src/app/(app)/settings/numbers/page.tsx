@@ -18,7 +18,9 @@ import { useNumbers } from "@/lib/api/numbers";
 import { usePortRequests } from "@/lib/api/porting";
 import { useActiveCompany } from "@/lib/company/provider";
 import {
-  extraNumberBlockedReason, roleHasCapability } from "@loonext/shared";
+  extraNumberBlockedReason, roleHasCapability,
+  billingCurrencyOf,
+} from "@loonext/shared";
 
 /** SPEC §2: Pro includes 2 numbers, Starter 1. */
 const PLAN_NUMBER_LIMIT = { starter: 1, pro: 2 } as const;
@@ -116,6 +118,9 @@ export default function NumbersSettingsPage() {
                 currentCount: usedSlots,
                 country: company.data.country,
                 usTextingEnabled: company.data.us_texting_enabled,
+                billingCurrency: billingCurrencyOf(
+                  company.data.billing_currency,
+                ),
               })
             : "No plan yet.";
           const canBuyExtra = paidExtra && extraBlockedReason === null;

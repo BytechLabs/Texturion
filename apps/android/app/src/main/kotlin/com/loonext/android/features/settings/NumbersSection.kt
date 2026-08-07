@@ -914,6 +914,7 @@ private fun AddNumberCard(
     val extraBlockedReason = extraNumberBlockedReason(
         country = company.country,
         usTextingEnabled = company.us_texting_enabled,
+        billingCurrency = company.billing_currency,
     )
     if (nextIsExtra && extraBlockedReason != null) {
         SettingsCard(title = "Add a number") {
@@ -1181,6 +1182,7 @@ internal fun releaseNumberBody(heldOverAllowance: Boolean): String = if (heldOve
 internal fun extraNumberBlockedReason(
     country: String,
     usTextingEnabled: Boolean,
+    billingCurrency: String?,
 ): String? {
     if (country != "US" && country != "CA") {
         return "Extra numbers are available for US and Canadian workspaces."
@@ -1189,8 +1191,28 @@ internal fun extraNumberBlockedReason(
     if (country == "US" && !usTextingEnabled) {
         return "An extra number needs US texting turned on for your workspace first."
     }
+    // #522: a Stripe subscription bills in ONE currency and every item on it has
+    // to carry an amount in that currency. The extra-number prices are filed in
+    // USD only, so a subscription billed in anything else is refused outright by
+    // Stripe. Better a sentence here than a tap that becomes an error.
+    //
+    // A NULL or unrecognised value reads as USD, matching `billingCurrencyOf`
+    // on the server: this gate must never refuse a sale because a field was
+    // missing from an older response.
+    val currency = billingCurrency?.trim()?.lowercase()
+    if (currency != null && currency.isNotEmpty() && currency != EXTRA_NUMBER_CURRENCY) {
+        return "Extra numbers are priced in US dollars and can't be added to a " +
+            "subscription billed in another currency yet. Contact support and " +
+            "we'll sort it out."
+    }
     return null
 }
+
+/**
+ * #522: the currency the extra-number prices are filed in. Mirror of
+ * EXTRA_NUMBER_CURRENCY in packages/shared/src/extra-numbers.ts.
+ */
+internal const val EXTRA_NUMBER_CURRENCY = "usd"
 
 /**
  * #286 — what this member cannot reach, and why.
