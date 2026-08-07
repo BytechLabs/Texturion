@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.1](https://github.com/BytechLabs/Texturion/compare/ios-v0.9.0...ios-v0.9.1) (2026-08-07)
+
+
+### Bug Fixes
+
+* **clients:** say how many values an import column did not show ([8a0f170](https://github.com/BytechLabs/Texturion/commit/8a0f1707c6070a58e187cb022f50d8f7f38f32de)), closes [#528](https://github.com/BytechLabs/Texturion/issues/528)
+* **ios:** ask about the parts of a contact card that hang off a phone line ([1283dca](https://github.com/BytechLabs/Texturion/commit/1283dca2f1dbee0e5851c92c5ff18a3c3006e847)), closes [#528](https://github.com/BytechLabs/Texturion/issues/528)
+* **ios:** pass a column's two new value fields at every build site ([dae7d49](https://github.com/BytechLabs/Texturion/commit/dae7d491285442870f2e6a9d06d41ec99205ae34)), closes [#528](https://github.com/BytechLabs/Texturion/issues/528)
+
 ## [0.9.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.8.0...ios-v0.9.0) (2026-08-07)
 
 

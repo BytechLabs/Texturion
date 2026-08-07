@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.1](https://github.com/BytechLabs/Texturion/compare/shared-v0.8.0...shared-v0.8.1) (2026-08-07)
+
+
+### Bug Fixes
+
+* **api:** explain why a name cannot be marked do-not-text ([22c3708](https://github.com/BytechLabs/Texturion/commit/22c3708f63df89e16aad135c93cf6a1774b69762)), closes [#528](https://github.com/BytechLabs/Texturion/issues/528)
+* **api:** refuse a contact file whose structure cannot be read ([00b2130](https://github.com/BytechLabs/Texturion/commit/00b213090b4476927acda53bcb430a2f6739e033)), closes [#528](https://github.com/BytechLabs/Texturion/issues/528)
+* **clients:** say how many values an import column did not show ([8a0f170](https://github.com/BytechLabs/Texturion/commit/8a0f1707c6070a58e187cb022f50d8f7f38f32de)), closes [#528](https://github.com/BytechLabs/Texturion/issues/528)
+
 ## [0.8.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.7.0...shared-v0.8.0) (2026-08-07)
 
 
