@@ -163,6 +163,51 @@ and a partial one at the larger. The 282 ms search figure and the
 individual sub-figures at that size were not captured before the seeding budget
 ran out. They are left blank rather than interpolated.
 
+### FIXED 2026-08-07 — and the index diagnosis above was wrong
+
+A full-volume run now completes in about 30 seconds, so the blanks above are
+filled in. The three `api_list_conversations` figures were the ones missing, and
+measuring them found a defect rather than a tuning opportunity.
+
+| 50k conversations / 200k messages | before | after |
+|---|---|---|
+| `api_for_you` (post-login landing) | 227.7 ms | 208.9 ms |
+| inbox, first page | **501.4 ms** | **160.9 ms** |
+| `status=open` | 220.2 ms | **121.9 ms** |
+| search | 191.5 ms | **105.0 ms** |
+
+**The inbox first page was doing the expensive per-row work for every
+conversation in the workspace, then keeping thirty.** 564,962 shared buffer hits
+to return thirty rows. The last-message lateral, its attachment rollup, the
+unread check and the tag aggregate all hung off `conversations` in the same
+SELECT that chose the rows; given literals a planner pushes the `LIMIT` down and
+none of it matters, which is why no test ever saw it. That function never gets
+literals — it is `SECURITY DEFINER`, so it cannot be inlined, and one cached plan
+serves every combination of fifteen parameters, which makes
+`limit greatest(p_limit, 0)` opaque.
+
+Choosing the page first and decorating only those rows
+(`20260807120000_inbox_page_before_decorating.sql`) is a 3.1× improvement on the
+inbox and takes two of the three over-the-line queries back under it. More
+importantly the cost stopped scaling with the size of the workspace.
+
+**An index was the wrong answer, and this document should say so plainly since it
+is what §1 above recommended.** Adding
+`(company_id, is_spam, last_message_at desc, id desc)` moves the same query
+written with literals from 44.9 ms to 2.5 ms — a 200× win that reads like the
+whole answer — and moves the function itself by nothing measurable: 532→527 ms
+before the restructure, 160→165 ms after. A cached generic plan does not reach
+for it. No index was added; one that costs every write and returns nothing to any
+reader is worse than none.
+
+**What is still slow, and it is not fixed.** The remaining 160 ms is the page
+query scanning and sorting the whole workspace, because one cached plan cannot
+prune fifteen "parameter is null or column matches it" disjuncts down to the two
+a given call uses. Reaching the planner requires literals, which means dynamic
+SQL inside the function that carries row-level access. `api_for_you` is also
+still above 200 ms and was not touched — it is a different, multi-CTE shape whose
+dominant branch has not been identified. Both are filed rather than guessed at.
+
 ---
 
 ## 2. What is NOT measured, and why not
