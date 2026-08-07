@@ -41,7 +41,12 @@ begin
   end if;
 
   -- Shorter versions pad with zeros rather than sorting arbitrarily.
-  if not (public.version_key('2') = public.version_key('2.0.0.0')) then
+  -- #528: `is distinct from`, not `not (… = …)`. If `version_key` ever answers
+  -- NULL for either input the `=` is NULL, `not NULL` is NULL, the branch is not
+  -- taken, and this assertion passes while saying nothing — which is the exact
+  -- shape CL-13 was. Found by the inverted null-blind guard; the previous one
+  -- looked only for `<>` and could not see this spelling.
+  if public.version_key('2') is distinct from public.version_key('2.0.0.0') then
     raise exception '2 and 2.0.0.0 must compare equal';
   end if;
   if not (public.version_key('1.2.3') > public.version_key('1.2')) then
