@@ -48,19 +48,78 @@ export interface ParsedVCard {
   properties: string[];
 }
 
-/** Unfold RFC-folded lines: a line starting with SPACE or TAB continues prior. */
-function unfold(text: string): string[] {
+/**
+ * #528: a structurally malformed .vcf, refused rather than half-read.
+ *
+ * A THROW rather than a flag, and for the same reason
+ * `CsvUnterminatedQuoteError` is one: the failure cannot be ignored by a caller
+ * that did not think about it, and both callers of this parser are either a
+ * route (which turns it into the shared 422) or a test.
+ *
+ * REFUSING IS THE SAFE DIRECTION HERE, which is worth stating because leniency
+ * usually is. Both shapes below end with a contact being created from something
+ * nobody read — one silently attaches a stranger's number to somebody else's
+ * name, the other hides a line that may be the only place the file says not to
+ * text this person. A rejected file is a person retrying an import; a merged
+ * card is a message sent to the wrong human.
+ */
+export class VCardMalformedError extends Error {
+  /** 1-based line in the FILE the operator can go and look at. */
+  readonly line: number;
+  readonly kind: "merged-card" | "nameless-property";
+
+  constructor(kind: "merged-card" | "nameless-property", line: number) {
+    super(`vCard: ${kind} at line ${line}`);
+    this.name = "VCardMalformedError";
+    this.kind = kind;
+    this.line = line;
+  }
+}
+
+/** One logical content line, and the file line it started on. */
+interface LogicalLine {
+  text: string;
+  /** 1-based, for a message somebody can act on. */
+  line: number;
+}
+
+/**
+ * Unfold RFC-folded lines: a line starting with SPACE or TAB continues prior.
+ *
+ * #528: the line NUMBER travels with the text now. Unfolding collapses several
+ * file lines into one logical line, so an index into the result is not a place
+ * in the file — and a refusal that cannot say where to look is a refusal
+ * somebody has to bisect a phone book to act on.
+ */
+function unfold(text: string): LogicalLine[] {
   // Normalize CRLF/CR → LF first so folding detection is uniform.
   const normalized = text.replace(/\r\n?/g, "\n");
   const rawLines = normalized.split("\n");
-  const lines: string[] = [];
-  for (const line of rawLines) {
+  const lines: LogicalLine[] = [];
+  rawLines.forEach((line, index) => {
     if ((line.startsWith(" ") || line.startsWith("\t")) && lines.length > 0) {
-      lines[lines.length - 1] += line.slice(1);
+      // #528: A LEADING SPACE BEFORE A DELIMITER MERGES TWO PEOPLE.
+      //
+      // The fold rule itself is correct — RFC 6350 says a line beginning with
+      // whitespace continues the previous one — and that is exactly what makes
+      // this dangerous. ` BEGIN:VCARD` after a card's `END:VCARD` joins to it as
+      // `END:VCARDBEGIN:VCARD`, which matches neither delimiter, so the first
+      // card never closes and swallows the second card's lines. One person
+      // silently becomes another: their name, with somebody else's phone number.
+      //
+      // Detected HERE, on the continuation itself, rather than by looking for a
+      // delimiter inside a joined line. That looser test would refuse a file
+      // whose NOTE happens to quote the word BEGIN:VCARD — a legitimate import,
+      // rejected for a substring. This one fires only on the shape that is
+      // actually a swallowed delimiter.
+      if (/^(BEGIN|END):VCARD$/i.test(line.trim())) {
+        throw new VCardMalformedError("merged-card", index + 1);
+      }
+      lines[lines.length - 1].text += line.slice(1);
     } else {
-      lines.push(line);
+      lines.push({ text: line, line: index + 1 });
     }
-  }
+  });
   return lines;
 }
 
@@ -189,7 +248,8 @@ export function parseVCards(text: string): ParsedVCard[] {
     properties = new Set<string>();
   };
 
-  for (const line of lines) {
+  for (const logical of lines) {
+    const line = logical.text;
     const trimmed = line.trim();
     if (/^BEGIN:VCARD$/i.test(trimmed)) {
       // A nested/duplicate BEGIN starts a fresh card (flush any open one).
@@ -204,7 +264,26 @@ export function parseVCards(text: string): ParsedVCard[] {
     if (!inCard) continue;
 
     const parsed = parseContentLine(line);
-    if (!parsed) continue;
+    if (!parsed) {
+      // #528: A LINE WITH NO PROPERTY NAME CANNOT BE DECLARED, SO IT IS REFUSED.
+      //
+      // `parseContentLine` returns null for exactly one reason — the property
+      // name is empty (`:DO NOT CALL`, `;TYPE=DNC:do not call`) — and this used
+      // to `continue`, which dropped the line before `properties.add` below could
+      // enumerate it. Neither the property nor its parameters reached the gate,
+      // so a file could say do-not-text on a line nobody was ever asked about.
+      //
+      // Round 3 settled the principle one concern up: a line with no VALUE is
+      // still a line somebody wrote. A line with no NAME equally is — but it
+      // cannot be answered the way that one can, because a declaration is keyed
+      // on a property name and this line has none to ask about. Enumerating it
+      // under an empty name would put an unanswerable question in the 422.
+      //
+      // So the file is refused. That is the same answer as the merged card
+      // above, which makes one rule instead of two special cases: a .vcf whose
+      // structure we cannot read is not partially imported.
+      throw new VCardMalformedError("nameless-property", logical.line);
+    }
     // #248: recorded BEFORE the three branches below, so a property is in the
     // list whether or not this parser has an opinion about it. Recording it
     // inside the branches would report exactly the properties we already read,

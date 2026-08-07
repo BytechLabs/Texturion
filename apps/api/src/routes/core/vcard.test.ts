@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { parseVCards } from "./vcard";
+import { parseVCards, VCardMalformedError } from "./vcard";
 
 describe("parseVCards", () => {
   it("parses a single vCard 3.0 card: FN + TEL", () => {
@@ -259,5 +259,118 @@ describe("parseVCards", () => {
 
   it("returns [] for input with no VCARD blocks", () => {
     expect(parseVCards("just some text\nnot a vcard")).toEqual([]);
+  });
+
+  /**
+   * #528 — the two structural shapes that end with a contact assembled from
+   * something nobody read. Both are refused rather than half-read, which is one
+   * rule instead of two special cases.
+   */
+  describe("#528: a structurally unreadable .vcf is refused, not half-read", () => {
+    it("refuses a card boundary a leading space folded into the line above", () => {
+      // The fold rule is RFC-correct, which is what makes it dangerous:
+      // ` BEGIN:VCARD` joins the previous `END:VCARD` as one line matching
+      // neither delimiter, so card one never closes and swallows card two.
+      // Dana's name would import carrying Sam's phone number.
+      const vcf = [
+        "BEGIN:VCARD",
+        "FN:Dana Diaz",
+        "TEL:+14165550111",
+        "END:VCARD",
+        " BEGIN:VCARD",
+        "FN:Sam Lee",
+        "TEL:+15125550122",
+        "END:VCARD",
+      ].join("\r\n");
+
+      expect(() => parseVCards(vcf)).toThrow(VCardMalformedError);
+      // The line is the whole point of the message: the character at fault is
+      // invisible, so "look at line 5" is the only actionable part.
+      try {
+        parseVCards(vcf);
+      } catch (cause) {
+        expect((cause as VCardMalformedError).kind).toBe("merged-card");
+        expect((cause as VCardMalformedError).line).toBe(5);
+      }
+    });
+
+    it("does NOT refuse an ordinary fold, which is most of what folding is for", () => {
+      // The positive control, and the reason the check is on the continuation
+      // rather than on a delimiter appearing inside a joined line. A long NOTE
+      // wrapped across lines is the ordinary case and has to keep working.
+      const vcf = [
+        "BEGIN:VCARD",
+        "FN:Dana Diaz",
+        "NOTE:this is a long note that the exporter",
+        "  wrapped across two lines",
+        "TEL:+14165550111",
+        "END:VCARD",
+      ].join("\r\n");
+
+      const cards = parseVCards(vcf);
+      expect(cards).toHaveLength(1);
+      expect(cards[0]).toMatchObject({ name: "Dana Diaz" });
+    });
+
+    it("does NOT refuse a value that merely mentions a delimiter", () => {
+      // A looser test — "a joined line containing BEGIN:VCARD" — would reject
+      // this, which is a legitimate import refused over a substring.
+      const vcf = [
+        "BEGIN:VCARD",
+        "FN:Dana Diaz",
+        "NOTE:the file starts with BEGIN:VCARD and ends with END:VCARD",
+        "TEL:+14165550111",
+        "END:VCARD",
+      ].join("\r\n");
+
+      expect(parseVCards(vcf)).toHaveLength(1);
+    });
+
+    it("refuses a content line with no property name", () => {
+      // `parseContentLine` returns null for exactly this, and the caller used to
+      // `continue` — so neither the property nor its parameters were enumerated
+      // and the gate was never asked. A file could say do-not-text on a line
+      // nobody was offered the chance to declare.
+      const vcf = [
+        "BEGIN:VCARD",
+        "FN:Dana Diaz",
+        ";TYPE=DNC:do not call this person",
+        "TEL:+14165550111",
+        "END:VCARD",
+      ].join("\r\n");
+
+      expect(() => parseVCards(vcf)).toThrow(VCardMalformedError);
+      try {
+        parseVCards(vcf);
+      } catch (cause) {
+        expect((cause as VCardMalformedError).kind).toBe("nameless-property");
+        expect((cause as VCardMalformedError).line).toBe(3);
+      }
+    });
+
+    it("refuses a bare-colon line too", () => {
+      const vcf = [
+        "BEGIN:VCARD",
+        "FN:Dana Diaz",
+        ":DO NOT CALL",
+        "TEL:+14165550111",
+        "END:VCARD",
+      ].join("\r\n");
+      expect(() => parseVCards(vcf)).toThrow(VCardMalformedError);
+    });
+
+    it("ignores a nameless line OUTSIDE a card, which is not ours to judge", () => {
+      // Noise between cards is already skipped before parsing, and refusing a
+      // file for a blank-ish line in its preamble would reject exports that
+      // work everywhere else.
+      const vcf = [
+        ":stray preamble",
+        "BEGIN:VCARD",
+        "FN:Dana Diaz",
+        "TEL:+14165550111",
+        "END:VCARD",
+      ].join("\r\n");
+      expect(parseVCards(vcf)).toHaveLength(1);
+    });
   });
 });

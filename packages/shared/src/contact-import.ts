@@ -552,6 +552,45 @@ export function contactImportUnterminatedQuoteMessage(line: number): string {
 }
 
 /**
+ * #528: a card boundary that a stray leading space turned into part of the
+ * previous line.
+ *
+ * Says what it would have COST rather than naming the rule, because "a folded
+ * BEGIN:VCARD" means nothing to the person holding the file and "two people
+ * became one" means everything. The remedy is one keystroke and worth stating
+ * exactly, since the character at fault is invisible.
+ */
+export function contactImportVCardMergedCardMessage(line: number): string {
+  return (
+    `file: line ${line} starts with a space, and in a .vcf a line beginning ` +
+    "with a space continues the line above it — so this card's BEGIN or END " +
+    "reads as part of the previous card instead of ending it. Two contacts " +
+    "would be imported as one: the first card's name with the second card's " +
+    "phone number. Delete the space at the start of that line and import " +
+    "again. Nothing was imported."
+  );
+}
+
+/**
+ * #528: a content line with no property name, which cannot be declared.
+ *
+ * The 422 for an unread property asks the operator what it means. This one
+ * cannot: a declaration is keyed on a property name and this line has none. So
+ * it asks for the file to be corrected instead, and says why the usual question
+ * is not available.
+ */
+export function contactImportVCardNamelessPropertyMessage(line: number): string {
+  return (
+    `file: line ${line} has no property name before its colon, so there is ` +
+    "nothing to ask you about it — every other unread line in a .vcf can be " +
+    "declared as ignored or as do-not-text, and this one cannot be named. It " +
+    "is skipped by every reader, which means anything it says (including not " +
+    "to text somebody) goes unread. Give the line a property name or remove " +
+    "it, then import again. Nothing was imported."
+  );
+}
+
+/**
  * What the server says when the upload is not UTF-8 text.
  *
  * Excel's "Unicode Text" save is UTF-16, and its zero bytes survive being

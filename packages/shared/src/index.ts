@@ -362,6 +362,8 @@ export {
   contactImportUndeclaredPropertiesMessage,
   contactImportUnreadableFlagMessage,
   contactImportUnterminatedQuoteMessage,
+  contactImportVCardMergedCardMessage,
+  contactImportVCardNamelessPropertyMessage,
   defaultContactImportColumns,
   formatContactImportColumn,
   formatVCardProperty,

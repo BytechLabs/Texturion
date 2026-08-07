@@ -104,6 +104,8 @@ import {
   contactImportUndeclaredPropertiesMessage,
   contactImportUnreadableFlagMessage,
   contactImportUnterminatedQuoteMessage,
+  contactImportVCardMergedCardMessage,
+  contactImportVCardNamelessPropertyMessage,
   formatContactImportColumn,
   formatVCardProperty,
   joinContactName,
@@ -123,7 +125,7 @@ import { capture } from "../analytics/posthog";
 
 import { normalizeNanpPhone } from "./core/phone";
 import { isValidIanaTimezone } from "./core/timezone";
-import { parseVCards } from "./core/vcard";
+import { parseVCards, VCardMalformedError } from "./core/vcard";
 
 const CONTACT_COLUMNS =
   "id,phone_e164,name,address,notes,consent_source,consent_at," +
@@ -2568,7 +2570,24 @@ contactsRoutes.post(
     // likely to have been round-tripped through a desktop program (#248 H5).
     assertDecodableText(text);
 
-    const cards = parseVCards(text);
+    let cards;
+    try {
+      cards = parseVCards(text);
+    } catch (cause) {
+      // #528: a .vcf whose STRUCTURE cannot be read is refused whole, the same
+      // way an unterminated CSV quote is. Both alternatives are worse: reading
+      // it partially imports contacts assembled from lines nobody looked at,
+      // and a 500 tells the operator nothing they can act on.
+      if (cause instanceof VCardMalformedError) {
+        throw new ApiError(
+          "validation_failed",
+          cause.kind === "merged-card"
+            ? contactImportVCardMergedCardMessage(cause.line)
+            : contactImportVCardNamelessPropertyMessage(cause.line),
+        );
+      }
+      throw cause;
+    }
     if (cards.length === 0) {
       throw new ApiError(
         "validation_failed",
