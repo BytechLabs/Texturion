@@ -185,6 +185,27 @@
         "type": "ratelimit",
         "namespace_id": "1009",
         "simple": { "limit": 30, "period": 60 }
+      },
+      {
+        // #248: the contact importers (CSV and vCard), keyed on COMPANY.
+        //
+        // Import is the one route where a customer hands us unbounded input.
+        // The row cap and the byte cap bound a single request; nothing bounded
+        // how many requests, so 2000 rows of reads-plus-upserts could be
+        // replayed as fast as the network allowed.
+        //
+        // SIX A MINUTE, because three contradicted our own instructions: the
+        // wizard tells a workspace with more than 2000 rows to split the file
+        // and import it in parts, and an 8000-row book is four parts — the
+        // fourth of which was refused, on somebody's first day, by a limit
+        // meant for scripts. Six covers a 12,000-row book uploaded back to
+        // back and still makes a fan-out of hundreds of thousands take hours.
+        // A limit that punishes the behaviour the product asked for is a bug
+        // wherever the number is written.
+        "name": "CONTACT_IMPORT_RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "1010",
+        "simple": { "limit": 6, "period": 60 }
       }
     ]
   },

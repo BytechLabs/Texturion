@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { csvField, csvSafeText, parseCsv, serializeCsv } from "./csv";
+import {
+  CsvUnterminatedQuoteError,
+  csvField,
+  csvSafeText,
+  parseCsv,
+  serializeCsv,
+} from "./csv";
 
 describe("parseCsv (RFC 4180 subset)", () => {
   it("parses plain rows with LF and CRLF endings", () => {
@@ -30,6 +36,44 @@ describe("parseCsv (RFC 4180 subset)", () => {
     expect(parseCsv("a,b,c\n1,,3")).toEqual([
       ["a", "b", "c"],
       ["1", "", "3"],
+    ]);
+  });
+
+  it("#248 H5: refuses a file whose quote is never closed, naming the line", () => {
+    // The silent half of the import. One stray `"` makes every following line
+    // part of one enormous value: this file used to parse into TWO rows — the
+    // header and Bo — and the import answered 200 with ordinary counts and not
+    // one error row for Ann and Cass. Nobody is texted by that, and nobody is
+    // told either, which is how a crew ends up with a contact list quietly
+    // missing people nobody can name.
+    //
+    // A MIX: rows before the open quote parse fine, rows after it are the ones
+    // that vanish — so a parser that failed on every quoted file would not pass
+    // this either.
+    const text = [
+      "phone,name",
+      "+14165550100,Bo",
+      '+14165550101,"Ann',
+      "+14165550102,Cass",
+    ].join("\n");
+    expect(() => parseCsv(text)).toThrowError(CsvUnterminatedQuoteError);
+    // The line the quote OPENED on. By EOF the position is the one place in the
+    // file that looks fine, and the mangling shows up nowhere near it.
+    try {
+      parseCsv(text);
+      throw new Error("expected the parse to be refused");
+    } catch (error) {
+      expect((error as CsvUnterminatedQuoteError).line).toBe(3);
+    }
+  });
+
+  it("#248 H5: a properly closed quote at EOF is still a file", () => {
+    // The other side of the same branch: refusing "any file whose last field is
+    // quoted" would be a guard that fails closed on ordinary exports, which is
+    // how a guard gets deleted.
+    expect(parseCsv('phone,name\n+14165550100,"Smith, John"')).toEqual([
+      ["phone", "name"],
+      ["+14165550100", "Smith, John"],
     ]);
   });
 });

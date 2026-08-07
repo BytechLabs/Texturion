@@ -111,36 +111,36 @@ begin
                           'a0000000-0000-4000-8000-000000000002', now(), 20);
 
   -- Both assigned open|waiting threads surface; W is FIRST by urgency (0 <2).
-  if jsonb_array_length(r->'waiting_on_you') <> 2 then
+  if jsonb_array_length(r->'waiting_on_you') is distinct from 2 then
     raise exception 'FY1 FAILED: waiting_on_you count %, expected 2: %',
       jsonb_array_length(r->'waiting_on_you'), r->'waiting_on_you';
   end if;
   if (r->'waiting_on_you'->0->>'conversation_id')
-       <> 'f0000000-0000-4000-8000-00000000000a'
-     or (r->'waiting_on_you'->0->>'urgency')::int <> 0
+       is distinct from 'f0000000-0000-4000-8000-00000000000a'
+     or (r->'waiting_on_you'->0->>'urgency')::int is distinct from 0
      or not (r->'waiting_on_you'->0->>'has_overdue_task')::boolean
      or not (r->'waiting_on_you'->0->>'unread')::boolean then
     raise exception 'FY1 FAILED: waiting_on_you top row (overdue-pinned) wrong: %',
       r->'waiting_on_you'->0;
   end if;
   if (r->'waiting_on_you'->1->>'conversation_id')
-       <> 'f0000000-0000-4000-8000-00000000000b'
-     or (r->'waiting_on_you'->1->>'urgency')::int <> 2 then
+       is distinct from 'f0000000-0000-4000-8000-00000000000b'
+     or (r->'waiting_on_you'->1->>'urgency')::int is distinct from 2 then
     raise exception 'FY1 FAILED: waiting_on_you second row (U, urgency 2) wrong: %',
       r->'waiting_on_you'->1;
   end if;
 
-  if jsonb_array_length(r->'my_tasks') <> 1
-     or (r->'my_tasks'->0->>'task_id') <> '20000000-0000-4000-8000-00000000000a'
+  if jsonb_array_length(r->'my_tasks') is distinct from 1
+     or (r->'my_tasks'->0->>'task_id') is distinct from '20000000-0000-4000-8000-00000000000a'
      or not (r->'my_tasks'->0->>'overdue')::boolean then
     raise exception 'FY1 FAILED: my_tasks wrong: %', r->'my_tasks';
   end if;
 
   -- unread cross-cut = both assigned+unread threads (U, W), newest first (U at
   -- -1h before W at -2h). Unassigned T is NOT here (triage only).
-  if jsonb_array_length(r->'unread') <> 2
-     or (r->'unread'->0->>'conversation_id') <> 'f0000000-0000-4000-8000-00000000000b'
-     or (r->'unread'->1->>'conversation_id') <> 'f0000000-0000-4000-8000-00000000000a' then
+  if jsonb_array_length(r->'unread') is distinct from 2
+     or (r->'unread'->0->>'conversation_id') is distinct from 'f0000000-0000-4000-8000-00000000000b'
+     or (r->'unread'->1->>'conversation_id') is distinct from 'f0000000-0000-4000-8000-00000000000a' then
     raise exception 'FY1 FAILED: unread wrong: %', r->'unread';
   end if;
 
@@ -169,17 +169,17 @@ begin
   if r->'triage' = 'null'::jsonb then
     raise exception 'FY2 FAILED: lead did not receive a triage section';
   end if;
-  if jsonb_array_length(r->'triage'->'conversations') <> 1
+  if jsonb_array_length(r->'triage'->'conversations') is distinct from 1
      or (r->'triage'->'conversations'->0->>'conversation_id')
-          <> 'f0000000-0000-4000-8000-00000000000c' then
+          is distinct from 'f0000000-0000-4000-8000-00000000000c' then
     raise exception 'FY2 FAILED: triage conversations wrong: %', r->'triage'->'conversations';
   end if;
-  if jsonb_array_length(r->'triage'->'tasks') <> 1
-     or (r->'triage'->'tasks'->0->>'task_id') <> '20000000-0000-4000-8000-00000000000c' then
+  if jsonb_array_length(r->'triage'->'tasks') is distinct from 1
+     or (r->'triage'->'tasks'->0->>'task_id') is distinct from '20000000-0000-4000-8000-00000000000c' then
     raise exception 'FY2 FAILED: triage tasks wrong: %', r->'triage'->'tasks';
   end if;
-  if jsonb_array_length(r->'waiting_on_you') <> 0
-     or jsonb_array_length(r->'my_tasks') <> 0 then
+  if jsonb_array_length(r->'waiting_on_you') is distinct from 0
+     or jsonb_array_length(r->'my_tasks') is distinct from 0 then
     raise exception 'FY2 FAILED: lead sees another user''s assigned work: %', r;
   end if;
 
@@ -267,7 +267,7 @@ begin
   r := public.api_for_you('c0000000-0000-4000-8000-000000000001',
                           'a0000000-0000-4000-8000-000000000002', now(), 1);
 
-  if jsonb_array_length(r->'waiting_on_you') <> 1 then
+  if jsonb_array_length(r->'waiting_on_you') is distinct from 1 then
     raise exception 'FY2c FAILED: the cap stopped working: %', r->'waiting_on_you';
   end if;
   if (r->'totals'->>'waiting_on_you')::int is distinct from 2 then
@@ -337,7 +337,7 @@ begin
   r := public.api_for_you('c0000000-0000-4000-8000-000000000001',
                           'a0000000-0000-4000-8000-000000000002', now(), 20);
 
-  if jsonb_array_length(r->'my_tasks') <> 0 then
+  if jsonb_array_length(r->'my_tasks') is distinct from 0 then
     raise exception 'FY3 FAILED: a done task still appears in my_tasks: %', r->'my_tasks';
   end if;
   if (r->'waiting_on_you'->0->>'has_overdue_task')::boolean then
@@ -385,7 +385,7 @@ begin
   select count(*) into cnt from public.api_notifications(
     'c0000000-0000-4000-8000-000000000001',
     'a0000000-0000-4000-8000-000000000002', 100, null, null) x;
-  if cnt <> 4 then
+  if cnt is distinct from 4 then
     raise exception 'N1 FAILED: expected 4 derived notifications, got %', cnt;
   end if;
 
@@ -393,13 +393,13 @@ begin
     'c0000000-0000-4000-8000-000000000001',
     'a0000000-0000-4000-8000-000000000002', 100, null, null) x
    where (x->>'unread')::boolean;
-  if unread_cnt <> 4 then
+  if unread_cnt is distinct from 4 then
     raise exception 'N1 FAILED: expected 4 unread (no watermark), got %', unread_cnt;
   end if;
 
   if public.api_notifications_unread_count(
        'c0000000-0000-4000-8000-000000000001',
-       'a0000000-0000-4000-8000-000000000002') <> 4 then
+       'a0000000-0000-4000-8000-000000000002') is distinct from 4 then
     raise exception 'N1 FAILED: unread_count <> 4';
   end if;
 
@@ -422,14 +422,14 @@ begin
     'c0000000-0000-4000-8000-000000000001',
     'a0000000-0000-4000-8000-000000000002', 1, null, null) x;
 
-  if first_id <> '30000000-0000-4000-8000-000000000002'::uuid then
+  if first_id is distinct from '30000000-0000-4000-8000-000000000002'::uuid then
     raise exception 'N2 FAILED: newest notification is % not the task_assigned event', first_id;
   end if;
 
   select count(*) into cnt_after from public.api_notifications(
     'c0000000-0000-4000-8000-000000000001',
     'a0000000-0000-4000-8000-000000000002', 100, first_ts, first_id) x;
-  if cnt_after <> 3 then
+  if cnt_after is distinct from 3 then
     raise exception 'N2 FAILED: cursor did not drop the first page item (got % after)', cnt_after;
   end if;
 
@@ -453,7 +453,7 @@ begin
 
   if public.api_notifications_unread_count(
        'c0000000-0000-4000-8000-000000000001',
-       'a0000000-0000-4000-8000-000000000002') <> 0 then
+       'a0000000-0000-4000-8000-000000000002') is distinct from 0 then
     raise exception 'N3 FAILED: unread_count not 0 after mark-all-read';
   end if;
 
@@ -466,7 +466,7 @@ begin
     'c0000000-0000-4000-8000-000000000001',
     'a0000000-0000-4000-8000-000000000002', 100, null, null) x
    where (x->>'unread')::boolean;
-  if unread_cnt <> 1 then
+  if unread_cnt is distinct from 1 then
     raise exception 'N3 FAILED: post-watermark inbound not unread (got % unread)', unread_cnt;
   end if;
 
@@ -524,7 +524,7 @@ declare flipped boolean; cnt bigint; r jsonb;
 begin
   if public.api_notifications_unread_count(
        'c0000000-0000-4000-8000-000000000001',
-       'a0000000-0000-4000-8000-000000000003') <> 2 then
+       'a0000000-0000-4000-8000-000000000003') is distinct from 2 then
     raise exception 'NR1 FAILED: baseline unread_count <> 2';
   end if;
 
@@ -540,7 +540,7 @@ begin
   cnt := public.api_notifications_unread_count(
     'c0000000-0000-4000-8000-000000000001',
     'a0000000-0000-4000-8000-000000000003');
-  if cnt <> 1 then
+  if cnt is distinct from 1 then
     raise exception 'NR1 FAILED: mark-one must decrement by exactly 1 (got %)', cnt;
   end if;
 
@@ -577,11 +577,11 @@ begin
   end if;
   if public.api_notifications_unread_count(
        'c0000000-0000-4000-8000-000000000001',
-       'a0000000-0000-4000-8000-000000000003') <> 1 then
+       'a0000000-0000-4000-8000-000000000003') is distinct from 1 then
     raise exception 'NR1 FAILED: idempotent re-mark changed the count';
   end if;
   if (select count(*) from public.notification_read_items
-       where user_id = 'a0000000-0000-4000-8000-000000000003') <> 1 then
+       where user_id = 'a0000000-0000-4000-8000-000000000003') is distinct from 1 then
     raise exception 'NR1 FAILED: re-mark duplicated the exception row';
   end if;
 
@@ -605,12 +605,12 @@ begin
 
   if public.api_notifications_unread_count(
        'c0000000-0000-4000-8000-000000000001',
-       'a0000000-0000-4000-8000-000000000003') <> 0 then
+       'a0000000-0000-4000-8000-000000000003') is distinct from 0 then
     raise exception 'NR2 FAILED: unread_count not 0 after mark-all-read';
   end if;
 
   if (select count(*) from public.notification_read_items
-       where user_id = 'a0000000-0000-4000-8000-000000000003') <> 0 then
+       where user_id = 'a0000000-0000-4000-8000-000000000003') is distinct from 0 then
     raise exception 'NR2 FAILED: covered exception rows were not pruned';
   end if;
 
@@ -633,7 +633,7 @@ begin
     raise exception 'NR3 FAILED: covered item reported newly read';
   end if;
   if (select count(*) from public.notification_read_items
-       where user_id = 'a0000000-0000-4000-8000-000000000003') <> 0 then
+       where user_id = 'a0000000-0000-4000-8000-000000000003') is distinct from 0 then
     raise exception 'NR3 FAILED: covered mark-one inserted a dead row';
   end if;
   raise notice 'NR3 PASSED: watermark-covered mark-one is a row-free no-op';
@@ -649,15 +649,15 @@ begin
   select count(*) into cnt from public.api_notifications(
     'c0000000-0000-4000-8000-000000000099',
     'a0000000-0000-4000-8000-000000000002', 100, null, null) x;
-  if cnt <> 0 then
+  if cnt is distinct from 0 then
     raise exception 'N5 FAILED: cross-company notifications leaked (got %)', cnt;
   end if;
 
   r := public.api_for_you('c0000000-0000-4000-8000-000000000099',
                           'a0000000-0000-4000-8000-000000000002', now(), 20);
-  if jsonb_array_length(r->'waiting_on_you') <> 0
-     or jsonb_array_length(r->'unread') <> 0
-     or jsonb_array_length(r->'triage'->'conversations') <> 0 then
+  if jsonb_array_length(r->'waiting_on_you') is distinct from 0
+     or jsonb_array_length(r->'unread') is distinct from 0
+     or jsonb_array_length(r->'triage'->'conversations') is distinct from 0 then
     raise exception 'N5 FAILED: cross-company for-you leaked: %', r;
   end if;
   raise notice 'N5 PASSED: read-models are company-scoped (tenant isolation)';
@@ -687,13 +687,13 @@ begin
     raise exception 'N6 FAILED: baseline (unrestricted) queue is unexpectedly empty: %', r_open;
   end if;
   -- Conversation sections are hidden…
-  if jsonb_array_length(r_hidden->'waiting_on_you') <> 0
-     or jsonb_array_length(r_hidden->'unread') <> 0 then
+  if jsonb_array_length(r_hidden->'waiting_on_you') is distinct from 0
+     or jsonb_array_length(r_hidden->'unread') is distinct from 0 then
     raise exception 'N6 FAILED: hidden number still surfaces in conversation sections: %', r_hidden;
   end if;
   -- …but the assigned task stays (global, #107).
   if jsonb_array_length(r_hidden->'my_tasks')
-     <> jsonb_array_length(r_open->'my_tasks') then
+     is distinct from jsonb_array_length(r_open->'my_tasks') then
     raise exception 'N6 FAILED: my_tasks must stay global under the deny filter: %', r_hidden;
   end if;
 
@@ -706,7 +706,7 @@ begin
   if feed_open = 0 then
     raise exception 'N6 FAILED: baseline notification feed is unexpectedly empty';
   end if;
-  if feed_hidden <> 0 then
+  if feed_hidden is distinct from 0 then
     raise exception 'N6 FAILED: hidden number still surfaces in notifications (got %)', feed_hidden;
   end if;
 
@@ -719,7 +719,7 @@ begin
   if badge_open = 0 then
     raise exception 'N6 FAILED: baseline unread badge is unexpectedly zero';
   end if;
-  if badge_hidden <> 0 then
+  if badge_hidden is distinct from 0 then
     raise exception 'N6 FAILED: hidden number still counted in the badge (got %)', badge_hidden;
   end if;
 
@@ -781,7 +781,7 @@ begin
     'c0000000-0000-4000-8000-000000000001',
     'a0000000-0000-4000-8000-000000000002', 100, null, null) x
    where x->>'type' = 'missed_call';
-  if cnt <> 3 then
+  if cnt is distinct from 3 then
     raise exception 'N7 FAILED: member expected 3 missed_call rows, got %', cnt;
   end if;
 
@@ -790,7 +790,7 @@ begin
     'c0000000-0000-4000-8000-000000000001',
     'a0000000-0000-4000-8000-000000000001', 100, null, null) x
    where x->>'type' = 'missed_call';
-  if cnt <> 1 then
+  if cnt is distinct from 1 then
     raise exception 'N7 FAILED: lead expected 1 missed_call row, got %', cnt;
   end if;
 
@@ -799,11 +799,11 @@ begin
     'c0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000002');
   lead_after := public.api_notifications_unread_count(
     'c0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000001');
-  if member_after - member_before <> 3 then
+  if member_after - member_before is distinct from 3 then
     raise exception 'N7 FAILED: member badge moved by % (want 3)',
       member_after - member_before;
   end if;
-  if lead_after - lead_before <> 1 then
+  if lead_after - lead_before is distinct from 1 then
     raise exception 'N7 FAILED: lead badge moved by % (want 1)',
       lead_after - lead_before;
   end if;
@@ -814,7 +814,7 @@ begin
     'a0000000-0000-4000-8000-000000000002', 100, null, null,
     array['d0000000-0000-4000-8000-000000000001']::uuid[]) x
    where x->>'type' = 'missed_call';
-  if cnt <> 0 then
+  if cnt is distinct from 0 then
     raise exception 'N7 FAILED: deny-list left % missed_call rows visible', cnt;
   end if;
 
@@ -859,14 +859,14 @@ begin
     'c0000000-0000-4000-8000-000000000001',
     'a0000000-0000-4000-8000-000000000002', 100, null, null) x
    where x->>'type' = 'mention';
-  if cnt <> 1 then
+  if cnt is distinct from 1 then
     raise exception 'N8 FAILED: expected 1 mention row, got %', cnt;
   end if;
 
   badge_after := public.api_notifications_unread_count(
     'c0000000-0000-4000-8000-000000000001',
     'a0000000-0000-4000-8000-000000000002');
-  if badge_after - badge_before <> 1 then
+  if badge_after - badge_before is distinct from 1 then
     raise exception 'N8 FAILED: badge moved by % (want 1) -- the twins disagree',
       badge_after - badge_before;
   end if;
@@ -876,7 +876,7 @@ begin
     'c0000000-0000-4000-8000-000000000001',
     'a0000000-0000-4000-8000-000000000001', 100, null, null) x
    where x->>'type' = 'mention';
-  if author_cnt <> 0 then
+  if author_cnt is distinct from 0 then
     raise exception 'N8 FAILED: author saw % mention rows', author_cnt;
   end if;
 
@@ -886,14 +886,14 @@ begin
     'a0000000-0000-4000-8000-000000000002', 100, null, null,
     array['d0000000-0000-4000-8000-000000000001']::uuid[]) x
    where x->>'type' = 'mention';
-  if cnt <> 0 then
+  if cnt is distinct from 0 then
     raise exception 'N8 FAILED: deny-list left % mention rows visible', cnt;
   end if;
   hidden_after := public.api_notifications_unread_count(
     'c0000000-0000-4000-8000-000000000001',
     'a0000000-0000-4000-8000-000000000002',
     array['d0000000-0000-4000-8000-000000000001']::uuid[]);
-  if hidden_after <> hidden_before then
+  if hidden_after is distinct from hidden_before then
     raise exception 'N8 FAILED: deny-list badge moved by % -- the mention leaked into the count',
       hidden_after - hidden_before;
   end if;
@@ -932,13 +932,13 @@ begin
 
   -- #107 intact: the task is STILL listed. Hiding a task assigned TO someone
   -- would hide their own work from them.
-  if jsonb_array_length(r->'my_tasks') <> n_tasks then
+  if jsonb_array_length(r->'my_tasks') is distinct from n_tasks then
     raise exception 'FY-417 FAILED: task disappeared for a denied member (#107 broken): %',
       r->'my_tasks';
   end if;
 
   -- ...but the customer's words are gone.
-  if (r->'my_tasks'->0->>'title') <> 'Task on a number you don''t have access to' then
+  if (r->'my_tasks'->0->>'title') is distinct from 'Task on a number you don''t have access to' then
     raise exception 'FY-417 FAILED: message snippet leaked in title to a denied member: %',
       r->'my_tasks'->0->>'title';
   end if;
@@ -981,7 +981,7 @@ begin
   r_lead := public.api_for_you('c0000000-0000-4000-8000-000000000001',
                                'a0000000-0000-4000-8000-000000000001', now(), 20);
   if jsonb_array_length(r_member->'triage'->'conversations')
-     <> jsonb_array_length(r_lead->'triage'->'conversations') then
+     is distinct from jsonb_array_length(r_lead->'triage'->'conversations') then
     raise exception 'FY-416 FAILED: member sees % unclaimed, lead sees % -- the audiences disagree',
       jsonb_array_length(r_member->'triage'->'conversations'),
       jsonb_array_length(r_lead->'triage'->'conversations');
@@ -996,11 +996,11 @@ begin
   r_denied := public.api_for_you('c0000000-0000-4000-8000-000000000001',
                                  'a0000000-0000-4000-8000-000000000002', now(), 20,
                                  array['d0000000-0000-4000-8000-000000000001']::uuid[]);
-  if jsonb_array_length(r_denied->'triage'->'conversations') <> 0 then
+  if jsonb_array_length(r_denied->'triage'->'conversations') is distinct from 0 then
     raise exception 'FY-416 FAILED: denied member sees unclaimed work on a hidden number: %',
       r_denied->'triage'->'conversations';
   end if;
-  if jsonb_array_length(r_denied->'triage'->'tasks') <> 0 then
+  if jsonb_array_length(r_denied->'triage'->'tasks') is distinct from 0 then
     raise exception 'FY-416 FAILED: denied member sees unclaimed TASKS on a hidden number: %',
       r_denied->'triage'->'tasks';
   end if;
@@ -1046,7 +1046,7 @@ begin
    where n.nspname = 'public'
      and p.proname = 'api_for_you';
 
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception
       'FY-454 FAILED: expected exactly one api_for_you, found %. The 6-arg '
       'overload carrying p_is_lead was dropped by #454 and must not come back — '

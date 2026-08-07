@@ -72,7 +72,7 @@ begin
   select count(*) into v_count
     from public.templates
    where id = v_id and body = 'On our way, about twenty minutes out.';
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception 'a deleted template must keep its body, got % rows', v_count;
   end if;
 
@@ -87,7 +87,7 @@ begin
             'bd000000-0000-4000-8000-0000000000c1'::uuid,
             'twenty minutes', 5, 5, 5, 5, 5, null, null, null
           ) -> 'templates') into v_hits;
-  if jsonb_array_length(coalesce(v_hits, '[]'::jsonb)) <> 0 then
+  if jsonb_array_length(coalesce(v_hits, '[]'::jsonb)) is distinct from 0 then
     raise exception 'search returned a deleted template: %', v_hits;
   end if;
 
@@ -96,7 +96,7 @@ begin
             'bd000000-0000-4000-8000-0000000000c1'::uuid,
             'Heading over', 5, 5, 5, 5, 5, null, null, null
           ) -> 'templates') into v_hits;
-  if jsonb_array_length(coalesce(v_hits, '[]'::jsonb)) <> 1 then
+  if jsonb_array_length(coalesce(v_hits, '[]'::jsonb)) is distinct from 1 then
     raise exception 'search lost a LIVE template: %', v_hits;
   end if;
 
@@ -115,7 +115,7 @@ begin
     from public.templates
    where id = v_other
      and updated_by = 'bd000000-0000-4000-8000-00000000000a'::uuid;
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception 'the last editor must be recorded';
   end if;
 

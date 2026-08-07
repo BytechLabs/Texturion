@@ -85,7 +85,7 @@ begin
 
   select count(*) into n_policies
   from pg_policies where schemaname = 'public' and tablename = 'port_requests';
-  if n_policies <> 0 then
+  if n_policies is distinct from 0 then
     raise exception 'PT2 FAILED: port_requests has % RLS policies (want 0, deny-by-default)', n_policies;
   end if;
   raise notice 'PT2 PASSED: port_requests exists, RLS enabled, deny-by-default (0 policies)';
@@ -126,14 +126,14 @@ begin
   select data_type, is_nullable='YES', column_default into s_type, s_null, s_def
   from information_schema.columns
   where table_schema='public' and table_name='port_requests' and column_name='status';
-  if s_type <> 'USER-DEFINED' or s_null or s_def not like '%draft%' then
+  if s_type is distinct from 'USER-DEFINED' or s_null or s_def not like '%draft%' then
     raise exception 'PT4 FAILED: port_requests.status (type=%, null=%, default=%)', s_type, s_null, s_def;
   end if;
 
   select data_type, is_nullable='YES', column_default into m_type, m_null, m_def
   from information_schema.columns
   where table_schema='public' and table_name='port_requests' and column_name='messaging_port_status';
-  if m_type <> 'USER-DEFINED' or m_null or m_def not like '%not_applicable%' then
+  if m_type is distinct from 'USER-DEFINED' or m_null or m_def not like '%not_applicable%' then
     raise exception 'PT4 FAILED: port_requests.messaging_port_status (type=%, null=%, default=%)', m_type, m_null, m_def;
   end if;
 
@@ -141,14 +141,14 @@ begin
   select data_type, is_nullable='YES', column_default into src_type, src_null, src_def
   from information_schema.columns
   where table_schema='public' and table_name='phone_numbers' and column_name='source';
-  if src_type <> 'USER-DEFINED' or src_null or src_def not like '%provisioned%' then
+  if src_type is distinct from 'USER-DEFINED' or src_null or src_def not like '%provisioned%' then
     raise exception 'PT4 FAILED: phone_numbers.source (type=%, null=%, default=%)', src_type, src_null, src_def;
   end if;
 
   select data_type, is_nullable='YES' into por_type, por_null
   from information_schema.columns
   where table_schema='public' and table_name='phone_numbers' and column_name='porting_status';
-  if por_type <> 'USER-DEFINED' or not por_null then
+  if por_type is distinct from 'USER-DEFINED' or not por_null then
     raise exception 'PT4 FAILED: phone_numbers.porting_status (type=%, null=%) — want USER-DEFINED, nullable', por_type, por_null;
   end if;
   raise notice 'PT4 PASSED: status/messaging defaults + phone_numbers.source (NOT NULL default provisioned) / porting_status (nullable)';
@@ -301,16 +301,16 @@ begin
           true, 'b5b5b5b5-b5b5-4b5b-8b5b-b5b000000002')
   returning * into r;
 
-  if r.status <> 'draft' then
+  if r.status is distinct from 'draft' then
     raise exception 'PT8 FAILED: default status is % (want draft)', r.status;
   end if;
-  if r.messaging_port_status <> 'not_applicable' then
+  if r.messaging_port_status is distinct from 'not_applicable' then
     raise exception 'PT8 FAILED: default messaging_port_status is % (want not_applicable)', r.messaging_port_status;
   end if;
-  if r.submission_count <> 0 then
+  if r.submission_count is distinct from 0 then
     raise exception 'PT8 FAILED: default submission_count is % (want 0)', r.submission_count;
   end if;
-  if r.is_wireless <> false then
+  if r.is_wireless is distinct from false then
     raise exception 'PT8 FAILED: default is_wireless is % (want false)', r.is_wireless;
   end if;
   if r.created_at is null or r.updated_at is null then
@@ -512,7 +512,7 @@ begin
   join pg_namespace ns on ns.oid = c.relnamespace
   where ns.nspname = 'public' and c.relname = 'port_requests'
     and tg.tgname = 'set_updated_at' and not tg.tgisinternal;
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'PT15 FAILED: set_updated_at trigger missing on port_requests (found %)', n;
   end if;
 
@@ -527,7 +527,7 @@ begin
   if after_ts = '1999-01-01T00:00:00Z'::timestamptz then
     raise exception 'PT15 FAILED: updated_at kept the stale value — moddatetime did not fire';
   end if;
-  if after_ts <> now() then
+  if after_ts is distinct from now() then
     raise exception 'PT15 FAILED: updated_at is % (want transaction now())', after_ts;
   end if;
   raise notice 'PT15 PASSED: set_updated_at trigger present; moddatetime overwrites stale updated_at';
@@ -562,7 +562,7 @@ begin
     and event = 'port.updated' and extension = 'broadcast'
     and payload->>'port_request_id' = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000a2'
     and id <> all (before_ids);
-  if new_count <> 1 then
+  if new_count is distinct from 1 then
     raise exception 'PT16 FAILED: port UPDATE emitted % new port.updated broadcasts (want 1)', new_count;
   end if;
 
@@ -572,10 +572,10 @@ begin
     and event = 'port.updated' and extension = 'broadcast'
     and payload->>'port_request_id' = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000a2'
     and id <> all (before_ids);
-  if new_payload->>'status' <> 'in-process' then
+  if new_payload->>'status' is distinct from 'in-process' then
     raise exception 'PT16 FAILED: broadcast payload status is % (want in-process)', new_payload->>'status';
   end if;
-  if new_payload->>'messaging_port_status' <> 'not_applicable' then
+  if new_payload->>'messaging_port_status' is distinct from 'not_applicable' then
     raise exception 'PT16 FAILED: broadcast payload messaging_port_status is % (want not_applicable)', new_payload->>'messaging_port_status';
   end if;
   -- IDs only: the sensitive credential columns must NOT be in the payload.
@@ -609,7 +609,7 @@ begin
     update public.port_requests set status = voice where id = walk_id;
   end loop;
   select status into s from public.port_requests where id = walk_id;
-  if s <> 'ported' then
+  if s is distinct from 'ported' then
     raise exception 'PT17 FAILED: voice walk did not end at ported (got %)', s;
   end if;
 
@@ -660,16 +660,16 @@ declare
 begin
   result := public.claim_port_slot(
     'b5b5b5b5-b5b5-4b5b-8b5b-b5b0c0000001', 'port-key-starter-1', 'US', 1);
-  if result->>'outcome' <> 'created' then
+  if result->>'outcome' is distinct from 'created' then
     raise exception 'PT18 FAILED: expected created, got %', result->>'outcome';
   end if;
-  if (result->'number'->>'source') <> 'ported' then
+  if (result->'number'->>'source') is distinct from 'ported' then
     raise exception 'PT18 FAILED: source is % (want ported)', result->'number'->>'source';
   end if;
-  if (result->'number'->>'status') <> 'provisioning' then
+  if (result->'number'->>'status') is distinct from 'provisioning' then
     raise exception 'PT18 FAILED: status is % (want provisioning)', result->'number'->>'status';
   end if;
-  if (result->'number'->>'porting_status') <> 'draft' then
+  if (result->'number'->>'porting_status') is distinct from 'draft' then
     raise exception 'PT18 FAILED: porting_status is % (want draft)', result->'number'->>'porting_status';
   end if;
   if (result->'number'->>'requested_area_code') is not null then
@@ -690,14 +690,14 @@ begin
   select id into first_id from public.phone_numbers where provisioning_key = 'port-key-starter-1';
   result := public.claim_port_slot(
     'b5b5b5b5-b5b5-4b5b-8b5b-b5b0c0000001', 'port-key-starter-1', 'US', 1);
-  if result->>'outcome' <> 'exists' then
+  if result->>'outcome' is distinct from 'exists' then
     raise exception 'PT19 FAILED: expected exists, got %', result->>'outcome';
   end if;
-  if (result->'number'->>'id')::uuid <> first_id then
+  if (result->'number'->>'id')::uuid is distinct from first_id then
     raise exception 'PT19 FAILED: replay returned a different row';
   end if;
   if (select count(*) from public.phone_numbers
-      where company_id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0c0000001') <> 1 then
+      where company_id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0c0000001') is distinct from 1 then
     raise exception 'PT19 FAILED: duplicate key created a second row';
   end if;
   raise notice 'PT19 PASSED: idempotency-key replay returns the same port row';
@@ -723,11 +723,11 @@ begin
 
   result := public.claim_port_slot(
     'b5b5b5b5-b5b5-4b5b-8b5b-b5b0c0000001', 'port-key-starter-2', 'US', 1);
-  if result->>'outcome' <> 'plan_limit' then
+  if result->>'outcome' is distinct from 'plan_limit' then
     raise exception 'PT20 FAILED: expected plan_limit for a full 1-number company, got %', result->>'outcome';
   end if;
   if (select count(*) from public.phone_numbers
-      where company_id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0c0000001') <> 1 then
+      where company_id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0c0000001') is distinct from 1 then
     raise exception 'PT20 FAILED: plan_limit still inserted a row';
   end if;
   raise notice 'PT20 PASSED: a capped company with an active PROVISIONED number cannot start a 2nd-number port';
@@ -744,12 +744,12 @@ declare
 begin
   result := public.claim_port_slot(
     'b5b5b5b5-b5b5-4b5b-8b5b-b5b0c0000003', 'port-key-sole-1', 'US', 2);
-  if result->>'outcome' <> 'created' then
+  if result->>'outcome' is distinct from 'created' then
     raise exception 'PT21 FAILED: sole-prop 1st (port) number, got %', result->>'outcome';
   end if;
   result := public.claim_port_slot(
     'b5b5b5b5-b5b5-4b5b-8b5b-b5b0c0000003', 'port-key-sole-2', 'US', 2);
-  if result->>'outcome' <> 'sole_prop_cap' then
+  if result->>'outcome' is distinct from 'sole_prop_cap' then
     raise exception 'PT21 FAILED: expected sole_prop_cap, got %', result->>'outcome';
   end if;
   raise notice 'PT21 PASSED: sole-prop brands are capped at 1 number on the port path (a port counts as the one)';
@@ -771,12 +771,12 @@ begin
 
   result := public.claim_port_slot(
     'b5b5b5b5-b5b5-4b5b-8b5b-b5b0c0000002', 'port-key-pro-2', 'US', 2);
-  if result->>'outcome' <> 'created' then
+  if result->>'outcome' is distinct from 'created' then
     raise exception 'PT22 FAILED: Pro 2nd number as a port should be created, got %', result->>'outcome';
   end if;
   result := public.claim_port_slot(
     'b5b5b5b5-b5b5-4b5b-8b5b-b5b0c0000002', 'port-key-pro-3', 'US', 2);
-  if result->>'outcome' <> 'plan_limit' then
+  if result->>'outcome' is distinct from 'plan_limit' then
     raise exception 'PT22 FAILED: Pro 3rd number should hit plan_limit, got %', result->>'outcome';
   end if;
   raise notice 'PT22 PASSED: Pro admits a provisioned+ported pair, blocks the 3rd';

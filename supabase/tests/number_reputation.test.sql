@@ -126,7 +126,7 @@ begin
   -- n1: nothing wrong, nothing said.
   select state into v_state from public.number_health
    where phone_number_id = 'da000000-0000-4000-8000-00000000a1a1'::uuid;
-  if v_state <> 'healthy' then
+  if v_state is distinct from 'healthy' then
     raise exception 'a number delivering 97%% against a 97%% baseline must be healthy, got %',
       v_state;
   end if;
@@ -134,7 +134,7 @@ begin
   -- n2: caught. 50% against a 98% baseline is not a bad week.
   select state into v_state from public.number_health
    where phone_number_id = 'da000000-0000-4000-8000-00000000a2a2'::uuid;
-  if v_state <> 'degraded' then
+  if v_state is distinct from 'degraded' then
     raise exception 'a collapse from 98%% to 50%% must be degraded, got %', v_state;
   end if;
 
@@ -143,7 +143,7 @@ begin
   -- would be the failure mode that costs us the account.
   select state into v_state from public.number_health
    where phone_number_id = 'da000000-0000-4000-8000-00000000a3a3'::uuid;
-  if v_state <> 'healthy' then
+  if v_state is distinct from 'healthy' then
     raise exception
       'a 4-message sample must never produce a verdict, got % — this is the '
       'false alarm that costs a customer', v_state;
@@ -165,7 +165,7 @@ begin
     from public.api_number_health('da000000-0000-4000-8000-0000000000c1'::uuid)
    where phone_number_id = 'da000000-0000-4000-8000-00000000a1a1'::uuid;
 
-  if v_visible <> 'healthy' then
+  if v_visible is distinct from 'healthy' then
     raise exception
       'watch must read as healthy to the owner, got % — a maybe-degraded '
       'warning on a thin signal is how a false alarm becomes a cancellation',
@@ -194,7 +194,7 @@ begin
 
   -- Re-running against unchanged data must report nothing.
   select count(*) into v_changed from public.api_assess_number_health();
-  if v_changed <> 0 then
+  if v_changed is distinct from 0 then
     raise exception
       're-assessing unchanged data reported % transitions; a known-bad number '
       'must not re-announce itself every morning until somebody mutes it',
@@ -227,7 +227,7 @@ begin
 
   select state, degraded_since into v_state, v_since from public.number_health
    where phone_number_id = 'da000000-0000-4000-8000-00000000a2a2'::uuid;
-  if v_state <> 'healthy' then
+  if v_state is distinct from 'healthy' then
     raise exception 'a recovered number must return to healthy, got %', v_state;
   end if;
   if v_since is not null then
@@ -255,7 +255,7 @@ begin
 
   select state into v_state from public.number_health
    where phone_number_id = 'da000000-0000-4000-8000-00000000a1a1'::uuid;
-  if v_state <> 'degraded' then
+  if v_state is distinct from 'degraded' then
     raise exception
       'a number with a healthy delivery rate and zero replies against an '
       'established baseline must be degraded, got % — this is the only signal '

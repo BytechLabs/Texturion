@@ -135,10 +135,10 @@ begin
     from public.usage_events
    where company_id = v_company and channel = 'voice';
 
-  if v_voice <> 7 then
+  if v_voice is distinct from 7 then
     raise exception 'UE-5 FAILED: voice sums to %, expected 7', v_voice;
   end if;
-  if v_sms <> 6 then
+  if v_sms is distinct from 6 then
     raise exception 'UE-5 FAILED: sms sums to %, expected 6 — a second stream '
       'must not contaminate the first', v_sms;
   end if;

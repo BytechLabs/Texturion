@@ -120,7 +120,7 @@ begin
       '9a000000-0000-4000-8000-0000000000c1'::uuid,
       '2026-06-01T00:00:00Z'::timestamptz,
       '2026-06-30T23:59:59Z'::timestamptz);
-  if v_out <> 12 then
+  if v_out is distinct from 12 then
     raise exception 'UW-1: expected 12 outbound segments in June, got %', v_out;
   end if;
 end $$;
@@ -141,7 +141,7 @@ begin
       '9a000000-0000-4000-8000-0000000000c1'::uuid,
       '2026-06-01T00:00:00Z'::timestamptz,
       '2026-06-15T00:00:00Z'::timestamptz);
-  if v_out <> 4 then
+  if v_out is distinct from 4 then
     raise exception
       'UW-2: a window ending 15 June returned % segments, not the 4 before it', v_out;
   end if;
@@ -153,7 +153,7 @@ begin
       '9a000000-0000-4000-8000-0000000000c1'::uuid,
       '2026-06-01T00:00:00Z'::timestamptz,
       null);
-  if v_open <> 212 then
+  if v_open is distinct from 212 then
     raise exception 'UW-2: the open-ended window returned %, not 212', v_open;
   end if;
 end $$;
@@ -173,7 +173,7 @@ begin
       '9a000000-0000-4000-8000-0000000000c1'::uuid,
       '2026-06-01T00:00:00Z'::timestamptz,
       '2026-06-30T23:59:59Z'::timestamptz);
-  if v_in <> 3 then
+  if v_in is distinct from 3 then
     raise exception
       'UW-3: expected 3 inbound segments (2 + a null counted as 1), got %', v_in;
   end if;
@@ -194,7 +194,7 @@ begin
       '9a000000-0000-4000-8000-0000000000c1'::uuid,
       '2026-06-01T00:00:00Z'::timestamptz,
       '2026-06-30T23:59:59Z'::timestamptz);
-  if v_seconds <> 120 then
+  if v_seconds is distinct from 120 then
     raise exception
       'UW-4: expected 120 dialed seconds (90 forward + 30 outbound), got %', v_seconds;
   end if;
@@ -217,13 +217,13 @@ begin
       '2026-06-01T00:00:00Z'::timestamptz,
       '2026-06-30T23:59:59Z'::timestamptz);
 
-  if v_row.reported_segments <> 7 then
+  if v_row.reported_segments is distinct from 7 then
     raise exception 'UW-5: expected 7 reported segments, got %', v_row.reported_segments;
   end if;
-  if v_row.unreported_segments <> 5 then
+  if v_row.unreported_segments is distinct from 5 then
     raise exception 'UW-5: expected 5 unreported segments, got %', v_row.unreported_segments;
   end if;
-  if v_row.reported_segments + v_row.unreported_segments <> v_row.outbound_segments then
+  if v_row.reported_segments + v_row.unreported_segments is distinct from v_row.outbound_segments then
     raise exception
       'UW-5: the split (% + %) does not account for the total (%)',
       v_row.reported_segments, v_row.unreported_segments, v_row.outbound_segments;
@@ -258,7 +258,7 @@ begin
       '9a000000-0000-4000-8000-0000000000c2'::uuid,
       '2026-06-01T00:00:00Z'::timestamptz,
       '2026-06-30T23:59:59Z'::timestamptz);
-  if v_row.outbound_segments <> 999 then
+  if v_row.outbound_segments is distinct from 999 then
     raise exception 'UW-6: the neighbour reads % of its own 999 segments',
       v_row.outbound_segments;
   end if;

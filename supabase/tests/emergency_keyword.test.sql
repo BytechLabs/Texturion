@@ -35,7 +35,7 @@ begin
   if col_type is null then
     raise exception 'EK-1 FAILED: companies.emergency_keyword_enabled missing';
   end if;
-  if col_type <> 'boolean' then
+  if col_type is distinct from 'boolean' then
     raise exception 'EK-1 FAILED: emergency_keyword_enabled is % (want boolean)', col_type;
   end if;
   if col_null then
@@ -62,7 +62,7 @@ begin
   where table_schema = 'public'
     and table_name = 'conversations'
     and column_name in ('emergency_at', 'last_emergency_ack_at');
-  if n <> 2 then
+  if n is distinct from 2 then
     raise exception 'EK-2 FAILED: expected both emergency columns, found %', n;
   end if;
 end $$;
@@ -146,10 +146,10 @@ begin
   if msg_id is null then
     raise exception 'EK-4 FAILED: no message returned';
   end if;
-  if (select direction::text from public.messages where id = msg_id) <> 'outbound' then
+  if (select direction::text from public.messages where id = msg_id) is distinct from 'outbound' then
     raise exception 'EK-4 FAILED: acknowledgment is not outbound';
   end if;
-  if (select status::text from public.messages where id = msg_id) <> 'queued' then
+  if (select status::text from public.messages where id = msg_id) is distinct from 'queued' then
     raise exception 'EK-4 FAILED: acknowledgment must be inserted queued (before Telnyx)';
   end if;
 
@@ -165,7 +165,7 @@ begin
   select count(*) into flagged from public.conversation_events
    where conversation_id = 'e4140000-0000-4000-8000-000000000005'
      and type = 'emergency_flagged';
-  if flagged <> 1 then
+  if flagged is distinct from 1 then
     raise exception 'EK-4 FAILED: expected 1 emergency_flagged event, got %', flagged;
   end if;
 end $$;
@@ -187,7 +187,7 @@ begin
     'e4140000-0000-4000-8000-000000000002',
     'e4140000-0000-4000-8000-000000000005',
     'Flagged as urgent - call 911 if anyone is in danger.', 1, 3600, 50);
-  if res->>'skipped' <> 'throttled' then
+  if res->>'skipped' is distinct from 'throttled' then
     raise exception 'EK-5 FAILED: expected throttled, got %', coalesce(res->>'skipped', 'a send');
   end if;
 
@@ -198,7 +198,7 @@ begin
   select count(*) into flagged from public.conversation_events
    where conversation_id = 'e4140000-0000-4000-8000-000000000005'
      and type = 'emergency_flagged';
-  if flagged <> 2 then
+  if flagged is distinct from 2 then
     raise exception 'EK-5 FAILED: the flag must be written even when the SMS is throttled (events=%)', flagged;
   end if;
 
@@ -212,7 +212,7 @@ begin
   select count(*) into queued from public.messages
    where conversation_id = 'e4140000-0000-4000-8000-000000000005'
      and direction = 'outbound';
-  if queued <> 1 then
+  if queued is distinct from 1 then
     raise exception 'EK-5 FAILED: expected 1 outbound acknowledgment, got %', queued;
   end if;
 end $$;
@@ -236,7 +236,7 @@ begin
     'e4140000-0000-4000-8000-000000000002',
     'e4140000-0000-4000-8000-000000000005',
     'Flagged as urgent - call 911 if anyone is in danger.', 1, 3600, 50);
-  if res->>'skipped' <> 'emergency_disabled' then
+  if res->>'skipped' is distinct from 'emergency_disabled' then
     raise exception 'EK-6 FAILED: expected emergency_disabled, got %',
       coalesce(res->>'skipped', 'a send');
   end if;
@@ -264,7 +264,7 @@ begin
     'e4140000-0000-4000-8000-000000000002',
     'e4140000-0000-4000-8000-000000000005',
     'Flagged as urgent - call 911 if anyone is in danger.', 1, 3600, 50);
-  if res->>'skipped' <> 'recipient_opted_out' then
+  if res->>'skipped' is distinct from 'recipient_opted_out' then
     raise exception 'EK-7 FAILED: expected recipient_opted_out, got %',
       coalesce(res->>'skipped', 'a send');
   end if;
@@ -291,7 +291,7 @@ begin
     'e4140000-0000-4000-8000-000000000002',
     'e4140000-0000-4000-8000-000000000005',
     'Flagged as urgent - call 911 if anyone is in danger.', 1, 3600, 0);
-  if res->>'skipped' <> 'daily_cap' then
+  if res->>'skipped' is distinct from 'daily_cap' then
     raise exception 'EK-8 FAILED: expected daily_cap, got %',
       coalesce(res->>'skipped', 'a send');
   end if;

@@ -335,11 +335,52 @@ export {
 } from "./lead-chase";
 
 export {
+  contactImportColumnCount,
+  contactImportColumnSamples,
   detectContactColumns,
+  joinContactName,
   normalizeContactHeader,
+  readContactFlag,
+  unreadableFlagValues,
   type ContactImportField,
   type ContactImportMapping,
 } from "./contact-import-headers";
+
+export {
+  CONTACT_IMPORT_COLUMN_FIELD,
+  CONTACT_IMPORT_CONSENT_FIELD,
+  CONTACT_IMPORT_CONSENT_REFUSED_NOTE,
+  CONTACT_IMPORT_CONSENT_REQUIRED,
+  CONTACT_IMPORT_CONSENT_VALUE,
+  CONTACT_IMPORT_IGNORE,
+  CONTACT_IMPORT_MAX_BYTES,
+  CONTACT_IMPORT_MAX_ROWS,
+  CONTACT_IMPORT_UNREADABLE_ENCODING,
+  CONTACT_IMPORT_VCARD_PROPERTY_FIELD,
+  contactImportColumnMismatchMessage,
+  contactImportConsentRefusedReason,
+  contactImportUndeclaredColumnsMessage,
+  contactImportUndeclaredPropertiesMessage,
+  contactImportUnreadableFlagMessage,
+  contactImportUnterminatedQuoteMessage,
+  contactImportVCardMergedCardMessage,
+  contactImportVCardNamelessPropertyMessage,
+  defaultContactImportColumns,
+  formatContactImportColumn,
+  formatVCardProperty,
+  mappingFromDeclarations,
+  parseContactImportColumn,
+  parseVCardProperty,
+  vcardParameterProperty,
+  VCARD_IMPORT_MAX_BYTES,
+  VCARD_IMPORT_MAX_CARDS,
+  VCARD_MAPPED_PROPERTIES,
+  type ContactImportColumnAction,
+  type ContactImportColumnDeclaration,
+  type ContactImportColumnGuess,
+  type VCardPropertyAction,
+  type VCardPropertyDeclaration,
+} from "./contact-import";
 
 export {
   CARRIER_OPT_OUT_ERROR_CODE,

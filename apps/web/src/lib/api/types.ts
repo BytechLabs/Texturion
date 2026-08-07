@@ -1273,12 +1273,32 @@ export interface OptOut {
   revoked_at: string | null;
 }
 
-/** POST /v1/contacts/import response. */
+/** POST /v1/contacts/import and /v1/contacts/import-vcard — the same shape. */
 export interface ImportResult {
   imported: number;
   updated: number;
   skipped: number;
   errors: { row: number; reason: string }[];
+  /**
+   * #248 — rows that imported, but whose attestation the server refused because
+   * that person already has a standing opt-out.
+   *
+   * NOT a subset of `skipped`, and the server names them separately for that
+   * reason: these contacts are in the workspace's list now. What did not happen
+   * is the consent record, because a file cannot attest over a STOP the carrier
+   * record already holds.
+   *
+   * Optional because an API deployed before this shipped answers without them,
+   * and web and api are separate Workers that roll out on their own clocks. An
+   * absent field reads as "nothing refused", which is the truth of that older
+   * build: the refusal and the fields reporting it shipped in one commit, so a
+   * server with no `consent_refused` had nothing to report.
+   */
+  consent_refused?: number;
+  /** Which ones — `reason` carries the phone, the half people ask about. */
+  consent_refusals?: { row: number; reason: string }[];
+  /** The server's own sentence, or null when it refused nothing. */
+  consent_refused_note?: string | null;
 }
 
 // ---------------------------------------------------------------------------

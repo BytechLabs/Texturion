@@ -207,7 +207,7 @@ begin
 
   select count(*), min(last_message_id::text)::uuid into v_rows, v_anchor
     from public.conversation_summaries where conversation_id = v_conv;
-  if v_rows <> 1 then
+  if v_rows is distinct from 1 then
     raise exception 'TS-6: % summary rows for one conversation — history is being kept', v_rows;
   end if;
   if v_anchor is distinct from v_msg_two then
@@ -221,7 +221,7 @@ begin
 
   select count(*) into v_rows
     from public.conversation_summaries where conversation_id = v_conv;
-  if v_rows <> 0 then
+  if v_rows is distinct from 0 then
     raise exception 'TS-5: the cached summary outlived the message it was written from';
   end if;
   raise notice 'TS-5 PASSED: the cache cascades with its anchor';

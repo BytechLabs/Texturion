@@ -75,7 +75,7 @@ begin
    where id = '6d000000-0000-4000-8000-0000000000b1'::uuid;
   select away_enabled, away_enabled is null into v_value, v_is_null
     from public.phone_numbers where id = '6d000000-0000-4000-8000-0000000000b1'::uuid;
-  if v_is_null or v_value <> false then
+  if v_is_null or v_value is distinct from false then
     raise exception 'PN-2: an explicit false did not survive as false';
   end if;
 

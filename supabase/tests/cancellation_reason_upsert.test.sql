@@ -58,10 +58,10 @@ begin
     from public.cancellation_reasons
    where company_id = 'c7000000-0000-4000-8000-0000000000c1'::uuid;
 
-  if v_rows <> 1 then
+  if v_rows is distinct from 1 then
     raise exception 'CR-1 FAILED: expected the statement to be recorded, got % row(s)', v_rows;
   end if;
-  if v_reason <> 'seasonal' then
+  if v_reason is distinct from 'seasonal' then
     raise exception 'CR-1 FAILED: recorded reason reads %', v_reason;
   end if;
   raise notice 'CR-1 PASSED: a reason reaches the table';
@@ -84,7 +84,7 @@ begin
    where company_id = 'c7000000-0000-4000-8000-0000000000c2'::uuid
      and reason is null and detail is null;
 
-  if v_rows <> 1 then
+  if v_rows is distinct from 1 then
     raise exception 'CR-2 FAILED: a skipped question recorded % row(s)', v_rows;
   end if;
   raise notice 'CR-2 PASSED: skipping is itself an answer, and it is stored';
@@ -112,14 +112,14 @@ begin
 
   select count(*) into v_rows from public.cancellation_reasons
    where company_id = 'c7000000-0000-4000-8000-0000000000c1'::uuid;
-  if v_rows <> 1 then
+  if v_rows is distinct from 1 then
     raise exception 'CR-3 FAILED: three openings left % row(s), not one', v_rows;
   end if;
 
   select reason, detail, user_id into v_reason, v_detail, v_user
     from public.cancellation_reasons
    where company_id = 'c7000000-0000-4000-8000-0000000000c1'::uuid;
-  if v_reason <> 'switched' then
+  if v_reason is distinct from 'switched' then
     raise exception 'CR-3 FAILED: the last word was ''switched'', table says %', v_reason;
   end if;
   -- Cleared deliberately: somebody who rewrites their answer and empties the
@@ -128,7 +128,7 @@ begin
   if v_detail is not null then
     raise exception 'CR-3 FAILED: a cleared note survived as %', v_detail;
   end if;
-  if v_user <> 'c7000000-0000-4000-8000-00000000000a'::uuid then
+  if v_user is distinct from 'c7000000-0000-4000-8000-00000000000a'::uuid then
     raise exception 'CR-3 FAILED: whoever spoke last should own the row, got %', v_user;
   end if;
   raise notice 'CR-3 PASSED: one open statement per workspace, last word wins';
@@ -157,21 +157,21 @@ begin
 
   select count(*) into v_total from public.cancellation_reasons
    where company_id = 'c7000000-0000-4000-8000-0000000000c1'::uuid;
-  if v_total <> 2 then
+  if v_total is distinct from 2 then
     raise exception 'CR-4 FAILED: expected the old statement kept beside the new, got % row(s)', v_total;
   end if;
 
   select count(*) into v_open from public.cancellation_reasons
    where company_id = 'c7000000-0000-4000-8000-0000000000c1'::uuid
      and confirmed_at is null;
-  if v_open <> 1 then
+  if v_open is distinct from 1 then
     raise exception 'CR-4 FAILED: expected exactly one OPEN statement, got %', v_open;
   end if;
 
   select reason into v_confirmed_reason from public.cancellation_reasons
    where company_id = 'c7000000-0000-4000-8000-0000000000c1'::uuid
      and confirmed_at is not null;
-  if v_confirmed_reason <> 'switched' then
+  if v_confirmed_reason is distinct from 'switched' then
     raise exception 'CR-4 FAILED: the confirmed statement was rewritten to %', v_confirmed_reason;
   end if;
   raise notice 'CR-4 PASSED: a confirmed statement is history, and a new one opens beside it';

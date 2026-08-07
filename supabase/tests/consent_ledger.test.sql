@@ -48,20 +48,20 @@ begin
   returning id into ct;
 
   select count(*) into n from public.contact_consent_events where contact_id = ct;
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'CL-1 FAILED: expected exactly one ledger row, got %', n;
   end if;
 
   select * into r from public.contact_consent_events where contact_id = ct;
   -- An inbound text is IMPLIED consent: they contacted us.
-  if r.state <> 'implied' then
+  if r.state is distinct from 'implied' then
     raise exception 'CL-1 FAILED: state = % (want implied)', r.state;
   end if;
-  if r.source <> 'inbound_sms' then
+  if r.source is distinct from 'inbound_sms' then
     raise exception 'CL-1 FAILED: source = %', r.source;
   end if;
   -- captured_at is WHEN CONSENT HAPPENED, not when the row was written.
-  if r.captured_at <> '2026-07-28T10:00:00Z' then
+  if r.captured_at is distinct from '2026-07-28T10:00:00Z' then
     raise exception 'CL-1 FAILED: captured_at = % (want the consent_at)', r.captured_at;
   end if;
 end $$;
@@ -94,10 +94,10 @@ begin
    where id = ct;
 
   select * into r from public.contact_consent_events where contact_id = ct;
-  if r.state <> 'express' then
+  if r.state is distinct from 'express' then
     raise exception 'CL-2 FAILED: a member vouching must be express, got %', r.state;
   end if;
-  if r.captured_by <> usr then
+  if r.captured_by is distinct from usr then
     raise exception 'CL-2 FAILED: captured_by = % (want the attesting member)', r.captured_by;
   end if;
 end $$;
@@ -124,7 +124,7 @@ begin
   update public.contacts set consent_at = '2026-07-28T12:00:00Z' where id = ct;
 
   select count(*) into n from public.contact_consent_events where contact_id = ct;
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'CL-3 FAILED: consent re-recorded on a later write (% rows)', n;
   end if;
 end $$;
@@ -209,14 +209,14 @@ begin
   if r.id is null then
     raise exception 'CL-6 FAILED: an inbound text recorded no consent';
   end if;
-  if r.state <> 'implied' or r.source <> 'inbound_sms' then
+  if r.state is distinct from 'implied' or r.source is distinct from 'inbound_sms' then
     raise exception 'CL-6 FAILED: got %/%', r.state, r.source;
   end if;
 
   -- A duplicate delivery must not add a second consent row for one act.
   perform public.thread_inbound_message(
     co, num, '+12125559009', 'do you do gutters?', 'consent-test-msg-1');
-  if (select count(*) from public.contact_consent_events where contact_id = ct) <> 1 then
+  if (select count(*) from public.contact_consent_events where contact_id = ct) is distinct from 1 then
     raise exception 'CL-6 FAILED: a duplicate webhook doubled the consent record';
   end if;
 end $$;
@@ -244,13 +244,13 @@ begin
 
   select count(*) into n from public.contact_consent_events
    where contact_id = ct and state = 'revoked';
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'CL-7 FAILED: a STOP recorded % revocation rows', n;
   end if;
 
   select * into r from public.contact_consent_events
    where contact_id = ct and state = 'revoked';
-  if r.source <> 'stop_keyword' then
+  if r.source is distinct from 'stop_keyword' then
     raise exception 'CL-7 FAILED: revocation source = %', r.source;
   end if;
 
@@ -259,7 +259,7 @@ begin
    where company_id = co and phone_e164 = '+12125559001';
 
   select count(*) into n from public.contact_consent_events where contact_id = ct;
-  if n <> 3 then
+  if n is distinct from 3 then
     raise exception 'CL-7 FAILED: expected implied + revoked + re-consent, got % rows', n;
   end if;
   if not exists (
@@ -286,7 +286,7 @@ begin
   values (co, '+12125559999', 'stop_keyword');
   select count(*) into after_n from public.contact_consent_events;
 
-  if after_n <> before_n then
+  if after_n is distinct from before_n then
     raise exception 'CL-8 FAILED: a STOP with no contact wrote % ledger row(s)',
       after_n - before_n;
   end if;
@@ -311,7 +311,7 @@ declare
   row jsonb;
 begin
   rep := public.api_consent_evidence(co);
-  if jsonb_typeof(rep) <> 'array' or jsonb_array_length(rep) = 0 then
+  if jsonb_typeof(rep) is distinct from 'array' or jsonb_array_length(rep) = 0 then
     raise exception 'CL-9 FAILED: empty evidence file: %', rep;
   end if;
 
@@ -326,6 +326,462 @@ begin
   end if;
 end $$;
 
-\echo 'consent_ledger.test.sql: CL-1..CL-9 PASSED'
+-- ===========================================================================
+-- CL-10. #248: THE CONTACT ARRIVING SECOND IS STILL A REVOCATION.
+--
+--        Round one of #248 made the importer write restrictions first — the
+--        right order, because whichever prefix of a half-finished import lands
+--        has to be the safe half. It silently switched the ledger off:
+--        `opt_outs_record_consent` resolves phone → contact and returns early
+--        when there is no contact, so every phone an import CREATED got no
+--        revocation row at all. Permanently — a re-run writes nothing, because
+--        the state change it watches already happened.
+-- ===========================================================================
+do $$
+declare
+  co uuid := '22600000-0000-4000-8000-000000000002';
+  ct uuid;
+  n  int;
+  r  public.contact_consent_events%rowtype;
+begin
+  -- The order an import produces: the opt-out, then the person.
+  insert into public.opt_outs (company_id, phone_e164, source, created_at)
+  values (co, '+12125559010', 'import', '2026-08-01T09:00:00Z');
+
+  insert into public.contacts (company_id, phone_e164)
+  values (co, '+12125559010')
+  returning id into ct;
+
+  select count(*) into n from public.contact_consent_events
+   where contact_id = ct and state = 'revoked';
+  if n is distinct from 1 then
+    raise exception
+      'CL-10 FAILED: a contact created under a standing opt-out has % revocation rows', n;
+  end if;
+
+  select * into r from public.contact_consent_events
+   where contact_id = ct and state = 'revoked';
+  if r.source is distinct from 'import' then
+    raise exception 'CL-10 FAILED: revocation source = % (want the opt-out''s own)', r.source;
+  end if;
+  -- WHEN THEY SAID STOP, not when the row describing them arrived.
+  if r.captured_at is distinct from '2026-08-01T09:00:00Z' then
+    raise exception 'CL-10 FAILED: captured_at = % (want the opt-out''s created_at)', r.captured_at;
+  end if;
+end $$;
+
+-- ===========================================================================
+-- CL-11. ...and exactly once, whichever order the two rows arrive in.
+--
+--        Two triggers now watch the same fact from opposite sides. Each
+--        observes the SECOND half of the pair, so a doubled row would mean one
+--        of them is firing on a half it does not own — and an evidence file
+--        that says a customer revoked twice is one somebody has to explain.
+-- ===========================================================================
+do $$
+declare
+  co uuid := '22600000-0000-4000-8000-000000000002';
+  ct uuid;
+  n  int;
+begin
+  -- The other order: the person first, then the STOP.
+  insert into public.contacts (company_id, phone_e164)
+  values (co, '+12125559011')
+  returning id into ct;
+
+  insert into public.opt_outs (company_id, phone_e164, source)
+  values (co, '+12125559011', 'stop_keyword');
+
+  select count(*) into n from public.contact_consent_events
+   where contact_id = ct and state = 'revoked';
+  if n is distinct from 1 then
+    raise exception 'CL-11 FAILED: the person-then-STOP order recorded % rows', n;
+  end if;
+
+  -- And a REVOKED opt-out is not a revocation: that customer texted START and
+  -- came back. Recording one against them would make the import the one path
+  -- that never lets anybody back in.
+  insert into public.opt_outs (company_id, phone_e164, source, revoked_at)
+  values (co, '+12125559012', 'stop_keyword', now());
+  insert into public.contacts (company_id, phone_e164)
+  values (co, '+12125559012')
+  returning id into ct;
+
+  select count(*) into n from public.contact_consent_events where contact_id = ct;
+  if n is distinct from 0 then
+    raise exception 'CL-11 FAILED: a lifted opt-out recorded % revocation rows', n;
+  end if;
+end $$;
+
+-- ===========================================================================
+-- CL-12. #248: the index behind "have we already announced this opt-out?".
+--
+--        The importer answers that question per import, for up to 2000 phones,
+--        to decide which timeline events a re-run still owes. Without the
+--        partial index it is a scan of the workspace's whole event history
+--        inside one Worker request — which is not a check that ships, it is a
+--        check that times out and gets deleted.
+-- ===========================================================================
+do $$
+begin
+  if not exists (
+    select 1 from pg_indexes
+     where schemaname = 'public'
+       and tablename = 'conversation_events'
+       and indexname = 'conversation_events_opted_out_phone_idx')
+  then
+    raise exception 'CL-12 FAILED: the opted_out announcement index is missing';
+  end if;
+end $$;
+
+-- ===========================================================================
+-- CL-13. #248: DELETING THE CONTACT DOES NOT ERASE THE REVOCATION.
+--
+--        The ledger was append-only against UPDATE and wide open to DELETE:
+--        `contact_consent_events_immutable` is BEFORE UPDATE only, no DELETE
+--        trigger exists, and the contact FK was ON DELETE CASCADE. So the one
+--        row a carrier audit or a demand letter is actually about — "they told
+--        you to stop on the 3rd" — went away with the contact.
+--
+--        And not hypothetically: `purge_workspace_step` deletes `contacts`,
+--        while docs/DELETION.md lists this table as one of the two things that
+--        deliberately outlive a workspace. The schema was quietly winning that
+--        argument.
+--
+--        A revocation belongs to the person who sent it, exactly as `opt_outs`
+--        does — which is why the row detaches and keeps the number rather than
+--        the delete being blocked. Blocking was never available: the same
+--        trigger would fire on the purge and make a closed workspace
+--        impossible to erase.
+-- ===========================================================================
+do $$
+declare
+  co uuid := '22600000-0000-4000-8000-000000000002';
+  ct uuid;
+  r  public.contact_consent_events%rowtype;
+  n  int;
+begin
+  insert into public.opt_outs (company_id, phone_e164, source, created_by)
+  values (co, '+12125559013', 'stop_keyword',
+          '22600000-0000-4000-8000-000000000001');
+  insert into public.contacts (company_id, phone_e164)
+  values (co, '+12125559013')
+  returning id into ct;
+
+  select * into r
+    from public.contact_consent_events
+   where contact_id = ct and state = 'revoked';
+  if r.id is null then
+    raise exception 'CL-13 FAILED: no revocation row to begin with';
+  end if;
+  -- The number is ON THE ROW, not only inside `evidence`: after the delete it
+  -- is the only handle left on who this was.
+  --
+  -- `is distinct from`, NOT `<>`, and this assertion was decorative until it
+  -- was: dropping `phone_e164` from this writer left the column NULL, and
+  -- `NULL <> '+1…'` is NULL rather than true, so `if` took the false branch and
+  -- the check waved through the exact defect it exists to catch. Proved by
+  -- breaking the writer — it survived, twice, before this line changed. The
+  -- migration's own trigger warns about the same trap one file over.
+  if r.phone_e164 is distinct from '+12125559013' then
+    raise exception 'CL-13 FAILED: phone_e164 = % (want the contact''s number)',
+      coalesce(r.phone_e164, '(null)');
+  end if;
+
+  -- The purge's own operative statement, and the ops erasure path. Wrapped so
+  -- a REFUSED delete is named too: the first version of the detach collided
+  -- with the append-only trigger and deleting a contact simply failed, which is
+  -- a different defect from the one below and has to read as one.
+  begin
+    delete from public.contacts where id = ct;
+  exception when others then
+    raise exception 'CL-13 FAILED: deleting the contact was refused outright: %',
+      sqlerrm;
+  end;
+
+  select count(*) into n
+    from public.contact_consent_events
+   where id = r.id;
+  if n is distinct from 1 then
+    raise exception 'CL-13 FAILED: deleting the contact erased the revocation';
+  end if;
+
+  select * into r from public.contact_consent_events where id = r.id;
+  -- Detached, not dangling: a ledger row pointing at a contact that no longer
+  -- exists would be worse evidence than one that says so.
+  if r.contact_id is not null then
+    raise exception 'CL-13 FAILED: contact_id survived the delete as %', r.contact_id;
+  end if;
+  if r.phone_e164 is distinct from '+12125559013' then
+    raise exception 'CL-13 FAILED: the surviving row lost its number';
+  end if;
+  if r.captured_at is null or r.source is distinct from 'stop_keyword' then
+    raise exception 'CL-13 FAILED: the surviving row lost when or how';
+  end if;
+end $$;
+
+-- ===========================================================================
+-- CL-13b. The detach is the ONLY update the ledger now permits.
+--
+--         `ON DELETE SET NULL` is an UPDATE, so making the row survive the
+--         contact meant teaching the append-only trigger one exception — and an
+--         exception in an immutability rule is exactly the kind of thing that
+--         quietly widens. It is narrow by construction: contact_id from a value
+--         to NULL, every other column byte-identical. An update that performs
+--         the detach and edits something else in the same statement is still
+--         refused, which is what stops "detach" becoming a way to rewrite.
+-- ===========================================================================
+do $$
+declare
+  co  uuid := '22600000-0000-4000-8000-000000000002';
+  ct  uuid;
+  eid uuid;
+  ok  boolean := false;
+begin
+  insert into public.contacts (company_id, phone_e164, consent_source, consent_at)
+  values (co, '+12125559016', 'attested', now())
+  returning id into ct;
+  select id into eid
+    from public.contact_consent_events where contact_id = ct limit 1;
+
+  -- (1) An ordinary rewrite: still refused.
+  begin
+    update public.contact_consent_events set state = 'implied' where id = eid;
+    raise exception 'CL-13b FAILED: an ordinary rewrite was accepted';
+  exception when others then
+    if sqlerrm not like '%append-only%' then raise; end if;
+    ok := true;
+  end;
+  if not ok then
+    raise exception 'CL-13b FAILED: the rewrite guard did not fire';
+  end if;
+
+  -- (2) A detach that ALSO edits the row: refused, because it is a rewrite
+  --     wearing the exception's clothes.
+  ok := false;
+  begin
+    update public.contact_consent_events
+       set contact_id = null, source = 'manual'
+     where id = eid;
+    raise exception 'CL-13b FAILED: a detach carrying an edit was accepted';
+  exception when others then
+    if sqlerrm not like '%append-only%' then raise; end if;
+    ok := true;
+  end;
+  if not ok then
+    raise exception 'CL-13b FAILED: the smuggled edit was not caught';
+  end if;
+
+  -- (3) The detach alone: permitted, because it removes a pointer to a row
+  --     that no longer exists and asserts nothing.
+  update public.contact_consent_events set contact_id = null where id = eid;
+
+  -- (4) And re-attaching is not a thing: null → a value is a rewrite.
+  ok := false;
+  begin
+    update public.contact_consent_events set contact_id = ct where id = eid;
+    raise exception 'CL-13b FAILED: a detached row was re-attached';
+  exception when others then
+    if sqlerrm not like '%append-only%' then raise; end if;
+    ok := true;
+  end;
+  if not ok then
+    raise exception 'CL-13b FAILED: re-attachment was not caught';
+  end if;
+end $$;
+
+-- ===========================================================================
+-- CL-14. ...and the company still cascades, so erasure is not weakened.
+--
+--        The row outliving one CONTACT is the point; outliving the COMPANY row
+--        would be a different promise from the one DELETION.md makes. (The
+--        workspace teardown anonymises `companies` rather than deleting it, so
+--        in practice the ledger reaches its three-year floor — this asserts the
+--        boundary is still there for a genuine company delete.)
+-- ===========================================================================
+do $$
+declare
+  own uuid := '22600000-0000-4000-8000-000000000003';
+  co  uuid := '22600000-0000-4000-8000-000000000004';
+  ct  uuid;
+  n   int;
+begin
+  insert into auth.users (id, email, encrypted_password, email_confirmed_at,
+                          created_at, updated_at, aud, role)
+  values (own, 'consent-cascade@test.local', '', now(), now(), now(),
+          'authenticated', 'authenticated')
+  on conflict (id) do nothing;
+  insert into public.companies
+    (id, name, owner_user_id, country, requested_area_code, aup_accepted_at,
+     subscription_status, plan)
+  values (co, 'Consent Cascade Co', own, 'US', '212', now(), 'active', 'pro');
+
+  insert into public.contacts (company_id, phone_e164, consent_source, consent_at)
+  values (co, '+12125559014', 'attested', now())
+  returning id into ct;
+
+  select count(*) into n
+    from public.contact_consent_events where company_id = co;
+  if n is distinct from 1 then
+    raise exception 'CL-14 FAILED: expected one ledger row, got %', n;
+  end if;
+
+  -- The purge's order: contacts first (contacts.company_id does NOT cascade),
+  -- which detaches the ledger row and leaves it holding the company.
+  delete from public.contacts where id = ct;
+  select count(*) into n
+    from public.contact_consent_events
+   where company_id = co and contact_id is null;
+  if n is distinct from 1 then
+    raise exception 'CL-14 FAILED: the row did not survive the contact detached';
+  end if;
+
+  delete from public.companies where id = co;
+
+  select count(*) into n
+    from public.contact_consent_events where company_id = co;
+  if n is distinct from 0 then
+    raise exception 'CL-14 FAILED: % ledger row(s) outlived the company', n;
+  end if;
+end $$;
+
+-- ===========================================================================
+-- CL-15. Every writer records the number, not just the one that was easy.
+--
+--        Three triggers write this ledger — the contact's own basis, the
+--        opt-out transition, and the contact-arrives-second mirror — and a
+--        column only some of them fill is a column nobody can rely on. Each is
+--        exercised through its real path.
+-- ===========================================================================
+do $$
+declare
+  co uuid := '22600000-0000-4000-8000-000000000002';
+  ct uuid;
+  n  int;
+begin
+  -- (1) contacts_record_consent: a basis written with the contact.
+  insert into public.contacts (company_id, phone_e164, consent_source, consent_at)
+  values (co, '+12125559015', 'attested', now())
+  returning id into ct;
+  -- (2) opt_outs_record_consent: the STOP arriving after the contact.
+  insert into public.opt_outs (company_id, phone_e164, source, created_by)
+  values (co, '+12125559015', 'stop_keyword',
+          '22600000-0000-4000-8000-000000000001');
+
+  select count(*) into n
+    from public.contact_consent_events
+   where contact_id = ct and phone_e164 = '+12125559015';
+  if n is distinct from 2 then
+    raise exception 'CL-15 FAILED: % of 2 rows carry the number', n;
+  end if;
+end $$;
+
+-- ===========================================================================
+-- CL-16. #248: THE DETACH IS THE ONLY UPDATE, AND THE MIGRATION'S OWN
+--        EXEMPTION DID NOT SURVIVE IT.
+--
+--        20260806100000 has to run an UPDATE (`phone_e164` on rows written
+--        before that column existed) against a table whose trigger refuses
+--        every UPDATE. It widens the rule, back fills, then narrows it again —
+--        and "narrows it again" is one `create or replace` that a later edit,
+--        a merge, or a copy-paste of the wrong half quietly loses. Nothing
+--        would fail: the ledger would simply accept a phone rewrite forever,
+--        which is a ledger whose subject can be changed after the fact.
+--
+--        Discovered by running the migration against a database that HAS rows.
+--        `supabase db reset` applies migrations to an empty one, so the
+--        backfill loop matched nothing, exited, and the collision was
+--        invisible — green locally, dead on the first deploy. Which is why
+--        this asserts the SHIPPED rule rather than trusting the file.
+-- ===========================================================================
+do $$
+declare
+  co uuid := '22600000-0000-4000-8000-000000000002';
+  ct uuid;
+  r  public.contact_consent_events%rowtype;
+  ok boolean;
+begin
+  insert into public.contacts (company_id, phone_e164, consent_source, consent_at)
+  values (co, '+12125559116', 'attested', now())
+  returning id into ct;
+  select * into r from public.contact_consent_events where contact_id = ct;
+  if r.id is null then
+    raise exception 'CL-16 FAILED: no ledger row to begin with';
+  end if;
+
+  -- (1) A phone rewrite is refused.
+  ok := false;
+  begin
+    update public.contact_consent_events
+       set phone_e164 = '+12125550000'
+     where id = r.id;
+  exception when others then
+    ok := true;
+  end;
+  if not ok then
+    raise exception 'CL-16 FAILED: the ledger accepted a phone rewrite';
+  end if;
+
+  -- (1b) AND SO IS FILLING A NULL ONE, which is the shape the exemption
+  --      actually had — `old.phone_e164 is null and new.phone_e164 is not
+  --      null`. Testing only the rewrite above left this open: keeping both
+  --      rules instead of sequencing them ("we might need the backfill again")
+  --      passed (1) and (2) untouched, because neither row's phone was ever
+  --      null. Proved by writing that merge and watching this file accept it.
+  --
+  --      The rows this reaches are real: the migration cannot back fill a row
+  --      whose contact was already deleted, so production keeps null-phone
+  --      rows forever, and a standing exemption would let anyone point one at
+  --      a number of their choosing. The pre-migration shape is rebuilt here
+  --      with the trigger off, which is the only way to get one now.
+  alter table public.contact_consent_events disable trigger contact_consent_events_immutable;
+  update public.contact_consent_events set phone_e164 = null where id = r.id;
+  alter table public.contact_consent_events enable trigger contact_consent_events_immutable;
+  ok := false;
+  begin
+    update public.contact_consent_events
+       set phone_e164 = '+12125550000'
+     where id = r.id;
+  exception when others then
+    ok := true;
+  end;
+  if not ok then
+    raise exception
+      'CL-16 FAILED: the ledger filled a null phone — the migration''s temporary exemption is still in force';
+  end if;
+  alter table public.contact_consent_events disable trigger contact_consent_events_immutable;
+  update public.contact_consent_events set phone_e164 = '+12125559116' where id = r.id;
+  alter table public.contact_consent_events enable trigger contact_consent_events_immutable;
+
+  -- (2) So is filling a NULL one, which is the exact shape of the backfill.
+  ok := false;
+  begin
+    update public.contact_consent_events
+       set phone_e164 = null, state = 'express'
+     where id = r.id;
+  exception when others then
+    ok := true;
+  end;
+  if not ok then
+    raise exception 'CL-16 FAILED: the ledger accepted a rewrite of two columns';
+  end if;
+
+  -- (3) And the detach still passes, so (1) and (2) are a narrow rule rather
+  --     than a blanket refusal that would make a contact undeletable.
+  begin
+    delete from public.contacts where id = ct;
+  exception when others then
+    raise exception 'CL-16 FAILED: the detach was refused too: %', sqlerrm;
+  end;
+  select * into r from public.contact_consent_events where id = r.id;
+  if r.id is null or r.contact_id is not null then
+    raise exception 'CL-16 FAILED: the row did not survive detached';
+  end if;
+  if r.phone_e164 is distinct from '+12125559116' then
+    raise exception 'CL-16 FAILED: the detached row lost its number';
+  end if;
+end $$;
+
+\echo 'consent_ledger.test.sql: CL-1..CL-16 PASSED'
 
 rollback;

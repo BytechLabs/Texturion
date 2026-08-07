@@ -134,25 +134,25 @@ begin
   select count(*) into v_rows from public.api_assess_activation_stall();
   -- Every one of the seven is a transition from the implicit 'ok', except the
   -- three that ARE ok and therefore do not change.
-  if v_rows <> 4 then
+  if v_rows is distinct from 4 then
     raise exception 'AS-1 FAILED: expected 4 transitions, got %', v_rows;
   end if;
 
   select state into v_state from public.activation_stall_state
    where company_id = 'bb000000-0000-4000-8000-0000000000c1'::uuid;
-  if v_state <> 'not_sent' then
+  if v_state is distinct from 'not_sent' then
     raise exception 'AS-1 FAILED: a workspace that can send and has not reads % ', v_state;
   end if;
 
   select state into v_state from public.activation_stall_state
    where company_id = 'bb000000-0000-4000-8000-0000000000c2'::uuid;
-  if v_state <> 'no_reply' then
+  if v_state is distinct from 'no_reply' then
     raise exception 'AS-1 FAILED: texting into silence reads %', v_state;
   end if;
 
   select state into v_state from public.activation_stall_state
    where company_id = 'bb000000-0000-4000-8000-0000000000c3'::uuid;
-  if v_state <> 'awaiting_carrier' then
+  if v_state is distinct from 'awaiting_carrier' then
     raise exception 'AS-1 FAILED: a late carrier reads %', v_state;
   end if;
 
@@ -170,7 +170,7 @@ begin
   -- US signup in its first week.
   select state into v_state from public.activation_stall_state
    where company_id = 'bb000000-0000-4000-8000-0000000000c4'::uuid;
-  if v_state <> 'ok' then
+  if v_state is distinct from 'ok' then
     raise exception
       'AS-2 FAILED: a workspace INSIDE the carrier promise reads % — that '
       'fires on every US signup and trains the reader to ignore it', v_state;
@@ -179,14 +179,14 @@ begin
   -- Activated. The reply arrived, so there is nothing to chase.
   select state into v_state from public.activation_stall_state
    where company_id = 'bb000000-0000-4000-8000-0000000000c5'::uuid;
-  if v_state <> 'ok' then
+  if v_state is distinct from 'ok' then
     raise exception 'AS-2 FAILED: an activated workspace reads %', v_state;
   end if;
 
   -- One day old. A signup on Friday that gets going on Monday is not a stall.
   select state into v_state from public.activation_stall_state
    where company_id = 'bb000000-0000-4000-8000-0000000000c6'::uuid;
-  if v_state <> 'ok' then
+  if v_state is distinct from 'ok' then
     raise exception 'AS-2 FAILED: a one-day-old workspace reads %', v_state;
   end if;
 
@@ -204,14 +204,14 @@ begin
   select state, days_in_state into v_state, v_days
     from public.activation_stall_state
    where company_id = 'bb000000-0000-4000-8000-0000000000c7'::uuid;
-  if v_state <> 'no_reply' then
+  if v_state is distinct from 'no_reply' then
     raise exception
       'AS-3 FAILED: a workspace that sent and got no reply reads % — judging '
       'it on the approval it cleared a fortnight ago would report a problem '
       'it already solved', v_state;
   end if;
   -- Measured from the SEND, not from the approval.
-  if v_days <> 9 then
+  if v_days is distinct from 9 then
     raise exception 'AS-3 FAILED: expected 9 days since the send, got %', v_days;
   end if;
   raise notice 'AS-3 PASSED: the last unmet step is the one reported';
@@ -228,7 +228,7 @@ declare
 begin
   -- Nothing changed since AS-1, so a second run says nothing at all.
   select count(*) into v_rows from public.api_assess_activation_stall();
-  if v_rows <> 0 then
+  if v_rows is distinct from 0 then
     raise exception
       'AS-4 FAILED: re-running announced % workspace(s) whose state did not '
       'change — a daily repeat is how the mailbox stops being read', v_rows;
@@ -243,12 +243,12 @@ begin
   select was, state into v_was, v_state
     from public.api_assess_activation_stall()
    where company_id = 'bb000000-0000-4000-8000-0000000000c1'::uuid;
-  if v_state <> 'ok' or v_was <> 'not_sent' then
+  if v_state is distinct from 'ok' or v_was is distinct from 'not_sent' then
     raise exception 'AS-4 FAILED: recovery reported as % -> %', v_was, v_state;
   end if;
 
   select count(*) into v_rows from public.api_assess_activation_stall();
-  if v_rows <> 0 then
+  if v_rows is distinct from 0 then
     raise exception 'AS-4 FAILED: recovery announced twice';
   end if;
 

@@ -38,13 +38,13 @@ begin
 
   result := public.api_create_company(
     '31313131-3131-4131-8131-313131313131', 'Cap Co 6', 'US', '212', true);
-  if result->>'outcome' <> 'owner_cap' or (result->>'limit')::int <> 5 then
+  if result->>'outcome' is distinct from 'owner_cap' or (result->>'limit')::int is distinct from 5 then
     raise exception 'RL1 FAILED: 6th create should be owner_cap, got %', result;
   end if;
 
   select count(*) into n from public.companies
    where owner_user_id = '31313131-3131-4131-8131-313131313131';
-  if n <> 5 then
+  if n is distinct from 5 then
     raise exception 'RL1 FAILED: expected 5 companies after the cap, got %', n;
   end if;
 
@@ -111,7 +111,7 @@ begin
   for i in 1..3 loop
     result := public.bump_registration_otp_counter(bid, cid, 3);
     if (result->>'allowed')::boolean is distinct from true
-       or (result->>'count')::int <> i then
+       or (result->>'count')::int is distinct from i then
       raise exception 'RL3 FAILED: spend % should be allowed with count %, got %',
         i, i, result;
     end if;
@@ -123,7 +123,7 @@ begin
     raise exception 'RL3 FAILED: spend past the cap allowed: %', result;
   end if;
   if (select otp_resend_count from public.messaging_registrations
-       where id = bid) <> 3 then
+       where id = bid) is distinct from 3 then
     raise exception 'RL3 FAILED: counter moved past the cap';
   end if;
 

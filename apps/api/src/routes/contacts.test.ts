@@ -20,8 +20,38 @@ import {
   type TestAuth,
 } from "../test/support";
 import { decodeCursor, encodeCursor } from "../http/pagination";
+import {
+  CONTACT_IMPORT_COLUMN_FIELD,
+  CONTACT_IMPORT_CONSENT_FIELD,
+  CONTACT_IMPORT_CONSENT_REFUSED_NOTE,
+  CONTACT_IMPORT_CONSENT_REQUIRED,
+  CONTACT_IMPORT_CONSENT_VALUE,
+  CONTACT_IMPORT_IGNORE,
+  CONTACT_IMPORT_MAX_ROWS,
+  CONTACT_IMPORT_UNREADABLE_ENCODING,
+  CONTACT_IMPORT_VCARD_PROPERTY_FIELD,
+  contactImportColumnMismatchMessage,
+  contactImportConsentRefusedReason,
+  contactImportUndeclaredColumnsMessage,
+  contactImportUndeclaredPropertiesMessage,
+  contactImportUnreadableFlagMessage,
+  contactImportUnterminatedQuoteMessage,
+  defaultContactImportColumns,
+  formatContactImportColumn,
+  formatVCardProperty,
+  vcardParameterProperty,
+  type ContactImportColumnDeclaration,
+  type ContactImportColumnGuess,
+} from "@loonext/shared";
 
-import { contactSearchOr, contactsRoutes } from "./contacts";
+import { parseCsvRows } from "./core/csv";
+import {
+  CONSENT_ATTEST_ALREADY_RECORDED,
+  CONSENT_ATTEST_REFUSED_OPTED_OUT,
+  EXPORT_HEADER,
+  contactSearchOr,
+  contactsRoutes,
+} from "./contacts";
 
 const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
@@ -29,6 +59,12 @@ const MEMBER_ID = "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
 const CONTACT_ID = "dddddddd-1111-4222-8333-444444444444";
 /** #246: the second record for the same customer. */
 const OTHER_ID = "dddddddd-2222-4222-8333-444444444444";
+/**
+ * #248 D1: the number the defect was proved against — an ACTIVE `opt_outs`
+ * row, source `stop_keyword`, `revoked_at` null. Its carrier is blocking this
+ * business's texts and only this customer can lift it.
+ */
+const STOPPED_PHONE = "+14163014444";
 
 let auth: TestAuth;
 const app = buildTestApp(contactsRoutes);
@@ -77,6 +113,24 @@ function stubWithRole(
   return sb;
 }
 
+/**
+ * "Nobody in this file has opted out" — SAID, never assumed.
+ *
+ * Every import now reads `opt_outs` per phone before deciding whether the
+ * file's attestation may be written (#248 D1). That read is deliberately not an
+ * ambient handler in the harness, unlike the addresses and phones above: the
+ * ambient answer would be the PERMISSIVE one, so a future consent test that
+ * forgot to register it would pass while asserting exactly the bug this
+ * exists to prevent — an attestation manufactured over a live STOP.
+ *
+ * So each import test states the opt-out state it is about, and the ones about
+ * opt-outs state a different one. Registered before anything else claims the
+ * path, because this harness is first-match-wins.
+ */
+function noStandingOptOuts(sb: SupabaseStub): void {
+  sb.on("GET", "/rest/v1/opt_outs", () => []);
+}
+
 function contactRow(overrides: Record<string, unknown> = {}) {
   return {
     id: CONTACT_ID,
@@ -94,13 +148,79 @@ function contactRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function importForm(csv: string, attested = true): FormData {
+/**
+ * THE PERSON'S ANSWER, with a test standing in for the person.
+ *
+ * #248 H1: `defaultContactImportColumns` guesses a FIELD or nothing at all —
+ * its `action` cannot even hold `ignore` — because a dismissal is an answer and
+ * a detector has not seen a value. So somebody has to say `ignore`, and here
+ * that somebody is this function. Written out rather than buried inside
+ * `importForm` because the entire design turns on WHO said it: the version of
+ * this that lived in the shared module posted a complete declaration for
+ * `Phone,Name,Notes` over a "DO NOT CALL - asked us to stop" column with
+ * nobody having looked at anything, and the message went out.
+ */
+/** The detector's guess for a whole file, read the way the route reads it. */
+function guessFor(csv: string): ContactImportColumnGuess[] {
+  const parsed = parseCsvRows(csv);
+  return defaultContactImportColumns(
+    (parsed[0]?.cells ?? []).map((cell) => cell.trim()),
+    parsed.slice(1).map((row) => row.cells),
+  );
+}
+
+function answered(
+  guesses: readonly ContactImportColumnGuess[],
+): ContactImportColumnDeclaration[] {
+  return guesses.map(({ index, header, action }) => ({
+    index,
+    header,
+    action: action ?? CONTACT_IMPORT_IGNORE,
+  }));
+}
+
+/**
+ * A file a person has looked at: attested, and every column answered for.
+ *
+ * #226's attestation and #248 round 3's per-column declaration are BOTH
+ * defaulted here, for the same reason — every pre-existing test still describes
+ * the case it was written for, and each gate is asserted directly by tests of
+ * its own rather than incidentally by all of them.
+ *
+ * The declaration defaults to the detector's guess with every unrecognised
+ * column dismissed by `answered` above, which is what a real client posts after
+ * the person confirms: the wizard shows the guess plus each column's VALUES and
+ * sends back what they answered. Pass `columns: null` to send no declaration at
+ * all, or an explicit list to declare something other than the guess — which is
+ * the whole point of the design, since the person's answer is what the server
+ * maps by.
+ */
+function importForm(
+  csv: string,
+  attested = true,
+  columns?: ContactImportColumnDeclaration[] | null,
+): FormData {
   const form = new FormData();
   form.append("file", new File([csv], "contacts.csv", { type: "text/csv" }));
-  // #226: an import cannot complete without a stated consent basis. Defaulted
-  // here so every pre-existing test still describes the case it was written
-  // for; the gate itself is asserted directly below.
-  if (attested) form.append("consent_attested", "true");
+  // #226: an import cannot complete without a stated consent basis. The field
+  // name and value come from the shared contract (#248) — the whole reason no
+  // client could satisfy this gate for a week is that only the server knew what
+  // it was.
+  if (attested) {
+    form.append(CONTACT_IMPORT_CONSENT_FIELD, CONTACT_IMPORT_CONSENT_VALUE);
+  }
+  if (columns !== null) {
+    // Parsed only when nobody handed us a declaration: a fixture about a file
+    // this parser REFUSES (an unterminated quote, #248 H5) still has to be
+    // postable, and a helper that parses it first fails the test in the helper.
+    const declarations = columns ?? answered(guessFor(csv));
+    for (const declaration of declarations) {
+      form.append(
+        CONTACT_IMPORT_COLUMN_FIELD,
+        formatContactImportColumn(declaration),
+      );
+    }
+  }
   return form;
 }
 
@@ -579,6 +699,292 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
     ]);
   });
 
+  it("#248 B4: PATCH consent_attested is refused over a standing opt-out", async () => {
+    // THE THIRD DOOR. Round one gated both bulk importers and left this one
+    // open: it wrote `attested / now / this member` with no opt-out check of
+    // any kind, over a live `stop_keyword` row — and then read `opt_outs`
+    // twelve lines later, purely to decorate the response. The fact was in
+    // hand and unused.
+    //
+    // An import may lower a contact's standing, never raise it. So may
+    // everything else.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [
+      contactRow({ phone_e164: STOPPED_PHONE }),
+    ]);
+    sb.on("PATCH", "/rest/v1/contacts", (call) => [
+      { ...contactRow(), ...(call.body as Record<string, unknown>) },
+    ]);
+    sb.on("GET", "/rest/v1/opt_outs", () => [
+      { id: OTHER_ID, source: "stop_keyword" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      {
+        method: "PATCH",
+        companyId: COMPANY_ID,
+        body: { consent_attested: true, name: "Jo S." },
+      },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toBe(CONSENT_ATTEST_REFUSED_OPTED_OUT);
+    // Whole request or nothing: a saved name beside a refused attestation is a
+    // response that looks like success while the one thing they asked for did
+    // not happen.
+    expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
+  });
+
+  it("#248 B4: PATCH consent_attested never overwrites an existing basis", async () => {
+    // "They texted us first on 12 March" is strong evidence; replacing it with
+    // "Sam says so, today" is weaker evidence AND an unrecordable change —
+    // `contacts_record_consent` only fires on the null → value transition, so
+    // the ledger cannot even hold the rewrite and the panel would show an
+    // attestation with no row behind it. The importer coalesces; this door
+    // used to overwrite, on the same three columns, in the same product.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [
+      contactRow({
+        consent_source: "inbound_sms",
+        consent_at: "2026-03-12T15:04:00+00:00",
+      }),
+    ]);
+    sb.on("PATCH", "/rest/v1/contacts", (call) => [
+      { ...contactRow(), ...(call.body as Record<string, unknown>) },
+    ]);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      {
+        method: "PATCH",
+        companyId: COMPANY_ID,
+        body: { consent_attested: true },
+      },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toBe(CONSENT_ATTEST_ALREADY_RECORDED);
+    expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
+  it("#248 M10: with BOTH true, the opt-out is the one it says", async () => {
+    // The two tests above each assert ONE condition alone, so swapping the two
+    // throws survived all 3946 of them — no fixture had ever paired an active
+    // `opt_outs` row WITH an existing basis.
+    //
+    // That pairing is not an edge case, it is the ordinary shape of a carrier
+    // STOP: `thread_inbound_message` stamps `consent_source='inbound_sms'` on
+    // the STOP message itself, so every customer who texted STOP has a basis
+    // AND a block. Under the swapped order every one of them would be told
+    // their consent is "already on record and it stands" — which reads as a
+    // filing detail — instead of that they asked this business to stop and only
+    // they can lift it.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [
+      contactRow({
+        phone_e164: STOPPED_PHONE,
+        consent_source: "inbound_sms",
+        consent_at: "2026-03-12T15:04:00+00:00",
+      }),
+    ]);
+    sb.on("PATCH", "/rest/v1/contacts", (call) => [
+      { ...contactRow(), ...(call.body as Record<string, unknown>) },
+    ]);
+    sb.on("GET", "/rest/v1/opt_outs", () => [
+      { id: OTHER_ID, source: "stop_keyword" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      {
+        method: "PATCH",
+        companyId: COMPANY_ID,
+        body: { consent_attested: true },
+      },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toBe(CONSENT_ATTEST_REFUSED_OPTED_OUT);
+    expect(body.error.message).not.toBe(CONSENT_ATTEST_ALREADY_RECORDED);
+    expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
+  it("#248 M10: the importer answers the same pair the same way", async () => {
+    // The identical ordering lives in `importConsent`, and the same swap is
+    // available there — where it is worse, because the answer is a COUNT rather
+    // than a sentence: asking about the basis first made the refusal silent for
+    // every carrier STOP, and a workspace uploading a competitor export
+    // containing forty of them was told 0 refused.
+    //
+    // A MIX, so a resolver that decided once for the file cannot pass: one row
+    // has a basis and a standing block, one has a basis and no block, one is
+    // new.
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/opt_outs", () => [
+      { phone_e164: STOPPED_PHONE, source: "stop_keyword" },
+    ]);
+    sb.on("GET", "/rest/v1/contacts", () => [
+      {
+        phone_e164: STOPPED_PHONE,
+        consent_at: "2026-03-12T15:04:00+00:00",
+        consent_source: "inbound_sms",
+      },
+      {
+        phone_e164: "+14165550102",
+        consent_at: "2026-03-12T15:04:00+00:00",
+        consent_source: "inbound_sms",
+      },
+    ]);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const csv = [
+      "phone,name",
+      `${STOPPED_PHONE},Jo`,
+      "+14165550102,Sam",
+      "+14165550103,Ali",
+    ].join("\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
+    );
+    expect(res.status).toBe(200);
+    // ONE refusal: the row where the file and the record disagree. Not the row
+    // that merely already had a basis — nothing was going to be written there,
+    // so nothing was refused, and naming it would inflate a count people learn
+    // to ignore.
+    expect(await res.json()).toMatchObject({
+      consent_refused: 1,
+      consent_refusals: [
+        { row: 2, reason: contactImportConsentRefusedReason(STOPPED_PHONE) },
+      ],
+    });
+  });
+
+  it("#248 B4: fails the edit rather than guess at a flaky opt-out read", async () => {
+    // The importer has had this guard since round two ("fails the whole import
+    // rather than guess at a flaky opt-out read"). THIS door did not, and one
+    // try/catch answering "found nothing" survived all 3964 tests — the two B4
+    // fixtures above both stub a read that SUCCEEDS, so neither can see what
+    // happens when it does not.
+    //
+    // The asymmetry is the whole point: `unwrap` throwing is the only thing
+    // standing between an unreadable `opt_outs` table and an attestation
+    // stamped over a live carrier STOP, and a defence that exists at two of the
+    // three doors is a defence somebody will "tidy up" at the third.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [
+      contactRow({ phone_e164: STOPPED_PHONE }),
+    ]);
+    sb.on("PATCH", "/rest/v1/contacts", (call) => [
+      { ...contactRow(), ...(call.body as Record<string, unknown>) },
+    ]);
+    // A PostgREST 500, not a thrown fetch: supabase-js RETRIES ONCE on a
+    // transport-level rejection, so a harness that throws from `fetch` shows
+    // the run succeeding and proves nothing.
+    sb.on(
+      "GET",
+      "/rest/v1/opt_outs",
+      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      {
+        method: "PATCH",
+        companyId: COMPANY_ID,
+        body: { consent_attested: true, name: "Jo S." },
+      },
+    );
+    // Told, and nothing written. "I could not check" is not "they are clear".
+    expect(res.status).toBe(500);
+    expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
+  });
+
+  it("#248 M7b: the DETAIL fails rather than reporting a flaky read as clear", async () => {
+    // The same mutation, at the door next to it: wrapping this read in a
+    // try/catch that answers `[]` survived all 3970 tests, because every
+    // fixture here stubs a read that SUCCEEDS. `opted_out: false` is the answer
+    // the screen believes — it is what hides the blocked banner and offers the
+    // composer — so "I could not check" arriving as "they are clear" is a
+    // person being invited to text somebody who said stop.
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [
+      contactRow({ phone_e164: STOPPED_PHONE }),
+    ]);
+    // A PostgREST 500, not a thrown fetch: supabase-js retries once on a
+    // transport rejection, so a harness that throws shows the run succeeding.
+    sb.on(
+      "GET",
+      "/rest/v1/opt_outs",
+      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(500);
+    // And it is not a 200 carrying a quiet lie.
+    expect(await res.text()).not.toContain('"opted_out":false');
+  });
+
+  it("#248 B4: an ordinary edit still costs one opt-out read, not two", async () => {
+    // The gate reuses the read the response was already making. Two reads of
+    // the same fact in one request is a pair that can disagree, and this one
+    // would disagree in the direction that matters: the check saying "clear"
+    // and the response saying "opted out".
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("PATCH", "/rest/v1/contacts", (call) => [
+      { ...contactRow(), ...(call.body as Record<string, unknown>) },
+    ]);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/contacts/${CONTACT_ID}`,
+      { method: "PATCH", companyId: COMPANY_ID, body: { name: "Jo S." } },
+    );
+    expect(res.status).toBe(200);
+    expect(sb.find("GET", "/rest/v1/opt_outs")).toHaveLength(1);
+  });
+
   it("DELETE soft-deletes (deleted_at) and 404s an unknown id", async () => {
     const sb = stubWithRole("member");
     sb.on("PATCH", "/rest/v1/contacts", () => [{ id: CONTACT_ID }]);
@@ -977,6 +1383,7 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
 
   it("CSV import stamps created_by_user_id on every imported row", async () => {
     const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
     sb.on("GET", "/rest/v1/contacts", () => []);
     sb.on("POST", "/rest/v1/contacts", (call) => {
       const rows = call.body as { phone_e164: string }[];
@@ -1054,7 +1461,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     expect(res.status).toBe(422);
     const body = (await res.json()) as { error: { code: string; message: string } };
     expect(body.error.code).toBe("validation_failed");
-    expect(body.error.message).toContain("agreed to be texted");
+    expect(body.error.message).toBe(CONTACT_IMPORT_CONSENT_REQUIRED);
   });
 
   it("#226: refuses before spending the upload", async () => {
@@ -1077,7 +1484,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     );
 
     const body = (await res.json()) as { error: { message: string } };
-    expect(body.error.message).toContain("agreed to be texted");
+    expect(body.error.message).toBe(CONTACT_IMPORT_CONSENT_REQUIRED);
   });
 
   it("403s a plain member (role gate)", async () => {
@@ -1099,9 +1506,16 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
 
   it("imports, updates, and reports malformed + duplicate rows; opted_out=true creates import-source opt-outs and events", async () => {
     const sb = stubWithRole("admin");
-    // Pre-existing contact check: +14165550100 already exists.
+    // Pre-existing contact check: +14165550100 already exists — and carries a
+    // basis, because that is the case #248 is about. The stub used to answer
+    // with the phone alone, so "an existing contact keeps its consent" could
+    // not be told apart from "an existing contact has none".
     sb.on("GET", "/rest/v1/contacts", () => [
-      { phone_e164: "+14165550100" },
+      {
+        phone_e164: "+14165550100",
+        consent_source: "inbound_sms",
+        consent_at: "2026-03-12T15:04:00+00:00",
+      },
     ]);
     sb.on("POST", "/rest/v1/contacts", (call) => {
       const rows = call.body as { phone_e164: string }[];
@@ -1143,6 +1557,13 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
         { row: 5, reason: expect.stringContaining("duplicate phone") },
         { row: 6, reason: expect.stringContaining("invalid phone") },
       ],
+      // #248: nobody in this file is opted out at the carrier, so the
+      // attestation applied to every row it was written on and there is
+      // nothing to report. The note is null rather than the sentence, so a
+      // client renders the banner by presence rather than by counting.
+      consent_refused: 0,
+      consent_refusals: [],
+      consent_refused_note: null,
     });
 
     // Upsert payload: E.164-normalized, deleted_at cleared, only CSV columns.
@@ -1150,17 +1571,31 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     // with an address queues geocode_status='pending', a row whose address cell
     // is empty settles to 'no_address' — exactly as POST/PATCH /contacts do, so
     // a re-import that CHANGES an already-geocoded contact's address re-geocodes.
-    const upsert = sb.find("POST", "/rest/v1/contacts")[0];
-    expect(upsert.body).toEqual([
+    //
+    // ONE call, because NEITHER row takes the attestation and the two
+    // therefore share a key set — and the two reasons are the whole of #248's
+    // consent rule:
+    //
+    //   +14165550100 texted this business first on 12 March, so it keeps
+    //   `inbound_sms` and that date. The three consent keys are ABSENT — not
+    //   null, absent — because the upsert merges on conflict, so sending them
+    //   at all is what overwrote a stronger basis (they contacted us, with a
+    //   message to prove it) with a weaker one (a member says so) every time
+    //   somebody re-uploaded last year's spreadsheet.
+    //
+    //   +14165550101 is brand new and the file marks it opted_out. A file
+    //   whose attestation says everyone agreed and whose row says this one
+    //   opted out has contradicted itself, and the restriction is the half to
+    //   believe. Writing "attested, today" beside an opt-out created in the
+    //   same request is the manufactured consent this issue is about.
+    const upserts = sb.find("POST", "/rest/v1/contacts");
+    expect(upserts).toHaveLength(1);
+    expect(upserts[0].body).toEqual([
       {
         company_id: COMPANY_ID,
         phone_e164: "+14165550100",
         deleted_at: null,
         created_by_user_id: auth.subject, // #191 attribution
-        // #226: the attested basis, on every row the file creates.
-        consent_source: "attested",
-        consent_at: expect.any(String),
-        consent_attested_by: auth.subject,
         name: "Smith, Jo",
         address: "1 Main St",
         lat: null,
@@ -1173,9 +1608,6 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
         phone_e164: "+14165550101",
         deleted_at: null,
         created_by_user_id: auth.subject, // #191 attribution
-        consent_source: "attested",
-        consent_at: expect.any(String),
-        consent_attested_by: auth.subject,
         name: "New Person",
         address: null,
         lat: null,
@@ -1184,9 +1616,11 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
         geocode_status: "no_address",
       },
     ]);
-    expect(upsert.url.searchParams.get("on_conflict")).toBe(
-      "company_id,phone_e164",
-    );
+    for (const upsert of upserts) {
+      expect(upsert.url.searchParams.get("on_conflict")).toBe(
+        "company_id,phone_e164",
+      );
+    }
 
     // opted_out=true row → opt_outs upsert with source='import'.
     const optOuts = sb.find("POST", "/rest/v1/opt_outs")[0].body as unknown[];
@@ -1210,6 +1644,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
 
   it("strips the export's CSV-injection guard apostrophe from a name on import (lossless round-trip, D20 §3.1)", async () => {
     const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
     sb.on("GET", "/rest/v1/contacts", () => []);
     sb.on("POST", "/rest/v1/contacts", (call) => {
       const rows = call.body as { phone_e164: string }[];
@@ -1239,6 +1674,762 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     expect(upsert[0].name).toBe('=HYPERLINK("http://evil","click")');
   });
 
+  it("#248: refuses an import when the workspace is over its import rate", async () => {
+    // Import is the one route where a customer hands us unbounded input. Rows
+    // and bytes were capped per REQUEST and nothing capped the requests, so
+    // 2000 rows of reads-plus-upserts could be replayed as fast as the network
+    // allowed. Keyed on the company, because the cost is the company's.
+    const sb = stubWithRole("admin");
+    stubFetch(jwksRoute(auth), sb.route);
+    const keys: string[] = [];
+    const limiter = {
+      limit: async ({ key }: { key: string }) => {
+        keys.push(key);
+        return { success: false };
+      },
+    };
+
+    const res = await apiRequest(
+      app,
+      { ...env, CONTACT_IMPORT_RATE_LIMITER: limiter },
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm("phone,name\n+14165550100,Jo\n"),
+      },
+    );
+    expect(res.status).toBe(429);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe("rate_limited");
+    expect(keys).toEqual([`contact-import:${COMPANY_ID}`]);
+    // Refused before the body was read: no contacts were touched.
+    expect(sb.find("GET", "/rest/v1/contacts")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
+  it("#248: the vCard route spends the same import budget", async () => {
+    // One budget for both doors. Two limiters would mean a script alternating
+    // routes gets twice the allowance for the same cost.
+    const sb = stubWithRole("admin");
+    stubFetch(jwksRoute(auth), sb.route);
+    const keys: string[] = [];
+    const limiter = {
+      limit: async ({ key }: { key: string }) => {
+        keys.push(key);
+        return { success: false };
+      },
+    };
+
+    const res = await apiRequest(
+      app,
+      { ...env, CONTACT_IMPORT_RATE_LIMITER: limiter },
+      await auth.token(),
+      "/v1/contacts/import-vcard",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: vcardForm("BEGIN:VCARD\r\nVERSION:3.0\r\nTEL:+14165550100\r\nEND:VCARD"),
+      },
+    );
+    expect(res.status).toBe(429);
+    expect(keys).toEqual([`contact-import:${COMPANY_ID}`]);
+  });
+
+  it("#248: an existing contact with NO recorded basis takes the attestation", async () => {
+    // The other half of the rule, and the half that makes it honest rather
+    // than merely cautious. Rows that carry nothing about consent — a contact
+    // added by a vCard import back when that route asked no question, or one
+    // created before the columns existed — DO take the importer's attestation:
+    // it is a genuine first record, and it is the transition
+    // `contacts_record_consent` fires on, so the ledger gets its row.
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => [
+      { phone_e164: "+14165550100", consent_source: null, consent_at: null },
+    ]);
+    sb.on("POST", "/rest/v1/contacts", (call) => {
+      const rows = call.body as { phone_e164: string }[];
+      return rows.map((row) => ({ id: CONTACT_ID, phone_e164: row.phone_e164 }));
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm("phone,name\n+14165550100,Jo\n"),
+      },
+    );
+    expect(res.status).toBe(200);
+    const upsert = sb.find("POST", "/rest/v1/contacts")[0].body as Record<
+      string,
+      unknown
+    >[];
+    expect(upsert[0]).toMatchObject({
+      phone_e164: "+14165550100",
+      consent_source: "attested",
+      consent_attested_by: auth.subject,
+    });
+    expect(typeof upsert[0].consent_at).toBe("string");
+  });
+
+  it("#248: re-uploading the same file writes no consent at all the second time", async () => {
+    // What "resumable" means for this importer: it is idempotent, so the cure
+    // for an import that died half way is to upload the file again. That is
+    // only true if the second run is harmless, which it was not — every row
+    // the first run created came back with its basis re-dated to the retry.
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => [
+      {
+        phone_e164: "+14165550100",
+        consent_source: "attested",
+        consent_at: "2026-08-01T00:00:00+00:00",
+      },
+      {
+        phone_e164: "+14165550101",
+        consent_source: "attested",
+        consent_at: "2026-08-01T00:00:00+00:00",
+      },
+    ]);
+    sb.on("POST", "/rest/v1/contacts", (call) => {
+      const rows = call.body as { phone_e164: string }[];
+      return rows.map((row) => ({ id: CONTACT_ID, phone_e164: row.phone_e164 }));
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm("phone,name\n+14165550100,Jo\n+14165550101,Sam\n"),
+      },
+    );
+    expect(res.status).toBe(200);
+    // Everything is an update, and not one consent key crosses the wire.
+    expect(await res.json()).toMatchObject({ imported: 0, updated: 2 });
+    const rows = sb
+      .find("POST", "/rest/v1/contacts")
+      .flatMap((call) => call.body as Record<string, unknown>[]);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row).not.toHaveProperty("consent_source");
+      expect(row).not.toHaveProperty("consent_at");
+      expect(row).not.toHaveProperty("consent_attested_by");
+    }
+  });
+
+  it("#248 D1: refuses the attestation over a standing STOP, and reports it", async () => {
+    // The defect this issue turns on, in the exact shape it was proved in: a
+    // number with an ACTIVE opt_outs row, source 'stop_keyword', never
+    // revoked — and a CSV with NO `opted_out` column at all, which is what
+    // every competitor export looks like, because no other tool has one.
+    //
+    // The decision used to be made from `contacts.consent_at` alone, and an
+    // opt-out is not written there. So the file's attestation landed as
+    // "consent_source=attested, consent_at=now, attested_by=whoever uploaded
+    // it" over a person whose carrier is blocking this business's texts, and
+    // the append-only consent ledger — which already holds their revocation —
+    // took an `express` row dated after it.
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/opt_outs", () => [
+      { phone_e164: STOPPED_PHONE, source: "stop_keyword" },
+    ]);
+    sb.on("GET", "/rest/v1/contacts", () => []); // brand new to this workspace
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    sb.on("POST", "/rest/v1/audit_log", () => new Response(null, { status: 201 }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm(`phone,name\n${STOPPED_PHONE},Jo Smith\n`),
+      },
+    );
+    expect(res.status).toBe(200);
+
+    const rows = sb
+      .find("POST", "/rest/v1/contacts")
+      .flatMap((call) => call.body as Record<string, unknown>[]);
+    // An import may ADD: the contact is written, with the name the file gave.
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      phone_e164: STOPPED_PHONE,
+      name: "Jo Smith",
+    });
+    // It may not RAISE: not one word about consent crosses the wire.
+    expect(rows[0]).not.toHaveProperty("consent_source");
+    expect(rows[0]).not.toHaveProperty("consent_at");
+    expect(rows[0]).not.toHaveProperty("consent_attested_by");
+
+    // And the workspace is told, because a silent refusal is its own defect —
+    // the person who uploaded the file otherwise believes it covered everyone.
+    // Against the shipped strings, so a reworded sentence has to be rewritten
+    // in one place rather than agreed with in two.
+    expect(await res.json()).toMatchObject({
+      imported: 1,
+      consent_refused: 1,
+      consent_refusals: [
+        { row: 2, reason: contactImportConsentRefusedReason(STOPPED_PHONE) },
+      ],
+      consent_refused_note: CONTACT_IMPORT_CONSENT_REFUSED_NOTE,
+    });
+    // And on the audit row, which outlives the tab the response was read in.
+    // This is the number a carrier audit or a demand letter turns on: how many
+    // people in that file the workspace's attestation did not cover.
+    const audit = sb.find("POST", "/rest/v1/audit_log")[0].body as {
+      after: Record<string, unknown>;
+    };
+    expect(audit.after).toMatchObject({ consent_refused: 1, source: "csv" });
+  });
+
+  it("#248 D1: asks opt_outs in batches, never per row", async () => {
+    // The check has to survive the file it exists for. A per-phone query over
+    // a full 2000-row import is 2000 round trips inside one Worker request —
+    // which is not a check that ships, it is a check that times out and gets
+    // taken out again. Same IMPORT_CHUNK shape as every other read here.
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    // 300 distinct numbers → two chunks of 200, not 300 requests.
+    const lines = ["phone"];
+    for (let i = 0; i < 300; i += 1) {
+      lines.push(`+1416555${String(1000 + i).padStart(4, "0")}`);
+    }
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm(`${lines.join("\n")}\n`),
+      },
+    );
+    expect(res.status).toBe(200);
+    const reads = sb.find("GET", "/rest/v1/opt_outs");
+    expect(reads).toHaveLength(2);
+    for (const read of reads) {
+      // An `in.(…)` list, and only rows that are actually standing: a revoked
+      // opt-out is a customer who texted START, and holding that against them
+      // forever would make import the one path nobody gets back in through.
+      expect(read.url.searchParams.get("phone_e164")).toMatch(/^in\.\(/);
+      expect(read.url.searchParams.get("revoked_at")).toBe("is.null");
+    }
+  });
+
+  it("#248: reports the carrier STOP that leaves a consent basis behind", async () => {
+    // THE PAIRING THE DATABASE ACTUALLY PRODUCES, and the one the shipped test
+    // used to assert `consent_refused: 0` against.
+    //
+    // A carrier STOP always leaves a basis: `thread_inbound_message` threads
+    // the STOP message itself, and stamps `consent_source='inbound_sms'` doing
+    // it. So a contact whose ONLY message is the word STOP has both an active
+    // opt_outs row AND a consent basis — and the refusal, which asked about
+    // the basis first, returned "nothing was going to be written, so nothing
+    // was refused" before it ever looked at the opt-out.
+    //
+    // The workspace uploading a competitor export with forty such people was
+    // told 0 refused, and all three clients correctly showed nothing, because
+    // the number they were given was zero. Whether the columns are written is
+    // NOT what changed — `{}` either way — only whether anybody is told.
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/opt_outs", () => [
+      { phone_e164: STOPPED_PHONE, source: "stop_keyword" },
+    ]);
+    sb.on("GET", "/rest/v1/contacts", () => [
+      {
+        phone_e164: STOPPED_PHONE,
+        consent_source: "inbound_sms",
+        consent_at: "2026-03-12T15:04:00+00:00",
+      },
+    ]);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm(`phone,name\n${STOPPED_PHONE},Jo\n`),
+      },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      consent_refused: 1,
+      consent_refusals: [
+        { row: 2, reason: contactImportConsentRefusedReason(STOPPED_PHONE) },
+      ],
+      consent_refused_note: CONTACT_IMPORT_CONSENT_REFUSED_NOTE,
+    });
+    // The basis they already had is still not touched — the rule that moved is
+    // about REPORTING, not about writing.
+    const rows = sb
+      .find("POST", "/rest/v1/contacts")
+      .flatMap((call) => call.body as Record<string, unknown>[]);
+    expect(rows[0]).not.toHaveProperty("consent_source");
+  });
+
+  it("#248: does not pad the count with rows the uploader flagged themselves", async () => {
+    // The other half of the same number, and the reason it is not simply "any
+    // standing opt-out". A row the file itself marked opted out is not news to
+    // the person who uploaded it, and a count inflated by rows they already
+    // know about is a count they learn to ignore — which would cost them the
+    // rows that ARE news.
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/opt_outs", () => [
+      { phone_e164: STOPPED_PHONE, source: "stop_keyword" },
+    ]);
+    sb.on("GET", "/rest/v1/contacts", () => [
+      {
+        phone_e164: STOPPED_PHONE,
+        consent_source: "inbound_sms",
+        consent_at: "2026-03-12T15:04:00+00:00",
+      },
+    ]);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
+    sb.on("POST", "/rest/v1/opt_outs", () => []);
+    // Already standing AND already announced, so the timeline says it once.
+    sb.on("GET", "/rest/v1/conversation_events", () => [
+      { payload: { phone_e164: STOPPED_PHONE, source: "stop_keyword" } },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm(`phone,name,opted_out\n${STOPPED_PHONE},Jo,yes\n`),
+      },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      consent_refused: 0,
+      consent_refusals: [],
+      consent_refused_note: null,
+    });
+  });
+
+  it("#248 D2: an opt-out on a duplicate row is the person's, not the row's", async () => {
+    // The de-dupe pushed "duplicate phone in file" and RETURNED before the
+    // opted_out cell was ever read, so a file listing the same person twice —
+    // once plain, once flagged, which is what a merge of two exports looks
+    // like — kept the first row and threw the second away. The row it threw
+    // away was the one saying "do not text this person".
+    //
+    // Both orders, because keeping the LAST row would be the same bug facing
+    // the other way: an opt-out anywhere in the file is true of that contact.
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
+    sb.on("POST", "/rest/v1/opt_outs", () => [{ id: OTHER_ID }]);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const csv = [
+      "phone,name,opted_out",
+      "+14165550100,Jo,", // plain first…
+      "+14165550100,Jo Smith,yes", // …flagged second (the discarded row)
+      "+14165550101,Sam,yes", // flagged first…
+      "+14165550101,Samir,", // …plain second, which must not clear it
+    ].join("\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
+    );
+    expect(res.status).toBe(200);
+
+    const optOuts = sb
+      .find("POST", "/rest/v1/opt_outs")
+      .flatMap((call) => call.body as { phone_e164: string }[])
+      .map((row) => row.phone_e164)
+      .sort();
+    expect(optOuts).toEqual(["+14165550100", "+14165550101"]);
+    // The extra ROW is still discarded and still reported — which of two
+    // spellings of a name to keep is not a judgement to make silently.
+    expect(await res.json()).toMatchObject({
+      imported: 2,
+      skipped: 2,
+      errors: [
+        { row: 3, reason: "duplicate phone in file: +14165550100" },
+        { row: 5, reason: "duplicate phone in file: +14165550101" },
+      ],
+    });
+  });
+
+  it("#248 D3: writes the opt-outs before the contacts", async () => {
+    // Nothing here runs in a transaction, so any prefix of it may be the last
+    // thing that happens. Contacts first meant every partial failure landed on
+    // the most permissive state the file could produce: contacts created, the
+    // attestation stamped on them, and not one of the opt-outs declared.
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
+    sb.on("POST", "/rest/v1/opt_outs", () => [{ id: OTHER_ID }]);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm("phone,opted_out\n+14165550100,yes\n"),
+      },
+    );
+    expect(res.status).toBe(200);
+
+    const order = sb.calls
+      .filter(
+        (call) =>
+          (call.method === "POST" || call.method === "PATCH") &&
+          (call.path === "/rest/v1/opt_outs" ||
+            call.path === "/rest/v1/contacts" ||
+            call.path === "/rest/v1/conversation_events"),
+      )
+      .map((call) => `${call.method} ${call.path}`);
+    expect(order).toEqual([
+      // The restriction, both halves of its two-step transition…
+      "PATCH /rest/v1/opt_outs",
+      "POST /rest/v1/opt_outs",
+      // …then the record…
+      "POST /rest/v1/contacts",
+      // …then the timeline entry, which is the only part needing contact ids.
+      "POST /rest/v1/conversation_events",
+    ]);
+  });
+
+  it("#248 D3: a failure on the contacts write leaves the opt-out standing", async () => {
+    // The proof, run the way the defect was: fail the first contacts POST and
+    // look at what the half-finished import left behind. A half-import that
+    // blocked people who should be blocked and wrote no contacts costs a
+    // re-upload; the reverse costs a text to somebody who said stop.
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on(
+      "POST",
+      "/rest/v1/contacts",
+      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+    );
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
+    sb.on("POST", "/rest/v1/opt_outs", () => [{ id: OTHER_ID }]);
+    sb.on("POST", "/rest/v1/audit_log", () => new Response(null, { status: 201 }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm("phone,opted_out\n+14165550100,yes\n"),
+      },
+    );
+    expect(res.status).toBe(500);
+    // The restriction landed before the write that died.
+    const optOuts = sb
+      .find("POST", "/rest/v1/opt_outs")
+      .flatMap((call) => call.body as { phone_e164: string; source: string }[]);
+    expect(optOuts).toEqual([
+      expect.objectContaining({
+        phone_e164: "+14165550100",
+        source: "import",
+      }),
+    ]);
+    // #248 D4: and the attempt is in the audit log, so a workspace left with
+    // half a contact list can account for where it came from. `attempted`
+    // rather than a count of what landed — we genuinely do not know that, and
+    // a made-up number is worse than an honest bound.
+    const audit = sb.find("POST", "/rest/v1/audit_log")[0].body as {
+      action: string;
+      after: Record<string, unknown>;
+    };
+    expect(audit.action).toBe("contacts.imported");
+    expect(audit.after).toMatchObject({
+      attempted: 1,
+      source: "csv",
+      outcome: "failed",
+    });
+  });
+
+  it("#248 D4: re-uploading after a half-finished import is the whole recovery", async () => {
+    // The second run, against the state the first one left: the opt-out is
+    // standing now, so this run must not write a second opt_outs row and must
+    // not attest — the contact it is finishing is opted out. Idempotent by
+    // (company_id, phone_e164) at every step, which is why this import needs
+    // no job table, no idempotency key and no resume: its result IS the
+    // database state, and that state is a fixed point.
+    //
+    // AND IT RESTORES THE TIMELINE ENTRY THE FIRST RUN NEVER WROTE. The events
+    // are the last thing an import does, so a run that died at the contacts
+    // upsert wrote the opt-outs and announced none of them. Deciding what to
+    // announce by diffing against the pre-write state — which is what this
+    // test used to assert — made that permanent: the re-run saw them already
+    // standing and stayed silent, forever, because the state change it keyed
+    // on had already happened. The data recovered and the audit trail could
+    // not, which is the wrong half to lose.
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/opt_outs", () => [
+      { phone_e164: "+14165550100", source: "import" },
+    ]);
+    sb.on("GET", "/rest/v1/contacts", () => []); // the row the first run never wrote
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
+    sb.on("POST", "/rest/v1/opt_outs", () => []); // ON CONFLICT DO NOTHING
+    // Nothing was ever announced for this number: the first run died before it
+    // got here.
+    sb.on("GET", "/rest/v1/conversation_events", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm("phone,name,opted_out\n+14165550100,Jo,yes\n"),
+      },
+    );
+    expect(res.status).toBe(200);
+    // The announcement the first attempt owed, paid by the re-run.
+    const events = sb
+      .find("POST", "/rest/v1/conversation_events")
+      .flatMap((call) => call.body as Record<string, unknown>[]);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "opted_out",
+      payload: { phone_e164: "+14165550100", source: "import" },
+    });
+    // Asked of the events table, and only about the numbers the pre-write read
+    // already found standing — an ordinary import asks nothing.
+    const asked = sb.find("GET", "/rest/v1/conversation_events");
+    expect(asked).toHaveLength(1);
+    expect(asked[0].url.searchParams.get("type")).toBe("eq.opted_out");
+
+    const rows = sb
+      .find("POST", "/rest/v1/contacts")
+      .flatMap((call) => call.body as Record<string, unknown>[]);
+    expect(rows[0]).toMatchObject({ phone_e164: "+14165550100", name: "Jo" });
+    expect(rows[0]).not.toHaveProperty("consent_source");
+  });
+
+  it("#248: re-uploading a finished import announces nothing twice", async () => {
+    // The other side of the same rule, and the reason it is not "announce
+    // every flagged row every time". A workspace re-uploading its book —
+    // which this route tells them to do — must not pile a second `opted_out`
+    // entry onto every already-blocked customer's timeline. A record that
+    // says a person revoked eleven times is one somebody has to explain.
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/opt_outs", () => [
+      { phone_e164: "+14165550100", source: "import" },
+    ]);
+    sb.on("GET", "/rest/v1/contacts", () => [
+      { phone_e164: "+14165550100", consent_source: null, consent_at: null },
+    ]);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
+    sb.on("POST", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/conversation_events", () => [
+      { payload: { phone_e164: "+14165550100", source: "import" } },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm("phone,name,opted_out\n+14165550100,Jo,yes\n"),
+      },
+    );
+    expect(res.status).toBe(200);
+    expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
+  });
+
+  it("#248: an active STOP is never rewritten to source='import'", async () => {
+    // The rule this shares with `revokeOptOut`: an imported opt-out is the
+    // workspace's own record and the workspace may lift it, while a STOP lives
+    // at the carrier and only the customer can. Downgrading an ACTIVE
+    // stop_keyword row to 'import' would make the refusal in revokeOptOut stop
+    // firing, so the app would offer to opt somebody back in while the carrier
+    // block stood — every send then failing 40300 against a contact the UI
+    // showed as textable.
+    //
+    // Two statements enforce it, and this asserts the shape of both: the
+    // revive touches only rows that are ALREADY revoked, and the insert is ON
+    // CONFLICT DO NOTHING, so an active row of any source is left alone.
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/opt_outs", () => [
+      { phone_e164: STOPPED_PHONE, source: "stop_keyword" },
+    ]);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
+    sb.on("POST", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/conversation_events", () => [
+      { payload: { phone_e164: STOPPED_PHONE, source: "stop_keyword" } },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm(`phone,opted_out\n${STOPPED_PHONE},yes\n`),
+      },
+    );
+    expect(res.status).toBe(200);
+    const revive = sb.find("PATCH", "/rest/v1/opt_outs")[0];
+    expect(revive.url.searchParams.get("revoked_at")).toBe("not.is.null");
+    const insert = sb.find("POST", "/rest/v1/opt_outs")[0];
+    expect(insert.url.searchParams.get("on_conflict")).toBe(
+      "company_id,phone_e164",
+    );
+    expect(insert.headers.get("prefer")).toContain("resolution=ignore-duplicates");
+    // Nothing to report: the file said what the record says. The refusal count
+    // is for the DISAGREEMENTS — rows the uploader believed their attestation
+    // covered — and padding it with rows they flagged themselves is how a
+    // count becomes something people stop reading.
+    expect(await res.json()).toMatchObject({
+      consent_refused: 0,
+      consent_refusals: [],
+      consent_refused_note: null,
+    });
+  });
+
+  it("#248: joins split first/last name columns into the stored name", async () => {
+    // The shape every CRM and phone export uses, and the one the detector used
+    // to read as "the whole name is whatever is in the first column" — so a
+    // crew switching tools got a book of first names, with every row reported
+    // as imported cleanly.
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) => {
+      const rows = call.body as { phone_e164: string }[];
+      return rows.map((row) => ({ id: CONTACT_ID, phone_e164: row.phone_e164 }));
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const csv = [
+      "First Name,Last Name,Company,Phone Number",
+      "Jo,Smith,Smith Roofing,+14165550100",
+      // A row with only a surname collapses rather than storing " Chen".
+      ",Chen,,+14165550101",
+    ].join("\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
+    );
+    expect(res.status).toBe(200);
+    const rows = sb
+      .find("POST", "/rest/v1/contacts")
+      .flatMap((call) => call.body as Record<string, unknown>[]);
+    expect(rows.map((row) => row.name)).toEqual(["Jo Smith", "Chen"]);
+  });
+
   it("does not re-emit opt-out events for already-active opt-outs", async () => {
     const sb = stubWithRole("admin");
     sb.on("GET", "/rest/v1/contacts", () => []);
@@ -1248,6 +2439,11 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     sb.on("GET", "/rest/v1/opt_outs", () => [{ phone_e164: "+14165550199" }]);
     sb.on("PATCH", "/rest/v1/opt_outs", () => []); // no revoked row to revive
     sb.on("POST", "/rest/v1/opt_outs", () => [{ id: "0abc0abc-1111-4222-8333-444444444444" }]);
+    // ...and the timeline already carries the entry for it, which is what makes
+    // this a re-emission rather than a lost announcement (#248 B3).
+    sb.on("GET", "/rest/v1/conversation_events", () => [
+      { payload: { phone_e164: "+14165550199", source: "stop_keyword" } },
+    ]);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -1447,6 +2643,8 @@ describe("import and a standing carrier STOP", () => {
     sb.on("GET", "/rest/v1/opt_outs", () => [{ phone_e164: "+14165550101" }]);
     sb.on("PATCH", "/rest/v1/opt_outs", () => []); // nothing revoked to revive
     sb.on("POST", "/rest/v1/opt_outs", () => []); // the active row wins
+    // Standing but never announced, so the timeline entry is still owed (B3).
+    sb.on("GET", "/rest/v1/conversation_events", () => []);
     sb.on("GET", "/rest/v1/conversations", () => []);
     sb.on("POST", "/rest/v1/conversation_events", () => []);
     stubFetch(jwksRoute(auth), sb.route);
@@ -1472,6 +2670,1022 @@ describe("import and a standing carrier STOP", () => {
     // The revive only ever touches rows that are already revoked.
     const revive = sb.find("PATCH", "/rest/v1/opt_outs")[0];
     expect(revive.url.searchParams.get("revoked_at")).toBe("not.is.null");
+  });
+});
+
+/**
+ * #248 round 3 — every column is answered for, or nothing is imported.
+ *
+ * The defect these are about was proved end to end twice. Round one: a file
+ * carrying a "Do Not Call" column imported with `consent_source='attested'` and
+ * no `opt_outs` row, and a real text then reached one of those people. Round
+ * two replaced the header vocabulary with a test on the SHAPE of a dropped
+ * column's values, and three independent verifiers walked messages through it
+ * — 16 of 26, 4 of 9, 7 of 24 delivered.
+ *
+ * Nothing in either file was malformed. The importer simply dropped a column
+ * without a word and attested anyway, so the fix is that it cannot drop one.
+ */
+describe("#248 every column of the file is answered for", () => {
+  /** A CSV whose unmapped column decides something about these people. */
+  const marketingStatus = [
+    "phone,name,Marketing Status",
+    "+14165550101,Jo,Subscribed",
+    "+14165550102,Sam,Unsubscribed",
+    "+14165550103,Ali,Subscribed",
+    "+14165550104,Kim,Subscribed",
+  ].join("\n");
+
+  function refusingStub(): SupabaseStub {
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+    return sb;
+  }
+
+  function importingStub(): SupabaseStub {
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+    return sb;
+  }
+
+  it("refuses a file that declared nothing, naming every column", async () => {
+    const sb = refusingStub();
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        // `null` — the wire as it looked before this existed.
+        rawBody: importForm(marketingStatus, true, null),
+      },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { message: string } };
+    // The shipped sentence, so a reworded refusal is rewritten in one place
+    // rather than agreed with in two. `phone` and `name` are named too: this
+    // gate does not ask which columns look suspicious, it asks whether every
+    // one of them was answered for.
+    expect(body.error.message).toBe(
+      contactImportUndeclaredColumnsMessage(
+        [
+          { index: 0, header: "phone" },
+          { index: 1, header: "name" },
+          { index: 2, header: "Marketing Status" },
+        ],
+        3,
+      ),
+    );
+    // NOTHING was written. "Refuse the flagged rows" is not available to us —
+    // `y` under "Do Not Call" and `y` under "OK to Text" are opposite
+    // instructions — and refusing only the attestation would not protect
+    // anybody, because the send gate asks `opt_outs`, never the consent basis.
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/opt_outs")).toHaveLength(0);
+  });
+
+  it("refuses the ONE column nobody answered for", async () => {
+    const sb = refusingStub();
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm(marketingStatus, true, [
+          { index: 0, action: "phone", header: "phone" },
+          { index: 1, action: "name", header: "name" },
+        ]),
+      },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toBe(
+      contactImportUndeclaredColumnsMessage(
+        [{ index: 2, header: "Marketing Status" }],
+        3,
+      ),
+    );
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
+  it("refuses every shape that walked through round two's shape test", async () => {
+    // Each of these was demonstrated LIVE against the shipped `unmappedFlagColumns`
+    // and ended in an outbound `messages` row. None of them is refused here for
+    // looking like anything — they are refused because nobody answered for the
+    // column, which is the only property that does not depend on a vocabulary.
+    const escapes: [string, string][] = [
+      [
+        "four distinct answers (distinct.size <= FLAG_MAX_DISTINCT was 3)",
+        [
+          "phone,name,Status",
+          "+14165550101,Jo,DNC",
+          "+14165550102,Sam,OK",
+          "+14165550103,Ali,HOLD",
+          "+14165550104,Kim,PENDING",
+        ].join("\n"),
+      ],
+      [
+        "a value longer than FLAG_MAX_LENGTH (16) — a real CRM writes sentences",
+        [
+          "phone,name,Contact Preference",
+          "+14165550101,Jo,Do not text this customer",
+          "+14165550102,Sam,Fine to text",
+          "+14165550103,Ali,Do not text this customer",
+        ].join("\n"),
+      ],
+      [
+        "the same answer on every row, read as a constant column",
+        [
+          "phone,name,Marketing Status",
+          "+14165550101,Jo,Unsubscribed",
+          "+14165550102,Sam,Unsubscribed",
+          "+14165550103,Ali,Unsubscribed",
+        ].join("\n"),
+      ],
+      [
+        "small-file arithmetic: four rows, three answers",
+        [
+          "phone,name,Segment",
+          "+14165550101,Jo,DNC",
+          "+14165550102,Sam,Keep",
+          "+14165550103,Ali,Keep",
+          "+14165550104,Kim,Later",
+        ].join("\n"),
+      ],
+    ];
+    for (const [why, csv] of escapes) {
+      const sb = refusingStub();
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        "/v1/contacts/import",
+        {
+          method: "POST",
+          companyId: COMPANY_ID,
+          // Only the two columns the detector recognises, which is exactly what
+          // a client that trusted the guess would send.
+          rawBody: importForm(csv, true, [
+            { index: 0, action: "phone", header: "phone" },
+            { index: 1, action: "name", header: "name" },
+          ]),
+        },
+      );
+      expect(res.status, why).toBe(422);
+      expect(sb.find("POST", "/rest/v1/contacts"), why).toHaveLength(0);
+    }
+  });
+
+  it("counts a cell PAST the header row as a column, and refuses it", async () => {
+    // Every loop in round two was bounded by `headers.length`, so this third
+    // cell was never looked at by any rule at all — not misread, unread. Hand-
+    // edited files do it constantly.
+    const sb = refusingStub();
+    const csv = [
+      "Phone,Name",
+      "+12065550101,Ann,DO NOT CALL",
+      "+12065550102,Bo",
+    ].join("\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        // The declaration a client that read only the HEADER row would build.
+        rawBody: importForm(
+          csv,
+          true,
+          answered(defaultContactImportColumns(["Phone", "Name"])),
+        ),
+      },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toBe(
+      contactImportUndeclaredColumnsMessage([{ index: 2, header: "" }], 3),
+    );
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
+  it("tells two NAMELESS columns apart, which is why the identity is the index", async () => {
+    // M15. Round two matched its field on `normalizeContactHeader`, which
+    // strips everything but [a-z0-9] — so every header with no ASCII
+    // alphanumerics normalised to the same empty string and one answer cleared
+    // both columns. Here column 3 is answered and column 4 is not.
+    const sb = refusingStub();
+    const csv = [
+      "Phone,Name,,",
+      "+14165550101,Jo,,DO NOT CALL",
+      "+14165550102,Sam,x,",
+    ].join("\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm(csv, true, [
+          { index: 0, action: "phone", header: "Phone" },
+          { index: 1, action: "name", header: "Name" },
+          { index: 2, action: CONTACT_IMPORT_IGNORE, header: "" },
+        ]),
+      },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toBe(
+      contactImportUndeclaredColumnsMessage([{ index: 3, header: "" }], 4),
+    );
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
+  it("blocks the rows of a column the detector would have filed as notes", async () => {
+    // The mapped-somewhere-inert hole. `Description` is claimed by `notes` on
+    // every pattern we own, so a row reading "DO NOT CONTACT" was filed as a
+    // note and the person was texted — and round two's gate only examined
+    // UNMAPPED columns, so it could not see this at all. The person's answer is
+    // the mapping now, so declaring it `opted_out` actually blocks them.
+    //
+    // A MIX: one row blocked, one not, so a resolver that answered once for the
+    // file could not pass.
+    const sb = importingStub();
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
+    sb.on("POST", "/rest/v1/opt_outs", () => [{ id: OTHER_ID }]);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+
+    const csv = [
+      "phone,Description",
+      "+14165550101,x",
+      "+14165550102,",
+    ].join("\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm(csv, true, [
+          { index: 0, action: "phone", header: "phone" },
+          { index: 1, action: "opted_out", header: "Description" },
+        ]),
+      },
+    );
+    expect(res.status).toBe(200);
+    const blocked = sb
+      .find("POST", "/rest/v1/opt_outs")
+      .flatMap((call) => call.body as { phone_e164: string }[])
+      .map((row) => row.phone_e164);
+    expect(blocked).toEqual(["+14165550101"]);
+    // And the column is NOT also written as a note — the declaration replaced
+    // the detector's answer rather than being added to it.
+    const rows = sb
+      .find("POST", "/rest/v1/contacts")
+      .flatMap((call) => call.body as Record<string, unknown>[]);
+    expect(rows.every((row) => !("notes" in row))).toBe(true);
+  });
+
+  it("refuses a declaration that describes some other file", async () => {
+    // What replaces round two's echo loop. A caller could regex the column
+    // names out of the 422 and re-post; there is no 422 to learn from now, and
+    // a declaration whose header does not match the file at that index is a
+    // declaration built from something other than the file attached.
+    const sb = refusingStub();
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm(marketingStatus, true, [
+          { index: 0, action: "phone", header: "phone" },
+          { index: 1, action: "name", header: "name" },
+          { index: 2, action: CONTACT_IMPORT_IGNORE, header: "Marketing status" },
+        ]),
+      },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toBe(
+      contactImportColumnMismatchMessage(
+        `column 3 was declared as "Marketing status" and this file calls it "Marketing Status"`,
+      ),
+    );
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
+  it("refuses a declaration that is not about a column of this file", async () => {
+    for (const [detail, columns] of [
+      [
+        // Past the end. Nothing stops a caller listing a column the file does
+        // not have, and it is never harmless: an out-of-range `phone` points
+        // the importer at cells that do not exist, and the file still looks
+        // fully declared.
+        "column 4 was declared and this file has 3 columns",
+        [
+          { index: 0, action: "phone", header: "phone" },
+          { index: 1, action: "name", header: "name" },
+          { index: 2, action: CONTACT_IMPORT_IGNORE, header: "Marketing Status" },
+          { index: 3, action: CONTACT_IMPORT_IGNORE, header: "" },
+        ],
+      ],
+      [
+        "column 2 is declared twice",
+        [
+          { index: 0, action: "phone", header: "phone" },
+          { index: 1, action: "name", header: "name" },
+          { index: 1, action: CONTACT_IMPORT_IGNORE, header: "name" },
+          { index: 2, action: CONTACT_IMPORT_IGNORE, header: "Marketing Status" },
+        ],
+      ],
+      [
+        "columns 2 and 3 were both declared `name`, and a contact has one",
+        [
+          { index: 0, action: "phone", header: "phone" },
+          { index: 1, action: "name", header: "name" },
+          { index: 2, action: "name", header: "Marketing Status" },
+        ],
+      ],
+    ] as [string, ContactImportColumnDeclaration[]][]) {
+      const sb = refusingStub();
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        "/v1/contacts/import",
+        {
+          method: "POST",
+          companyId: COMPANY_ID,
+          rawBody: importForm(marketingStatus, true, columns),
+        },
+      );
+      expect(res.status, detail).toBe(422);
+      const body = (await res.json()) as { error: { message: string } };
+      expect(body.error.message).toBe(contactImportColumnMismatchMessage(detail));
+      expect(sb.find("POST", "/rest/v1/contacts"), detail).toHaveLength(0);
+    }
+  });
+
+  it("answers for a header that contains a COLON, which is why the header is last", async () => {
+    // The wire format is `<index>:<action>:<header>` and the two splits before
+    // the header are on fixed tokens precisely so the header may contain
+    // anything. "Do Not Call: Y/N" is an ordinary CRM spelling, and if it could
+    // not be declared the file would be permanently unimportable — which is a
+    // usability defect right up until somebody works around it, and then it is
+    // this one.
+    //
+    // A MIX: Y on one row, N on the other, so the column has to be READ rather
+    // than merely accepted.
+    const sb = importingStub();
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
+    sb.on("POST", "/rest/v1/opt_outs", () => [{ id: OTHER_ID }]);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+
+    const csv = [
+      "phone,name,Do Not Call: Y/N",
+      "+14165550101,Jo,Y",
+      "+14165550102,Sam,N",
+    ].join("\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm(csv, true, [
+          { index: 0, action: "phone", header: "phone" },
+          { index: 1, action: "name", header: "name" },
+          { index: 2, action: "opted_out", header: "Do Not Call: Y/N" },
+        ]),
+      },
+    );
+    expect(res.status).toBe(200);
+    const blocked = sb
+      .find("POST", "/rest/v1/opt_outs")
+      .flatMap((call) => call.body as { phone_e164: string }[])
+      .map((row) => row.phone_e164);
+    expect(blocked).toEqual(["+14165550101"]);
+  });
+
+  it("refuses a `column` field that is not in the wire format at all", async () => {
+    // Every other test here posts a WELL-FORMED declaration, because the helper
+    // that builds them cannot produce anything else — so "be forgiving: match
+    // it by header when the index is missing" survived all 3964 of them. That
+    // refactor is header-as-identity restored under a new spelling, and header
+    // identity is precisely what could not tell two nameless columns apart.
+    //
+    // Raw strings, posted directly, one malformed field among two good ones.
+    for (const raw of [
+      "ignore:Marketing Status", // no index — matchable by header
+      ":ignore:Marketing Status", // empty index, and `Number("")` is 0
+      "2:skip:Marketing Status", // not an action this importer has
+      "Marketing Status", // not a declaration at all
+    ]) {
+      const sb = refusingStub();
+      const form = new FormData();
+      form.append(
+        "file",
+        new File([marketingStatus], "contacts.csv", { type: "text/csv" }),
+      );
+      form.append(CONTACT_IMPORT_CONSENT_FIELD, CONTACT_IMPORT_CONSENT_VALUE);
+      form.append(CONTACT_IMPORT_COLUMN_FIELD, "0:phone:phone");
+      form.append(CONTACT_IMPORT_COLUMN_FIELD, "1:name:name");
+      form.append(CONTACT_IMPORT_COLUMN_FIELD, raw);
+
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        "/v1/contacts/import",
+        { method: "POST", companyId: COMPANY_ID, rawBody: form },
+      );
+      expect(res.status, raw).toBe(422);
+      const body = (await res.json()) as { error: { message: string } };
+      // The exact sentence, so a lenient parser that reads it as SOME column is
+      // caught by the message even when it still ends in a 422.
+      expect(body.error.message, raw).toBe(
+        contactImportColumnMismatchMessage(
+          `\`${raw}\` is not \`<index>:<field or ignore>:<header>\``,
+        ),
+      );
+      expect(sb.find("POST", "/rest/v1/contacts"), raw).toHaveLength(0);
+    }
+  });
+
+  it("imports it once somebody answers for the column", async () => {
+    const sb = importingStub();
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm(marketingStatus, true, [
+          { index: 0, action: "phone", header: "phone" },
+          { index: 1, action: "name", header: "name" },
+          { index: 2, action: CONTACT_IMPORT_IGNORE, header: "Marketing Status" },
+        ]),
+      },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ imported: 4 });
+    // And the workspace's claim is on the audit row, next to the consent
+    // attestation it stands beside — it is a claim, not a fact we verified.
+    const audit = sb
+      .find("POST", "/rest/v1/audit_log")
+      .flatMap((call) => call.body as { after: { columns?: string[] } }[]);
+    expect(audit[0]?.after.columns).toEqual([
+      "0:phone:phone",
+      "1:name:name",
+      `2:${CONTACT_IMPORT_IGNORE}:Marketing Status`,
+    ]);
+  });
+
+  it("reads a Do Not Call column, marked the way a person marks one", async () => {
+    // The default guess widened — "Do Not Call" is the commonest spelling of
+    // this column and none of the original patterns matched it — and the `x`
+    // that a hand-maintained sheet uses, which the API's own truthy set left
+    // out, so an x-marked opt-out column imported as nobody opted out at all.
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
+    sb.on("POST", "/rest/v1/opt_outs", () => [{ id: OTHER_ID }]);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const csv = [
+      "Phone,Name,Do Not Call",
+      "+14165550101,Jo,x",
+      "+14165550102,Sam,",
+      "+14165550103,Ali,X",
+    ].join("\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
+    );
+    expect(res.status).toBe(200);
+    const blocked = sb
+      .find("POST", "/rest/v1/opt_outs")
+      .flatMap((call) => call.body as { phone_e164: string }[])
+      .map((row) => row.phone_e164);
+    expect(blocked).toEqual(["+14165550101", "+14165550103"]);
+    // And the one they did not mark keeps the file's attestation.
+    const rows = sb
+      .find("POST", "/rest/v1/contacts")
+      .flatMap((call) => call.body as Record<string, unknown>[]);
+    expect(
+      rows.find((row) => row.phone_e164 === "+14165550102"),
+    ).toMatchObject({ consent_source: "attested" });
+  });
+
+  it("refuses a do-not-text column whose values it cannot read", async () => {
+    // The same defect one level down: the column was identified CORRECTLY and
+    // then read as nobody opted out, because anything that was not `yes` was
+    // silently false. Not resolvable by a declaration — this column was
+    // declared the thing that decides who may be texted.
+    const sb = refusingStub();
+    const csv = [
+      "phone,Do Not Contact",
+      "+14165550101,Subscribed",
+      "+14165550102,Unsubscribed",
+    ].join("\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toBe(
+      contactImportUnreadableFlagMessage("Do Not Contact", [
+        "Subscribed",
+        "Unsubscribed",
+      ]),
+    );
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
+  it("lets an ordinary export through once its columns are answered", async () => {
+    // The cost of being wrong in this direction is a workspace that cannot
+    // import its book, so the columns a real file carries and this importer
+    // ignores — a note, an address it did not map, an email — go through once
+    // somebody has said what they are. This is the shape of the default guess
+    // a client shows: two mapped, three ignored.
+    const sb = importingStub();
+    const csv = [
+      "phone,name,Email,Job,Country",
+      "+14165550101,Jo,jo@example.com,gutters cleared before winter,US",
+      "+14165550102,Sam,sam@example.com,quote for a new roof,US",
+      "+14165550103,Ali,ali@example.com,leak over the porch,US",
+    ].join("\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ imported: 3 });
+    // And nobody was blocked. An `ignore` is a person saying the column says
+    // nothing about who may be texted, so it must not quietly become one.
+    expect(sb.find("POST", "/rest/v1/opt_outs")).toHaveLength(0);
+  });
+
+  it("applies the row cap BEFORE it reads a single column", async () => {
+    // I12. The ordering is stated as a guarantee — the column pass walks every
+    // cell of every row and the cap is what bounds that walk — and a comment
+    // stating a guarantee nothing enforces is how the guarantee stops being
+    // true. This file declares NOTHING, so a cap that ran second would answer
+    // with the undeclared-columns refusal instead.
+    const sb = refusingStub();
+    const lines = ["phone"];
+    for (let i = 0; i <= CONTACT_IMPORT_MAX_ROWS; i += 1) {
+      lines.push(`+1416${String(5550000 + i).padStart(7, "0")}`);
+    }
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm(`${lines.join("\n")}\n`, true, null),
+      },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toBe(
+      `file: too many rows (max ${CONTACT_IMPORT_MAX_ROWS}).`,
+    );
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+  });
+});
+
+/**
+ * #248 H5 — the two ways a file was silently mangled.
+ *
+ * Neither delivers a message, and both lose data. That is not a lesser defect
+ * wearing a smaller hat: a person who is silently absent from a crew's contact
+ * list is never texted, and is also never seen, so nobody ever finds out. The
+ * import's whole promise is that every row is either imported or reported.
+ */
+describe("#248 H5 a file that cannot be read is refused, not half-read", () => {
+  function refusingStub(): SupabaseStub {
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+    return sb;
+  }
+
+  it("refuses an unterminated quote instead of eating every row after it", async () => {
+    // Proved live: this file imported 200, with ordinary counts and NOT ONE
+    // error row, having swallowed Ann and Cass into one enormous value. A MIX —
+    // one row before the open quote, two after — so the rows that survive and
+    // the rows that vanish are both in the fixture.
+    const sb = refusingStub();
+    const csv = [
+      "phone,name",
+      "+14165550100,Bo",
+      '+14165550101,"Ann',
+      "+14165550102,Cass",
+    ].join("\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm(csv, true, [
+          { index: 0, action: "phone", header: "phone" },
+          { index: 1, action: "name", header: "name" },
+        ]),
+      },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { message: string } };
+    // The shipped sentence, naming the line the quote OPENED on — by EOF the
+    // position is the one place in the file that looks fine.
+    expect(body.error.message).toBe(contactImportUnterminatedQuoteMessage(3));
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
+  it("refuses a UTF-16 save with a sentence, where it used to answer 500", async () => {
+    // Excel's "Unicode Text". `File.text()` decodes it as UTF-8, so the zero
+    // byte between every ASCII character survives, travels the whole route, and
+    // dies at Postgres with `unsupported Unicode escape sequence` — which
+    // reached the customer as a 500 telling them nothing. Refusing is a fine
+    // answer; crashing is not.
+    const sb = refusingStub();
+    const utf16 = new Uint8Array([
+      0xff, 0xfe, // BOM, as Excel writes it
+      ...[..."phone,name\n+14165550100,Bo\n"].flatMap((char) => [
+        char.charCodeAt(0),
+        0x00,
+      ]),
+    ]);
+    const form = new FormData();
+    form.append(
+      "file",
+      new File([utf16], "contacts.csv", { type: "text/csv" }),
+    );
+    form.append(CONTACT_IMPORT_CONSENT_FIELD, CONTACT_IMPORT_CONSENT_VALUE);
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      { method: "POST", companyId: COMPANY_ID, rawBody: form },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toBe(CONTACT_IMPORT_UNREADABLE_ENCODING);
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
+  it("refuses the same file at the vCard door, which decodes just as badly", async () => {
+    // The gate belongs to both doors or to neither — a phone's export is the
+    // file most likely to have been round-tripped through a desktop program.
+    const sb = refusingStub();
+    const card = "BEGIN:VCARD\r\nFN:Bo\r\nTEL:+14165550100\r\nEND:VCARD\r\n";
+    const utf16 = new Uint8Array(
+      [...card].flatMap((char) => [char.charCodeAt(0), 0x00]),
+    );
+    const form = new FormData();
+    form.append(
+      "file",
+      new File([utf16], "contacts.vcf", { type: "text/vcard" }),
+    );
+    form.append(CONTACT_IMPORT_CONSENT_FIELD, CONTACT_IMPORT_CONSENT_VALUE);
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import-vcard",
+      { method: "POST", companyId: COMPANY_ID, rawBody: form },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toBe(CONTACT_IMPORT_UNREADABLE_ENCODING);
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
+  it("still imports an ordinary quoted file, which is the same branch", async () => {
+    // A refusal that also refused every properly quoted export would be worse
+    // than the defect: `"Smith, John"` is the reason quoting exists, and a
+    // guard that fires on it is a guard somebody deletes.
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const csv = 'phone,name\n+14165550100,"Smith, John"\n+14165550101,Bo\n';
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
+    );
+    expect(res.status).toBe(200);
+    const rows = sb
+      .find("POST", "/rest/v1/contacts")
+      .flatMap((call) => call.body as Record<string, unknown>[]);
+    expect(rows.map((row) => row.name)).toEqual(["Smith, John", "Bo"]);
+  });
+});
+
+describe("#248 the import bounds a file has to stay inside", () => {
+  it("refuses one row past the shared cap, and accepts the cap itself", async () => {
+    // Both halves, because either alone is satisfiable by the wrong code: a
+    // refusal alone passes with no bound at all if the fixture is big enough
+    // to fail for another reason, and an acceptance alone passes with the
+    // check deleted. Built FROM the shared constant, so a server that quietly
+    // enforced a different number than the clients print would fail here.
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const rows = (count: number) => {
+      const lines = ["phone"];
+      for (let i = 0; i < count; i += 1) {
+        lines.push(`+1416${String(5550000 + i).padStart(7, "0")}`);
+      }
+      return `${lines.join("\n")}\n`;
+    };
+
+    const over = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm(rows(CONTACT_IMPORT_MAX_ROWS + 1)),
+      },
+    );
+    expect(over.status).toBe(422);
+    const body = (await over.json()) as { error: { message: string } };
+    expect(body.error.message).toContain(String(CONTACT_IMPORT_MAX_ROWS));
+
+    const atCap = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm(rows(CONTACT_IMPORT_MAX_ROWS)),
+      },
+    );
+    expect(atCap.status).toBe(200);
+  });
+
+  it("takes only the literal word as an attestation", async () => {
+    // A field that also accepts "false" is not an attestation, it is a field.
+    // The strictness is the whole property — loosening the check to "present
+    // and not null" reads a checkbox somebody left unticked as consent.
+    const sb = stubWithRole("admin");
+    stubFetch(jwksRoute(auth), sb.route);
+
+    for (const value of ["false", "TRUE", "1", "yes", ""]) {
+      const form = new FormData();
+      form.append("file", new File(["phone\n+14165550101\n"], "c.csv"));
+      form.append(CONTACT_IMPORT_CONSENT_FIELD, value);
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        "/v1/contacts/import",
+        { method: "POST", companyId: COMPANY_ID, rawBody: form },
+      );
+      expect(res.status).toBe(422);
+      const body = (await res.json()) as { error: { message: string } };
+      expect(body.error.message).toBe(CONTACT_IMPORT_CONSENT_REQUIRED);
+    }
+  });
+});
+
+describe("#248 what an import says about the rows it refused", () => {
+  /** A file with a refused row sitting beside attested ones. */
+  const mixed = [
+    "phone,name",
+    "+14165550101,Jo",
+    `${STOPPED_PHONE},Sam`,
+    "+14165550103,Ali",
+  ].join("\n");
+
+  function mixedStub(): SupabaseStub {
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/opt_outs", () => [
+      { phone_e164: STOPPED_PHONE, source: "stop_keyword" },
+    ]);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    return sb;
+  }
+
+  it("decides per row, not once for the file", async () => {
+    // EVERY shipped #248 consent test uploaded a one-row file, so a defect
+    // that only appears when a refused row sits beside an attested one — the
+    // shape of every real export — was invisible to all of them. Proved:
+    // reading the map's first decision for every row survived the whole suite.
+    const sb = mixedStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      { method: "POST", companyId: COMPANY_ID, rawBody: importForm(mixed) },
+    );
+    expect(res.status).toBe(200);
+
+    const rows = sb
+      .find("POST", "/rest/v1/contacts")
+      .flatMap((call) => call.body as Record<string, unknown>[]);
+    const byPhone = new Map(rows.map((row) => [row.phone_e164, row]));
+    // The two who never said stop take the file's attestation...
+    expect(byPhone.get("+14165550101")).toMatchObject({
+      consent_source: "attested",
+    });
+    expect(byPhone.get("+14165550103")).toMatchObject({
+      consent_source: "attested",
+    });
+    // ...and the one who did takes none of it, sitting between them.
+    expect(byPhone.get(STOPPED_PHONE)).not.toHaveProperty("consent_source");
+    expect(byPhone.get(STOPPED_PHONE)).not.toHaveProperty("consent_at");
+  });
+
+  it("counts exactly what it lists", async () => {
+    // Web renders the NUMBER. A list that was ever truncated for a response
+    // size limit would print "40 refused" above five rows with nothing saying
+    // the rest existed, and no test on either side would have noticed.
+    const sb = stubWithRole("admin");
+    const stopped = ["+14163014444", "+14163014445", "+14163014446"];
+    sb.on("GET", "/rest/v1/opt_outs", () =>
+      stopped.map((phone) => ({ phone_e164: phone, source: "stop_keyword" })),
+    );
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const csv = ["phone,name", ...stopped.map((p, i) => `${p},Person ${i}`)].join(
+      "\n",
+    );
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      consent_refused: number;
+      consent_refusals: { row: number; reason: string }[];
+    };
+    expect(body.consent_refusals).toHaveLength(stopped.length);
+    expect(body.consent_refused).toBe(body.consent_refusals.length);
+    expect(body.consent_refusals.map((r) => r.reason)).toEqual(
+      stopped.map((phone) => contactImportConsentRefusedReason(phone)),
+    );
+  });
+
+  it("puts the refused count on the audit row of an import that DIED", async () => {
+    // The refusals are decided before the first write, so they are known even
+    // when the import fails — and this is the one path where the response body
+    // never reaches anybody, because the caller gets a 500. Leaving it off
+    // meant a failed import reported its refused rows nowhere at all.
+    // Registered BEFORE the shared stub claims the path — this harness is
+    // first-match-wins, so a later handler for a path already taken never runs.
+    const sb = stubWithRole("admin");
+    sb.on(
+      "POST",
+      "/rest/v1/contacts",
+      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+    );
+    sb.on("GET", "/rest/v1/opt_outs", () => [
+      { phone_e164: STOPPED_PHONE, source: "stop_keyword" },
+    ]);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/audit_log", () => new Response(null, { status: 201 }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      { method: "POST", companyId: COMPANY_ID, rawBody: importForm(mixed) },
+    );
+    expect(res.status).toBe(500);
+    const audit = sb.find("POST", "/rest/v1/audit_log")[0].body as {
+      after: Record<string, unknown>;
+    };
+    expect(audit.after).toMatchObject({
+      outcome: "failed",
+      consent_refused: 1,
+    });
+  });
+
+  it("fails the whole import rather than guess at a flaky opt-out read", async () => {
+    // The cheapest way to reintroduce every defect above is to stop this read
+    // 500-ing: one try/catch that answers "found nothing" turns an unreadable
+    // opt-out table into a permissive one, and an import would then attest
+    // over every standing STOP in the workspace. Nothing written, and the
+    // caller is told, which is the only honest answer to "I could not check".
+    const sb = stubWithRole("admin");
+    sb.on(
+      "GET",
+      "/rest/v1/opt_outs",
+      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+    );
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/audit_log", () => new Response(null, { status: 201 }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      { method: "POST", companyId: COMPANY_ID, rawBody: importForm(mixed) },
+    );
+    expect(res.status).toBe(500);
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
 });
 
@@ -1644,9 +3858,31 @@ describe("opt-out mark/revoke (SPEC §5)", () => {
   });
 });
 
-function vcardForm(vcf: string): FormData {
+function vcardForm(
+  vcf: string,
+  attested = true,
+  /**
+   * #248 round 3: what somebody said the cards' unread properties mean. The
+   * fixtures below carry only FN/N/TEL/VERSION, which the parser reads, so most
+   * of them need none — the gate is asserted directly by the tests that add a
+   * `CATEGORIES` or a `NOTE`.
+   */
+  properties: { property: string; action: "ignore" | "opted_out" }[] = [],
+): FormData {
   const form = new FormData();
   form.append("file", new File([vcf], "contacts.vcf", { type: "text/vcard" }));
+  // #248: this route now stands behind the same attestation the CSV route has
+  // since #226. Defaulted, like importForm, so the tests below keep describing
+  // what they were written for; the gate is asserted directly.
+  if (attested) {
+    form.append(CONTACT_IMPORT_CONSENT_FIELD, CONTACT_IMPORT_CONSENT_VALUE);
+  }
+  for (const declaration of properties) {
+    form.append(
+      CONTACT_IMPORT_VCARD_PROPERTY_FIELD,
+      formatVCardProperty(declaration),
+    );
+  }
   return form;
 }
 
@@ -1779,6 +4015,98 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     );
   });
 
+  it("#248: our own header comes back asking about its non-field columns", async () => {
+    // D20 §3.1 promises a lossless round trip, and round two broke it: the
+    // shape gate refused our own export 422, naming `tags` and `consent_source`.
+    // Under round three every column has to be ANSWERED, and #248 H1 settles
+    // who answers: the guess maps the two columns that are contact fields and
+    // says nothing about the four that are not, so a person re-importing our
+    // export dismisses `tags` and the consent columns the same way they would
+    // dismiss anybody else's. The round-trip test below runs it end to end.
+    //
+    // Built from the shipped constant, so adding a column moves this with it.
+    const guess = defaultContactImportColumns([...EXPORT_HEADER]);
+    expect(guess).toHaveLength(EXPORT_HEADER.length);
+    expect(guess.map((column) => column.header)).toEqual([...EXPORT_HEADER]);
+    expect(guess.find((column) => column.header === "phone")?.action).toBe("phone");
+    expect(guess.find((column) => column.header === "name")?.action).toBe("name");
+    // NOT dismissed on the workspace's behalf. `consent_source` says how we may
+    // text somebody, and a file we wrote is still a file somebody has to read:
+    // an export edited in a spreadsheet before being re-imported is the normal
+    // way this feature is used.
+    expect(guess.find((column) => column.header === "consent_source")?.action)
+      .toBeNull();
+  });
+
+  it("#248: exports, re-imports, and lands the same contact (D20 §3.1)", async () => {
+    // The round-trip guard that actually runs the round trip. The one it
+    // replaces asserted the exported HEADER string and stopped there, so it
+    // went on passing while a re-import of that exact file was refused 422.
+    //
+    // The name is chosen to need the export's CSV-injection guard AND RFC
+    // quoting: it begins with `=` and contains a comma, so it survives only if
+    // both the guard and the importer's unguard are right.
+    const exported = {
+      id: CONTACT_ID,
+      name: "=Jo, Smith",
+      phone_e164: "+14165550199",
+      consent_source: "attested",
+      consent_at: "2026-06-01T00:00:00+00:00",
+      created_at: "2026-05-01T00:00:00+00:00",
+    };
+    const exportSb = stubWithRole("admin");
+    exportSb.on("GET", "/rest/v1/contacts", () => [exported]);
+    exportSb.on("GET", "/rest/v1/conversations", () => [
+      {
+        contact_id: CONTACT_ID,
+        conversation_tags: [{ tags: { name: "Quote sent" } }],
+      },
+    ]);
+    stubFetch(jwksRoute(auth), exportSb.route);
+
+    const exportRes = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/export",
+      { companyId: COMPANY_ID },
+    );
+    expect(exportRes.status).toBe(200);
+    const bytes = new Uint8Array(await exportRes.arrayBuffer());
+    const csv = new TextDecoder("utf-8").decode(bytes.slice(3));
+
+    const importSb = stubWithRole("admin");
+    noStandingOptOuts(importSb);
+    importSb.on("GET", "/rest/v1/contacts", () => []);
+    importSb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    stubFetch(jwksRoute(auth), importSb.route);
+
+    // The declaration a client builds from the file it is holding — no
+    // hand-written list, so this fails if the guess stops covering our header.
+    const importRes = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
+    );
+    expect(importRes.status).toBe(200);
+    expect(await importRes.json()).toMatchObject({ imported: 1, skipped: 0 });
+    const landed = importSb
+      .find("POST", "/rest/v1/contacts")
+      .flatMap((call) => call.body as Record<string, unknown>[]);
+    expect(landed).toHaveLength(1);
+    expect(landed[0]).toMatchObject({
+      phone_e164: exported.phone_e164,
+      name: exported.name,
+    });
+  });
+
   it("respects the current q filter (export what I'm looking at) and is not shadowed by /:id", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => []);
@@ -1801,6 +4129,24 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
   });
 });
 
+/**
+ * What a person answers about an ORDINARY phone export's parameters.
+ *
+ * #248 H3: `TEL;TYPE=CELL` carries free text after the `=`, and everything
+ * after the first `;` used to be discarded — so `TEL;TYPE=CELL;X-ABLabel=DO NOT
+ * CALL:+1613…`, which is Apple's inline shape, imported and delivered. The
+ * parameter is now enumerated as `TEL;TYPE` and answered like any other
+ * property. On these fixtures the values are CELL, work and uri, and they
+ * decide nothing — which is what somebody who has seen them says.
+ *
+ * Built through the shared formatter, so the token the server enumerates and
+ * the token a caller declares cannot drift apart.
+ */
+const PHONE_EXPORT_PARAMS: { property: string; action: "ignore" }[] = [
+  { property: vcardParameterProperty("TEL", "TYPE"), action: "ignore" },
+  { property: vcardParameterProperty("TEL", "VALUE"), action: "ignore" },
+];
+
 describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
   const multiVcf = [
     "BEGIN:VCARD",
@@ -1820,8 +4166,174 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
     "END:VCARD",
   ].join("\r\n");
 
+  it("#248: refuses a vCard import that states no consent basis", async () => {
+    // #226 put this gate on the CSV route and left this one open, so the only
+    // working bulk-contact door was the one that asked nothing — and it is the
+    // worse one to leave open. A phone's address book is not a consent record;
+    // it is every number its owner ever dialled.
+    const sb = stubWithRole("admin");
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import-vcard",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: vcardForm(multiVcf, false),
+      },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { code: string; message: string } };
+    expect(body.error.code).toBe("validation_failed");
+    // The same sentence the CSV route answers with — one gate, one wording.
+    expect(body.error.message).toBe(CONTACT_IMPORT_CONSENT_REQUIRED);
+    // And refused before the file was parsed: nothing was read or written.
+    expect(sb.find("GET", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
+  it("#248: writes the attested basis on new cards and leaves an existing one alone", async () => {
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => [
+      {
+        phone_e164: "+14165550111", // Alice already texted this business
+        consent_source: "inbound_sms",
+        consent_at: "2026-03-12T15:04:00+00:00",
+      },
+    ]);
+    sb.on("POST", "/rest/v1/contacts", () => [{ id: CONTACT_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import-vcard",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: vcardForm(multiVcf, true, PHONE_EXPORT_PARAMS),
+      },
+    );
+    expect(res.status).toBe(200);
+    const rows = sb
+      .find("POST", "/rest/v1/contacts")
+      .flatMap((call) => call.body as Record<string, unknown>[]);
+    const alice = rows.find((row) => row.phone_e164 === "+14165550111");
+    expect(alice).not.toHaveProperty("consent_source");
+    expect(alice).not.toHaveProperty("consent_at");
+    for (const row of rows.filter((r) => r.phone_e164 !== "+14165550111")) {
+      expect(row).toMatchObject({
+        consent_source: "attested",
+        consent_attested_by: auth.subject,
+      });
+    }
+  });
+
+  it("#248 D1: a card cannot attest over a standing STOP either", async () => {
+    // This route is the one where the file CANNOT know. A .vcf has no property
+    // for "this person told us to stop" — it is a phone's address book, every
+    // number its owner ever dialled — so without the opt_outs read every
+    // standing STOP in it would take the importer's attestation, every time.
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/opt_outs", () => [
+      { phone_e164: STOPPED_PHONE, source: "stop_keyword" },
+    ]);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", () => [{ id: CONTACT_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const vcf = [
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      "FN:Jo Smith",
+      `TEL:${STOPPED_PHONE}`,
+      "END:VCARD",
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      "FN:Sam Lee",
+      "TEL:+14165550152",
+      "END:VCARD",
+    ].join("\r\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import-vcard",
+      { method: "POST", companyId: COMPANY_ID, rawBody: vcardForm(vcf) },
+    );
+    expect(res.status).toBe(200);
+    const rows = sb
+      .find("POST", "/rest/v1/contacts")
+      .flatMap((call) => call.body as Record<string, unknown>[]);
+    const stopped = rows.find((row) => row.phone_e164 === STOPPED_PHONE);
+    expect(stopped).toMatchObject({ name: "Jo Smith" });
+    expect(stopped).not.toHaveProperty("consent_source");
+    // The card beside it is untouched by any of this: an ordinary new contact
+    // still gets the basis the attestation records.
+    expect(rows.find((row) => row.phone_e164 === "+14165550152")).toMatchObject({
+      consent_source: "attested",
+      consent_attested_by: auth.subject,
+    });
+    // Reported with the same three fields the CSV route answers with — a
+    // client that had to branch on which door it used would eventually show
+    // the note on one and not the other.
+    expect(await res.json()).toMatchObject({
+      consent_refused: 1,
+      consent_refusals: [
+        { row: 1, reason: contactImportConsentRefusedReason(STOPPED_PHONE) },
+      ],
+      consent_refused_note: CONTACT_IMPORT_CONSENT_REFUSED_NOTE,
+    });
+  });
+
+  it("#248: batches by key set, so a nameless card cannot strip the names off the rest", async () => {
+    // PostgREST takes the column list from the FIRST row of a batch. This route
+    // sliced its rows straight into chunks, so a card with no FN landing first
+    // dropped `name` from every row behind it — a phone book that starts with a
+    // bare number imported as a page of numbers with no names.
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", () => [{ id: CONTACT_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const vcf = [
+      "BEGIN:VCARD",
+      "VERSION:3.0", // no FN at all → this row carries no `name` key
+      "TEL:+14165550150",
+      "END:VCARD",
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      "FN:Dana Diaz",
+      "TEL:+14165550151",
+      "END:VCARD",
+    ].join("\r\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import-vcard",
+      { method: "POST", companyId: COMPANY_ID, rawBody: vcardForm(vcf) },
+    );
+    expect(res.status).toBe(200);
+    for (const call of sb.find("POST", "/rest/v1/contacts")) {
+      const rows = call.body as Record<string, unknown>[];
+      const shapes = new Set(rows.map((row) => Object.keys(row).sort().join(",")));
+      expect(shapes.size).toBe(1);
+    }
+    const named = sb
+      .find("POST", "/rest/v1/contacts")
+      .flatMap((call) => call.body as Record<string, unknown>[])
+      .find((row) => row.phone_e164 === "+14165550151");
+    expect(named?.name).toBe("Dana Diaz");
+  });
+
   it("parses a multi-card .vcf, normalizes E.164, and upserts (admin only)", async () => {
     const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
     sb.on("GET", "/rest/v1/contacts", () => []); // none pre-existing → all imported
     sb.on("POST", "/rest/v1/contacts", () => [{ id: CONTACT_ID }]);
     stubFetch(jwksRoute(auth), sb.route);
@@ -1831,7 +4343,11 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
       env,
       await auth.token(),
       "/v1/contacts/import-vcard",
-      { method: "POST", companyId: COMPANY_ID, rawBody: vcardForm(multiVcf) },
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: vcardForm(multiVcf, true, PHONE_EXPORT_PARAMS),
+      },
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
@@ -1862,6 +4378,7 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
 
   it("counts pre-existing numbers as updated, not imported", async () => {
     const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
     sb.on("GET", "/rest/v1/contacts", () => [{ phone_e164: "+14165550111" }]);
     sb.on("POST", "/rest/v1/contacts", () => [{ id: CONTACT_ID }]);
     stubFetch(jwksRoute(auth), sb.route);
@@ -1888,6 +4405,7 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
 
   it("reports un-normalizable TELs per row and dedupes numbers within the file", async () => {
     const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
     sb.on("GET", "/rest/v1/contacts", () => []);
     sb.on("POST", "/rest/v1/contacts", () => [{ id: CONTACT_ID }]);
     stubFetch(jwksRoute(auth), sb.route);
@@ -1984,6 +4502,467 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
   });
 });
 
+/**
+ * #248 round 3 — the vCard door had no gate of any kind.
+ *
+ * `CATEGORIES:DNC` and `NOTE:DO NOT CONTACT - asked us to stop` are the only two
+ * places the format lets a card say do-not-text, they are what Apple and Google
+ * actually export, and both imported attested with a message delivered.
+ */
+describe("#248 every property on the cards is answered for", () => {
+  const dncVcf = [
+    "BEGIN:VCARD",
+    "VERSION:3.0",
+    "FN:Dana Diaz",
+    "TEL:+14165550111",
+    "CATEGORIES:DNC",
+    "END:VCARD",
+    "BEGIN:VCARD",
+    "VERSION:3.0",
+    "FN:Eli East",
+    "TEL:+14165550112",
+    "END:VCARD",
+  ].join("\r\n");
+
+  it("refuses a file whose CATEGORIES and NOTE nobody answered for", async () => {
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const vcf = [
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      "FN:Dana Diaz",
+      "TEL:+14165550111",
+      "CATEGORIES:DNC",
+      "NOTE:DO NOT CONTACT - asked us to stop",
+      "END:VCARD",
+    ].join("\r\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import-vcard",
+      { method: "POST", companyId: COMPANY_ID, rawBody: vcardForm(vcf) },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toBe(
+      contactImportUndeclaredPropertiesMessage(["CATEGORIES", "NOTE"]),
+    );
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
+  it("blocks the cards carrying a property somebody declared do-not-text", async () => {
+    // A MIX: one card carries CATEGORIES, one does not, so a resolver that
+    // answered once for the file could not pass. And the restriction is written
+    // BEFORE the contacts, like every other import path — whichever prefix of a
+    // half-finished run lands has to be the safe half.
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
+    sb.on("POST", "/rest/v1/opt_outs", () => [{ id: OTHER_ID }]);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import-vcard",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: vcardForm(dncVcf, true, [
+          { property: "CATEGORIES", action: "opted_out" },
+        ]),
+      },
+    );
+    expect(res.status).toBe(200);
+    const blocked = sb
+      .find("POST", "/rest/v1/opt_outs")
+      .flatMap((call) => call.body as { phone_e164: string }[])
+      .map((row) => row.phone_e164);
+    expect(blocked).toEqual(["+14165550111"]);
+    // The blocked card takes no attestation — an import may lower a contact's
+    // standing, never raise it — and the other card does.
+    const rows = sb
+      .find("POST", "/rest/v1/contacts")
+      .flatMap((call) => call.body as Record<string, unknown>[]);
+    expect(rows.find((row) => row.phone_e164 === "+14165550111")).not.toHaveProperty(
+      "consent_source",
+    );
+    expect(
+      rows.find((row) => row.phone_e164 === "+14165550112"),
+    ).toMatchObject({ consent_source: "attested" });
+    // And the workspace's claim is on the audit row.
+    const audit = sb
+      .find("POST", "/rest/v1/audit_log")
+      .flatMap((call) => call.body as { after: { properties?: string[] } }[]);
+    expect(audit[0]?.after.properties).toEqual(["CATEGORIES:opted_out"]);
+  });
+
+  it("blocks on the property somebody actually pointed at, not the one we expected", async () => {
+    // The test above declares CATEGORIES, so narrowing the block to
+    // `property === "CATEGORIES"` survived all 3964 tests — a whole gate proved
+    // on one noun. `NOTE:DO NOT CONTACT - asked us to stop` is the OTHER of the
+    // two places a .vcf can say this, it is what Apple exports, and under that
+    // narrowing the person would tick "do not text" on it, be told 200, and the
+    // card would be created textable. Which ends in a delivered message.
+    //
+    // A MIX in both directions: two unread properties, one blocking and one
+    // not, over three cards that carry different combinations of them.
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
+    sb.on("POST", "/rest/v1/opt_outs", () => [{ id: OTHER_ID }]);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const vcf = [
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      "FN:Dana Diaz",
+      "TEL:+14165550111",
+      "NOTE:DO NOT CONTACT - asked us to stop",
+      "END:VCARD",
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      "FN:Eli East",
+      "TEL:+14165550112",
+      // Carries the property that was declared harmless, so a gate that blocked
+      // on "any declared property" rather than the blocking one fails here too.
+      "CATEGORIES:Regulars",
+      "END:VCARD",
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      "FN:Fay Fox",
+      "TEL:+14165550113",
+      "END:VCARD",
+    ].join("\r\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import-vcard",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: vcardForm(vcf, true, [
+          { property: "NOTE", action: "opted_out" },
+          { property: "CATEGORIES", action: "ignore" },
+        ]),
+      },
+    );
+    expect(res.status).toBe(200);
+    const blocked = sb
+      .find("POST", "/rest/v1/opt_outs")
+      .flatMap((call) => call.body as { phone_e164: string }[])
+      .map((row) => row.phone_e164);
+    expect(blocked).toEqual(["+14165550111"]);
+    const rows = sb
+      .find("POST", "/rest/v1/contacts")
+      .flatMap((call) => call.body as Record<string, unknown>[]);
+    expect(
+      rows.find((row) => row.phone_e164 === "+14165550111"),
+    ).not.toHaveProperty("consent_source");
+    expect(
+      rows.find((row) => row.phone_e164 === "+14165550112"),
+    ).toMatchObject({ consent_source: "attested" });
+  });
+
+  it("keeps the restriction a DUPLICATE card carried, like the CSV door does", async () => {
+    // D2 at the other door. The CSV importer learned this the hard way — a
+    // merge of two exports lists the same person twice, once plain and once
+    // flagged, and dropping the duplicate ROW used to drop the RESTRICTION with
+    // it. The vCard door has the identical branch and nothing asserted it, so
+    // deleting `if (optedOut) seen.optedOut = true` survived all 3964 tests.
+    //
+    // The restriction belongs to the person, not to the card that happened to
+    // carry it. Here the marked card is SECOND, which is the order that loses:
+    // the first card wins the entry and the second is discarded.
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
+    sb.on("POST", "/rest/v1/opt_outs", () => [{ id: OTHER_ID }]);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const vcf = [
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      "FN:Dana Diaz",
+      "TEL:+14165550111",
+      "END:VCARD",
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      "FN:Dana D.",
+      "TEL:+14165550111",
+      "CATEGORIES:DNC",
+      "END:VCARD",
+    ].join("\r\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import-vcard",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: vcardForm(vcf, true, [
+          { property: "CATEGORIES", action: "opted_out" },
+        ]),
+      },
+    );
+    expect(res.status).toBe(200);
+    const blocked = sb
+      .find("POST", "/rest/v1/opt_outs")
+      .flatMap((call) => call.body as { phone_e164: string }[])
+      .map((row) => row.phone_e164);
+    expect(blocked).toEqual(["+14165550111"]);
+    // And the surviving row takes no attestation over the top of it.
+    const rows = sb
+      .find("POST", "/rest/v1/contacts")
+      .flatMap((call) => call.body as Record<string, unknown>[]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).not.toHaveProperty("consent_source");
+  });
+
+  it("imports the same file untouched when somebody says the property is nothing", async () => {
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import-vcard",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: vcardForm(dncVcf, true, [
+          { property: "CATEGORIES", action: "ignore" },
+        ]),
+      },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ imported: 2 });
+    expect(sb.find("POST", "/rest/v1/opt_outs")).toHaveLength(0);
+  });
+
+  it("H3: asks about a PARAMETER, where Apple's inline label lives", async () => {
+    // `TEL;TYPE=CELL;X-ABLabel=DO NOT CALL:+1613…`. The property is TEL, TEL is
+    // mapped, and everything after the first `;` was discarded — so this card
+    // imported attested and the message was delivered, while the same
+    // instruction written Apple's OTHER way (`item1.X-ABLabel:`) was caught.
+    // One shape of one export deciding whether somebody is texted is not a
+    // gate.
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const vcf = [
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      "FN:Dana Diaz",
+      "TEL;TYPE=CELL;X-ABLabel=DO NOT CALL:+16135550111",
+      "END:VCARD",
+    ].join("\r\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import-vcard",
+      { method: "POST", companyId: COMPANY_ID, rawBody: vcardForm(vcf) },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { message: string } };
+    // Both parameters, under the shared token shape — a client that enumerated
+    // fewer than the server does is refused forever, so the two have to agree
+    // on the string as well as on the rule.
+    expect(body.error.message).toBe(
+      contactImportUndeclaredPropertiesMessage([
+        vcardParameterProperty("TEL", "TYPE"),
+        vcardParameterProperty("TEL", "X-ABLABEL"),
+      ]),
+    );
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
+  it("H3: blocks the card once somebody says that parameter means do-not-text", async () => {
+    // The other half: the refusal has to be answerable, and the answer has to
+    // do something. A MIX — two cards, both carrying `TEL;TYPE`, only one
+    // carrying the label — so a gate that blocked on "any declared parameter"
+    // fails here alongside one that blocks nobody.
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
+    sb.on("POST", "/rest/v1/opt_outs", () => [{ id: OTHER_ID }]);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const vcf = [
+      "BEGIN:VCARD",
+      "FN:Dana Diaz",
+      "TEL;TYPE=CELL;X-ABLabel=DO NOT CALL:+16135550111",
+      "END:VCARD",
+      "BEGIN:VCARD",
+      "FN:Eli East",
+      "TEL;TYPE=CELL:+16135550112",
+      "END:VCARD",
+    ].join("\r\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import-vcard",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: vcardForm(vcf, true, [
+          { property: vcardParameterProperty("TEL", "TYPE"), action: "ignore" },
+          {
+            property: vcardParameterProperty("TEL", "X-ABLABEL"),
+            action: "opted_out",
+          },
+        ]),
+      },
+    );
+    expect(res.status).toBe(200);
+    const blocked = sb
+      .find("POST", "/rest/v1/opt_outs")
+      .flatMap((call) => call.body as { phone_e164: string }[])
+      .map((row) => row.phone_e164);
+    expect(blocked).toEqual(["+16135550111"]);
+    const rows = sb
+      .find("POST", "/rest/v1/contacts")
+      .flatMap((call) => call.body as Record<string, unknown>[]);
+    expect(
+      rows.find((row) => row.phone_e164 === "+16135550111"),
+    ).not.toHaveProperty("consent_source");
+    expect(
+      rows.find((row) => row.phone_e164 === "+16135550112"),
+    ).toMatchObject({ consent_source: "attested" });
+  });
+
+  it("H3: asks about a line with no colon, and one whose parameter ate it", async () => {
+    // Two ways into the same hole, both of which reached `properties.add`
+    // never having been parsed: a bare `DO-NOT-CALL` line (not a content line
+    // by the RFC — a statement about the format, not about what the person
+    // meant) and `CATEGORIES;TYPE="a:DNC`, where one unbalanced quote hides the
+    // only colon and takes CATEGORIES with it.
+    for (const [line, expected] of [
+      ["DO-NOT-CALL", ["DO-NOT-CALL"]],
+      ['CATEGORIES;TYPE="a:DNC', ["CATEGORIES", "CATEGORIES;TYPE"]],
+    ] as [string, string[]][]) {
+      const sb = stubWithRole("admin");
+      noStandingOptOuts(sb);
+      sb.on("GET", "/rest/v1/contacts", () => []);
+      stubFetch(jwksRoute(auth), sb.route);
+
+      const vcf = [
+        "BEGIN:VCARD",
+        "FN:Dana Diaz",
+        "TEL:+14165550111",
+        line,
+        "END:VCARD",
+      ].join("\r\n");
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        "/v1/contacts/import-vcard",
+        { method: "POST", companyId: COMPANY_ID, rawBody: vcardForm(vcf) },
+      );
+      expect(res.status, line).toBe(422);
+      const body = (await res.json()) as { error: { message: string } };
+      expect(body.error.message, line).toBe(
+        contactImportUndeclaredPropertiesMessage(expected),
+      );
+      expect(sb.find("POST", "/rest/v1/contacts"), line).toHaveLength(0);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("still refuses a SECOND property the caller has not seen", async () => {
+    // Answering is per property and per file, so the next phone export growing
+    // an `X-DNC` is refused again rather than covered by yesterday's answer.
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const vcf = [
+      "BEGIN:VCARD",
+      "FN:Dana Diaz",
+      "TEL:+14165550111",
+      "CATEGORIES:DNC",
+      "X-DNC:1",
+      "END:VCARD",
+    ].join("\r\n");
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import-vcard",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: vcardForm(vcf, true, [
+          { property: "CATEGORIES", action: "ignore" },
+        ]),
+      },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toBe(
+      contactImportUndeclaredPropertiesMessage(["X-DNC"]),
+    );
+  });
+});
+
 describe("geocode cache reset on address writes (D25)", () => {
   it("clears the geocode cache on POST /v1/contacts when an address is set", async () => {
     const sb = stubWithRole("member");
@@ -2074,6 +5053,7 @@ describe("geocode cache reset on address writes (D25)", () => {
 
   it("re-queues geocoding on CSV import when the address column is written", async () => {
     const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
     // Pre-existing contact (already geocoded in reality) → this is an UPDATE.
     sb.on("GET", "/rest/v1/contacts", () => [{ phone_e164: "+14165550100" }]);
     sb.on("POST", "/rest/v1/contacts", (call) => {
@@ -2118,6 +5098,7 @@ describe("geocode cache reset on address writes (D25)", () => {
 
   it("does NOT touch the geocode cache on CSV import with no address column", async () => {
     const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
     sb.on("GET", "/rest/v1/contacts", () => []);
     sb.on("POST", "/rest/v1/contacts", (call) => {
       const rows = call.body as { phone_e164: string }[];

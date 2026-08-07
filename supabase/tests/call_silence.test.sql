@@ -59,7 +59,7 @@ begin
 
   select state into v_state from public.call_silence_state
    where company_id = 'ba000000-0000-4000-8000-0000000000c1'::uuid;
-  if v_state <> 'silent' then
+  if v_state is distinct from 'silent' then
     raise exception
       'a workspace with an established call rhythm and zero recent calls must '
       'be flagged, got %', v_state;
@@ -69,7 +69,7 @@ begin
   -- them, and flagging it would be flagging somebody who does not use voice.
   select state into v_state from public.call_silence_state
    where company_id = 'ba000000-0000-4000-8000-0000000000c2'::uuid;
-  if v_state <> 'ok' then
+  if v_state is distinct from 'ok' then
     raise exception
       'a workspace with no call history was flagged as silent — it never had a '
       'rhythm to lose, got %', v_state;
@@ -77,7 +77,7 @@ begin
 
   select state into v_state from public.call_silence_state
    where company_id = 'ba000000-0000-4000-8000-0000000000c3'::uuid;
-  if v_state <> 'ok' then
+  if v_state is distinct from 'ok' then
     raise exception 'a busy workspace was flagged as silent, got %', v_state;
   end if;
 end $$;
@@ -96,7 +96,7 @@ begin
    where company_id = 'ba000000-0000-4000-8000-0000000000c1'::uuid;
 
   select count(*) into v_changed from public.api_assess_call_silence();
-  if v_changed <> 0 then
+  if v_changed is distinct from 0 then
     raise exception
       'a workspace silent since yesterday is not news today; got % transitions',
       v_changed;
@@ -122,13 +122,13 @@ begin
   perform pg_temp.seed_calls('ba000000-0000-4000-8000-0000000000c1'::uuid, 5, 1);
 
   select count(*) into v_rows from public.api_assess_call_silence();
-  if v_rows <> 1 then
+  if v_rows is distinct from 1 then
     raise exception 'coming back must be reported as a transition, got %', v_rows;
   end if;
 
   select state, silent_since into v_state, v_since from public.call_silence_state
    where company_id = 'ba000000-0000-4000-8000-0000000000c1'::uuid;
-  if v_state <> 'ok' or v_since is not null then
+  if v_state is distinct from 'ok' or v_since is not null then
     raise exception 'recovery must clear both the state and the clock';
   end if;
 end $$;

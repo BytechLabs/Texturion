@@ -81,22 +81,22 @@ begin
   select * into v_light from public.api_storage_fleet(30, 200)
    where company_id = 'cf000000-0000-4000-8000-0000000000c2'::uuid;
 
-  if v_heavy.stored_bytes <> 4294967296 then
+  if v_heavy.stored_bytes is distinct from 4294967296 then
     raise exception 'heavy stored bytes wrong: %', v_heavy.stored_bytes;
   end if;
   -- THE GROWTH WINDOW. Half the bytes are 200 days old; only the recent half
   -- is "added", which is the figure the tripwire cannot produce at all.
-  if v_heavy.added_bytes <> 2147483648 then
+  if v_heavy.added_bytes is distinct from 2147483648 then
     raise exception 'heavy added bytes wrong: %', v_heavy.added_bytes;
   end if;
 
   -- Soft-deleted bytes are excluded, so Light is 1 GiB and not 11.
-  if v_light.stored_bytes <> 1073741824 then
+  if v_light.stored_bytes is distinct from 1073741824 then
     raise exception 'deleted bytes must not count as stored: %', v_light.stored_bytes;
   end if;
 
   -- Egress outside the window is not this month's spend.
-  if v_heavy.egress_bytes <> 0 then
+  if v_heavy.egress_bytes is distinct from 0 then
     raise exception 'stale egress must not count: %', v_heavy.egress_bytes;
   end if;
 
@@ -104,7 +104,7 @@ begin
   -- Light stores a quarter of what Heavy does and costs more, because serving
   -- is ~4x the price of keeping. A size-ordered report would bury it.
   select company_id into v_first from public.api_storage_fleet(30, 200) limit 1;
-  if v_first <> 'cf000000-0000-4000-8000-0000000000c2'::uuid then
+  if v_first is distinct from 'cf000000-0000-4000-8000-0000000000c2'::uuid then
     raise exception
       'the report must rank by cost, not stored size (first was %)', v_first;
   end if;

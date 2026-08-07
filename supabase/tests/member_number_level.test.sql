@@ -97,7 +97,7 @@ begin
   -- configured access — which is nearly all of them.
   v := pg_temp.lvl('4a000000-0000-4000-8000-00000000000c'::uuid,
                    '4a000000-0000-4000-8000-0000000000f1'::uuid);
-  if v <> 'text' then
+  if v is distinct from 'text' then
     raise exception 'NL-1 FAILED: un-ruled number reads % (want text)', v;
   end if;
 
@@ -106,21 +106,21 @@ begin
   -- every individual grant.
   v := pg_temp.lvl('4a000000-0000-4000-8000-00000000000c'::uuid,
                    '4a000000-0000-4000-8000-0000000000f2'::uuid);
-  if v <> 'text' then
+  if v is distinct from 'text' then
     raise exception 'NL-1 FAILED: user row lost to all row (% )', v;
   end if;
 
   -- Somebody with no 'user' row on f2 falls through to the 'all' row.
   v := pg_temp.lvl('4a000000-0000-4000-8000-00000000000d'::uuid,
                    '4a000000-0000-4000-8000-0000000000f2'::uuid);
-  if v <> 'note' then
+  if v is distinct from 'note' then
     raise exception 'NL-1 FAILED: fallthrough to all row reads % (want note)', v;
   end if;
 
   -- A 'role' row applies to the caller's role.
   v := pg_temp.lvl('4a000000-0000-4000-8000-00000000000c'::uuid,
                    '4a000000-0000-4000-8000-0000000000f4'::uuid);
-  if v <> 'note' then
+  if v is distinct from 'note' then
     raise exception 'NL-1 FAILED: role row reads % (want note)', v;
   end if;
 
@@ -128,7 +128,7 @@ begin
   -- feature, and the one answer that must never soften to 'note'.
   v := pg_temp.lvl('4a000000-0000-4000-8000-00000000000c'::uuid,
                    '4a000000-0000-4000-8000-0000000000f3'::uuid);
-  if v <> 'none' then
+  if v is distinct from 'none' then
     raise exception 'NL-1 FAILED: ruled-and-unmatched reads % (want none)', v;
   end if;
 
@@ -145,7 +145,7 @@ begin
     '4a000000-0000-4000-8000-00000000000a',
     '4a000000-0000-4000-8000-00000000000b'])
   loop
-    if pg_temp.lvl(v::uuid, '4a000000-0000-4000-8000-0000000000f3'::uuid) <> 'text' then
+    if pg_temp.lvl(v::uuid, '4a000000-0000-4000-8000-0000000000f3'::uuid) is distinct from 'text' then
       raise exception 'NL-2 FAILED: % is denied a number they administer', v;
     end if;
   end loop;
@@ -156,7 +156,7 @@ begin
   from public.member_number_levels(
     '4a000000-0000-4000-8000-00000000000a'::uuid,
     '4a000000-0000-4000-8000-0000000000c1'::uuid);
-  if n <> 0 then
+  if n is distinct from 0 then
     raise exception 'NL-2 FAILED: owner has % restricted numbers (want 0)', n;
   end if;
 
@@ -180,10 +180,10 @@ begin
     '4a000000-0000-4000-8000-00000000000e']   -- offboarded
   loop
     -- Every number, including the un-ruled one that is open to the whole crew.
-    if pg_temp.lvl(v::uuid, '4a000000-0000-4000-8000-0000000000f1'::uuid) <> 'none' then
+    if pg_temp.lvl(v::uuid, '4a000000-0000-4000-8000-0000000000f1'::uuid) is distinct from 'none' then
       raise exception 'NL-3 FAILED: % reads an un-ruled number as visible', v;
     end if;
-    if pg_temp.lvl(v::uuid, '4a000000-0000-4000-8000-0000000000f2'::uuid) <> 'none' then
+    if pg_temp.lvl(v::uuid, '4a000000-0000-4000-8000-0000000000f2'::uuid) is distinct from 'none' then
       raise exception 'NL-3 FAILED: % reads a ruled number as visible', v;
     end if;
 
@@ -192,14 +192,14 @@ begin
     select count(*) into n
     from public.member_number_levels(
       v::uuid, '4a000000-0000-4000-8000-0000000000c1'::uuid);
-    if n <> 4 then
+    if n is distinct from 4 then
       raise exception 'NL-3 FAILED: % gets % rows (want 4 explicit none rows)', v, n;
     end if;
     select count(*) into bad
     from public.member_number_levels(
       v::uuid, '4a000000-0000-4000-8000-0000000000c1'::uuid) l
     where l.level <> 'none';
-    if bad <> 0 then
+    if bad is distinct from 0 then
       raise exception 'NL-3 FAILED: % has % non-none rows', v, bad;
     end if;
   end loop;
@@ -218,13 +218,13 @@ end $$;
 do $$
 begin
   if public.member_number_level(
-       '4a000000-0000-4000-8000-00000000000c'::uuid, null) <> 'none' then
+       '4a000000-0000-4000-8000-00000000000c'::uuid, null) is distinct from 'none' then
     raise exception 'NL-4 FAILED: a null number is not refused';
   end if;
   -- A well-formed uuid that is not a number in any company.
   if public.member_number_level(
        '4a000000-0000-4000-8000-00000000000c'::uuid,
-       '4a000000-0000-4000-8000-0000000000ff'::uuid) <> 'none' then
+       '4a000000-0000-4000-8000-0000000000ff'::uuid) is distinct from 'none' then
     raise exception 'NL-4 FAILED: an unknown number is not refused';
   end if;
   raise notice 'NL-4 PASSED: null and unknown ids fail closed';
@@ -245,7 +245,7 @@ begin
   from public.member_number_levels(
     '4a000000-0000-4000-8000-00000000000c'::uuid,
     '4a000000-0000-4000-8000-0000000000c1'::uuid);
-  if n <> 3 then
+  if n is distinct from 3 then
     raise exception 'NL-5 FAILED: member has % restricted rows (want 3)', n;
   end if;
 
@@ -500,7 +500,7 @@ begin
     '4a000000-0000-4000-8000-00000000000f'::uuid,
     '4a000000-0000-4000-8000-0000000000c1'::uuid)
   where decided_by <> 'not-a-member' or level <> 'none';
-  if v_seen <> 0 then
+  if v_seen is distinct from 0 then
     raise exception 'NL-8 FAILED: a non-member got % non-stranger row(s)', v_seen;
   end if;
 
@@ -516,7 +516,7 @@ begin
     '4a000000-0000-4000-8000-0000000000c1'::uuid) l
     on l.phone_number_id = e.phone_number_id
   where l.level is distinct from e.level;
-  if v_seen <> 0 then
+  if v_seen is distinct from 0 then
     raise exception 'NL-8 FAILED: % number(s) where the reason and the rule disagree', v_seen;
   end if;
 

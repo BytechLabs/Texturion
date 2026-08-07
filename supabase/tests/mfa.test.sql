@@ -42,25 +42,25 @@ declare
   v jsonb;
 begin
   v_n := public.api_mfa_set_recovery_codes(v_user, array['aaa','bbb','ccc']);
-  if v_n <> 3 then
+  if v_n is distinct from 3 then
     raise exception 'expected 3 codes stored, got %', v_n;
   end if;
-  if public.api_mfa_recovery_remaining(v_user) <> 3 then
+  if public.api_mfa_recovery_remaining(v_user) is distinct from 3 then
     raise exception 'remaining count is wrong right after issuing';
   end if;
 
   v := public.api_mfa_consume_recovery_code(v_user, 'bbb');
-  if v ->> 'outcome' <> 'ok' then
+  if v ->> 'outcome' is distinct from 'ok' then
     raise exception 'a valid code was refused: %', v;
   end if;
-  if (v ->> 'remaining')::int <> 2 then
+  if (v ->> 'remaining')::int is distinct from 2 then
     raise exception 'remaining did not drop after a burn: %', v;
   end if;
 
   -- The same code again is not a second chance. A reusable recovery code is a
   -- password with a shorter lifetime and worse ergonomics.
   v := public.api_mfa_consume_recovery_code(v_user, 'bbb');
-  if v ->> 'outcome' <> 'no_match' then
+  if v ->> 'outcome' is distinct from 'no_match' then
     raise exception 'a spent code was accepted a second time: %', v;
   end if;
 end $$;
@@ -73,11 +73,11 @@ declare
   v jsonb;
 begin
   perform public.api_mfa_set_recovery_codes(v_user, array['ddd','eee']);
-  if public.api_mfa_recovery_remaining(v_user) <> 2 then
+  if public.api_mfa_recovery_remaining(v_user) is distinct from 2 then
     raise exception 're-issuing did not replace the previous set';
   end if;
   v := public.api_mfa_consume_recovery_code(v_user, 'aaa');
-  if v ->> 'outcome' <> 'no_match' then
+  if v ->> 'outcome' is distinct from 'no_match' then
     raise exception 'a code from the PREVIOUS set still worked: %', v;
   end if;
 end $$;
@@ -97,23 +97,23 @@ begin
   for i in 1..10 loop
     v := public.api_mfa_consume_recovery_code(v_user, 'wrong-' || i);
   end loop;
-  if v ->> 'outcome' <> 'no_match' then
+  if v ->> 'outcome' is distinct from 'no_match' then
     raise exception 'the tenth wrong guess should still read as no_match: %', v;
   end if;
 
   -- The eleventh is refused before it is even compared.
   v := public.api_mfa_consume_recovery_code(v_user, 'wrong-11');
-  if v ->> 'outcome' <> 'locked' then
+  if v ->> 'outcome' is distinct from 'locked' then
     raise exception 'grinding was not locked out after ten failures: %', v;
   end if;
 
   -- And the lock is not a per-code thing: even the RIGHT code is refused
   -- while it holds, or the lockout would be trivially skippable.
   v := public.api_mfa_consume_recovery_code(v_user, 'zzz');
-  if v ->> 'outcome' <> 'locked' then
+  if v ->> 'outcome' is distinct from 'locked' then
     raise exception 'the lockout let a correct code through: %', v;
   end if;
-  if public.api_mfa_recovery_remaining(v_user) <> 1 then
+  if public.api_mfa_recovery_remaining(v_user) is distinct from 1 then
     raise exception 'a locked-out attempt still spent the code';
   end if;
 end $$;
@@ -128,7 +128,7 @@ declare
 begin
   perform public.api_mfa_set_recovery_codes(v_user, array['fresh']);
   v := public.api_mfa_consume_recovery_code(v_user, 'fresh');
-  if v ->> 'outcome' <> 'ok' then
+  if v ->> 'outcome' is distinct from 'ok' then
     raise exception 're-enrolling did not clear the lockout: %', v;
   end if;
 end $$;
@@ -146,12 +146,12 @@ declare
 begin
   -- A member cannot impose a security policy on the workspace.
   v := public.api_set_company_mfa(co, tech, true, 14);
-  if v ->> 'outcome' <> 'forbidden' then
+  if v ->> 'outcome' is distinct from 'forbidden' then
     raise exception 'a member turned on workspace MFA: %', v;
   end if;
 
   v := public.api_set_company_mfa(co, owner, true, 14);
-  if v ->> 'outcome' <> 'on' then
+  if v ->> 'outcome' is distinct from 'on' then
     raise exception 'the owner could not require MFA: %', v;
   end if;
   first_deadline := (v ->> 'grace_until')::timestamptz;
@@ -163,7 +163,7 @@ begin
   -- already told. Otherwise every settings save silently extends it, and
   -- "you have until Friday" stops meaning anything.
   v := public.api_set_company_mfa(co, owner, true, 90);
-  if (v ->> 'grace_until')::timestamptz <> first_deadline then
+  if (v ->> 'grace_until')::timestamptz is distinct from first_deadline then
     raise exception 'saving again moved the deadline: % -> %',
       first_deadline, v ->> 'grace_until';
   end if;
@@ -203,7 +203,7 @@ declare
   v jsonb;
 begin
   v := public.api_set_company_mfa(co, owner, false);
-  if v ->> 'outcome' <> 'off' then
+  if v ->> 'outcome' is distinct from 'off' then
     raise exception 'the owner could not turn MFA off: %', v;
   end if;
   if (select mfa_required_at is not null or mfa_grace_until is not null
@@ -241,7 +241,7 @@ begin
     p_user_id    => 'af000000-0000-4000-8000-00000000000b',
     p_session_id => null,
     p_company_id => null);
-  if v -> 'mfa' <> 'null'::jsonb then
+  if v -> 'mfa' is distinct from 'null'::jsonb then
     raise exception 'a company-exempt call carried a workspace MFA policy: %', v;
   end if;
 end $$;
@@ -313,7 +313,7 @@ begin
     p_user_id    => 'af000000-0000-4000-8000-00000000000b',
     p_session_id => null,
     p_company_id => null);
-  if v -> 'mfa' <> 'null'::jsonb then
+  if v -> 'mfa' is distinct from 'null'::jsonb then
     raise exception 'a company-exempt call carried an MFA demand: %', v;
   end if;
 

@@ -76,7 +76,7 @@ begin
 
   select emergency_keywords into v_keywords
     from public.companies where id = 'ae000000-0000-4000-8000-0000000000c1';
-  if v_keywords <> array['LOCKEDOUT', 'URGENT'] then
+  if v_keywords is distinct from array['LOCKEDOUT', 'URGENT'] then
     raise exception 'OE-2 FAILED: stored % ', v_keywords;
   end if;
 

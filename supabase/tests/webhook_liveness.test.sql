@@ -40,18 +40,18 @@ declare
   p jsonb;
 begin
   p := public.api_webhook_inbound_probe('2026-07-28T09:00:00Z', '2026-07-28T12:00:00Z');
-  if (p->>'inbound_message')::int <> 2 then
+  if (p->>'inbound_message')::int is distinct from 2 then
     raise exception 'WL-1 FAILED: inbound_message = % (want 2): %', p->>'inbound_message', p;
   end if;
   -- message.sent AND message.finalized both count as status.
-  if (p->>'message_status')::int <> 2 then
+  if (p->>'message_status')::int is distinct from 2 then
     raise exception 'WL-1 FAILED: message_status = % (want 2): %', p->>'message_status', p;
   end if;
-  if (p->>'call_event')::int <> 1 then
+  if (p->>'call_event')::int is distinct from 1 then
     raise exception 'WL-1 FAILED: call_event = % (want 1): %', p->>'call_event', p;
   end if;
   -- Every telnyx row in the window, whatever its class.
-  if (p->>'telnyx_accepted')::int <> 5 then
+  if (p->>'telnyx_accepted')::int is distinct from 5 then
     raise exception 'WL-1 FAILED: telnyx_accepted = % (want 5): %', p->>'telnyx_accepted', p;
   end if;
 end $$;
@@ -66,10 +66,10 @@ declare
   p jsonb;
 begin
   p := public.api_webhook_inbound_probe('2026-07-28T11:52:00Z', '2026-07-28T12:00:00Z');
-  if (p->>'inbound_message')::int <> 0 then
+  if (p->>'inbound_message')::int is distinct from 0 then
     raise exception 'WL-2 FAILED: a stale event counted inside a narrow window: %', p;
   end if;
-  if (p->>'call_event')::int <> 1 then
+  if (p->>'call_event')::int is distinct from 1 then
     raise exception 'WL-2 FAILED: call_event = % (want 1): %', p->>'call_event', p;
   end if;
 end $$;
@@ -90,15 +90,15 @@ begin
   -- Both telnyx rejections land in the SAME hour bucket.
   select rejections into n from public.webhook_rejections
    where provider = 'telnyx' and hour = '2026-07-28T11:00:00Z';
-  if n <> 2 then
+  if n is distinct from 2 then
     raise exception 'WL-3 FAILED: telnyx 11:00 bucket = % (want 2)', n;
   end if;
 
   p := public.api_webhook_inbound_probe('2026-07-28T09:00:00Z', '2026-07-28T12:00:00Z');
-  if (p->'rejections'->>'telnyx')::int <> 2 then
+  if (p->'rejections'->>'telnyx')::int is distinct from 2 then
     raise exception 'WL-3 FAILED: probe telnyx rejections = %: %', p->'rejections'->>'telnyx', p;
   end if;
-  if (p->'rejections'->>'stripe')::int <> 1 then
+  if (p->'rejections'->>'stripe')::int is distinct from 1 then
     raise exception 'WL-3 FAILED: probe stripe rejections = %: %', p->'rejections'->>'stripe', p;
   end if;
 end $$;
@@ -116,15 +116,15 @@ declare
   p jsonb;
 begin
   p := public.api_webhook_inbound_probe('2026-07-28T13:00:00Z', '2026-07-28T14:00:00Z');
-  if p->'rejections' is null or jsonb_typeof(p->'rejections') <> 'object' then
+  if p->'rejections' is null or jsonb_typeof(p->'rejections') is distinct from 'object' then
     raise exception 'WL-4 FAILED: rejections must be an object, got %: %',
       jsonb_typeof(p->'rejections'), p;
   end if;
-  if p->'rejections' <> '{}'::jsonb then
+  if p->'rejections' is distinct from '{}'::jsonb then
     raise exception 'WL-4 FAILED: expected an empty object, got %', p->'rejections';
   end if;
   -- Every count is a real zero, never null, for the same reason.
-  if (p->>'inbound_message')::int <> 0 or (p->>'telnyx_accepted')::int <> 0 then
+  if (p->>'inbound_message')::int is distinct from 0 or (p->>'telnyx_accepted')::int is distinct from 0 then
     raise exception 'WL-4 FAILED: counts must be 0 not null: %', p;
   end if;
 end $$;
@@ -228,10 +228,10 @@ begin
           '2026-07-28T11:00:30Z');
 
   r := public.confirm_inbound_canary('2026-07-28T11:45:00Z', 60);
-  if r->>'confirmed' <> 'CANARY-NEW' then
+  if r->>'confirmed' is distinct from 'CANARY-NEW' then
     raise exception 'WL-8 FAILED: expected CANARY-NEW to confirm: %', r;
   end if;
-  if (r->>'round_trip_seconds')::int <> 2700 then
+  if (r->>'round_trip_seconds')::int is distinct from 2700 then
     raise exception 'WL-8 FAILED: round trip = %s (want 2700): %', r->>'round_trip_seconds', r;
   end if;
 
@@ -287,7 +287,7 @@ begin
   end if;
 
   n := public.inbound_canary_unanswered('2026-07-28T00:00:00Z');
-  if n <> 0 then
+  if n is distinct from 0 then
     raise exception 'WL-10 FAILED: unanswered = % (a failed send must not count)', n;
   end if;
 
@@ -295,7 +295,7 @@ begin
   insert into public.inbound_canary_runs (token, sent_at)
   values ('CANARY-SILENT', '2026-07-28T10:30:00Z');
   n := public.inbound_canary_unanswered('2026-07-28T00:00:00Z');
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'WL-10 FAILED: unanswered = % (want 1)', n;
   end if;
 end $$;

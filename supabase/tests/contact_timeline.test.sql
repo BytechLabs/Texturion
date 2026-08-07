@@ -143,12 +143,12 @@ begin
   ) s;
 
   -- 2 conversations (spam excluded) + 1 call + 2 tasks (deleted excluded).
-  if v_count <> 5 then
+  if v_count is distinct from 5 then
     raise exception 'timeline size: expected 5, got %', v_count;
   end if;
   -- Newest first: conversation (2d) > call (3d) > task (4d) > task (6d)
   -- > conversation (400d).
-  if v_kinds <> array['conversation','call','task','task','conversation'] then
+  if v_kinds is distinct from array['conversation','call','task','task','conversation'] then
     raise exception 'timeline order wrong: %', v_kinds;
   end if;
 end $$;
@@ -165,7 +165,7 @@ begin
     'da000000-0000-4000-8000-0000000000c1'::uuid,
     'da000000-0000-4000-8000-0000000000a1'::uuid) t
   where (t->>'id')::uuid = 'da000000-0000-4000-8000-0000000000e3'::uuid;
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception 'a spam conversation entered the timeline';
   end if;
 end $$;
@@ -182,7 +182,7 @@ begin
     'da000000-0000-4000-8000-0000000000c1'::uuid,
     'da000000-0000-4000-8000-0000000000a1'::uuid) t
   where (t->>'id')::uuid = 'da000000-0000-4000-8000-0000000000e4'::uuid;
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception 'another contact''s conversation entered the timeline';
   end if;
 end $$;
@@ -198,7 +198,7 @@ begin
   from public.api_contact_timeline(
     'da000000-0000-4000-8000-0000000000c2'::uuid,
     'da000000-0000-4000-8000-0000000000a1'::uuid) t;
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception 'cross-tenant read returned % rows', v_count;
   end if;
 end $$;
@@ -243,7 +243,7 @@ begin
     -- as "everything strictly older than that instant".
     'ffffffff-ffff-4fff-bfff-ffffffffffff'::uuid) t;
   -- Only the 6-day task and the 400-day conversation are older than that.
-  if v_count <> 2 then
+  if v_count is distinct from 2 then
     raise exception 'jump-to-date: expected 2 entries, got %', v_count;
   end if;
 
@@ -252,7 +252,7 @@ begin
     'da000000-0000-4000-8000-0000000000c1'::uuid,
     'da000000-0000-4000-8000-0000000000a1'::uuid,
     1) t;
-  if v_first <> 'conversation' then
+  if v_first is distinct from 'conversation' then
     raise exception 'limit 1 did not return the newest entry (got %)', v_first;
   end if;
 end $$;
@@ -271,10 +271,10 @@ begin
     'da000000-0000-4000-8000-0000000000c1'::uuid,
     'da000000-0000-4000-8000-0000000000a1'::uuid) t
   where t->>'kind' = 'call';
-  if v.talk <> 240 then
+  if v.talk is distinct from 240 then
     raise exception 'call talk_seconds: expected 240, got %', v.talk;
   end if;
-  if v.status <> 'answered' then
+  if v.status is distinct from 'answered' then
     raise exception 'call outcome: expected answered, got %', v.status;
   end if;
 end $$;
@@ -289,7 +289,7 @@ begin
   from public.api_contact_timeline(
     'da000000-0000-4000-8000-0000000000c1'::uuid,
     'da000000-0000-4000-8000-0000000000de'::uuid) t;
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception 'unknown contact returned % rows', v_count;
   end if;
 end $$;

@@ -62,7 +62,7 @@ begin
   if not (r->>'suppressed')::boolean then
     raise exception 'ED-2 FAILED: a permanent bounce did not suppress';
   end if;
-  if (r->>'reason') <> 'hard_bounce' then
+  if (r->>'reason') is distinct from 'hard_bounce' then
     raise exception 'ED-2 FAILED: permanent bounce recorded reason %', r->>'reason';
   end if;
 
@@ -96,7 +96,7 @@ begin
 
   select reason, cleared_at into row_reason, row_cleared
     from public.email_suppressions where email = 'mixed@example.com';
-  if row_reason <> 'complaint' then
+  if row_reason is distinct from 'complaint' then
     raise exception 'ED-3 FAILED: complaint did not outrank the bounce (reason %)', row_reason;
   end if;
   if row_cleared is not null then
@@ -117,7 +117,7 @@ begin
   if s is null then
     raise exception 'ED-4 FAILED: a suppressed address reported no state';
   end if;
-  if (s->>'reason') <> 'hard_bounce' or not (s->>'fixable')::boolean then
+  if (s->>'reason') is distinct from 'hard_bounce' or not (s->>'fixable')::boolean then
     raise exception 'ED-4 FAILED: a hard bounce should be fixable by its owner: %', s;
   end if;
 
@@ -161,17 +161,17 @@ begin
   perform public.record_email_event('b2@example.com', 'bounced', now(), 'Permanent', null, null);
 
   h := public.api_email_health(now(), 24);
-  if (h->>'total')::int <> 10 then
+  if (h->>'total')::int is distinct from 10 then
     raise exception 'ED-5 FAILED: total was %, expected 10', h->>'total';
   end if;
-  if (h->>'bounce_rate')::numeric <> 0.2 then
+  if (h->>'bounce_rate')::numeric is distinct from 0.2 then
     raise exception 'ED-5 FAILED: bounce_rate was %, expected 0.2', h->>'bounce_rate';
   end if;
 
   -- Outside the window is outside the number.
   update public.email_events set occurred_at = now() - interval '3 days';
   h := public.api_email_health(now(), 24);
-  if (h->>'total')::int <> 0 then
+  if (h->>'total')::int is distinct from 0 then
     raise exception 'ED-5 FAILED: events outside the window were counted: %', h;
   end if;
 
@@ -200,7 +200,7 @@ begin
   select count(*) into n from pg_class
    where oid in ('public.email_events'::regclass, 'public.email_suppressions'::regclass)
      and relrowsecurity;
-  if n <> 2 then
+  if n is distinct from 2 then
     raise exception 'ED-6 FAILED: only % of 2 deliverability tables have RLS on', n;
   end if;
 
@@ -228,7 +228,7 @@ begin
   -- The signed-in member sees their own state, resolved from the verified id
   -- rather than from anything the request could name.
   st := public.api_user_email_state(uid);
-  if st is null or (st->>'reason') <> 'hard_bounce' or not (st->>'fixable')::boolean then
+  if st is null or (st->>'reason') is distinct from 'hard_bounce' or not (st->>'fixable')::boolean then
     raise exception 'ED-7 FAILED: bounced member state wrong: %', st;
   end if;
 
@@ -245,14 +245,14 @@ begin
   if (r->>'cleared')::boolean then
     raise exception 'ED-7 FAILED: a complaint was cleared from the app';
   end if;
-  if (r->>'reason') <> 'complaint' then
+  if (r->>'reason') is distinct from 'complaint' then
     raise exception 'ED-7 FAILED: refusal did not name the reason: %', r;
   end if;
 
   -- Clearing nothing is a no-op rather than an error: they may have fixed it
   -- on another device a second earlier.
   r := public.api_clear_email_suppression(uid);
-  if (r->>'cleared')::boolean or (r->>'reason') <> 'not_suppressed' then
+  if (r->>'cleared')::boolean or (r->>'reason') is distinct from 'not_suppressed' then
     raise exception 'ED-7 FAILED: clearing a healthy address was not a clean no-op: %', r;
   end if;
 
@@ -269,13 +269,13 @@ declare d jsonb;
 begin
   perform public.record_email_event('receipt@deliver.test', 'delivered', now() - interval '2 hours', null, 're_legal', 'Your export');
   d := public.api_email_delivery_state('re_legal');
-  if (d->>'event') <> 'delivered' then
+  if (d->>'event') is distinct from 'delivered' then
     raise exception 'ED-8 FAILED: delivery not reported: %', d;
   end if;
 
   perform public.record_email_event('receipt@deliver.test', 'complained', now(), null, 're_legal', 'Your export');
   d := public.api_email_delivery_state('re_legal');
-  if (d->>'event') <> 'complained' then
+  if (d->>'event') is distinct from 'complained' then
     raise exception 'ED-8 FAILED: the later event did not win: %', d;
   end if;
 

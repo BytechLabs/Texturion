@@ -68,7 +68,7 @@ begin
     '38000000-0000-4000-8000-000000000001',
     '+16135554000', 'CLICK THIS LINK NOW', 'tx-s1-2');
 
-  if (res->>'conversation_id')::uuid <> v_conv_id then
+  if (res->>'conversation_id')::uuid is distinct from v_conv_id then
     raise exception 'S1 FAILED: spam inbound did not absorb into the spam thread';
   end if;
   if not (res->>'created')::boolean then
@@ -83,7 +83,7 @@ begin
     raise exception 'S1 FAILED: spam absorb bumped last_message_at (% -> %)',
       v_frozen, v_conv.last_message_at;
   end if;
-  if v_conv.status <> 'closed' or not v_conv.is_spam then
+  if v_conv.status is distinct from 'closed' or not v_conv.is_spam then
     raise exception 'S1 FAILED: spam thread did not stay closed+spam (% / %)',
       v_conv.status, v_conv.is_spam;
   end if;
@@ -151,7 +151,7 @@ begin
     '38000000-0000-4000-8000-000000000001',
     '+16135555000', 'one weird trick', 'tx-s3-1');
 
-  if (res->>'conversation_id')::uuid <> v_conv_id then
+  if (res->>'conversation_id')::uuid is distinct from v_conv_id then
     raise exception 'S3 FAILED: open-spam inbound did not append to the open thread';
   end if;
   if (res->>'notify')::boolean then

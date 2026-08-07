@@ -90,7 +90,7 @@ begin
   select array_agg(module order by module) into mods
     from public.company_modules
    where company_id = '77777777-7777-4777-8777-777000000000';
-  if mods <> array['regions_ca', 'voice'] then
+  if mods is distinct from array['regions_ca', 'voice'] then
     raise exception 'MOD-3 FAILED: grandfather seeded %, expected regions_ca/voice', mods;
   end if;
   raise notice 'MOD-3 PASSED: grandfathering seeds the live capabilities only';
@@ -106,7 +106,7 @@ begin
    where company_id = '77777777-7777-4777-8777-777000000000' and module = 'voice';
   select count(*) into n from public.company_modules
    where company_id = '77777777-7777-4777-8777-777000000000' and disabled_at is null;
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'MOD-4 FAILED: expected 1 enabled module after disabling voice, got %', n;
   end if;
   raise notice 'MOD-4 PASSED: disabled_at excludes a module from the enabled set';
@@ -141,7 +141,7 @@ begin
    where company_id = '77777777-7777-4777-8777-777000000000'
      and disabled_at is null
      and not grandfathered;
-  if victims <> array['voice'] then
+  if victims is distinct from array['voice'] then
     raise exception 'MOD-5 FAILED: reconcile predicate selected %, expected voice only', victims;
   end if;
   raise notice 'MOD-5 PASSED: grandfathered rows are exempt from the reconcile disable predicate';
@@ -174,7 +174,7 @@ begin
     returning 1
   )
   select count(*) into claimed from claim;
-  if claimed <> 0 then
+  if claimed is distinct from 0 then
     raise exception 'LEDG-1 FAILED: a replayed claim returned a row (would re-send)';
   end if;
   raise notice 'LEDG-1 PASSED: email_ledger claims are insert-first idempotent';

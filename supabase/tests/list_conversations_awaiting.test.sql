@@ -86,7 +86,7 @@ begin
   -- the old link sent the reader to a list containing both.
   if (select count(*) from public.conversations
        where company_id = 'c8000000-0000-4000-8000-0000000000c1'::uuid
-         and status = 'new') <> 2 then
+         and status = 'new') is distinct from 2 then
     raise exception 'replying should not change status — that is the whole bug';
   end if;
 
@@ -132,7 +132,7 @@ begin
       50, null, null, null, false, false, null, null, null, null, null,
       'all', null
     ) row;
-  if array_length(v_ids, 1) <> 2 then
+  if array_length(v_ids, 1) is distinct from 2 then
     raise exception 'an unset filter must not narrow the inbox, got %',
       array_length(v_ids, 1);
   end if;

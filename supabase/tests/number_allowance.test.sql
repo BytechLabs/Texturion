@@ -68,26 +68,26 @@ begin
   select paid_extra_numbers into pen from public.companies
    where id = '52300000-0000-4000-8000-523000000000';
 
-  if act <> 1 or sus <> 1 then
+  if act is distinct from 1 or sus is distinct from 1 then
     raise exception 'A1 FAILED: expected 1 active and 1 held, got %/%', act, sus;
   end if;
-  if rel <> 0 then
+  if rel is distinct from 0 then
     raise exception 'A1 FAILED: % number(s) were RELEASED — nothing may be destroyed', rel;
   end if;
   -- Oldest first: the number the workspace has had longest is the one on the
   -- van and the invoices.
-  if (res->'restored'->0->>'number_e164') <> '+14155550101' then
+  if (res->'restored'->0->>'number_e164') is distinct from '+14155550101' then
     raise exception 'A1 FAILED: restored the wrong number: %', res->'restored';
   end if;
-  if (res->'held'->0->>'number_e164') <> '+14155550102' then
+  if (res->'held'->0->>'number_e164') is distinct from '+14155550102' then
     raise exception 'A1 FAILED: held the wrong number: %', res->'held';
   end if;
-  if (res->>'allowance')::int <> 1 then
+  if (res->>'allowance')::int is distinct from 1 then
     raise exception 'A1 FAILED: allowance was %', res->>'allowance';
   end if;
   -- The stale Pro-era capacity is gone: the new subscription bills no extras,
   -- so the slot RPCs must not keep admitting into one.
-  if pen <> 0 then
+  if pen is distinct from 0 then
     raise exception 'A1 FAILED: stale paid_extra_numbers survived as %', pen;
   end if;
   raise notice 'A1 OK: 1 restored, 1 held, 0 released, capacity 1 -> 0';
@@ -109,10 +109,10 @@ begin
     into act, sus
     from public.phone_numbers
    where company_id = '52300000-0000-4000-8000-523000000000';
-  if act <> 1 or sus <> 1 then
+  if act is distinct from 1 or sus is distinct from 1 then
     raise exception 'A2 FAILED: a replay changed the world (%/%)', act, sus;
   end if;
-  if jsonb_array_length(res->'restored') <> 0 then
+  if jsonb_array_length(res->'restored') is distinct from 0 then
     raise exception 'A2 FAILED: a replay restored %', res->'restored';
   end if;
   raise notice 'A2 OK: replay is a no-op that still reports the held number';
@@ -134,10 +134,10 @@ begin
     into act, sus
     from public.phone_numbers
    where company_id = '52300000-0000-4000-8000-523000000000';
-  if act <> 2 or sus <> 0 then
+  if act is distinct from 2 or sus is distinct from 0 then
     raise exception 'A3 FAILED: upgrade left %/% ', act, sus;
   end if;
-  if jsonb_array_length(res->'held') <> 0 then
+  if jsonb_array_length(res->'held') is distinct from 0 then
     raise exception 'A3 FAILED: still holding %', res->'held';
   end if;
   raise notice 'A3 OK: a bigger allowance reinstates the held number';
@@ -166,13 +166,13 @@ begin
    where company_id = '52300000-0000-4000-8000-523000000000';
   select paid_extra_numbers into pen from public.companies
    where id = '52300000-0000-4000-8000-523000000000';
-  if act <> 2 then
+  if act is distinct from 2 then
     raise exception 'A4 FAILED: expected every number back, got % active', act;
   end if;
   if (res->>'plan_known')::boolean then
     raise exception 'A4 FAILED: reported plan_known on a null plan';
   end if;
-  if pen <> 3 then
+  if pen is distinct from 3 then
     raise exception 'A4 FAILED: an unreadable plan rewrote capacity to %', pen;
   end if;
   raise notice 'A4 OK: unreadable plan restores all, writes no capacity';
@@ -208,13 +208,13 @@ begin
   select count(*) filter (where status = 'active') into act
     from public.phone_numbers
    where company_id = '52300000-0000-4000-8000-523000000000';
-  if pen <> 0 then
+  if pen is distinct from 0 then
     raise exception 'A5 FAILED: a stale epoch raised capacity to %', pen;
   end if;
   if not (res->>'capacity_fenced')::boolean then
     raise exception 'A5 FAILED: the fence fired silently';
   end if;
-  if act <> 1 then
+  if act is distinct from 1 then
     raise exception 'A5 FAILED: fail-closed should restore 1, restored %', act;
   end if;
   raise notice 'A5 OK: stale raise refused, allowance computed from stored capacity';
@@ -236,7 +236,7 @@ begin
     p_expected_epoch => epoch);
   select paid_extra_numbers into pen from public.companies
    where id = '52300000-0000-4000-8000-523000000000';
-  if pen <> 1 or (res->>'allowance')::int <> 2 then
+  if pen is distinct from 1 or (res->>'allowance')::int is distinct from 2 then
     raise exception 'A5b FAILED: capacity=% allowance=%', pen, res->>'allowance';
   end if;
   raise notice 'A5b OK: a fresh epoch raises capacity and the allowance with it';
@@ -269,10 +269,10 @@ begin
     into act, sus
     from public.phone_numbers
    where company_id = '52300000-0000-4000-8000-523000000000';
-  if act <> 0 or sus <> 2 then
+  if act is distinct from 0 or sus is distinct from 2 then
     raise exception 'A6 FAILED: expected the provisioning row to fill the one slot, got %/%', act, sus;
   end if;
-  if jsonb_array_length(res->'held') <> 2 then
+  if jsonb_array_length(res->'held') is distinct from 2 then
     raise exception 'A6 FAILED: held reported %', res->'held';
   end if;
   raise notice 'A6 OK: a non-suspended row occupies the allowance';
@@ -340,11 +340,11 @@ begin
   if not (res->>'applied')::boolean then
     raise exception 'A8 FAILED: a deliverable purchase was refused: %', res;
   end if;
-  if (res->'restored'->0->>'number_e164') <> '+14155550102' then
+  if (res->'restored'->0->>'number_e164') is distinct from '+14155550102' then
     raise exception 'A8 FAILED: paid for +14155550102, got back %',
       res->'restored'->0->>'number_e164';
   end if;
-  if jsonb_array_length(res->'restored') <> 1 then
+  if jsonb_array_length(res->'restored') is distinct from 1 then
     raise exception 'A8 FAILED: one unit of capacity restored %', res->'restored';
   end if;
   raise notice 'A8 OK: the named number is the one that comes back';
@@ -400,16 +400,16 @@ begin
   if (res->>'applied')::boolean then
     raise exception 'A9 FAILED: reported applied on a purchase it could not deliver';
   end if;
-  if pen <> 0 then
+  if pen is distinct from 0 then
     raise exception 'A9 FAILED: an undeliverable purchase still raised capacity to %', pen;
   end if;
-  if epoch <> before_epoch then
+  if epoch is distinct from before_epoch then
     raise exception 'A9 FAILED: an undeliverable purchase bumped the epoch to %', epoch;
   end if;
-  if act <> 0 then
+  if act is distinct from 0 then
     raise exception 'A9 FAILED: % number(s) were restored by a refused purchase', act;
   end if;
-  if (res->>'capacity')::int <> 0 or (res->>'allowance')::int <> 1 then
+  if (res->>'capacity')::int is distinct from 0 or (res->>'allowance')::int is distinct from 1 then
     raise exception 'A9 FAILED: reported a capacity/allowance it did not write: %', res;
   end if;
   raise notice 'A9 OK: an undeliverable purchase changes nothing at all';
@@ -461,11 +461,11 @@ begin
   if not (res->>'capacity_fenced')::boolean then
     raise exception 'A10 FAILED: the fence fired silently';
   end if;
-  if pen <> 0 then
+  if pen is distinct from 0 then
     raise exception 'A10 FAILED: a fenced purchase raised capacity to %', pen;
   end if;
   -- Fail closed BOTH ways: the named number is not handed over either.
-  if act <> 0 then
+  if act is distinct from 0 then
     raise exception 'A10 FAILED: a fenced purchase restored % number(s)', act;
   end if;
   raise notice 'A10 OK: the fence refuses before any money can move';
@@ -495,7 +495,7 @@ begin
 
   select paid_extra_numbers into pen from public.companies
    where id = '52300000-0000-4000-8000-523000000000';
-  if (res->>'applied')::boolean or pen <> 0 then
+  if (res->>'applied')::boolean or pen is distinct from 0 then
     raise exception 'A11 FAILED: bought capacity for a number that was already back (applied=%, capacity=%)',
       res->>'applied', pen;
   end if;

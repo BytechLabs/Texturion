@@ -160,7 +160,7 @@ begin
 
   -- ...and running again finds nothing to do.
   v := public.purge_workspace_step(v_company, 500);
-  if (v->>'done')::boolean is not true or (v->>'deleted')::int <> 0 then
+  if (v->>'done')::boolean is not true or (v->>'deleted')::int is distinct from 0 then
     raise exception 'PW-2 FAILED: a repeat run was not a no-op: %', v;
   end if;
 

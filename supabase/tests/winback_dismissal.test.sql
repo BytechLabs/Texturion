@@ -95,7 +95,7 @@ begin
   -- that nothing had to clean it up, not that something did.
   select count(*) into v_count from public.companies
    where id = v_company and winback_dismissed_at = v_first + interval '2 days';
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception 'W-4 FAILED: the old dismissal was cleared by something, so '
       'this suite is no longer testing the self-ageing property';
   end if;
@@ -160,7 +160,7 @@ begin
   select count(*) into v_count
     from public.cancellation_reasons
    where company_id = v_company and confirmed_at is null;
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception 'W-7 FAILED: % open statements exist, so "the" reason is '
       'ambiguous and the card would answer whichever row came back first',
       v_count;

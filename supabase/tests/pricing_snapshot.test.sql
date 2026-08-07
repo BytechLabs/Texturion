@@ -75,13 +75,13 @@ begin
      '52000000-0000-4000-8000-0000000000c1'::uuid,
      '52000000-0000-4000-8000-0000000000c2'::uuid,
      '52000000-0000-4000-8000-0000000000c3'::uuid);
-  if v_rows <> 2 then
+  if v_rows is distinct from 2 then
     raise exception 'PS255-1: expected 2 paying workspaces, got %', v_rows;
   end if;
 
   select count(*) into v_never from public.api_pricing_snapshot()
    where company_id = '52000000-0000-4000-8000-0000000000c3'::uuid;
-  if v_never <> 0 then
+  if v_never is distinct from 0 then
     raise exception 'PS255-1: a workspace that never checked out was reported';
   end if;
 end $$;
@@ -134,7 +134,7 @@ begin
     from public.api_pricing_snapshot()
    where company_id = '52000000-0000-4000-8000-0000000000c1'::uuid;
 
-  if v_cents <> 29000 or v_months <> 12 then
+  if v_cents is distinct from 29000 or v_months is distinct from 12 then
     raise exception 'PS255-3: prepayment reported as % over % months', v_cents, v_months;
   end if;
 end $$;
@@ -154,7 +154,7 @@ begin
 
   select prepaid_cents into v_cents from public.api_pricing_snapshot()
    where company_id = '52000000-0000-4000-8000-0000000000c1'::uuid;
-  if v_cents <> 0 then
+  if v_cents is distinct from 0 then
     raise exception 'PS255-4: a revoked prepayment still reports % cents', v_cents;
   end if;
 end $$;
@@ -170,13 +170,13 @@ do $$
 declare r record;
 begin
   select * into r from public.api_module_movements(90) where module = 'regions_ca';
-  if r.attached_at_signup <> 1 then
+  if r.attached_at_signup is distinct from 1 then
     raise exception 'PS255-5: at-signup was %, expected 1', r.attached_at_signup;
   end if;
-  if r.attached_later <> 1 then
+  if r.attached_later is distinct from 1 then
     raise exception 'PS255-5: later was %, expected 1', r.attached_later;
   end if;
-  if r.dropped <> 1 then
+  if r.dropped is distinct from 1 then
     raise exception 'PS255-5: dropped was %, expected 1', r.dropped;
   end if;
 end $$;
@@ -189,7 +189,7 @@ declare v_rows integer;
 begin
   select count(*) into v_rows from public.api_module_movements(1)
    where module = 'regions_ca';
-  if v_rows <> 0 then
+  if v_rows is distinct from 0 then
     raise exception 'PS255-6: a one-day window reported attaches from weeks ago';
   end if;
 end $$;

@@ -91,7 +91,7 @@ begin
 
   select count(*) into after_msgs from public.messages
    where conversation_id = '77777777-7777-4777-8777-777000000003';
-  if after_msgs <> before_msgs then
+  if after_msgs is distinct from before_msgs then
     raise exception 'P0-3 FAILED: an over-cap auto-reply must not write a message';
   end if;
   raise notice 'P0-3 PASSED: claim_auto_reply skips (no spend) when over the overage cap';
@@ -122,7 +122,7 @@ begin
 
   select count(*) into out_after from public.messages
    where company_id = '77777777-7777-4777-8777-777000000000' and direction = 'outbound';
-  if out_after <> out_before then
+  if out_after is distinct from out_before then
     raise exception 'P0-3b FAILED: an over-cap missed-call text must not write an outbound message';
   end if;
   raise notice 'P0-3b PASSED: claim_missed_call_text skips (no spend) when over the overage cap';

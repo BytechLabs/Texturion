@@ -75,7 +75,7 @@ declare
 begin
   -- Ceiling of 10, spent by two reasons.
   r := public.claim_high_priority_push(co, 'lead', 4, 10);
-  if (r->>'allowed')::boolean is not true or (r->>'sends')::int <> 4 then
+  if (r->>'allowed')::boolean is not true or (r->>'sends')::int is distinct from 4 then
     raise exception 'HP-2 FAILED: first lead claim: %', r;
   end if;
   if r->>'alert' is not null then
@@ -84,7 +84,7 @@ begin
 
   -- 8/10 crosses the 80% rung.
   r := public.claim_high_priority_push(co, 'lead', 4, 10);
-  if (r->>'sends')::int <> 8 or (r->>'alert')::int <> 80 then
+  if (r->>'sends')::int is distinct from 8 or (r->>'alert')::int is distinct from 80 then
     raise exception 'HP-2 FAILED: expected 8 sends + the 80 rung: %', r;
   end if;
 
@@ -94,10 +94,10 @@ begin
   if (r->>'allowed')::boolean is not true then
     raise exception 'HP-2 FAILED: the crossing claim must be allowed whole: %', r;
   end if;
-  if (r->>'sends')::int <> 11 then
+  if (r->>'sends')::int is distinct from 11 then
     raise exception 'HP-2 FAILED: lead_chase must share the lead counter: %', r;
   end if;
-  if (r->>'alert')::int <> 100 then
+  if (r->>'alert')::int is distinct from 100 then
     raise exception 'HP-2 FAILED: expected the 100 rung at 11/10: %', r;
   end if;
 end $$;
@@ -120,7 +120,7 @@ begin
   if (r->>'allowed')::boolean is not false then
     raise exception 'HP-3 FAILED: past the ceiling must refuse: %', r;
   end if;
-  if (r->>'sends')::int <> 13 then
+  if (r->>'sends')::int is distinct from 13 then
     raise exception 'HP-3 FAILED: refused demand must still be counted: %', r;
   end if;
   if r->>'alert' is not null then
@@ -173,23 +173,23 @@ declare
 begin
   select sends into n from public.high_priority_push_days
    where company_id = co and reason = 'lead';
-  if n <> 8 then
+  if n is distinct from 8 then
     raise exception 'HP-5 FAILED: lead sends = % (want 8)', n;
   end if;
   select degraded into n from public.high_priority_push_days
    where company_id = co and reason = 'lead';
-  if n <> 4 then
+  if n is distinct from 4 then
     raise exception 'HP-5 FAILED: lead degraded = % (want 4)', n;
   end if;
   select sends into n from public.high_priority_push_days
    where company_id = co and reason = 'lead_chase';
-  if n <> 3 then
+  if n is distinct from 3 then
     raise exception 'HP-5 FAILED: lead_chase sends = % (want 3)', n;
   end if;
   -- An uncapped reason can never accrue degraded demand.
   select coalesce(sum(degraded), 0) into n from public.high_priority_push_days
    where company_id = co and reason in ('ring', 'call_end', 'emergency');
-  if n <> 0 then
+  if n is distinct from 0 then
     raise exception 'HP-5 FAILED: an uncapped reason degraded % sends', n;
   end if;
 end $$;
@@ -205,10 +205,10 @@ declare
   b  public.high_priority_push_budget%rowtype;
 begin
   select * into b from public.high_priority_push_budget where company_id = co;
-  if b.requested <> 15 then
+  if b.requested is distinct from 15 then
     raise exception 'HP-6 FAILED: requested = % (want 15)', b.requested;
   end if;
-  if b.day_limit <> 10 then
+  if b.day_limit is distinct from 10 then
     raise exception 'HP-6 FAILED: day_limit = % (want 10)', b.day_limit;
   end if;
   if b.warned_at is null or b.capped_at is null then
@@ -217,7 +217,7 @@ begin
   end if;
   -- The business's day, not UTC's (D15/#343): a Vancouver company rolling over
   -- at 5pm local is the bug that keying on UTC caused last time.
-  if b.day <> (now() at time zone 'America/Vancouver')::date then
+  if b.day is distinct from (now() at time zone 'America/Vancouver')::date then
     raise exception 'HP-6 FAILED: day % is not the company local date', b.day;
   end if;
 end $$;
@@ -233,7 +233,7 @@ declare
   r  jsonb;
 begin
   r := public.claim_high_priority_push(co, 'lead', 0, 10);
-  if (r->>'allowed')::boolean is not true or (r->>'sends')::int <> 0 then
+  if (r->>'allowed')::boolean is not true or (r->>'sends')::int is distinct from 0 then
     raise exception 'HP-7 FAILED: a zero claim must be a no-op: %', r;
   end if;
 
@@ -242,7 +242,7 @@ begin
   if (r->>'allowed')::boolean is not true then
     raise exception 'HP-7 FAILED: the override must lift the ceiling: %', r;
   end if;
-  if (r->>'limit')::int <> 99999 then
+  if (r->>'limit')::int is distinct from 99999 then
     raise exception 'HP-7 FAILED: limit = % (want the 99999 override)', r->>'limit';
   end if;
 end $$;
@@ -275,7 +275,7 @@ declare
   row jsonb;
 begin
   rep := public.api_high_priority_push_report(7);
-  if jsonb_typeof(rep) <> 'array' then
+  if jsonb_typeof(rep) is distinct from 'array' then
     raise exception 'HP-9 FAILED: report is % (want an array)', jsonb_typeof(rep);
   end if;
 
@@ -289,7 +289,7 @@ begin
   if row->>'company_name' is null then
     raise exception 'HP-9 FAILED: the report must name the company ("to whom")';
   end if;
-  if (row->>'sends')::int <> 9 or (row->>'degraded')::int <> 4 then
+  if (row->>'sends')::int is distinct from 9 or (row->>'degraded')::int is distinct from 4 then
     raise exception 'HP-9 FAILED: lead row = % (want sends 9, degraded 4)', row;
   end if;
 end $$;

@@ -163,7 +163,7 @@ begin
     '31000000-0000-4000-8000-000000000001',
     '+16135553000', 'One more thing…', 'tx-n5-1');
 
-  if (res->>'conversation_id')::uuid <> v_conv_id then
+  if (res->>'conversation_id')::uuid is distinct from v_conv_id then
     raise exception 'N5 FAILED: did not reopen the recently-closed conversation';
   end if;
   if not (res->>'notify')::boolean then
@@ -195,7 +195,7 @@ begin
     '31000000-0000-4000-8000-000000000001',
     '+16135553000', 'CLICK THIS LINK', 'tx-n6-1');
 
-  if (res->>'conversation_id')::uuid <> v_conv_id then
+  if (res->>'conversation_id')::uuid is distinct from v_conv_id then
     raise exception 'N6 FAILED: spam inbound did not absorb into the spam thread';
   end if;
   if (res->>'notify')::boolean then

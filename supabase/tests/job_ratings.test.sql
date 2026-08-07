@@ -135,13 +135,13 @@ begin
     '5f000000-0000-4000-8000-0000000000d1'::uuid,
     '5f000000-0000-4000-8000-00000000000b'::uuid);
 
-  if v_res->>'outcome' <> 'claimed' then
+  if v_res->>'outcome' is distinct from 'claimed' then
     raise exception 'JR-1 FAILED: first claim returned %', v_res;
   end if;
 
   select rated_user_id into v_user from public.job_ratings
    where task_id = '5f000000-0000-4000-8000-00000000ba01'::uuid;
-  if v_user <> '5f000000-0000-4000-8000-00000000000b'::uuid then
+  if v_user is distinct from '5f000000-0000-4000-8000-00000000000b'::uuid then
     raise exception 'JR-1 FAILED: rated_user_id is %, expected the assignee', v_user;
   end if;
 
@@ -165,13 +165,13 @@ begin
     '5f000000-0000-4000-8000-0000000000d1'::uuid,
     '5f000000-0000-4000-8000-00000000000b'::uuid);
 
-  if v_res->>'outcome' <> 'already_asked' then
+  if v_res->>'outcome' is distinct from 'already_asked' then
     raise exception 'JR-2 FAILED: a second claim on one job returned %', v_res;
   end if;
 
   select count(*) into v_count from public.job_ratings
    where task_id = '5f000000-0000-4000-8000-00000000ba01'::uuid;
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception 'JR-2 FAILED: % row(s) for one job', v_count;
   end if;
 
@@ -194,12 +194,12 @@ begin
     '5f000000-0000-4000-8000-0000000000d1'::uuid,
     '5f000000-0000-4000-8000-00000000000b'::uuid);
 
-  if v_res->>'outcome' <> 'too_soon' then
+  if v_res->>'outcome' is distinct from 'too_soon' then
     raise exception
       'JR-3 FAILED: a second job for the same customer returned %, expected '
       'too_soon. This customer is now being asked after every visit.', v_res;
   end if;
-  if (v_res->>'cooldown_days')::integer <> 30 then
+  if (v_res->>'cooldown_days')::integer is distinct from 30 then
     raise exception 'JR-3 FAILED: cooldown reported as %', v_res->>'cooldown_days';
   end if;
 
@@ -223,7 +223,7 @@ begin
     '5f000000-0000-4000-8000-0000000000d2'::uuid,
     null);
 
-  if v_res->>'outcome' <> 'claimed' then
+  if v_res->>'outcome' is distinct from 'claimed' then
     raise exception
       'JR-4 FAILED: a different customer was refused (%). The cooldown is '
       'per person, not per workspace.', v_res;
@@ -251,7 +251,7 @@ begin
    where company_id = '5f000000-0000-4000-8000-0000000000c1'::uuid
      and answered_at is null;
 
-  if v_asked <> 2 or v_ignored <> 2 then
+  if v_asked is distinct from 2 or v_ignored is distinct from 2 then
     raise exception
       'JR-5 FAILED: % asked and % unanswered, expected 2 and 2. An asked-but-'
       'ignored question must be visible as such, or the cooldown cannot see it.',
@@ -279,7 +279,7 @@ begin
   select rated_user_id into v_rated from public.job_ratings
    where task_id = '5f000000-0000-4000-8000-00000000ba01'::uuid;
 
-  if v_rated <> '5f000000-0000-4000-8000-00000000000b'::uuid then
+  if v_rated is distinct from '5f000000-0000-4000-8000-00000000000b'::uuid then
     raise exception
       'JR-6 FAILED: the rating followed the task to %. A complaint has just '
       'been attributed to somebody who did not do the job.', v_rated;
@@ -303,13 +303,13 @@ begin
     '5f000000-0000-4000-8000-0000000000c1'::uuid,
     '5f000000-0000-4000-8000-0000000000e1'::uuid, 1::smallint);
 
-  if v_first->>'outcome' <> 'recorded' then
+  if v_first->>'outcome' is distinct from 'recorded' then
     raise exception 'JR-7 FAILED: first answer returned %', v_first;
   end if;
-  if (v_first->>'task_id')::uuid <> '5f000000-0000-4000-8000-00000000ba01'::uuid then
+  if (v_first->>'task_id')::uuid is distinct from '5f000000-0000-4000-8000-00000000ba01'::uuid then
     raise exception 'JR-7 FAILED: answered the wrong job (%)', v_first;
   end if;
-  if v_second->>'outcome' <> 'nothing_asked' then
+  if v_second->>'outcome' is distinct from 'nothing_asked' then
     raise exception
       'JR-7 FAILED: a second reply returned %, expected nothing_asked. A '
       'customer thumbing two digits would otherwise overwrite their own '
@@ -333,7 +333,7 @@ begin
   v_res := public.api_record_job_rating(
     '5f000000-0000-4000-8000-0000000000c1'::uuid,
     '5f000000-0000-4000-8000-0000000000e2'::uuid, 7::smallint);
-  if v_res->>'outcome' <> 'out_of_range' then
+  if v_res->>'outcome' is distinct from 'out_of_range' then
     raise exception 'JR-8 FAILED: a score of 7 returned %', v_res;
   end if;
 
@@ -411,7 +411,7 @@ begin
   v_res := public.api_record_job_rating(
     '5f000000-0000-4000-8000-0000000000c2'::uuid,
     '5f000000-0000-4000-8000-0000000000e2'::uuid, 3::smallint);
-  if v_res->>'outcome' <> 'nothing_asked' then
+  if v_res->>'outcome' is distinct from 'nothing_asked' then
     raise exception
       'JR-10 FAILED: another workspace answered this conversation''s open '
       'question (%).', v_res;
@@ -422,7 +422,7 @@ begin
   v_res := public.api_record_job_rating(
     '5f000000-0000-4000-8000-0000000000c1'::uuid,
     '5f000000-0000-4000-8000-0000000000e2'::uuid, 3::smallint);
-  if v_res->>'outcome' <> 'recorded' then
+  if v_res->>'outcome' is distinct from 'recorded' then
     raise exception
       'JR-10 FAILED: the owning company could not answer its own open '
       'question (%) — the assertion above proved nothing.', v_res;

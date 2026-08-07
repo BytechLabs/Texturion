@@ -107,13 +107,13 @@ begin
   perform pg_temp.msg('f2000000-0000-4000-8000-0000000000e1'::uuid, 'outbound', 4);
 
   s := pg_temp.stats();
-  if (s->>'leads')::int <> 1 then
+  if (s->>'leads')::int is distinct from 1 then
     raise exception 'RT-1 FAILED: leads = % (want 1)', s->>'leads';
   end if;
-  if (s->>'answered')::int <> 1 then
+  if (s->>'answered')::int is distinct from 1 then
     raise exception 'RT-1 FAILED: answered = % (want 1)', s->>'answered';
   end if;
-  if (s->>'median_seconds')::numeric <> 240 then
+  if (s->>'median_seconds')::numeric is distinct from 240 then
     raise exception 'RT-1 FAILED: median = % (want 240s = 4 min)',
       s->>'median_seconds';
   end if;
@@ -145,10 +145,10 @@ begin
 
   s := pg_temp.stats();
   -- Two leads now (RT-1's and this one): 240s and 5400s → median 2820.
-  if (s->>'answered')::int <> 2 then
+  if (s->>'answered')::int is distinct from 2 then
     raise exception 'RT-2 FAILED: answered = % (want 2)', s->>'answered';
   end if;
-  if (s->>'median_seconds')::numeric <> 2820 then
+  if (s->>'median_seconds')::numeric is distinct from 2820 then
     raise exception
       'RT-2 FAILED: median = % (want 2820 — the auto-reply must not count)',
       s->>'median_seconds';
@@ -178,13 +178,13 @@ begin
   perform pg_temp.msg('f2000000-0000-4000-8000-0000000000e3'::uuid, 'outbound', 10);
 
   s := pg_temp.stats();
-  if (s->>'leads')::int <> 3 then
+  if (s->>'leads')::int is distinct from 3 then
     raise exception
       'RT-3 FAILED: leads = % (want 3 — the note-first thread still counts)',
       s->>'leads';
   end if;
   -- 240, 600, 5400 → median 600.
-  if (s->>'median_seconds')::numeric <> 600 then
+  if (s->>'median_seconds')::numeric is distinct from 600 then
     raise exception 'RT-3 FAILED: median = % (want 600 — notes are not replies)',
       s->>'median_seconds';
   end if;
@@ -210,7 +210,7 @@ begin
   perform pg_temp.msg('f2000000-0000-4000-8000-0000000000e4'::uuid, 'outbound', 1000);
 
   s := pg_temp.stats();
-  if (s->>'leads')::int <> v_before then
+  if (s->>'leads')::int is distinct from v_before then
     raise exception 'RT-4 FAILED: leads went % -> % (an outbound-started thread counted)',
       v_before, s->>'leads';
   end if;
@@ -238,14 +238,14 @@ begin
   -- Nobody ever replies. Not even a robot.
 
   s := pg_temp.stats();
-  if (s->>'leads')::int <> v_leads + 1 then
+  if (s->>'leads')::int is distinct from v_leads + 1 then
     raise exception 'RT-5 FAILED: the unanswered lead did not raise leads (% -> %)',
       v_leads, s->>'leads';
   end if;
-  if (s->>'unanswered')::int <> 1 then
+  if (s->>'unanswered')::int is distinct from 1 then
     raise exception 'RT-5 FAILED: unanswered = % (want 1)', s->>'unanswered';
   end if;
-  if (s->>'median_seconds')::numeric <> v_median then
+  if (s->>'median_seconds')::numeric is distinct from v_median then
     raise exception
       'RT-5 FAILED: median moved % -> % because of a lead with no reply',
       v_median, s->>'median_seconds';
@@ -266,7 +266,7 @@ begin
   perform pg_temp.msg('f2000000-0000-4000-8000-0000000000e6'::uuid, 'inbound', 0);
 
   s := pg_temp.stats();
-  if (s->>'leads')::int <> v_leads then
+  if (s->>'leads')::int is distinct from v_leads then
     raise exception 'RT-6 FAILED: a spam thread counted as a lead (% -> %)',
       v_leads, s->>'leads';
   end if;
@@ -291,18 +291,18 @@ begin
     timestamptz '2026-06-01 00:00:00+00',
     timestamptz '2026-08-01 00:00:00+00',
     1);
-  if (s->>'leads')::int <> v_all then
+  if (s->>'leads')::int is distinct from v_all then
     raise exception 'RT-7 FAILED: the cap changed the lead count (% vs %)',
       s->>'leads', v_all;
   end if;
-  if jsonb_array_length(s->'rows') <> 1 then
+  if jsonb_array_length(s->'rows') is distinct from 1 then
     raise exception 'RT-7 FAILED: rows = % (want 1)',
       jsonb_array_length(s->'rows');
   end if;
   if (s->>'truncated')::boolean is not true then
     raise exception 'RT-7 FAILED: truncated must be true when rows are short';
   end if;
-  if (s->>'row_limit')::int <> 1 then
+  if (s->>'row_limit')::int is distinct from 1 then
     raise exception 'RT-7 FAILED: row_limit not reported';
   end if;
 
@@ -323,7 +323,7 @@ begin
     'f2000000-0000-4000-8000-0000000000c1'::uuid,
     timestamptz '2026-01-01 00:00:00+00',
     timestamptz '2026-02-01 00:00:00+00');
-  if (s->>'leads')::int <> 0 then
+  if (s->>'leads')::int is distinct from 0 then
     raise exception 'RT-7 FAILED: an empty window found % leads', s->>'leads';
   end if;
   if s->>'median_seconds' is not null then
@@ -367,13 +367,13 @@ begin
   if v_tech is null then
     raise exception 'RT-8 FAILED: the tech is missing from by_member';
   end if;
-  if (v_tech->>'median_seconds')::numeric <> 60 then
+  if (v_tech->>'median_seconds')::numeric is distinct from 60 then
     raise exception 'RT-8 FAILED: tech median = % (want 60)',
       v_tech->>'median_seconds';
   end if;
 
   -- Every lead here is on the one number, so by_number carries them all.
-  if jsonb_array_length(s->'by_number') <> 1 then
+  if jsonb_array_length(s->'by_number') is distinct from 1 then
     raise exception 'RT-8 FAILED: by_number has % entries (want 1)',
       jsonb_array_length(s->'by_number');
   end if;

@@ -225,7 +225,7 @@ begin
   select count(*) into orphans
     from public.contact_field_defs
    where company_id = '9e000000-0000-4000-8000-0000000000c2'::uuid;
-  if orphans <> 0 then
+  if orphans is distinct from 0 then
     raise exception 'CX-8: % definition(s) outlived their workspace', orphans;
   end if;
 end $$;

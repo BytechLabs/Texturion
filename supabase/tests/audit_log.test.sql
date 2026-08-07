@@ -118,7 +118,7 @@ begin
 
   -- Inside the window: nothing goes.
   v_pruned := public.api_prune_audit_log(now() - interval '365 days', 100);
-  if v_pruned <> 1 then
+  if v_pruned is distinct from 1 then
     raise exception 'AL-3 FAILED: pruned % rows past the window (want 1)', v_pruned;
   end if;
   -- The recent row from AL-2 is still there.
@@ -163,7 +163,7 @@ begin
 
   -- Newest first, and another tenant's row is never visible from here.
   select count(*) into v_count from public.api_list_audit_log(v_c, 100);
-  if v_count <> 3 then
+  if v_count is distinct from 3 then
     raise exception 'AL-4 FAILED: C sees % rows (want 3)', v_count;
   end if;
   if exists (
@@ -173,19 +173,19 @@ begin
   end if;
 
   select action into v_first from public.api_list_audit_log(v_c, 1);
-  if v_first <> 'contacts.exported' then
+  if v_first is distinct from 'contacts.exported' then
     raise exception 'AL-4 FAILED: newest-first broken (got %)', v_first;
   end if;
 
   -- Filters actually narrow.
   select count(*) into v_count
     from public.api_list_audit_log(v_c, 100, p_action => 'billing.plan_changed');
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception 'AL-4 FAILED: action filter returned % rows', v_count;
   end if;
   select count(*) into v_count
     from public.api_list_audit_log(v_c, 100, p_actor => v_actor);
-  if v_count <> 2 then
+  if v_count is distinct from 2 then
     raise exception 'AL-4 FAILED: actor filter returned % rows (want 2)', v_count;
   end if;
   -- A system row (null actor) is NOT attributed to a person by the filter.
@@ -197,7 +197,7 @@ begin
   end if;
   select count(*) into v_count
     from public.api_list_audit_log(v_c, 100, p_since => now() - interval '90 minutes');
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception 'AL-4 FAILED: since filter returned % rows', v_count;
   end if;
 
@@ -205,7 +205,7 @@ begin
   select occurred_at, id into v_ts, v_id from public.api_list_audit_log(v_c, 1);
   select action into v_first
     from public.api_list_audit_log(v_c, 1, p_cursor_ts => v_ts, p_cursor_id => v_id);
-  if v_first <> 'billing.plan_changed' then
+  if v_first is distinct from 'billing.plan_changed' then
     raise exception 'AL-4 FAILED: keyset page 2 started at % (want billing.plan_changed)', v_first;
   end if;
 

@@ -83,7 +83,7 @@ declare claimed int;
 begin
   select count(*) into claimed
     from public.api_claim_due_notifications(now(), 20);
-  if claimed <> 0 then
+  if claimed is distinct from 0 then
     raise exception 'ND-1: claimed % row(s) before the window closed', claimed;
   end if;
 end $$;
@@ -124,10 +124,10 @@ begin
 
   -- All FOUR: the three just queued plus the one from ND-1, which is now due
   -- for the same member and belongs in the same digest.
-  if claimed <> 4 then
+  if claimed is distinct from 4 then
     raise exception 'ND-2: expected the member''s whole batch, claimed %', claimed;
   end if;
-  if conversations <> 2 then
+  if conversations is distinct from 2 then
     raise exception 'ND-2: expected 2 conversations in the batch, got %', conversations;
   end if;
 end $$;
@@ -139,7 +139,7 @@ do $$
 declare left_over int;
 begin
   select count(*) into left_over from public.pending_notifications;
-  if left_over <> 0 then
+  if left_over is distinct from 0 then
     raise exception 'ND-3: % row(s) survived the claim', left_over;
   end if;
 end $$;
@@ -171,7 +171,7 @@ begin
   select count(*) into rows_for_b
     from public.pending_notifications
    where user_id = '7b000000-0000-4000-8000-00000000000b'::uuid;
-  if rows_for_b <> 1 then
+  if rows_for_b is distinct from 1 then
     raise exception
       'ND-4: the other member''s batch was flushed early (% left)', rows_for_b;
   end if;

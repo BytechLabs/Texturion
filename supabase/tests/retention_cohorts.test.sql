@@ -67,13 +67,13 @@ begin
   select * into v from public.api_retention_cohorts(52)
    where segment = 'all'
      and cohort_week = date_trunc('week', now() - interval '60 days')::date;
-  if v.cohort_size <> 4 then
+  if v.cohort_size is distinct from 4 then
     raise exception 'cohort size: expected 4, got %', v.cohort_size;
   end if;
-  if v.retained <> 3 then
+  if v.retained is distinct from 3 then
     raise exception 'retained: expected 3, got %', v.retained;
   end if;
-  if v.rate <> 0.75 then
+  if v.rate is distinct from 0.75 then
     raise exception 'rate: expected 0.7500, got %', v.rate;
   end if;
 end $$;
@@ -94,7 +94,7 @@ declare v_count int;
 begin
   select count(*) into v_count from public.api_retention_cohorts(52)
    where cohort_week = date_trunc('week', now() - interval '3 days')::date;
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception 'an immature cohort was reported (% rows)', v_count;
   end if;
 end $$;
@@ -110,7 +110,7 @@ begin
   select count(*) into v_count from public.api_retention_cohorts(52)
    where segment = 'all'
      and cohort_week = date_trunc('week', now() - interval '29 days')::date;
-  if v_count <> 1 then
+  if v_count is distinct from 1 then
     raise exception 'a matured cohort was not reported (% rows)', v_count;
   end if;
 end $$;
@@ -130,10 +130,10 @@ begin
   select * into v from public.api_retention_cohorts(52)
    where segment = 'all'
      and cohort_week = date_trunc('week', now() - interval '90 days')::date;
-  if v.cohort_size <> 2 then
+  if v.cohort_size is distinct from 2 then
     raise exception 'day-28 cohort size: expected 2, got %', v.cohort_size;
   end if;
-  if v.retained <> 1 then
+  if v.retained is distinct from 1 then
     raise exception 'day-28 boundary: expected 1 retained, got %', v.retained;
   end if;
 end $$;
@@ -156,7 +156,7 @@ begin
   select * into v from public.api_retention_cohorts(52)
    where segment = 'activated'
      and cohort_week = date_trunc('week', now() - interval '120 days')::date;
-  if v.segment_value <> 'not activated' then
+  if v.segment_value is distinct from 'not activated' then
     raise exception 'a day-9 reply counted as activated (got %)', v.segment_value;
   end if;
 end $$;
@@ -168,7 +168,7 @@ begin
   select * into v from public.api_retention_cohorts(52)
    where segment = 'activated' and segment_value = 'activated'
      and cohort_week = date_trunc('week', now() - interval '60 days')::date;
-  if v.cohort_size <> 2 then
+  if v.cohort_size is distinct from 2 then
     raise exception 'activated split: expected 2, got %', v.cohort_size;
   end if;
 end $$;
@@ -202,7 +202,7 @@ declare v_count int;
 begin
   select count(*) into v_count from public.api_retention_cohorts(52)
    where cohort_week = date_trunc('week', now() - interval '200 days')::date;
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception 'an internal workspace entered a cohort (% rows)', v_count;
   end if;
 end $$;
@@ -228,7 +228,7 @@ begin
    where subscription_started_at is not null
      and coalesce(is_internal, false) = false
      and subscription_started_at + interval '28 days' <= now();
-  if v_total <> v_anchored then
+  if v_total is distinct from v_anchored then
     raise exception 'cohort population % <> anchored mature companies %',
       v_total, v_anchored;
   end if;
@@ -282,7 +282,7 @@ declare v_count int;
 begin
   select count(*) into v_count from public.api_retention_cohorts(4)
    where cohort_week = date_trunc('week', now() - interval '120 days')::date;
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception 'a cohort outside the window was returned (% rows)', v_count;
   end if;
 end $$;
@@ -329,7 +329,7 @@ begin
   end if;
 
   -- And the segment covers everybody exactly once.
-  if v_attached + v_without <> (
+  if v_attached + v_without is distinct from (
       select coalesce(sum(r.cohort_size), 0) from public.api_retention_cohorts(52, 20) r
        where r.segment = 'all') then
     raise exception 'RC-255: the module segment does not cover the cohort exactly once';

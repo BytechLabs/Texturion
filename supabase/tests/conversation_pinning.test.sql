@@ -22,10 +22,10 @@ begin
   if pinned_at_type is null then
     raise exception 'C-1 FAILED: conversations.pinned_at column missing';
   end if;
-  if pinned_at_type <> 'timestamp with time zone' then
+  if pinned_at_type is distinct from 'timestamp with time zone' then
     raise exception 'C-1 FAILED: conversations.pinned_at is % (want timestamptz)', pinned_at_type;
   end if;
-  if pinned_at_nullable <> 'YES' then
+  if pinned_at_nullable is distinct from 'YES' then
     raise exception 'C-1 FAILED: conversations.pinned_at must be NULLable';
   end if;
 
@@ -36,10 +36,10 @@ begin
   if pinned_by_type is null then
     raise exception 'C-1 FAILED: conversations.pinned_by_user_id column missing';
   end if;
-  if pinned_by_type <> 'uuid' then
+  if pinned_by_type is distinct from 'uuid' then
     raise exception 'C-1 FAILED: conversations.pinned_by_user_id is % (want uuid)', pinned_by_type;
   end if;
-  if pinned_by_nullable <> 'YES' then
+  if pinned_by_nullable is distinct from 'YES' then
     raise exception 'C-1 FAILED: conversations.pinned_by_user_id must be NULLable';
   end if;
   raise notice 'C-1 PASSED: pinned_at timestamptz NULL + pinned_by_user_id uuid NULL';
@@ -65,10 +65,10 @@ begin
   if ref_table is null then
     raise exception 'C-2 FAILED: no FK on conversations.pinned_by_user_id';
   end if;
-  if ref_table <> 'profiles' then
+  if ref_table is distinct from 'profiles' then
     raise exception 'C-2 FAILED: pinned_by_user_id references % (want profiles)', ref_table;
   end if;
-  if del_action <> 'RESTRICT' then
+  if del_action is distinct from 'RESTRICT' then
     raise exception 'C-2 FAILED: pinned_by_user_id delete rule is % (want RESTRICT)', del_action;
   end if;
   raise notice 'C-2 PASSED: pinned_by_user_id FK → profiles ON DELETE RESTRICT';

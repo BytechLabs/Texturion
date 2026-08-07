@@ -169,6 +169,18 @@ marketing page when a broader pass is wanted.
   "This customer asked us to text them") → writes `consent_source`, `consent_at`,
   `consent_attested_by` on the contact + event log. This makes the declared 10DLC opt-in
   flow truthful. Bulk compose / import-and-blast / broadcast are **explicitly out of scope**.
+  - **AMENDED 2026-08-05 (#248) — an import may RECORD a basis, never REPLACE one.**
+    Both bulk doors (`POST /v1/contacts/import`, `POST /v1/contacts/import-vcard`) require the
+    attestation; the vCard route had none until now, which made the only working bulk door the
+    one that asked nothing. But the attestation is written **only to contacts with no recorded
+    basis**. A contact who texted the business first carries `inbound_sms` and the date they
+    did it — evidence with a message behind it — and the importer's upsert merges on conflict,
+    so stamping every row re-dated that basis to whenever somebody last re-uploaded the
+    spreadsheet. Worse, the change was invisible: `contacts_record_consent` only fires on the
+    `null → value` transition, so the ledger kept the original row while the contact record
+    claimed something else. `coalesce` semantics, matching what `thread_inbound_message` has
+    always done on the same three columns. **Consent does not transfer between tools**, and an
+    import is not a place a stronger basis may be traded for a weaker one.
 - **Quiet hours (soft)**: composing a *new* outbound conversation between 8pm–8am destination
   local time (inferred from area code) shows a confirm dialog; confirmed sends are logged.
   Replies are exempt. No hard block.
@@ -909,9 +921,15 @@ already exist, UNIQUE(company_id, phone_e164), D7).
   `TEL` → phone). **Normalize every `TEL` to E.164** against the company's default country (US/CA per D2);
   drop non-mobile-shaped or un-normalizable numbers with a per-row reason in the import report. A card with
   multiple `TEL`s creates one contact per **distinct valid** number (contacts are phone-keyed, D7). Reuse
-  the **exact upsert + dedupe + consent-attestation gating** the CSV importer already enforces (D4: import
-  is a `consent_source='import'` path) — vCard is just a second parser feeding the same idempotent upsert,
-  not a second import pipeline. Same preview→confirm UI and same per-row error report as CSV.
+  the **exact upsert + dedupe + consent-attestation gating** the CSV importer already enforces — vCard is
+  just a second parser feeding the same idempotent upsert, not a second import pipeline. Same
+  preview→confirm UI and same per-row error report as CSV.
+  - **CORRECTED 2026-08-05 (#248).** This bullet said import is a `consent_source='import'` path. There
+    is no such value: `consent_source_t` is the two-value enum `('inbound_sms','attested')`, and an
+    import writes `attested` — the same value a by-hand attestation writes, because it is the same claim.
+    The gating itself was aspirational until #248: the vCard route shipped with **no** attestation check
+    at all, so the sentence above described the CSV route only. Both routes now enforce it, and both
+    honour D4's amendment that an existing basis is never replaced.
 - **Web Contacts Picker — progressive enhancement, feature-detected, never required.** On supported
   browsers (Chrome on Android; **no iOS/Safari, no desktop** — so it is strictly additive), show a "Pick
   from phone contacts" button guarded by `('contacts' in navigator) && ('ContactsManager' in window)`.
@@ -924,7 +942,8 @@ already exist, UNIQUE(company_id, phone_e164), D7).
   MVP scope, D9/D11). Documented as a fast-follow so the decision is on record; the Contacts Picker is the
   progressive-enhancement stand-in for MVP.
 - **Consistency:** D10 (CSV import already shipped; these are sibling routes under the contacts surface),
-  D4 (imports carry `consent_source='import'`; no bulk-blast capability is introduced — import populates
+  D4 (an import records `consent_source='attested'` where there is no basis, and never overwrites one
+  that exists; no bulk-blast capability is introduced — import populates
   contacts, it never sends), D7 (phone-keyed upsert, soft-delete respected), D8 (all routes membership-
   scoped, Worker-side). Calm UI: one shared import surface with source tabs (CSV file · vCard file · Pick
   from phone), a single preview→confirm step, one petrol confirm action.

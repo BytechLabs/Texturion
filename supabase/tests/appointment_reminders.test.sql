@@ -123,10 +123,10 @@ declare
 begin
   v_res := pg_temp.sync(pg_temp.two_reminders());
 
-  if v_res->>'outcome' <> 'synced' then
+  if v_res->>'outcome' is distinct from 'synced' then
     raise exception 'AR-1 FAILED: sync returned %, expected synced', v_res;
   end if;
-  if (v_res->>'added')::integer <> 2 then
+  if (v_res->>'added')::integer is distinct from 2 then
     raise exception 'AR-1 FAILED: added % reminder(s), expected 2', v_res->>'added';
   end if;
 
@@ -135,10 +135,10 @@ begin
     from public.scheduled_messages
    where task_id = '5e000000-0000-4000-8000-00000000ab02'::uuid;
 
-  if v_count <> 2 then
+  if v_count is distinct from 2 then
     raise exception 'AR-1 FAILED: % queued row(s), expected 2', v_count;
   end if;
-  if v_offsets <> array[120, 1440] then
+  if v_offsets is distinct from array[120, 1440] then
     raise exception 'AR-1 FAILED: offsets are %, expected {120,1440}', v_offsets;
   end if;
 
@@ -172,7 +172,7 @@ begin
     from public.scheduled_messages
    where task_id = '5e000000-0000-4000-8000-00000000ab02'::uuid;
 
-  if v_count <> 2 then
+  if v_count is distinct from 2 then
     raise exception
       'AR-2 FAILED: a second sync left % row(s), expected 2. The customer '
       'receives every one of these.', v_count;
@@ -209,7 +209,7 @@ begin
     )
   ));
 
-  if (v_res->>'removed')::integer <> 2 or (v_res->>'added')::integer <> 2 then
+  if (v_res->>'removed')::integer is distinct from 2 or (v_res->>'added')::integer is distinct from 2 then
     raise exception
       'AR-3 FAILED: a reschedule removed % and added %, expected 2 and 2',
       v_res->>'removed', v_res->>'added';
@@ -235,7 +235,7 @@ begin
     from public.scheduled_messages
    where task_id = '5e000000-0000-4000-8000-00000000ab02'::uuid;
 
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception
       'AR-3 FAILED: % reminder(s) survived the job losing its date. Every one '
       'of them tells a customer to expect somebody who is not coming.', v_count;
@@ -316,7 +316,7 @@ begin
 
   v_res := pg_temp.sync(pg_temp.two_reminders());
 
-  if v_res->>'reason' <> 'reminders_off' then
+  if v_res->>'reason' is distinct from 'reminders_off' then
     raise exception 'AR-5 FAILED: sync gave reason %, expected reminders_off', v_res;
   end if;
 
@@ -329,7 +329,7 @@ begin
    where task_id = '5e000000-0000-4000-8000-00000000ab02'::uuid
      and origin = 'reminder';
 
-  if v_count <> 0 then
+  if v_count is distinct from 0 then
     raise exception
       'AR-5 FAILED: % reminder(s) queued for a job with reminders switched '
       'off. The setting did nothing.', v_count;
@@ -455,10 +455,10 @@ begin
     '5e000000-0000-4000-8000-0000000000c1'::uuid,
     '5e000000-0000-4000-8000-00000000ab02'::uuid, 'customer');
 
-  if v_first->>'outcome' <> 'confirmed' then
+  if v_first->>'outcome' is distinct from 'confirmed' then
     raise exception 'AR-8 FAILED: first confirm returned %', v_first;
   end if;
-  if v_second->>'outcome' <> 'already' then
+  if v_second->>'outcome' is distinct from 'already' then
     raise exception
       'AR-8 FAILED: the second confirm returned %, expected already. A '
       'customer who replies twice would be thanked twice.', v_second;
@@ -466,7 +466,7 @@ begin
 
   select confirmed_by into v_by from public.tasks
    where id = '5e000000-0000-4000-8000-00000000ab02'::uuid;
-  if v_by <> 'customer' then
+  if v_by is distinct from 'customer' then
     raise exception
       'AR-8 FAILED: confirmed_by is %, expected customer. A crew confirmation '
       'is a note to ourselves; a customer one is a promise.', v_by;
@@ -491,7 +491,7 @@ begin
     pg_temp.two_reminders(),
     'America/New_York', 'area_code', now() + interval '4 days'
   );
-  if v_res->>'outcome' <> 'synced' then
+  if v_res->>'outcome' is distinct from 'synced' then
     raise exception 'AR-9 FAILED: the owning company could not sync its own task';
   end if;
 
@@ -502,7 +502,7 @@ begin
     pg_temp.two_reminders(),
     'America/New_York', 'area_code', now() + interval '4 days'
   );
-  if v_res->>'outcome' <> 'not_found' then
+  if v_res->>'outcome' is distinct from 'not_found' then
     raise exception
       'AR-9 FAILED: another workspace synced this job (%). That queues texts '
       'from one company''s number about another company''s appointment.', v_res;

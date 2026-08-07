@@ -215,7 +215,7 @@ begin
   select count(*) into v_left from public.voicemail_greetings
   where company_id = '6f000000-0000-4000-8000-0000000000c1'::uuid;
 
-  if v_left <> 0 then
+  if v_left is distinct from 0 then
     raise exception 'VG-5 FAILED: % greetings outlived their workspace', v_left;
   end if;
   raise notice 'VG-5 PASSED: greetings die with the workspace';

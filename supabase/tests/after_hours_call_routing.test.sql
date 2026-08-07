@@ -173,12 +173,12 @@ begin
   -- used.
   select count(*) into v_rows from public.companies
     where id = '7a000000-0000-4000-8000-0000000000c1'::uuid;
-  if v_rows <> 1 then
+  if v_rows is distinct from 1 then
     raise exception 'AH-4: deleting a greeting took the company with it';
   end if;
   select count(*) into v_rows from public.phone_numbers
     where id = '7a000000-0000-4000-8000-0000000000b1'::uuid;
-  if v_rows <> 1 then
+  if v_rows is distinct from 1 then
     raise exception 'AH-4: deleting a greeting took the number with it';
   end if;
 

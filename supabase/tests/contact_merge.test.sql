@@ -82,7 +82,7 @@ begin
     '55000000-0000-4000-8000-0000000000d2'::uuid,
     '55000000-0000-4000-8000-00000000000a'::uuid);
 
-  if v_result->>'outcome' <> 'merged' then
+  if v_result->>'outcome' is distinct from 'merged' then
     raise exception 'CM-1: merge reported %', v_result->>'outcome';
   end if;
 
@@ -91,7 +91,7 @@ begin
   if v_row.id is null then
     raise exception 'CM-1: the merged contact row was deleted';
   end if;
-  if v_row.merged_into <> '55000000-0000-4000-8000-0000000000d2'::uuid then
+  if v_row.merged_into is distinct from '55000000-0000-4000-8000-0000000000d2'::uuid then
     raise exception 'CM-1: the tombstone does not point at the survivor';
   end if;
   if v_row.merged_at is null then
@@ -113,14 +113,14 @@ declare
 begin
   select count(*) into v_moved from public.conversations
    where contact_id = '55000000-0000-4000-8000-0000000000d2'::uuid;
-  if v_moved <> 2 then
+  if v_moved is distinct from 2 then
     raise exception 'CM-2: expected both conversations on the survivor, got %', v_moved;
   end if;
 
   select count(*) into v_open from public.conversations
    where contact_id = '55000000-0000-4000-8000-0000000000d2'::uuid
      and closed_at is null;
-  if v_open <> 1 then
+  if v_open is distinct from 1 then
     raise exception 'CM-2: expected exactly one open thread, got %', v_open;
   end if;
 
@@ -159,7 +159,7 @@ begin
   if v_from.id is null or v_from.revoked_at is not null then
     raise exception 'CM-3: the original opt-out stopped protecting its number';
   end if;
-  if v_from.source <> 'carrier' then
+  if v_from.source is distinct from 'carrier' then
     raise exception 'CM-3: the original carrier stop was rewritten to %', v_from.source;
   end if;
 
@@ -183,7 +183,7 @@ begin
   select * into v_row from public.contacts
    where id = '55000000-0000-4000-8000-0000000000d2'::uuid;
 
-  if v_row.name <> 'Michael Chen' then
+  if v_row.name is distinct from 'Michael Chen' then
     raise exception 'CM-4: the survivor''s own name was overwritten';
   end if;
   if v_row.notes is distinct from 'furnace out back' then
@@ -204,7 +204,7 @@ begin
     '55000000-0000-4000-8000-0000000000c1'::uuid,
     '55000000-0000-4000-8000-0000000000d2'::uuid,
     '55000000-0000-4000-8000-0000000000d1'::uuid);
-  if v_result->>'outcome' <> 'already_merged' then
+  if v_result->>'outcome' is distinct from 'already_merged' then
     raise exception 'CM-5: merging into a tombstone was allowed (%)', v_result->>'outcome';
   end if;
 
@@ -212,7 +212,7 @@ begin
     '55000000-0000-4000-8000-0000000000c1'::uuid,
     '55000000-0000-4000-8000-0000000000d3'::uuid,
     '55000000-0000-4000-8000-0000000000d3'::uuid);
-  if v_result->>'outcome' <> 'same_contact' then
+  if v_result->>'outcome' is distinct from 'same_contact' then
     raise exception 'CM-5: a contact was merged into itself';
   end if;
 end $$;
@@ -231,7 +231,7 @@ begin
   v_result := public.api_unmerge_contact(
     '55000000-0000-4000-8000-0000000000c1'::uuid,
     '55000000-0000-4000-8000-0000000000d1'::uuid);
-  if v_result->>'outcome' <> 'unmerged' then
+  if v_result->>'outcome' is distinct from 'unmerged' then
     raise exception 'CM-6: unmerge reported %', v_result->>'outcome';
   end if;
 
@@ -254,7 +254,7 @@ begin
   v_result := public.api_unmerge_contact(
     '55000000-0000-4000-8000-0000000000c1'::uuid,
     '55000000-0000-4000-8000-0000000000d3'::uuid);
-  if v_result->>'outcome' <> 'not_merged' then
+  if v_result->>'outcome' is distinct from 'not_merged' then
     raise exception 'CM-6: unmerging a live contact reported %', v_result->>'outcome';
   end if;
 end $$;
@@ -341,7 +341,7 @@ begin
     '55000000-0000-4000-8000-0000000000f1'::uuid)
   returning contact_id into v_landed;
 
-  if v_landed <> '55000000-0000-4000-8000-0000000000d2'::uuid then
+  if v_landed is distinct from '55000000-0000-4000-8000-0000000000d2'::uuid then
     raise exception 'CM-9: an inbound from a merged number resurrected the duplicate';
   end if;
 end $$;
@@ -364,7 +364,7 @@ begin
     'test-merge-call', 'inbound')
   returning contact_id into v_landed;
 
-  if v_landed <> '55000000-0000-4000-8000-0000000000d2'::uuid then
+  if v_landed is distinct from '55000000-0000-4000-8000-0000000000d2'::uuid then
     raise exception 'CM-10: a call from a merged number resurrected the duplicate';
   end if;
 end $$;

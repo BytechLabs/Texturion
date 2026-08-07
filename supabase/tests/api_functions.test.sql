@@ -35,9 +35,9 @@ begin
     '11111111-1111-4111-8111-111111111111', 'Acme Plumbing', 'US', '212', true);
   cid := (result->>'id')::uuid;
 
-  if result->>'name' <> 'Acme Plumbing'
-     or result->>'subscription_status' <> 'incomplete'
-     or result->>'requested_area_code' <> '212'
+  if result->>'name' is distinct from 'Acme Plumbing'
+     or result->>'subscription_status' is distinct from 'incomplete'
+     or result->>'requested_area_code' is distinct from '212'
      or (result->>'aup_accepted_at') is null then
     raise exception 'F1 FAILED: returned company jsonb wrong: %', result;
   end if;
@@ -46,13 +46,13 @@ begin
   where company_id = cid
     and user_id = '11111111-1111-4111-8111-111111111111'
     and role = 'owner' and deactivated_at is null;
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'F1 FAILED: owner membership missing';
   end if;
 
   select count(*) into n from public.tags where company_id = cid
     and name in ('Quote sent','Scheduled','Won','Lost');
-  if n <> 4 then
+  if n is distinct from 4 then
     raise exception 'F1 FAILED: expected 4 pre-seeded pipeline tags, got %', n;
   end if;
 
@@ -60,7 +60,7 @@ begin
   where company_id = cid
     and user_id = '11111111-1111-4111-8111-111111111111'
     and email_enabled and push_enabled;
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'F1 FAILED: notification_prefs row missing';
   end if;
 
@@ -152,20 +152,20 @@ begin
   -- default: spam excluded, newest first, unread flag per caller
   rows := array(select public.api_list_conversations(
     f.cid, '22222222-2222-4222-8222-222222222222', 10));
-  if array_length(rows, 1) <> 2 then
+  if array_length(rows, 1) is distinct from 2 then
     raise exception 'F2 FAILED: expected 2 non-spam conversations, got %', array_length(rows, 1);
   end if;
-  if (rows[1]->>'id')::uuid <> f.cv1 or (rows[2]->>'id')::uuid <> f.cv2 then
+  if (rows[1]->>'id')::uuid is distinct from f.cv1 or (rows[2]->>'id')::uuid is distinct from f.cv2 then
     raise exception 'F2 FAILED: wrong order: % %', rows[1]->>'id', rows[2]->>'id';
   end if;
   if (rows[1]->>'unread')::boolean is distinct from true
      or (rows[2]->>'unread')::boolean is distinct from false then
     raise exception 'F2 FAILED: unread flags wrong: % %', rows[1]->>'unread', rows[2]->>'unread';
   end if;
-  if rows[1]->'contact'->>'name' <> 'Jo Smith' then
+  if rows[1]->'contact'->>'name' is distinct from 'Jo Smith' then
     raise exception 'F2 FAILED: embedded contact wrong: %', rows[1]->'contact';
   end if;
-  if rows[1]->'tags'->0->>'name' <> 'Hot lead' then
+  if rows[1]->'tags'->0->>'name' is distinct from 'Hot lead' then
     raise exception 'F2 FAILED: embedded tags wrong: %', rows[1]->'tags';
   end if;
   if rows[1] ? 'last_notified_at' then
@@ -174,13 +174,13 @@ begin
 
   -- last_message snippet source (DESIGN G4 — cold-load row anatomy): the
   -- newest messages row, embedded per conversation.
-  if rows[1]->'last_message'->>'body' <> 'Quote attached, let me know!'
-     or rows[1]->'last_message'->>'direction' <> 'outbound'
+  if rows[1]->'last_message'->>'body' is distinct from 'Quote attached, let me know!'
+     or rows[1]->'last_message'->>'direction' is distinct from 'outbound'
      or (rows[1]->'last_message'->>'created_at') is null
      or (rows[1]->'last_message'->>'has_attachments')::boolean is distinct from false then
     raise exception 'F2 FAILED: last_message wrong: %', rows[1]->'last_message';
   end if;
-  if rows[2]->'last_message'->>'direction' <> 'inbound' then
+  if rows[2]->'last_message'->>'direction' is distinct from 'inbound' then
     raise exception 'F2 FAILED: cv2 last_message wrong: %', rows[2]->'last_message';
   end if;
 
@@ -205,15 +205,15 @@ begin
   values (f.cid, f.cv1, 'note', repeat('x', 300), null, '2026-07-01T12:05:00Z');
   rows := array(select public.api_list_conversations(
     f.cid, '22222222-2222-4222-8222-222222222222', 10));
-  if rows[1]->'last_message'->>'direction' <> 'note'
-     or length(rows[1]->'last_message'->>'body') <> 160 then
+  if rows[1]->'last_message'->>'direction' is distinct from 'note'
+     or length(rows[1]->'last_message'->>'body') is distinct from 160 then
     raise exception 'F2 FAILED: note snippet / truncation wrong: %', rows[1]->'last_message';
   end if;
 
   -- is_spam=true: only the spam thread; no messages yet → last_message null
   rows := array(select public.api_list_conversations(
     f.cid, '22222222-2222-4222-8222-222222222222', 10, p_is_spam => true));
-  if array_length(rows, 1) <> 1 or (rows[1]->>'id')::uuid <> f.cv3 then
+  if array_length(rows, 1) is distinct from 1 or (rows[1]->>'id')::uuid is distinct from f.cv3 then
     raise exception 'F2 FAILED: is_spam filter wrong';
   end if;
   if rows[1]->'last_message' is distinct from 'null'::jsonb then
@@ -224,7 +224,7 @@ begin
   -- status filter
   rows := array(select public.api_list_conversations(
     f.cid, '22222222-2222-4222-8222-222222222222', 10, p_status => 'open'));
-  if array_length(rows, 1) <> 1 or (rows[1]->>'id')::uuid <> f.cv1 then
+  if array_length(rows, 1) is distinct from 1 or (rows[1]->>'id')::uuid is distinct from f.cv1 then
     raise exception 'F2 FAILED: status filter wrong';
   end if;
 
@@ -232,54 +232,54 @@ begin
   rows := array(select public.api_list_conversations(
     f.cid, '22222222-2222-4222-8222-222222222222', 10,
     p_assigned_user_id => '22222222-2222-4222-8222-222222222222'));
-  if array_length(rows, 1) <> 1 or (rows[1]->>'id')::uuid <> f.cv1 then
+  if array_length(rows, 1) is distinct from 1 or (rows[1]->>'id')::uuid is distinct from f.cv1 then
     raise exception 'F2 FAILED: assigned filter wrong';
   end if;
 
   -- tag filter
   rows := array(select public.api_list_conversations(
     f.cid, '22222222-2222-4222-8222-222222222222', 10, p_tag_id => f.tag));
-  if array_length(rows, 1) <> 1 or (rows[1]->>'id')::uuid <> f.cv1 then
+  if array_length(rows, 1) is distinct from 1 or (rows[1]->>'id')::uuid is distinct from f.cv1 then
     raise exception 'F2 FAILED: tag filter wrong';
   end if;
 
   -- unread filter: cv2 was read after its last message → only cv1
   rows := array(select public.api_list_conversations(
     f.cid, '22222222-2222-4222-8222-222222222222', 10, p_unread => true));
-  if array_length(rows, 1) <> 1 or (rows[1]->>'id')::uuid <> f.cv1 then
+  if array_length(rows, 1) is distinct from 1 or (rows[1]->>'id')::uuid is distinct from f.cv1 then
     raise exception 'F2 FAILED: unread filter wrong';
   end if;
 
   -- q: partial contact name and partial phone
   rows := array(select public.api_list_conversations(
     f.cid, '22222222-2222-4222-8222-222222222222', 10, p_q => 'smi'));
-  if array_length(rows, 1) <> 1 or (rows[1]->>'id')::uuid <> f.cv1 then
+  if array_length(rows, 1) is distinct from 1 or (rows[1]->>'id')::uuid is distinct from f.cv1 then
     raise exception 'F2 FAILED: q name filter wrong';
   end if;
   rows := array(select public.api_list_conversations(
     f.cid, '22222222-2222-4222-8222-222222222222', 10, p_q => '555010'));
-  if array_length(rows, 1) <> 2 then
+  if array_length(rows, 1) is distinct from 2 then
     raise exception 'F2 FAILED: q phone filter wrong (got %)', array_length(rows, 1);
   end if;
 
   -- keyset cursor: page 1 (limit 1) then page 2 from its sort key
   rows := array(select public.api_list_conversations(
     f.cid, '22222222-2222-4222-8222-222222222222', 1));
-  if array_length(rows, 1) <> 1 or (rows[1]->>'id')::uuid <> f.cv1 then
+  if array_length(rows, 1) is distinct from 1 or (rows[1]->>'id')::uuid is distinct from f.cv1 then
     raise exception 'F2 FAILED: cursor page 1 wrong';
   end if;
   rows := array(select public.api_list_conversations(
     f.cid, '22222222-2222-4222-8222-222222222222', 10,
     p_cursor_ts => (rows[1]->>'last_message_at')::timestamptz,
     p_cursor_id => (rows[1]->>'id')::uuid));
-  if array_length(rows, 1) <> 1 or (rows[1]->>'id')::uuid <> f.cv2 then
+  if array_length(rows, 1) is distinct from 1 or (rows[1]->>'id')::uuid is distinct from f.cv2 then
     raise exception 'F2 FAILED: cursor page 2 wrong';
   end if;
 
   -- tenant isolation: another company id sees nothing
   rows := array(select public.api_list_conversations(
     gen_random_uuid(), '22222222-2222-4222-8222-222222222222', 10));
-  if coalesce(array_length(rows, 1), 0) <> 0 then
+  if coalesce(array_length(rows, 1), 0) is distinct from 0 then
     raise exception 'F2 FAILED: cross-tenant leak';
   end if;
 
@@ -311,15 +311,15 @@ begin
   -- 'only': both pinned; most-recently-pinned (cv1) first.
   rows := array(select public.api_list_conversations(
     f.cid, '22222222-2222-4222-8222-222222222222', 10, p_pinned => 'only'));
-  if array_length(rows, 1) <> 2
-     or (rows[1]->>'id')::uuid <> f.cv1 or (rows[2]->>'id')::uuid <> f.cv2 then
+  if array_length(rows, 1) is distinct from 2
+     or (rows[1]->>'id')::uuid is distinct from f.cv1 or (rows[2]->>'id')::uuid is distinct from f.cv2 then
     raise exception 'F2c FAILED: only-order wrong: %', rows;
   end if;
 
   -- 'exclude': both non-spam are pinned, cv3 is spam → empty.
   rows := array(select public.api_list_conversations(
     f.cid, '22222222-2222-4222-8222-222222222222', 10, p_pinned => 'exclude'));
-  if coalesce(array_length(rows, 1), 0) <> 0 then
+  if coalesce(array_length(rows, 1), 0) is distinct from 0 then
     raise exception 'F2c FAILED: exclude kept a pinned thread: %', array_length(rows, 1);
   end if;
 
@@ -328,12 +328,12 @@ begin
    where id = f.cv1;
   rows := array(select public.api_list_conversations(
     f.cid, '22222222-2222-4222-8222-222222222222', 10, p_pinned => 'only'));
-  if array_length(rows, 1) <> 1 or (rows[1]->>'id')::uuid <> f.cv2 then
+  if array_length(rows, 1) is distinct from 1 or (rows[1]->>'id')::uuid is distinct from f.cv2 then
     raise exception 'F2c FAILED: only after unpin wrong: %', rows;
   end if;
   rows := array(select public.api_list_conversations(
     f.cid, '22222222-2222-4222-8222-222222222222', 10, p_pinned => 'exclude'));
-  if array_length(rows, 1) <> 1 or (rows[1]->>'id')::uuid <> f.cv1 then
+  if array_length(rows, 1) is distinct from 1 or (rows[1]->>'id')::uuid is distinct from f.cv1 then
     raise exception 'F2c FAILED: exclude after unpin wrong: %', rows;
   end if;
 
@@ -386,7 +386,7 @@ begin
   -- p_unread filter agrees: only cv1 (its inbound is still unread for member).
   rows := array(select public.api_list_conversations(
     f.cid, '22222222-2222-4222-8222-222222222222', 10, p_unread => true));
-  if array_length(rows, 1) <> 1 or (rows[1]->>'id')::uuid <> f.cv1 then
+  if array_length(rows, 1) is distinct from 1 or (rows[1]->>'id')::uuid is distinct from f.cv1 then
     raise exception 'F2b FAILED: unread filter disagrees with the flag';
   end if;
 
@@ -420,11 +420,11 @@ begin
   -- FTS: "quote" matches two messages in cv1 → ONE grouped hit, newest
   -- matching message wins, snippet highlights the term.
   result := public.api_search(f.cid, 'quote', 10, 10);
-  if jsonb_array_length(result->'conversations') <> 1 then
+  if jsonb_array_length(result->'conversations') is distinct from 1 then
     raise exception 'F3 FAILED: expected 1 grouped conversation hit, got %',
       result->'conversations';
   end if;
-  if (result->'conversations'->0->>'id')::uuid <> f.cv1 then
+  if (result->'conversations'->0->>'id')::uuid is distinct from f.cv1 then
     raise exception 'F3 FAILED: wrong conversation matched';
   end if;
   if result->'conversations'->0->>'snippet' not like '%<b>%' then
@@ -434,35 +434,35 @@ begin
 
   -- websearch syntax: multi-term
   result := public.api_search(f.cid, 'fence repair', 10, 10);
-  if jsonb_array_length(result->'conversations') <> 1 then
+  if jsonb_array_length(result->'conversations') is distinct from 1 then
     raise exception 'F3 FAILED: websearch multi-term missed';
   end if;
 
   -- contacts: partial name, partial phone, misspelled name (trgm %)
   result := public.api_search(f.cid, 'Smit', 10, 10);
   if jsonb_array_length(result->'contacts') < 1
-     or result->'contacts'->0->>'name' <> 'Jo Smith' then
+     or result->'contacts'->0->>'name' is distinct from 'Jo Smith' then
     raise exception 'F3 FAILED: partial-name contact match: %', result->'contacts';
   end if;
   result := public.api_search(f.cid, '555010', 10, 10);
-  if jsonb_array_length(result->'contacts') <> 2 then
+  if jsonb_array_length(result->'contacts') is distinct from 2 then
     raise exception 'F3 FAILED: partial-phone contact match: %', result->'contacts';
   end if;
   result := public.api_search(f.cid, 'Jo Smth', 10, 10);
   if jsonb_array_length(result->'contacts') < 1
-     or result->'contacts'->0->>'name' <> 'Jo Smith' then
+     or result->'contacts'->0->>'name' is distinct from 'Jo Smith' then
     raise exception 'F3 FAILED: misspelled-name similarity match: %', result->'contacts';
   end if;
 
   -- soft-deleted contacts never surface
   result := public.api_search(f.cid, 'Deleted', 10, 10);
-  if jsonb_array_length(result->'contacts') <> 0 then
+  if jsonb_array_length(result->'contacts') is distinct from 0 then
     raise exception 'F3 FAILED: soft-deleted contact surfaced';
   end if;
 
   -- p_contact_limit = 0 (cursor pages) suppresses the contacts arm
   result := public.api_search(f.cid, 'Smit', 10, 0);
-  if jsonb_array_length(result->'contacts') <> 0 then
+  if jsonb_array_length(result->'contacts') is distinct from 0 then
     raise exception 'F3 FAILED: contact limit 0 not honored';
   end if;
 
@@ -470,21 +470,21 @@ begin
   -- Use a term hitting both threads: 'the' is a stopword, so use two calls —
   -- page through hits of 'quote or estimate' via websearch OR.
   result := public.api_search(f.cid, 'quote or estimate', 1, 0);
-  if jsonb_array_length(result->'conversations') <> 1 then
+  if jsonb_array_length(result->'conversations') is distinct from 1 then
     raise exception 'F3 FAILED: OR search page 1: %', result->'conversations';
   end if;
   result := public.api_search(f.cid, 'quote or estimate', 10, 0,
     (result->'conversations'->0->>'matched_at')::timestamptz,
     (result->'conversations'->0->>'id')::uuid);
-  if jsonb_array_length(result->'conversations') <> 1
-     or (result->'conversations'->0->>'id')::uuid <> f.cv2 then
+  if jsonb_array_length(result->'conversations') is distinct from 1
+     or (result->'conversations'->0->>'id')::uuid is distinct from f.cv2 then
     raise exception 'F3 FAILED: OR search page 2: %', result->'conversations';
   end if;
 
   -- tenant isolation
   result := public.api_search(gen_random_uuid(), 'quote', 10, 10);
-  if jsonb_array_length(result->'conversations') <> 0
-     or jsonb_array_length(result->'contacts') <> 0 then
+  if jsonb_array_length(result->'conversations') is distinct from 0
+     or jsonb_array_length(result->'contacts') is distinct from 0 then
     raise exception 'F3 FAILED: cross-tenant leak';
   end if;
 
@@ -503,17 +503,17 @@ begin
   select * into f from fixture;
 
   total := public.api_period_segments(f.cid, '2026-06-15T00:00:00Z');
-  if total <> 6 then
+  if total is distinct from 6 then
     raise exception 'F4 FAILED: expected 6 in-period segments, got %', total;
   end if;
 
   total := public.api_period_segments(f.cid, '2026-05-01T00:00:00Z');
-  if total <> 13 then
+  if total is distinct from 13 then
     raise exception 'F4 FAILED: expected 13 all-time segments, got %', total;
   end if;
 
   total := public.api_period_segments(gen_random_uuid(), '2026-01-01T00:00:00Z');
-  if total <> 0 then
+  if total is distinct from 0 then
     raise exception 'F4 FAILED: cross-tenant or empty sum wrong: %', total;
   end if;
 
@@ -533,21 +533,21 @@ begin
 
   -- Anchor inside July 2026: fixture has 7 segments in June, 6 in July.
   hist := public.api_usage_history(f.cid, 6, '2026-07-10T00:00:00Z');
-  if jsonb_array_length(hist) <> 6 then
+  if jsonb_array_length(hist) is distinct from 6 then
     raise exception 'F4b FAILED: expected 6 buckets, got %', hist;
   end if;
-  if hist->0->>'month' <> '2026-02' or hist->5->>'month' <> '2026-07' then
+  if hist->0->>'month' is distinct from '2026-02' or hist->5->>'month' is distinct from '2026-07' then
     raise exception 'F4b FAILED: bucket range wrong: %', hist;
   end if;
-  if (hist->0->>'segments')::bigint <> 0
-     or (hist->4->>'segments')::bigint <> 7
-     or (hist->5->>'segments')::bigint <> 6 then
+  if (hist->0->>'segments')::bigint is distinct from 0
+     or (hist->4->>'segments')::bigint is distinct from 7
+     or (hist->5->>'segments')::bigint is distinct from 6 then
     raise exception 'F4b FAILED: bucket sums wrong: %', hist;
   end if;
 
   -- tenant isolation: another company reads all-zero buckets
   hist := public.api_usage_history(gen_random_uuid(), 6, '2026-07-10T00:00:00Z');
-  if (select sum((b->>'segments')::bigint) from jsonb_array_elements(hist) b) <> 0 then
+  if (select sum((b->>'segments')::bigint) from jsonb_array_elements(hist) b) is distinct from 0 then
     raise exception 'F4b FAILED: cross-tenant leak: %', hist;
   end if;
 
@@ -584,7 +584,7 @@ begin
   if n < 4 then
     raise exception 'F5 FAILED: expected at least the 4 api_* functions, found %', n;
   end if;
-  if bad <> '' then
+  if bad is distinct from '' then
     raise exception 'F5 FAILED: function privilege posture wrong:%', bad;
   end if;
   raise notice 'F5 PASSED: api_* functions executable by service_role only';
@@ -612,7 +612,7 @@ begin
 
   -- The batch ceiling is honoured, and it takes the OLDEST rows first.
   n := public.api_prune_webhook_events(now() - interval '30 days', 2);
-  if n <> 2 then
+  if n is distinct from 2 then
     raise exception 'F6 FAILED: expected 2 rows pruned under limit 2, got %', n;
   end if;
   if exists (select 1 from public.webhook_events where event_id in ('f6-old-1', 'f6-old-2')) then
@@ -624,7 +624,7 @@ begin
 
   -- A second pass drains the rest of the eligible tail.
   n := public.api_prune_webhook_events(now() - interval '30 days', 1000);
-  if n <> 1 then
+  if n is distinct from 1 then
     raise exception 'F6 FAILED: expected the remaining 1 eligible row, got %', n;
   end if;
 
@@ -643,11 +643,11 @@ begin
   end if;
 
   -- Idempotent, and a non-positive limit is a safe no-op rather than an error.
-  if public.api_prune_webhook_events(now() - interval '30 days', 1000) <> 0 then
+  if public.api_prune_webhook_events(now() - interval '30 days', 1000) is distinct from 0 then
     raise exception 'F6 FAILED: a second drain should be a no-op';
   end if;
-  if public.api_prune_webhook_events(now(), 0) <> 0
-     or public.api_prune_webhook_events(now(), -5) <> 0 then
+  if public.api_prune_webhook_events(now(), 0) is distinct from 0
+     or public.api_prune_webhook_events(now(), -5) is distinct from 0 then
     raise exception 'F6 FAILED: a non-positive limit must be a no-op';
   end if;
 

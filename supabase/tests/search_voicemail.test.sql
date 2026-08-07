@@ -72,7 +72,7 @@ begin
             'ce000000-0000-4000-8000-0000000000c1'::uuid,
             'boiler Elm', 5, 5, 5, 5, 5, null, null, null, 5
           ) -> 'voicemails') into v_hits;
-  if jsonb_array_length(coalesce(v_hits, '[]'::jsonb)) <> 2 then
+  if jsonb_array_length(coalesce(v_hits, '[]'::jsonb)) is distinct from 2 then
     raise exception 'both readable-and-hidden transcripts should match with no deny list: %', v_hits;
   end if;
 
@@ -84,11 +84,11 @@ begin
             'boiler Elm', 5, 5, 5, 5, 5, null, null,
             array['ce000000-0000-4000-8000-0000000000b2'::uuid], 5
           ) -> 'voicemails') into v_hits;
-  if jsonb_array_length(coalesce(v_hits, '[]'::jsonb)) <> 1 then
+  if jsonb_array_length(coalesce(v_hits, '[]'::jsonb)) is distinct from 1 then
     raise exception 'a hidden number''s voicemail must not be searchable: %', v_hits;
   end if;
   v_row := v_hits -> 0;
-  if (v_row ->> 'call_session_id') <> 'ce-session-1' then
+  if (v_row ->> 'call_session_id') is distinct from 'ce-session-1' then
     raise exception 'the wrong call came back: %', v_row;
   end if;
 
@@ -114,7 +114,7 @@ begin
             'ce000000-0000-4000-8000-0000000000c1'::uuid,
             'boiler Elm', 5, 5, 5, 5, 5, null, null, null, 0
           ) -> 'voicemails') into v_hits;
-  if jsonb_array_length(coalesce(v_hits, '[]'::jsonb)) <> 0 then
+  if jsonb_array_length(coalesce(v_hits, '[]'::jsonb)) is distinct from 0 then
     raise exception 'a zero limit must return nothing: %', v_hits;
   end if;
 
@@ -129,7 +129,7 @@ begin
             'ce000000-0000-4000-8000-0000000000c1'::uuid,
             'anything at all', 5, 5, 5, 5, 5, null, null, null, 5
           ) -> 'voicemails') into v_hits;
-  if jsonb_array_length(coalesce(v_hits, '[]'::jsonb)) <> 0 then
+  if jsonb_array_length(coalesce(v_hits, '[]'::jsonb)) is distinct from 0 then
     raise exception 'an untranscribed call must not match: %', v_hits;
   end if;
 
