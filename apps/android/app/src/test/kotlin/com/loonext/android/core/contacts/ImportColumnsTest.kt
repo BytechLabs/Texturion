@@ -632,4 +632,80 @@ class ImportColumnsTest {
             plan.columns.any { it.header.contains('"') },
         )
     }
+
+    // ------------------------------------- #528 the values it does not print
+
+    @Test
+    fun `every column is answered for from one pass, distinct and in file order`() {
+        val held = ImportColumns.allColumnValues(
+            listOf(
+                listOf("+14165550101", "Subscribed"),
+                listOf("+14165550102", "DO NOT CALL"),
+                listOf("+14165550103", "subscribed"),
+                listOf("+14165550104", "   "),
+                listOf("+14165550105", "Pending"),
+            ),
+            2,
+        )
+        assertEquals(5, held[0].total)
+        assertEquals(listOf("Subscribed", "DO NOT CALL", "Pending"), held[1].values)
+        assertEquals(3, held[1].total)
+    }
+
+    @Test
+    fun `the count is of answers, not of rows`() {
+        // A column of four hundred `Subscribed`s has ONE answer, and reporting
+        // "and 399 more" would be a new way of saying nothing.
+        val rows = (1..400).map { listOf("Subscribed") } + listOf(listOf("DO NOT CALL"))
+        val held = ImportColumns.allColumnValues(rows, 1)
+        assertEquals(listOf("Subscribed", "DO NOT CALL"), held[0].values)
+        assertEquals(2, held[0].total)
+    }
+
+    @Test
+    fun `the count stays true past the ceiling that bounds the list`() {
+        // The list is bounded because a sheet cannot draw 50,000 values. The COUNT
+        // is not, because "and 40 more" is only worth printing if the 40 is real —
+        // and a total that quietly equalled the ceiling would read, to everybody
+        // who saw it, as a list with nothing left out.
+        val size = ImportColumns.VALUE_CEILING + 40
+        val held = ImportColumns.allColumnValues((1..size).map { listOf("v$it") }, 1)
+        assertEquals(ImportColumns.VALUE_CEILING, held[0].values.size)
+        assertEquals(size, held[0].total)
+    }
+
+    @Test
+    fun `the line names how many answers it left out, and offers them`() {
+        // ", and more" was the whole defect: it stood equally for one hidden
+        // answer and four hundred, and the line was the last place that admitted a
+        // hidden one existed. A person deciding whether to dismiss a column reads
+        // the count to know whether they have seen it.
+        val rows = (1..20).map { listOf("v$it") }
+        val plan = ImportColumns.allColumnValues(rows, 1)[0]
+        val samples = plan.values.take(ImportColumns.SAMPLE_LIMIT)
+        val line = ContactImport.Columns.valuesLine(samples, plan.total)
+        assertTrue(line, line.startsWith("Values include:"))
+        assertTrue(line, line.endsWith("and 15 more"))
+        assertEquals("Show all 20 values", ContactImport.Columns.showAllValuesLabel(plan.total))
+    }
+
+    @Test
+    fun `a column with nothing left out says nothing about a remainder`() {
+        val rows = listOf(listOf("DNC"), listOf("OK"), listOf("HOLD"))
+        val plan = ImportColumns.allColumnValues(rows, 1)[0]
+        val line = ContactImport.Columns.valuesLine(plan.values, plan.total)
+        assertFalse(line, line.contains("more"))
+    }
+
+    @Test
+    fun `a column's fifth answer is on screen without being asked for`() {
+        // The web wizard showed three and this app showed five, so a value at the
+        // fourth was on screen here and behind a control there. Same file, same
+        // decision, different evidence — and this is the side that was right.
+        val rows = listOf("OK", "HOLD", "PENDING", "LEFT MSG", "DO NOT CALL")
+            .map { listOf(it) }
+        val plan = ImportColumns.defaultColumns(listOf("Status"), rows)[0]
+        assertTrue(plan.samples.toString(), plan.samples.contains("DO NOT CALL"))
+        assertEquals(5, plan.total)
+    }
 }

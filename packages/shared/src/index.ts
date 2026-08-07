@@ -335,6 +335,9 @@ export {
 } from "./lead-chase";
 
 export {
+  CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT,
+  CONTACT_IMPORT_COLUMN_VALUE_CEILING,
+  contactImportAllColumnValues,
   contactImportColumnCount,
   contactImportColumnSamples,
   detectContactColumns,
@@ -342,6 +345,7 @@ export {
   normalizeContactHeader,
   readContactFlag,
   unreadableFlagValues,
+  type ContactImportColumnValues,
   type ContactImportField,
   type ContactImportMapping,
 } from "./contact-import-headers";
@@ -355,14 +359,18 @@ export {
   CONTACT_IMPORT_IGNORE,
   CONTACT_IMPORT_MAX_BYTES,
   CONTACT_IMPORT_MAX_ROWS,
+  CONTACT_IMPORT_SHOW_FEWER_VALUES_LABEL,
   CONTACT_IMPORT_UNREADABLE_ENCODING,
   CONTACT_IMPORT_VCARD_PROPERTY_FIELD,
   contactImportColumnMismatchMessage,
   contactImportConsentRefusedReason,
+  contactImportHiddenValuesLabel,
+  contactImportShowAllValuesLabel,
   contactImportUndeclaredColumnsMessage,
   contactImportUndeclaredPropertiesMessage,
   contactImportUnreadableFlagMessage,
   contactImportUnterminatedQuoteMessage,
+  contactImportValueCeilingNote,
   contactImportVCardMergedCardMessage,
   contactImportVCardNamelessPropertyMessage,
   defaultContactImportColumns,

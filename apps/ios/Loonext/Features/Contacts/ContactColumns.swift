@@ -155,6 +155,18 @@ struct ContactImportColumn: Identifiable, Hashable, Sendable {
     let unreadable: [String]
     let unreadableCount: Int
 
+    /// Every distinct value held for this column, for somebody who asks to see
+    /// them. `samples` is its first few; this is bounded only by
+    /// `ContactColumns.valueCeiling`.
+    let values: [String]
+
+    /// How many distinct values the column really has, counted past the ceiling.
+    ///
+    /// The point of counting past it: "and 12 more" tells somebody they have not
+    /// seen everything, and a total that quietly equalled the length of the list
+    /// beside it would read as a list with nothing left out.
+    let total: Int
+
     var id: Int { index }
 
     /// What the row is headed. A column with no heading is named by its
@@ -164,11 +176,24 @@ struct ContactImportColumn: Identifiable, Hashable, Sendable {
         header.isEmpty ? "Column \(index + 1) — no heading" : header
     }
 
-    /// Its values, said out loud, bounded.
-    var sampleLine: String {
-        samples.isEmpty
-            ? ContactColumns.emptyColumnNote
-            : samples.joined(separator: " · ")
+    /// Its values, said out loud, bounded — and the count of the ones left out.
+    ///
+    /// ", and 12 more" rather than the old bare list, because a person deciding
+    /// whether to dismiss a column needs to know whether they have seen it. A list
+    /// that simply stopped read as complete, so a value at the sixth was on screen
+    /// in the sense that matters legally and absent in the sense that matters to
+    /// the person about to skip the column holding it.
+    var sampleLine: String { line(showingAll: false) }
+
+    /// The same line in either state. Expanded, it reports the length of what it
+    /// actually listed, so it does not end in ", and 40 more" while
+    /// `ContactColumns.valueCeilingNote` says the same thing a second way.
+    func line(showingAll: Bool) -> String {
+        let listed = showingAll ? values : samples
+        if listed.isEmpty { return ContactColumns.emptyColumnNote }
+        let hidden = (showingAll ? values.count : total) - listed.count
+        let more = hidden > 0 ? ", and \(hidden) more" : ""
+        return listed.joined(separator: " · ") + more
     }
 }
 
@@ -177,8 +202,11 @@ extension ContactImportColumn {
     ///
     /// In an EXTENSION rather than the body, which is the whole trick: an
     /// initializer declared inside a struct suppresses the memberwise one, and
-    /// the memberwise one is what `review` uses to fill all six fields. Here it
+    /// the memberwise one is what `review` uses to fill all eight fields. Here it
     /// is a convenience beside it rather than instead of it.
+    ///
+    /// `values` and `total` come from `samples`, so a column built by hand is one
+    /// with nothing hidden — which is what every caller of this init means.
     init(index: Int, header: String, samples: [String], guess: ContactImportField? = nil) {
         self.init(
             index: index,
@@ -186,7 +214,9 @@ extension ContactImportColumn {
             samples: samples,
             guess: guess,
             unreadable: [],
-            unreadableCount: 0
+            unreadableCount: 0,
+            values: samples,
+            total: samples.count
         )
     }
 }
@@ -474,6 +504,65 @@ enum ContactColumns {
     /// two doors show a reader the same amount.
     static let sampleLimit = 5
 
+    /// The most distinct values kept per column for showing on request.
+    ///
+    /// A do-not-text column holds a handful. A name column holds one per row, and
+    /// laying out 50,000 of them is how a review screen stops opening. Past this,
+    /// `ColumnValues.total` still reports the truth, so the count on screen is
+    /// right even when the list is cut.
+    ///
+    /// This bounds what is DRAWN. Counting distinct values means remembering every
+    /// one seen, so what a column costs in memory is set by the file.
+    static let valueCeiling = 200
+
+    /// What one column holds, and how much of it is being shown.
+    struct ColumnValues: Sendable {
+        /// Distinct non-blank values in file order, at most `valueCeiling`.
+        let values: [String]
+        /// How many distinct values the column really has.
+        let total: Int
+    }
+
+    /// What every column of a file holds, from one pass over the rows.
+    ///
+    /// One pass rather than one per column because knowing how many distinct
+    /// values a column REALLY has means reading every row of it — there is no
+    /// early exit from a count. Answering for all columns at once costs what the
+    /// old per-column `samples` loop cost, and answers honestly.
+    static func allColumnValues(rows: [[String]], columnCount: Int) -> [ColumnValues] {
+        var seen = [Set<String>](repeating: [], count: columnCount)
+        var kept = [[String]](repeating: [], count: columnCount)
+        for row in rows {
+            for index in 0 ..< columnCount {
+                let value = cell(row, index)
+                if value.isEmpty { continue }
+                // The set counts, the array shows. Only the second one is bounded,
+                // and it keeps the file's own spelling rather than the key.
+                guard seen[index].insert(value.lowercased()).inserted else { continue }
+                if kept[index].count < valueCeiling { kept[index].append(value) }
+            }
+        }
+        return (0 ..< columnCount).map {
+            ColumnValues(values: kept[$0], total: seen[$0].count)
+        }
+    }
+
+    /// The control that puts every value a column holds on the screen.
+    static func showAllValuesLabel(total: Int) -> String { "Show all \(total) values" }
+
+    /// The control that puts an expanded column back to its first few values.
+    static let showFewerValuesLabel = "Show fewer values"
+
+    /// What an expanded column says when even the full list is cut.
+    ///
+    /// Said rather than left to be inferred, because somebody believing a list is
+    /// complete when it is not is the same defect as ", and more" wearing a longer
+    /// list. It states the two numbers and stops: how many answers a column has is
+    /// NOT a rule about what the column means.
+    static func valueCeilingNote(shown: Int, total: Int) -> String {
+        "Showing \(shown) of the \(total) different answers in this column."
+    }
+
     /// The distinct values one column carries, for showing a person what they
     /// are being asked about.
     ///
@@ -628,16 +717,20 @@ enum ContactColumns {
         for (field, index) in detect(file.headers) { guesses[index] = field }
 
         var columns: [ContactImportColumn] = []
-        for index in 0 ..< columnCount(headers: file.headers, rows: file.rows) {
+        let count = columnCount(headers: file.headers, rows: file.rows)
+        let held = allColumnValues(rows: file.rows, columnCount: count)
+        for index in 0 ..< count {
             let unreadable = unreadableValues(rows: file.rows, index: index)
             columns.append(
                 ContactImportColumn(
                     index: index,
                     header: file.headers.indices.contains(index) ? file.headers[index] : "",
-                    samples: samples(rows: file.rows, index: index),
+                    samples: Array(held[index].values.prefix(sampleLimit)),
                     guess: guesses[index],
                     unreadable: unreadable.shown,
-                    unreadableCount: unreadable.total
+                    unreadableCount: unreadable.total,
+                    values: held[index].values,
+                    total: held[index].total
                 )
             )
         }

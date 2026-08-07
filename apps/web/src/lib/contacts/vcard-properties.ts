@@ -1,4 +1,6 @@
 import {
+  CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT,
+  CONTACT_IMPORT_COLUMN_VALUE_CEILING,
   CONTACT_IMPORT_IGNORE,
   VCARD_MAPPED_PROPERTIES,
   vcardParameterProperty,
@@ -148,8 +150,13 @@ function parseContentLine(line: string): ContentLine | null {
   return { name: name.toUpperCase(), params, value };
 }
 
-/** How many of a property's own values a person is shown. */
-export const VCARD_SAMPLE_LIMIT = 3;
+/**
+ * How many of a property's own values a person is shown unprompted.
+ *
+ * The shared figure, so a card's properties and a spreadsheet's columns show the
+ * same amount on the same laptop — and the same amount the phone apps show.
+ */
+export const VCARD_SAMPLE_LIMIT = CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT;
 
 /** One property these cards carry that the importer does not read. */
 export interface VCardProperty {
@@ -157,8 +164,13 @@ export interface VCardProperty {
   property: string;
   /** Distinct non-blank values on these cards, at most VCARD_SAMPLE_LIMIT. */
   samples: string[];
-  /** There are more distinct values than `samples` shows. */
-  more: boolean;
+  /**
+   * Every distinct value held for this property, for the reader who asks to see
+   * them. Bounded only by the shared ceiling.
+   */
+  values: string[];
+  /** How many distinct values these cards really carry for it. */
+  total: number;
   /** How many cards carry it — "3 of 40" is the difference between a
    *  house-keeping property and a decision somebody made about three people. */
   cards: number;
@@ -264,7 +276,11 @@ export function readVCardProperties(text: string): VCardFile {
       return {
         property,
         samples: all.slice(0, VCARD_SAMPLE_LIMIT),
-        more: all.length > VCARD_SAMPLE_LIMIT,
+        // Bounded for rendering only. The count below is the map's own size, so
+        // it stays true past the ceiling — the number on screen is never the
+        // length of the list beside it unless they genuinely agree.
+        values: all.slice(0, CONTACT_IMPORT_COLUMN_VALUE_CEILING),
+        total: distinct.size,
         cards: cardsWith.get(property) ?? 0,
         answer: null,
       };

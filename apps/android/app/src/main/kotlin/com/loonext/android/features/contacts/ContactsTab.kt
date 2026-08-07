@@ -1907,6 +1907,11 @@ private fun ColumnDeclarationCard(
     onAction: (String) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
+    // Whether this column has been asked to show everything it holds. Bounded by
+    // default because thirty columns of full value lists is a sheet nobody reads;
+    // complete on request because that is the reading this whole flow claims
+    // happened before somebody dismissed a column.
+    var showAll by remember { mutableStateOf(false) }
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -1926,11 +1931,44 @@ private fun ColumnDeclarationCard(
                 modifier = Modifier.padding(top = 1.dp),
             )
             Text(
-                ContactImport.Columns.valuesLine(column.samples),
+                // Expanded, the line reports the length of what it actually
+                // listed, so it does not end in ", and 40 more" while the note
+                // below says the same thing a second way.
+                if (showAll) {
+                    ContactImport.Columns.valuesLine(column.values, column.values.size)
+                } else {
+                    ContactImport.Columns.valuesLine(column.samples, column.total)
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 3.dp),
             )
+            if (showAll && column.total > column.values.size) {
+                Text(
+                    ContactImport.Columns.valueCeilingNote(column.values.size, column.total),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+            if (column.total > column.samples.size) {
+                // A TextButton rather than a clickable Text: this is the control
+                // that decides whether somebody sees the value that says stop, and
+                // it gets a real touch target like every other control on the card.
+                TextButton(
+                    onClick = { showAll = !showAll },
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        if (showAll) {
+                            ContactImport.Columns.SHOW_FEWER_VALUES_LABEL
+                        } else {
+                            ContactImport.Columns.showAllValuesLabel(column.total)
+                        },
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+            }
             Box(Modifier.padding(top = 8.dp)) {
                 // An unanswered control is outlined and reads "Choose…", so the
                 // work left on the screen is visible without reading a word.

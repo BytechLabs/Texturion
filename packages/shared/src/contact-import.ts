@@ -538,6 +538,52 @@ export function contactImportUnreadableFlagMessage(
 }
 
 /**
+ * How the mapping screen names the values it has NOT printed.
+ *
+ * `", and more"` was what all three clients said, and it is the one phrase this
+ * screen cannot afford: a person deciding whether to skip a column reads it and
+ * learns nothing, because it stands equally for one more value and four hundred.
+ * The count is the difference between "I have seen this column" and "I have seen
+ * three of its nine answers".
+ *
+ * Paired with {@link contactImportShowAllValuesLabel} — a count with no way to
+ * act on it is a better-worded dead end, not a fix.
+ */
+export function contactImportHiddenValuesLabel(hidden: number): string {
+  return `and ${hidden} more`;
+}
+
+/**
+ * The control that puts every value a column holds on the screen.
+ *
+ * The whole design rests on a person dismissing a column KNOWING what it says,
+ * and until this existed the answer to "what else is in there?" was to go and
+ * open the file in another program. That is not an answer during an import.
+ */
+export function contactImportShowAllValuesLabel(total: number): string {
+  return `Show all ${total} values`;
+}
+
+/** The control that puts an expanded column back to its first few values. */
+export const CONTACT_IMPORT_SHOW_FEWER_VALUES_LABEL = "Show fewer values";
+
+/**
+ * What an expanded column says when even the full list is cut.
+ *
+ * Said rather than left to be inferred, because a person believing a list is
+ * complete when it is not is the same defect as `", and more"` wearing a longer
+ * list. It states the two numbers and stops: how many answers this column has is
+ * NOT a rule about what the column means, and a sentence here implying otherwise
+ * would be a guess dressed as a fact.
+ */
+export function contactImportValueCeilingNote(
+  shown: number,
+  total: number,
+): string {
+  return `Showing ${shown} of the ${total} different answers in this column.`;
+}
+
+/**
  * What the server says when a quoted value is never closed.
  *
  * THE FILE IS REFUSED RATHER THAN PARSED AS FAR AS IT GOES, and that is the

@@ -73,6 +73,13 @@ struct VCardProperty: Identifiable, Hashable, Sendable {
     /// it says `DNC`.
     let samples: [String]
 
+    /// Every distinct value held for this property, for somebody who asks to see
+    /// them. Bounded only by `ContactColumns.valueCeiling`.
+    let values: [String]
+
+    /// How many distinct values these cards really carry for it.
+    let total: Int
+
     var id: String { name }
 
     var title: String { name.isEmpty ? "A property with no name" : name }
@@ -81,9 +88,37 @@ struct VCardProperty: Identifiable, Hashable, Sendable {
         cards == 1 ? "on 1 card" : "on \(cards.formatted()) cards"
     }
 
-    /// Its values, said out loud, bounded.
-    var sampleLine: String {
-        samples.isEmpty ? cardLine : cardLine + " · " + samples.joined(separator: " · ")
+    /// Its values, said out loud, bounded — and the count of the ones left out.
+    var sampleLine: String { line(showingAll: false) }
+
+    /// The same line in either state. Expanded, it reports the length of what it
+    /// actually listed, so it does not end in ", and 40 more" while
+    /// `ContactColumns.valueCeilingNote` says the same thing a second way.
+    func line(showingAll: Bool) -> String {
+        let listed = showingAll ? values : samples
+        if listed.isEmpty { return cardLine }
+        let hidden = (showingAll ? values.count : total) - listed.count
+        let more = hidden > 0 ? ", and \(hidden) more" : ""
+        return cardLine + " · " + listed.joined(separator: " · ") + more
+    }
+}
+
+extension VCardProperty {
+    /// A property whose values are all on screen — the hand-built case.
+    ///
+    /// In an EXTENSION rather than the body for the same reason
+    /// `ContactImportColumn`'s is: an initializer inside the struct suppresses the
+    /// memberwise one, and the memberwise one is what `read` uses to fill all five
+    /// fields. `values` and `total` come from `samples`, which is what every
+    /// caller of this init means by a property built by hand.
+    init(name: String, cards: Int, samples: [String]) {
+        self.init(
+            name: name,
+            cards: cards,
+            samples: samples,
+            values: samples,
+            total: samples.count
+        )
     }
 }
 
@@ -160,8 +195,12 @@ enum VCardProperties {
             let value = parsed.value.trimmingCharacters(in: .whitespacesAndNewlines)
             if value.isEmpty { continue }
             var distinct = seen[parsed.name] ?? []
-            if distinct.count < ContactColumns.sampleLimit,
-                distinct.insert(value.lowercased()).inserted {
+            // ALWAYS counted, bounded only for showing. This used to stop
+            // inserting at `sampleLimit`, which meant the set could never say how
+            // many values a property really carried — so "and more" was the only
+            // thing it could honestly print, and "and more" is what #528 found.
+            if distinct.insert(value.lowercased()).inserted,
+                (samples[parsed.name]?.count ?? 0) < ContactColumns.valueCeiling {
                 samples[parsed.name, default: []].append(value)
             }
             seen[parsed.name] = distinct
@@ -169,10 +208,13 @@ enum VCardProperties {
         flush()
 
         return order.map { name in
-            VCardProperty(
+            let held = samples[name] ?? []
+            return VCardProperty(
                 name: name,
                 cards: cards[name] ?? 0,
-                samples: samples[name] ?? []
+                samples: Array(held.prefix(ContactColumns.sampleLimit)),
+                values: held,
+                total: seen[name]?.count ?? 0
             )
         }
     }

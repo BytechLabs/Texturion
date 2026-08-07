@@ -534,6 +534,18 @@ struct ContactImportConsentSheet: View {
     /// The vCard door's twin, by property name.
     @State private var propertyAnswers: [String: VCardPropertyAction] = [:]
 
+    /// Which columns have been asked to show every value they hold, by index.
+    ///
+    /// Bounded by default because thirty columns of full value lists is a screen
+    /// nobody reads; complete on request because that is the reading this whole
+    /// flow claims happened before somebody dismissed a column. Held here rather
+    /// than per row because `columnRow` is a function on this view, not a view of
+    /// its own with state to keep.
+    @State private var showAllColumnValues: Set<Int> = []
+
+    /// The vCard door's twin, by property name.
+    @State private var showAllPropertyValues: Set<String> = []
+
     /// Seeding runs once. `onAppear` can fire again when the sheet returns from
     /// a system menu, and a second seed would quietly undo an answer somebody
     /// had already changed.
@@ -772,25 +784,75 @@ struct ContactImportConsentSheet: View {
     }
 
     private func columnRow(_ column: ContactImportColumn) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(column.title)
-                    .font(.golos(12.5, weight: .semibold))
-                    .foregroundStyle(BrandColor.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                // What the column SAYS, which is the only thing that lets
-                // anybody decide. A name alone ("Status") is not a question
-                // anybody can answer, and a name is all round two ever showed.
-                Text(column.sampleLine)
-                    .font(.golos(11))
-                    .foregroundStyle(BrandColor.muted500)
-                    .fixedSize(horizontal: false, vertical: true)
+        let showingAll = showAllColumnValues.contains(column.index)
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(column.title)
+                        .font(.golos(12.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    // What the column SAYS, which is the only thing that lets
+                    // anybody decide. A name alone ("Status") is not a question
+                    // anybody can answer, and a name is all round two ever showed.
+                    Text(column.line(showingAll: showingAll))
+                        .font(.golos(11))
+                        .foregroundStyle(BrandColor.muted500)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if showingAll, column.total > column.values.count {
+                        Text(
+                            ContactColumns.valueCeilingNote(
+                                shown: column.values.count,
+                                total: column.total
+                            )
+                        )
+                        .font(.golos(11))
+                        .foregroundStyle(BrandColor.muted500)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                Spacer(minLength: 8)
+                columnMenu(column)
             }
-            .accessibilityElement(children: .combine)
-            Spacer(minLength: 8)
-            columnMenu(column)
+            // BELOW the values and OUTSIDE the combined element, so it stays a
+            // control a screen reader can reach. The values are one block of text
+            // on purpose; the thing that reveals the rest of them is not text.
+            if column.total > column.samples.count {
+                showAllValuesButton(total: column.total, showingAll: showingAll) {
+                    if showingAll {
+                        showAllColumnValues.remove(column.index)
+                    } else {
+                        showAllColumnValues.insert(column.index)
+                    }
+                }
+            }
         }
         .padding(.vertical, 9)
+    }
+
+    /// The control that puts every value a column or property holds on screen.
+    ///
+    /// One button for both doors: the question ("have I seen what this holds?") is
+    /// the same whether the file was a spreadsheet or a stack of cards, and two
+    /// controls that differed would be two chances to fix only one of them.
+    private func showAllValuesButton(
+        total: Int,
+        showingAll: Bool,
+        toggle: @escaping () -> Void
+    ) -> some View {
+        Button(action: toggle) {
+            Text(
+                showingAll
+                    ? ContactColumns.showFewerValuesLabel
+                    : ContactColumns.showAllValuesLabel(total: total)
+            )
+            .font(.golos(11, weight: .semibold))
+            .foregroundStyle(BrandColor.ink)
+            .padding(.top, 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(.isButton)
     }
 
     private func columnMenu(_ column: ContactImportColumn) -> some View {
@@ -901,20 +963,45 @@ struct ContactImportConsentSheet: View {
     }
 
     private func propertyRow(_ property: VCardProperty) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(property.title)
-                    .font(.golos(12.5, weight: .semibold))
-                    .foregroundStyle(BrandColor.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(property.sampleLine)
-                    .font(.golos(11))
-                    .foregroundStyle(BrandColor.muted500)
-                    .fixedSize(horizontal: false, vertical: true)
+        let showingAll = showAllPropertyValues.contains(property.name)
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(property.title)
+                        .font(.golos(12.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(property.line(showingAll: showingAll))
+                        .font(.golos(11))
+                        .foregroundStyle(BrandColor.muted500)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if showingAll, property.total > property.values.count {
+                        Text(
+                            ContactColumns.valueCeilingNote(
+                                shown: property.values.count,
+                                total: property.total
+                            )
+                        )
+                        .font(.golos(11))
+                        .foregroundStyle(BrandColor.muted500)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                Spacer(minLength: 8)
+                propertyMenu(property)
             }
-            .accessibilityElement(children: .combine)
-            Spacer(minLength: 8)
-            propertyMenu(property)
+            // The spreadsheet door's twin. `CATEGORIES` on four hundred cards has
+            // one value that matters and it is not always in the first five.
+            if property.total > property.samples.count {
+                showAllValuesButton(total: property.total, showingAll: showingAll) {
+                    if showingAll {
+                        showAllPropertyValues.remove(property.name)
+                    } else {
+                        showAllPropertyValues.insert(property.name)
+                    }
+                }
+            }
         }
         .padding(.vertical, 9)
     }

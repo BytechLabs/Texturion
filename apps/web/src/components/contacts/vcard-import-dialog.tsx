@@ -25,6 +25,10 @@ import {
 } from "@/lib/contacts/vcard-properties";
 import {
   CONTACT_IMPORT_IGNORE,
+  CONTACT_IMPORT_SHOW_FEWER_VALUES_LABEL,
+  contactImportHiddenValuesLabel,
+  contactImportShowAllValuesLabel,
+  contactImportValueCeilingNote,
   VCARD_IMPORT_MAX_BYTES,
   type VCardPropertyAction,
 } from "@loonext/shared";
@@ -88,6 +92,10 @@ export function VCardImportDialog({
     null,
   );
   const [properties, setProperties] = useState<VCardProperty[]>([]);
+  // Which properties have been asked to show every value they carry. Keyed by
+  // name rather than held per row, because the rows are a `map` over state and a
+  // row that owns its own expansion would lose it whenever the list re-sorted.
+  const [showAll, setShowAll] = useState<ReadonlySet<string>>(new Set());
 
   function reset() {
     setFileName("");
@@ -213,21 +221,74 @@ export function VCardImportDialog({
                           {/* The values, loudest thing in the row after the
                               name. A person who cannot see "DNC" cannot skip
                               it knowingly, and then the click is theatre. */}
-                          {row.samples.length === 0 ? (
+                          {row.total === 0 ? (
                             `On ${row.cards.toLocaleString()} cards, with nothing in it.`
                           ) : (
                             <>
                               On {row.cards.toLocaleString()} of{" "}
                               {pending.cards.toLocaleString()} cards. Says{" "}
                               <span className="font-medium break-words text-foreground">
-                                {row.samples
+                                {(showAll.has(row.property)
+                                  ? row.values
+                                  : row.samples
+                                )
                                   .map((value) => `“${value}”`)
                                   .join(", ")}
                               </span>
-                              {row.more && ", and more"}.
+                              {!showAll.has(row.property) &&
+                                row.total > row.samples.length && (
+                                  <>
+                                    ,{" "}
+                                    <button
+                                      type="button"
+                                      aria-expanded={false}
+                                      aria-label={contactImportShowAllValuesLabel(
+                                        row.total,
+                                      )}
+                                      onClick={() =>
+                                        setShowAll(
+                                          (current) =>
+                                            new Set(current).add(row.property),
+                                        )
+                                      }
+                                      className="rounded underline underline-offset-2 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                    >
+                                      {contactImportHiddenValuesLabel(
+                                        row.total - row.samples.length,
+                                      )}
+                                    </button>
+                                  </>
+                                )}
+                              .
                             </>
                           )}
                         </p>
+                        {showAll.has(row.property) && (
+                          <>
+                            {row.total > row.values.length && (
+                              <p className="text-xs leading-snug text-muted-foreground">
+                                {contactImportValueCeilingNote(
+                                  row.values.length,
+                                  row.total,
+                                )}
+                              </p>
+                            )}
+                            <button
+                              type="button"
+                              aria-expanded={true}
+                              onClick={() =>
+                                setShowAll((current) => {
+                                  const next = new Set(current);
+                                  next.delete(row.property);
+                                  return next;
+                                })
+                              }
+                              className="rounded text-xs underline underline-offset-2 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                            >
+                              {CONTACT_IMPORT_SHOW_FEWER_VALUES_LABEL}
+                            </button>
+                          </>
+                        )}
                       </div>
                       <div className="w-full sm:w-52">
                         <NativeSelect

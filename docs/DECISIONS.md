@@ -7373,3 +7373,52 @@ worse than what the product already does.
 properties must be declared — the mapped ones are not unread), #528 findings 1
 and 3 (a structurally unreadable file IS refused, because there the alternative
 is a contact assembled from lines nobody read).
+
+## D123 — a bounded sample must say how much it left out, and offer it (#528, 2026-08-07)
+
+**Decision.** The import mapping screen shows up to five of a column's distinct
+values on all three clients, states the real count of the ones it did not show
+("and 12 more"), and that count is the control that shows them. It stops
+retaining values past 200 per column, and says so with both numbers when it
+does.
+
+**Why.** The whole justification for the import gate is that a column was
+"dismissed by somebody who could see its values". Every client ended its list
+with ", and more" — which is unquantified, so a column with nine answers and one
+with four hundred read identically — and named no way to see the rest. The web
+wizard's own docblock recorded the concession and pointed at the file: "the file
+itself is the place to read the rest." Go and open your spreadsheet is not an
+answer during an import, so a restriction at the sixth distinct value was on
+screen in the sense that matters legally and invisible in the sense that matters
+to the person about to skip the column holding it.
+
+**What this rejects.** Surfacing the values that LOOK like an instruction first.
+That is a vocabulary, and this repo has deleted two of them (see the shape-test
+history on #248 round 2, and D122). The set of things a person can type to mean
+stop is not enumerable, so ordering by suspicion would hide the unguessable one
+behind a list that had already claimed to be helpful.
+
+**Also settled: one number, not three.** The web wizard showed three values and
+both phone apps showed five, so a value at the fourth was on screen for a crew's
+phone and behind a control on their laptop. Same file, same decision, different
+evidence. Five now, from `CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT`, and a test pins
+all three doors to it — including the .vcf door, which asks the same question of
+the same person about the same contacts.
+
+**The ceiling is honest, not a rule.** A column with 240 distinct values shows
+200 and says "Showing 200 of the 240 different answers in this column." It does
+NOT say that a column with that many answers is not a yes-or-no column, which is
+what a first draft of the copy claimed: that would be a shape test wearing a
+sentence, and it is also false — such a column can still be declared the
+do-not-text column, and then the unreadable-value refusal is what catches it.
+
+**Cost.** A true count cannot exit early, so every row of every column is read.
+That is one pass for all columns at once, replacing a per-column loop, so it
+costs what the old bounded version cost. Memory is set by the file either way:
+counting distinct values means remembering every one seen, and no ceiling
+changes that — the ceiling bounds what is DRAWN.
+
+**Consistency:** #248 round 3 (the values are the point, not decoration),
+`unreadableFlagValues` (already counted past its bound to say "and 12 more" —
+this is that treatment applied to the screen one level up), D122 (surfaced, not
+gated), and the two deleted classifiers.

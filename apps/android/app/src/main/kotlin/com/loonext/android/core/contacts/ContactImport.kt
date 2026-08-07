@@ -321,19 +321,42 @@ object ContactImport {
             if (header.isBlank()) "(no header)" else "“$header”"
 
         /**
-         * "Values include: DO NOT CALL, OK" — what a header alone will not tell
-         * you, and the reason this screen exists at all.
+         * "Values include: DO NOT CALL, OK, and 12 more" — what a header alone
+         * will not tell you, and the reason this screen exists at all.
          *
-         * "include" rather than "holds": these are the first
-         * [ImportColumns.SAMPLE_LIMIT] distinct values, and claiming to have
-         * listed the column would be a claim nobody checked.
+         * "include" rather than "holds", because these are the first
+         * [ImportColumns.SAMPLE_LIMIT] distinct values and claiming to have listed
+         * the column would be a claim nobody checked. THE HEDGE WAS NOT ENOUGH ON
+         * ITS OWN: it admitted there might be more without saying how many, so a
+         * column with nine answers and one with four hundred read identically, and
+         * neither said where to find the rest. [showAllValuesLabel] is the other
+         * half — a count nobody can act on is a better-worded dead end.
          */
-        fun valuesLine(samples: List<String>): String =
+        fun valuesLine(samples: List<String>, total: Int = samples.size): String =
             if (samples.isEmpty()) {
                 "Every row leaves this column empty."
             } else {
-                "Values include: ${samples.joinToString(", ")}"
+                val hidden = total - samples.size
+                val more = if (hidden > 0) ", and $hidden more" else ""
+                "Values include: ${samples.joinToString(", ")}$more"
             }
+
+        /** The control that puts every value a column holds on the screen. */
+        fun showAllValuesLabel(total: Int): String = "Show all $total values"
+
+        /** The control that puts an expanded column back to its first few values. */
+        const val SHOW_FEWER_VALUES_LABEL = "Show fewer values"
+
+        /**
+         * What an expanded column says when even the full list is cut.
+         *
+         * Said rather than left to be inferred, because somebody believing a list
+         * is complete when it is not is the same defect as "and more" wearing a
+         * longer list. It states the two numbers and stops: how many answers a
+         * column has is NOT a rule about what the column means.
+         */
+        fun valueCeilingNote(shown: Int, total: Int): String =
+            "Showing $shown of the $total different answers in this column."
 
         /**
          * "4 of 7 answered".

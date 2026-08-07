@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { CONTACT_IMPORT_MAX_ROWS } from "./contact-import";
 import {
+  CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT,
+  CONTACT_IMPORT_COLUMN_VALUE_CEILING,
+  contactImportAllColumnValues,
   contactImportColumnCount,
   contactImportColumnSamples,
   detectContactColumns,
@@ -220,6 +223,60 @@ describe("#248 what a person is shown before they dismiss a column", () => {
 
   it("says nothing for a column past the end of every row", () => {
     expect(contactImportColumnSamples(rows, 9)).toEqual([]);
+  });
+});
+
+describe("#528 counting the values a column does not print", () => {
+  it("answers for every column from one pass, distinct and in file order", () => {
+    const held = contactImportAllColumnValues(
+      [
+        ["+14165550101", "Subscribed"],
+        ["+14165550102", "DO NOT CALL"],
+        ["+14165550103", "subscribed"],
+        ["+14165550104", "   "],
+        ["+14165550105", "Pending"],
+      ],
+      2,
+    );
+    expect(held[0]!.total).toBe(5);
+    expect(held[1]!.values).toEqual(["Subscribed", "DO NOT CALL", "Pending"]);
+    expect(held[1]!.total).toBe(3);
+  });
+
+  it("counts past the ceiling so the number on screen stays true", () => {
+    // The list is bounded because thirty columns of four hundred values is a
+    // screen nobody reads. The COUNT is not, because "and 12 more" is only worth
+    // printing if the 12 is real — and a total that quietly equalled the ceiling
+    // would read as a complete list to everybody who saw it.
+    const size = CONTACT_IMPORT_COLUMN_VALUE_CEILING + 40;
+    const rows = Array.from({ length: size }, (_, index) => [`v${index}`]);
+    const [column] = contactImportAllColumnValues(rows, 1);
+    expect(column!.values).toHaveLength(CONTACT_IMPORT_COLUMN_VALUE_CEILING);
+    expect(column!.total).toBe(size);
+  });
+
+  it("counts a repeated value once however many rows carry it", () => {
+    // The count is of ANSWERS, not rows. A column of four hundred `Subscribed`s
+    // has one answer, and reporting "and 399 more" would be a new way of saying
+    // nothing.
+    const rows = Array.from({ length: 400 }, () => ["Subscribed"]);
+    rows.push(["DO NOT CALL"]);
+    const [column] = contactImportAllColumnValues(rows, 1);
+    expect(column!.values).toEqual(["Subscribed", "DO NOT CALL"]);
+    expect(column!.total).toBe(2);
+  });
+
+  it("answers for a column no row reaches", () => {
+    const held = contactImportAllColumnValues([["only"]], 3);
+    expect(held).toHaveLength(3);
+    expect(held[2]).toEqual({ values: [], total: 0 });
+  });
+
+  it("prints as many values as both phone apps do", () => {
+    // The web wizard showed three and the phones showed five, so a value at the
+    // fourth was on screen for a crew's phone and behind a control on their
+    // laptop. Same file, same decision, different evidence.
+    expect(CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT).toBe(5);
   });
 });
 

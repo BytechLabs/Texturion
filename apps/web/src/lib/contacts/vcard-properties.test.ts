@@ -13,6 +13,8 @@ import {
   readVCardProperties,
   VCARD_SAMPLE_LIMIT,
 } from "./vcard-properties";
+import { SAMPLE_VALUE_LIMIT } from "./csv-import";
+import { CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT } from "@loonext/shared";
 
 /**
  * #248 round 3 — the vCard door, which had no gate of any kind.
@@ -198,9 +200,21 @@ describe("readVCardProperties: what the cards carry that we do not read", () => 
       ].join("\r\n"),
     );
 
-    expect(properties[0].samples).toHaveLength(VCARD_SAMPLE_LIMIT);
-    expect(properties[0].more).toBe(true);
+    // THE FOURTH CARD SAYS "DO NOT CALL", AND IT IS ON SCREEN. This assertion
+    // used to be `toHaveLength(VCARD_SAMPLE_LIMIT)` with `more === true` back
+    // when the limit here was three — so the one value the whole gate exists to
+    // surface was the one value it hid, and a passing test said so.
+    expect(properties[0].samples).toContain("DO NOT CALL");
+    expect(properties[0].total).toBe(4);
     expect(properties[0].cards).toBe(4);
+  });
+
+  it("VP-13b: shows as much of a property as a column, and the same on a phone", () => {
+    // Both doors ask the same question of the same person about the same file,
+    // and a card door that showed less than the spreadsheet door would be a
+    // difference nobody could justify to the crew it caught out.
+    expect(VCARD_SAMPLE_LIMIT).toBe(SAMPLE_VALUE_LIMIT);
+    expect(VCARD_SAMPLE_LIMIT).toBe(CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT);
   });
 
   it("VP-14: reads the LABEL on a TEL line, not the number beside it", () => {

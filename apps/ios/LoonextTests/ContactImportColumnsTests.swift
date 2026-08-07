@@ -1073,8 +1073,13 @@ final class ContactImportColumnsTests: XCTestCase {
             "candidate.columns",
             "columnRow(column)",
             "column.title",
-            "column.sampleLine",
+            "column.line(showingAll:",
             "columnMenu(column)",
+            // #528: and a way to reach the values it did NOT print. A list
+            // that simply stopped read as complete, so a restriction at the
+            // sixth value was on screen legally and invisible in practice.
+            "column.total > column.samples.count",
+            "showAllValuesButton(total: column.total",
             "ContactImportColumnAction.answers",
             "ContactColumns.columnsExplanation",
             "ContactColumns.ignoreMeaning",
@@ -1119,8 +1124,10 @@ final class ContactImportColumnsTests: XCTestCase {
             "candidate.properties",
             "propertyRow(property)",
             "property.title",
-            "property.sampleLine",
+            "property.line(showingAll:",
             "propertyMenu(property)",
+            "property.total > property.samples.count",
+            "showAllValuesButton(total: property.total",
             "VCardPropertyAction.allCases",
             "VCardProperties.explanation",
             "ignoreRestPropertiesButton",
@@ -1624,6 +1631,114 @@ final class ContactImportColumnsTests: XCTestCase {
             throw MissingSource.at(function)
         }
         return String(rest[rest.startIndex ..< close])
+    }
+
+    // MARK: - #528 the values a column does not print
+
+    /// Every column answered for from one pass, distinct and in file order.
+    func testEveryColumnIsAnsweredForFromOnePass() {
+        let held = ContactColumns.allColumnValues(
+            rows: [
+                ["+14165550101", "Subscribed"],
+                ["+14165550102", "DO NOT CALL"],
+                ["+14165550103", "subscribed"],
+                ["+14165550104", "   "],
+                ["+14165550105", "Pending"],
+            ],
+            columnCount: 2
+        )
+        XCTAssertEqual(held[0].total, 5)
+        XCTAssertEqual(held[1].values, ["Subscribed", "DO NOT CALL", "Pending"])
+        XCTAssertEqual(held[1].total, 3)
+    }
+
+    /// The count is of ANSWERS, not of rows.
+    ///
+    /// A column of four hundred `Subscribed`s has one answer, and reporting
+    /// "and 399 more" would be a new way of saying nothing.
+    func testTheCountIsOfAnswersNotOfRows() {
+        var rows = [[String]](repeating: ["Subscribed"], count: 400)
+        rows.append(["DO NOT CALL"])
+        let held = ContactColumns.allColumnValues(rows: rows, columnCount: 1)
+        XCTAssertEqual(held[0].values, ["Subscribed", "DO NOT CALL"])
+        XCTAssertEqual(held[0].total, 2)
+    }
+
+    /// The count stays true past the ceiling that bounds the list.
+    ///
+    /// The list is bounded because a screen cannot draw 50,000 values. The COUNT
+    /// is not, because "and 40 more" is only worth printing if the 40 is real —
+    /// and a total that quietly equalled the ceiling would read, to everybody who
+    /// saw it, as a list with nothing left out.
+    func testTheCountStaysTruePastTheCeiling() {
+        let size = ContactColumns.valueCeiling + 40
+        let rows = (0 ..< size).map { ["v\($0)"] }
+        let held = ContactColumns.allColumnValues(rows: rows, columnCount: 1)
+        XCTAssertEqual(held[0].values.count, ContactColumns.valueCeiling)
+        XCTAssertEqual(held[0].total, size)
+    }
+
+    /// The line names how many answers it left out, and offers them.
+    ///
+    /// ", and more" was the whole defect: it stood equally for one hidden answer
+    /// and four hundred, and the line was the last place that admitted a hidden
+    /// one existed.
+    func testTheLineNamesHowManyAnswersItLeftOut() {
+        let csv = (["Status"] + (0 ..< 20).map { "v\($0)" }).joined(separator: "\n")
+        let review = ContactColumns.review(csv)
+        let column = review.columns[0]
+        XCTAssertEqual(column.samples.count, ContactColumns.sampleLimit)
+        XCTAssertEqual(column.total, 20)
+        XCTAssertTrue(
+            column.sampleLine.hasSuffix(", and 15 more"),
+            "got \(column.sampleLine)"
+        )
+        XCTAssertEqual(
+            ContactColumns.showAllValuesLabel(total: column.total),
+            "Show all 20 values"
+        )
+        // Expanded, every value is listed and nothing claims a remainder.
+        let expanded = column.line(showingAll: true)
+        XCTAssertTrue(expanded.contains("v19"), "got \(expanded)")
+        XCTAssertFalse(expanded.contains("more"), "got \(expanded)")
+    }
+
+    /// A column with nothing left out says nothing about a remainder.
+    func testAColumnWithNothingLeftOutSaysNothingAboutARemainder() {
+        let review = ContactColumns.review("Status\nDNC\nOK\nHOLD")
+        XCTAssertFalse(
+            review.columns[0].sampleLine.contains("more"),
+            "got \(review.columns[0].sampleLine)"
+        )
+    }
+
+    /// A .vcf property can say how many values it really carries.
+    ///
+    /// The collector used to stop inserting into its distinct SET at the sample
+    /// limit, so the total could never exceed five however many values a property
+    /// had — and "and more" was the only thing it could honestly print.
+    func testAVCardPropertyCountsPastTheValuesItPrints() throws {
+        var lines: [String] = []
+        for index in 0 ..< 9 {
+            lines += [
+                "BEGIN:VCARD",
+                "VERSION:3.0",
+                "FN:Person \(index)",
+                "TEL:+1416555010\(index)",
+                index == 8 ? "X-STATUS:DO NOT CALL" : "X-STATUS:s\(index)",
+                "END:VCARD",
+            ]
+        }
+        let found = VCardProperties.scan(lines.joined(separator: "\r\n"))
+        let status = try XCTUnwrap(found.first(where: { $0.name == "X-STATUS" }))
+        XCTAssertEqual(status.total, 9)
+        XCTAssertEqual(status.samples.count, ContactColumns.sampleLimit)
+        // The value that matters is the ninth, and it is REACHABLE.
+        XCTAssertTrue(status.values.contains("DO NOT CALL"))
+        XCTAssertTrue(
+            status.sampleLine.hasSuffix(", and 4 more"),
+            "got \(status.sampleLine)"
+        )
     }
 }
 

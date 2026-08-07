@@ -45,6 +45,10 @@ import {
   CONTACT_IMPORT_IGNORE,
   CONTACT_IMPORT_MAX_BYTES,
   CONTACT_IMPORT_MAX_ROWS,
+  CONTACT_IMPORT_SHOW_FEWER_VALUES_LABEL,
+  contactImportHiddenValuesLabel,
+  contactImportShowAllValuesLabel,
+  contactImportValueCeilingNote,
   readContactFlag,
   unreadableFlagValues,
 } from "@loonext/shared";
@@ -138,6 +142,14 @@ function downloadCsv(filename: string, csv: string) {
  * dismiss it knowingly, and then the click is theatre and the gate is a
  * formality. So they are rendered in `text-foreground` beside a muted lead-in
  * — the sample is the loudest thing in the row after the column's own name.
+ *
+ * AND THE ONES IT DOES NOT PRINT ARE REACHABLE. The row used to end at
+ * ", and more", which is this defect at one remove: a person who cannot see the
+ * fourth value cannot knowingly dismiss it either, and the row was the last
+ * place that admitted the fourth value existed. Now the remainder is counted and
+ * the count is the control that shows it — bounded by default because thirty
+ * columns of full value lists is a screen nobody reads, complete on request
+ * because that is the reading the whole flow claims happened.
  */
 function ColumnRow({
   column,
@@ -147,6 +159,10 @@ function ColumnRow({
   onAnswer: (answer: ColumnAnswer) => void;
 }) {
   const id = `column-${column.index}`;
+  const [showAll, setShowAll] = useState(false);
+  const hidden = column.total - column.samples.length;
+  const listed = showAll ? column.values : column.samples;
+  const cut = showAll && column.total > column.values.length;
   return (
     <li className="rounded-md border bg-background/60 px-3 py-2.5">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
@@ -155,18 +171,50 @@ function ColumnRow({
             {columnLabel(column)}
           </p>
           <p className="text-xs leading-snug text-muted-foreground">
-            {column.samples.length === 0 ? (
+            {column.total === 0 ? (
               "Every row leaves this blank."
             ) : (
               <>
                 Says{" "}
                 <span className="font-medium break-words text-foreground">
-                  {column.samples.map((value) => `“${value}”`).join(", ")}
+                  {listed.map((value) => `“${value}”`).join(", ")}
                 </span>
-                {column.more && ", and more"}.
+                {!showAll && hidden > 0 && (
+                  <>
+                    ,{" "}
+                    <button
+                      type="button"
+                      aria-expanded={false}
+                      aria-label={contactImportShowAllValuesLabel(column.total)}
+                      onClick={() => setShowAll(true)}
+                      className="rounded underline underline-offset-2 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    >
+                      {contactImportHiddenValuesLabel(hidden)}
+                    </button>
+                  </>
+                )}
+                .
               </>
             )}
           </p>
+          {cut && (
+            <p className="text-xs leading-snug text-muted-foreground">
+              {contactImportValueCeilingNote(
+                column.values.length,
+                column.total,
+              )}
+            </p>
+          )}
+          {showAll && (
+            <button
+              type="button"
+              aria-expanded={true}
+              onClick={() => setShowAll(false)}
+              className="rounded text-xs underline underline-offset-2 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            >
+              {CONTACT_IMPORT_SHOW_FEWER_VALUES_LABEL}
+            </button>
+          )}
         </div>
         <div className="w-full sm:w-52">
           <NativeSelect
@@ -225,17 +273,19 @@ function ColumnRow({
  * thing that does is a person seeing the value.
  *
  * WHAT THIS DOES NOT GUARANTEE, said here because a comment claiming otherwise
- * would be worse than none. Three things:
+ * would be worse than none. Two things:
  *
  *   Somebody can answer "skip this column" for all of them without reading a
  *   single value, and no screen can tell that apart from a person who looked.
  *
- *   A column shows its first {@link SAMPLE_VALUE_LIMIT} DISTINCT values, so a
- *   sentence buried at the fourth is behind ", and more" rather than on screen.
- *   The row says so rather than implying it has shown everything, and the file
- *   itself is the place to read the rest.
+ *   The preview step re-states none of it: it lists rows, not columns.
  *
- *   The preview step re-states neither: it lists rows, not columns.
+ * The third used to be that a column showed its first
+ * {@link SAMPLE_VALUE_LIMIT} distinct values and a sentence buried at the fourth
+ * sat behind ", and more" — with the file itself named as the place to read the
+ * rest. "Go and open your spreadsheet" is not an answer during an import, and
+ * "more" is not a quantity. The row now counts what it has not printed and that
+ * count is the control that prints it.
  *
  * What is closed is the SILENT case — no column is dropped that nobody was
  * shown, no answer is supplied here for a column we did not recognise, and no

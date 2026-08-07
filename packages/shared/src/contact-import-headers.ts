@@ -219,6 +219,84 @@ export function contactImportColumnSamples(
 }
 
 /**
+ * How many of a column's distinct values every client prints unprompted.
+ *
+ * One number for all three clients. The web wizard used to print three while
+ * both phone apps printed five, for no reason either could state.
+ */
+export const CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT = 5;
+
+/**
+ * The most distinct values kept per column for showing on request.
+ *
+ * A do-not-text column holds a handful. A name column holds one per row, and
+ * asking any of the three clients to lay out 50,000 of them is how a mapping
+ * screen stops opening. Past this, {@link ContactImportColumnValues.total} still
+ * reports the truth, so the count on screen is right even when the list is cut.
+ *
+ * This bounds what is RENDERED, which is the cost that hurts. Counting distinct
+ * values means remembering every one that has been seen, so the memory a column
+ * takes is set by the file and not by this number — no ceiling can change that.
+ */
+export const CONTACT_IMPORT_COLUMN_VALUE_CEILING = 200;
+
+/** What one column holds, and how much of it is being shown. */
+export interface ContactImportColumnValues {
+  /**
+   * Distinct non-blank values in file order, at most
+   * {@link CONTACT_IMPORT_COLUMN_VALUE_CEILING}.
+   */
+  values: string[];
+  /**
+   * How many distinct values the column really has.
+   *
+   * Counted past the ceiling on purpose. "and 12 more" tells a reader they have
+   * not seen everything; "and more" tells them nothing, and could as easily
+   * stand for one value as four hundred.
+   */
+  total: number;
+}
+
+/**
+ * What every column of a file holds, from one pass over the rows.
+ *
+ * Per column rather than per client because the question is the same on all
+ * three, and one pass rather than one per column because knowing how many
+ * distinct values a column REALLY has means reading every row of it — there is
+ * no early exit from a count. Walking the rows once and answering for all
+ * columns costs what the old per-column loop cost, and answers honestly.
+ */
+export function contactImportAllColumnValues(
+  dataRows: readonly (readonly string[])[],
+  columnCount: number,
+): ContactImportColumnValues[] {
+  const seen: Set<string>[] = [];
+  const kept: string[][] = [];
+  for (let index = 0; index < columnCount; index += 1) {
+    seen.push(new Set());
+    kept.push([]);
+  }
+  for (const row of dataRows) {
+    for (let index = 0; index < columnCount; index += 1) {
+      const value = (row[index] ?? "").trim();
+      if (value === "") continue;
+      const distinct = seen[index]!;
+      const before = distinct.size;
+      distinct.add(value.toLowerCase());
+      if (distinct.size === before) continue;
+      // The set counts, the array shows. Only the second one is bounded, and the
+      // value kept is the file's own spelling rather than the lowercased key.
+      const shown = kept[index]!;
+      if (shown.length < CONTACT_IMPORT_COLUMN_VALUE_CEILING) shown.push(value);
+    }
+  }
+  return kept.map((values, index) => ({
+    values,
+    total: seen[index]!.size,
+  }));
+}
+
+/**
  * The distinct values in a flag column that {@link readContactFlag} cannot read.
  *
  * The other half of the same defect, one level down: a column CORRECTLY

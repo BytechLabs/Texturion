@@ -1,6 +1,7 @@
 import {
+  contactImportAllColumnValues,
   contactImportColumnCount,
-  contactImportColumnSamples,
+  CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT,
   CONTACT_IMPORT_IGNORE,
   defaultContactImportColumns,
   isUsCaDestination,
@@ -114,8 +115,14 @@ export function csvRows(parsed: readonly (readonly string[])[]): CsvRow[] {
 /** What one column may be answered with, or null when nobody has answered. */
 export type ColumnAnswer = ContactImportColumnAction | null;
 
-/** How many of a column's own distinct values a person is shown. */
-export const SAMPLE_VALUE_LIMIT = 3;
+/**
+ * How many of a column's own distinct values a person is shown unprompted.
+ *
+ * The shared figure, so this screen and both phone apps show the same amount.
+ * It was 3 here and 5 on the phones, which meant a value at the fourth was on
+ * screen for a crew's phone and behind a control on their laptop.
+ */
+export const SAMPLE_VALUE_LIMIT = CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT;
 
 /**
  * One column of the uploaded file, as the mapping screen asks about it.
@@ -131,8 +138,13 @@ export interface ImportColumn {
   header: string;
   /** Distinct non-blank values, in file order, at most SAMPLE_VALUE_LIMIT. */
   samples: string[];
-  /** There are more distinct values than `samples` shows. */
-  more: boolean;
+  /**
+   * Every distinct value held for this column, for the reader who asks to see
+   * them. `samples` is its first few; this is bounded only by the shared ceiling.
+   */
+  values: string[];
+  /** How many distinct values the column really has, counted past the ceiling. */
+  total: number;
   /** The field it fills, `ignore`, or null while nobody has said. */
   answer: ColumnAnswer;
 }
@@ -175,20 +187,19 @@ export function importColumns(
   const cells = dataRows.map((row) => row.cells);
   const guesses = defaultContactImportColumns(headers, cells);
   const count = contactImportColumnCount(headers, cells);
+  // Every column's values from ONE pass over the rows. This used to read one
+  // value more than it showed, which made "there are others" a fact but left
+  // "how many others" unanswerable — and unanswerable is what ", and more" was.
+  const held = contactImportAllColumnValues(cells, count);
   const columns: ImportColumn[] = [];
   for (let index = 0; index < count; index += 1) {
-    // One more than we show, so "there are others" is a fact rather than a
-    // guess — and one pass over the rows, not two.
-    const sampled = contactImportColumnSamples(
-      cells,
-      index,
-      SAMPLE_VALUE_LIMIT + 1,
-    );
+    const column = held[index] ?? { values: [], total: 0 };
     columns.push({
       index,
       header: (headers[index] ?? "").trim(),
-      samples: sampled.slice(0, SAMPLE_VALUE_LIMIT),
-      more: sampled.length > SAMPLE_VALUE_LIMIT,
+      samples: column.values.slice(0, SAMPLE_VALUE_LIMIT),
+      values: column.values,
+      total: column.total,
       // Carried through as it comes. `?? null` covers the column the guesser
       // did not reach at all rather than inventing one for it: both counts come
       // from the same shared function today, and a length that drifted should

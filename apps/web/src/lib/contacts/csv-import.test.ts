@@ -142,7 +142,7 @@ describe("importColumns: the file's columns, not our field list", () => {
 
     expect(columns[1].answer).toBeNull();
     expect(columns[1].samples).toEqual(["Unsubscribed"]);
-    expect(columns[1].more).toBe(false);
+    expect(columns[1].total).toBe(1);
   });
 
   it("IC-6: asks about a column with four different answers", () => {
@@ -159,8 +159,35 @@ describe("importColumns: the file's columns, not our field list", () => {
     );
 
     expect(columns[1].answer).toBeNull();
+    // All four, on screen, with nothing behind a control. This assertion used to
+    // read `toHaveLength(SAMPLE_VALUE_LIMIT)` and `more === true` — with the
+    // limit at three it PINNED the fourth answer out of sight, which is the
+    // defect #528 found dressed as its own test.
+    expect(columns[1].samples).toEqual(["DNC", "OK", "HOLD", "PENDING"]);
+    expect(columns[1].total).toBe(4);
+  });
+
+  it("IC-6b: counts the answers it did not print, and carries them", () => {
+    // ", and more" stood equally for one hidden answer and four hundred, and the
+    // row was the last place that admitted the hidden one existed. A count is
+    // the difference between "I have seen this column" and "I have seen five of
+    // its seven answers" — and `values` is what the count is good for.
+    const answers = ["DNC", "OK", "HOLD", "PENDING", "LEFT MSG", "STOP", "OK2"];
+    const columns = importColumns(
+      ["Phone", "Status"],
+      rows(
+        ...answers.map((answer, index) => [
+          `41655502${String(index).padStart(2, "0")}`,
+          answer,
+        ]),
+      ),
+    );
+
     expect(columns[1].samples).toHaveLength(SAMPLE_VALUE_LIMIT);
-    expect(columns[1].more).toBe(true);
+    expect(columns[1].total).toBe(answers.length);
+    expect(columns[1].values).toEqual(answers);
+    // The one that matters is reachable, which is the whole point of keeping it.
+    expect(columns[1].values).toContain("STOP");
   });
 
   it("IC-7: asks about an empty column rather than exempting it", () => {

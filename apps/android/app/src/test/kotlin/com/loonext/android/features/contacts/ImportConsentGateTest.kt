@@ -474,7 +474,22 @@ class ImportConsentGateTest {
         val card = composable("ColumnDeclarationCard")
         assertTrue(
             "a column's values must be on screen",
-            card.contains("ContactImport.Columns.valuesLine(column.samples)"),
+            card.contains("ContactImport.Columns.valuesLine(column.samples"),
+        )
+        // #528: and the ones it does not print must be COUNTED and REACHABLE.
+        // "Values include: a, b, c" admitted there might be more without saying
+        // how many or where, so a column with nine answers and one with four
+        // hundred read identically — and a value at the sixth was on screen in the
+        // sense that matters legally and invisible in the sense that matters to a
+        // person about to dismiss the column.
+        assertTrue(
+            "the values it did not print must be counted",
+            card.contains("column.total"),
+        )
+        assertTrue(
+            "and reachable",
+            card.contains("ContactImport.Columns.showAllValuesLabel(column.total)") &&
+                card.contains("column.values"),
         )
         assertTrue(
             "and its position, because the server names a column by position",

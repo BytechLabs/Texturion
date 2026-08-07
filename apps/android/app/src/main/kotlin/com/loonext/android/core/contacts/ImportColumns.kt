@@ -122,6 +122,19 @@ object ImportColumns {
      */
     const val SAMPLE_LIMIT = 5
 
+        /**
+         * The most distinct values kept per column for showing on request.
+         *
+         * A do-not-text column holds a handful. A name column holds one per row,
+         * and laying out 50,000 of them is how a declaration sheet stops opening.
+         * Past this, [ColumnValues.total] still reports the truth, so the count on
+         * screen is right even when the list is cut.
+         *
+         * This bounds what is DRAWN. Counting distinct values means remembering
+         * every one seen, so what a column costs in memory is set by the file.
+         */
+        const val VALUE_CEILING = 200
+
     // `containsMatchIn`, never `matches`: the shared patterns are used with
     // JavaScript's `RegExp.test`, which is a SEARCH. `/phone/` is meant to match
     // "phonenumber", and Kotlin's `matches` would anchor it to the whole string
@@ -199,6 +212,13 @@ object ImportColumns {
         val guess: String?,
         /** Up to [SAMPLE_LIMIT] distinct values, so the question can be answered. */
         val samples: List<String>,
+        /**
+         * Every distinct value held for this column, for somebody who asks to see
+         * them. [samples] is its first few; this is bounded only by [VALUE_CEILING].
+         */
+        val values: List<String>,
+        /** How many distinct values the column really has, counted past the ceiling. */
+        val total: Int,
     )
 
     /** A parsed file: how big it is, and every column it turned out to have. */
@@ -283,6 +303,44 @@ object ImportColumns {
         return seen.values.toList()
     }
 
+    /** What one column holds, and how much of it is being shown. */
+    data class ColumnValues(
+        /** Distinct non-blank values in file order, at most [VALUE_CEILING]. */
+        val values: List<String>,
+        /**
+         * How many distinct values the column really has.
+         *
+         * Counted past the ceiling on purpose: "and 12 more" tells somebody they
+         * have not seen everything, and "and more" could as easily stand for one
+         * value as four hundred.
+         */
+        val total: Int,
+    )
+
+    /**
+     * What every column of a file holds, from one pass over the rows.
+     *
+     * One pass rather than one per column because knowing how many distinct values
+     * a column REALLY has means reading every row of it — there is no early exit
+     * from a count. Answering for all columns at once costs what the old
+     * per-column [samples] loop cost, and answers honestly.
+     */
+    fun allColumnValues(dataRows: List<List<String>>, columnCount: Int): List<ColumnValues> {
+        val seen = List(columnCount) { mutableSetOf<String>() }
+        val kept = List(columnCount) { mutableListOf<String>() }
+        for (row in dataRows) {
+            for (index in 0 until columnCount) {
+                val value = (row.getOrNull(index) ?: "").trim()
+                if (value == "") continue
+                // The set counts, the list shows. Only the second one is bounded,
+                // and it keeps the file's own spelling rather than the key.
+                if (!seen[index].add(value.lowercase())) continue
+                if (kept[index].size < VALUE_CEILING) kept[index].add(value)
+            }
+        }
+        return List(columnCount) { index -> ColumnValues(kept[index].toList(), seen[index].size) }
+    }
+
     /**
      * THE DEFAULT GUESS — and it deliberately stops short of a complete answer.
      *
@@ -311,12 +369,16 @@ object ImportColumns {
         val trimmed = headers.map { it.trim() }
         val mapping = detectColumns(trimmed)
         val byIndex = mapping.entries.associate { (field, index) -> index to field }
-        return (0 until columnCount(trimmed, dataRows)).map { index ->
+        val count = columnCount(trimmed, dataRows)
+        val held = allColumnValues(dataRows, count)
+        return (0 until count).map { index ->
             Column(
                 index = index,
                 header = trimmed.getOrNull(index) ?: "",
                 guess = byIndex[index],
-                samples = samples(dataRows, index),
+                samples = held[index].values.take(SAMPLE_LIMIT),
+                values = held[index].values,
+                total = held[index].total,
             )
         }
     }
