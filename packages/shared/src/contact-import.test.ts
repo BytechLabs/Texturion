@@ -243,6 +243,31 @@ describe("#248 the vCard property declaration", () => {
     expect(message).toContain("Nothing was imported.");
   });
 
+  /**
+   * #528 — it answers the question the list provokes, which is the one the
+   * product could not answer at all.
+   *
+   * `FN` is absent from the undeclared list because the import reads it, and an
+   * operator looking for a way to declare it needs to know that is DELIBERATE.
+   * A card whose name is the instruction — which is how a phone's address book
+   * carries one, there being nowhere else to type it — is not silently dropped:
+   * the name arrives as the contact's name and is on screen beside every message
+   * before anybody sends one.
+   *
+   * Pinned because the alternative was worse in both directions. Accepting a
+   * declaration for `FN` blocks every card in the file, since every card has one.
+   * Skipping the card produces a contact silently ABSENT from a crew's list,
+   * which this codebase already rates below a visible defect (see
+   * `contactImportUnterminatedQuoteMessage`). Explaining it is the control.
+   */
+  it("#528: says why the name field is not declarable, and what happens instead", () => {
+    const message = contactImportUndeclaredPropertiesMessage(["CATEGORIES"]);
+    expect(message).toContain("does not read");
+    // The reassurance that carries the whole decision: nothing is lost.
+    expect(message).toMatch(/arrives as the contact's name/);
+    expect(message).toMatch(/beside every message/);
+  });
+
   it("H3: carries a PARAMETER as its own property, through the same wire form", () => {
     // `TEL;TYPE=CELL;X-ABLabel=DO NOT CALL:+1613…` is Apple's inline shape, and
     // the parameter is where the instruction sat. It is declared like any other

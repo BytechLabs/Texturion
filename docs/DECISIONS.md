@@ -7321,3 +7321,55 @@ only form this kind of deferral is allowed to take here.
 **Consistency:** #522 (extra numbers refuse rather than invent a figure), #41
 (`regions_ca` is not sellable), #328 (every chargeable price carries its
 currency).
+
+## D122 — a do-not-text instruction typed into a NAME is surfaced, not gated (#528, 2026-08-07)
+
+**Decision:** the vCard declaration gate keeps refusing declarations for the
+properties the importer READS (`FN`, `N`, `TEL`, `VERSION`). A card whose name is
+an instruction — `FN:DO NOT CALL - asked us to stop`, which is how a phone's
+address book carries one because there is nowhere else to type it — is imported
+with that name, and the 422 now explains that rather than leaving the question
+hanging.
+
+**What #528 found, and it was right:** `declaredVCardProperties` deleted the
+mapped properties from `present` before matching declarations, so a declaration
+for `FN` was silently dropped. The product was asking a question it could not
+accept the answer to.
+
+**Why the obvious fix is worse.** I built it — split the "must declare" set from
+the "may declare" set — and the second test failed usefully: the card BESIDE the
+marked one also lost its consent basis. `blockingProperties` matches on property
+PRESENCE, and every card carries an `FN`, so declaring it blocks the whole file
+and returns 200 while doing it. Presence is a sound proxy for `CATEGORIES` and
+`NOTE`, which exist only if somebody typed something; it carries no information
+for a property every card has by definition.
+
+**Why skipping the card is also worse.** The next idea was to report it as a
+skipped row with a reason. But a skip is an ABSENCE, and this codebase has already
+weighed that: *"a person who is silently missing from a crew's contact list is a
+person that crew stops texting, for a reason nobody will ever find"*
+(`contactImportUnterminatedQuoteMessage`). In a 500-card import the skip list is
+not read closely, so a false positive removes a real customer invisibly.
+
+**Why not detect the phrase.** `looksLikeOptOut` (#396) exists and is the right
+place to reuse — except it is tuned for MESSAGES and, measured rather than
+assumed, it is quiet on every address-book label including `DO NOT CALL` and
+`DNC`. Catching those needs a new label vocabulary, and its own header explains
+why that is dangerous: it warns rather than opts out precisely because a false
+positive is unrecoverable. This repository has written and deleted two such
+classifiers already.
+
+**What actually protects the person.** The name travels with the contact and is
+rendered in the inbox row and threaded into the composer, so
+`DO NOT CALL - asked us to stop` is on screen beside every message before anybody
+sends one. A human reading it in context is a stronger control than a
+presence-based gate, and it cannot silently remove anybody.
+
+So the gap was real and the answer is an explanation, not a control. Adding the
+control would have blocked whole imports or silently dropped customers; both are
+worse than what the product already does.
+
+**Consistency:** #396 (detect and warn, never auto-opt-out), #248 (unread
+properties must be declared — the mapped ones are not unread), #528 findings 1
+and 3 (a structurally unreadable file IS refused, because there the alternative
+is a contact assembled from lines nobody read).

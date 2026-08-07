@@ -497,7 +497,19 @@ export function contactImportUndeclaredPropertiesMessage(
     "texts somebody who asked this business to stop. " +
     `Send one \`${CONTACT_IMPORT_VCARD_PROPERTY_FIELD}\` field per property, ` +
     `as \`<PROPERTY>:<${CONTACT_IMPORT_IGNORE} or opted_out>\`, from somebody ` +
-    "who can see what the cards carry. Nothing was imported."
+    "who can see what the cards carry. " +
+    // #528: the question this list provokes, answered before it is asked.
+    //
+    // The name, phone and version properties are absent from the list above
+    // because the import READS them — and somebody looking for a way to declare
+    // `FN` needs to know that is deliberate rather than missing. A card whose
+    // name is an instruction is the case worth naming out loud, because it is
+    // how a phone's address book carries one: there is nowhere else to type it.
+    "Name, phone and version are not in that list because this import does " +
+    "read them. Whatever a card puts in its name arrives as the contact's " +
+    "name — so `DO NOT CALL - asked us to stop` typed there is on screen " +
+    "beside every message to them, before anybody sends one. " +
+    "Nothing was imported."
   );
 }
 
