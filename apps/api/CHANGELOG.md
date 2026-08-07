@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/BytechLabs/Texturion/compare/api-v0.11.0...api-v0.11.1) (2026-08-07)
+
+
+### Bug Fixes
+
+* **api:** refuse a contact file whose structure cannot be read ([00b2130](https://github.com/BytechLabs/Texturion/commit/00b213090b4476927acda53bcb430a2f6739e033)), closes [#528](https://github.com/BytechLabs/Texturion/issues/528)
+
 ## [0.11.0](https://github.com/BytechLabs/Texturion/compare/api-v0.10.0...api-v0.11.0) (2026-08-07)
 
 
