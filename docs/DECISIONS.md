@@ -7267,3 +7267,38 @@ weeks later, from a customer, as "the app lost my picture".
 nothing here caps or bills anything), #284/#227 (deletion still means the object
 goes; it just waits for the last row referencing it), #289 (the upload shrinks
 too).
+
+## D121 — module prices stay USD-only until a module is sellable, and the guard is the tripwire (#522, 2026-08-07)
+
+**Decision:** `MODULE_CATALOG` keeps `monthlyCents` as a plain number with no
+currency axis, and `stripe:setup` files module prices with no `currency_options`.
+This is a decision, not the omission it looks like.
+
+**Why.** There is one module left. `regions_ca` is excluded from
+`SELLABLE_MODULES` — it gates nothing until multi-region provisioning ships, so
+selling it would charge $5/mo for nothing — and **no CAD figure has ever been
+decided for it**. Filing one here would put a price in the catalog that nobody
+chose, which is worse than having none: a price that exists is a price something
+will eventually charge.
+
+Nor is one derivable. The CAD book was priced item by item and its ratios all
+differ — 2900→3900, 7900→10900, 3→4, 2.5→3.5, 1→1.5 — so there is no rule that
+yields a CAD figure for a $5 line. The same reasoning already applies to the
+extra-number prices (see #522), where the honest answer was to refuse the
+purchase rather than invent an amount.
+
+**What makes this safe to leave.** Stripe refuses a subscription item whose price
+carries no option in the subscription's currency, so the day `regions_ca` becomes
+sellable a CAD workspace could not add it at all — the add-on toggle would fail
+outright for every workspace billed in CAD. That day is caught by the *"keeps a
+sellable module chargeable in every currency"* assertion in
+`apps/api/src/billing/stripe-catalog-currency.test.ts`, which iterates
+`SELLABLE_MODULES` and demands a CAD amount for each. Making a module sellable
+therefore fails the build until somebody decides its CAD price and files it.
+
+So the gap is bounded by a test rather than by anybody remembering, which is the
+only form this kind of deferral is allowed to take here.
+
+**Consistency:** #522 (extra numbers refuse rather than invent a figure), #41
+(`regions_ca` is not sellable), #328 (every chargeable price carries its
+currency).

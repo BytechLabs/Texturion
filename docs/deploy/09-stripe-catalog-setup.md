@@ -46,6 +46,40 @@ keys:
 - Products keyed by `metadata.loonext_catalog` (`stripe-setup.ts:86`).
 - Prices keyed by `lookup_key` (`stripe-setup.ts:104-108`).
 
+### Rerunning this is what makes Canadian pricing real (#522)
+
+**Until this script has been rerun since the CAD amounts were added, every
+Canadian workspace is charged in US dollars** — and that is the correct, honest
+behaviour rather than a bug, so nothing is broken while you wait.
+
+The chain, so the state is legible:
+
+1. The script files a `currency_options.cad` amount on every chargeable price.
+   Verified against live Stripe on 2026-08-05: all thirteen active prices carried
+   `currency_options: [usd]` and nothing else, which means it has not been rerun
+   since.
+2. `checkoutCurrency` reads the catalog and **degrades a session to USD** when the
+   price carries no CAD amount, so a Canadian customer can still pay. Without that
+   degrade, Stripe would refuse the session and Canadian signup would simply fail.
+3. Checkout then **records what was actually charged** into
+   `companies.billing_currency`, so every screen quoting a price reads the truth
+   rather than a guess from the country.
+
+So the order matters and it is one-directional: **the catalog has to carry CAD
+before any surface quotes CAD.** Rerun this, and the next new Canadian workspace
+records `cad` because that is what it was charged. Workspaces that already
+checked out keep USD — Stripe pins the currency on the Customer at the first
+invoice and it cannot be changed afterwards, so moving an existing one is a
+cancel-and-resubscribe conversation, not a toggle.
+
+Two prices are **deliberately USD-only** and reruns will not change that: the
+extra-number lines and the module prices. No CAD figure has ever been decided for
+either, and the CAD book was priced item by item with no derivable ratio, so
+inventing one here would file a price nobody chose (D121). Extra numbers refuse
+the purchase for a CAD-billed workspace with a sentence rather than a failed
+charge; modules are not sellable yet, and the day one is, a test fails until its
+CAD price is decided.
+
 ### What it creates
 
 **One Billing Meter** (`apps/api/scripts/stripe-setup.ts:67-73`):
