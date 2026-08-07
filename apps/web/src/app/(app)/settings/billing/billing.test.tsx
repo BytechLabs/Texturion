@@ -95,7 +95,14 @@ const {
     data: undefined as unknown,
     asked: undefined as boolean | undefined,
   },
-  record: { mutate: vi.fn() },
+  /**
+   * #529: `isPending` is present because the REAL `useRecordCancellationReason`
+   * is a `useMutation` and therefore has one. Without it, `record.isPending`
+   * read `undefined` on every render — so `disabled={record.isPending}` on the
+   * exit was falsy always and invisible to every test in this file. The same
+   * shape the `pause` fixture below documents, one mutation over.
+   */
+  record: { mutate: vi.fn(), isPending: false },
   exportContacts: { mutate: vi.fn(), isPending: false },
   checkout: { mutate: vi.fn(), isPending: false },
   changePlan: { mutate: vi.fn(), isPending: false },
@@ -519,6 +526,7 @@ beforeEach(() => {
   portal.mutate.mockReset();
   portal.isPending = false;
   record.mutate.mockReset();
+  record.isPending = false;
   exportContacts.mutate.mockReset();
   exportContacts.isPending = false;
   checkout.mutate.mockReset();
@@ -2940,5 +2948,87 @@ describe("#524 the exit renders the same whatever the pause read says", () => {
       }),
       "the billing page down to the cancel card",
     );
+  });
+});
+
+/**
+ * #529 — the root behind six of the thirteen escapes that survived #524.
+ *
+ * Every press and render guard on this card varies exactly ONE input: the pause
+ * read. `PauseRead` is a sealed set so that parameterisation is genuinely
+ * exhaustive — and `exportContacts.isPending` is `false` in all four of its
+ * states, as is every other mutation this screen holds. So a gate keyed on any
+ * OTHER state was invisible to 106 passing tests.
+ *
+ * Not hypothetically. The adversarial pass wrote
+ * `disabled={portal.isPending || exportContacts.isPending}` on the exit — which
+ * holds the door shut for as long as a CSV is downloading — and all 106 passed.
+ *
+ * THE PROPERTY, stated once so it does not have to be guessed per state: the
+ * exit is disabled by its OWN pending state and by nothing else. `portal.isPending`
+ * is a legitimate gate (you have pressed it; it is opening) and is asserted as one
+ * below. Every other busy state on this screen is somebody else's work, and none
+ * of it may stand between a customer and the way out.
+ *
+ * Parameterised over the states rather than the escapes, deliberately. A list of
+ * escape shapes is a list somebody has to keep guessing at; a list of the inputs
+ * the card can read is finite and comes from the mock table above.
+ */
+describe("CR-#529: no other busy state can hold the exit shut", () => {
+  /**
+   * Every mutation this billing screen holds, other than the exit's own.
+   *
+   * Scoped to what this component can actually READ — `portal`, `record`,
+   * `exportContacts` and the pause query — and deliberately not padded with the
+   * rest of the billing screen's mutations. A gate cannot be written against a
+   * binding that is not in scope: `disabled={changePlan.isPending}` here is a
+   * ReferenceError, which fails loudly on its own and needs no parameterisation.
+   * Listing it anyway would be a guard that cannot fail, and this repository has
+   * already found and deleted a shelf of those.
+   */
+  const OTHER_WORK: [name: string, busy: () => void][] = [
+    // The escape the adversarial pass actually landed.
+    ["a contact export is running", () => (exportContacts.isPending = true)],
+    // And the one nothing could have caught: the real hook is a `useMutation`,
+    // so it HAS an `isPending`, and this file's mock did not — a gate on it read
+    // `undefined` forever. Adding the field to the fixture is half this fix.
+    ["the reason is being recorded", () => (record.isPending = true)],
+  ];
+
+  it.each(OTHER_WORK)("the exit still leaves while %s", (name, busy) => {
+    busy();
+    const leave = renderCard();
+    expectTheExitLeaves(leave, `while ${name}`);
+  });
+
+  it("the exit still leaves while BOTH other jobs run at once", () => {
+    // The states are independent, so a per-state pass does not prove the
+    // conjunction — and a real `disabled={a || b}` needs only one of them.
+    for (const [, busy] of OTHER_WORK) busy();
+    const leave = renderCard();
+    expectTheExitLeaves(leave, "while every other job runs");
+  });
+
+  it("but its OWN pending state does disable it, which is the point", () => {
+    // The positive control, and the reason this suite cannot be satisfied by
+    // deleting the `disabled` attribute altogether. Pressing twice must not open
+    // two Stripe sessions, so this one gate is correct and has to stay.
+    portal.isPending = true;
+    render(<CancelSubscriptionCard isOwner company={company()} />);
+    const leave = screen.getByRole("button", { name: /Opening…/ });
+    expect(leave).toBeTruthy();
+    expect((leave as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("the export button is disabled by ITS own work and not by the exit's", () => {
+    // The mirror of the above, so neither button can end up gated on the other.
+    // A customer who has pressed Leave should still be able to take their
+    // contacts; a customer taking their contacts should still be able to leave.
+    portal.isPending = true;
+    render(<CancelSubscriptionCard isOwner company={company()} />);
+    const exportButton = screen.getByRole("button", {
+      name: new RegExp(CANCEL_EXPORT_ACTION),
+    });
+    expect((exportButton as HTMLButtonElement).disabled).toBe(false);
   });
 });
