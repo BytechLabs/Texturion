@@ -1,5 +1,63 @@
 # Changelog
 
+## [0.8.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.7.0...shared-v0.8.0) (2026-08-07)
+
+
+### Features
+
+* a missed call on the sales line texts back in the sales line's words ([9766b5d](https://github.com/BytechLabs/Texturion/commit/9766b5ddd00448b8dd7cc1a942064310cbec2ace))
+* **android:** a workspace defines its own contact fields, and the crew fills them in ([5aadc16](https://github.com/BytechLabs/Texturion/commit/5aadc16cc18d57e83ac56f8ee00527a555ff0cca))
+* **api:** a call that arrives after hours stops ringing everyone ([84d1ec5](https://github.com/BytechLabs/Texturion/commit/84d1ec52388761bf1edc2cbf9073dc142a93322f))
+* **api:** a customer who texts AIDE gets an answer, in French ([5e6f79c](https://github.com/BytechLabs/Texturion/commit/5e6f79ca88f8f6eda3395b2265cf617a51aec125))
+* **api:** a member can find out what they cannot reach, and why ([7d449b9](https://github.com/BytechLabs/Texturion/commit/7d449b90d2bef59212193ea511e783dad01e14c4))
+* **api:** a member can silence their own nights without missing their page ([521f3da](https://github.com/BytechLabs/Texturion/commit/521f3da6cffb3cef0087eab8d05088434afc8fd7))
+* **api:** a morning summary counts who is waiting and what is due ([b1111a6](https://github.com/BytechLabs/Texturion/commit/b1111a62ab9e879d9b42ff4399d61be1db42c012))
+* **api:** a paid pause, so a quiet season does not cost the number ([c844477](https://github.com/BytechLabs/Texturion/commit/c844477216c8da61a41cc6cd77edd5677aa05231))
+* **api:** a reminder never goes out for a job that is no longer booked ([82d9d58](https://github.com/BytechLabs/Texturion/commit/82d9d5836d68e9a24385fa29c717500a9ab5256e))
+* **api:** a signup in a prohibited category is noticed before provisioning ([ece4281](https://github.com/BytechLabs/Texturion/commit/ece4281e27fb76a8d341df37c245400f558c7107)), closes [#303](https://github.com/BytechLabs/Texturion/issues/303)
+* **api:** a workspace defines the contact fields its trade needs ([b871874](https://github.com/BytechLabs/Texturion/commit/b8718745f67f1a8b414d6ddbd03c2438551bda14))
+* **api:** automated texts go out in the language the customer reads ([9b8fe24](https://github.com/BytechLabs/Texturion/commit/9b8fe24cd091255a1a0ddd033a858e764146612f))
+* **api:** choose which recording a line plays ([71c52f7](https://github.com/BytechLabs/Texturion/commit/71c52f76e02d5a10a38c3003ae0a2e89765da946))
+* **api:** ring the phones in turn, for as long as the line says ([56490fd](https://github.com/BytechLabs/Texturion/commit/56490fd774710a503ff01ab9e3e20f1298b28ed4))
+* **api:** scheduled texts fire on time, and say so when they cannot ([1ec9260](https://github.com/BytechLabs/Texturion/commit/1ec9260bd6a04330b6a939f7f9b851825a4a1cd3))
+* **api:** the AUP ladder's middle steps exist in code, not only in prose ([ef39e21](https://github.com/BytechLabs/Texturion/commit/ef39e217cccb2f6222b9d2b72ca2c82734b2df99)), closes [#303](https://github.com/BytechLabs/Texturion/issues/303)
+* **api:** the language layer for automated texts, with fr-CA copy ([2dc2e0e](https://github.com/BytechLabs/Texturion/commit/2dc2e0eea7cefdc9352101cfbb273371063c9700))
+* **api:** the question goes out after a job, and a digit answers it ([056b62a](https://github.com/BytechLabs/Texturion/commit/056b62a4a5cc0b3eb6bcf3edfb95c2fc9ba461af))
+* **api:** work out when a job's reminders should go, and what they say ([ac498c5](https://github.com/BytechLabs/Texturion/commit/ac498c550eea68e9756caafe604b4df61526e1ff))
+* **clients:** a joining orientation, and a notification ask with a reason ([d87bf03](https://github.com/BytechLabs/Texturion/commit/d87bf03635b7119bf56cf65bbd6e2b988a9f4da9)), closes [#286](https://github.com/BytechLabs/Texturion/issues/286)
+* **clients:** a member is told a number is hidden, not left to guess ([11d9ad4](https://github.com/BytechLabs/Texturion/commit/11d9ad4e252ac8bb9168e29d4711c8cee1f45549)), closes [#286](https://github.com/BytechLabs/Texturion/issues/286)
+* **clients:** a new member can see who the crew is ([10ac78b](https://github.com/BytechLabs/Texturion/commit/10ac78bc31da49b9b5059e31b9e86bf6d1a59717))
+* **clients:** answer the reason somebody gives for leaving ([0109464](https://github.com/BytechLabs/Texturion/commit/0109464f7e43d9bc333282bc9753ff932e90fdc1))
+* **clients:** catch up on a thread without Lou inventing anything ([21e57c0](https://github.com/BytechLabs/Texturion/commit/21e57c0243bd5cc7945be62c3dd691ca1d162533))
+* **clients:** full-size photos can wait for Wi-Fi, and the baseline is written down ([d60faf9](https://github.com/BytechLabs/Texturion/commit/d60faf9458983d88fb509329147ce4e459a981c5)), closes [#289](https://github.com/BytechLabs/Texturion/issues/289)
+* **clients:** one tap says "I have this", and the other phones stop ([2ef5b88](https://github.com/BytechLabs/Texturion/commit/2ef5b88b984cf37b9779bd4677a7fa86ac44013c))
+* **clients:** pause a plan for the winter without losing the number ([b1444d7](https://github.com/BytechLabs/Texturion/commit/b1444d75c3725f79baf591ab1fa3a9e8e3734688))
+* **clients:** put one person on call, and the rest get a quiet night ([af34999](https://github.com/BytechLabs/Texturion/commit/af34999d30b24c2d06a119ea2cd89f3cf6caf08a))
+* **clients:** satisfaction sits beside response time, and refuses to guess ([94ae5ca](https://github.com/BytechLabs/Texturion/commit/94ae5ca3d0167d146bf88e67e400db1f38d411ff))
+* **clients:** send later on both phones, and one place to see everything queued ([8987f1c](https://github.com/BytechLabs/Texturion/commit/8987f1cd7fa88dbe9b8efa6cb90692d80e867246))
+* **clients:** set quiet hours without losing the night you are on call ([43c7b71](https://github.com/BytechLabs/Texturion/commit/43c7b71368ed0155f10b62c5da16a8e5b6594504))
+* **clients:** stop holding the radio awake in somebody's pocket ([c789074](https://github.com/BytechLabs/Texturion/commit/c78907403f93956485c1ab23fb1209d3b1669834)), closes [#289](https://github.com/BytechLabs/Texturion/issues/289)
+* **clients:** the note an owner writes reaches the person it was about ([2fc5b16](https://github.com/BytechLabs/Texturion/commit/2fc5b16725a458afec7a1aafd8ddbc286d86fada))
+* **clients:** the phones can open the leads nobody answered ([bace185](https://github.com/BytechLabs/Texturion/commit/bace185b3444960ac3bcf877e41bf56c9d631ec5)), closes [#508](https://github.com/BytechLabs/Texturion/issues/508)
+* **clients:** the uploader makes the preview, on all three ([a243318](https://github.com/BytechLabs/Texturion/commit/a243318aa6926af2ce43c0f3754da5edb6e930a2)), closes [#240](https://github.com/BytechLabs/Texturion/issues/240)
+* **db:** a number can have its own identity, inherited until it does ([ba6e5f5](https://github.com/BytechLabs/Texturion/commit/ba6e5f5d3b00f0a5f28ad70ff91bffac4f17d4ea)), closes [#307](https://github.com/BytechLabs/Texturion/issues/307)
+* **db:** notifications can be grouped instead of arriving one at a time ([3ace857](https://github.com/BytechLabs/Texturion/commit/3ace857b54322881f7797127a680d0b803568dbe))
+* **shared:** the words and choices for an on-my-way text ([3bead32](https://github.com/BytechLabs/Texturion/commit/3bead324019af5a10077c0a2db75db124637fd19))
+* **web:** send an on-my-way text with an ETA, one tap from the thread ([5d0ce47](https://github.com/BytechLabs/Texturion/commit/5d0ce472fcb57422c9e7df64232cd90fae119c23))
+
+
+### Bug Fixes
+
+* **api:** a customer who texts ARRET is opted out, not answered ([824fab2](https://github.com/BytechLabs/Texturion/commit/824fab23ba699fee69c2974b68be84ceca04c4d6))
+* **clients:** a Canadian workspace can buy an extra number again ([9b058f5](https://github.com/BytechLabs/Texturion/commit/9b058f5f96db82bee4eef17b0cd8c2672f8c4b49)), closes [#522](https://github.com/BytechLabs/Texturion/issues/522)
+* **clients:** a role only reaches the settings its capabilities allow ([23ee9d1](https://github.com/BytechLabs/Texturion/commit/23ee9d1c617eb77cc9dedc7ffd7aa043660ccc09)), closes [#515](https://github.com/BytechLabs/Texturion/issues/515)
+* **clients:** quote the currency the customer is actually charged in ([575f868](https://github.com/BytechLabs/Texturion/commit/575f8682db04eb5b7eccf8612834193fb69e2dad))
+* **clients:** register the onboarding surface and the new firsts field ([c0fd159](https://github.com/BytechLabs/Texturion/commit/c0fd159ff13d9bd013aa9ac2bb643b9a37ddcbd1))
+* **clients:** the in-app account deletion route cannot silently disappear ([a624586](https://github.com/BytechLabs/Texturion/commit/a62458607187594b8e361b7f2d633685dff30a19))
+* **clients:** three automated texts stop costing double to deliver ([953b02c](https://github.com/BytechLabs/Texturion/commit/953b02c5a190dd66b9080b8fe00b4d13a0f977a7))
+* **shared:** the identity fixture the workspace typecheck compiles ([631c906](https://github.com/BytechLabs/Texturion/commit/631c906d2233b95a97be20c8b36811c991ed5d3b))
+* **web:** the production build resolves the shared locale module ([bb7d67e](https://github.com/BytechLabs/Texturion/commit/bb7d67ef3a298114e082820ac73ae977407b9d82))
+
 ## [0.7.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.6.0...shared-v0.7.0) (2026-08-02)
 
 
