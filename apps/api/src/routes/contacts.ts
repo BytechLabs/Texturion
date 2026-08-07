@@ -337,6 +337,14 @@ function assertDecodableText(text: string): void {
  * guarantee — a scripted caller can declare everything ignorable and we cannot
  * tell. What is closed is the silent case, which is every real accident.
  *
+ * AND WHAT CANNOT BE VERIFIED IS STILL ATTRIBUTED (#528 findings 5 and 6). A
+ * declaration a script fabricated and one a person made are the same bytes here,
+ * so no check distinguishes them — but every declaration is written to the
+ * `contacts.imported` audit row as `columns`, beside the consent attestation and
+ * the workspace member who sent it, on the refusal path as well as the success
+ * one. That is the honest boundary of an API: a false claim cannot be prevented,
+ * and it can be shown afterwards to have been made, by whom, about which file.
+ *
  * REFUSING THE WHOLE FILE, not the flagged rows, and not just the attestation.
  *
  *   Refusing rows requires knowing which way a column points, and that is the
