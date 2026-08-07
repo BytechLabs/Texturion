@@ -1886,4 +1886,112 @@ final class CancelOneActionTests: XCTestCase {
             "the pause copy is not inside the slice the price scan reads"
         )
     }
+
+    // MARK: - #529: what may stop the press once it has landed
+
+    /// The exit's HANDLER, which nothing in this file used to read.
+    ///
+    /// Every other assertion here is about whether the button is drawn, drawn
+    /// enabled, and reachable by a thumb. All of them can pass while the press
+    /// does nothing at all, because `handOff()` is where the press actually goes
+    /// and it opens with a `guard`. A second one —
+    ///
+    ///     guard !exporting else { return }
+    ///     guard case .answered = pause else { return }
+    ///
+    /// — leaves the button enabled, opaque, hit-testable and at full height, and
+    /// pressing it returns silently. That is the same defect as a disabled button
+    /// with the evidence moved one function along, and #529 found it unguarded:
+    /// `handOff` appeared in zero assertions in this file.
+    ///
+    /// AN ALLOWLIST OF ONE, not a search for suspicious guards. There is exactly
+    /// one reason this function may decline to run: the reader cannot cancel at
+    /// all, which is a role fact known before the button was drawn and is the
+    /// reason the owner's card is a different card. Any other early return is a
+    /// press that goes nowhere. A list of forbidden guards could always be added
+    /// to; a list of the one permitted guard cannot be walked past.
+    func testTheHandoffMayOnlyDeclineForSomebodyWhoCannotCancel() throws {
+        let source = try billingSource()
+        guard let handOff = blockBody(source, startingWith: "private func handOff() {")
+        else {
+            XCTFail("`handOff()` is gone from the billing screen — the press has a new home, and this guard is reading nothing")
+            return
+        }
+
+        // Every `guard` in the function, as the condition it asks about. Read
+        // per occurrence rather than per line, for the same reason
+        // `disabledExpressions` does: two guards on one line is legal Swift.
+        var guards: [String] = []
+        for line in handOff.map(code) {
+            var rest = Substring(line)
+            while let marker = rest.range(of: "guard ") {
+                let after = rest[marker.upperBound...]
+                let condition = after.prefix(while: { $0 != "{" })
+                    .replacingOccurrences(of: "else", with: "")
+                    .trimmingCharacters(in: .whitespaces)
+                if !condition.isEmpty { guards.append(condition) }
+                rest = after
+            }
+        }
+
+        XCTAssertEqual(
+            ["canCancel"], guards,
+            "\n\nEvery guard in `handOff()`: \(guards)\n\n"
+                + "The press may only be declined for somebody who cannot cancel at "
+                + "all. Any other early return here is a button that is drawn, "
+                + "enabled, opaque, full height, hit-testable — and silent when "
+                + "pressed, which every other assertion in this file would pass. "
+                + "Reaching Stripe is one action from landing on this screen, and a "
+                + "guard added here is how that stops being true with nothing on "
+                + "the screen to show it.\n"
+        )
+    }
+
+    /// ...and the press still SETS OFF the handoff rather than only guarding it.
+    ///
+    /// The mirror of the above, so the allowlist cannot be satisfied by gutting
+    /// the function. A `handOff()` whose body is one permitted guard and nothing
+    /// else passes the assertion above and reaches no Stripe session.
+    func testTheHandoffStillOpensTheBillingPortal() throws {
+        let source = try billingSource()
+        guard let handOff = blockBody(source, startingWith: "private func handOff() {")
+        else { return }
+        let body = handOff.map(code).joined(separator: "\n")
+        XCTAssertTrue(
+            body.contains("billingPortal"),
+            "`handOff()` no longer asks for a billing portal session, so the exit "
+                + "leads nowhere: \(body)"
+        )
+        XCTAssertTrue(
+            body.contains("openExternal"),
+            "`handOff()` mints a session and never opens it, which strands somebody "
+                + "who has pressed the way out: \(body)"
+        )
+
+        // ...and nothing returns before it gets there.
+        //
+        // FOUND BY SIMULATING THE ESCAPES rather than by reasoning about them.
+        // The two assertions above are satisfied by a `handOff()` with a bare
+        // `return` inserted above the work: the permitted guard is still the only
+        // guard, and `billingPortal` and `openExternal` are both still in the
+        // text — unreachable, but present. Checking that a string appears is not
+        // checking that it runs, and that gap is the whole difference between
+        // this guard and a decorative one.
+        //
+        // The permitted guard's own `return` lives on its line (`guard canCancel
+        // else { return }`), so a `return` alone on a line is always an added
+        // one. Same shape as the bare-return arm of Android's exit-path scan.
+        let bareReturns = handOff
+            .map(code)
+            .map(trimmed)
+            .filter { $0 == "return" }
+        XCTAssertEqual(
+            [], bareReturns,
+            "`handOff()` returns early before it reaches Stripe. The button is "
+                + "still drawn, still enabled and still takes the press — it simply "
+                + "does nothing with it, which no other assertion in this file can "
+                + "see. The one permitted refusal is the `canCancel` guard, and its "
+                + "return is on that line."
+        )
+    }
 }
