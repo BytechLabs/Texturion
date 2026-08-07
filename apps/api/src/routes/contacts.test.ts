@@ -2998,6 +2998,46 @@ describe("#248 every column of the file is answered for", () => {
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
 
+  it("#528 M3b: a header that matches SOME OTHER column does not rescue a declaration", async () => {
+    // THE POSITION IS THE IDENTITY AND THE HEADER IS ONLY CONFIRMATION. This is
+    // the exact shape a match-by-header fallback would quietly rescue: every
+    // header below is a real header of this file, so a resolver that fell back to
+    // searching by name would find all three and accept the lot — while the
+    // answers landed on the wrong columns, and "Marketing Status" was read as a
+    // phone number.
+    //
+    // Held as its own test because the fallback has been removed and reintroduced
+    // before. Two headers in one file are allowed to be identical, so a name can
+    // never identify a column; the index always can. The refusal below is what
+    // makes that a rule rather than a preference.
+    const sb = refusingStub();
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/contacts/import",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: importForm(marketingStatus, true, [
+          // Rotated by one: each header exists, none is where it says it is.
+          { index: 0, action: "name", header: "name" },
+          { index: 1, action: CONTACT_IMPORT_IGNORE, header: "Marketing Status" },
+          { index: 2, action: "phone", header: "phone" },
+        ]),
+      },
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { message: string } };
+    // Named by POSITION, and the first one wrong is the one reported.
+    expect(body.error.message).toBe(
+      contactImportColumnMismatchMessage(
+        `column 1 was declared as "name" and this file calls it "phone"`,
+      ),
+    );
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
   it("refuses a declaration that is not about a column of this file", async () => {
     for (const [detail, columns] of [
       [
