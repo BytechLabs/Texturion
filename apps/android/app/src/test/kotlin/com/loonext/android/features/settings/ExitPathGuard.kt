@@ -86,6 +86,9 @@ internal object ExitPath {
     /** The call that puts the card carrying the exit on the screen. */
     private const val EXIT_CARD = "CancelCard("
 
+    /** The call that reaches Stripe — the press's whole reason to exist. */
+    private const val HANDOFF = "scope.repo.billingPortal("
+
     /**
      * The words on the button that leaves.
      *
@@ -287,6 +290,89 @@ internal object ExitPath {
             .map { it.trim() }
             .filter { it.startsWith("if (") }
             .map { it.removePrefix("if (").removeSuffix(")").trim() }
+    }
+
+    /** What the press itself is allowed to consult, and whether it can fall out. */
+    data class Press(
+        /** Braced `if`/`when` standing between the handler and the handoff. */
+        val conditions: List<String>,
+        /**
+         * Every line above the handoff carrying a `return`.
+         *
+         * Not "a bare return": Kotlin writes `if (exporting) return` on one line
+         * with no brace, which brace-tracking cannot see and a bare-return test
+         * would not match either. The legitimate handler has no `return` of any
+         * shape above the handoff, so the honest allowlist is all of them.
+         */
+        val returns: List<String>,
+        /** The handoff is opened, not merely requested. */
+        val opens: Boolean,
+    )
+
+    /**
+     * What stands between PRESSING the exit and reaching Stripe.
+     *
+     * [exitConditions] answers whether the card is on screen. This answers the
+     * question one layer in, and it is the one every existing check missed: a
+     * button can be drawn, enabled, opaque, full height and hit-testable while its
+     * handler opens with `if (exporting) return` and does nothing. Add that line
+     * and not one assertion about the button changes — the press is simply silent,
+     * which is the worst way for a way out to fail, because the person pressing it
+     * has no way to tell.
+     *
+     * An ALLOWLIST, and here it is empty: the card is only drawn when the reader
+     * can manage billing and there is a live subscription, so by the time this
+     * button exists there is nothing left to check. A condition of ANY shape is an
+     * escape. `opening`, the request already in flight, belongs on `enabled` where
+     * it says "Opening…" on the button — a person can see that; a silent return
+     * they cannot.
+     *
+     * Gutting the handler instead of guarding it is covered from two sides: the
+     * `check` below fails outright if the portal call leaves `CancelCard` — that IS
+     * the first mirror, and it reports a better failure than a boolean would —
+     * while [Press.opens] holds the second. [Press.returns] covers a `return` that
+     * leaves both calls present and unreachable, because checking that a call
+     * APPEARS is not checking that it RUNS.
+     */
+    fun press(billingSource: String): Press {
+        val code = blank(billingSource.replace("\r\n", "\n"))
+        val card = body(code, "fun $EXIT_CARD")
+        val handoff = code.indexOf(HANDOFF, card.first)
+        check(handoff in card.first until card.second) {
+            "`$HANDOFF` is gone from `$EXIT_CARD`. Point this guard at the new shape " +
+                "rather than deleting it — this is the press that reaches Stripe"
+        }
+        // The handler is the innermost `onClick = {` still open at the handoff.
+        val opens = ArrayDeque<Pair<String, Int>>()
+        var i = card.first
+        while (i < handoff) {
+            when (code[i]) {
+                '{' -> opens.addLast(header(code, i) to i)
+                '}' -> if (opens.isNotEmpty()) opens.removeLast()
+            }
+            i++
+        }
+        val handler = opens.lastOrNull { it.first.trim().startsWith("onClick") }
+        check(handler != null) {
+            "the exit is no longer reached from an `onClick` in `$EXIT_CARD`"
+        }
+        // Only what is open INSIDE the handler: everything above it is layout, and
+        // `exitConditions` already answers for the card.
+        val conditions = opens
+            .filter { it.second > handler.second }
+            .map { it.first.trim() }
+            .filter { it.startsWith("if (") || it.startsWith("when") }
+            .map { it.removePrefix("if (").removeSuffix(")").trim() }
+
+        val handlerBody = code.substring(handler.second, handoff)
+        return Press(
+            conditions = conditions,
+            returns = handlerBody
+                .lines()
+                .map { it.trim() }
+                .filter { Regex("(^|\\W)return(\\W|$)").containsMatchIn(it) },
+            opens = code.substring(handler.second, card.second).contains("openExternal("),
+        )
     }
 
     /**

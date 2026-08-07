@@ -398,6 +398,117 @@ class CancellationFlowTest {
         )
     }
 
+    /**
+     * AND NOTHING MAY STAND BETWEEN PRESSING IT AND STRIPE.
+     *
+     * The test above answers whether the card is on screen. This answers the
+     * question one layer in, which is where every check on this screen was blind:
+     * a button can be drawn, enabled, opaque, full height and hit-testable while
+     * its handler opens with `if (exporting) return` and does nothing. Not one
+     * assertion about the button changes. The press is simply silent, which is the
+     * worst way for a way out to fail — the person pressing it cannot tell.
+     *
+     * The allowlist is EMPTY, and that is not strictness for its own sake: the card
+     * only exists when the reader can manage billing and there is a live
+     * subscription, so by the time this button is on screen both questions are
+     * already answered. `opening` belongs on `enabled`, where the button says
+     * "Opening…" and a person can see it.
+     */
+    @Test
+    fun `nothing may stand between pressing the exit and reaching stripe`() {
+        val press = ExitPath.press(readMainSource(ExitPath.BILLING_SECTION))
+        assertEquals(
+            "a condition was added inside the handler that reaches Stripe. Every " +
+                "check on this button — drawn, enabled, opaque, hit-testable — " +
+                "passes while a guard here makes the press do nothing at all. The " +
+                "state of an export, or of anything else, is not a reason to " +
+                "withhold the way out; if the request is already in flight, say so " +
+                "on the button.",
+            emptyList<String>(),
+            press.conditions,
+        )
+        assertEquals(
+            "a `return` was added above the handoff to Stripe. It leaves both the " +
+                "portal request and the browser open where any search for them " +
+                "finds them, and unreachable — which is the same silent press by a " +
+                "different route.",
+            emptyList<String>(),
+            press.returns,
+        )
+        assertTrue(
+            "the portal session is minted and never opened, so the press ends in " +
+                "nothing while every mirror on it still passes",
+            press.opens,
+        )
+    }
+
+    /**
+     * The guard above, proved by breaking it.
+     *
+     * A guard that has only ever passed is a guard nobody has tested. Each escape
+     * below is applied to the real source, scoped to `CancelCard` so a mutation
+     * cannot land in some other card and report a hole that is not there — the way
+     * the iOS twin's first simulation did.
+     */
+    @Test
+    fun `the press guard catches every way to silence the press`() {
+        val real = readMainSource(ExitPath.BILLING_SECTION)
+        val card = real.indexOf("private fun CancelCard(")
+        val anchor = real.indexOf("opening = true", card)
+        assertTrue("the press no longer starts by marking the request in flight", anchor > card)
+
+        fun escape(inserted: String): String =
+            real.substring(0, anchor) + inserted + real.substring(anchor)
+
+        // THE TWO SHAPES ARE CAUGHT BY DIFFERENT FIELDS, and getting that wrong is
+        // how a guard passes for the wrong reason. A guard CLAUSE closes before the
+        // handoff, so nothing is open at it and `conditions` is rightly empty — the
+        // `return` is what makes it an escape. A WRAPPING condition is still open at
+        // the handoff and carries no `return` at all.
+
+        // Guard clause, braced.
+        val clause = ExitPath.press(
+            escape("if (exporting) {\n            return@Button\n        }\n        ")
+        )
+        assertTrue("a braced guard clause walked past", clause.returns.isNotEmpty())
+
+        // Guard clause, brace-LESS and on one line — which brace-tracking cannot
+        // see and a bare-return test would not match either. This is the shape
+        // Kotlin makes easiest to write, so it is the one that had to be covered.
+        val inline = ExitPath.press(escape("if (exporting) return@Button\n        "))
+        assertTrue("a one-line guard clause walked past", inline.returns.isNotEmpty())
+
+        // No condition at all — just a way out.
+        val bare = ExitPath.press(escape("return@Button\n        "))
+        assertTrue("a bare return above the handoff walked past", bare.returns.isNotEmpty())
+
+        // A wrapping condition: no `return` anywhere, the handoff simply does not
+        // happen. This is the one `conditions` exists for.
+        val handoffPair =
+            "val hosted = scope.repo.billingPortal(scope.companyId)\n" +
+                "                        openExternal(context, hosted.url)"
+        assertTrue(
+            "the handoff pair this escape wraps has been reshaped — re-anchor it",
+            real.contains(handoffPair),
+        )
+        val wrapped = ExitPath.press(
+            real.replace(
+                handoffPair,
+                "if (!exporting) {\n" +
+                    "                        $handoffPair\n" +
+                    "                        }",
+            )
+        )
+        assertTrue("a condition wrapping the handoff walked past", wrapped.conditions.isNotEmpty())
+
+        // And the baseline is clean, so the three above are catching the escape
+        // rather than something that was already there.
+        val baseline = ExitPath.press(real)
+        assertEquals(emptyList<String>(), baseline.conditions)
+        assertEquals(emptyList<String>(), baseline.returns)
+        assertTrue(baseline.opens)
+    }
+
     @Test
     fun `every escape still anchors to the shipped source`() {
         val billing = readMainSource(ExitPath.BILLING_SECTION)
