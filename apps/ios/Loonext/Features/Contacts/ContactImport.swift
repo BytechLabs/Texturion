@@ -1293,7 +1293,9 @@ struct ContactImportConsentSheet: View {
                     samples: ["Subscribed", "Unsubscribed"],
                     guess: .optedOut,
                     unreadable: ["Subscribed", "Unsubscribed"],
-                    unreadableCount: 2
+                    unreadableCount: 2,
+                    values: ["Subscribed", "Unsubscribed"],
+                    total: 2
                 ),
             ]
         ),

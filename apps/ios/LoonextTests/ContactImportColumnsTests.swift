@@ -851,7 +851,9 @@ final class ContactImportColumnsTests: XCTestCase {
                     samples: ["Subscribed", "Unsubscribed"],
                     guess: .optedOut,
                     unreadable: ["Subscribed", "Unsubscribed"],
-                    unreadableCount: 2
+                    unreadableCount: 2,
+                    values: ["Subscribed", "Unsubscribed"],
+                    total: 2
                 ),
             ]
         )
@@ -880,7 +882,9 @@ final class ContactImportColumnsTests: XCTestCase {
                     samples: ["Unsubscribed"],
                     guess: .optedOut,
                     unreadable: ["Unsubscribed"],
-                    unreadableCount: 1
+                    unreadableCount: 1,
+                    values: ["Unsubscribed"],
+                    total: 1
                 ),
                 ContactImportColumn(index: 1, header: "Tags", samples: ["vip"]),
             ]
