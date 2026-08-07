@@ -30,7 +30,9 @@ import kotlinx.coroutines.launch
  *
  * ── THE DEFECT BEHIND THIS FILE ────────────────────────────────────────────
  *
- * `POST /v1/billing/checkout` counts neither numbers nor seats, and its
+ * `POST /v1/billing/checkout` does not refuse a workspace for holding more
+ * NUMBERS than its new plan covers (it does now refuse one over the plan's
+ * SEATS — no seat can be held, so that one has no other answer), and its
  * completion handler used to un-suspend EVERY suspended number with one
  * statement carrying no plan term. During the 30-day grace window `change-plan`
  * refuses a cancelled subscription outright, so checkout is the only route back

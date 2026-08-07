@@ -60,6 +60,24 @@ export function makeHarness(endpoints: StubEndpoint[]): Harness {
       pattern: /\/rest\/v1\/notification_prefs/,
       handler: () => [],
     } as StubEndpoint,
+    // #523: checkout now counts members and numbers before composing the
+    // session, the way change-plan always has. The ambient answer is a sole
+    // proprietor holding the one number they bought — which is what every
+    // checkout test written before #523 assumed without saying, and it fits
+    // both plans' included counts so no test's line-item indices move.
+    //
+    // Registered LAST, like the block above: a test that cares about the counts
+    // states them and wins the match.
+    {
+      method: "HEAD",
+      pattern: /\/rest\/v1\/company_members/,
+      handler: () => countResponse(1),
+    } as StubEndpoint,
+    {
+      method: "HEAD",
+      pattern: /\/rest\/v1\/phone_numbers/,
+      handler: () => countResponse(1),
+    } as StubEndpoint,
   ];
   const route: FetchRoute = async (url, request) => {
     const match = all.find(

@@ -5,9 +5,11 @@ import SwiftUI
 ///
 /// # What this card is for
 ///
-/// `POST /v1/billing/checkout` counts neither numbers nor seats, and coming back
-/// is never refused (#277) — so a Pro workspace holding two numbers can press
-/// "Come back on Starter" and land on a plan that includes one. What happens
+/// `POST /v1/billing/checkout` does not count NUMBERS, and coming back is never
+/// refused over them (#277) — so a Pro workspace holding two numbers can press
+/// "Come back on Starter" and land on a plan that includes one. (Seats are a
+/// different matter: there is no per-seat price and no way to hold a seat, so
+/// checkout does refuse those — #523.) What happens
 /// after the money moves now respects the plan they bought: the API brings back
 /// what the allowance covers, oldest first, and leaves the rest `suspended`.
 /// Nothing is released and nothing is destroyed.

@@ -629,6 +629,148 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
   });
 });
 
+/**
+ * #523 — checkout enforced no plan limit at all, so `change-plan` was the only
+ * path in the product that did.
+ *
+ * That mattered because of WHERE checkout sits: `change-plan` 409s a canceled
+ * subscription outright, so during the 30-day grace window checkout is the only
+ * route back and the #277 win-back button lands here. A Pro workspace with eight
+ * members could press "Come back on Starter" and land on a 3-seat plan with
+ * eight people on it, five of them free, permanently.
+ *
+ * SEATS are the half of the issue with no other answer, and these are the tests
+ * for it. Numbers are deliberately not gated — #277's decision, which stands:
+ * coming back is never refused, and the surplus is held afterwards by the
+ * allowance claim (covered in the webhook suite) so the customer chooses whether
+ * to pay for it or shed it. The last test below pins that difference, so a later
+ * reader does not "finish the job" by adding the gate this issue rejected.
+ */
+describe("POST /v1/billing/checkout — the seats it brings with it (#523)", () => {
+  /** The canceled-in-grace workspace from the issue, mid-win-back. */
+  function winBackHarness(
+    counts: { members: number; numbers: number },
+    extra: StubEndpoint[] = [],
+  ) {
+    return makeHarness([
+      companyEndpoint(
+        companyRow({
+          subscription_status: "canceled",
+          stripe_customer_id: "cus_1",
+          registration_fee_paid_at: "2026-01-01T00:00:00Z",
+          plan: "pro",
+        }),
+      ),
+      endpoint("GET", /\/rest\/v1\/messaging_registrations/, () => [
+        { kind: "brand", status: "approved", sole_proprietor: false, data: {} },
+        {
+          kind: "campaign",
+          status: "approved",
+          sole_proprietor: false,
+          data: {},
+        },
+      ]),
+      endpoint("HEAD", /\/rest\/v1\/company_members/, () =>
+        countResponse(counts.members),
+      ),
+      endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () =>
+        countResponse(counts.numbers),
+      ),
+      ...extra,
+      checkoutSessionEndpoint(),
+    ]);
+  }
+
+  it("refuses the seats, and says how many have to go", async () => {
+    const harness = winBackHarness({ members: 8, numbers: 1 });
+    const response = await post(
+      "/v1/billing/checkout",
+      { plan: "starter" },
+      harness,
+    );
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as { error: { message: string } };
+    // The count is the actionable part: "deactivate 5", not "too many members".
+    expect(body.error.message).toContain("Starter");
+    expect(body.error.message).toContain("5");
+    expect(harness.callsTo("POST", /api\.stripe\.com/)).toHaveLength(0);
+  });
+
+  it("names the plan that needs no deactivation at all", async () => {
+    // A refusal that leaves somebody stuck is half an answer. Eight members fit
+    // Pro, and saying so is the difference between a wall and a choice.
+    const harness = winBackHarness({ members: 8, numbers: 1 });
+    const response = await post(
+      "/v1/billing/checkout",
+      { plan: "starter" },
+      harness,
+    );
+    const body = (await response.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("Pro allows 15");
+  });
+
+  it("sells Pro to the same workspace, because eight fits", async () => {
+    const harness = winBackHarness({ members: 8, numbers: 1 });
+    const response = await post(
+      "/v1/billing/checkout",
+      { plan: "pro" },
+      harness,
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("lets a workspace that fits check out untouched", async () => {
+    const harness = winBackHarness({ members: 3, numbers: 1 });
+    const response = await post(
+      "/v1/billing/checkout",
+      { plan: "starter" },
+      harness,
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("does NOT refuse the extra numbers — #277's decision, which stands", async () => {
+    // Deliberately not a gate. Coming back is never refused: the surplus is
+    // held after the money moves and the owner is told, so the customer decides
+    // whether to pay for the second number or shed it. Gating here would trap a
+    // customer who wants to pay us, and would charge for a number they may be
+    // downgrading specifically to lose.
+    const harness = winBackHarness({ members: 1, numbers: 4 });
+    const response = await post(
+      "/v1/billing/checkout",
+      { plan: "starter" },
+      harness,
+    );
+    expect(response.status).toBe(200);
+
+    // And no extra-number line is smuggled onto the session either, which would
+    // make the win-back cost more than the button that opened it.
+    const form = harness.callsTo("POST", /checkout\/sessions/)[0].form();
+    const prices: string[] = [];
+    for (let i = 0; form.has(`line_items[${i}][price]`); i += 1) {
+      prices.push(form.get(`line_items[${i}][price]`) as string);
+    }
+    expect(prices).not.toContain(env.STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID);
+  });
+
+  it("still counts seats for a brand-new workspace, not just a win-back", async () => {
+    // The issue notes this is reachable without any cancellation: check out on
+    // Starter, then add numbers. Nothing in the gates keys on having cancelled.
+    const harness = makeHarness([
+      companyEndpoint(companyRow({ country: "CA", us_texting_enabled: false })),
+      endpoint("HEAD", /\/rest\/v1\/company_members/, () => countResponse(4)),
+      endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () => countResponse(1)),
+      checkoutSessionEndpoint(),
+    ]);
+    const response = await post(
+      "/v1/billing/checkout",
+      { plan: "starter" },
+      harness,
+    );
+    expect(response.status).toBe(409);
+  });
+});
+
 describe("POST /v1/billing/confirm-checkout (webhook-independent activation)", () => {
   function sessionRetrieveEndpoint(
     session: Record<string, unknown>,

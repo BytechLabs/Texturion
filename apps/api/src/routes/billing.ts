@@ -189,6 +189,13 @@ async function countNonReleasedNumbers(
   return count ?? 0;
 }
 
+/**
+ * Customer-facing plan names. The wire ids are lowercase and nobody outside the
+ * code reads those, so a 409 that says "starter" names something the customer
+ * has never seen on a pricing page.
+ */
+const PLAN_NAME: Record<PlanId, string> = { starter: "Starter", pro: "Pro" };
+
 async function countActiveMembers(
   db: SupabaseClient,
   companyId: string,
@@ -293,12 +300,61 @@ billingRoutes.post("/checkout", async (c) => {
     }
   }
 
+  /**
+   * Gate 3 (409) — #523: SEATS. The half of that issue with no other answer.
+   *
+   * Checkout enforced no plan limit at all, which mattered because of where it
+   * sits: `change-plan` 409s a canceled subscription outright ("resubscribe to
+   * change plans"), so during the 30-day grace window checkout is the only route
+   * back and the #277 win-back button lands here. A Pro workspace with 8 members
+   * could press "Come back on Starter" and arrive on a 3-seat plan with 8 people
+   * on it, permanently, with five of them free.
+   *
+   * NUMBERS are deliberately NOT gated here, and that is not an omission — it is
+   * #277's decision, which stands. Coming back is never refused: the surplus is
+   * respected AFTER the money moves (`claimNumberAllowance` restores what the
+   * plan covers and leaves the rest suspended, nothing released) and the owner is
+   * told, with both priced routes out. A number can be held; it stays alive in
+   * history, and the customer may well be downgrading precisely to shed it.
+   *
+   * A seat has neither property. There is no per-seat price in the catalog, so
+   * no amount of money makes this subscription correct — and nothing about a
+   * seat can be "held", because the only way to fit is to deactivate a person.
+   * That is a decision about a colleague's access, and it belongs to the owner.
+   *
+   * So this is the one place a refusal is the honest answer, and it names the
+   * route that needs no deactivation rather than leaving the reader stuck.
+   */
+  const memberCount = await countActiveMembers(db, company.id);
+  const seats = PLAN_LIMITS[plan].seats;
+  if (memberCount > seats) {
+    const over = memberCount - seats;
+    const alternative =
+      plan === "starter"
+        ? ` Pro allows ${PLAN_LIMITS.pro.seats}.`
+        : "";
+    return errorResponse(
+      c,
+      "conflict",
+      `${PLAN_NAME[plan]} allows ${seats} members and this workspace has ` +
+        `${memberCount} — deactivate ${over} ` +
+        `${over === 1 ? "member" : "members"} before checking out.${alternative}`,
+    );
+  }
+
   const prices = planPrices(env, plan);
   const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
     { price: prices.licensed, quantity: 1 },
     // Metered price: NO quantity — required for metered items (SPEC §9).
     { price: prices.metered },
   ];
+
+  // #523: NO extra-number line is added here, deliberately. Putting one on the
+  // session would make the win-back cost more than the button that opened it —
+  // "Come back on Starter, $39" arriving at Stripe as $44 — for a number the
+  // customer may be downgrading specifically to shed. The plan they clicked is
+  // the plan they are charged for, and the surplus is settled afterwards by the
+  // allowance claim, which holds rather than bills and lets them choose.
   // One-time $29 US-registration fee: only while the company owes registration
   // AND has never paid the fee — at most once per company, ever (SPEC §2, §9).
   if (owesRegistration && company.registration_fee_paid_at === null) {

@@ -814,9 +814,11 @@ export async function handleCheckoutCompleted(
       // customer may hold.
       included: plan ? PLAN_LIMITS[plan].numbers : null,
       // What this subscription actually bills for extras. A fresh checkout
-      // session carries no extra-number line today, so this is the write that
-      // finally clears the capacity a DEAD subscription left behind — spendable
-      // for free on the port and text-enablement paths until now.
+      // session carries no extra-number line — #523 decided against adding one,
+      // because it would make the win-back cost more than the button that opened
+      // it — so this is the write that finally clears the capacity a DEAD
+      // subscription left behind, spendable for free on the port and
+      // text-enablement paths until now.
       paidExtras: plan ? billedExtraQuantity(env, subscription, plan) : 0,
       expectedEpoch: capacityEpoch,
     });
