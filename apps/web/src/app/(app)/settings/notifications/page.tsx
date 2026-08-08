@@ -16,7 +16,26 @@ import {
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import {
+  isOnCallNow,
+  ON_CALL_SILENCE_CANCEL,
+  ON_CALL_SILENCE_CONFIRM,
+  onCallSilenceWarning,
+} from "@loonext/shared";
+import { useState } from "react";
+
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ApiError } from "@/lib/api/error";
+import { useMe } from "@/lib/api/me";
+import { useOnCallShifts } from "@/lib/api/on-call";
 import {
   useNotificationPrefs,
   useUpdateNotificationPrefs,
@@ -30,8 +49,32 @@ import {
 export default function NotificationsSettingsPage() {
   const prefs = useNotificationPrefs();
   const update = useUpdateNotificationPrefs();
+  // #538 (audit): am I the one holding the phone right now?
+  //
+  // A crew nominates somebody on call, and unclaimed leads page that person. If
+  // they switch push off — reasonable on an ordinary evening — the pages still
+  // fire and reach nothing, and nobody else is told. The customer texted, nobody
+  // answered, and the first anyone hears is the customer going elsewhere.
+  const shifts = useOnCallShifts();
+  const me = useMe();
+  const onCall = isOnCallNow(shifts.data ?? [], me.data?.user_id ?? "");
+  const [silencing, setSilencing] = useState<"email_enabled" | "push_enabled" | null>(
+    null,
+  );
 
   function toggle(key: "email_enabled" | "push_enabled", value: boolean) {
+    if (!prefs.data) return;
+    // Warn, do not refuse. Somebody who wants a quiet phone is entitled to one,
+    // and a product that says no is one people work around by turning the phone
+    // off — which is worse, because then we cannot tell.
+    if (onCall && !value) {
+      setSilencing(key);
+      return;
+    }
+    save(key, value);
+  }
+
+  function save(key: "email_enabled" | "push_enabled", value: boolean) {
     if (!prefs.data) return;
     update.mutate(
       { ...prefs.data, [key]: value },
@@ -47,6 +90,43 @@ export default function NotificationsSettingsPage() {
   }
 
   return (
+    <>
+    {/* #538 (audit): the one high-stakes switch on this screen that said nothing.
+        Every other irreversible-ish action in settings already named its
+        consequence; going quiet while on call did not, and it is the one where
+        silence IS the failure. */}
+    <Dialog
+      open={silencing !== null}
+      onOpenChange={(open) => !open && setSilencing(null)}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>You&apos;re on call</DialogTitle>
+          <DialogDescription>
+            {onCallSilenceWarning(
+              true,
+              true,
+              silencing === "push_enabled" ? "push" : "email",
+            )}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setSilencing(null)}>
+            {ON_CALL_SILENCE_CANCEL}
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => {
+              const key = silencing;
+              setSilencing(null);
+              if (key) save(key, false);
+            }}
+          >
+            {ON_CALL_SILENCE_CONFIRM}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     <SettingsPage
       title="Notifications"
       description="How you hear about customer texts, missed calls, and teammates who need you. These are your settings; teammates set their own."
@@ -157,5 +237,6 @@ export default function NotificationsSettingsPage() {
         </div>
       )}
     </SettingsPage>
+    </>
   );
 }

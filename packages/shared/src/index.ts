@@ -836,3 +836,12 @@ export {
   SELF_DOWNGRADE_REQUIRED_MESSAGE,
   selfDowngradeWarning,
 } from "./self-downgrade";
+
+// #538 (audit): going quiet while you are the one on call. The pages still fire
+// and reach nothing, and nobody else is told.
+export {
+  isOnCallNow,
+  ON_CALL_SILENCE_CANCEL,
+  ON_CALL_SILENCE_CONFIRM,
+  onCallSilenceWarning,
+} from "./on-call-notifications";
