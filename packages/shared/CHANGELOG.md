@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.1](https://github.com/BytechLabs/Texturion/compare/shared-v0.11.0...shared-v0.11.1) (2026-08-08)
+
+
+### Bug Fixes
+
+* **contacts:** show every contact on the phone, not the first fifty ([094ceef](https://github.com/BytechLabs/Texturion/commit/094ceefb2a4f050cd11c3bbc11a63468ed806d79)), closes [#547](https://github.com/BytechLabs/Texturion/issues/547)
+* **inbox:** make Reset in the filter menu actually reset ([3bf6ba6](https://github.com/BytechLabs/Texturion/commit/3bf6ba673b0f17b4687a35a4c84ecfaf903ea99e)), closes [#548](https://github.com/BytechLabs/Texturion/issues/548)
+
 ## [0.11.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.10.0...shared-v0.11.0) (2026-08-08)
 
 

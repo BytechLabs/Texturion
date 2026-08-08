@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/BytechLabs/Texturion/compare/ios-v0.12.0...ios-v0.12.1) (2026-08-08)
+
+
+### Bug Fixes
+
+* **contacts:** show every contact on the phone, not the first fifty ([094ceef](https://github.com/BytechLabs/Texturion/commit/094ceefb2a4f050cd11c3bbc11a63468ed806d79)), closes [#547](https://github.com/BytechLabs/Texturion/issues/547)
+
 ## [0.12.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.11.0...ios-v0.12.0) (2026-08-08)
 
 
