@@ -19,6 +19,12 @@ final class ColorLiteralLintTests: XCTestCase {
     /// decision. "Add it to the list" is how a lint stops linting, so an entry
     /// has to be a claim of that kind and not a convenience.
     private let allowed: [String: String] = [
+        "Features/Compose/PhotoMarkupSheet.swift":
+            "the mark drawn ON a photo is not a theme colour: it has to be the SAME "
+            + "red on all three clients, so it lives in the shared markup module "
+            + "and is ported to `PhotoMarkup.ink`. It never adapts to light or dark "
+            + "either, because it is painted into the customer's picture rather "
+            + "than onto our interface.",
         "Features/Inbox/InboxTab.swift":
             "the tag colour arrives from the server as a hex string a person picked "
             + "in the product; `Color(hex: parsed)` renders what they chose, and "
