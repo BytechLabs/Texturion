@@ -34,7 +34,17 @@ extension Error {
     ///
     /// Word for word the same as the Android twin in `ui/common/Ui.kt`.
     var userMessage: String {
-        if let api = self as? ApiError { return api.message }
+        if let api = self as? ApiError {
+            // #555: a 500 carries the server's own reference, and saying it is what
+            // makes "something went wrong" a report somebody can act on rather than
+            // a shrug. Only on an internal error: a 422 explaining which field is
+            // wrong needs no reference, and appending one to every refusal would be
+            // noise on the copy that is already doing its job.
+            if let reference = api.requestId, api.httpStatus >= 500 {
+                return "\(api.message) Reference \(reference)."
+            }
+            return api.message
+        }
         if self is ApiDecodeError {
             return "This didn't load. It's a problem on our side, not something "
                 + "you did. If there's an app update, that usually fixes it."

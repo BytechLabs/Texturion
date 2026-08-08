@@ -9,7 +9,23 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ErrorEnvelope(val error: ErrorBody) {
     @Serializable
-    data class ErrorBody(val code: String, val message: String)
+    data class ErrorBody(
+        val code: String,
+        val message: String,
+        /**
+         * #555: the Cloudflare ray the server already puts on a 500, and which
+         * every client dropped.
+         *
+         * `apps/api/src/http/errors.ts` has been sending it for as long as the
+         * envelope has existed. Without it a real server error and a response this
+         * build could not decode are indistinguishable on a phone — the 500's
+         * message is the literal string "Something went wrong.", the same words the
+         * decode fallback used — so the founder reported two different bugs (#549,
+         * #551) as one symptom, and neither report could carry the one identifier
+         * that finds the failure in the logs.
+         */
+        val request_id: String? = null,
+    )
 }
 
 /** Structural codes the client branches on (never sniff messages). */
@@ -56,6 +72,8 @@ class ApiException(
     val code: String,
     override val message: String,
     val httpStatus: Int,
+    /** #555: the server's own reference for this failure, when it sent one. */
+    val requestId: String? = null,
 ) : Exception(message)
 
 /**

@@ -5,6 +5,17 @@ struct ErrorEnvelope: Decodable {
     struct Body: Decodable {
         let code: String
         let message: String
+        /// #555: the Cloudflare ray the server already puts on a 500, and which
+        /// every client dropped.
+        ///
+        /// `apps/api/src/http/errors.ts` has been sending it for as long as the
+        /// envelope has existed. Without it a real server error and a response this
+        /// build could not decode are indistinguishable on a phone — the 500's
+        /// message is the literal string "Something went wrong.", the same words
+        /// the decode fallback used — so the founder reported two different bugs
+        /// (#549, #551) as one symptom, and neither report could carry the one
+        /// identifier that finds the failure in the logs.
+        let request_id: String?
     }
 
     let error: Body
@@ -44,6 +55,8 @@ struct ApiError: Error, LocalizedError {
     let code: String
     let message: String
     let httpStatus: Int
+    /// #555: the server's own reference for this failure, when it sent one.
+    var requestId: String? = nil
 
     var errorDescription: String? { message }
 }

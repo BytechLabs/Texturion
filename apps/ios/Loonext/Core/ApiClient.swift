@@ -220,11 +220,21 @@ actor ApiClient {
             // can quote a customer's number back at them ("+1... has opted
             // out"), so a message on a screen somebody screenshots and sends us
             // is a leak waiting for the right error.
-            DiagnosticsLog.record(.api, "request_failed", detail: "\(code) \(status)")
+            // #555: and the server's own reference, which is not customer content
+            // and is the only thing that finds this failure in the logs.
+            let requestId = parsed?.error.request_id
+            DiagnosticsLog.record(
+                .api,
+                "request_failed",
+                detail: [code, "\(status)", requestId]
+                    .compactMap { $0 }
+                    .joined(separator: " ")
+            )
             throw ApiError(
                 code: code,
                 message: parsed?.error.message ?? "Something went wrong (\(status)).",
-                httpStatus: status
+                httpStatus: status,
+                requestId: requestId
             )
         }
     }

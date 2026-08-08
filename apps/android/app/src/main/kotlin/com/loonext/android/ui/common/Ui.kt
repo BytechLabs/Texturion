@@ -58,6 +58,13 @@ sealed interface LoadState<out T> {
  * directions to a door they cannot see.
  */
 fun Throwable.userMessage(): String = when {
+    // #555: a 500 carries the server's own reference, and saying it is what makes
+    // "something went wrong" a report somebody can act on rather than a shrug.
+    // Only on an internal error: a 422 explaining which field is wrong needs no
+    // reference, and appending one to every refusal would be noise on the copy
+    // that is already doing its job.
+    this is ApiException && requestId != null && httpStatus >= 500 ->
+        "$message Reference $requestId."
     this is ApiException -> message
     this is ApiDecodeException ->
         "This didn't load. It's a problem on our side, not something you did. " +

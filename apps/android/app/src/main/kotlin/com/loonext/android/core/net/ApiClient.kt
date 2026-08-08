@@ -288,11 +288,17 @@ class ApiClient(
             // which makes it the one place a recent-errors ring can be filled
             // without asking three hundred call sites to remember. The path
             // goes in with the status: "500" alone cannot be looked up.
-            RecentErrors.record("$label $status $code".trim())
+            val requestId = parsed?.error?.request_id
+            // #555: the reference goes in the ring too, so the line the support
+            // email carries is the line that finds the failure in the logs.
+            RecentErrors.record(
+                listOfNotNull(label, "$status", code, requestId).joinToString(" ").trim(),
+            )
             throw ApiException(
                 code = code,
                 message = parsed?.error?.message ?: "Something went wrong ($status).",
                 httpStatus = status,
+                requestId = requestId,
             )
         }
     }
