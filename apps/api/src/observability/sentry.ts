@@ -21,6 +21,30 @@ export function redactPhones(text: string): string {
   return text.replace(PHONE_PATTERN, PHONE_REDACTED);
 }
 
+/**
+ * #558 — path segments that ARE a secret. Twin of TOKEN_PATH_PREFIXES in
+ * apps/web/src/lib/observability/scrub.ts, duplicated rather than shared for the
+ * reason recorded there, and asserted identical by that file's test.
+ *
+ * D75's public links carry the token in the PATH, so cutting at `?` leaves the
+ * secret intact. This Worker serves `GET /photos/:token` itself, so an error on
+ * that route would have put the live token in Sentry.
+ *
+ * Enumerated, not sniffed: a heuristic that misjudged a token would send it in
+ * full, which is the wrong direction to be wrong in.
+ */
+export const TOKEN_PATH_PREFIXES = ["photos", "invite"] as const;
+const TOKEN_REDACTED = "[token]";
+const TOKEN_SEGMENT_PATTERN = new RegExp(
+  `/(${TOKEN_PATH_PREFIXES.join("|")})/[^/?#]+`,
+  "g",
+);
+
+/** `/photos/<256 bits of secret>` → `/photos/[token]`. */
+export function redactTokenPaths(text: string): string {
+  return text.replace(TOKEN_SEGMENT_PATTERN, `/$1/${TOKEN_REDACTED}`);
+}
+
 /** Keys that carry a person's name: `name`, `*_name`, `*-name`, `*Name`. */
 function isNameKey(key: string): boolean {
   return /(?:^|[_-])name$|[a-z0-9]Name$/.test(key);
@@ -125,10 +149,14 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent {
     if (event.request.url) {
       // Deleting `query_string` above doesn't touch the full URL, which embeds
       // the SAME params (search terms, addresses, destination numbers). Keep
-      // only origin + path, then phone-redact what remains.
+      // only origin + path, then redact secret path segments (#558: this Worker
+      // serves GET /photos/:token, so the path itself can be the secret), then
+      // phone-redact what remains.
       const url = event.request.url;
       const cut = url.search(/[?#]/);
-      event.request.url = redactPhones(cut === -1 ? url : url.slice(0, cut));
+      event.request.url = redactPhones(
+        redactTokenPaths(cut === -1 ? url : url.slice(0, cut)),
+      );
     }
     if (event.request.headers) {
       event.request.headers = scrubHeaders(

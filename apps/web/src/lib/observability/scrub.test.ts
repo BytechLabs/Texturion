@@ -2,11 +2,18 @@ import { ATTRIBUTION_PARAMS, sanitizeAttributionValue } from "@loonext/shared";
 import type { ErrorEvent } from "@sentry/browser";
 import { describe, expect, it } from "vitest";
 
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import {
   redactPhones,
+  redactTokenPaths,
   scrubBreadcrumb,
   scrubEvent,
+  scrubUrl,
   stripQueryAndHash,
+  TOKEN_PATH_PREFIXES,
+  TOKEN_REDACTED,
 } from "./scrub";
 
 const PHONE = "+14165551234";
@@ -275,5 +282,141 @@ describe("stripQueryAndHash (shared with lib/analytics/posthog.ts)", () => {
     expect(stripQueryAndHash("/inbox?q=Jane#top")).toBe("/inbox");
     expect(stripQueryAndHash("https://x.test/p#frag")).toBe("https://x.test/p");
     expect(stripQueryAndHash("/contacts")).toBe("/contacts");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #558 — a path segment that IS the secret
+// ---------------------------------------------------------------------------
+
+/** A token the shape D75 actually mints: 256 bits, base64url. */
+const TOKEN = "8Jd-2xQvKpR7nT4bYwZ0aLmS1cVgH6eU9iF3oXrB5kA";
+
+describe("#558 tokenised paths never leave in full", () => {
+  it("redacts the segment after each token-bearing prefix", () => {
+    expect(redactTokenPaths(`/photos/${TOKEN}`)).toBe("/photos/[token]");
+    expect(redactTokenPaths(`/invite/${TOKEN}`)).toBe("/invite/[token]");
+  });
+
+  it("redacts inside an absolute URL, which is what $current_url is", () => {
+    expect(redactTokenPaths(`https://loonext.com/photos/${TOKEN}`)).toBe(
+      "https://loonext.com/photos/[token]",
+    );
+  });
+
+  it("survives the whole scrubUrl pipeline, query string and all", () => {
+    // This is the exact value PostHog was sent on every view of a shared link.
+    expect(scrubUrl(`https://loonext.com/photos/${TOKEN}?utm_source=sms`)).toBe(
+      "https://loonext.com/photos/[token]?utm_source=sms",
+    );
+  });
+
+  it("leaves the prefix alone when there is no token after it", () => {
+    expect(redactTokenPaths("/photos")).toBe("/photos");
+    expect(redactTokenPaths("/photos/")).toBe("/photos/");
+  });
+
+  it("does not eat a path that merely contains the word", () => {
+    expect(redactTokenPaths("/inbox/job-photos-guide")).toBe(
+      "/inbox/job-photos-guide",
+    );
+  });
+
+  it("keeps anything after the token, redacting only the secret", () => {
+    expect(redactTokenPaths(`/photos/${TOKEN}/download`)).toBe(
+      "/photos/[token]/download",
+    );
+  });
+
+  it("redacts a token that opens with a phone-shaped digit run", () => {
+    // Why tokens are redacted BEFORE phones: the phone pattern would have eaten
+    // the leading digits and left the rest of the secret, which is a partial
+    // redaction that reads like a finished one.
+    const digitFirst = `4165551234${TOKEN}`;
+    expect(scrubUrl(`/photos/${digitFirst}`)).toBe("/photos/[token]");
+  });
+
+  it("reaches PostHog's properties, not only Sentry's request.url", () => {
+    // $current_url and $pathname both go through scrubUnknown → scrubUrl, so
+    // one fix covers both vendors. That is the claim; this is the check.
+    const event = scrubEvent({
+      extra: {
+        $current_url: `https://loonext.com/photos/${TOKEN}`,
+        $pathname: `/photos/${TOKEN}`,
+      },
+    } as unknown as ErrorEvent);
+    expect(JSON.stringify(event.extra)).not.toContain(TOKEN);
+    expect(event.extra?.$pathname).toBe("/photos/[token]");
+  });
+});
+
+describe("#558 the prefix list cannot go stale", () => {
+  /**
+   * Derived from the filesystem, because a hand-written list is exactly what
+   * went wrong: `/photos/[token]` shipped and nobody added a rule for it. Three
+   * more tokenised links are already queued behind the same primitive (quotes,
+   * payment, calendar feed), so the next one has to fail here rather than in
+   * a vendor's dashboard.
+   */
+  const APP_DIR = join(__dirname, "../../app");
+
+  /** Every route whose URL contains a `[token]` segment, as URL path prefixes. */
+  function tokenRoutePrefixes(dir: string, urlPath: string[] = []): string[] {
+    const found: string[] = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const name = entry.name;
+      if (name === "[token]") {
+        // The segment BEFORE [token] is what identifies the link type.
+        const parent = urlPath[urlPath.length - 1];
+        if (parent !== undefined) found.push(parent);
+        continue;
+      }
+      // A route group — (app), (marketing) — is not part of the URL.
+      const isGroup = name.startsWith("(") && name.endsWith(")");
+      found.push(
+        ...tokenRoutePrefixes(
+          join(dir, name),
+          isGroup ? urlPath : [...urlPath, name],
+        ),
+      );
+    }
+    return found;
+  }
+
+  it("finds the routes it is supposed to be checking", () => {
+    // Loud rather than vacuous: a walk that found nothing would pass the next
+    // test by default and read exactly like a clean bill of health.
+    const found = tokenRoutePrefixes(APP_DIR);
+    expect(found.length).toBeGreaterThan(0);
+    expect(found).toContain("photos");
+  });
+
+  it("has a redaction rule for every [token] route on disk", () => {
+    for (const prefix of tokenRoutePrefixes(APP_DIR)) {
+      expect(
+        TOKEN_PATH_PREFIXES as readonly string[],
+        `app/**/${prefix}/[token] has no redaction rule — its token would be sent to PostHog and Sentry in full. Add "${prefix}" to TOKEN_PATH_PREFIXES in scrub.ts AND in apps/api/src/observability/sentry.ts.`,
+      ).toContain(prefix);
+    }
+  });
+
+  it("matches the Worker twin, which serves these paths too", () => {
+    // The two scrubbers are documented as twins and the drift between them is
+    // documented as "known" — a comment, which is why it drifted. The Worker
+    // answers GET /photos/:token itself, so its list is not optional.
+    const worker = readFileSync(
+      join(__dirname, "../../../../api/src/observability/sentry.ts"),
+      "utf8",
+    );
+    const declared = /TOKEN_PATH_PREFIXES = \[([^\]]*)\]/.exec(worker);
+    expect(declared, "the Worker no longer declares TOKEN_PATH_PREFIXES").not
+      .toBeNull();
+    const workerPrefixes = (declared?.[1] ?? "")
+      .split(",")
+      .map((raw) => raw.trim().replace(/^"|"$/g, ""))
+      .filter((raw) => raw !== "");
+    expect(workerPrefixes).toEqual([...TOKEN_PATH_PREFIXES]);
+    expect(TOKEN_REDACTED).toBe("[token]");
   });
 });

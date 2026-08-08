@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 import { captureFirstTouch } from "@/lib/marketing/first-touch";
+import { redactTokenPaths } from "@/lib/observability/scrub";
 
 /**
  * #296 — remembers which page a visitor FIRST landed on.
@@ -31,11 +32,16 @@ import { captureFirstTouch } from "@/lib/marketing/first-touch";
  */
 export function FirstTouchCapture() {
   useEffect(() => {
-    captureFirstTouch(
-      window.location.pathname,
-      window.location.search,
-      document.referrer,
-    );
+    // #558: never write a secret path into storage. A shared photo link's token
+    // IS its path, and this keeps a landing path for 30 days — so a homeowner
+    // who opened a link would carry the live token in their browser long after
+    // the crew revoked it. It is their own token in their own browser, and the
+    // host split means it never reached our database, so this is the mild half
+    // of #558 — but it is the same one-line class of mistake, and a landing page
+    // that is a secret is not attribution data in the first place.
+    const path = window.location.pathname;
+    if (path !== redactTokenPaths(path)) return;
+    captureFirstTouch(path, window.location.search, document.referrer);
   }, []);
 
   return null;

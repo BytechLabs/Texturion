@@ -1,8 +1,18 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import type { ErrorEvent } from "@sentry/cloudflare";
 import { describe, expect, it } from "vitest";
 
 import { completeEnv } from "../test/support";
-import { redactPhones, scrubBreadcrumb, scrubEvent, sentryOptions } from "./sentry";
+import {
+  redactPhones,
+  redactTokenPaths,
+  scrubBreadcrumb,
+  scrubEvent,
+  sentryOptions,
+  TOKEN_PATH_PREFIXES,
+} from "./sentry";
 
 const PHONE = "+14165551234";
 
@@ -195,5 +205,63 @@ describe("sentryOptions", () => {
   it("refuses a local marker that is not exactly the documented value", () => {
     // A typo must not read as "somewhat local" and quietly disable reporting.
     expect(() => sentryOptions({ ...completeEnv(), LOCAL_DEV: "true" })).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #558 — this Worker serves GET /photos/:token, so the path IS the secret
+// ---------------------------------------------------------------------------
+
+/** A token the shape D75 actually mints: 256 bits, base64url. */
+const SHARE_TOKEN = "8Jd-2xQvKpR7nT4bYwZ0aLmS1cVgH6eU9iF3oXrB5kA";
+
+describe("#558 a tokenised path never reaches Sentry in full", () => {
+  it("redacts the segment after each declared prefix", () => {
+    expect(redactTokenPaths(`/photos/${SHARE_TOKEN}`)).toBe("/photos/[token]");
+    expect(redactTokenPaths(`/invite/${SHARE_TOKEN}`)).toBe("/invite/[token]");
+  });
+
+  it("scrubs request.url on the route this Worker actually answers", () => {
+    // An error inside GET /photos/:token used to put the live token in Sentry,
+    // where it stays after the crew revokes the link.
+    const event = scrubEvent({
+      request: { url: `https://api.loonext.com/photos/${SHARE_TOKEN}` },
+    } as ErrorEvent);
+    expect(event.request?.url).toBe("https://api.loonext.com/photos/[token]");
+    expect(JSON.stringify(event)).not.toContain(SHARE_TOKEN);
+  });
+
+  it("redacts a token that opens with a phone-shaped digit run", () => {
+    // Why tokens go before phones: the phone pattern would eat the leading
+    // digits and leave the rest of the secret — a partial redaction that reads
+    // like a finished one.
+    const event = scrubEvent({
+      request: { url: `https://api.loonext.com/photos/4165551234${SHARE_TOKEN}` },
+    } as ErrorEvent);
+    expect(event.request?.url).toBe("https://api.loonext.com/photos/[token]");
+  });
+
+  it("leaves a prefix with no token after it alone", () => {
+    expect(redactTokenPaths("/photos")).toBe("/photos");
+    expect(redactTokenPaths("/inbox/job-photos-guide")).toBe(
+      "/inbox/job-photos-guide",
+    );
+  });
+
+  it("covers every public token route this Worker mounts", () => {
+    // Derived from the router rather than restated: a new public `:token` route
+    // with no redaction rule fails here instead of in a vendor's dashboard.
+    const source = readFileSync(join(__dirname, "../routes/job-photos.ts"), "utf8");
+    const mounted = [...source.matchAll(/\.get\(\s*"\/([a-z0-9-]+)\/:token"/g)].map(
+      (match) => match[1],
+    );
+    expect(mounted, "no public :token route found — this guard lost its subject")
+      .not.toHaveLength(0);
+    for (const prefix of mounted) {
+      expect(
+        TOKEN_PATH_PREFIXES as readonly string[],
+        `GET /${prefix}/:token has no redaction rule — its token would reach Sentry in full (#558)`,
+      ).toContain(prefix);
+    }
   });
 });

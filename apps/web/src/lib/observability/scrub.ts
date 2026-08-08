@@ -107,9 +107,48 @@ export function stripQueryAndHash(url: string): string {
   return suffix === "" ? base : `${base}?${suffix}`;
 }
 
-/** Full URL treatment: cut at `?`/`#`, then redact phone-shaped path segments. */
+/**
+ * #558 — path segments that ARE a secret, so the path cannot be sent as-is.
+ *
+ * D75's public links carry a 256-bit token in the URL PATH, not the query, so
+ * `stripQueryAndHash` above never touched them: opening a shared job-photos link
+ * sent the token itself to PostHog as `$current_url` and `$pathname`, on every
+ * view, retained by a third party. D75's second rule is that the plaintext is
+ * returned once and never stored.
+ *
+ * An enumerated list, deliberately, not an entropy or length test. A classifier
+ * here would be a threshold nobody could defend, and it would be wrong in the
+ * direction that matters — a token it judged ordinary would be sent in full. The
+ * vocabulary is small, knowable, and checked against the filesystem by
+ * `scrub.test.ts`, which fails when a new `[token]` route has no rule here.
+ *
+ * Duplicated in the Worker's twin (apps/api/src/observability/sentry.ts) for the
+ * same reason ATTRIBUTION_PARAMS is, and asserted identical by the same test.
+ */
+export const TOKEN_PATH_PREFIXES = ["photos", "invite"] as const;
+export const TOKEN_REDACTED = "[token]";
+
+const TOKEN_SEGMENT_PATTERN = new RegExp(
+  `/(${TOKEN_PATH_PREFIXES.join("|")})/[^/?#]+`,
+  "g",
+);
+
+/** `/photos/<256 bits of secret>` → `/photos/[token]`. */
+export function redactTokenPaths(url: string): string {
+  return url.replace(TOKEN_SEGMENT_PATTERN, `/$1/${TOKEN_REDACTED}`);
+}
+
+/**
+ * Full URL treatment: cut at `?`/`#`, redact secret path segments, then redact
+ * phone-shaped ones.
+ *
+ * Tokens before phones on purpose. A base64url token can open with a ten-digit
+ * run, and the phone pattern would then eat only that much of it and leave the
+ * rest of the secret in place — a partial redaction that reads like a complete
+ * one.
+ */
 export function scrubUrl(url: string): string {
-  return redactPhones(stripQueryAndHash(url));
+  return redactPhones(redactTokenPaths(stripQueryAndHash(url)));
 }
 
 /**
