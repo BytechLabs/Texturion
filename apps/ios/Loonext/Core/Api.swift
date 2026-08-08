@@ -86,6 +86,30 @@ struct ForYouApi: Sendable {
         try await api.get("/v1/reports/satisfaction?days=\(days)", companyId: companyId)
     }
 
+    /// #288: has this crew earned the referral ask?
+    ///
+    /// Its own read, and a cheap one — five facts and a decision the server has
+    /// already made. Behind `billing.manage` like the rest of the referrals
+    /// router, so the caller checks the capability before asking rather than
+    /// collecting a 403 on every trip through the home screen.
+    func referralMoment(companyId: String) async throws -> ReferralMoment {
+        try await api.get("/v1/referrals/moment", companyId: companyId)
+    }
+
+    /// #288: the link itself, read only once the owner has said yes to being
+    /// asked. Most trips through the home screen never need it.
+    func referrals(companyId: String) async throws -> ReferralsView {
+        try await api.get("/v1/referrals", companyId: companyId)
+    }
+
+    /// #288: "Not now."
+    ///
+    /// 204 No Content, so nothing is decoded — a typed `post` would throw on the
+    /// empty body of a SUCCESSFUL call, the same trap `dismissWinback` documents.
+    func dismissReferralAsk(companyId: String) async throws {
+        _ = try await api.raw("POST", "/v1/referrals/dismiss", companyId: companyId)
+    }
+
     /// #354: quoted, won, still out. Its own read for the same reason the
     /// response time above is — it answers "how are we doing" rather than "what
     /// needs doing", and folding it into the queue would refetch everything.

@@ -1,4 +1,8 @@
-import { REFERRAL_REWARDS_PER_YEAR, referralStage } from "@loonext/shared";
+import {
+  REFERRAL_REWARDS_PER_YEAR,
+  referralAskDecision,
+  referralStage,
+} from "@loonext/shared";
 import { Hono } from "hono";
 
 import { requireCapability } from "../auth/company";
@@ -89,4 +93,86 @@ referralRoutes.get("/", async (c) => {
     // as a bug; a cap on the screen reads as a rule.
     reward_cap_per_year: REFERRAL_REWARDS_PER_YEAR,
   });
+});
+
+/**
+ * #288 — GET /v1/referrals/moment: has this crew earned the ask?
+ *
+ * THE ASK USED TO HAVE NO MOMENT AT ALL. The link sat on the billing screen from
+ * the day a workspace signed up, which means the only time most owners would ever
+ * have seen it was the one time #288 says never to ask: before the product had
+ * done anything for them. "Asking at signup is asking someone to vouch for
+ * something they have not used, which costs credibility and converts badly."
+ *
+ * BEHIND THE SAME `billing.manage` GATE as the rest of this router, and that is
+ * about honesty rather than permissions. The reward is a month off the invoice, so
+ * a tech who cannot see the invoice cannot collect it — offering them one would be
+ * an offer we have no way to keep.
+ *
+ * The DECISION is `referralAskDecision` in packages/shared, not here. Three
+ * clients render this and none of them may disagree about when an owner gets
+ * asked for a favour.
+ */
+referralRoutes.get("/moment", async (c) => {
+  const env = getEnv(c.env);
+  const db = getDb(env);
+
+  const { data, error } = await db.rpc("api_referral_ask_facts", {
+    p_company_id: c.get("companyId"),
+    p_now: new Date().toISOString(),
+  });
+  if (error) {
+    throw new Error(`api_referral_ask_facts failed: ${error.message}`);
+  }
+  const facts = data as {
+    activated: boolean;
+    activated_at: string | null;
+    replied_customers: number | string;
+    dismissed_at: string | null;
+    rewards_this_year: number | string;
+  } | null;
+
+  // No row means the workspace is gone. Not asking is the only sane reading,
+  // and it is the same answer the decision function would give.
+  if (!facts) return c.json({ ask: false, refusal: "not_activated" });
+
+  const decision = referralAskDecision(
+    {
+      activated: facts.activated === true,
+      activatedAt: facts.activated_at,
+      // count(*) comes back from PostgREST as a string on bigint. Number()
+      // rather than trusting the shape: a "20" compared against 20 with < is
+      // a comparison that quietly always passes.
+      repliedCustomers: Number(facts.replied_customers ?? 0),
+      dismissedAt: facts.dismissed_at,
+      rewardsThisYear: Number(facts.rewards_this_year ?? 0),
+      rewardCap: REFERRAL_REWARDS_PER_YEAR,
+    },
+    new Date(),
+  );
+
+  return c.json(decision);
+});
+
+/**
+ * #288 — POST /v1/referrals/dismiss: "Not now."
+ *
+ * 204, and no body either way. A prompt somebody is putting away is not worth a
+ * payload, and the client has already removed the card by the time this lands —
+ * making it wait on a response would make saying no feel slower than saying yes.
+ *
+ * The stamp is unconditional rather than guarded on being null. Every press is
+ * the most recent answer, and the quiet period counts from the LAST one: an owner
+ * who dismisses again after a quarter has said no twice, and should not be asked
+ * again on the strength of the first refusal having expired.
+ */
+referralRoutes.post("/dismiss", async (c) => {
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  const { error } = await db
+    .from("companies")
+    .update({ referral_prompt_dismissed_at: new Date().toISOString() })
+    .eq("id", c.get("companyId"));
+  if (error) throw new Error(`referral dismissal failed: ${error.message}`);
+  return c.body(null, 204);
 });

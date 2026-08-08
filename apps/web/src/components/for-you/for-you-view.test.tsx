@@ -94,6 +94,16 @@ vi.mock("@/lib/api/calls", () => ({
     isError: false,
   }),
 }));
+// #288: the referral ask reads a moment the server decides. Stubbed to "not
+// now" for the whole suite — this file is about the queue, and a card that only
+// appears for a workspace with a month of real traffic behind it has nothing to
+// say about any of these cases. The one test that cares asserts it directly, in
+// referral-ask.test.tsx.
+vi.mock("@/lib/api/billing", () => ({
+  useReferralMoment: () => ({ data: { ask: false, refusal: "too_new" } }),
+  useReferrals: () => ({ data: undefined }),
+  useDismissReferralAsk: () => ({ mutate: vi.fn() }),
+}));
 vi.mock("@/components/notifications/notification-bell", () => ({
   NotificationBell: () => null,
 }));

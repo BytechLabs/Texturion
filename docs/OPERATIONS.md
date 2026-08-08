@@ -73,6 +73,7 @@ reliable defence.
 | `retention-report.mjs` | Is week-4 retention above D12's 85% floor? (#327) | Read-only. **Withholds the verdict** on a thin cohort rather than showing a rate nobody should act on |
 | `rcs-session-model.mjs` | Would RCS Conversational's per-session billing beat per-segment SMS? (#450) | Read-only. Folds real traffic into rolling 24h sessions and prints break-even across plausible multipliers. **Withholds the verdict** below 200 sessions |
 | `attribution-report.mjs` | Which marketing page produces customers — and is a new competitor page worth writing? (#296) | Read-only. Ranks on **activations**, not signups, using D12's definition. States coverage **above** the table, reports unattributed signups as their own row rather than dropping them, and refuses to rank a page below the cohort floor |
+| `referral-report.mjs` | Is word of mouth actually a channel, and what has it cost? (#288) | Read-only. Counts the whole funnel — recorded, earned (D12 activation, not signup), and each side's month issued — plus the free months given away and the referrers who are **owed and unpaid** because their plan is paused or cancelled. Prints counts always and rates only past the floor, and says when a list is truncated |
 
 ### The one promise that needs saying out loud
 

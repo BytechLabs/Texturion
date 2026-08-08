@@ -39,6 +39,7 @@ import { formatRelativeTime } from "@/lib/format/time";
 import { CustomiseDashboard } from "@/components/for-you/customise-dashboard";
 import { LeadSourcesCard } from "@/components/for-you/lead-sources-card";
 import { PipelineCard } from "@/components/for-you/pipeline-card";
+import { ReferralAsk } from "@/components/for-you/referral-ask";
 import { ResponseTimeCard } from "@/components/for-you/response-time-card";
 import { SatisfactionCard } from "@/components/for-you/satisfaction-card";
 import { WhileYouWait } from "@/components/for-you/while-you-wait";
@@ -1017,6 +1018,11 @@ function ForYouSections({
             as the queue: what needs doing leads, and "nothing does" is still the
             first thing to say. */}
         <Measures hidden={hidden} className={MEASURES_ROW} />
+        {/* #288: after the numbers, never before them. A caught-up morning with
+            a good month behind it is the best moment this product gets to ask
+            for a recommendation — and the ask still has to come second to the
+            work and to the owner's own results. */}
+        <ReferralAsk />
         {!hidden.includes("recent_calls") && <RecentCallsSection />}
       </div>
     );
@@ -1158,6 +1164,13 @@ function ForYouSections({
           business — the caught-up screen places the same four cards in a
           narrower shell. */}
       <Measures hidden={hidden} className={MEASURES_ROW + " lg:col-span-2 xl:col-span-3"} />
+
+      {/* #288: below the measures, for the same reason as on the caught-up
+          screen — the ask is earned by the numbers above it, and reading them
+          first is what makes it land as earned rather than as an interruption. */}
+      <div className="lg:col-span-2 xl:col-span-3">
+        <ReferralAsk />
+      </div>
 
       {/* #416/D53: shown to EVERY member, not owners and admins only. The
           company already pages the whole crew when a lead lands unclaimed, so

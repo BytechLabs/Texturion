@@ -214,6 +214,14 @@ fun BillingSection(
         ) {
             PortalButton(scope, label = "Manage payment & invoices")
         }
+        // #288/#399: the referral link, on the billing screen because the reward
+        // is a month off the invoice, and behind the same billing.manage gate for
+        // the same reason. Only on a plan we are told is running — a workspace
+        // with nothing to discount cannot be paid, and offering the month anyway
+        // would be an offer we already know we will not keep.
+        if (company.plan != null && company.subscriptionActive) {
+            ReferralCardSection(scope)
+        }
         if (company.subscriptionActive) {
             CancelCard(scope, company, onRefreshCompany, onOpenHelp, pause, onPauseChanged)
         }
@@ -222,6 +230,28 @@ fun BillingSection(
             ReadOnlyLine("Only owners and admins can change billing.")
         }
     }
+}
+
+/**
+ * #288/#399 — the referral card and the read behind it.
+ *
+ * Its own read rather than a field on the billing payload: `ensureReferralCode`
+ * MINTS a code the first time it is asked for, and putting that behind the boot
+ * read would mint one for every workspace that has ever opened settings. The
+ * first person who looks at this card gets one.
+ *
+ * Silent on failure, like the other conditional cards here. This is an offer,
+ * and a settings screen showing a broken panel looks like the settings are
+ * broken.
+ */
+@Composable
+private fun ReferralCardSection(scope: SettingsScope) {
+    val state = rememberCacheFirst(
+        cache = scope.graph.storeCache,
+        key = CacheKeys.referrals(scope.companyId),
+    ) { scope.graph.forYouRepo.referrals(scope.companyId) }
+    val view = (state as? LoadState.Ready)?.value ?: return
+    ReferralCard(view)
 }
 
 /** Open the hosted Stripe Billing Portal in the EXTERNAL browser. */

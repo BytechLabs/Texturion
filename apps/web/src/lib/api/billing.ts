@@ -132,6 +132,53 @@ export function useReferrals(enabled: boolean) {
   });
 }
 
+export interface ReferralMomentView {
+  ask: boolean;
+  /** Why not, when we are not asking. For us, never for the owner. */
+  refusal?: string;
+  /** The number the headline quotes. Present only when asking. */
+  customers?: number;
+}
+
+/**
+ * GET /v1/referrals/moment (#288) — has this crew earned the ask?
+ *
+ * `enabled` is the caller's, and it is `billing.manage`: the whole referrals
+ * router is behind that gate, so a member asking this would collect a 403 on
+ * every dashboard load for a card they were never going to be shown.
+ */
+export function useReferralMoment(enabled: boolean) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: [companyId, "referral-moment"],
+    queryFn: () =>
+      apiFetch<ReferralMomentView>("/v1/referrals/moment", { companyId }),
+    enabled,
+  });
+}
+
+/**
+ * POST /v1/referrals/dismiss (#288) — "Not now."
+ *
+ * The moment is set to `ask: false` in the cache rather than invalidated. An
+ * owner who has just put a card away should not watch it reappear for the length
+ * of a round trip.
+ */
+export function useDismissReferralAsk() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<void>("/v1/referrals/dismiss", { method: "POST", companyId }),
+    onMutate: () => {
+      queryClient.setQueryData<ReferralMomentView>(
+        [companyId, "referral-moment"],
+        { ask: false, refusal: "dismissed" },
+      );
+    },
+  });
+}
+
 /** GET /v1/billing/modules — the add-on catalog with each module's state. */
 export function useModules() {
   const companyId = useCompanyId();

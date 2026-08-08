@@ -155,6 +155,7 @@ const SUITES = [
   "ownership_codes",
   "work_phase",
   "referral_payout",
+  "referral_ask",
 ];
 
 const args = process.argv.slice(2);

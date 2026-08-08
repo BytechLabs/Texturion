@@ -423,3 +423,47 @@ data class PipelineReportResponse(
     val insight: String? = null,
     val stages: List<PipelineStageTag> = emptyList(),
 )
+
+// --- Referrals (#288/#399) ---
+
+/**
+ * #399 — this workspace's referral link, and what it has done.
+ *
+ * `link` is null when the server has no site origin configured; the code alone is
+ * still usable, and a broken URL that looks authoritative is not.
+ */
+@Serializable
+data class ReferralsView(
+    val code: String = "",
+    val link: String? = null,
+    val referrals: List<ReferralRow> = emptyList(),
+    val rewarded_this_year: Int = 0,
+    val reward_cap_per_year: Int = 0,
+)
+
+@Serializable
+data class ReferralRow(
+    val id: String = "",
+    val created_at: String = "",
+    /** invited | signed_up | active | rewarded | voided, from the shared rule. */
+    val stage: String = "invited",
+)
+
+/**
+ * #288 — whether this crew has earned the ask.
+ *
+ * The DECISION is the server's, made once by `referralAskDecision` in
+ * packages/shared, so the three clients cannot disagree about when an owner gets
+ * asked for a favour. This carries the answer and the number the headline quotes.
+ *
+ * `ask` defaults to false, which is the safe direction for a payload this app
+ * cannot parse: the cost of not asking is a month, and the cost of asking at the
+ * wrong moment is the credibility #288 exists to protect.
+ */
+@Serializable
+data class ReferralMoment(
+    val ask: Boolean = false,
+    /** Why not. For us, never shown to the owner. */
+    val refusal: String? = null,
+    val customers: Int = 0,
+)

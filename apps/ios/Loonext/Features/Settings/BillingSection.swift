@@ -183,6 +183,15 @@ struct BillingSectionView: View {
             ) {
                 PortalButton(scope: scope, label: "Manage payment & invoices")
             }
+            // #288/#399: the referral link, on the billing screen because the
+            // reward is a month off the invoice, and behind the same
+            // billing.manage gate for the same reason. Only on a plan we are told
+            // is running — a workspace with nothing to discount cannot be paid,
+            // and offering the month anyway would be an offer we already know we
+            // will not keep.
+            if company.plan != nil && company.subscriptionActive {
+                ReferralCardSection(scope: scope)
+            }
             if company.subscriptionActive {
                 CancelCard(
                     scope: scope,
@@ -261,6 +270,32 @@ private struct PortalButton: View {
 }
 
 // MARK: - Status notices
+
+/// #288/#399 — the referral card and the read behind it.
+///
+/// Its own read rather than a field on the billing payload: `ensureReferralCode`
+/// MINTS a code the first time it is asked for, and putting that behind the boot
+/// read would mint one for every workspace that has ever opened settings. The
+/// first person who looks at this card gets one.
+///
+/// Silent on failure, like the other conditional cards here. This is an offer, and
+/// a settings screen showing a broken panel looks like the settings are broken.
+private struct ReferralCardSection: View {
+    let scope: SettingsScope
+
+    @State private var view: ReferralsView?
+
+    var body: some View {
+        Group {
+            if let view {
+                ReferralCard(view: view)
+            }
+        }
+        .task(id: scope.companyId) {
+            view = try? await scope.graph.forYouApi.referrals(companyId: scope.companyId)
+        }
+    }
+}
 
 private struct StatusNotices: View {
     let scope: SettingsScope

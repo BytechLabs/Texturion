@@ -401,3 +401,40 @@ struct NotificationPrefs: Codable, Sendable {
     /// When the daily summary goes, in their own clock. Nil = no summary.
     var summary_at: String? = nil
 }
+
+// MARK: - Referrals (#288/#399)
+
+/// #399 — this workspace's referral link, and what it has done.
+///
+/// `link` is nil when the server has no site origin configured; the code alone is
+/// still usable, and a broken URL that looks authoritative is not.
+struct ReferralsView: Codable, Sendable {
+    var code: String = ""
+    var link: String? = nil
+    var referrals: [ReferralRow] = []
+    var rewarded_this_year: Int = 0
+    var reward_cap_per_year: Int = 0
+}
+
+struct ReferralRow: Codable, Sendable, Identifiable {
+    var id: String = ""
+    var created_at: String = ""
+    /// invited | signed_up | active | rewarded | voided, from the shared rule.
+    var stage: String = "invited"
+}
+
+/// #288 — whether this crew has earned the ask.
+///
+/// The DECISION is the server's, made once by `referralAskDecision` in
+/// packages/shared, so the three clients cannot disagree about when an owner gets
+/// asked for a favour. This carries the answer and the number the headline quotes.
+///
+/// `ask` defaults to false, which is the safe direction for a payload this build
+/// cannot parse: the cost of not asking is a month, and the cost of asking at the
+/// wrong moment is the credibility #288 exists to protect.
+struct ReferralMoment: Codable, Sendable {
+    var ask: Bool = false
+    /// Why not. For us, never shown to the owner.
+    var refusal: String? = nil
+    var customers: Int = 0
+}

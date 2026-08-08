@@ -21,18 +21,29 @@ import kotlin.coroutines.cancellation.CancellationException
  *
  * Bump [refreshKey] (realtime tick, pull-to-refresh, mutation) to revalidate;
  * the refresh is always silent when data is on screen.
+ *
+ * [enabled] holds the read back without moving it out of the composition. Two
+ * kinds of caller need that: one whose endpoint is behind a capability this
+ * member does not hold, where firing anyway means a 403 on every visit; and one
+ * whose data is only wanted after a press, where firing anyway means a request
+ * per screen load that nobody asked for (#288 is both). A disabled read reports
+ * [LoadState.Loading] and never fetches — the honest state for "we have not
+ * asked" — and flipping [enabled] true starts the fetch, because it is one of
+ * the effect's keys.
  */
 @Composable
 fun <T : Any> rememberCacheFirst(
     cache: StoreCache,
     key: String,
     refreshKey: Int = 0,
+    enabled: Boolean = true,
     fetch: suspend () -> T,
 ): LoadState<T> {
     val flow = remember(key) { cache.flowOf<T>(key) }
     val cached by flow.collectAsState()
     var firstError by remember(key) { mutableStateOf<String?>(null) }
-    LaunchedEffect(key, refreshKey) {
+    LaunchedEffect(key, refreshKey, enabled) {
+        if (!enabled) return@LaunchedEffect
         try {
             flow.value = fetch()
             firstError = null

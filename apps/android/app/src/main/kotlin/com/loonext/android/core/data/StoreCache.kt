@@ -68,6 +68,16 @@ object CacheKeys {
     fun pipeline(companyId: String, days: Int) = "pipeline/$companyId/$days"
 
     fun leadSources(companyId: String, days: Int) = "lead-sources/$companyId/$days"
+
+    /**
+     * #288: whether this crew has earned the referral ask. Unwindowed — the
+     * server decides the windows, and a client key that pretended otherwise
+     * would cache two answers to one question.
+     */
+    fun referralMoment(companyId: String) = "referral-moment/$companyId"
+
+    /** #288: the link itself, read only once somebody asks for it. */
+    fun referrals(companyId: String) = "referrals/$companyId"
     fun team(companyId: String) = "team/$companyId"
     fun numbers(companyId: String) = "numbers/$companyId"
     fun billing(companyId: String) = "billing/$companyId"

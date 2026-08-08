@@ -304,6 +304,50 @@ const SURFACES = [
   },
 ];
 
+/**
+ * Capabilities that live as a FILE inside an existing surface.
+ *
+ * WHY THIS SECOND REGISTRY EXISTS. The directory diff above says of itself that
+ * it "cannot prove a capability is IMPLEMENTED, only that somebody decided", and
+ * there is a whole class it cannot even see: a capability that is one card inside
+ * `settings/` on every client adds no directory anywhere, so all three could be
+ * missing it and this check would report perfect parity.
+ *
+ * #288 is that class, and it is the case that proved the gap: referrals shipped
+ * complete on the server, the reward paid out, and NEITHER PHONE had a referral
+ * surface at all. Nothing failed. Nothing could have.
+ *
+ * So a capability that lives in a file names its file on each client, and the
+ * same rule applies — a path, or a reason. Deliberately a short list rather than
+ * an inventory of every component: this is for capabilities a customer would
+ * name, where "web has it and the phones do not" is a defect rather than a
+ * layout decision.
+ */
+const FILES = [
+  {
+    key: "referrals",
+    // #288/#399 — the referral link, the editable draft and the OS share sheet.
+    // A card inside each client's settings surface rather than a feature of its
+    // own: the reward is a month off the invoice, so it belongs beside billing,
+    // and billing itself is already a section on the phones.
+    web: "apps/web/src/components/settings/referral-share.tsx",
+    android:
+      "apps/android/app/src/main/kotlin/com/loonext/android/features/settings/ReferralShareBlock.kt",
+    ios: "apps/ios/Loonext/Features/Settings/ReferralShareBlock.swift",
+  },
+  {
+    key: "referral-ask",
+    // #288 — the moment: the ask on the home surface once the product has
+    // demonstrably worked for this crew. Separate from the card above because
+    // they can be built independently, and on web one of them existed for
+    // months while the other did not.
+    web: "apps/web/src/components/for-you/referral-ask.tsx",
+    android:
+      "apps/android/app/src/main/kotlin/com/loonext/android/features/foryou/ReferralAskCard.kt",
+    ios: "apps/ios/Loonext/Features/ForYou/ReferralAskCard.swift",
+  },
+];
+
 let failures = 0;
 
 function fail(message) {
@@ -364,6 +408,29 @@ for (const client of CLIENTS) {
   }
 }
 
+// --- 3. Capabilities that live in a file, not a directory ------------------
+// See FILES above: the case a directory diff structurally cannot see.
+for (const capability of FILES) {
+  for (const client of CLIENTS) {
+    const path = capability[client];
+    if (path === null || path === undefined) {
+      if (!capability[`${client}Reason`]) {
+        fail(
+          `${capability.key}: absent on ${client} with no reason. ` +
+            `Say why — "not applicable" is a fine answer, silence is not.`,
+        );
+      }
+      continue;
+    }
+    if (!existsSync(path)) {
+      fail(
+        `${capability.key}: ${path} does not exist on ${client}. ` +
+          `Either it was never built there, or it moved and this line went stale.`,
+      );
+    }
+  }
+}
+
 if (failures > 0) {
   console.error(
     `\n${failures} client-parity problem(s). ` +
@@ -378,5 +445,5 @@ const shared = SURFACES.filter((surface) =>
 console.log(
   `Client parity: ${SURFACES.length} surfaces registered — ` +
     `${shared} on all three clients, ${SURFACES.length - shared} with recorded ` +
-    `asymmetries.`,
+    `asymmetries. Plus ${FILES.length} file-level capabilities.`,
 );

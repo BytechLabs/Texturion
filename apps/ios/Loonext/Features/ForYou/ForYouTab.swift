@@ -45,6 +45,14 @@ struct ForYouTab: View {
     /// #301: where this month's customers came from. Same fixed window as the
     /// pipeline above, and nil until it loads — the card says nothing either.
     @State private var leadSources: LeadSourceReport?
+    /// #288: whether this crew has earned the referral ask, the link once they
+    /// say yes, and the two flags that decide which of the three the card shows.
+    /// All nil/false until something happens, so the card renders nothing.
+    @State private var referralMoment: ReferralMoment?
+    @State private var referralLink: ReferralsView?
+    @State private var referralOpened = false
+    @State private var referralDismissed = false
+
     /// #508: how many times the unanswered row has been tapped this session.
     /// It is the destination's token — a repeat tap has to re-apply the filter
     /// after the reader has wandered off it, and an unchanged command says
@@ -126,6 +134,11 @@ struct ForYouTab: View {
                     onResponseWindow: { responseDays = $0 },
                     // #354: nil while it loads, and the card says nothing.
                     satisfaction: satisfaction,
+                    referralMoment: referralDismissed ? nil : referralMoment,
+                    referralLink: referralLink,
+                    referralOpened: referralOpened,
+                    onOpenReferral: { Task { await openReferral() } },
+                    onDismissReferral: { Task { await dismissReferral() } },
                     pipeline: pipeline,
                     leadSources: leadSources,
                     onOpenConversation: { AppRouter.shared.openConversationId = $0 },
@@ -167,6 +180,7 @@ struct ForYouTab: View {
         .task(id: "\(companyId)#\(refreshKey)") { await reloadSpamReview() }
         .task(id: "\(companyId)#\(refreshKey)") { await reloadRecentCalls() }
         .task(id: "\(companyId)#\(refreshKey)") { await reloadPipeline() }
+        .task(id: "\(companyId)#\(refreshKey)") { await reloadReferralMoment() }
         .task(id: "\(companyId)#\(refreshKey)#\(responseDays)") {
             await reloadResponseTime()
         }
@@ -240,6 +254,48 @@ struct ForYouTab: View {
         }
     }
 
+    /// #288: could this member ever collect the reward?
+    ///
+    /// The whole referrals router is behind `billing.manage`, so asking on a
+    /// tech's phone would be a 403 on every trip through the home screen, for a
+    /// card they were never going to be shown. And the offer itself would be one
+    /// we have no way to keep: the reward is a month off an invoice they cannot
+    /// see.
+    private var canCollectReferral: Bool {
+        MemberRole.has(
+            me.memberships.first { $0.company_id == companyId }?.role,
+            Capability.billingManage
+        )
+    }
+
+    /// #288. Same failure posture as the reports above: a failure leaves whatever
+    /// was on screen, because an ask nobody has earned yet shows nothing anyway.
+    private func reloadReferralMoment() async {
+        guard canCollectReferral else { return }
+        if let fresh = try? await graph.forYouApi.referralMoment(companyId: companyId) {
+            referralMoment = fresh
+        }
+    }
+
+    /// #288: the link, fetched only when the owner says yes to being asked. Most
+    /// trips through this screen never need it.
+    private func openReferral() async {
+        referralOpened = true
+        if let fresh = try? await graph.forYouApi.referrals(companyId: companyId) {
+            referralLink = fresh
+        }
+    }
+
+    /// #288: "Not now."
+    ///
+    /// OPTIMISTIC — the card goes on the tap, not a round trip later. A refusal
+    /// that feels slower than acceptance is a refusal somebody stops making, and
+    /// a dismissal the server misses costs one repeated prompt in a quarter.
+    private func dismissReferral() async {
+        referralDismissed = true
+        try? await graph.forYouApi.dismissReferralAsk(companyId: companyId)
+    }
+
     /// #313. Same failure posture as the response time above.
     private func reloadSatisfaction() async {
         if let fresh = try? await graph.forYouApi.satisfaction(
@@ -289,6 +345,14 @@ private struct ForYouList: View {
     let onResponseWindow: @MainActor (Int) -> Void
     /// #354: nil while it loads — the card renders nothing rather than zeroes.
     let satisfaction: SatisfactionReport?
+    /// #288: nil while it loads, when this member could never collect the reward,
+    /// or once they have said "Not now" — and the card renders nothing for all
+    /// three.
+    let referralMoment: ReferralMoment?
+    let referralLink: ReferralsView?
+    let referralOpened: Bool
+    let onOpenReferral: () -> Void
+    let onDismissReferral: () -> Void
     let pipeline: PipelineReportResponse?
     /// #301: nil while it loads, and the card renders nothing.
     let leadSources: LeadSourceReport?
@@ -387,6 +451,19 @@ private struct ForYouList: View {
                         onOpenPoor: onOpenUnanswered
                     )
                 }
+                // #288: after the numbers, never before them. The ask is earned
+                // by the measures above it, and reading those first is what makes
+                // it land as earned rather than as an interruption. NOT one of the
+                // hideable panels: it already has its own "Not now", and a prompt
+                // with two ways to put it away is a prompt where one of them stops
+                // being honoured.
+                ReferralAskCard(
+                    moment: referralMoment,
+                    referrals: referralLink,
+                    opened: referralOpened,
+                    onOpen: onOpenReferral,
+                    onDismiss: onDismissReferral
+                )
                 // #342: above the queue, because "you're all caught up" is not
                 // true if somebody has been texting a thread nobody can see.
                 spamReviewSection
@@ -931,6 +1008,11 @@ private func previewCall(
         onResponseWindow: { _ in },
         // #313: nil report — the preview shows the "reading your ratings" state.
         satisfaction: nil,
+        referralMoment: nil,
+        referralLink: nil,
+        referralOpened: false,
+        onOpenReferral: {},
+        onDismissReferral: {},
         // #354: nil report — the preview shows the card's absent state, which
         // is what a workspace with no quotes actually sees.
         pipeline: nil,
@@ -960,6 +1042,11 @@ private func previewCall(
         onResponseWindow: { _ in },
         // #313: nil report — the preview shows the "reading your ratings" state.
         satisfaction: nil,
+        referralMoment: nil,
+        referralLink: nil,
+        referralOpened: false,
+        onOpenReferral: {},
+        onDismissReferral: {},
         // #354: nil report — the preview shows the card's absent state, which
         // is what a workspace with no quotes actually sees.
         pipeline: nil,
@@ -1008,6 +1095,11 @@ private func previewCall(
         onResponseWindow: { _ in },
         // #313: nil report — the preview shows the "reading your ratings" state.
         satisfaction: nil,
+        referralMoment: nil,
+        referralLink: nil,
+        referralOpened: false,
+        onOpenReferral: {},
+        onDismissReferral: {},
         // #354: nil report — the preview shows the card's absent state, which
         // is what a workspace with no quotes actually sees.
         pipeline: nil,

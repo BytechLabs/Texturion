@@ -61,11 +61,15 @@ import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.ForYou
+import com.loonext.android.core.model.Capability
 import com.loonext.android.core.model.Me
+import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.LeadSourceReport
 import com.loonext.android.core.model.PipelineReportResponse
 import com.loonext.android.core.model.ResponseTimeReport
 import com.loonext.android.core.model.SatisfactionReport
+import com.loonext.android.core.model.ReferralMoment
+import com.loonext.android.core.model.ReferralsView
 import com.loonext.android.features.tasks.formatDue
 import com.loonext.android.features.calls.CallsRepository
 import com.loonext.android.features.calls.callOutcomeLabel
@@ -193,6 +197,31 @@ fun ForYouTab(
         key = CacheKeys.pipeline(companyId, 30),
         refreshKey = refreshKey,
     ) { graph.forYouRepo.pipeline(companyId) }
+
+    // #288: has this crew earned the referral ask? Only for somebody who could
+    // collect the reward — the whole referrals router is behind billing.manage,
+    // so asking on a tech's phone would be a 403 on every trip through the home
+    // screen for a card they were never going to be shown.
+    val canCollectReferral = MemberRole.has(
+        me.memberships.firstOrNull { it.company_id == companyId }?.role,
+        Capability.BILLING_MANAGE,
+    )
+    val referralMoment = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = CacheKeys.referralMoment(companyId),
+        refreshKey = refreshKey,
+        enabled = canCollectReferral,
+    ) { graph.forYouRepo.referralMoment(companyId) }
+    // The link is a SECOND read, and only once the owner has said yes to being
+    // asked. Most trips through this screen never need it.
+    var referralOpened by remember(companyId) { mutableStateOf(false) }
+    var referralDismissed by remember(companyId) { mutableStateOf(false) }
+    val referralLink = rememberCacheFirst(
+        cache = graph.storeCache,
+        key = CacheKeys.referrals(companyId),
+        refreshKey = refreshKey,
+        enabled = referralOpened,
+    ) { graph.forYouRepo.referrals(companyId) }
 
     // #301: where this month's customers came from. Its own cache-first read
     // on the same 30-day window as the pipeline, and last of the four cards
@@ -357,6 +386,25 @@ fun ForYouTab(
                 // #354: null while it loads, and the card says nothing.
                 pipeline = (pipeline as? LoadState.Ready)?.value,
                 leadSources = (leadSources as? LoadState.Ready)?.value,
+                // #288: null while it loads or when this member could never
+                // collect the reward, and the card renders nothing.
+                referralMoment = if (referralDismissed) {
+                    null
+                } else {
+                    (referralMoment as? LoadState.Ready)?.value
+                },
+                referralLink = (referralLink as? LoadState.Ready)?.value,
+                referralOpened = referralOpened,
+                onOpenReferral = { referralOpened = true },
+                onDismissReferral = {
+                    // Optimistic: the card goes on the tap, not a round trip
+                    // later. A refusal that feels slower than acceptance is a
+                    // refusal somebody stops making.
+                    referralDismissed = true
+                    coroutines.launch {
+                        runCatching { graph.forYouRepo.dismissReferralAsk(companyId) }
+                    }
+                },
                 unreadNotifications = unreadNotifications,
                 me = me,
                 onOpenConversation = { onOpenThread?.invoke(it) },
@@ -390,6 +438,11 @@ private fun ForYouList(
     pipeline: PipelineReportResponse?,
     /** #301: null while it loads, and the card says nothing either. */
     leadSources: LeadSourceReport?,
+    referralMoment: ReferralMoment?,
+    referralLink: ReferralsView?,
+    referralOpened: Boolean,
+    onOpenReferral: () -> Unit,
+    onDismissReferral: () -> Unit,
     unreadNotifications: Int,
     me: Me,
     onOpenConversation: (String) -> Unit,
@@ -521,6 +574,21 @@ private fun ForYouList(
                     onOpenPoor = onOpenUnanswered,
                 )
             }
+        }
+
+        // #288: after the numbers, never before them. The ask is earned by the
+        // measures above it, and reading those first is what makes it land as
+        // earned rather than as an interruption. NOT one of the hideable panels:
+        // it already has its own "Not now", and a prompt with two ways to put it
+        // away is a prompt where one of them stops being honoured.
+        item(key = "referral-ask") {
+            ReferralAskCard(
+                moment = referralMoment,
+                referrals = referralLink,
+                opened = referralOpened,
+                onOpen = onOpenReferral,
+                onDismiss = onDismissReferral,
+            )
         }
 
         item(key = "title") {

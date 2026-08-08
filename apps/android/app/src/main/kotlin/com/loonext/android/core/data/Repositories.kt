@@ -14,6 +14,8 @@ import com.loonext.android.core.model.NotificationItem
 import com.loonext.android.core.model.Page
 import com.loonext.android.core.model.LeadSourceReport
 import com.loonext.android.core.model.PipelineReportResponse
+import com.loonext.android.core.model.ReferralMoment
+import com.loonext.android.core.model.ReferralsView
 import com.loonext.android.core.model.ResponseTimeReport
 import com.loonext.android.core.model.SearchResult
 import com.loonext.android.core.model.SpamReviewPage
@@ -130,6 +132,35 @@ class ForYouRepository(private val api: ApiClient) {
      */
     suspend fun spamReview(companyId: String): SpamReviewPage =
         api.get("/v1/spam-review", companyId = companyId)
+
+    /**
+     * #288: has this crew earned the referral ask?
+     *
+     * Its own read, and a cheap one — five facts and a decision the server has
+     * already made. Behind `billing.manage` like the rest of the referrals
+     * router, so the caller checks the capability before asking rather than
+     * collecting a 403 on every trip through the home screen.
+     */
+    suspend fun referralMoment(companyId: String): ReferralMoment =
+        api.get("/v1/referrals/moment", companyId = companyId)
+
+    /**
+     * #288: the link itself, read only once the owner has said yes to being
+     * asked. Most trips through the home screen never need it.
+     */
+    suspend fun referrals(companyId: String): ReferralsView =
+        api.get("/v1/referrals", companyId = companyId)
+
+    /**
+     * #288: "Not now." 204 and no body, so nothing is decoded — the card is
+     * already gone by the time this lands, and making a refusal wait on a round
+     * trip would make saying no feel slower than saying yes.
+     */
+    suspend fun dismissReferralAsk(companyId: String) {
+        // raw, not post<T>: a 204 has no body, and decoding an empty string into
+        // anything throws. The winback dismissal beside it does the same.
+        api.raw("POST", "/v1/referrals/dismiss", body = "{}", companyId = companyId)
+    }
 
     /**
      * #342: the two answers to the review prompt. Lifting the mark puts the
