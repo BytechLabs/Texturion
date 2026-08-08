@@ -38,6 +38,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProportionRing } from "@/components/ui/proportion-ring";
 import {
   useResponseTime,
   type ResponseTimeReport,
@@ -173,6 +174,23 @@ export function ResponseTimeCard() {
           <>
             <div className="px-4 pb-3 pt-4">
               <div className="flex items-baseline gap-2">
+                {/* #540: how many of the leads got answered, as a shape.
+                    "34 of 41" is arithmetic a reader has to do before it means
+                    anything; the ring is read at a glance and remembered.
+                    Absent when there were no leads in the window — an empty ring
+                    beside a dash is a picture of nothing.
+                    *Applying: Gamify & Coin Metrics — a ring somebody wants to
+                    close beats a percentage they have to interpret.* */}
+                {report.data.leads > 0 && (
+                  <ProportionRing
+                    value={report.data.answered}
+                    total={report.data.leads}
+                    centre={`${report.data.answered}`}
+                    label={`${report.data.answered} of ${report.data.leads} new customers answered`}
+                    className="shrink-0 self-center text-app-olive-deep"
+                    size={40}
+                  />
+                )}
                 <Clock
                   className="size-4 shrink-0 translate-y-[-1px] text-app-muted-2"
                   strokeWidth={1.75}
