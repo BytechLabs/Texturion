@@ -51,6 +51,10 @@ struct NoteBody: Codable, Sendable {
     /// Teammates named in the body. Omitted when empty so the no-mention case
     /// sends exactly what it always did.
     var mention_user_ids: [String]?
+    /// #294: before or after, for the photos arriving on this note. Omitted when
+    /// absent so an older server sees exactly what it always did, and because absent
+    /// is the honest value for most notes.
+    var work_phase: String?
 }
 
 /// All messaging reads + mutations for the inbox / thread / composer features
@@ -487,14 +491,16 @@ struct MessagingRepository: Sendable {
         conversationId: String,
         body: String,
         taskId: String? = nil,
-        mentionUserIds: [String] = []
+        mentionUserIds: [String] = [],
+        workPhase: String? = nil
     ) async throws -> Message {
         try await api.post(
             "/v1/conversations/\(conversationId)/notes",
             body: NoteBody(
                 body: body,
                 task_id: taskId,
-                mention_user_ids: mentionUserIds.isEmpty ? nil : mentionUserIds
+                mention_user_ids: mentionUserIds.isEmpty ? nil : mentionUserIds,
+                work_phase: workPhase
             ),
             companyId: companyId
         )

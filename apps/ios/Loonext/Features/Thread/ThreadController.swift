@@ -799,6 +799,8 @@ final class ThreadController {
         body: String,
         files: [StagedFile],
         mentionUserIds: [String] = [],
+        /// #294: before or after, for the photos arriving on this note.
+        workPhase: String? = nil,
         onRestore: @escaping @MainActor () -> Void
     ) {
         Task {
@@ -808,7 +810,8 @@ final class ThreadController {
                     companyId: companyId,
                     conversationId: conversationId,
                     body: body,
-                    mentionUserIds: mentionUserIds
+                    mentionUserIds: mentionUserIds,
+                    workPhase: workPhase
                 )
             } catch {
                 onRestore()

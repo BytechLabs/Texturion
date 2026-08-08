@@ -1104,9 +1104,14 @@ private struct ThreadBody: View {
                     composer.restore(body: body, photos: photos, files: [])
                 }
             },
-            onSaveNote: { body, files, mentionUserIds in
+            onSaveNote: { body, files, mentionUserIds, workPhase in
                 let picked = composer.picked
-                controller.saveNote(body: body, files: files, mentionUserIds: mentionUserIds) {
+                controller.saveNote(
+                    body: body,
+                    files: files,
+                    mentionUserIds: mentionUserIds,
+                    workPhase: workPhase
+                ) {
                     // Put the picks back with the words: a restored draft that
                     // still reads "@Sam" must still be able to tell Sam.
                     composer.restore(body: body, photos: [], files: files, picked: picked)

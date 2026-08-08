@@ -675,20 +675,38 @@ struct TaskDetailView: View {
         }
     }
 
+    /// #294 — grouped into the visits they arrived on, oldest first.
+    ///
+    /// One flat strip made a job with four site visits look identical to a job with
+    /// one, and said nothing about which pictures were the finished work. Every file
+    /// already knows the note it came in on, and that note has a time, an author and
+    /// a label.
     private func attachmentsSection(_ detail: TaskDetail) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             sectionLabel("Files")
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(detail.attachments, id: \.id) { item in
-                        AttachmentCell(
-                            item: item,
-                            mutations: mutations,
-                            companyId: companyId,
-                            onError: { actionError = $0 }
-                        )
+            ForEach(groupJobPhotos(detail.attachments)) { group in
+                PhotoGroupHeader(
+                    phase: group.workPhase,
+                    at: group.at,
+                    addedByUserId: group.addedByUserId,
+                    fromCustomer: group.noteId == nil,
+                    // The resolver this screen already uses for the assignee and
+                    // the activity timeline.
+                    nameOf: memberName
+                )
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(group.items, id: \.id) { item in
+                            AttachmentCell(
+                                item: item,
+                                mutations: mutations,
+                                companyId: companyId,
+                                onError: { actionError = $0 }
+                            )
+                        }
                     }
                 }
+                .padding(.bottom, 6)
             }
         }
     }

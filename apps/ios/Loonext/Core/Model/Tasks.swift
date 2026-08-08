@@ -82,7 +82,7 @@ struct TaskActivityItem: Codable, Sendable {
 }
 
 /// One item of the D28 derived attachments union (no URL — mint per item).
-struct TaskAttachmentItem: Codable, Sendable {
+struct TaskAttachmentItem: Codable, Sendable, JobPhotoLike {
     let id: String
     let source: String
     let kind: String
@@ -90,6 +90,22 @@ struct TaskAttachmentItem: Codable, Sendable {
     let content_type: String?
     let size_bytes: Int?
     let created_at: String
+    /// #294 — the three fields that make a job record out of a file list.
+    ///
+    /// All inherited from the NOTE a file arrived on, never set per file: D28 keeps a
+    /// task's attachments a derived view, and a per-file label would be the third
+    /// upload path it removed. All nil for the customer's own texted media, which did
+    /// not arrive in visits and is nobody's before.
+    ///
+    /// Optional so a client running against an older server still decodes.
+    var note_id: String?
+    var work_phase: String?
+    var added_by_user_id: String?
+
+    var noteId: String? { note_id }
+    var workPhase: String? { work_phase }
+    var addedByUserId: String? { added_by_user_id }
+    var createdAt: String { created_at }
 }
 
 enum DefaultViewerLevelText: DefaultCodableProvider {

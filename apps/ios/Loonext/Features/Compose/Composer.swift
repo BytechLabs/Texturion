@@ -31,6 +31,13 @@ final class ComposerState {
     var photos: [StagedPhoto] = []
     var files: [StagedFile] = []
 
+    /// #294: whether these photos are the before or the after.
+    ///
+    /// Nil unless somebody says otherwise. Defaulting to "before" would mislabel most
+    /// notes, and a job record that is confidently wrong is worse than one that says
+    /// nothing.
+    var workPhase: String?
+
     /// Teammates named on a NOTE draft. Ids come from what was picked, never
     /// from re-reading the draft for "@name": display names are neither unique
     /// nor prefix-free, so parsing notifies the wrong people. Deleting a name
@@ -93,6 +100,7 @@ final class ComposerState {
         photos = []
         files = []
         picked = []
+        workPhase = nil
         saveTask?.cancel()
         drafts.clear(draftKey)
     }
@@ -157,7 +165,7 @@ struct ThreadComposerView: View {
     /// #475: the body, the photos, the saved reply it came from (if any),
     /// and whether the words changed after it was inserted (#274).
     let onSendText: @MainActor (String, [StagedPhoto], String?, Bool) -> Void
-    let onSaveNote: @MainActor (String, [StagedFile], [String]) -> Void
+    let onSaveNote: @MainActor (String, [StagedFile], [String], String?) -> Void
     /// #520: does this thread have a job due TODAY? Decided by the screen, not
     /// here — this view stays presentational, and "today" is a question about
     /// the device's clock and the task list rather than about a draft.
@@ -407,6 +415,12 @@ struct ThreadComposerView: View {
                         Task.detached { discardStagedFile(file) }
                     }
                     state.files.removeAll { $0.id == id }
+                }
+                // #294: only once there are photos to describe. A before/after choice
+                // on a text-only note is noise on the most common thing anybody does
+                // in this composer.
+                WorkPhaseRow(value: state.workPhase) { next in
+                    state.workPhase = next
                 }
             }
 
@@ -1194,8 +1208,9 @@ struct ThreadComposerView: View {
         if isNote {
             let files = state.files
             let mentionIds = MentionLogic.resolveMentions(text: body, picked: state.picked)
+            let phase = state.workPhase
             state.clearForSend()
-            onSaveNote(body, files, mentionIds)
+            onSaveNote(body, files, mentionIds, phase)
         } else {
             let photos = state.photos
             state.clearForSend()
@@ -1638,7 +1653,7 @@ struct TemplatePickerSheet: View {
             businessName: "Loonext Fencing",
             loadTemplates: { [] },
             onSendText: { _, _, _, _ in },
-            onSaveNote: { _, _, _ in },
+            onSaveNote: { _, _, _, _ in },
             onNotice: { _ in }
         )
     }
@@ -1655,7 +1670,7 @@ struct TemplatePickerSheet: View {
             businessName: "Loonext Fencing",
             loadTemplates: { [] },
             onSendText: { _, _, _, _ in },
-            onSaveNote: { _, _, _ in },
+            onSaveNote: { _, _, _, _ in },
             onNotice: { _ in }
         )
     }
