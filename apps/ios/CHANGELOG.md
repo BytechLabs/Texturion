@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.12.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.11.0...ios-v0.12.0) (2026-08-08)
+
+
+### Features
+
+* ask new signups how they heard about us ([5f3fe9e](https://github.com/BytechLabs/Texturion/commit/5f3fe9ed4ea92da42b9ffbd2a5033fe61f94a9b9)), closes [#288](https://github.com/BytechLabs/Texturion/issues/288)
+* **clients:** share a job's photos from the phone in your hand ([cfaa2d3](https://github.com/BytechLabs/Texturion/commit/cfaa2d33e644c3d7162039cb49fae5e0dfe4deab)), closes [#294](https://github.com/BytechLabs/Texturion/issues/294)
+* **ios:** draw an arrow on a photo before you send it ([2381835](https://github.com/BytechLabs/Texturion/commit/2381835ab1953dee0df35a3e37687e7bd84ee3ff)), closes [#294](https://github.com/BytechLabs/Texturion/issues/294)
+* **ios:** mark a note as the before or the after, and group a job by visit ([9ea1dab](https://github.com/BytechLabs/Texturion/commit/9ea1dabf03b9bf29877aae8ee718c00b615f4816)), closes [#294](https://github.com/BytechLabs/Texturion/issues/294)
+* recommend Loonext to another crew in one tap, from your phone ([8d44883](https://github.com/BytechLabs/Texturion/commit/8d4488316e231fa619d65ba06265449424db8414)), closes [#288](https://github.com/BytechLabs/Texturion/issues/288)
+
+
+### Bug Fixes
+
+* **clients:** keep the before-or-after choice when it is the last thing you tap ([4ce2bf0](https://github.com/BytechLabs/Texturion/commit/4ce2bf0b711e2a461de5295376950b3d13faa3e4)), closes [#294](https://github.com/BytechLabs/Texturion/issues/294)
+
 ## [0.11.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.10.0...ios-v0.11.0) (2026-08-08)
 
 

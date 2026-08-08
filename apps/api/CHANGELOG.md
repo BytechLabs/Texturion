@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.14.0](https://github.com/BytechLabs/Texturion/compare/api-v0.13.0...api-v0.14.0) (2026-08-08)
+
+
+### Features
+
+* **api:** a note can say whether it is the before or the after ([beaca3c](https://github.com/BytechLabs/Texturion/commit/beaca3c107665451565a965127a62712dfb20bcf)), closes [#294](https://github.com/BytechLabs/Texturion/issues/294)
+* ask new signups how they heard about us ([5f3fe9e](https://github.com/BytechLabs/Texturion/commit/5f3fe9ed4ea92da42b9ffbd2a5033fe61f94a9b9)), closes [#288](https://github.com/BytechLabs/Texturion/issues/288)
+* recommend Loonext to another crew in one tap, from your phone ([8d44883](https://github.com/BytechLabs/Texturion/commit/8d4488316e231fa619d65ba06265449424db8414)), closes [#288](https://github.com/BytechLabs/Texturion/issues/288)
+* send a customer the photos of their own job ([2d1907a](https://github.com/BytechLabs/Texturion/commit/2d1907afbc97787f7bf31f4ed4e3b6c69701207d)), closes [#294](https://github.com/BytechLabs/Texturion/issues/294)
+* take the location out of photos before we store them ([d8c49c9](https://github.com/BytechLabs/Texturion/commit/d8c49c9e17a2d5592dd4ad2aa0a424047d8dd76b)), closes [#294](https://github.com/BytechLabs/Texturion/issues/294)
+
+
+### Bug Fixes
+
+* a referral is earned when the business it brought starts working ([7517419](https://github.com/BytechLabs/Texturion/commit/751741968dbc9cc4f3239697989bc674b545f379)), closes [#288](https://github.com/BytechLabs/Texturion/issues/288)
+
 ## [0.13.0](https://github.com/BytechLabs/Texturion/compare/api-v0.12.0...api-v0.13.0) (2026-08-08)
 
 
