@@ -7566,3 +7566,56 @@ rediscovering.
 D112 (which stands — this makes it permanent rather than provisional), #507
 (Phase 1, shipped), and the cost-protection instinct that a feature nobody has
 asked for should not carry a criminal-statute exposure.
+
+## D127 — a role check is not an identity check, so the doors that don't reopen ask twice (#537, 2026-08-08)
+
+**Decision.** Any route whose effect cannot be undone, and which is not itself
+somebody's way out of a lockout, must ask for proof of identity in addition to the
+capability check. The proof is `requireActionConfirmation` in
+`apps/api/src/auth/confirm-action.ts`: the authenticator for anybody who holds one,
+a six-digit emailed code for anybody who does not. The set as of this entry is
+handing the workspace over (offer, claim, accept), closing the workspace, releasing
+a number, and turning the workspace-wide two-factor requirement OFF.
+
+**Why a capability check is not enough.** `requireCapability("workspace.own")` asks
+whether this account may do the thing. A stolen session answers that perfectly — it
+IS the owner's account. The question those routes actually need answered is whether
+the person holding the session is the person who owns the business, and only a
+second factor or a second channel can answer it. #496 established this for
+`DELETE /v1/account`; #537's audit found the rule had never been applied anywhere
+else, including to routes whose own comments called them irreversible.
+
+**Why the emailed code exists at all, and why it is never a choice.** Most owners
+have no authenticator. A gate that could only challenge a factor would therefore ask
+nothing of most of the people it exists to protect. So there is a second path — but
+the order is fixed and not negotiable: somebody who HOLDS a factor is asked for it
+and is never offered the email. A fallback available to everybody makes the weaker
+mechanism the effective one for everybody, including whoever stole the session.
+
+**Codes are scoped to one action, and the database enforces it.** A code minted to
+hand the business over must not close it instead; those are opposite decisions, and
+one code that satisfied both would let a stolen code do the other. The scope lives in
+a check constraint on `ownership_confirmations.action`, so a new confirmable action
+has to be named deliberately rather than appearing by typo.
+
+**The asymmetry is deliberate.** Turning the two-factor requirement ON asks for
+nothing. Stopping a handover asks for nothing. Naming a backup owner asks for
+nothing. Friction belongs on the door that opens, and a code standing between
+somebody and "no" is a trap rather than a safeguard.
+
+**Deliberately excluded, with the reason.** Signing another member's devices out is
+reversible — they sign back in — and it is a safety tool people should reach for
+quickly. Cancelling a port or a texting registration is a delay, not a loss; both can
+be submitted again. Both were checked and left alone.
+
+**A gate the client cannot answer is not protection, it is a broken feature.** Every
+one of these landed with the screen that can satisfy it, on every platform that has
+that screen. The #515 ownership prompt on the settings index needed it more than the
+Team card did: the named backup routinely has no `team.manage`, so it is the only
+route they have to complete a takeover. A server that demands a code no screen can
+supply does not secure the action — it removes it.
+
+**Consistency:** extends D8's boundary (the Worker never brokers login, but it does
+decide what a session may do), applies #496's step-up rule beyond the one route it was
+written for, and keeps #341's closure semantics unchanged — the gate is in front of
+the transaction, and nothing about the teardown moved.
