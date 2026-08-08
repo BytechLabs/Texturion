@@ -274,9 +274,21 @@ final class SignOutClearsLocalStateTests: XCTestCase {
         guard let start = source.range(of: "func signOut() async {") else {
             return XCTFail("signOut has moved — point this lint at the new shape")
         }
-        // The method body up to the next declaration at the same indent.
-        let rest = source[start.upperBound...]
-        let body = String(rest.prefix(while: { $0 != "}" }))
+        // Brace-counted to the method's OWN closing brace. The first version
+        // stopped at the first `}` it saw, which is the one closing the `if let
+        // session` inside — so it read three lines and both assertions failed.
+        // Worth keeping the note: a scan that silently reads the wrong span is a
+        // guard that reports on something other than what it names.
+        var depth = 1
+        var body = ""
+        for character in source[start.upperBound...] {
+            if character == "{" { depth += 1 }
+            if character == "}" {
+                depth -= 1
+                if depth == 0 { break }
+            }
+            body.append(character)
+        }
 
         XCTAssertTrue(
             body.contains("sessionStore.clear()"),
