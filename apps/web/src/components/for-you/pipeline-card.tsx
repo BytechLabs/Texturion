@@ -74,12 +74,24 @@ export function PipelineCard() {
   const quoteStage = stages.find((s) => s.stage === "quote_sent");
 
   return (
-    <section className="rounded-xl border border-border bg-card p-4">
+    // #540: the SAME header treatment as its three neighbours — an uppercase
+    // micro-header outside a bordered card. Before this, two of the four measures
+    // carried their title inside the card and two outside, so in one row their
+    // card tops sat thirty pixels apart. That misalignment is a large part of
+    // what "looks amateur" means on this screen, and no amount of encoding
+    // inside the cards fixes a row that does not line up.
+    // *Applying: the Safety Principle, and Relationship Strength — one group of
+    // four, presented as one.*
+    <section>
+      <h2 className="flex items-baseline justify-between gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
+        <span className="flex items-baseline gap-2">Quotes</span>
+        <span className="text-[11px] font-normal normal-case tracking-normal">
+          last 30 days
+        </span>
+      </h2>
+      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-sm font-medium text-muted-foreground">
-            Quotes, last 30 days
-          </h2>
           {/* The sentence leads, not the figure. It is the part somebody
               repeats, and the part they can act on. */}
           <p className="mt-1 text-[15px] font-medium text-app-ink">
@@ -159,6 +171,7 @@ export function PipelineCard() {
           <ArrowRight className="size-3.5" strokeWidth={1.75} aria-hidden />
         </Link>
       )}
+      </div>
     </section>
   );
 }

@@ -96,9 +96,18 @@ export function LeadSourcesCard() {
   // whose only row is a reproach.
   if (data.sources.length === 0) {
     return (
-      <section className="rounded-xl border border-border-subtle p-4">
-        <h2 className="text-sm font-medium">Where your customers come from</h2>
-        <p className="mt-1.5 text-sm text-muted-foreground">
+      // #540: the same micro-header as the populated branch and as the other
+      // three measures. BOTH branches need it — patching only the one with data
+      // is how a row lines up in a screenshot taken on a busy workspace and
+      // stays ragged on the empty one every new crew actually sees first.
+      <section>
+        <h2 className="flex items-baseline justify-between gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
+          <span className="flex items-baseline gap-2">
+            Where your customers come from
+          </span>
+        </h2>
+        <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper p-4">
+        <p className="text-sm text-muted-foreground">
           You haven&apos;t told us yet. Put a source on the numbers you
           advertise — the one on the truck, the one in the ad — and every call
           and text to them is counted from then on, with nobody tapping
@@ -111,6 +120,7 @@ export function LeadSourcesCard() {
           Set one up
           <ArrowRight className="size-3.5" />
         </Link>
+        </div>
       </section>
     );
   }
@@ -120,9 +130,17 @@ export function LeadSourcesCard() {
   const max = Math.max(...rows.map((row) => row.total), data.unknown, 1);
 
   return (
-    <section className="rounded-xl border border-border-subtle p-4">
-      <h2 className="text-sm font-medium">Where your customers come from</h2>
-      {headline && <p className="mt-1.5 text-sm">{headline}</p>}
+    // #540: the same micro-header as the other three measures, so the four card
+    // tops line up. See pipeline-card.tsx for why the row's alignment is the
+    // point rather than a detail.
+    <section>
+      <h2 className="flex items-baseline justify-between gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
+        <span className="flex items-baseline gap-2">
+          Where your customers come from
+        </span>
+      </h2>
+      <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper p-4">
+      {headline && <p className="text-sm">{headline}</p>}
       {data.note && (
         <p
           role="status"
@@ -147,6 +165,7 @@ export function LeadSourcesCard() {
       <p className="mt-3 text-xs text-muted-foreground">
         Last 30 days · {data.total} conversation{data.total === 1 ? "" : "s"}
       </p>
+      </div>
     </section>
   );
 }

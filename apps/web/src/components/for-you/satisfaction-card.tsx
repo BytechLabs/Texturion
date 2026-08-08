@@ -175,10 +175,12 @@ export function SatisfactionCard() {
                 <ProportionRing
                   value={report.data.average ?? 0}
                   total={5}
-                  size={20}
-                  centre={undefined}
+                  // 26, not 18. At the smaller size a 4.6-out-of-5 arc and a
+                  // closed circle are indistinguishable, so the mark carried
+                  // nothing — it read as an icon that happened to be round.
+                  size={26}
                   label={`${formatSatisfaction(report.data.average)} out of 5, from ${report.data.answered} answers`}
-                  className="shrink-0 translate-y-[3px] text-app-olive-deep"
+                  className="shrink-0 translate-y-[5px] text-app-olive-deep"
                 />
                 <span className="text-2xl font-semibold tabular-nums tracking-tight text-app-ink">
                   {formatSatisfaction(report.data.average)}
