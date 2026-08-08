@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import com.loonext.android.core.oncall.OnCallSilence
+import com.loonext.android.features.settings.SettingsRepository
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LoadingIndicator
@@ -45,6 +48,7 @@ import com.loonext.android.push.PushPrefs
 import com.loonext.android.push.PushRegistrar
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.userMessage
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -83,6 +87,18 @@ fun NotificationPrefsCard(
     }
     var saveError by remember(companyId) { mutableStateOf<String?>(null) }
     var retryKey by remember(companyId) { mutableIntStateOf(0) }
+    // #538 (audit): am I the one holding the phone right now?
+    //
+    // A crew nominates somebody on call, and unclaimed leads page that person. If
+    // they switch push off — reasonable on an ordinary evening — the pages still
+    // fire and reach nothing, and nobody else is told.
+    //
+    // Best-effort: an on-call read that fails leaves this false, so the switch
+    // behaves exactly as it did before. A settings screen that will not load
+    // because a secondary read failed would be a worse bug than the one this
+    // warning prevents.
+    var onCall by remember(companyId) { mutableStateOf(false) }
+    var silencing by remember(companyId) { mutableStateOf<String?>(null) }
 
     LaunchedEffect(companyId, retryKey) {
         if (state !is LoadState.Ready) state = LoadState.Loading
@@ -90,6 +106,23 @@ fun NotificationPrefsCard(
             LoadState.Ready(repo.prefs(companyId))
         } catch (cause: Exception) {
             LoadState.Failed(cause.userMessage())
+        }
+    }
+
+    LaunchedEffect(companyId) {
+        onCall = try {
+            val settings = SettingsRepository(graph.api)
+            val shifts = settings.onCallShifts(companyId).data
+            OnCallSilence.isOnCallNow(
+                shifts.map {
+                    OnCallSilence.Shift(it.user_id, it.starts_at, it.ends_at)
+                },
+                // The signed-in member, from the store the whole app reads.
+                graph.sessionStore.session.first()?.userId.orEmpty(),
+                System.currentTimeMillis(),
+            )
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -137,7 +170,12 @@ fun NotificationPrefsCard(
                         "texts back after a quiet spell. Never one per message.",
                     checked = prefs.email_enabled,
                     onCheckedChange = { checked ->
-                        save(prefs.copy(email_enabled = checked), prefs)
+                        // #538 (audit): warn, do not refuse. Somebody who wants a
+                        // quiet phone is entitled to one, and refusing produces
+                        // people who turn the phone off entirely — worse, because
+                        // then we cannot tell.
+                        if (onCall && !checked) silencing = "email"
+                        else save(prefs.copy(email_enabled = checked), prefs)
                     },
                 )
                 PrefToggleRow(
@@ -145,9 +183,38 @@ fun NotificationPrefsCard(
                     supporting = "Notifications on your devices for new texts and missed calls.",
                     checked = prefs.push_enabled,
                     onCheckedChange = { checked ->
-                        save(prefs.copy(push_enabled = checked), prefs)
+                        if (onCall && !checked) silencing = "push"
+                        else save(prefs.copy(push_enabled = checked), prefs)
                     },
                 )
+
+                silencing?.let { channel ->
+                    AlertDialog(
+                        onDismissRequest = { silencing = null },
+                        title = { Text("You're on call") },
+                        text = {
+                            Text(OnCallSilence.warning(true, true, channel) ?: "")
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                silencing = null
+                                save(
+                                    if (channel == "push") {
+                                        prefs.copy(push_enabled = false)
+                                    } else {
+                                        prefs.copy(email_enabled = false)
+                                    },
+                                    prefs,
+                                )
+                            }) { Text(OnCallSilence.CONFIRM) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { silencing = null }) {
+                                Text(OnCallSilence.CANCEL)
+                            }
+                        },
+                    )
+                }
                 // #244: with the other per-member switches, because it IS one.
                 // The difference from turning Push off is that this one ends by
                 // itself at 7am, and a page still comes through — which is the

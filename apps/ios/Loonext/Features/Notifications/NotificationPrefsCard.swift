@@ -16,6 +16,12 @@ import UserNotifications
 /// question those two do — when does this thing make a noise. #463's crew-wide
 /// lead-chase switch is the caller. Nothing renders while prefs are loading or
 /// failed: a switch floating under a spinner belongs to no card.
+/// #538 (audit): the channel awaiting confirmation, wrapped so it can drive an
+/// alert and still be readable inside the confirm action.
+private struct SilencedChannel: Identifiable {
+    let id: String
+}
+
 @MainActor
 struct NotificationPrefsCard<ExtraRows: View>: View {
     let graph: AppGraph
@@ -25,6 +31,17 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
     @State private var state: LoadState<NotificationPrefs> = .loading
     @State private var saveError: String?
     @State private var retryKey = 0
+    /// #538 (audit): am I the one holding the phone right now?
+    ///
+    /// A crew nominates somebody on call, and unclaimed leads page that person. If
+    /// they switch push off — reasonable on an ordinary evening — the pages still
+    /// fire and reach nothing, and nobody else is told.
+    ///
+    /// Best-effort: a failed on-call read leaves this false, so the switch behaves
+    /// exactly as it did before. A settings screen that will not load because a
+    /// secondary read failed is a worse bug than the one this warning prevents.
+    @State private var onCall = false
+    @State private var silencing: SilencedChannel?
 
     private var feedApi: NotificationsFeedApi {
         NotificationsFeedApi(api: graph.api)
@@ -65,6 +82,14 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
                         + "texts back after a quiet spell. Never one per message.",
                     isOn: prefs.email_enabled
                 ) { checked in
+                    // #538 (audit): warn, do not refuse. Somebody who wants a quiet
+                    // phone is entitled to one, and refusing produces people who
+                    // turn the phone off entirely — worse, because then we cannot
+                    // tell.
+                    if onCall, !checked {
+                        silencing = SilencedChannel(id: "email")
+                        return
+                    }
                     // #244: `prefs` copied and MUTATED rather than rebuilt from
                     // two fields. Constructing a fresh NotificationPrefs here
                     // would silently clear this member's quiet-hours window
@@ -79,6 +104,10 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
                     supporting: "Notifications on your devices for new texts and missed calls.",
                     isOn: prefs.push_enabled
                 ) { checked in
+                    if onCall, !checked {
+                        silencing = SilencedChannel(id: "push")
+                        return
+                    }
                     var next = prefs
                     next.push_enabled = checked
                     save(next, previous: prefs)
@@ -138,6 +167,65 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
             }
         }
         .task(id: "\(companyId)#\(retryKey)") { await load() }
+        .task(id: companyId) { await loadOnCall() }
+        // #538 (audit): the one high-stakes switch on this screen that said
+        // nothing. Every other irreversible-ish action in settings already named
+        // its consequence; going quiet while on call did not, and it is the one
+        // where silence IS the failure.
+        .alert("You're on call", isPresented: silencingBinding) {
+            Button(OnCallSilence.cancel, role: .cancel) { silencing = nil }
+            Button(OnCallSilence.confirm, role: .destructive) {
+                let channel = silencing?.id
+                silencing = nil
+                guard case .ready(let prefs) = state, let channel else { return }
+                var next = prefs
+                if channel == "push" { next.push_enabled = false } else { next.email_enabled = false }
+                save(next, previous: prefs)
+            }
+        } message: {
+            Text(
+                OnCallSilence.warning(
+                    onCall: true,
+                    turningOff: true,
+                    channel: silencing?.id ?? "push"
+                ) ?? ""
+            )
+        }
+    }
+
+    /// `.alert(isPresented:)` wants a Bool, and the channel has to survive the
+    /// dismissal long enough for the confirm action to read it — so the optional is
+    /// the source of truth and this is the view of it the modifier needs.
+    private var silencingBinding: Binding<Bool> {
+        Binding(
+            get: { silencing != nil },
+            set: { if !$0 { silencing = nil } }
+        )
+    }
+
+    /// Best-effort: a failure leaves `onCall` false and the switches unchanged.
+    ///
+    /// The signed-in id comes from `/v1/me` because the session store is private to
+    /// the auth orchestrator and this card is handed only the graph. One extra read
+    /// on a settings screen, once, rather than widening that boundary for a warning.
+    private func loadOnCall() async {
+        do {
+            let shifts = try await SettingsRepository(api: graph.api)
+                .onCallShifts(companyId).data
+            let mine = try await graph.meApi.me().user_id
+            onCall = OnCallSilence.isOnCallNow(
+                shifts.map {
+                    OnCallSilence.Shift(
+                        userId: $0.user_id,
+                        startsAt: $0.starts_at,
+                        endsAt: $0.ends_at
+                    )
+                },
+                userId: mine
+            )
+        } catch {
+            onCall = false
+        }
     }
 
     private func load() async {
