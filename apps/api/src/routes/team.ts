@@ -27,7 +27,13 @@
  *          the same formula; creates the membership AND a notification_prefs
  *          row (defaults true/true).
  */
-import { shouldShowOrientation, type MemberRole } from "@loonext/shared";
+import {
+  isDowngrade,
+  SELF_DOWNGRADE_ACK,
+  SELF_DOWNGRADE_REQUIRED_MESSAGE,
+  shouldShowOrientation,
+  type MemberRole,
+} from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -108,6 +114,14 @@ const acceptSchema = z.object({
 
 const roleSchema = z.object({
   role: z.enum(ASSIGNABLE_ROLES),
+  /**
+   * #538: the caller has seen what they are giving up.
+   *
+   * Only required when the target is the CALLER and the change takes something
+   * away — see the route. Optional here so promoting somebody else, which is the
+   * overwhelming majority of calls, needs no new field.
+   */
+  [SELF_DOWNGRADE_ACK]: z.boolean().optional(),
 });
 
 type Db = ReturnType<typeof getDb>;
@@ -211,10 +225,12 @@ teamRoutes.patch("/members/:id", requireCapability("team.manage"), async (c) => 
   const companyId = c.get("companyId");
   const db = getDb(getEnv(c.env));
 
-  const rows = unwrap<{ id: string; role: string }[]>(
+  const rows = unwrap<{ id: string; role: string; user_id: string }[]>(
     await db
       .from("company_members")
-      .select("id,role")
+      // #538: `user_id` so the route can tell "changing somebody" from "changing
+      // myself", which are the same request with very different consequences.
+      .select("id,role,user_id")
       .eq("company_id", companyId)
       .eq("id", id)
       .limit(1),
@@ -227,6 +243,33 @@ teamRoutes.patch("/members/:id", requireCapability("team.manage"), async (c) => 
   if (target.role === "owner") {
     // The owner membership row is immutable (SPEC §10).
     return errorResponse(c, "conflict", "The owner role cannot be changed.");
+  }
+
+  // #538 — TAKING POWERS OFF YOURSELF HAS TO BE DELIBERATE.
+  //
+  // An admin setting their own role to member loses `team.manage` in the same
+  // stroke, which is the capability that would let them change it back. The way
+  // out is to find an owner. Nothing asked and nothing warned, so a dropdown
+  // could cost an afternoon.
+  //
+  // Enforced HERE rather than only in a dialog, because a warning that lives in
+  // one client is a warning the other two skip. The acknowledgement is the
+  // server's evidence that somebody was actually told.
+  //
+  // Only for the caller's OWN row: an owner demoting an admin is a decision about
+  // somebody else, they can undo it, and asking them to tick a box about access
+  // they are not losing would be a lie.
+  const isSelf = target.user_id === c.get("userId");
+  const downgrade = isDowngrade(
+    target.role as MemberRole,
+    body.role as MemberRole,
+  );
+  if (isSelf && downgrade && body[SELF_DOWNGRADE_ACK] !== true) {
+    return errorResponse(
+      c,
+      "validation_failed",
+      SELF_DOWNGRADE_REQUIRED_MESSAGE,
+    );
   }
 
   const updated = unwrap<Record<string, unknown>[]>(
@@ -242,7 +285,12 @@ teamRoutes.patch("/members/:id", requireCapability("team.manage"), async (c) => 
   // incident.
   await recordAuditFromRequest(db, c, {
     companyId,
-    action: "member.role_changed",
+    // #538: a distinct action for the self-downgrade. "Who took this admin's
+    // access away" is the first question after an incident, and an entry that
+    // reads the same whether somebody was demoted or demoted themselves cannot
+    // answer it.
+    action:
+      isSelf && downgrade ? "member.self_downgraded" : "member.role_changed",
     targetType: "member",
     targetId: id,
     before: { role: target.role },

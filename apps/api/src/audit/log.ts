@@ -45,6 +45,12 @@ export type AuditAction =
   | "member.invite_revoked"
   | "member.joined"
   | "member.role_changed"
+  // #538: the member took powers off THEMSELVES. Distinct from
+  // member.role_changed for the same reason member.left is distinct from
+  // member.deactivated — "who removed this admin's access" is the first question
+  // after an incident, and an entry that reads identically either way cannot
+  // answer it.
+  | "member.self_downgraded"
   | "member.deactivated"
   // #406: the member removed THEMSELVES. Distinct from member.deactivated
   // because "who ended this" is the first question anyone asks afterwards, and

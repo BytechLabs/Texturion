@@ -824,3 +824,15 @@ export {
   type WallClock,
   wallClockInZone,
 } from "./two-clocks";
+
+// #538: taking powers away from yourself, said out loud first. An admin who
+// demotes themselves loses the capability that would let them change it back.
+export {
+  CAPABILITY_PLAIN_NAMES,
+  capabilitiesLost,
+  isDowngrade,
+  losesRoleControl,
+  SELF_DOWNGRADE_ACK,
+  SELF_DOWNGRADE_REQUIRED_MESSAGE,
+  selfDowngradeWarning,
+} from "./self-downgrade";

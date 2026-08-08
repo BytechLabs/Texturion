@@ -987,6 +987,95 @@ describe("PATCH /v1/members/:id (O/A; owner immutable)", () => {
     });
   });
 
+  it("refuses to take my own access away until I say I understand (#538)", async () => {
+    // THE TRAP. An admin who sets their own role to member loses `team.manage` in
+    // the same stroke — the capability that would let them change it back — and
+    // nothing asked. Enforced at the edge rather than only in a dialog, because a
+    // warning that lives in one client is a warning the other two skip.
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/company_members", (call) =>
+      call.url.searchParams.get("id") === `eq.${MEMBER_ID}`
+        ? [{ id: MEMBER_ID, role: "admin", user_id: auth.subject }]
+        : undefined,
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/members/${MEMBER_ID}`,
+      { method: "PATCH", companyId: COMPANY_ID, body: { role: "member" } },
+    );
+    expect(res.status).toBe(422);
+    // And nothing was written. A refusal that still changed the row would be the
+    // worst of both.
+    expect(sb.find("PATCH", "/rest/v1/company_members")).toHaveLength(0);
+  });
+
+  it("goes through once I have acknowledged it, and says so in the log (#538)", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/company_members", (call) =>
+      call.url.searchParams.get("id") === `eq.${MEMBER_ID}`
+        ? [{ id: MEMBER_ID, role: "admin", user_id: auth.subject }]
+        : undefined,
+    );
+    sb.on("PATCH", "/rest/v1/company_members", (call) => [
+      { id: MEMBER_ID, ...(call.body as Record<string, unknown>) },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/members/${MEMBER_ID}`,
+      {
+        method: "PATCH",
+        companyId: COMPANY_ID,
+        body: { role: "member", confirm_losing_access: true },
+      },
+    );
+    expect(res.status).toBe(200);
+    // The acknowledgement is not a column. Only the role is written.
+    expect(sb.find("PATCH", "/rest/v1/company_members")[0].body).toEqual({
+      role: "member",
+    });
+    // A DISTINCT action. "Who took this admin's access away" is the first
+    // question after an incident, and an entry that reads the same whether
+    // somebody was demoted or demoted themselves cannot answer it.
+    expect(auditRow(sb)).toMatchObject({
+      action: "member.self_downgraded",
+      before: { role: "admin" },
+      after: { role: "member" },
+    });
+  });
+
+  it("asks nothing when I am PROMOTING myself, or changing somebody else", async () => {
+    // Ticking a box about losing access you are not losing would be a lie, and a
+    // confirmation that fires on everything is one people learn to dismiss.
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/company_members", (call) =>
+      call.url.searchParams.get("id") === `eq.${MEMBER_ID}`
+        ? [{ id: MEMBER_ID, role: "member", user_id: auth.subject }]
+        : undefined,
+    );
+    sb.on("PATCH", "/rest/v1/company_members", (call) => [
+      { id: MEMBER_ID, ...(call.body as Record<string, unknown>) },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/members/${MEMBER_ID}`,
+      { method: "PATCH", companyId: COMPANY_ID, body: { role: "admin" } },
+    );
+    expect(res.status).toBe(200);
+    expect(auditRow(sb)).toMatchObject({ action: "member.role_changed" });
+  });
+
   it("409s any change to the owner row; 422s role 'owner' in the body", async () => {
     const sb = stubWithRole("admin");
     sb.on("GET", "/rest/v1/company_members", (call) =>
