@@ -123,6 +123,20 @@ struct ResponseTimeCard: View {
     private func content(for report: ResponseTimeReport) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .lastTextBaseline, spacing: 6) {
+                // #540: how much of the week actually got answered, as a shape.
+                // The laptop has had this since the dashboard overhaul and the
+                // phones did not, which read as two different products. Absent
+                // when there were no new customers in the window, because an
+                // empty ring beside a dash is a picture of nothing.
+                if report.leads > 0 {
+                    ProportionRing(
+                        value: Double(report.answered),
+                        total: Double(report.leads),
+                        label: "\(report.answered) of \(report.leads) new customers answered",
+                        color: BrandColor.olive,
+                        size: 20
+                    )
+                }
                 Image(systemName: "clock")
                     .font(.scaled(12, weight: .medium))
                     .foregroundStyle(BrandColor.muted500)

@@ -17,6 +17,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.model.PipelineReportResponse
 import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.ShareBar
+import com.loonext.android.ui.common.ShareSegment
 
 /**
  * #354 — the pipeline panel on the home surface.
@@ -94,6 +96,32 @@ fun PipelineCard(report: PipelineReportResponse?) {
                 PipelineFigure("Won", report.current.won, Modifier.weight(1f))
                 PipelineFigure("Still out", report.current.open, Modifier.weight(1f))
             }
+
+            // #540: what the month is MADE of, under the three figures it
+            // describes. A ring was the wrong shape here — it would force won,
+            // still-out and gone-quiet into one arc and lose the middle one, the
+            // only one anybody can still act on. The remainder is left as bare
+            // track on purpose: 5 won and 3 out of 10 quoted means 2 went quiet,
+            // and stretching the parts to fill the bar would hide the number
+            // worth chasing.
+            Spacer(Modifier.height(11.dp))
+            ShareBar(
+                segments = listOf(
+                    ShareSegment(
+                        "Won",
+                        report.current.won.toFloat(),
+                        MaterialTheme.colorScheme.secondary,
+                    ),
+                    ShareSegment(
+                        "Still out",
+                        report.current.open.toFloat(),
+                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f),
+                    ),
+                ),
+                total = report.current.quoted.toFloat(),
+                label = "Of ${report.current.quoted} quoted, ${report.current.won} won " +
+                    "and ${report.current.open} still out",
+            )
         }
     }
 }

@@ -34,6 +34,7 @@
 import { ArrowRight, TrendingDown, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
+import { ShareBar } from "@/components/ui/share-bar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePipelineReport } from "@/lib/api/reports";
 import { cn } from "@/lib/utils";
@@ -127,6 +128,24 @@ export function PipelineCard() {
           </div>
         ))}
       </dl>
+
+      {/* #540: what the month is MADE of, under the three figures it describes.
+          A ring was the wrong shape here — it would force won, still-out and
+          gone-quiet into one arc and lose the middle one, which is the only one
+          anybody can still act on. The remainder is deliberately left as bare
+          track: 5 won and 3 out of 10 quoted means 2 went quiet, and stretching
+          the parts to fill the bar would hide the number worth chasing.
+          *Applying: Meaningful Highlights — the picture carries the same three
+          facts the figures above it do, in the shape a glance can read.* */}
+      <ShareBar
+        className="mt-3"
+        total={current.quoted}
+        segments={[
+          { label: "Won", value: current.won, className: "bg-app-olive-deep" },
+          { label: "Still out", value: current.open, className: "bg-app-olive/45" },
+        ]}
+        label={`Of ${current.quoted} quoted, ${current.won} won and ${current.open} still out`}
+      />
 
       {/* Loss Aversion, and the only action on the card: the outstanding work,
           one tap away. Linked through the STAGE's tag id rather than a name,

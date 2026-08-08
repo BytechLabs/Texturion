@@ -132,6 +132,31 @@ struct PipelineCard: View {
                         pipelineFigure("Won", report.current.won)
                         pipelineFigure("Still out", report.current.open)
                     }
+                    // #540: what the month is MADE of, under the three figures it
+                    // describes. A ring was the wrong shape — it would force won,
+                    // still-out and gone-quiet into one arc and lose the middle
+                    // one, the only one anybody can still act on. The remainder is
+                    // left as bare track on purpose: 5 won and 3 out of 10 quoted
+                    // means 2 went quiet, and stretching the parts to fill the bar
+                    // would hide the number worth chasing.
+                    ShareBar(
+                        segments: [
+                            ShareSegment(
+                                label: "Won",
+                                value: Double(report.current.won),
+                                color: BrandColor.olive
+                            ),
+                            ShareSegment(
+                                label: "Still out",
+                                value: Double(report.current.open),
+                                color: BrandColor.olive.opacity(0.45)
+                            ),
+                        ],
+                        total: Double(report.current.quoted),
+                        label: "Of \(report.current.quoted) quoted, "
+                            + "\(report.current.won) won and "
+                            + "\(report.current.open) still out"
+                    )
                 }
                 .padding(16)
             }

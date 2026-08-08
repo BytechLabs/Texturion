@@ -134,9 +134,19 @@ struct SatisfactionCard: View {
     private func content(for report: SatisfactionReport) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .lastTextBaseline, spacing: 6) {
-                Image(systemName: "star")
-                    .font(.scaled(12, weight: .medium))
-                    .foregroundStyle(BrandColor.muted500)
+                // #540: the mark, in place of the star. A star beside a score out
+                // of five was decoration — it said "this is a rating", which the
+                // words already say. The ring says how far up the scale the month
+                // landed, which is the fact a glance wants and cannot get from
+                // "4.2" without already knowing the ceiling.
+                ProportionRing(
+                    value: report.average ?? 0,
+                    total: 5,
+                    label: "\(SatisfactionFormat.format(report.average)) out of 5, "
+                        + "from \(report.answered) answers",
+                    color: BrandColor.olive,
+                    size: 18
+                )
                 Text(SatisfactionFormat.format(report.average))
                     .font(.golos(24, weight: .semibold))
                     .monospacedDigit()

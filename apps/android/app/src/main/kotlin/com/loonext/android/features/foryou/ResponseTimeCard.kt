@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.loonext.android.core.format.ResponseTimeFormat
 import com.loonext.android.core.model.ResponseTimeReport
 import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.ProportionRing
 import com.loonext.android.ui.common.formatPhone
 
 /**
@@ -169,10 +170,25 @@ private fun ResponseTimeBody(
 
     Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 10.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
+            // #540: how much of the week actually got answered, as a shape. The
+            // laptop has had this since the dashboard overhaul and the phones did
+            // not, which read as two different products. Absent when there were no
+            // new customers in the window, because an empty ring beside a dash is
+            // a picture of nothing.
+            if (report.leads > 0) {
+                ProportionRing(
+                    value = report.answered.toFloat(),
+                    total = report.leads.toFloat(),
+                    label = "${report.answered} of ${report.leads} new customers answered",
+                    color = MaterialTheme.colorScheme.secondary,
+                    size = 22.dp,
+                    modifier = Modifier.padding(bottom = 2.dp),
+                )
+            }
             Icon(
                 Icons.Outlined.Schedule,
                 contentDescription = null,
-                modifier = Modifier.size(15.dp).padding(bottom = 2.dp),
+                modifier = Modifier.size(15.dp).padding(start = 7.dp, bottom = 2.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(

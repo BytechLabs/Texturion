@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
-import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material.icons.outlined.TrendingDown
 import androidx.compose.material.icons.outlined.TrendingUp
 import androidx.compose.material3.HorizontalDivider
@@ -31,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.loonext.android.core.format.SatisfactionFormat
 import com.loonext.android.core.model.SatisfactionReport
 import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.ProportionRing
 
 /**
  * #313 — the satisfaction panel, Paper & Olive, under response time.
@@ -201,11 +201,19 @@ private fun SatisfactionBody(
 
     Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 10.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
-            Icon(
-                Icons.Outlined.StarOutline,
-                contentDescription = null,
-                modifier = Modifier.size(15.dp).padding(bottom = 2.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            // #540: the mark, in place of the star. A star beside a score out of
+            // five was decoration — it said "this is a rating", which the words
+            // already say. The ring says how far up the scale the month landed,
+            // which is the fact a glance wants and cannot get from "4.2" without
+            // already knowing the ceiling.
+            ProportionRing(
+                value = (report.average ?: 0.0).toFloat(),
+                total = 5f,
+                label = "${SatisfactionFormat.format(report.average)} out of 5, " +
+                    "from ${report.answered} answers",
+                color = MaterialTheme.colorScheme.secondary,
+                size = 18.dp,
+                modifier = Modifier.padding(bottom = 2.dp),
             )
             Text(
                 SatisfactionFormat.format(report.average),

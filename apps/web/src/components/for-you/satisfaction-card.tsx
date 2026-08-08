@@ -27,10 +27,11 @@
  * null — so this component's job is to say which kind of nothing it received,
  * never to fill the gap with something more presentable.
  */
-import { ArrowRight, Star, TrendingDown, TrendingUp } from "lucide-react";
+import { ArrowRight, TrendingDown, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import { ProportionRing } from "@/components/ui/proportion-ring";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useSatisfaction,
@@ -163,10 +164,21 @@ export function SatisfactionCard() {
           <>
             <div className="px-4 pb-3 pt-4">
               <div className="flex items-baseline gap-2">
-                <Star
-                  className="size-4 shrink-0 translate-y-[-1px] text-app-muted-2"
-                  strokeWidth={1.75}
-                  aria-hidden
+                {/* #540: the mark, in place of the star. A star beside a score
+                    out of 5 was decoration — it said "this is a rating", which
+                    the words already say. The ring says how far up the scale
+                    this month actually landed, which is the fact somebody wants
+                    at a glance and cannot get from "4.2" without knowing the
+                    ceiling.
+                    *Applying: Meaningful Highlights — an encoding that carries
+                    the measure, not an icon that labels it.* */}
+                <ProportionRing
+                  value={report.data.average ?? 0}
+                  total={5}
+                  size={20}
+                  centre={undefined}
+                  label={`${formatSatisfaction(report.data.average)} out of 5, from ${report.data.answered} answers`}
+                  className="shrink-0 translate-y-[3px] text-app-olive-deep"
                 />
                 <span className="text-2xl font-semibold tabular-nums tracking-tight text-app-ink">
                   {formatSatisfaction(report.data.average)}
