@@ -91,10 +91,20 @@ if (only) {
 const started = process.hrtime.bigint();
 for (const [name, args] of steps) {
   process.stdout.write(`\n▸ ${name}\n`);
-  const result = spawnSync(PNPM, [...PNPM_PREFIX, ...args], {
-    stdio: "inherit",
-    shell: true,
-  });
+  // QUOTED, because `shell: true` hands this to cmd.exe as a string. Node is
+  // routinely installed under "C:\Program Files\nodejs", and an unquoted path
+  // with a space in it made every step die with "'C:\Program' is not recognized"
+  // — so this script, which exists to be the one command run before a push, could
+  // not run at all on a default Windows install.
+  const quote = (value) => (value.includes(" ") ? `"${value}"` : value);
+  const result = spawnSync(
+    quote(PNPM),
+    [...PNPM_PREFIX.map(quote), ...args],
+    {
+      stdio: "inherit",
+      shell: true,
+    },
+  );
   if (result.status !== 0) {
     console.error(
       `\n  FAILED  ${name}\n\n` +

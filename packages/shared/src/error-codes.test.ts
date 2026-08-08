@@ -32,6 +32,11 @@ describe("error codes (SPEC §7)", () => {
       quiet_hours_confirmation_required: 409,
       mfa_required: 403,
       mfa_challenge_required: 403,
+      // #537: prove it is you by the emailed code, because you hold no
+      // authenticator to be challenged on. 403 like its sibling, so a client can
+      // treat both as "not yet — confirm first" and differ only in which screen
+      // it opens.
+      confirmation_code_required: 403,
       rate_limited: 429,
       // #283: a subsystem switched off at the runtime kill switch. 503 rather
       // than 403 because it is temporary and nobody's fault — the client says
