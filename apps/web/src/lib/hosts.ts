@@ -37,6 +37,13 @@ const EXTRA_APP_PREFIXES = [
   "/dashboard",
   "/join",
   "/native-captcha",
+  // #559: a shared job-photos link (D75). Here rather than in
+  // PROTECTED_PREFIXES, deliberately — the person opening it is a homeowner with
+  // no account, and protecting it would bounce them to /login. What this fixes
+  // is that the API mints the URL on the app host and, being on neither list, it
+  // was 308ed to the marketing apex — where it picked up an hour of shared-cache
+  // TTL and kept opening after the crew revoked it.
+  "/photos",
 ] as const;
 
 function matchesPrefix(pathname: string, prefix: string): boolean {

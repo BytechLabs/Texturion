@@ -20,6 +20,31 @@ const APP_VERSION: string = (
   ) as { version: string }
 ).version;
 
+/**
+ * #559 — public links whose HTML must never sit in a shared cache.
+ *
+ * D75 promises revocation works. These pages are reached with a token and can be
+ * revoked at any moment, so an hour of edge TTL is an hour of a revoked link
+ * still opening for whoever already has the address. The photo page's own
+ * comment already claimed no-store; the header on the wire said otherwise.
+ *
+ * The same list drives the exclusion from the apex cache rule and the positive
+ * no-store rule, so the two cannot disagree — which is the whole reason a
+ * `/photos` that nobody had excluded came to be cached for an hour.
+ *
+ * Kept in step with the redaction list in src/lib/observability/scrub.ts by
+ * next-config-headers.test.ts: a link type whose token must be scrubbed is a
+ * link type that can be revoked.
+ */
+const UNCACHEABLE_TOKEN_PREFIXES = ["photos", "invite"] as const;
+/**
+ * The alternation is wrapped, and that is load-bearing: `(?!photos|invite/)`
+ * binds the slash to the LAST alternative only, so it would exclude every path
+ * beginning "photos" — `/photos-for-plumbers` included — while requiring the
+ * slash for `invite`. `(?:…)` makes the group mean what it reads as.
+ */
+const UNCACHEABLE_PREFIX_GROUP = `(?:${UNCACHEABLE_TOKEN_PREFIXES.join("|")})`;
+
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: APP_VERSION,
@@ -83,15 +108,29 @@ const nextConfig: NextConfig = {
       // all visitors (country, consent, theme are client-side), so the HTML is
       // safe to share-cache. HOST-scoped to the apex: `source` matches PATH
       // only, and `/` (plus other shared paths) also resolves on
-      // app.loonext.com, so a path rule would cache authed dashboard pages —
-      // the host predicate is what keeps the app's responses uncached.
+      // app.loonext.com, so a path rule alone would cache authed pages too.
+      //
+      // #559: the host value is ANCHORED. Next anchors a `has` host predicate;
+      // OpenNext compiles it to an UNANCHORED regex, where a bare
+      // "loonext.com" also matches app.loonext.com — verified live, the app
+      // host was returning this same s-maxage with no Vary: Cookie. `^…$` is
+      // correct under both matchers, so this is the value to write regardless
+      // of which one is running. It has never leaked anything: there is no
+      // cookies() or next/headers anywhere under app/(app), so signed-in HTML
+      // is an empty client-fetched shell. What it DID risk is a stale app shell
+      // pointing at chunk hashes a deploy has already purged.
+      //
       // Pairs with a Cloudflare Cache Rule that marks http.host eq
       // "loonext.com" eligible for cache (HTML is not cached by default);
       // s-maxage drives the shared-cache TTL, max-age=0 keeps browsers
       // revalidating so a deploy-time purge is visible on the next reload.
       {
-        source: "/(.*)",
-        has: [{ type: "host", value: "loonext.com" }],
+        // #559: excluded by PATTERN, not by rule order. A shared photo link is
+        // revocable, and an hour of shared-cache TTL is an hour of a revoked
+        // link still opening. Relying on the more specific rule below to win
+        // would be relying on precedence nobody here has verified.
+        source: `/:path((?!${UNCACHEABLE_PREFIX_GROUP}/).*)`,
+        has: [{ type: "host", value: "^loonext\\.com$" }],
         headers: [
           {
             key: "Cache-Control",
@@ -100,6 +139,14 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // #559: and stated positively as well, so the page carries the header it
+      // has always claimed to. Matches what the API sends for the same token
+      // from apps/api/src/public-links/guard.ts. Not host-scoped: a revocable
+      // link must be uncacheable wherever it is served.
+      ...UNCACHEABLE_TOKEN_PREFIXES.map((prefix) => ({
+        source: `/${prefix}/:token*`,
+        headers: [{ key: "Cache-Control", value: "no-store, private" }],
+      })),
     ];
   },
   async redirects() {
