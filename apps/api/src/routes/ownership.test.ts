@@ -541,7 +541,7 @@ describe("#537 — proving it is you before the business moves", () => {
       }));
       stubFetch(jwksRoute(auth), sb.route);
 
-      const res = await apiRequest(
+      const passed = await apiRequest(
         app,
         env,
         await auth.token({ aal: "aal2" }),
@@ -549,7 +549,11 @@ describe("#537 — proving it is you before the business moves", () => {
         { method: "POST", companyId: COMPANY_ID, body: move.body ?? {} },
       );
       // Past the step-up and into the SQL, which is what this asserts — the
-      // outcome beyond it is that route's own business.
+      // outcome beyond it is that route's own business. Asserted on the CODE
+      // rather than the status, because the stubbed outcome is itself a 403.
+      const body = (await passed.json()) as { error?: { code: string } };
+      expect(body.error?.code).not.toBe("mfa_challenge_required");
+      expect(body.error?.code).not.toBe("confirmation_code_required");
       expect(
         sb.find("POST", `/rest/v1/rpc/api_${move.path}_ownership`),
       ).toHaveLength(1);
@@ -568,13 +572,17 @@ describe("#537 — proving it is you before the business moves", () => {
     const mail = mailStub();
     stubFetch(jwksRoute(auth), mail.route as never, sb.route);
 
-    const res = await apiRequest(
+    const cancelled = await apiRequest(
       app,
       env,
       await auth.token(),
       "/v1/company/ownership/cancel",
       { method: "POST", companyId: COMPANY_ID, body: { confirmation_code: "424242" } },
     );
+    // Neither kind of confirmation was demanded, and the veto went through.
+    const body = (await cancelled.json()) as { error?: { code: string } };
+    expect(body.error?.code).not.toBe("mfa_challenge_required");
+    expect(body.error?.code).not.toBe("confirmation_code_required");
     expect(
       sb.find("POST", "/rest/v1/rpc/api_cancel_ownership_transfer"),
     ).toHaveLength(1);
