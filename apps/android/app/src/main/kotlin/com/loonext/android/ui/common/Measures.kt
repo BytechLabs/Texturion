@@ -113,6 +113,32 @@ fun ProportionRing(
 data class ShareSegment(val label: String, val value: Float, val color: Color)
 
 /**
+ * What share of the bar each part gets.
+ *
+ * PULLED OUT AS A PURE FUNCTION ON PURPOSE. This was first checked by rendering a
+ * bar whose parts exceeded its whole and asserting the bar appeared — which it
+ * did, clamp or no clamp, because an over-long segment overflows quietly rather
+ * than failing. That test passed with the clamp deleted, so it was checking
+ * nothing. Arithmetic is testable as arithmetic; rendering is testable as
+ * rendering; and conflating them is how a guard ends up decorative.
+ *
+ * Clamped cumulatively, so a caller whose parts add to more than the whole gets a
+ * full bar rather than segments running off the end. That happens for real: the
+ * parts and the total are separate figures from the server, and a lagging window
+ * can disagree with itself by one.
+ */
+internal fun shareFractions(values: List<Float>, total: Float): List<Float> {
+    val safeTotal = total.coerceAtLeast(0f)
+    if (safeTotal == 0f) return values.map { 0f }
+    var used = 0f
+    return values.map { value ->
+        val v = value.coerceIn(0f, safeTotal - used)
+        used += v
+        v / safeTotal
+    }
+}
+
+/**
  * A whole, split into its parts.
  *
  * Segments summing to LESS than the total leave the remainder as bare track,
@@ -133,16 +159,7 @@ fun ShareBar(
     // rather than as a month with no quotes in it.
     if (safeTotal == 0f) return
 
-    // Clamped cumulatively, so a caller whose parts add to more than the whole
-    // gets a full bar rather than segments running off the end. That happens for
-    // real: the parts and the total are separate figures from the server, and a
-    // lagging window can disagree with itself by one.
-    var used = 0f
-    val drawn = segments.map { segment ->
-        val v = segment.value.coerceIn(0f, safeTotal - used)
-        used += v
-        segment to v / safeTotal
-    }
+    val drawn = segments.zip(shareFractions(segments.map { it.value }, safeTotal))
 
     Row(
         modifier
