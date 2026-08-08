@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.15.0](https://github.com/BytechLabs/Texturion/compare/api-v0.14.2...api-v0.15.0) (2026-08-08)
+
+
+### Features
+
+* **settings:** choose whether we text a customer back about an emergency ([902a303](https://github.com/BytechLabs/Texturion/commit/902a303cb6923dd0e2a34913a3e367886d808f9b)), closes [#553](https://github.com/BytechLabs/Texturion/issues/553)
+
+
+### Bug Fixes
+
+* **web,api:** stop sending a shared link's secret to our analytics vendor ([f53a434](https://github.com/BytechLabs/Texturion/commit/f53a434a21d7f5128a8b54b8cc099966c39fbfbf)), closes [#558](https://github.com/BytechLabs/Texturion/issues/558)
+
 ## [0.14.2](https://github.com/BytechLabs/Texturion/compare/api-v0.14.1...api-v0.14.2) (2026-08-08)
 
 
