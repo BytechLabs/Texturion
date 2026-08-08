@@ -156,6 +156,7 @@ const SUITES = [
   "work_phase",
   "referral_payout",
   "referral_ask",
+  "task_map_projection",
 ];
 
 const args = process.argv.slice(2);
