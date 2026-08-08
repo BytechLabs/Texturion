@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.10.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.9.1...ios-v0.10.0) (2026-08-08)
+
+
+### Features
+
+* **clients:** draw every measure on the dashboard, on all three ([9c44463](https://github.com/BytechLabs/Texturion/commit/9c444635165262c90ceaf28336c6dfdefaee2029)), closes [#540](https://github.com/BytechLabs/Texturion/issues/540)
+* **clients:** let a member take a measure off their own screen ([58af901](https://github.com/BytechLabs/Texturion/commit/58af90141641f0456949013089c872c3d51a65dc)), closes [#540](https://github.com/BytechLabs/Texturion/issues/540)
+* **clients:** say why the customer's clock is the one that counts ([28134b2](https://github.com/BytechLabs/Texturion/commit/28134b2a521d4a3fc7d856057094e2e3fa8a9a2a)), closes [#539](https://github.com/BytechLabs/Texturion/issues/539)
+* **ios:** ask for Face ID before showing the inbox on a shared phone ([e712c37](https://github.com/BytechLabs/Texturion/commit/e712c37927e49ca26cf25ee186c36707d343d484)), closes [#330](https://github.com/BytechLabs/Texturion/issues/330)
+* **ios:** lead the landing screen with the queue that needs you first ([85fc467](https://github.com/BytechLabs/Texturion/commit/85fc467acb549a5a7da70066acfde759d8562a37)), closes [#540](https://github.com/BytechLabs/Texturion/issues/540)
+* **mobile:** choose which clock a scheduled time is in on the phones ([2138457](https://github.com/BytechLabs/Texturion/commit/2138457991042530bb6c8ffeafb004799fc337a8)), closes [#539](https://github.com/BytechLabs/Texturion/issues/539)
+
+
+### Bug Fixes
+
+* **clients:** name each switch after the card it turns off ([16d43d1](https://github.com/BytechLabs/Texturion/commit/16d43d111aeffa46a395258529c3155e1b07e83c)), closes [#540](https://github.com/BytechLabs/Texturion/issues/540)
+* **clients:** read the number from a phone export, not the label next to it ([af1c14f](https://github.com/BytechLabs/Texturion/commit/af1c14fa97d47bf5ddc2088b943f1276b7f4c6fb)), closes [#248](https://github.com/BytechLabs/Texturion/issues/248)
+* **clients:** say whose clock a scheduled message is set to ([f9422a4](https://github.com/BytechLabs/Texturion/commit/f9422a44d6c382738cc908f7d37ad3ee1aa4a08a)), closes [#539](https://github.com/BytechLabs/Texturion/issues/539)
+* **clients:** show transfer advice at the same point on every device ([ce00869](https://github.com/BytechLabs/Texturion/commit/ce00869f5b4489e106e81fef6599a57894866aa0))
+* **ios:** leave nothing of the last person signed in on a shared phone ([5fdf11e](https://github.com/BytechLabs/Texturion/commit/5fdf11e06d4df49129dffeff62381ae91a12999a)), closes [#330](https://github.com/BytechLabs/Texturion/issues/330)
+* **ios:** let a measure heading be written without naming its argument ([cd5fdd3](https://github.com/BytechLabs/Texturion/commit/cd5fdd3fcd4bff688651dc63eb3e63a3d20fa3ea)), closes [#540](https://github.com/BytechLabs/Texturion/issues/540)
+* **mobile:** line the four measures up on the phones too ([d699895](https://github.com/BytechLabs/Texturion/commit/d69989579194156417f1c668e98f2e1d464dcfe7)), closes [#540](https://github.com/BytechLabs/Texturion/issues/540)
+* **mobile:** name the clock in the message-scheduled confirmation ([92bd20b](https://github.com/BytechLabs/Texturion/commit/92bd20b8e9393917d8d2f4c5ed24586d0cd0ffaa)), closes [#539](https://github.com/BytechLabs/Texturion/issues/539)
+
 ## [0.9.1](https://github.com/BytechLabs/Texturion/compare/ios-v0.9.0...ios-v0.9.1) (2026-08-07)
 
 
