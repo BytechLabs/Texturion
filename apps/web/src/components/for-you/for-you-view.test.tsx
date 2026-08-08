@@ -670,3 +670,58 @@ describe("#540 the strip and the sections agree, and both lead with urgency", ()
     expect(html.indexOf("Waiting on you")).toBeLessThan(html.indexOf("Unread"));
   });
 });
+
+/**
+ * #540 — the layout, asserted where a class name can be read.
+ *
+ * These are deliberately narrow: a server-rendered string can prove which element
+ * carries which responsive class, and cannot prove the result looks right at
+ * 1440px. What they protect is the part that silently rots — the widest slot going
+ * to the first queue that has work rather than to whichever one happens to be
+ * declared first, which is exactly what breaks if somebody later reorders the
+ * record instead of the array.
+ */
+describe("#540 the bento gives the widest slot to the queue that needs it", () => {
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
+
+  it("spans the first queue WITH WORK, not the first declared one", () => {
+    // Unassigned is declared first. Here it is empty and My tasks is overdue, so
+    // the double-width slot must go to My tasks.
+    state.forYou = {
+      waiting_on_you: [],
+      my_tasks: [
+        {
+          task_id: "t1",
+          title: "Send the quote",
+          conversation_id: "c1",
+          message_id: "m1",
+          assigned_user_id: "u1",
+          due_at: hoursAgo(30),
+          overdue: true,
+        },
+      ],
+      unread: [],
+      triage: null,
+    };
+    const html = render();
+    const spanAt = html.indexOf("xl:col-span-2");
+    expect(spanAt).toBeGreaterThan(-1);
+    // The wide wrapper opens immediately before the My tasks heading, and there is
+    // no other queue heading between them.
+    const between = html.slice(spanAt, html.indexOf("My tasks"));
+    expect(between).not.toContain("Unread");
+    expect(between).not.toContain("Waiting on you");
+  });
+
+  it("gives the measures their own row rather than four full-width bands", () => {
+    state.forYou = {
+      waiting_on_you: [],
+      my_tasks: [],
+      unread: [],
+      triage: null,
+    };
+    // Four cards in one grid at xl. Stacking them full width across a wide screen
+    // was the dead space this issue opened with.
+    expect(render()).toContain("xl:grid-cols-4");
+  });
+});

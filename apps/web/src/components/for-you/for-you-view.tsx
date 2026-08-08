@@ -2,7 +2,7 @@
 
 import { ArrowRight, Check, Search } from "lucide-react";
 import Link from "next/link";
-import { Fragment, useMemo } from "react";
+import { useMemo } from "react";
 import { toast } from "sonner";
 
 import { avatarInitials } from "@/components/shell/avatar-color";
@@ -692,7 +692,7 @@ export function ForYouView() {
   }, [forYou.data]);
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8 lg:max-w-5xl">
+    <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8 lg:max-w-5xl xl:max-w-7xl">
       <header className="mb-6 flex items-start justify-between gap-3">
         <div>
           <h1 className="text-[22px] font-semibold tracking-[-0.01em] text-app-ink">
@@ -931,10 +931,36 @@ function ForYouSections({
             <Link href="/inbox">Open the inbox</Link>
           </Button>
         </div>
+        {/* #540: THE MEASURES BELONG HERE TOO, and their absence was backwards.
+            A caught-up morning is the best moment an owner gets to look at how
+            the business is doing — and it was the one state that showed them
+            nothing. The queue being empty is not a reason to hide the result of
+            having cleared it.
+
+            Below the caught-up card rather than above it, on the same reasoning
+            as the queue: what needs doing leads, and "nothing does" is still the
+            first thing to say. */}
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <ResponseTimeCard />
+          <PipelineCard />
+          <SatisfactionCard />
+          <LeadSourcesCard />
+        </div>
         <RecentCallsSection />
       </div>
     );
   }
+
+  // #540: which queues have anything in them. The same expressions the sections
+  // below guard on — used here so the LAYOUT can tell an empty queue from a full
+  // one without rendering it first, which is what lets the widest slot go to the
+  // first queue that actually has work rather than to an empty one.
+  const queueHasContent: Record<DashboardTileId, boolean> = {
+    unassigned: triageCount > 0,
+    waiting: waiting_on_you.length > 0,
+    tasks: my_tasks.length > 0,
+    unread: unread.length > 0,
+  };
 
   // #540: built once, rendered in the order the shared rule gives.
   const queueSections: Record<DashboardTileId, React.ReactNode> = {
@@ -1033,11 +1059,15 @@ function ForYouSections({
     // instead of one long scroll. `items-start` keeps a short panel short
     // rather than stretching it to its neighbour's height, and the columns
     // collapse back to a single stack on a phone, where stacked IS right.
-    <div className="space-y-7 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0">
+    // #540 — a bento rather than two equal columns. One stack on a phone, two
+    // panels from lg, three from xl, and the queue that needs doing first takes
+    // a double-width slot: giving equal weight to unequal things is what made a
+    // wide screen read as a wall of identical boxes with dead space beside it.
+    <div className="space-y-7 lg:grid lg:grid-cols-2 lg:items-start lg:gap-6 lg:space-y-0 xl:grid-cols-3">
       {/* #342: the one strip whose absence is the whole problem it solves —
           nothing else anywhere reports a spam thread that is still receiving
           messages. It spans both columns so it is read before the queue. */}
-      <div className="lg:col-span-2">
+      <div className="lg:col-span-2 xl:col-span-3">
         <SpamReviewSection />
       </div>
 
@@ -1046,7 +1076,13 @@ function ForYouSections({
           is a problem to fix while this is a result to read.
           *Applying: Prioritize Intent — the core action first; a highlight the
           owner reads, not a control they operate.* */}
-      <div className="lg:col-span-2">
+      {/* #540: the four measures as a row of cards, not four full-width bands.
+          They are ONE group answering one question — how the business is doing —
+          and stacking them at full width across a wide screen made them read as
+          four unrelated strips and left the space beside them empty.
+          *Applying: Chunking, and Relationship Strength — one group, spaced as
+          one.* */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2 xl:col-span-3 xl:grid-cols-4">
         <ResponseTimeCard />
         {/* #354: beside its neighbour, and absent entirely until there is
             something true to say. */}
@@ -1093,10 +1129,19 @@ function ForYouSections({
         </Section>
       )}
 
-      {order.map((id) => (
-        <Fragment key={id}>{queueSections[id]}</Fragment>
-      ))}
-      <div className="lg:col-span-2">
+      {/* #540: the FIRST queue with anything in it takes the double-width slot at
+          xl. That is the bento's whole point — the thing to do first is bigger,
+          rather than every panel being the same size and the eye having to read
+          all of them to find out which matters. Only sections with content are
+          laid out, so an empty queue never holds a grid cell open. */}
+      {order
+        .filter((id) => queueHasContent[id])
+        .map((id, index) => (
+          <div key={id} className={index === 0 ? "xl:col-span-2" : undefined}>
+            {queueSections[id]}
+          </div>
+        ))}
+      <div className="lg:col-span-2 xl:col-span-3">
         <RecentCallsSection />
       </div>
     </div>
