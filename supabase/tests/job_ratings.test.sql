@@ -431,4 +431,24 @@ begin
   raise notice 'JR-10 PASSED: claiming and answering are company-scoped';
 end $$;
 
+-- JR-11: the timeline has a word for this, and the applied schema has it.
+--
+-- #554. `job_rated` was inserted by apps/api/src/messaging/job-ratings.ts and had
+-- never been added to conversation_event_type, so every rating reply raised
+-- `invalid input value for enum`. The score was committed, the timeline row was
+-- lost, and — because escalatePoorRating runs on this function's return value,
+-- after the throw — a one-out-of-five never reached the owner. This suite had
+-- zero references to conversation_events, so it could not have noticed.
+--
+-- The cast IS the assertion: an absent label raises 22P02 right here.
+do $$
+declare v_label public.conversation_event_type;
+begin
+  v_label := 'job_rated'::public.conversation_event_type;
+  if v_label::text is distinct from 'job_rated' then
+    raise exception 'JR-11 FAILED: the enum round-tripped job_rated as %', v_label;
+  end if;
+  raise notice 'JR-11 PASSED: the timeline can say a customer rated the job';
+end $$;
+
 rollback;

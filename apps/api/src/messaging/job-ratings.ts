@@ -24,6 +24,7 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { listConversationViewers } from "../auth/conversation-audience";
+import { insertConversationEvents } from "../routes/core/events";
 import type { Env } from "../env";
 import { deliverPush } from "../notifications/deliver";
 import { unwrap } from "../routes/core/http";
@@ -190,14 +191,30 @@ export async function recordRatingFromReply(
   // stay one.
   if (result.outcome !== "recorded" || !result.task_id) return null;
 
-  const { error } = await db.from("conversation_events").insert({
-    company_id: input.companyId,
-    conversation_id: input.conversationId,
-    actor_user_id: null, // the customer, who has no user row
-    type: JOB_RATED_EVENT,
-    payload: { task_id: result.task_id, score },
-  });
-  if (error) throw new Error(`job_rated event: ${error.message}`);
+  // #554: through the TYPED helper, so a type this union cannot express is a
+  // compile error rather than a caught-and-logged runtime one. The hand-rolled
+  // insert that used to be here is how 'job_rated' shipped without ever being
+  // added to the enum.
+  //
+  // AND IT NO LONGER THROWS. The score is already committed by
+  // api_record_job_rating, and the caller runs escalatePoorRating on the value
+  // this function returns — so throwing here meant a missing timeline row also
+  // swallowed the alert to the owner, which is the more important of the two by
+  // a distance. A thread that is missing one line is recoverable; a 1-out-of-5
+  // nobody hears about is the failure #313 exists to prevent.
+  try {
+    await insertConversationEvents(db, [
+      {
+        company_id: input.companyId,
+        conversation_id: input.conversationId,
+        actor_user_id: null, // the customer, who has no user row
+        type: JOB_RATED_EVENT,
+        payload: { task_id: result.task_id, score },
+      },
+    ]);
+  } catch (cause) {
+    console.error("job_rated event failed, rating still recorded:", cause);
+  }
 
   return {
     taskId: result.task_id,

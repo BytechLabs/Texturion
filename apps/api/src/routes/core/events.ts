@@ -47,7 +47,28 @@ export type ConversationEventType =
   // carries `reason` (a MediaRefusalReason) so the clients can say WHICH way it
   // failed, and never a null conversation_id (a refused file belongs to a
   // threaded message), so the conv-required CHECK holds as-is.
-  | "media_refused";
+  | "media_refused"
+  // #554 — the five below were in the SQL enum and MISSING FROM THIS UNION, and
+  // that gap is why #554 happened rather than a detail beside it.
+  //
+  // A value this type cannot express is a value whose writer has to bypass
+  // `insertConversationEvents` and hand an untyped object literal to PostgREST.
+  // Both writers of the two NEW values did exactly that, so tsc had nothing to
+  // check and the missing enum value only ever surfaced as a caught-and-logged
+  // runtime error. Every one of these is now here, and
+  // `scripts/check-conversation-events.mjs` fails the build if this list and the
+  // migrations ever disagree again — in EITHER direction, because both are bugs:
+  // a value here but not in SQL is an insert that will throw, and a value in SQL
+  // but not here is the next writer being pushed off the typed path.
+  | "auto_reply_sent"
+  | "review_requested"
+  | "missed_call"
+  | "call_completed"
+  | "emergency_flagged"
+  // #554 — and the two the enum was actually missing. A customer's rating now
+  // reaches the thread; before this it was recorded and never mentioned.
+  | "appointment_confirmed"
+  | "job_rated";
 
 export interface ConversationEventRow {
   company_id: string;

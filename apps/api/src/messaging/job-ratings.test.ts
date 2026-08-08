@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getDb } from "../db";
 import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from "../test/support";
-import { escalatePoorRating } from "./job-ratings";
+import { escalatePoorRating, recordRatingFromReply } from "./job-ratings";
 
 const COMPANY = "11111111-1111-4111-8111-111111111111";
 const CONVERSATION = "22222222-2222-4222-8222-222222222222";
@@ -149,5 +149,74 @@ describe("escalatePoorRating", () => {
       (call) => call.path === "/rest/v1/push_subscriptions",
     );
     expect(lookup?.url.searchParams.get("user_id")).toBe(`in.(${OWNER})`);
+  });
+});
+
+/**
+ * #554 — a lost timeline row must not swallow the alert.
+ *
+ * THE DEFECT THIS PINS. `job_rated` was never added to
+ * `conversation_event_type`, so the `conversation_events` insert inside
+ * `recordRatingFromReply` raised, the function threw, and the caller in
+ * `inbound.ts` — which runs `escalatePoorRating` on this function's RETURN VALUE,
+ * inside the same `try` — never reached it. The score was committed. The line on
+ * the thread was lost. And a one-out-of-five never woke anybody, which is the
+ * entire point of #313.
+ *
+ * The enum is fixed, and `check-conversation-events.mjs` keeps it fixed. This is
+ * the other half: even if the timeline write fails for some future reason, the
+ * rating still comes back so the escalation still happens. The alert outranks the
+ * audit row, and that ordering is now asserted rather than assumed.
+ */
+describe("#554 recordRatingFromReply survives a failed timeline write", () => {
+  function ratingHarness(eventsFail: boolean) {
+    const env = completeEnv();
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/rpc/api_record_job_rating", () => ({
+      outcome: "recorded",
+      task_id: TASK,
+      score: 1,
+      rated_user_id: null,
+    }));
+    sb.on("POST", "/rest/v1/conversation_events", () => {
+      if (eventsFail) throw new Error("invalid input value for enum");
+      return [];
+    });
+    stubFetch(sb.route);
+    return { sb, db: getDb(env) };
+  }
+
+  it("still returns the rating when the timeline row cannot be written", async () => {
+    const { db } = ratingHarness(true);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const rated = await recordRatingFromReply(db, {
+      companyId: COMPANY,
+      conversationId: CONVERSATION,
+      body: "1",
+    });
+
+    // The whole bug: this used to throw, so the caller's escalation never ran.
+    expect(rated).toEqual({ taskId: TASK, score: 1, ratedUserId: null });
+    // Not silent, either. A swallowed failure nobody can see is how this lasted.
+    expect(errors).toHaveBeenCalled();
+  });
+
+  it("writes the timeline row when it can, and says the type out loud", async () => {
+    // The positive twin: a function that never wrote the event at all would also
+    // pass the test above.
+    const { sb, db } = ratingHarness(false);
+
+    await recordRatingFromReply(db, {
+      companyId: COMPANY,
+      conversationId: CONVERSATION,
+      body: "1",
+    });
+
+    const [written] = sb.find("POST", "/rest/v1/conversation_events");
+    expect(written).toBeDefined();
+    expect(written.body).toMatchObject([
+      { type: "job_rated", conversation_id: CONVERSATION, actor_user_id: null },
+    ]);
   });
 });

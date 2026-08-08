@@ -205,6 +205,20 @@ jobs:
       - name: Guard NULL-blind SQL assertions
         run: node scripts/check-sql-null-blind.mjs
 
+      # #554: a customer replied "1" to "how did it go?" and nobody was told.
+      # `job_rated` was inserted by shipped code and had never been added to
+      # `conversation_event_type`, so the insert raised at runtime, the caller
+      # caught it into console.error, and `escalatePoorRating` — sitting after the
+      # throwing call inside the same try — never ran. The score was saved and the
+      # alert was lost, for months, on every rating.
+      #
+      # Checks BOTH directions, because each is its own bug: a type in the union
+      # with no migration is an insert that throws, and a migration value missing
+      # from the union is the next writer being pushed off the typed path, which
+      # is how this one shipped. Cheap — it reads files, no Docker, no database.
+      - name: Guard the conversation-event vocabulary
+        run: node scripts/check-conversation-events.mjs
+
       # #377: there is ONE deployed environment, so a variable that reaches
       # code without reaching the deploy reference is discovered in production
       # or on an invoice. The two env docs that used to disagree each shipped a

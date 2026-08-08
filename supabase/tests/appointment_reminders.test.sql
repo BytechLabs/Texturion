@@ -545,4 +545,23 @@ begin
   raise notice 'AR-10 PASSED: one rule per offset per workspace';
 end $$;
 
+-- AR-N: the timeline has a word for a confirmed appointment.
+--
+-- #554, the same shape as the rating bug beside it: `appointment_confirmed` was
+-- inserted by apps/api/src/messaging/appointment-reminders.ts and had never been
+-- added to conversation_event_type, so api_confirm_task committed confirmed_at
+-- while the line saying so was lost. Less reachable than the rating path — it
+-- needs an owner to have saved a reminder rule — but the same defect.
+--
+-- The cast IS the assertion: an absent label raises 22P02 right here.
+do $$
+declare v_label public.conversation_event_type;
+begin
+  v_label := 'appointment_confirmed'::public.conversation_event_type;
+  if v_label::text is distinct from 'appointment_confirmed' then
+    raise exception 'AR-N FAILED: the enum round-tripped it as %', v_label;
+  end if;
+  raise notice 'AR-N PASSED: the timeline can say the customer confirmed';
+end $$;
+
 rollback;

@@ -1,0 +1,35 @@
+-- #554 — the timeline can say "rated" and "confirmed", which it could not.
+--
+-- ## What was broken
+--
+-- A crew finishes a job, we text the customer "how did it go?", they reply "1",
+-- and nobody is told. The score is saved and that is the end of it: no line on
+-- the thread, and no alert to the owner.
+--
+-- `public.conversation_event_type` had 26 values and neither of these two was
+-- among them, while shipped code inserted both:
+--
+--   apps/api/src/messaging/job-ratings.ts        inserts 'job_rated'
+--   apps/api/src/messaging/appointment-reminders.ts  inserts 'appointment_confirmed'
+--
+-- The insert raised `invalid input value for enum`, the function threw, and the
+-- caller in apps/api/src/messaging/inbound.ts caught it into console.error and
+-- returned 200 to the carrier. Invisible from every direction.
+--
+-- ## The part that mattered more than the timeline row
+--
+-- `escalatePoorRating` sits INSIDE the same try, AFTER the call that threw, so
+-- it never ran. #313's whole premise — "a bad answer is not a statistic to read
+-- next month" — has never once worked in production. The comment above that call
+-- said "the rating is already written and on the thread, so a push that fails
+-- degrades the alert rather than losing the score". Writing it to the thread was
+-- the thing that threw, and the alert was lost rather than degraded.
+--
+-- ## Why this is its own migration
+--
+-- A new enum value cannot be used in the same transaction that adds it, so the
+-- code that inserts these has to ship behind a migration that already landed.
+-- The same reason 20260728002000_registration_suspended.sql gives.
+
+alter type public.conversation_event_type add value if not exists 'appointment_confirmed';
+alter type public.conversation_event_type add value if not exists 'job_rated';

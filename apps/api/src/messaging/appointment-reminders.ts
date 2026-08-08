@@ -23,6 +23,7 @@ import {
 } from "@loonext/shared";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { insertConversationEvents } from "../routes/core/events";
 import { unwrap } from "../routes/core/http";
 import {
   lastSendableInstantBefore,
@@ -308,14 +309,29 @@ export async function confirmAppointmentFromReply(
   // They confirmed once; saying so twice in the timeline would be noise.
   if (result.outcome !== "confirmed") return null;
 
-  const { error } = await db.from("conversation_events").insert({
-    company_id: input.companyId,
-    conversation_id: input.conversationId,
-    actor_user_id: null, // the customer, who has no user row
-    type: APPOINTMENT_CONFIRMED_EVENT,
-    payload: { task_id: taskId },
-  });
-  if (error) throw new Error(`appointment_confirmed event: ${error.message}`);
+  // #554: through the TYPED helper, so a type the union cannot express is a
+  // compile error rather than a caught-and-logged runtime one. The hand-rolled
+  // insert that used to be here is how 'appointment_confirmed' shipped without
+  // ever being added to the enum, and how it stayed that way.
+  //
+  // STILL THROWS, unlike its twin in job-ratings.ts, and the difference is not an
+  // oversight. #237 argues the case for throwing here — "swallowing the event
+  // error would leave the crew with a confirmed job and no line saying who
+  // confirmed it" — and it costs nothing, because the caller
+  // (messaging/inbound.ts) discards this function's result and nothing runs after
+  // it. Ratings are the opposite shape: `escalatePoorRating` runs on the value
+  // that function returns, so a throw there loses the alert as well as the row,
+  // and the alert is the point of the feature. Same bug, two callers, two
+  // answers.
+  await insertConversationEvents(db, [
+    {
+      company_id: input.companyId,
+      conversation_id: input.conversationId,
+      actor_user_id: null, // the customer, who has no user row
+      type: APPOINTMENT_CONFIRMED_EVENT,
+      payload: { task_id: taskId },
+    },
+  ]);
 
   return taskId;
 }
