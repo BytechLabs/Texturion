@@ -26,6 +26,12 @@ Index behaviour at volume is a property of Postgres and the schema, not of the
 network, so a local database running the same migrations answers it exactly.
 Measured on a developer laptop (Docker Postgres 15, warm cache, best of three).
 
+> **These numbers are the original 2026-08-02 finding and no longer describe the
+> product.** Two defects behind them were fixed on 2026-08-07 and **every hot
+> query is now under 200 ms at the larger size** — see "FIXED 2026-08-07" and
+> "`api_for_you` — FIXED 2026-08-07" below for the current figures. The table is
+> kept because the diagnosis it led to was wrong in an instructive way.
+
 | Workspace size | `api_for_you` | inbox page 1 | `status=open` | search |
 |---|---|---|---|---|
 | 5,000 conversations / 20,000 messages | 30 ms | 54 ms | 30 ms | 36 ms |
@@ -204,9 +210,51 @@ reader is worse than none.
 query scanning and sorting the whole workspace, because one cached plan cannot
 prune fifteen "parameter is null or column matches it" disjuncts down to the two
 a given call uses. Reaching the planner requires literals, which means dynamic
-SQL inside the function that carries row-level access. `api_for_you` is also
-still above 200 ms and was not touched — it is a different, multi-CTE shape whose
-dominant branch has not been identified. Both are filed rather than guessed at.
+SQL inside the function that carries row-level access. Filed as #535 rather than
+guessed at.
+
+### `api_for_you` — FIXED 2026-08-07, and it was hiding a correctness bug
+
+The last query over the line, and the post-login landing page. **257 ms → 85.5 ms**,
+so every hot query is now under 200 ms at 50k/200k.
+
+`EXPLAIN` of the body with literals put 201 ms of the 257 in one place: the base
+CTE computes, for every open conversation the reader could be shown, whether it is
+unread — an `EXISTS` over `messages` wrapping a correlated read of
+`conversation_reads`. Four sections read that CTE, so it is materialised and the
+expensive column is evaluated for all of them before any section applies its limit
+of twenty.
+
+Every consumer that *filters or sorts* on unread also requires the row to be
+assigned to the reader, which is a small set; the two that need it for anything
+else only *display* it, on at most twenty rows. So the base computes it only for
+the reader's own rows, and the display sections read it after their limit. The base
+CTE went from 201 ms to 21 ms.
+
+**The three-valued-logic trap, recorded because it cost a measurement.** The first
+attempt guarded the expensive half with `(c.assigned_user_id = p_user_id and
+exists (...))`, on the assumption that `AND` short-circuits. For an unassigned row
+that comparison is **NULL, not false**, and `NULL and x` must still evaluate `x` to
+learn whether the answer is NULL or false — so the `EXISTS` ran for precisely the
+rows it was meant to skip. Measured saving: none, 257 → 253 ms. `CASE` is
+short-circuiting by definition and does what the `AND` only looked like it did.
+
+**And the load fixture found a bug that CI cannot see.** Every section of that
+screen is assembled with `jsonb_agg`, and none of those aggregates stated an order
+— each relied on the `ORDER BY` inside its own CTE surviving into the outer join
+that attaches contact names, which SQL does not promise. The order of the
+post-login queue was therefore whatever the plan produced.
+
+`supabase/tests/for_you_notifications.test.sql` was **already failing** on this
+database, asserting the unread cross-cut is newest-first and getting it
+oldest-first. The same test passes in CI, which resets from empty: different
+statistics, different plan, favourable order, green. It was written off once here
+as local drift, and that was wrong — a database with realistic volume was the only
+place telling the truth. Fixed by putting `ORDER BY` inside all nine aggregates.
+
+**The lesson for this document.** The value of the volume fixture is not the
+milliseconds. It is that a plan chosen for 50,000 rows is a different plan, and it
+is the only thing that exercises the assumptions an empty-table test cannot reach.
 
 ---
 
