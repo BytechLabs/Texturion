@@ -932,6 +932,86 @@ describe("POST /v1/conversations/:id/notes", () => {
     expect(insert.body).toMatchObject({ direction: "note", body: "" });
   });
 
+  describe("#294 — before and after, carried by the note", () => {
+    it("saves the label the tech chose", async () => {
+      const sb = memberStub();
+      sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+      sb.on("POST", "/rest/v1/messages", () =>
+        Response.json([noteRow({ work_phase: "after" })], { status: 201 }),
+      );
+      sb.on("PATCH", "/rest/v1/conversations", () => new Response(null, { status: 204 }));
+      stubFetch(jwksRoute(auth), sb.route);
+
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        `/v1/conversations/${CONV_ID}/notes`,
+        {
+          method: "POST",
+          companyId: COMPANY_ID,
+          body: { body: "All done", work_phase: "after" },
+        },
+      );
+
+      expect(res.status).toBe(201);
+      expect(sb.find("POST", "/rest/v1/messages")[0].body).toMatchObject({
+        direction: "note",
+        work_phase: "after",
+      });
+    });
+
+    it("writes null when nobody said, which is most notes", async () => {
+      // "Part is on order, back Thursday" is not an unlabelled before. NULL has to
+      // mean neither, or the column reads as something somebody failed to fill in.
+      const sb = memberStub();
+      sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+      sb.on("POST", "/rest/v1/messages", () =>
+        Response.json([noteRow()], { status: 201 }),
+      );
+      sb.on("PATCH", "/rest/v1/conversations", () => new Response(null, { status: 204 }));
+      stubFetch(jwksRoute(auth), sb.route);
+
+      await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        `/v1/conversations/${CONV_ID}/notes`,
+        { method: "POST", companyId: COMPANY_ID, body: { body: "Part on order" } },
+      );
+
+      expect(sb.find("POST", "/rest/v1/messages")[0].body).toMatchObject({
+        work_phase: null,
+      });
+    });
+
+    it("refuses a label that is not one of the two", async () => {
+      // The database constrains this as well. Both, because a value that reaches
+      // the column is a value every client then has to render.
+      const sb = memberStub();
+      sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+      sb.on("POST", "/rest/v1/messages", () =>
+        Response.json([noteRow()], { status: 201 }),
+      );
+      stubFetch(jwksRoute(auth), sb.route);
+
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        `/v1/conversations/${CONV_ID}/notes`,
+        {
+          method: "POST",
+          companyId: COMPANY_ID,
+          body: { body: "Halfway", work_phase: "during" },
+        },
+      );
+
+      expect(res.status).toBe(422);
+      expect(sb.find("POST", "/rest/v1/messages")).toHaveLength(0);
+    });
+  });
+
   describe("@mentions", () => {
     const TEAMMATE = "eeeeeeee-1111-4222-8333-444444444444";
     const OUTSIDER = "ffffffff-1111-4222-8333-444444444444";

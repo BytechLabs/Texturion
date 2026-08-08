@@ -39,6 +39,7 @@ const TASK_ID = "77777777-0000-4000-8000-000000000077";
 const CONTACT_ID = "c0cccccc-0000-4000-8000-0000000000c0";
 const OTHER_USER = "22222222-0000-4000-8000-000000000022";
 const NOTE_ID = "dddddddd-0000-4000-8000-0000000000d1";
+const NOTE_AUTHOR = "77770000-0000-4000-8000-000000000777";
 const MMS_ATT_ID = "eeeeeeee-1111-4000-8000-0000000000a1";
 const NOTE_ATT_ID = "eeeeeeee-2222-4000-8000-0000000000a2";
 const LEGACY_ATT_ID = "eeeeeeee-3333-4000-8000-0000000000a3";
@@ -656,7 +657,15 @@ function unionStubs() {
     restMatch(env, "GET", "messages", (url) =>
       (url.searchParams.get("task_id") ?? "").startsWith("in."),
     ),
-    () => [{ id: NOTE_ID, task_id: TASK_ID }],
+    // #294: the note carries the label and the author its files inherit.
+    () => [
+      {
+        id: NOTE_ID,
+        task_id: TASK_ID,
+        work_phase: "after",
+        sent_by_user_id: NOTE_AUTHOR,
+      },
+    ],
   );
   const noteAttach = stubRoute(
     restMatch(
@@ -909,6 +918,10 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
         content_type: "image/jpeg",
         size_bytes: 4,
         created_at: "2026-07-02T12:05:00.000Z",
+        // #294: the customer's own photo. Not a visit, not a before, not ours.
+        note_id: null,
+        work_phase: null,
+        added_by_user_id: null,
       },
       {
         id: LEGACY_ATT_ID,
@@ -918,6 +931,11 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
         content_type: "image/png",
         size_bytes: 512,
         created_at: "2026-07-02T13:00:00.000Z",
+        // A pre-D28 row has no note to inherit from. It predates the model
+        // rather than being unlabelled within it.
+        note_id: null,
+        work_phase: null,
+        added_by_user_id: null,
       },
       {
         id: NOTE_ATT_ID,
@@ -927,6 +945,10 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
         content_type: "application/pdf",
         size_bytes: 2048,
         created_at: "2026-07-02T14:00:00.000Z",
+        // #294: inherited from the note, which is where the label lives.
+        note_id: NOTE_ID,
+        work_phase: "after",
+        added_by_user_id: NOTE_AUTHOR,
       },
     ]);
 
@@ -977,7 +999,16 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
       restMatch(env, "GET", "messages", (url) =>
         (url.searchParams.get("task_id") ?? "").startsWith("in."),
       ),
-      () => [{ id: MESSAGE_ID, task_id: TASK_ID }],
+    // #294: a promoted note with no label. Most notes are neither a before nor an
+    // after, and this asserts the union says so rather than guessing.
+    () => [
+      {
+        id: MESSAGE_ID,
+        task_id: TASK_ID,
+        work_phase: null,
+        sent_by_user_id: NOTE_AUTHOR,
+      },
+    ],
     );
     // Arm (b) files: the source note's own generic attachment (the PDF).
     const noteAttach = stubRoute(
@@ -1042,6 +1073,11 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
         content_type: "application/pdf",
         size_bytes: 2048,
         created_at: "2026-07-02T12:10:00.000Z",
+        // #294: grouped and attributed even with no label, because those come
+        // from the note existing rather than from anybody classifying it.
+        note_id: MESSAGE_ID,
+        work_phase: null,
+        added_by_user_id: NOTE_AUTHOR,
       },
     ]);
     // The link lookup ran with the task id, and note files were fetched for the

@@ -153,6 +153,7 @@ const SUITES = [
   "thread_summary",
   "dashboard_panels",
   "ownership_codes",
+  "work_phase",
 ];
 
 const args = process.argv.slice(2);

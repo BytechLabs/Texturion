@@ -1292,6 +1292,20 @@ interface TaskAttachmentItem {
   content_type: string | null;
   size_bytes: number | null;
   created_at: string;
+  /**
+   * #294 — the three fields that turn a flat list into a job record.
+   *
+   * The note a file arrived on is its group, that note's phase is the group's
+   * label, and that note's author is who took the photos. All three come from the
+   * note rather than from the file, which is what keeps D28's two doors intact:
+   * none of this is a property somebody uploaded.
+   *
+   * All null for the customer's own texted media, and honestly so — it did not
+   * arrive in visits, is not a before, and was not added by anyone on the crew.
+   */
+  note_id: string | null;
+  work_phase: "before" | "after" | null;
+  added_by_user_id: string | null;
 }
 
 /** `kind` mirrors the gallery's Images | Files split (T7.3). */
@@ -1351,20 +1365,33 @@ async function loadTaskAttachments(
       content_type: row.content_type,
       size_bytes: row.size_bytes,
       created_at: row.created_at,
+      // #294: the customer's own photo. Not a visit, not a before, not ours.
+      note_id: null,
+      work_phase: null,
+      added_by_user_id: null,
     });
   }
 
   // Arm (b) — notes linked to the tasks, then their live generic attachments.
-  const noteRows = unwrap<{ id: string; task_id: string }[]>(
+  const noteRows = unwrap<
+    {
+      id: string;
+      task_id: string;
+      work_phase: "before" | "after" | null;
+      sent_by_user_id: string | null;
+    }[]
+  >(
     await db
       .from("messages")
-      .select("id,task_id")
+      .select("id,task_id,work_phase,sent_by_user_id")
       .eq("company_id", companyId)
       .eq("direction", "note")
       .in("task_id", taskIds),
     "task note links",
   );
   const taskByNote = new Map(noteRows.map((note) => [note.id, note.task_id]));
+  // #294: the note's own label and author, carried down to each of its files.
+  const noteById = new Map(noteRows.map((note) => [note.id, note]));
 
   // Arms (b) + (c) share the generic table; each is a separate live-rows read
   // because their owner scoping differs (note ids vs task ids).
@@ -1383,6 +1410,10 @@ async function loadTaskAttachments(
     taskId: string | undefined,
   ): void => {
     if (taskId === undefined) return;
+    // #294: a note's files inherit its group, label and author. A legacy
+    // task-owned row (arm c) has no note and gets none of them — it predates the
+    // model rather than being unlabelled within it.
+    const note = source === "note" ? noteById.get(row.owner_id) : undefined;
     byTask.get(taskId)?.push({
       id: row.id,
       source,
@@ -1391,6 +1422,9 @@ async function loadTaskAttachments(
       content_type: row.content_type,
       size_bytes: row.size_bytes,
       created_at: row.created_at,
+      note_id: note?.id ?? null,
+      work_phase: note?.work_phase ?? null,
+      added_by_user_id: note?.sent_by_user_id ?? null,
     });
   };
 

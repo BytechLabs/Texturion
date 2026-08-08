@@ -872,3 +872,19 @@ export {
   handOverPhoneBody,
   handOverPhoneCosts,
 } from "./hand-over-phone";
+
+// #294 — before and after, carried by the NOTE rather than by the file, so D28's
+// two doors stay the only ways in. Grouping, ordering and attribution all fall out
+// of the same column.
+export {
+  WORK_PHASES,
+  WORK_PHASE_HINT,
+  WORK_PHASE_LABELS,
+  WORK_PHASE_UNSET_LABEL,
+  groupJobPhotos,
+  isWorkPhase,
+  jobPhaseSummary,
+  type JobPhotoGroup,
+  type JobPhotoLike,
+  type WorkPhase,
+} from "./work-phase";

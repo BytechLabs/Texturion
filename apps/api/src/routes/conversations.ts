@@ -36,6 +36,7 @@
 import type { BusinessHours, HoursException } from "@loonext/shared";
 import {
   TAGS_PER_WORKSPACE,
+  WORK_PHASES,
   roleHasCapability,
   shouldOfferThreadSummary,
 } from "@loonext/shared";
@@ -270,6 +271,11 @@ const noteSchema = z.object({
   // delivery ceiling and silently drop recipients; a crew note that needs more
   // than ten named people wanted the whole team, which assignment already does.
   mention_user_ids: z.array(z.uuid()).max(10).optional(),
+  // #294: whether the photos on this note show how the job looked on arrival or
+  // how it was left. On the NOTE rather than on each file, because D28 keeps a
+  // task's attachments a derived view and a per-file label would be the third
+  // upload path it removed. Absent is the common case and means neither.
+  work_phase: z.enum(WORK_PHASES).optional(),
 });
 
 // The composer's in-progress text, so the drafts can FINISH what the person
@@ -1100,11 +1106,13 @@ conversationsRoutes.post(
           status: null,
           sent_by_user_id: c.get("userId"),
           task_id: body.task_id ?? null,
+          work_phase: body.work_phase ?? null,
         })
         .select(
           "id,conversation_id,direction,body,status,segments,encoding," +
             "sent_by_user_id,error_code,error_reason,error_detail,telnyx_message_id," +
-            "done_at,done_by_user_id,pinned_at,pinned_by_user_id,task_id,created_at",
+            "done_at,done_by_user_id,pinned_at,pinned_by_user_id,task_id,work_phase," +
+            "created_at",
         ),
       "note insert",
     );
