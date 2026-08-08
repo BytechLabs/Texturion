@@ -497,6 +497,17 @@ export {
 export type { DialerCandidate, DialerMatch, DialerSource } from "./dialer";
 
 export {
+  INBOX_FILTER_DIMENSIONS,
+  activeInboxFilters,
+  hasSecondaryInboxFilters,
+  isInboxFiltered,
+} from "./inbox-filters";
+export type {
+  InboxFilterDimension,
+  InboxFilterState,
+} from "./inbox-filters";
+
+export {
   MIN_DEVICE_QUERY,
   deviceContactMatches,
   filterDeviceContacts,

@@ -425,9 +425,44 @@ private class InboxController(
         cache.put(cacheKey, InboxSnapshot(rows, pinnedRows, cursor))
     }
 
-    val hasFilterChips: Boolean
-        get() = assignee != null || tag != null || unreadOnly || spamOnly ||
-            snoozedOnly || awaitingOnly
+    /**
+     * #548: the arrangement in the vocabulary all three clients now share
+     * (packages/shared/src/inbox-filters.ts, ported in InboxFilters.kt).
+     *
+     * Open is this list's HOME view, so it maps to a null segment — the phones
+     * open there and the web inbox opens on a bare URL, which is why the shared
+     * rule takes each client's own answer rather than deciding it.
+     */
+    private val filterState: InboxFilterState
+        get() = InboxFilterState(
+            segment = if (tab == InboxStatusTab.Open) null else tab.name.lowercase(),
+            assignedToMe = tab == InboxStatusTab.Mine,
+            assigneeUserId = assignee?.user_id,
+            tagId = tag?.id,
+            unreadOnly = unreadOnly,
+            spamOnly = spamOnly,
+            snoozedOnly = snoozedOnly,
+            awaitingOnly = awaitingOnly,
+        )
+
+    /**
+     * Is the list arranged by ANYTHING — Status included? Reset and the header dot.
+     *
+     * THIS USED TO EXCLUDE THE STATUS SEGMENT, and that was #548: the sheet drew a
+     * Status section forty points under a Reset that could not see it, so the
+     * founder pressed Reset, felt the haptic, and nothing happened.
+     */
+    val isFiltered: Boolean get() = isInboxFiltered(filterState)
+
+    /**
+     * Anything BEYOND the status segment, for the empty-state copy only.
+     *
+     * Not the same question as [isFiltered], and the reason that one cannot simply
+     * replace it: the per-tab sentences below ("Nothing assigned to you.", "No
+     * closed conversations.") are more use than "Nothing matches these filters.",
+     * and a segment-aware predicate here would swallow all three.
+     */
+    val hasSecondaryFilters: Boolean get() = hasSecondaryInboxFilters(filterState)
 
     fun selectTab(next: InboxStatusTab) {
         if (tab == next) return
@@ -495,7 +530,10 @@ private class InboxController(
 
     /** One reload for the sheet's Reset (not four chained ones). */
     fun resetFilters() {
-        if (!hasFilterChips) return
+        // #548: Status is a filter, it is edited INSIDE this sheet, and a guard
+        // that could not see it made Reset a control that did nothing.
+        if (!isFiltered) return
+        tab = InboxStatusTab.Open
         assignee = null
         tag = null
         unreadOnly = false
@@ -546,7 +584,7 @@ private class InboxController(
                 // Land on the chosen view only from an untouched inbox. Somebody
                 // who has already filtered has said what they want to see, and a
                 // default that overrode that would be a screen that argues.
-                if (landIfUntouched && !hasFilterChips && tab == InboxStatusTab.Open) {
+                if (landIfUntouched && !isFiltered) {
                     page.data.find { it.id == page.defaults.conversations }?.let(::applyView)
                 }
                 loadViewCounts()
@@ -1205,7 +1243,10 @@ private fun InboxList(
                 InboxHeader(
                     unreadCount = controller.pinnedRows.count { it.unread } +
                         controller.rows.count { it.unread },
-                    filtersActive = controller.hasFilterChips,
+                    // #548: Status counts. An inbox showing only closed threads
+                    // used to look unfiltered, so nothing on screen said why the
+                    // list was short or hinted at the way back.
+                    filtersActive = controller.isFiltered,
                     scheduledCount = controller.scheduled.size,
                     onSearch = { searchOpen = true },
                     onFilters = { filterSheetOpen = true },
@@ -1565,7 +1606,7 @@ private fun ConversationListPane(
                     // screen can give, and "nothing matches these filters"
                     // reports it as an absence. Said as the result it is.
                     controller.awaitingOnly -> "Everyone has been answered."
-                    controller.hasFilterChips -> "Nothing matches these filters."
+                    controller.hasSecondaryFilters -> "Nothing matches these filters."
                     controller.tab == InboxStatusTab.Open -> "Nothing waiting on you."
                     controller.tab == InboxStatusTab.Mine -> "Nothing assigned to you."
                     controller.tab == InboxStatusTab.Closed -> "No closed conversations."
@@ -1976,6 +2017,45 @@ private fun TagChip(tag: Tag) {
 // ---------------------------------------------------------------------------
 
 @OptIn(ExperimentalLayoutApi::class)
+/**
+ * #548 — the sheet's Reset.
+ *
+ * `active = false` renders it dimmed and unclickable rather than hiding it: a
+ * control that vanishes part-way down a sheet moves the screen under somebody's
+ * thumb, and a control that taps back with a haptic and does nothing is the bug
+ * the founder reported. Dimmed says "there is nothing to reset" truthfully.
+ */
+@Composable
+private fun FilterResetControl(active: Boolean, onReset: () -> Unit) {
+    val haptics = rememberHaptics()
+    Text(
+        "Reset",
+        style = MaterialTheme.typography.labelMedium.copy(
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+        ),
+        color = if (active) {
+            MaterialTheme.colorScheme.secondary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+        },
+        modifier = Modifier
+            .minimumInteractiveComponentSize()
+            .clip(CircleShape)
+            .then(
+                if (active) {
+                    Modifier.clickable {
+                        haptics.tap()
+                        onReset()
+                    }
+                } else {
+                    Modifier
+                },
+            )
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+    )
+}
+
 @Composable
 private fun FiltersSheet(
     controller: InboxController,
@@ -2002,21 +2082,9 @@ private fun FiltersSheet(
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 Spacer(Modifier.weight(1f))
-                Text(
-                    "Reset",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                    ),
-                    color = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier
-                        .minimumInteractiveComponentSize()
-                        .clip(CircleShape)
-                        .clickable {
-                            haptics.tap()
-                            controller.resetFilters()
-                        }
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                FilterResetControl(
+                    active = controller.isFiltered,
+                    onReset = { controller.resetFilters() },
                 )
             }
 
