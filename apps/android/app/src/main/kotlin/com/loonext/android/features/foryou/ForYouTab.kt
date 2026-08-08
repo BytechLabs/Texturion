@@ -7,6 +7,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.loonext.android.core.dashboard.DashboardTiles
+import com.loonext.android.core.snooze.parseInstantMillis
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -476,32 +479,103 @@ private fun ForYouList(
             item(key = "caught-up") { CaughtUpWell(Modifier.animateItem()) }
         }
 
-        forYou.triage
-            ?.takeIf { it.conversations.isNotEmpty() || it.tasks.isNotEmpty() }
-            ?.let { triage ->
-                item(key = "triage") {
+        // #540: the four queues are emitted in the order the SHARED rule gives,
+        // so the phone leads with the same thing the laptop does. Web spends its
+        // horizontal room on a strip of four tiles; a 375dp screen cannot afford
+        // two rows of chrome above the work, so here the same decision orders the
+        // sections themselves — which is all the strip was ever an index of.
+        val now = System.currentTimeMillis()
+        // An unparseable stamp reads as "just now" rather than as ancient. The age
+        // can therefore be younger than the truth and never older, which is the
+        // safe direction for a number that decides what somebody looks at first.
+        fun age(iso: String?): Long =
+            iso?.let { parseInstantMillis(it) }?.let { (now - it).coerceAtLeast(0L) } ?: 0L
+        val queueOrder = DashboardTiles.order(
+            DashboardTiles.Input(
+                unassignedAges = (forYou.triage?.conversations?.map { age(it.last_message_at) }
+                    ?: emptyList()) +
+                    // A triage task carries no timestamp on this payload, so it
+                    // counts towards the number without claiming an age.
+                    (forYou.triage?.tasks?.map { 0L } ?: emptyList()),
+                waiting = forYou.waiting_on_you.map {
+                    DashboardTiles.Row(age(it.last_message_at), it.has_overdue_task)
+                },
+                tasks = forYou.my_tasks.map {
+                    DashboardTiles.Row(it.due_at?.let(::age), it.overdue)
+                },
+                unreadAges = forYou.unread.map { age(it.last_message_at) },
+            ),
+        ).map { it.tile }
+
+        val unassignedSection: LazyListScope.() -> Unit = {
+            forYou.triage
+                ?.takeIf { it.conversations.isNotEmpty() || it.tasks.isNotEmpty() }
+                ?.let { triage ->
+                    item(key = "triage") {
+                        QueueSection(
+                            // #416/D53: "Triage" was dispatcher language for a
+                            // section only owners could see. It is the whole
+                            // crew's queue now, and the word for it everywhere
+                            // else in the product is "unassigned".
+                            "Unassigned",
+                            count = triageCount,
+                            // Sections glide as queues above them empty or fill.
+                            modifier = Modifier.animateItem(),
+                        ) {
+                            triage.conversations.forEachIndexed { index, row ->
+                                if (index > 0) RowDivider()
+                                PersonRow(
+                                    name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
+                                    why = relativeTime(row.last_message_at),
+                                    unread = row.unread,
+                                    chipLabel = if (row.unread) "New lead" else null,
+                                    onClick = { onOpenConversation(row.conversation_id) },
+                                )
+                            }
+                            triage.tasks.forEachIndexed { index, row ->
+                                if (index > 0 || triage.conversations.isNotEmpty()) RowDivider()
+                                TaskQueueRow(
+                                    title = row.title,
+                                    overdue = row.overdue,
+                                    dueAt = row.due_at,
+                                    onClick = { onOpenConversation(row.conversation_id) },
+                                )
+                            }
+                        }
+                    }
+                }
+        }
+        val waitingSection: LazyListScope.() -> Unit = {
+            if (forYou.waiting_on_you.isNotEmpty()) {
+                item(key = "waiting") {
                     QueueSection(
-                        // #416/D53: "Triage" was dispatcher language for a
-                        // section only owners could see. It is the whole
-                        // crew's queue now, and the word for it everywhere
-                        // else in the product is "unassigned".
-                        "Unassigned",
-                        count = triageCount,
-                        // Sections glide as queues above them empty or fill.
+                        "Waiting on you",
+                        count = waitingTotal,
                         modifier = Modifier.animateItem(),
                     ) {
-                        triage.conversations.forEachIndexed { index, row ->
+                        forYou.waiting_on_you.forEachIndexed { index, row ->
                             if (index > 0) RowDivider()
                             PersonRow(
                                 name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
                                 why = relativeTime(row.last_message_at),
                                 unread = row.unread,
-                                chipLabel = if (row.unread) "New lead" else null,
                                 onClick = { onOpenConversation(row.conversation_id) },
                             )
                         }
-                        triage.tasks.forEachIndexed { index, row ->
-                            if (index > 0 || triage.conversations.isNotEmpty()) RowDivider()
+                    }
+                }
+            }
+        }
+        val tasksSection: LazyListScope.() -> Unit = {
+            if (forYou.my_tasks.isNotEmpty()) {
+                item(key = "tasks") {
+                    QueueSection(
+                        "My tasks",
+                        count = tasksTotal,
+                        modifier = Modifier.animateItem(),
+                    ) {
+                        forYou.my_tasks.forEachIndexed { index, row ->
+                            if (index > 0) RowDivider()
                             TaskQueueRow(
                                 title = row.title,
                                 overdue = row.overdue,
@@ -512,7 +586,32 @@ private fun ForYouList(
                     }
                 }
             }
+        }
+        val unreadSection: LazyListScope.() -> Unit = {
+            if (forYou.unread.isNotEmpty()) {
+                item(key = "unread") {
+                    QueueSection(
+                        "Unread",
+                        count = unreadTotal,
+                        modifier = Modifier.animateItem(),
+                    ) {
+                        forYou.unread.forEachIndexed { index, row ->
+                            if (index > 0) RowDivider()
+                            PersonRow(
+                                name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
+                                why = relativeTime(row.last_message_at),
+                                unread = true,
+                                onClick = { onOpenConversation(row.conversation_id) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
 
+        // NOT in the reorderable set: reminders a member set for themselves keep
+        // the top of the queue, because they are there because somebody asked to
+        // be reminded — which outranks whatever merely happens to be urgent today.
         // #293: ABOVE "Waiting on you". A quote nobody answered is the most
         // valuable thing in the business to be reminded about, and unlike
         // every section below it, this one only appears because the member
@@ -544,63 +643,12 @@ private fun ForYouList(
             }
         }
 
-        if (forYou.waiting_on_you.isNotEmpty()) {
-            item(key = "waiting") {
-                QueueSection(
-                    "Waiting on you",
-                    count = waitingTotal,
-                    modifier = Modifier.animateItem(),
-                ) {
-                    forYou.waiting_on_you.forEachIndexed { index, row ->
-                        if (index > 0) RowDivider()
-                        PersonRow(
-                            name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
-                            why = relativeTime(row.last_message_at),
-                            unread = row.unread,
-                            onClick = { onOpenConversation(row.conversation_id) },
-                        )
-                    }
-                }
-            }
-        }
-
-        if (forYou.my_tasks.isNotEmpty()) {
-            item(key = "tasks") {
-                QueueSection(
-                    "My tasks",
-                    count = tasksTotal,
-                    modifier = Modifier.animateItem(),
-                ) {
-                    forYou.my_tasks.forEachIndexed { index, row ->
-                        if (index > 0) RowDivider()
-                        TaskQueueRow(
-                            title = row.title,
-                            overdue = row.overdue,
-                            dueAt = row.due_at,
-                            onClick = { onOpenConversation(row.conversation_id) },
-                        )
-                    }
-                }
-            }
-        }
-
-        if (forYou.unread.isNotEmpty()) {
-            item(key = "unread") {
-                QueueSection(
-                    "Unread",
-                    count = unreadTotal,
-                    modifier = Modifier.animateItem(),
-                ) {
-                    forYou.unread.forEachIndexed { index, row ->
-                        if (index > 0) RowDivider()
-                        PersonRow(
-                            name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
-                            why = relativeTime(row.last_message_at),
-                            unread = true,
-                            onClick = { onOpenConversation(row.conversation_id) },
-                        )
-                    }
-                }
+        queueOrder.forEach { tile ->
+            when (tile) {
+                DashboardTiles.Tile.UNASSIGNED -> unassignedSection()
+                DashboardTiles.Tile.WAITING -> waitingSection()
+                DashboardTiles.Tile.TASKS -> tasksSection()
+                DashboardTiles.Tile.UNREAD -> unreadSection()
             }
         }
 
