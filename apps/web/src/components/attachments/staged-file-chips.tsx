@@ -22,10 +22,17 @@ export interface StagedFile {
 export function StagedFileChips({
   files,
   onRemove,
+  onMarkUp,
   className,
 }: {
   files: StagedFile[];
   onRemove: (id: string) => void;
+  /**
+   * #294: open the markup editor on this photo. Absent where marking up makes no
+   * sense — the chips are reused for documents too, and an editor on a PDF is a
+   * control that does nothing.
+   */
+  onMarkUp?: (id: string) => void;
   className?: string;
 }) {
   if (files.length === 0) return null;
@@ -40,7 +47,22 @@ export function StagedFileChips({
             className="flex min-w-0 items-center gap-1.5 rounded-full border border-app-amber-line bg-app-amber-bg py-0.5 pl-2.5 pr-1 text-xs text-app-amber-ink"
           >
             <Paperclip className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />
-            <span className="max-w-40 truncate">{name}</span>
+            {/* #294: the name is the handle for marking up, so pointing at
+                something costs one tap on the thing already on screen rather
+                than a second control beside it. Only for images — an editor on
+                a PDF is a button that does nothing. */}
+            {onMarkUp && file.type.startsWith("image/") ? (
+              <button
+                type="button"
+                onClick={() => onMarkUp(id)}
+                aria-label={`Draw on ${name}`}
+                className="max-w-40 truncate underline decoration-dotted underline-offset-2"
+              >
+                {name}
+              </button>
+            ) : (
+              <span className="max-w-40 truncate">{name}</span>
+            )}
             {size && (
               <span className="shrink-0 tabular-nums text-app-amber-ink/70">
                 {size}

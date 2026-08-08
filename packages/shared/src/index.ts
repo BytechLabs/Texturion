@@ -888,3 +888,25 @@ export {
   type JobPhotoLike,
   type WorkPhase,
 } from "./work-phase";
+
+// #294 — an arrow and a circle, burned into the photo on the client so what reaches
+// the server is an ordinary note attachment. The arithmetic is shared because three
+// clients draw the same marks.
+export {
+  MARKUP_HALO,
+  MARKUP_HALO_SCALE,
+  MARKUP_HINT,
+  MARKUP_HINT_SECOND_TAP,
+  MARKUP_INK,
+  MARKUP_SAVE,
+  MARKUP_TOOLS,
+  MARKUP_TOOL_LABELS,
+  MARKUP_UNDO,
+  arrowHead,
+  circleFromDrag,
+  isDeliberateDrag,
+  markedUpFileName,
+  markupStrokeWidth,
+  type MarkupPoint,
+  type MarkupTool,
+} from "./photo-markup";

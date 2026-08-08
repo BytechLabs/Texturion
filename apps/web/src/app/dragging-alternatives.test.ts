@@ -48,6 +48,13 @@ const SRC = join(process.cwd(), "src");
  * precisely why nobody would notice.
  */
 const DRAG_SURFACES: Record<string, { alternative: string; why: string }> = {
+  "components/attachments/photo-markup-dialog.tsx": {
+    alternative: "if (anchor === null) {",
+    why:
+      "Tap once to anchor, tap again to finish the mark. The same arrow or circle, " +
+      "with two pointer-downs and no movement — for a tremor, a trackpad, or a " +
+      "touch that never registers as a drag.",
+  },
   "components/tasks/views/board-view.tsx": {
     alternative: "onClick={onMove}",
     why: "A visible 'Move to To do / Move to Done' button on every card.",

@@ -131,6 +131,7 @@ import { TemplatePicker } from "./template-picker";
 import { useWrapUpRecorder } from "./use-wrap-up-recorder";
 import { WrapUpButton, WrapUpStrip } from "./wrap-up-dictation";
 import { WorkPhasePicker } from "@/components/thread/work-phase-picker";
+import { PhotoMarkupDialog } from "@/components/attachments/photo-markup-dialog";
 
 export interface DraftAttachment {
   id: string;
@@ -578,6 +579,8 @@ export function Composer({
    * is worse than one that says nothing.
    */
   const [workPhase, setWorkPhase] = useState<WorkPhase | null>(null);
+  /** #294: which staged photo is open in the markup editor, if any. */
+  const [markingUp, setMarkingUp] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   // AI-drafted replies for THIS thread. Kept per conversation until it moves:
   // asking costs a real AI call, so closing the strip and opening it again, or
@@ -1343,9 +1346,21 @@ export function Composer({
         <StagedFileChips
           files={noteStage.files}
           onRemove={noteStage.remove}
+          onMarkUp={setMarkingUp}
           className="mx-auto max-w-[42rem] px-1 pb-2"
         />
       )}
+      {/* #294: the marks are burned into the staged bytes and the file is
+          replaced, so what uploads is an ordinary note attachment. D28 keeps two
+          doors, and this does not add a third. */}
+      <PhotoMarkupDialog
+        file={noteStage.files.find((staged) => staged.id === markingUp)?.file ?? null}
+        onCancel={() => setMarkingUp(null)}
+        onDone={(marked) => {
+          if (markingUp !== null) noteStage.replace(markingUp, marked);
+          setMarkingUp(null);
+        }}
+      />
       {/* #294: only once there are photos to describe. A before/after choice on a
           text-only note is noise on the most common thing anybody does here. */}
       {isNote && noteStage.files.length > 0 && (

@@ -44,11 +44,29 @@ export function useStagedFiles() {
     setFiles((current) => current.filter((staged) => staged.id !== id));
   }, []);
 
+  /**
+   * #294: swap one staged file for another, keeping its place in the queue.
+   *
+   * The markup editor's output. It keeps the SAME id deliberately: a photo that
+   * jumped to the end of the row because somebody drew an arrow on it would read
+   * as a second copy of the same picture.
+   *
+   * Not re-validated on the way in. The bytes came from our own canvas, are JPEG
+   * by construction, and are smaller than the original that already passed —
+   * running the picker's rules over them would only be able to reject a file the
+   * person can see on screen.
+   */
+  const replace = useCallback((id: string, file: File) => {
+    setFiles((current) =>
+      current.map((staged) => (staged.id === id ? { ...staged, file } : staged)),
+    );
+  }, []);
+
   const clear = useCallback(() => setFiles([]), []);
 
   const restore = useCallback((previous: StagedFile[]) => {
     setFiles(previous);
   }, []);
 
-  return { files, admit, remove, clear, restore };
+  return { files, admit, remove, replace, clear, restore };
 }
