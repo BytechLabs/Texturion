@@ -147,8 +147,20 @@ struct ShareBar: View {
 /// One heading, so there is one answer. `trailing` is for the 7/30/90 window the
 /// two windowed cards carry; the others pass a quiet note or nothing.
 struct MeasureHeader<Trailing: View>: View {
-    let label: String
-    @ViewBuilder var trailing: () -> Trailing
+    private let label: String
+    private let trailing: () -> Trailing
+
+    /// Unlabelled, because `MeasureHeader("Quotes")` reads like the heading it is.
+    ///
+    /// Spelled out rather than left to the memberwise init: the memberwise one
+    /// requires `label:` at every call site, and the convenience overload below
+    /// only covers the no-trailing case — so a call WITH a trailing closure failed
+    /// to compile while the one without it was fine. iOS compiles in CI only, so
+    /// that asymmetry cost a red build to find.
+    init(_ label: String, @ViewBuilder trailing: @escaping () -> Trailing) {
+        self.label = label
+        self.trailing = trailing
+    }
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -166,7 +178,6 @@ struct MeasureHeader<Trailing: View>: View {
 
 extension MeasureHeader where Trailing == EmptyView {
     init(_ label: String) {
-        self.label = label
-        self.trailing = { EmptyView() }
+        self.init(label, trailing: { EmptyView() })
     }
 }
