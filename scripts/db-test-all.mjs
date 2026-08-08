@@ -152,6 +152,7 @@ const SUITES = [
   "dead_provisioning",
   "thread_summary",
   "dashboard_panels",
+  "ownership_codes",
 ];
 
 const args = process.argv.slice(2);
