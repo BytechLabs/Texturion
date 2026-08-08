@@ -708,6 +708,15 @@ struct TaskDetailView: View {
                 }
                 .padding(.bottom, 6)
             }
+            // #294: only when there are photos to send. An offer to share an empty
+            // set is an offer to look unready.
+            ShareJobPhotos(
+                taskId: detail.id,
+                photoCount: detail.attachments.filter { $0.kind == "image" }.count,
+                mutations: mutations,
+                companyId: companyId,
+                onError: { actionError = $0 }
+            )
         }
     }
 

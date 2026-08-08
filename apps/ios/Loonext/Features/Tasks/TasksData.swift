@@ -132,6 +132,19 @@ struct TaskMutations: Sendable {
         try await api.get("/v1/members", companyId: companyId)
     }
 
+    /// #294 — a link to this job's photos, for the customer.
+    ///
+    /// The plaintext token comes back exactly ONCE (D75) and is never retrievable
+    /// again, so whatever the caller does with the URL it does immediately.
+    func shareJobPhotos(companyId: String, taskId: String) async throws -> JobPhotoLink {
+        try await api.post("/v1/tasks/\(taskId)/photos/share", companyId: companyId)
+    }
+
+    /// #294 — the customer should not be able to open it any more.
+    func revokeJobPhotos(companyId: String, taskId: String) async throws {
+        try await api.delete("/v1/tasks/\(taskId)/photos/share", companyId: companyId)
+    }
+
     /// Metadata-only edit. Null-bearing fields must SEND null (clear).
     private func patch(
         companyId: String,

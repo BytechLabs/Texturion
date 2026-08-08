@@ -82,6 +82,15 @@ struct TaskActivityItem: Codable, Sendable {
 }
 
 /// One item of the D28 derived attachments union (no URL — mint per item).
+/// #294 — POST /v1/tasks/:id/photos/share.
+///
+/// `url` is the ONLY time the plaintext token exists outside the customer's hands
+/// (D75); it is never returned again, by any route, to anybody.
+struct JobPhotoLink: Codable, Sendable {
+    let url: String
+    let expires_at: String
+}
+
 struct TaskAttachmentItem: Codable, Sendable, JobPhotoLike {
     let id: String
     let source: String

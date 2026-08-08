@@ -117,6 +117,18 @@ data class TaskActivityItem(
     val author: TaskProfile? = null,
 )
 
+/**
+ * #294 — POST /v1/tasks/:id/photos/share.
+ *
+ * `url` is the ONLY time the plaintext token exists outside the customer's hands
+ * (D75); it is never returned again, by any route, to anybody.
+ */
+@Serializable
+data class JobPhotoLink(
+    val url: String,
+    val expires_at: String,
+)
+
 /** One item of the D28 derived attachments union (no URL — mint per item). */
 @Serializable
 data class TaskAttachmentItem(

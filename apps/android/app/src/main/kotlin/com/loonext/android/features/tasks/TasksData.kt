@@ -17,6 +17,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import com.loonext.android.core.model.JobPhotoLink
 
 /**
  * Tasks feature data access. Mutations honor the binding invariants:
@@ -83,6 +84,20 @@ class TaskMutations(private val api: ApiClient) {
 
     suspend fun members(companyId: String): Page<Member> =
         api.get("/v1/members", companyId = companyId)
+
+    /**
+     * #294 — a link to this job's photos, for the customer.
+     *
+     * The plaintext token comes back exactly ONCE (D75) and is never retrievable
+     * again, so whatever the caller does with the URL it does immediately.
+     */
+    suspend fun shareJobPhotos(companyId: String, taskId: String): JobPhotoLink =
+        api.post("/v1/tasks/$taskId/photos/share", companyId = companyId)
+
+    /** #294 — the customer should not be able to open it any more. */
+    suspend fun revokeJobPhotos(companyId: String, taskId: String) {
+        api.raw("DELETE", "/v1/tasks/$taskId/photos/share", companyId = companyId)
+    }
 
     /** Metadata-only edit. Null-bearing fields must SEND null (clear). */
     private suspend fun patch(companyId: String, taskId: String, body: JsonObject): Task =
