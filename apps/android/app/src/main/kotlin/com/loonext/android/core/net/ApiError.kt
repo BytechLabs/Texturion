@@ -82,3 +82,39 @@ class ApiDecodeException(
     val path: String,
     override val cause: Throwable,
 ) : Exception("Response for $path did not match the client model", cause)
+
+/**
+ * What a decode failure is allowed to say out loud.
+ *
+ * #555 — THE FIELD NAME IS THE WHOLE DIAGNOSTIC, and the value never was.
+ *
+ * kotlinx.serialization appends the offending input to a JsonDecodingException
+ * message, after a newline and the marker `JSON input:`. The first version of
+ * the #555 diagnostics line recorded `cause.message` verbatim, so it could carry
+ * a customer's text, their name or their address — and RecentErrors only redacts
+ * phone-shaped digit runs and emails, while the ring it feeds is attached to the
+ * support email from Settings > Help. SPEC.md puts message bodies, names and
+ * addresses out of bounds; that line walked through it.
+ *
+ * Knowing that `spam_signals` arrived as a null is what fixes the bug. Knowing
+ * what the customer wrote adds nothing to it.
+ */
+fun decodeSummary(cause: Throwable): String = when (cause) {
+    is kotlinx.serialization.MissingFieldException ->
+        "missing " + cause.missingFields.joinToString(",")
+    // Everything else: the reason up to the input block, bounded. `substringBefore`
+    // returns the whole string when the marker is absent, which is the safe
+    // direction — a reason with no dump attached is kept, and the take() bounds it.
+    else -> ((cause::class.simpleName ?: "decode") + " " +
+        (cause.message?.substringBefore(INPUT_DUMP_MARKER) ?: "")).trim().take(80)
+}
+
+/**
+ * Where kotlinx stops explaining and starts quoting the response.
+ *
+ * Its own literal is "\nJSON input: ". Matching on the marker alone is enough and
+ * survives a change to the surrounding whitespace; `substringBefore` returns the
+ * whole string when it is absent, which is the safe direction — a reason with no
+ * dump attached is kept in full, and take(80) bounds it either way.
+ */
+private const val INPUT_DUMP_MARKER = "JSON input:"

@@ -164,7 +164,7 @@ class ApiClient(
         // RecentErrors scrubs phone numbers and emails and keeps a bounded ring
         // that the Diagnostics screen shares, so the next report can arrive with
         // the failing route attached instead of a description of a blank page.
-        RecentErrors.record("decode $path: ${cause.message}")
+        RecentErrors.record("decode $path ${decodeSummary(cause)}")
         throw ApiDecodeException(path, cause)
     }
 
