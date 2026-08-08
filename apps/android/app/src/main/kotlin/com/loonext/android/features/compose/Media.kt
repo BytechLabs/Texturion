@@ -11,6 +11,7 @@ import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import com.loonext.android.core.jobs.PhotoMarkup
 
 /** SPEC §7 outbound MMS limits — validated here AND by the API. */
 const val MAX_PHOTOS = 3
@@ -239,6 +240,41 @@ fun stageNoteFile(context: Context, uri: Uri): FileStageResult {
 }
 
 /** Read a staged file's bytes at upload time (permissions are still live). */
+/**
+ * #294 — park marked-up bytes where the uploader already knows how to read them.
+ *
+ * The staged file is a Uri, not a buffer, so an edited photo needs somewhere to
+ * live between the editor and the send. It goes in the app's own cache as a file://
+ * Uri, which `readStagedFile` below opens exactly like any picked one — no second
+ * read path, and nothing for the upload chain to learn.
+ *
+ * Cache rather than files: if the process dies before the note is sent, the draft is
+ * gone anyway, and leaving a copy of a customer's kitchen in permanent storage to be
+ * swept later is the opposite of what #330 just spent a day on.
+ *
+ * Returns null when the write fails, and the caller keeps the unmarked original —
+ * losing the arrow is annoying, losing the photo is not acceptable.
+ */
+suspend fun stageMarkedUpPhoto(
+    context: Context,
+    original: StagedFile,
+    bytes: ByteArray,
+): StagedFile? = withContext(Dispatchers.IO) {
+    try {
+        val name = PhotoMarkup.markedUpFileName(original.name)
+        val target = java.io.File(context.cacheDir, "markup-${'$'}{original.id}-${'$'}name")
+        target.writeBytes(bytes)
+        original.copy(
+            uri = Uri.fromFile(target),
+            name = name,
+            contentType = "image/jpeg",
+            sizeBytes = bytes.size.toLong(),
+        )
+    } catch (_: Exception) {
+        null
+    }
+}
+
 suspend fun readStagedFile(context: Context, file: StagedFile): ByteArray? =
     withContext(Dispatchers.IO) {
         try {

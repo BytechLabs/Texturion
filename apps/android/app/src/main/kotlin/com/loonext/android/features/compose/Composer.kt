@@ -124,6 +124,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.ui.text.style.TextDecoration
 
 enum class ComposerMode { Text, Note }
 
@@ -443,6 +444,9 @@ fun ThreadComposer(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    /** #294: the staged photo open in the markup editor, if any. */
+    var markingUp by remember { mutableStateOf<StagedFile?>(null) }
+    var markingUpBytes by remember { mutableStateOf<ByteArray?>(null) }
     val textBlocked = noteOnly || banner != null
     val isNote = textBlocked || state.mode == ComposerMode.Note
 
@@ -1010,6 +1014,45 @@ fun ThreadComposer(
                 onRemove = { id ->
                     haptics.tap()
                     state.files = state.files.filterNot { it.id == id }
+                },
+                onMarkUp = { id ->
+                    haptics.tap()
+                    markingUp = state.files.firstOrNull { it.id == id }
+                },
+            )
+            // #294 — the marks are burned into the staged bytes and the file is
+            // replaced, so what uploads is an ordinary note attachment. D28 keeps
+            // two doors, and this does not add a third.
+            val opened = markingUp
+            LaunchedEffect(opened?.id) {
+                markingUpBytes =
+                    if (opened == null) null else readStagedFile(context, opened)
+                // A photo the phone cannot read is a photo it cannot mark up.
+                if (opened != null && markingUpBytes == null) markingUp = null
+            }
+            PhotoMarkupSheet(
+                bytes = markingUpBytes,
+                onCancel = {
+                    markingUp = null
+                    markingUpBytes = null
+                },
+                onDone = { marked ->
+                    val target = opened
+                    markingUp = null
+                    markingUpBytes = null
+                    if (target != null) {
+                        scope.launch {
+                            val replacement = stageMarkedUpPhoto(context, target, marked)
+                            // Keeping the unmarked original beats losing the photo:
+                            // an arrow that did not save is annoying, a missing
+                            // picture is not acceptable.
+                            if (replacement != null) {
+                                state.files = state.files.map { staged ->
+                                    if (staged.id == target.id) replacement else staged
+                                }
+                            }
+                        }
+                    }
                 },
             )
             // #294: only once there are photos to describe. A before/after choice on
@@ -1855,6 +1898,12 @@ private fun StagedMediaChip(
 fun FileChipsRow(
     files: List<StagedFile>,
     onRemove: (String) -> Unit,
+    /**
+     * #294: open the markup editor on this photo. Absent where marking up makes no
+     * sense — these chips carry documents too, and an editor on a PDF is a control
+     * that does nothing.
+     */
+    onMarkUp: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -1875,12 +1924,24 @@ fun FileChipsRow(
                     .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // #294: the name is the handle for marking up, so pointing at
+                // something costs one tap on the thing already on screen.
+                val markable = onMarkUp != null && file.contentType.startsWith("image/")
                 Text(
                     file.name,
                     style = MaterialTheme.typography.labelMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.widthIn(max = 160.dp),
+                    textDecoration = if (markable) TextDecoration.Underline else null,
+                    modifier = Modifier
+                        .widthIn(max = 160.dp)
+                        .then(
+                            if (markable) {
+                                Modifier.clickable { onMarkUp?.invoke(file.id) }
+                            } else {
+                                Modifier
+                            },
+                        ),
                 )
                 Spacer(Modifier.width(6.dp))
                 Icon(
