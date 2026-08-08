@@ -210,8 +210,14 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
     /// on a settings screen, once, rather than widening that boundary for a warning.
     private func loadOnCall() async {
         do {
-            let shifts = try await SettingsRepository(api: graph.api)
-                .onCallShifts(companyId).data
+            // The endpoint directly rather than through SettingsRepository, which
+            // also wants a session store — pulling that into a notifications card
+            // to read one list would be the wrong dependency for one GET.
+            let response: OnCallShiftsResponse = try await graph.api.get(
+                "/v1/on-call",
+                companyId: companyId
+            )
+            let shifts = response.data
             let mine = try await graph.meApi.me().user_id
             onCall = OnCallSilence.isOnCallNow(
                 shifts.map {
