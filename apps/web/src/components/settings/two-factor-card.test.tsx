@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -82,5 +85,111 @@ describe("TwoFactorCard", () => {
     const html = render();
     expect(html).toContain("New recovery codes");
     expect(html).toContain("Turn off");
+  });
+});
+
+/**
+ * #473 — the passkey half.
+ *
+ * The card renders in the `node` environment, so `window` is absent and the
+ * passkey path is off by default — which is itself the first assertion: a browser
+ * that cannot do WebAuthn must not be offered a button that opens nothing, and
+ * Safari on an old iPad in a work van is a real device.
+ */
+describe("TwoFactorCard — passkeys (#473)", () => {
+  function withWebAuthn<T>(body: () => T): T {
+    const had = "window" in globalThis;
+    // Only what the card actually feature-tests. A fuller fake would be a fake
+    // of a thing this test does not exercise.
+    (globalThis as { window?: unknown }).window = {
+      PublicKeyCredential: function PublicKeyCredential() {},
+      location: { hostname: "app.loonext.com", origin: "https://app.loonext.com" },
+    };
+    try {
+      return body();
+    } finally {
+      if (!had) delete (globalThis as { window?: unknown }).window;
+    }
+  }
+
+  it("offers no passkey button where the browser cannot do it", () => {
+    state = { factors: [], enrolled: false, recovery_codes_remaining: 0, aal: "aal1" };
+    const html = render();
+    expect(html).not.toContain("Use a passkey");
+    // And the authenticator path is still fully explained, not reduced to a
+    // fallback nobody was told about.
+    expect(html).toContain("authenticator app");
+    expect(html).toContain("backup codes");
+  });
+
+  it("leads with the passkey where the browser can, and still offers the app", () => {
+    state = { factors: [], enrolled: false, recovery_codes_remaining: 0, aal: "aal1" };
+    const html = withWebAuthn(render);
+    expect(html).toContain("Use a passkey");
+    expect(html).toContain("Use an authenticator app");
+    // The reason, in the reader's terms: no typing, and it does not leave the
+    // device. Plus the promise that makes it safe to do at all.
+    expect(html).toContain("face, fingerprint or screen lock");
+    expect(html).toContain("backup codes");
+  });
+
+  it("names a passkey as what is on, rather than saying authenticator app", () => {
+    // The acceptance criterion that `GET /v1/mfa` distinguishes the types, read
+    // by the person it is about. Saying "Authenticator app is on" to somebody who
+    // enrolled a passkey is a wrong answer to "what happens if I lose this
+    // phone".
+    state = {
+      factors: [{ id: "f1", type: "webauthn", name: "Passkey", created_at: null }],
+      enrolled: true,
+      recovery_codes_remaining: 8,
+      aal: "aal2",
+    };
+    const html = render();
+    expect(html).toContain("Passkey is on");
+    expect(html).not.toContain("Authenticator app is on");
+  });
+
+  it("names both when both are enrolled", () => {
+    state = {
+      factors: [
+        { id: "f1", type: "webauthn", name: "Passkey", created_at: null },
+        { id: "f2", type: "totp", name: null, created_at: null },
+      ],
+      enrolled: true,
+      recovery_codes_remaining: 8,
+      aal: "aal2",
+    };
+    expect(render()).toContain("Passkey and authenticator app are on");
+  });
+
+  it("falls back to a true sentence for a factor type it does not name", () => {
+    // `phone` is a factor type the platform supports and this card has no copy
+    // for. Better to say the true general thing than to guess wrong about which
+    // device holds the key.
+    state = {
+      factors: [{ id: "f1", type: "phone", name: null, created_at: null }],
+      enrolled: true,
+      recovery_codes_remaining: 3,
+      aal: "aal2",
+    };
+    const html = render();
+    expect(html).toContain("Two-factor authentication is on");
+    expect(html).not.toContain("Passkey is on");
+  });
+
+  it("removes a passkey with the same button that removes everything else", () => {
+    // Acceptance: recovery codes remove a passkey exactly as they remove TOTP,
+    // and so does turning it off. The loop is over `factors` and has never cared
+    // about the type — pinned here so a type-specific branch cannot creep in and
+    // leave one factor behind, which would be two-factor still on after somebody
+    // was told it was off.
+    const source = readFileSync(
+      join(import.meta.dirname, "two-factor-card.tsx"),
+      "utf8",
+    );
+    const turnOff = source.slice(source.indexOf("async function turnOff"));
+    const body = turnOff.slice(0, turnOff.indexOf("\n  }"));
+    expect(body).toContain("of mfa.data?.factors");
+    expect(body).not.toMatch(/type\s*===/);
   });
 });

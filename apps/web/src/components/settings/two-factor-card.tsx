@@ -38,6 +38,21 @@ import { getSupabaseBrowser } from "@/lib/supabase/browser";
  * asked only for the recovery codes, which Supabase does not issue.
  */
 
+/**
+ * What `mfa.verify` wants for a passkey's `credential_response`.
+ *
+ * Named here because the SDK does not re-export the type and reaching into
+ * `@supabase/auth-js` directly would depend on a package this app does not
+ * declare. See the cast site for why an instance needs describing at all.
+ */
+type SdkCredentialResponse = Parameters<
+  ReturnType<typeof getSupabaseBrowser>["auth"]["mfa"]["verify"]
+> extends [infer P]
+  ? P extends { webauthn: { credential_response: infer C } }
+    ? C
+    : never
+  : never;
+
 type Step =
   | { kind: "idle" }
   | { kind: "scan"; factorId: string; qr: string; secret: string }
@@ -73,6 +88,115 @@ export function TwoFactorCard() {
         cause instanceof Error
           ? cause.message
           : "Couldn't start setup. Try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * #473 — enrol a passkey, which is the same protection without typing digits.
+   *
+   * #314 shipped codes from an authenticator app and said in its own words that
+   * passkeys suit these users better. It is right: a tradesperson holds ONE
+   * phone, and the authenticator sits on the same screen as the app asking for
+   * the six digits. A passkey is Face ID or a fingerprint instead.
+   *
+   * A SECOND FACTOR AND NEVER THE PASSWORD (D125). The credential lives on the
+   * device, so a phone in a skip would otherwise be an account nobody can reach
+   * except through the recovery codes — which turns the last resort into the
+   * primary key.
+   *
+   * Four steps against GoTrue. `challenge` hands back credential options with
+   * real ArrayBuffers and `verify` serialises the authenticator's answer itself,
+   * so there is no base64url plumbing here to get wrong — the two casts below are
+   * a disagreement about type vintages, explained where they are. The vendor
+   * marks these methods experimental, which is survivable for
+   * an ADDITIONAL factor — a broken ceremony falls back to an authenticator app
+   * or the codes — and is the second reason D125 refuses to let it stand alone.
+   */
+  async function beginPasskey() {
+    setBusy(true);
+    setError(null);
+    try {
+      const supabase = getSupabaseBrowser();
+      const { data: factor, error: enrolError } = await supabase.auth.mfa.enroll({
+        factorType: "webauthn",
+        friendlyName: `Passkey · ${new Date().toLocaleDateString()}`,
+      });
+      if (enrolError || !factor) throw enrolError ?? new Error("enrol failed");
+
+      const { data: challenge, error: challengeError } =
+        await supabase.auth.mfa.challenge({
+          factorId: factor.id,
+          webauthn: {
+            rpId: window.location.hostname,
+            rpOrigins: [window.location.origin],
+          },
+        });
+      if (challengeError || !challenge) {
+        throw challengeError ?? new Error("challenge failed");
+      }
+      if (challenge.webauthn.type !== "create") {
+        // Enrolling a fresh factor can only be a creation ceremony. If the
+        // server asks for an assertion instead, something is being replayed and
+        // the honest move is to stop rather than sign whatever was sent.
+        throw new Error("Unexpected passkey step. Start again.");
+      }
+
+      // TWO CASTS, ONE REASON, AND IT IS A TYPE VINTAGE RATHER THAN A DOUBT.
+      //
+      // The SDK models WebAuthn Level 3 (`…OptionsFuture`, credentials carrying
+      // `parseCreationOptionsFromJSON`); the TypeScript DOM library we compile
+      // against models Level 2. The RUNTIME values are exactly what each side
+      // wants — the browser accepts the options the server sent, and the SDK
+      // serialises the credential the browser returned — so the disagreement is
+      // between two descriptions of the same object, one written later than the
+      // other. Casting here, at the DOM boundary, is narrower and more honest
+      // than widening either type or reaching for the SDK's undeclared
+      // experimental wrapper.
+      const credential = await navigator.credentials.create({
+        publicKey: challenge.webauthn.credential_options
+          .publicKey as unknown as PublicKeyCredentialCreationOptions,
+      });
+      if (!credential) {
+        // The browser returns null when the person dismisses the sheet. Not an
+        // error to shout about — they simply changed their mind.
+        setStep({ kind: "idle" });
+        return;
+      }
+
+      const { error: verifyError } = await supabase.auth.mfa.verify({
+        factorId: factor.id,
+        challengeId: challenge.id,
+        webauthn: {
+          rpId: window.location.hostname,
+          rpOrigins: [window.location.origin],
+          type: "create",
+          // The other half, and its own flavour of the same thing: the SDK's
+          // parameter names the credential CLASS, whose Level 3 typing carries
+          // static `parse…FromJSON` helpers, where what it wants is an instance.
+          // An instance therefore does not satisfy it, and no runtime difference
+          // exists — this is the object the browser just produced.
+          credential_response: credential as unknown as SdkCredentialResponse,
+        },
+      });
+      if (verifyError) throw verifyError;
+
+      // The SAME rule as the authenticator path, and it is the one that matters:
+      // codes only after the factor is proven, and shown before anything else.
+      // A passkey armed with no spare key is a lock on a business phone line
+      // whose only key is inside a phone.
+      const { codes } = await issueCodes.mutateAsync();
+      setStep({ kind: "codes", codes });
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? // The browser's own message is better than ours here: "the operation
+            // either timed out or was not allowed" is what a person needs to
+            // read when their fingerprint was not recognised.
+            cause.message
+          : "Couldn't add a passkey. Try again, or use an authenticator app.",
       );
     } finally {
       setBusy(false);
@@ -149,6 +273,29 @@ export function TwoFactorCard() {
   const enrolled = mfa.data?.enrolled ?? false;
   const remaining = mfa.data?.recovery_codes_remaining ?? 0;
 
+  // #473: what is actually enrolled, in the reader's words. `GET /v1/mfa` has
+  // always carried the type; nothing showed it while there was only one kind.
+  const factors = mfa.data?.factors ?? [];
+  const hasPasskey = factors.some((factor) => factor.type === "webauthn");
+  const hasAuthenticator = factors.some((factor) => factor.type === "totp");
+  const enrolledLabel =
+    hasPasskey && hasAuthenticator
+      ? "Passkey and authenticator app are on"
+      : hasPasskey
+        ? "Passkey is on"
+        : hasAuthenticator
+          ? "Authenticator app is on"
+          : // A verified factor of a type this card does not name yet. Say the
+            // true thing rather than guessing which one it is.
+            "Two-factor authentication is on";
+
+  // Only offered where the browser can actually do it. A button that opens
+  // nothing is worse than an absent one, and Safari on an old iPad is a real
+  // device in a real van.
+  const passkeysAvailable =
+    typeof window !== "undefined" &&
+    typeof window.PublicKeyCredential === "function";
+
   return (
     <SettingsCard
       title="Two-factor authentication"
@@ -164,7 +311,12 @@ export function TwoFactorCard() {
                 aria-hidden
               />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium">Authenticator app is on</p>
+                {/* #473: NAMES WHAT IS ON, because two kinds can be. "Two-factor
+                    is on" would leave somebody who added a passkey unable to
+                    tell whether the authenticator app they set up last year is
+                    still there — and the answer decides what happens when they
+                    lose one of the two. */}
+                <p className="text-sm font-medium">{enrolledLabel}</p>
                 <p className="text-sm text-muted-foreground">
                   {remaining > 0 ? (
                     <>
@@ -203,15 +355,47 @@ export function TwoFactorCard() {
           </>
         ) : (
           <>
-            <p className="text-sm text-muted-foreground">
-              You&apos;ll scan a QR code with an authenticator app — Google
-              Authenticator, 1Password, whatever you already use — and enter a
-              six-digit code to prove it worked. We&apos;ll give you backup
-              codes for the day you lose the phone.
-            </p>
-            <Button type="button" disabled={busy} onClick={beginEnrolment}>
-              Set up two-factor
-            </Button>
+            {/* #473: the passkey leads where the browser can do it, and the
+                authenticator app stands beside it rather than under a "more
+                options" fold. Two choices is the whole list — a third would be
+                a decision to make before the one that matters, which is
+                turning this on at all.
+                *Applying: Chunking, and Prioritise Intent.* */}
+            {passkeysAvailable ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Use your face, fingerprint or screen lock as the second step.
+                  Nothing to type and nothing to lose — it stays on this device.
+                  We&apos;ll give you backup codes for the day the device
+                  doesn&apos;t.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" disabled={busy} onClick={beginPasskey}>
+                    Use a passkey
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={beginEnrolment}
+                  >
+                    Use an authenticator app
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  You&apos;ll scan a QR code with an authenticator app — Google
+                  Authenticator, 1Password, whatever you already use — and enter
+                  a six-digit code to prove it worked. We&apos;ll give you
+                  backup codes for the day you lose the phone.
+                </p>
+                <Button type="button" disabled={busy} onClick={beginEnrolment}>
+                  Set up two-factor
+                </Button>
+              </>
+            )}
           </>
         )}
         {error && step.kind === "idle" && (

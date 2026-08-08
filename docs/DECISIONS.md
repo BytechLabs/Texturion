@@ -7470,3 +7470,53 @@ somebody's WordPress site.
 public-surface middleware: IP limit, noindex, no shared caching, one failure
 answer for every failure), the cost-protection mandate, and #226/#248's rule that
 a consent basis is recorded rather than assumed.
+
+## D125 — a passkey is a second factor here, never a replacement for the password (#473, 2026-08-07)
+
+**Decision.** Passkeys enrol as an additional MFA factor and get a member to
+`aal2`. They do not replace the password, and there is no passwordless sign-in.
+`GET /v1/mfa` distinguishes the types so a member can hold a passkey and a TOTP
+factor at once, and recovery codes remove either.
+
+**Why, and the first reason is the one that decides it.**
+
+**A lost phone must not be a lost business line.** A tradesperson drops a phone
+on a job site. With a password they sign in from a borrowed device and enrol a
+new factor. With a passkey as the *only* credential, the credential went in the
+skip with the phone, and the only way back is the recovery codes — which turns a
+break-glass mechanism into the primary credential, kept wherever that person
+happened to put it. `docs/ACCOUNT-RECOVERY.md` treats recovery codes as the last
+resort on purpose, and this keeps them there.
+
+**The platform gives us the factor, not the sign-in.** `@supabase/auth-js`
+exposes `webauthn` through the MFA surface — enrol, challenge, verify, to `aal2`.
+A passwordless passkey login is a different flow that does not exist there, so
+"passkey alone" would mean building an auth path outside the D8 boundary, for the
+one part of the product where a mistake locks every member out at once.
+
+**The enforcement side already works and does not care which factor it was.**
+`aal2` gating in `companyContext()`, the `mfa_required` code, the workspace
+requirement and its grace window, and the recovery path that removes whatever
+factors exist — all factor-type agnostic since #314. That is exactly why adding a
+factor is cheap and why replacing the password would not be.
+
+**What this costs, stated rather than glossed.** A crew member still types a
+password on first sign-in on a device. The win is the second step: Face ID or a
+fingerprint instead of copying six digits out of an authenticator app that is on
+the same screen as the app asking for them — which is #314's own reasoning for
+why passkeys suit these users better.
+
+**One thing worth knowing before relying on it.** The WebAuthn methods in
+`auth-js` are marked `@experimental` by the vendor. That is acceptable for an
+*additional* factor, where a broken ceremony means falling back to TOTP or
+recovery codes. It would not be acceptable for the only credential, which is a
+second, independent reason for this decision landing where it does.
+
+**Revisit when** the platform ships a supported passwordless sign-in AND there is
+an account-recovery answer that does not lean on the codes — most likely a second
+enrolled passkey on a second device, which is a thing to require, not to assume.
+
+**Consistency:** #314 (TOTP as the baseline, passkeys named as the better second
+factor), D69, `docs/ACCOUNT-RECOVERY.md`, and the D8 boundary that keeps
+enrolment talking to GoTrue directly while the Worker issues only what Supabase
+does not.
