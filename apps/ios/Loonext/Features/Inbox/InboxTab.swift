@@ -200,9 +200,54 @@ private final class InboxController {
         self.meUserId = meUserId
     }
 
-    var hasFilterChips: Bool {
-        assignee != nil || tag != nil || unreadOnly || spamOnly || snoozedOnly
-            || awaitingOnly
+    /// #548: the arrangement in the vocabulary all three clients now share
+    /// (`packages/shared/src/inbox-filters.ts`, ported in `InboxFilters.swift`).
+    ///
+    /// `.open` is this list's HOME view, so it maps to a nil segment — the phones
+    /// open there and the web inbox opens on a bare URL, which is why the shared
+    /// rule takes each client's own answer rather than deciding it.
+    var filterState: InboxFilterState {
+        InboxFilterState(
+            segment: tab == .open ? nil : String(describing: tab),
+            assignedToMe: tab == .mine,
+            assigneeUserId: assignee?.user_id,
+            tagId: tag?.id,
+            unreadOnly: unreadOnly,
+            spamOnly: spamOnly,
+            snoozedOnly: snoozedOnly,
+            awaitingOnly: awaitingOnly
+        )
+    }
+
+    /// Is the list arranged by ANYTHING — the status segment included?
+    ///
+    /// THIS USED TO EXCLUDE THE SEGMENT, and that was #548. On this client there
+    /// was no reset at all to break, so the omission showed up instead as an
+    /// empty-state sentence blaming filters nobody could see.
+    var isFiltered: Bool { isInboxFiltered(filterState) }
+
+    /// Anything BEYOND the segment, for the empty-state copy only. Not the same
+    /// question as `isFiltered`: the per-tab sentences below are more use than
+    /// "nothing matches these filters", and a segment-aware predicate here would
+    /// swallow all of them.
+    var hasSecondaryFilters: Bool { hasSecondaryInboxFilters(filterState) }
+
+    /// #548: put the list back to the home view in ONE reload.
+    ///
+    /// There was no way to do this on iOS at all. Clearing by hand meant up to
+    /// seven taps across two bands, each firing its own reload — seven spinners
+    /// and fourteen requests — and the status segment could not be cleared to
+    /// "everything" at all, because Open is a filter too.
+    func clearFilters() {
+        if !isFiltered { return }
+        tab = .open
+        assignee = nil
+        tag = nil
+        unreadOnly = false
+        spamOnly = false
+        snoozedOnly = false
+        awaitingOnly = false
+        reload(showLoading: true)
     }
 
     func selectTab(_ next: InboxStatusTab) {
@@ -318,7 +363,7 @@ private final class InboxController {
             // Land on the chosen view only from an untouched inbox. Somebody who
             // has already filtered has said what they want to see, and a default
             // that overrode that would be a screen that argues.
-            if landIfUntouched, !self.hasFilterChips, self.tab == .open,
+            if landIfUntouched, !self.isFiltered,
                let id = page.defaults.conversations,
                let view = page.data.first(where: { $0.id == id }) {
                 self.applyView(view)
@@ -1378,6 +1423,27 @@ private struct FilterChipRow: View {
                     onTap: { controller.toggleSnoozed() },
                     onClear: nil
                 )
+                // #548: the way back, which this client did not have at all.
+                //
+                // The founder's ask was to do his filtering in one place and be
+                // able to start again. Clearing by hand meant up to seven taps
+                // across two bands, each firing its own reload — and the status
+                // segment could not be put back to "everything" at all, because
+                // Open is itself a filter.
+                //
+                // LAST in the row, and only when something IS filtered: a control
+                // that is always present but usually does nothing is furniture,
+                // and one that appears where a chip used to be would move the row
+                // under a thumb. It ends the row rather than leading it because it
+                // is the exit, not the first thing to reach for.
+                if controller.isFiltered {
+                    FilterChip(
+                        label: "Clear filters",
+                        selected: false,
+                        onTap: { controller.clearFilters() },
+                        onClear: nil
+                    )
+                }
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 2)
@@ -1576,7 +1642,7 @@ private struct ConversationListPane: View {
         // and "nothing matches these filters" reports it as an absence. Said as
         // the result it is.
         if controller.awaitingOnly { return "Everyone has been answered." }
-        if controller.hasFilterChips { return "Nothing matches these filters." }
+        if controller.hasSecondaryFilters { return "Nothing matches these filters." }
         switch controller.tab {
         case .open: return "Nothing waiting on you."
         case .mine: return "Nothing assigned to you."
