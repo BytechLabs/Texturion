@@ -87,6 +87,30 @@ const SURFACES = [
 
   // ---- deliberate asymmetries, each with its reason -----------------------
   {
+    key: "security",
+    // #330 — the app lock, and the asymmetry is the point rather than a gap.
+    //
+    // D12's customer is a crew texting from PERSONAL handsets: the tech's own
+    // phone, carried off-shift, with a spare in the truck that gets handed to
+    // whoever is covering the weekend. That handover is what the lock is for, and
+    // it is a phone-shaped problem.
+    //
+    // Web is absent DELIBERATELY, for two reasons rather than one. A tab cannot
+    // enforce a lock — another tab, the back button or view-source walks past
+    // anything a page draws, so a browser "app lock" would be the false promise
+    // this feature refuses to make on a phone with no passcode. And the machine
+    // it would run on is a laptop or desk PC, where the boundary is the OS login
+    // and the session that #236 can already revoke remotely.
+    //
+    // If the shared-laptop case ever turns out to be real, the honest answer is
+    // a shorter session, not a drawn lock — and that belongs to #236, not here.
+    web: null,
+    webReason:
+      "a tab cannot enforce a lock (another tab walks past it); the boundary on a laptop is the OS login plus #236 remote session revocation",
+    android: "security",
+    ios: "Security",
+  },
+  {
     key: "ownership",
     // #515: a nominated backup owner has to be able to ACCEPT, and the
     // confirmation used to live inside Settings > Team — a section that
