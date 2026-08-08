@@ -138,6 +138,27 @@ sharing one truck phone and a sole operator have opposite correct answers.
 
 ---
 
+## A photo's location is destroyed at ingest (#294 / D128)
+
+Every image entering through either of D28's two doors has its position removed
+before the bytes reach the bucket: the Exif GPS directory is zeroed, the entry
+pointing at it is orphaned, and any XMP `exif:GPS*` value is blanked. Orientation is
+kept, because it is rendering information rather than information about a person.
+
+| Door | Where it runs | Whose location it was |
+|---|---|---|
+| Inbound MMS media | `apps/api/src/messaging/inbound.ts`, after the scan and before the upload | The **customer's** — they have no account and agreed to nothing |
+| Note attachments | `apps/api/src/routes/attachments.ts`, after the scan and before the content hash | The crew's phone, at the customer's address |
+
+Both are the same routine: `apps/api/src/attachments/location.ts`. It never resizes a
+file, so JPEG, PNG, WebP and HEIC are all handled by one TIFF walk without any
+container rewriting. Known gaps, recorded rather than assumed away: a position
+written only into a vendor-private MakerNote, and any format outside the allow-list.
+
+Stated for customers in the privacy policy under "What stays on your phone".
+
+---
+
 ## Reading the device address book is not collecting contacts
 
 Both apps read the phone's own contact book, and neither uploads it. This is the

@@ -28,6 +28,7 @@ import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { notifyInboundMessage } from "../notifications/inbound";
 import { classifyInbound } from "./spam-flag";
+import { stripImageLocation } from "../attachments/location";
 import { scanAttachment } from "../attachments/scan";
 import { bytesMatchDeclaredType } from "../routes/core/attachments";
 import { insertConversationEvents } from "../routes/core/events";
@@ -1038,6 +1039,17 @@ async function downloadInboundMedia(
       });
       continue;
     }
+
+    // #294 / D128 — the customer's own coordinates, arriving on their own photo.
+    //
+    // Both of D28's doors, not just the one the crew uploads through. A homeowner
+    // texting a picture of a leaking pipe sends the position of their kitchen, and we
+    // are the ones who store it and sign a URL for it. They never agreed to that and
+    // could not have; the business has their address already if it needs one.
+    //
+    // In place on the same buffer that is about to be uploaded, after the scan so it
+    // never runs on a file we were going to refuse.
+    stripImageLocation(new Uint8Array(bytes), contentType);
 
     const path = mediaStoragePath(args.companyId, args.messageId, index);
     const upload = await db.storage.from(MMS_BUCKET).upload(path, bytes, {

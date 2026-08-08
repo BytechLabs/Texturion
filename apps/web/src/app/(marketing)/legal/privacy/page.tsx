@@ -226,6 +226,13 @@ export default function PrivacyPage() {
           themselves so their replies are theirs.
         </p>
         <p>
+          <strong>Photos arrive without their location.</strong> Phones write the
+          GPS position of wherever a picture was taken into the file itself. We
+          remove it as the photo arrives, on pictures your crew uploads and on
+          pictures your customers text you. A job already has an address; the
+          picture does not need to carry one.
+        </p>
+        <p>
           <strong>Your phone&apos;s address book is never uploaded.</strong> If you
           give the app permission, it shows your own contacts beside the
           crew&apos;s so you do not have to retype a number. That search happens on

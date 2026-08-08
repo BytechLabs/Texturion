@@ -22,6 +22,7 @@ import {
   storageUploadMatch,
   stubRoute,
   type Stub,
+  type StubCall,
 } from "../test/messaging-support";
 import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
 import { handleInboundMessage } from "./inbound";
@@ -242,6 +243,126 @@ describe("handleInboundMessage — #121 storage is free (media never budget-gate
     expect(usageCanary.calls).toHaveLength(0);
   });
 });
+
+describe("handleInboundMessage — #294/D128 the sender's own location", () => {
+  it("stores the customer's photo with the coordinates already gone", async () => {
+    // Both of D28's doors, not just the one the crew uploads through. A homeowner
+    // texting a picture of a leaking pipe sends the position of their kitchen; they
+    // never agreed to us keeping that and could not have.
+    //
+    // Asserted on the bytes that reach the BUCKET rather than on a return value,
+    // because the strip works by mutating a view over the same buffer the upload
+    // sends. A refactor that copies instead of viewing would leave every other test
+    // here passing and quietly store the coordinates again.
+    const jpeg = jpegWithGpsLatitude();
+    const mediaDownload = stubRoute(
+      (url, request) => request.method === "GET" && url.href.startsWith(MEDIA_URL),
+      () =>
+        new Response(jpeg.bytes, { headers: { "content-type": "image/jpeg" } }),
+    );
+    const attachmentLookup = stubRoute(
+      restMatch(env, "GET", "message_attachments"),
+      () => [],
+    );
+    // Hand-rolled rather than `stubRoute`, which decodes bodies as text for the
+    // JSON routes and would mangle a JPEG on the way past.
+    const stored: Uint8Array[] = [];
+    const uploadCalls: StubCall[] = [];
+    const upload: Stub = {
+      calls: uploadCalls,
+      route: async (url, request) => {
+        if (!storageUploadMatch(env)(url, request)) return undefined;
+        stored.push(new Uint8Array(await request.clone().arrayBuffer()));
+        uploadCalls.push({
+          url,
+          method: request.method,
+          headers: request.headers,
+          body: undefined,
+        });
+        return Response.json({ Key: "mms-media/x" });
+      },
+    };
+    const attachmentInsert = stubRoute(
+      restMatch(env, "POST", "message_attachments"),
+      () => Response.json([], { status: 201 }),
+    );
+    serve(
+      numberStub(),
+      threadStub({}),
+      awayDisabledStub(),
+      attachmentLookup,
+      mediaDownload,
+      upload,
+      attachmentInsert,
+    );
+
+    await handleInboundMessage(
+      env,
+      inboundEvent({
+        media: [
+          { url: MEDIA_URL, content_type: "image/jpeg", size: jpeg.bytes.length },
+        ],
+      }),
+    );
+
+    expect(upload.calls, "the photo must still be stored").toHaveLength(1);
+    expect(stored, "no bytes reached the bucket").toHaveLength(1);
+    const bytes = stored[0];
+    const latitude = bytes.slice(jpeg.latAt, jpeg.latAt + jpeg.latLength);
+    expect(
+      latitude.every((byte) => byte === 0),
+      "the sender's coordinates reached the bucket",
+    ).toBe(true);
+    // And the photo is intact: same length, still a JPEG.
+    expect(bytes.length).toBe(jpeg.bytes.length);
+    expect([bytes[0], bytes[1]]).toEqual([0xff, 0xd8]);
+  });
+});
+
+/**
+ * A JPEG whose Exif carries a GPS directory with an out-of-line latitude.
+ *
+ * Built rather than fixtured so the latitude's exact position is known and can be
+ * asserted on directly. The layout matches the one in
+ * apps/api/src/attachments/location.test.ts, which is where the format is explained.
+ */
+function jpegWithGpsLatitude(): {
+  bytes: Uint8Array;
+  latAt: number;
+  latLength: number;
+} {
+  const tiff = new Uint8Array(80);
+  const view = new DataView(tiff.buffer);
+  tiff[0] = 0x49;
+  tiff[1] = 0x49;
+  view.setUint16(2, 42, true);
+  view.setUint32(4, 8, true);
+  view.setUint16(8, 1, true); // one entry: the GPS pointer
+  view.setUint16(10, 0x8825, true);
+  view.setUint16(12, 4, true); // LONG
+  view.setUint32(14, 1, true);
+  view.setUint32(18, 38, true); // GPS directory at 38
+  view.setUint32(22, 0, true); // no next IFD
+  view.setUint16(38, 1, true); // one entry
+  view.setUint16(40, 0x0002, true); // GPSLatitude
+  view.setUint16(42, 5, true); // RATIONAL
+  view.setUint32(44, 3, true);
+  view.setUint32(48, 56, true); // values at 56
+  view.setUint32(52, 0, true);
+  tiff.fill(0xab, 56, 80); // the latitude itself
+
+  const header = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00]; // the Exif header, NUL-terminated
+  const segment = 2 + header.length + tiff.length;
+  const bytes = new Uint8Array(4 + 2 + header.length + tiff.length + 2);
+  bytes.set([0xff, 0xd8, 0xff, 0xe1], 0);
+  bytes[4] = (segment >> 8) & 0xff;
+  bytes[5] = segment & 0xff;
+  bytes.set(header, 6);
+  const tiffAt = 6 + header.length;
+  bytes.set(tiff, tiffAt);
+  bytes.set([0xff, 0xd9], tiffAt + tiff.length);
+  return { bytes, latAt: tiffAt + 56, latLength: 24 };
+}
 
 describe("handleInboundMessage — #189 widened inbound media", () => {
   it("stores a non-image type carriers deliver, canonicalizing vendor spellings", async () => {

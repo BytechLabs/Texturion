@@ -7619,3 +7619,50 @@ supply does not secure the action — it removes it.
 decide what a session may do), applies #496's step-up rule beyond the one route it was
 written for, and keeps #341's closure semantics unchanged — the gate is in front of
 the transaction, and nothing about the teardown moved.
+
+## D128 — a photo's location is destroyed at both ingress doors, and orientation is kept (#294, 2026-08-08)
+
+**Decision.** Every image entering the system through either of D28's two doors — an
+inbound MMS, or an attachment on a note — has its location destroyed before the bytes
+reach the bucket. The Exif GPS directory is zeroed and the entry pointing at it is
+orphaned; any XMP `exif:GPS*` value is blanked. Orientation is deliberately kept.
+Nothing else about the file changes, including its length.
+
+**Why it needed deciding at all.** #294 listed EXIF as undecided. It was worse than
+undecided: nothing anywhere in the product had ever looked at image metadata, so the
+answer in force was "we keep the GPS coordinates of our customers' customers' homes,
+in files we store, sign URLs for, and are about to publish to a customer-facing job
+page". Nobody chose that.
+
+**Why both doors, and why the inbound one matters more.** The crew photographing a
+boiler at least works for the business. A homeowner texting a picture of a leaking
+pipe is not our user, has no account, agreed to nothing, and could not have. Their
+phone writes the position of their kitchen into the file and we are the ones who
+store it. The inbound path is the one with no consent available at any price.
+
+**Why the business loses nothing.** A job already carries its address as a field, and
+every map feature reads that field rather than the picture. There is no product
+question this data answers.
+
+**Why it is neutralised in place rather than removed.** A Worker has no image
+library. Removing the block means rewriting the container — JPEG segment lengths, PNG
+chunk CRCs, RIFF sizes, ISO-BMFF box offsets — four format-specific rewrites, each of
+which can produce a file that no longer opens. A corrupted job photo is a worse
+outcome than the problem. So the bytes are overwritten where they lie: the file is
+exactly as long as it was, every offset still resolves, and the coordinates are gone.
+The same routine covers JPEG, PNG, WebP and HEIC because all four embed the same TIFF
+block.
+
+**Why orientation survives.** It is rendering information, not information about a
+person. "Delete all metadata" would have been half the code and would have served
+every portrait photo on its side.
+
+**What this does not reach, stated rather than implied.** A position written only
+into a vendor-private MakerNote, and any format outside the allow-list. Neither is
+what a phone camera does, and both are visible in the code as gaps rather than
+assumed away. A file whose metadata cannot be parsed is left exactly as found and
+still stored: refusing a customer's photo to protect a third party who is not in the
+request is the wrong trade.
+
+**Consistency:** works inside D28's two-door model rather than adding a third path,
+and it is the ingest half of the promise the privacy policy makes about what we keep.

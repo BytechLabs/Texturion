@@ -52,6 +52,7 @@ import {
   previewStoragePath,
   sha256Hex,
 } from "../attachments/preview";
+import { stripImageLocation } from "../attachments/location";
 import { scanAttachment } from "../attachments/scan";
 import { requireCapability } from "../auth/company";
 import {
@@ -507,6 +508,14 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
     };
     assertUsablePreview(preview, { sizeBytes: bytes.byteLength });
   }
+
+  // #294 / D128 — the customer's home coordinates never reach the bucket.
+  //
+  // Before the hash, deliberately: two techs photographing the same panel from the
+  // same spot produce files that differ only in their GPS timestamps, and hashing
+  // first would store both. After the scan, equally deliberately: this rewrites
+  // bytes, and it must never run on a file we were going to refuse.
+  stripImageLocation(bytes, declaredType);
 
   // #240 item 3 — the same file, stored once.
   //

@@ -204,6 +204,14 @@ describe("#330 privacy — what stays on a phone the company does not own", () =
     expect(html).toContain("sign in as");
   });
 
+  it("says photos arrive without their location, on both directions", () => {
+    // D128. The inbound half is the one with no consent available at any price: a
+    // homeowner texting a photo of a leaking pipe is not our user and agreed to
+    // nothing. If this sentence is ever softened, check the ingest changed first.
+    expect(html).toContain("Photos arrive without their location");
+    expect(html).toContain("customers text you");
+  });
+
   it("keeps the address-book promise where a customer can find it", () => {
     // It was true and recorded in an internal inventory. A promise nobody outside
     // the repo can read is not a promise to the person it protects.
