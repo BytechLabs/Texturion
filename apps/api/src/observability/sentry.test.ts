@@ -212,8 +212,13 @@ describe("sentryOptions", () => {
 // #558 — this Worker serves GET /photos/:token, so the path IS the secret
 // ---------------------------------------------------------------------------
 
-/** A token the shape D75 actually mints: 256 bits, base64url. */
-const SHARE_TOKEN = "8Jd-2xQvKpR7nT4bYwZ0aLmS1cVgH6eU9iF3oXrB5kA";
+/**
+ * The SHAPE of a token D75 mints — 43 base64url characters — with none of the
+ * entropy. Built rather than written: a realistic literal is indistinguishable
+ * from a leaked one, and the secret scanner flagged the first version of this
+ * line, correctly.
+ */
+const SHARE_TOKEN = `not-a-real-token-${"x".repeat(26)}`;
 
 describe("#558 a tokenised path never reaches Sentry in full", () => {
   it("redacts the segment after each declared prefix", () => {
