@@ -189,11 +189,14 @@ function TaskDetailLoaded({
   const memberNames = useMemo(
     () =>
       new Map(
-        memberOptions
+        (members.data?.data ?? [])
           .filter((member) => member.user_id !== null)
           .map((member) => [member.user_id as string, member.display_name]),
       ),
-    [memberOptions],
+    // The query result, not the `?? []` above it: that expression is a new array
+    // every render, which would rebuild this map on every render and make the memo
+    // an expense rather than a saving.
+    [members.data],
   );
 
   const saveTitle = () => {

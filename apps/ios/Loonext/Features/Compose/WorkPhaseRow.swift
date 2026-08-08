@@ -50,7 +50,9 @@ struct WorkPhaseRow: View {
                         )
                         .overlay(
                             Capsule().stroke(
-                                on ? Color.clear : BrandColor.line,
+                                // muted250 is the named non-text rung for 1px
+                                // strokes, exempt from the AA text assertion.
+                                on ? Color.clear : BrandColor.muted250,
                                 lineWidth: 1
                             )
                         )

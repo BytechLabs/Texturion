@@ -1087,6 +1087,11 @@ export function Composer({
     uploadNoteFiles,
     // #507: the wrap-up outcome is reported against this company.
     companyId,
+    // #294: NOT optional. Choosing a phase is often the LAST thing somebody does
+    // before sending, and nothing else in this list changes when they do — so a
+    // callback that did not depend on it would send the label they had before,
+    // which is usually none.
+    workPhase,
   ]);
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
