@@ -2,7 +2,7 @@
 
 import { ArrowRight, Check, Search } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import { toast } from "sonner";
 
 import { avatarInitials } from "@/components/shell/avatar-color";
@@ -44,6 +44,7 @@ import {
   DASHBOARD_TILE_LABELS,
   dashboardTiles,
   type DashboardTile,
+  type DashboardTileId,
 } from "@loonext/shared";
 import { cn } from "@/lib/utils";
 
@@ -762,7 +763,10 @@ export function ForYouView() {
           <SectionSkeleton />
         </div>
       ) : (
-        <ForYouSections data={forYou.data} />
+        <ForYouSections
+            data={forYou.data}
+            order={strip.map((tile) => tile.id)}
+          />
       )}
     </div>
   );
@@ -871,7 +875,14 @@ function SpamReviewRow({ item }: { item: SpamReviewItem }) {
   );
 }
 
-function ForYouSections({ data }: { data: ForYou }) {
+function ForYouSections({
+  data,
+  order,
+}: {
+  data: ForYou;
+  /** #540: the shared order, so the sections match the strip above them. */
+  order: readonly DashboardTileId[];
+}) {
   const { waiting_on_you, my_tasks, unread, triage } = data;
   // #293: absent from an older Worker, which is "no reminders" — the state
   // every client written before this shipped was already rendering.
@@ -925,6 +936,98 @@ function ForYouSections({ data }: { data: ForYou }) {
     );
   }
 
+  // #540: built once, rendered in the order the shared rule gives.
+  const queueSections: Record<DashboardTileId, React.ReactNode> = {
+    unassigned: (
+      <>
+        {triageCount > 0 && (
+          <Section id="for-you-unassigned" label="Unassigned" count={triageCount}>
+            {triage?.conversations.map((item) => (
+              <TriageConvRow key={item.conversation_id} item={item} />
+            ))}
+            {/* Triage carries two kinds of thing under one heading, so it gets
+                two footers — one "view all" cannot land a reader on the rows
+                they are missing when only the other half is truncated. */}
+            <Overflow
+              shown={triage?.conversations.length ?? 0}
+              total={triageConvTotal}
+              href="/inbox"
+              label="unassigned conversations in the inbox"
+            />
+            {triage?.tasks.map((task) => (
+              <TriageTaskRow key={task.task_id} task={task} />
+            ))}
+            <Overflow
+              shown={triage?.tasks.length ?? 0}
+              total={triageTaskTotal}
+              href="/tasks"
+              label="all tasks"
+            />
+          </Section>
+        )}
+      </>
+    ),
+    waiting: (
+      <>
+        {waiting_on_you.length > 0 && (
+          <Section id="for-you-waiting" label="Waiting on you" count={waitingTotal}>
+            {waiting_on_you.map((item) => (
+              <WaitingRow key={item.conversation_id} item={item} />
+            ))}
+            {/* /inbox?assignee=me is a SUPERSET of this section — the Mine
+                segment carries no status filter — so the link is offered as a
+                place to continue, not as "the other 43". */}
+            <Overflow
+              shown={waiting_on_you.length}
+              total={waitingTotal}
+              href="/inbox?assignee=me"
+              label="see the rest in your inbox"
+            />
+          </Section>
+        )}
+
+      </>
+    ),
+    tasks: (
+      <>
+        {my_tasks.length > 0 && (
+          <Section id="for-you-tasks" label="My tasks" count={tasksTotal}>
+            {my_tasks.map((task) => (
+              <TaskRow key={task.task_id} task={task} />
+            ))}
+            {/* Bare /tasks, which is List · Open · Mine — the exact match for
+                this section. `?tab=mine` drops the status filter and would land
+                the reader in a list that includes everything they finished. */}
+            <Overflow
+              shown={my_tasks.length}
+              total={tasksTotal}
+              href="/tasks"
+              label="see all your open tasks"
+            />
+          </Section>
+        )}
+
+      </>
+    ),
+    unread: (
+      <>
+        {unread.length > 0 && (
+          <Section id="for-you-unread" label="Unread" count={unreadTotal}>
+            {unread.map((item) => (
+              <UnreadRow key={item.conversation_id} item={item} />
+            ))}
+            <Overflow
+              shown={unread.length}
+              total={unreadTotal}
+              href="/inbox?assignee=me&unread=true"
+              label="see the rest in your inbox"
+            />
+          </Section>
+        )}
+
+      </>
+    ),
+  };
   return (
     // A dashboard on a wide screen: sections sit as panels in two columns
     // instead of one long scroll. `items-start` keeps a short panel short
@@ -969,32 +1072,15 @@ function ForYouSections({ data }: { data: ForYou }) {
           unchanged — only who sees it.
           *Applying: the Safety Principle — the fix must not move an owner's
           dashboard around while it widens the audience.* */}
-      {triageCount > 0 && (
-        <Section id="for-you-unassigned" label="Unassigned" count={triageCount}>
-          {triage?.conversations.map((item) => (
-            <TriageConvRow key={item.conversation_id} item={item} />
-          ))}
-          {/* Triage carries two kinds of thing under one heading, so it gets
-              two footers — one "view all" cannot land a reader on the rows
-              they are missing when only the other half is truncated. */}
-          <Overflow
-            shown={triage?.conversations.length ?? 0}
-            total={triageConvTotal}
-            href="/inbox"
-            label="unassigned conversations in the inbox"
-          />
-          {triage?.tasks.map((task) => (
-            <TriageTaskRow key={task.task_id} task={task} />
-          ))}
-          <Overflow
-            shown={triage?.tasks.length ?? 0}
-            total={triageTaskTotal}
-            href="/tasks"
-            label="all tasks"
-          />
-        </Section>
-      )}
+      {/* #540: the four queue sections render in the SAME order as the strip
+          above them, from one shared decision. Before this the strip could
+          reorder while the sections stayed put, so the index and the page it
+          indexed disagreed — which is worse than a strip that never moved.
 
+          "Chase these" is NOT in the reorderable set and stays pinned at the
+          top of the queue: it is the only section that exists because the
+          member asked to be reminded, which outranks whatever is merely urgent
+          today. */}
       {/* #293: ABOVE "Waiting on you". A quote nobody answered is the most
           valuable thing in the business to be reminded about, and unlike the
           sections below it, this one only ever appears because the member
@@ -1007,54 +1093,9 @@ function ForYouSections({ data }: { data: ForYou }) {
         </Section>
       )}
 
-      {waiting_on_you.length > 0 && (
-        <Section id="for-you-waiting" label="Waiting on you" count={waitingTotal}>
-          {waiting_on_you.map((item) => (
-            <WaitingRow key={item.conversation_id} item={item} />
-          ))}
-          {/* /inbox?assignee=me is a SUPERSET of this section — the Mine
-              segment carries no status filter — so the link is offered as a
-              place to continue, not as "the other 43". */}
-          <Overflow
-            shown={waiting_on_you.length}
-            total={waitingTotal}
-            href="/inbox?assignee=me"
-            label="see the rest in your inbox"
-          />
-        </Section>
-      )}
-
-      {my_tasks.length > 0 && (
-        <Section id="for-you-tasks" label="My tasks" count={tasksTotal}>
-          {my_tasks.map((task) => (
-            <TaskRow key={task.task_id} task={task} />
-          ))}
-          {/* Bare /tasks, which is List · Open · Mine — the exact match for
-              this section. `?tab=mine` drops the status filter and would land
-              the reader in a list that includes everything they finished. */}
-          <Overflow
-            shown={my_tasks.length}
-            total={tasksTotal}
-            href="/tasks"
-            label="see all your open tasks"
-          />
-        </Section>
-      )}
-
-      {unread.length > 0 && (
-        <Section id="for-you-unread" label="Unread" count={unreadTotal}>
-          {unread.map((item) => (
-            <UnreadRow key={item.conversation_id} item={item} />
-          ))}
-          <Overflow
-            shown={unread.length}
-            total={unreadTotal}
-            href="/inbox?assignee=me&unread=true"
-            label="see the rest in your inbox"
-          />
-        </Section>
-      )}
-
+      {order.map((id) => (
+        <Fragment key={id}>{queueSections[id]}</Fragment>
+      ))}
       <div className="lg:col-span-2">
         <RecentCallsSection />
       </div>

@@ -552,3 +552,120 @@ describe("the headline is the work, not the page (#306)", () => {
     expect(html).not.toContain("Showing 1 of");
   });
 });
+
+/**
+ * #540 — the landing screen leads with the thing to do first.
+ *
+ * The complaint was a dashboard that "doesn't feel dynamic": four fixed tiles
+ * over sections in a fixed order, identical whether the work in them was ten
+ * minutes or ten days old. These assert the two halves of the fix — the strip is
+ * ordered by urgency, and the sections below it follow the SAME order, because a
+ * strip that disagrees with the page it indexes is worse than one that never
+ * moves.
+ */
+describe("#540 the strip and the sections agree, and both lead with urgency", () => {
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
+
+  it("puts an overdue task ahead of unassigned work in BOTH the strip and the page", () => {
+    state.forYou = {
+      waiting_on_you: [],
+      my_tasks: [
+        {
+          task_id: "t1",
+          title: "Send the quote",
+          conversation_id: "c1",
+          message_id: "m1",
+          assigned_user_id: "u1",
+          due_at: hoursAgo(30),
+          overdue: true,
+        },
+      ],
+      unread: [],
+      triage: {
+        conversations: [
+          {
+            conversation_id: "c9",
+            status: "new",
+            contact: { id: "p9", name: "Ada", phone_e164: "+16135550100" },
+            last_message_at: hoursAgo(1),
+            unread: true,
+          },
+        ],
+        tasks: [],
+      },
+    };
+    const html = render();
+
+    // The strip's first tile is the overdue one, and it says WHY rather than
+    // leaving a bare number.
+    const stripStart = html.indexOf('href="#for-you-');
+    expect(html.slice(stripStart, stripStart + 40)).toContain("for-you-tasks");
+    expect(html).toContain("1 overdue");
+
+    // And the sections below follow: My tasks before Unassigned.
+    expect(html.indexOf("My tasks")).toBeLessThan(html.indexOf("Unassigned"));
+  });
+
+  it("keeps the reading order when nothing is overdue or aged", () => {
+    // Two fresh queues must not shuffle — a strip that rearranges on a few
+    // minutes' difference is one nobody can learn, and learning where things are
+    // is the point.
+    state.forYou = {
+      waiting_on_you: [],
+      my_tasks: [],
+      unread: [
+        {
+          conversation_id: "c2",
+          status: "open",
+          contact: { id: "p2", name: "Bo", phone_e164: "+16135550101" },
+          assigned_user_id: "u1",
+          last_message_at: hoursAgo(0.2),
+        },
+      ],
+      triage: {
+        conversations: [
+          {
+            conversation_id: "c3",
+            status: "new",
+            contact: { id: "p3", name: "Cy", phone_e164: "+16135550102" },
+            last_message_at: hoursAgo(0.1),
+            unread: true,
+          },
+        ],
+        tasks: [],
+      },
+    };
+    const html = render();
+    expect(html.indexOf("Unassigned")).toBeLessThan(html.indexOf("Unread"));
+  });
+
+  it("promotes a queue that has gone stale over a busier fresh one", () => {
+    // Count is not urgency. Three unread from ten minutes ago is an ordinary
+    // morning; one thread unanswered since yesterday is a customer wondering
+    // whether anybody read it.
+    state.forYou = {
+      waiting_on_you: [
+        {
+          conversation_id: "c4",
+          status: "waiting",
+          contact: { id: "p4", name: "Di", phone_e164: "+16135550103" },
+          assigned_user_id: "u1",
+          last_message_at: hoursAgo(26),
+          has_overdue_task: false,
+          urgency: 1,
+        },
+      ],
+      my_tasks: [],
+      unread: [0.1, 0.2, 0.3].map((h, i) => ({
+        conversation_id: `u${i}`,
+        status: "open",
+        contact: { id: `q${i}`, name: `E${i}`, phone_e164: "+16135550104" },
+        assigned_user_id: "u1",
+        last_message_at: hoursAgo(h),
+      })),
+      triage: null,
+    };
+    const html = render();
+    expect(html.indexOf("Waiting on you")).toBeLessThan(html.indexOf("Unread"));
+  });
+});
