@@ -9,6 +9,7 @@ import {
   useScheduledMessages,
   type ScheduledMessage,
 } from "@/lib/api/scheduled-messages";
+import { twoClockLabel, twoClockSpoken } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
 /**
@@ -114,7 +115,7 @@ function ScheduledRow({
         type="button"
         onClick={onCancel}
         disabled={cancelling}
-        aria-label={`Cancel the message scheduled for ${sendAtLabel(row)}`}
+        aria-label={`Cancel the message scheduled for ${sendAtSpoken(row)}`}
         className="tap-target -mr-1 flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-foreground disabled:opacity-45"
       >
         <X className="size-3.5" strokeWidth={1.75} />
@@ -124,23 +125,32 @@ function ScheduledRow({
 }
 
 /**
- * "Tomorrow, 8:00 AM" in the DESTINATION's zone.
+ * "Tue 8:00 AM" in the DESTINATION's zone — and the reader's own, when they
+ * differ.
  *
  * The zone is the one stored on the row, not the reader's: a dispatcher in
  * Toronto looking at a send scheduled for a customer in Vancouver must see the
- * time that customer will experience, because that is the time the sender
- * chose.
+ * time that customer will experience, because that is the time the sender chose.
+ *
+ * #539: AND IT HAS TO SAY SO. This used to render the destination's clock with
+ * nothing marking it, so the Toronto dispatcher above read "8:00 AM" as their own
+ * eight o'clock and was three hours out — the string was correct and the reader
+ * was wrong, which is the worst kind of label because there is nothing on screen
+ * to argue with. The shared rule adds "their time · yours" only when the two
+ * clocks actually read differently, so a crew whose customers are all in town
+ * still sees one plain time.
  */
 export function sendAtLabel(row: {
   send_at: string;
   clock_timezone: string;
 }): string {
-  const at = new Date(row.send_at);
-  if (Number.isNaN(at.getTime())) return "Scheduled";
-  return at.toLocaleString(undefined, {
-    timeZone: row.clock_timezone,
-    weekday: "short",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return twoClockLabel(row.send_at, row.clock_timezone) || "Scheduled";
+}
+
+/** The same, as a sentence, for the cancel button's accessible name. */
+export function sendAtSpoken(row: {
+  send_at: string;
+  clock_timezone: string;
+}): string {
+  return twoClockSpoken(row.send_at, row.clock_timezone) || "Scheduled";
 }

@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.time.TwoClocks
 import com.loonext.android.core.model.ScheduledMessage
 import com.loonext.android.core.scheduled.ScheduledSend
 import com.loonext.android.features.compose.NoteAmber
@@ -145,7 +146,7 @@ private fun ScheduledRow(row: ScheduledMessage, onCancel: () -> Unit) {
         }) {
             Icon(
                 Icons.Filled.Close,
-                contentDescription = "Cancel the message scheduled for ${sendAtOf(row)}",
+                contentDescription = "Cancel the message scheduled for ${sendAtSpokenOf(row)}",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(15.dp),
             )
@@ -154,15 +155,34 @@ private fun ScheduledRow(row: ScheduledMessage, onCancel: () -> Unit) {
 }
 
 /**
- * "Tue, 8:00 AM" in the DESTINATION's zone.
+ * "Tue, 8:00 AM" in the DESTINATION's zone — and this device's, when they differ.
  *
  * The zone stored on the row, not this device's: a dispatcher in Toronto
  * looking at a send scheduled for a customer in Vancouver has to see the time
  * that customer will experience, because that is the time the sender chose.
+ *
+ * #539: AND IT HAS TO SAY SO. This used to render the destination's clock with
+ * nothing marking it, so the Toronto dispatcher above read "8:00 AM" as their own
+ * eight o'clock and was three hours out — the string was correct and the reader
+ * was wrong, which is the worst kind of label because there is nothing on screen
+ * to argue with. [TwoClocks] adds the second clock only when the two actually read
+ * differently, so a crew whose customers are all in town still sees one time.
+ *
+ * An unknown stored zone falls back to THIS DEVICE'S, so the two read the same and
+ * the label stays quiet — rather than inventing a third clock and announcing a
+ * difference about nothing.
  */
-internal fun sendAtOf(row: ScheduledMessage): String {
-    val at = runCatching { Instant.parse(row.send_at) }.getOrNull() ?: return "Scheduled"
-    val zone = runCatching { ZoneId.of(row.clock_timezone) }
-        .getOrElse { ZoneId.systemDefault() }
-    return sendAtLabel(at, zone)
+internal fun sendAtOf(row: ScheduledMessage): String = sendAtParts(row).first
+
+/** The same, spelled out, for TalkBack. */
+internal fun sendAtSpokenOf(row: ScheduledMessage): String = sendAtParts(row).second
+
+private fun sendAtParts(row: ScheduledMessage): Pair<String, String> {
+    val at = runCatching { Instant.parse(row.send_at) }.getOrNull()
+        ?: return "Scheduled" to "Scheduled"
+    val here = ZoneId.systemDefault()
+    val zone = runCatching { ZoneId.of(row.clock_timezone) }.getOrElse { here }
+    val there = sendAtLabel(at, zone)
+    val mine = sendAtLabel(at, here)
+    return TwoClocks.bothClocks(there, mine) to TwoClocks.bothClocksSpoken(there, mine)
 }

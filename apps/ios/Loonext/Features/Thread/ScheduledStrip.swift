@@ -82,7 +82,7 @@ private struct ScheduledStripRow: View {
                     .foregroundStyle(BrandColor.muted500)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Cancel the message scheduled for \(sendAtOf(row))")
+            .accessibilityLabel("Cancel the message scheduled for \(sendAtSpokenOf(row))")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -113,5 +113,32 @@ func sendAtOf(_ row: ScheduledMessage) -> String {
     // "Scheduled" because of a missing `.SSS` would hide the one fact this
     // strip exists to show.
     guard let at = parseSnoozeInstant(row.send_at) else { return "Scheduled" }
-    return sendAtLabel(at, in: TimeZone(identifier: row.clock_timezone) ?? .current)
+    return TwoClocks.bothClocks(theirClock(at, row), mineClock(at))
+}
+
+/// The same, spelled out, for VoiceOver.
+func sendAtSpokenOf(_ row: ScheduledMessage) -> String {
+    guard let at = parseSnoozeInstant(row.send_at) else { return "Scheduled" }
+    return TwoClocks.bothClocksSpoken(theirClock(at, row), mineClock(at))
+}
+
+/// #539: the customer's clock, and this device's, so the row cannot be misread.
+///
+/// This used to render the destination's clock with nothing marking it, so a
+/// dispatcher in Toronto looking at a send queued for a customer in Vancouver read
+/// "8:00 AM" as their own eight o'clock and was three hours out — the string was
+/// correct and the reader was wrong, which is the worst kind of label because there
+/// is nothing on screen to argue with. `TwoClocks` adds the second clock only when
+/// the two actually read differently, so a crew whose customers are all in town
+/// still sees one time.
+///
+/// An unknown stored zone resolves to `.current`, so the two read the same and the
+/// label stays quiet — rather than inventing a third clock and announcing a
+/// difference about nothing.
+private func theirClock(_ at: Date, _ row: ScheduledMessage) -> String {
+    sendAtLabel(at, in: TimeZone(identifier: row.clock_timezone) ?? .current)
+}
+
+private func mineClock(_ at: Date) -> String {
+    sendAtLabel(at, in: .current)
 }

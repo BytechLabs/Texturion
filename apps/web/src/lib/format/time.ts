@@ -1,3 +1,4 @@
+import { bothClocks, bothClocksSpoken } from "@loonext/shared";
 import {
   differenceInCalendarDays,
   differenceInHours,
@@ -65,4 +66,85 @@ export function formatRelativeTime(iso: string, now: Date = new Date()): string 
   if (days < 7) return format(date, "EEE");
   if (isSameYear(date, now)) return format(date, "MMM d");
   return format(date, "MMM d yyyy");
+}
+
+/**
+ * #539 — a future instant, saying whose clock it is on.
+ *
+ * ## The bug this closes
+ *
+ * A queued message showed "Tue 8:00 AM", formatted in the CUSTOMER's zone
+ * because that is the time whoever scheduled it picked. Nothing said so. A
+ * dispatcher in Toronto reading a send queued for a customer in Vancouver saw
+ * "8:00 AM", read their own clock, and was three hours out — with nothing on the
+ * screen to argue with.
+ *
+ * One instant, two wall clocks, and the shared rule decides whether the second
+ * one is worth saying: `bothClocks` stays quiet when the two read the same, so a
+ * crew whose customers are all in town never sees the label at all.
+ *
+ * `destinationZone` is the zone the time was CHOSEN in — `clock_timezone` on a
+ * scheduled row, the resolved destination clock on a picker.
+ *
+ * `readerZone` defaults to the browser's own, which is what every product call
+ * site wants. It is a parameter rather than read ambiently so a test can state
+ * both sides: a helper whose answer depends on the machine it runs on is a helper
+ * that passes here and fails in CI.
+ */
+export function twoClockLabel(
+  iso: string,
+  destinationZone: string,
+  readerZone?: string,
+): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return "";
+  const here = wallClock(at, readerZone);
+  return bothClocks(wallClock(at, destinationZone, here), here);
+}
+
+/** The same two facts as a sentence, for an accessible name. */
+export function twoClockSpoken(
+  iso: string,
+  destinationZone: string,
+  readerZone?: string,
+): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return "";
+  const here = wallClock(at, readerZone);
+  return bothClocksSpoken(wallClock(at, destinationZone, here), here);
+}
+
+/**
+ * One instant as a wall clock, in a zone or in the reader's own.
+ *
+ * Weekday plus time, no date: everything this is used for is inside the
+ * scheduling horizon, where "Tue 8:00 AM" is what somebody would say out loud and
+ * a full date is noise.
+ *
+ * A zone the runtime rejects falls back to `ifUnknown` — which callers pass as the
+ * READER'S already-rendered clock, so the two read the same and the rule reports
+ * one time. Falling back to the machine's own zone instead was subtly worse: on a
+ * server or a laptop set to neither party's zone it invented a third clock and then
+ * announced the difference, which is a label about nothing. A stored zone is
+ * column-constrained and API-validated, so this only fires if tzdata drops a zone
+ * underneath a live value — and a quiet single time is the right failure there.
+ */
+function wallClock(at: Date, timeZone?: string, ifUnknown?: string): string {
+  try {
+    return at.toLocaleString(undefined, {
+      timeZone,
+      weekday: "short",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return (
+      ifUnknown ??
+      at.toLocaleString(undefined, {
+        weekday: "short",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    );
+  }
 }
