@@ -139,4 +139,58 @@ begin
   end if;
 end $$;
 
+-- 8. The #537 AUDIT widened this beyond the handover: closing the workspace,
+--    releasing a number, and lowering the crew's two-factor requirement are all
+--    confirmable now. Each has to be ACCEPTED, or the gate on that route can never
+--    be satisfied and the action becomes impossible.
+do $$
+declare v_code text; v_action text; begin
+  foreach v_action in array array['close_workspace', 'release_number', 'relax_mfa']
+  loop
+    v_code := public.api_issue_ownership_code(
+      'c0de2222-0000-4000-8000-000000000002',
+      'c0de1111-0000-4000-8000-000000000001', v_action);
+    if v_code is null or length(v_code) is distinct from 6 then
+      raise exception 'no code was issued for %', v_action;
+    end if;
+    if not public.api_use_ownership_code(
+         'c0de2222-0000-4000-8000-000000000002',
+         'c0de1111-0000-4000-8000-000000000001', v_action, v_code) then
+      raise exception 'a good code for % was refused', v_action;
+    end if;
+  end loop;
+end $$;
+
+-- 9. And the scoping still holds across the new set: a code minted to close the
+--    business must not release a number. Opposite decisions, one of which is a
+--    stolen code away from being the other.
+do $$
+declare v_code text; begin
+  v_code := public.api_issue_ownership_code(
+    'c0de2222-0000-4000-8000-000000000002',
+    'c0de1111-0000-4000-8000-000000000001', 'close_workspace');
+  if public.api_use_ownership_code(
+       'c0de2222-0000-4000-8000-000000000002',
+       'c0de1111-0000-4000-8000-000000000001', 'release_number', v_code) then
+    raise exception 'a close-workspace code released a number';
+  end if;
+end $$;
+
+-- 10. An action nobody defined is refused by the database, not silently stored.
+--     The check constraint is what makes property 9 mean anything: an unconstrained
+--     column would accept a typo as a brand-new scope that nothing can satisfy.
+do $$
+begin
+  begin
+    insert into public.ownership_confirmations
+      (company_id, user_id, action, code_hash, expires_at)
+    values ('c0de2222-0000-4000-8000-000000000002',
+            'c0de1111-0000-4000-8000-000000000001',
+            'sell_the_company', 'deadbeef', now() + interval '10 minutes');
+    raise exception 'an undefined action was stored';
+  exception when check_violation then
+    null;
+  end;
+end $$;
+
 rollback;

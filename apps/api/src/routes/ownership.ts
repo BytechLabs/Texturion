@@ -40,9 +40,9 @@ import { z } from "zod";
 import { recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
 import {
-  hasVerifiedFactor,
-  requireStepUpForEnrolled,
-} from "../auth/step-up";
+  CONFIRMABLE_ACTIONS,
+  requireActionConfirmation,
+} from "../auth/confirm-action";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { sendEmail } from "../email/resend";
@@ -76,7 +76,7 @@ const confirmOnlySchema = z.object({
  * instead: those are opposite decisions made by different people.
  */
 const codeRequestSchema = z.object({
-  action: z.enum(["offer", "claim", "accept"]),
+  action: z.enum(CONFIRMABLE_ACTIONS),
 });
 
 interface OwnershipState {
@@ -228,13 +228,22 @@ ownershipRoutes.post(
  * have reached a minority of the people who need it most. This is the other half:
  * six digits to the address on the account.
  *
+ * ## Why the path still says "ownership"
+ *
+ * The #537 audit widened this to every action that ends or hands over a business —
+ * closing the workspace, releasing a number, lowering the crew's two-factor
+ * requirement — so the name is now narrower than the job. It stays anyway: the
+ * phones already shipped calling this path, app builds are not deployed with the
+ * server, and a rename would break the confirmation on every installed copy for the
+ * sake of a URL no customer reads.
+ *
  * ## Why it is not gated on being the owner
  *
- * `workspace.access`, because the three steps a code can satisfy are not all the
- * owner's. A named backup starting a claim is routinely a plain member, and a
- * recipient accepting is by definition not the owner yet. Asking for a code is
- * harmless in itself: it proves nothing and unlocks nothing until the code is
- * presented alongside an action the SQL already gates.
+ * `workspace.access`, because the steps a code can satisfy are not all the owner's.
+ * A named backup starting a claim is routinely a plain member, and a recipient
+ * accepting is by definition not the owner yet. Asking for a code is harmless in
+ * itself: it proves nothing and unlocks nothing until the code is presented
+ * alongside an action the SQL already gates.
  *
  * ## It always answers the same way
  *
@@ -311,7 +320,7 @@ ownershipRoutes.post(
     // start an irreversible handover — and the owner's window to veto lasts only
     // as long as it takes the recipient to tap accept, which can be seconds.
     const body = await parseJsonBody(c, offerSchema);
-    const refused = await requireHandoverConfirmation(
+    const refused = await requireActionConfirmation(
       c,
       "offer",
       "handing the workspace over",
@@ -381,7 +390,7 @@ ownershipRoutes.post(
     // whole business to the person making it, so it is asked of them at the
     // moment they make it.
     const claimBody = await parseJsonBody(c, confirmOnlySchema);
-    const refused = await requireHandoverConfirmation(
+    const refused = await requireActionConfirmation(
       c,
       "claim",
       "claiming the workspace",
@@ -452,7 +461,7 @@ ownershipRoutes.post(
     // proves they are themselves first — the offer told the crew this was coming,
     // and this is the step that cannot be undone.
     const acceptBody = await parseJsonBody(c, confirmOnlySchema);
-    const refused = await requireHandoverConfirmation(
+    const refused = await requireActionConfirmation(
       c,
       "accept",
       "taking ownership",
@@ -584,60 +593,6 @@ ownershipRoutes.post(
  * involved. The person best placed to notice a handover that should not be
  * happening is a colleague who knows the owner is on holiday, not a system.
  */
-/**
- * #537 — the confirmation in front of a handover, whichever kind the caller has.
- *
- * Returns a Response to send back, or null to carry on.
- *
- * ONE FORK, TWO MECHANISMS. Somebody with an authenticator is asked to present it;
- * somebody without one is asked for the code emailed to their own address. The
- * clients show the same dialog either way — see `confirm-code` above.
- *
- * The order matters: a factor-holder is asked for their factor and NOT offered the
- * email path, because letting anybody fall back to email would make the weaker
- * mechanism the effective one for everybody.
- */
-async function requireHandoverConfirmation(
-  c: Context<AppEnv>,
-  action: "offer" | "claim" | "accept",
-  before: string,
-  code: string | undefined,
-): Promise<Response | null> {
-  if (await hasVerifiedFactor(c)) {
-    // The session check. `requireStepUpForEnrolled` re-reads the factor, which is
-    // one extra round trip on a rare, deliberate act and keeps that helper usable
-    // on its own from `DELETE /v1/account`.
-    return requireStepUpForEnrolled(c, before);
-  }
-
-  if (!code) {
-    return errorResponse(
-      c,
-      "confirmation_code_required",
-      `Enter the code we emailed you before ${before}.`,
-    );
-  }
-
-  const db = getDb(getEnv(c.env));
-  const { data, error } = await db.rpc("api_use_ownership_code", {
-    p_company_id: c.get("companyId"),
-    p_user_id: c.get("userId"),
-    p_action: action,
-    p_code: code,
-  });
-  if (error) throw new Error(`api_use_ownership_code failed: ${error.message}`);
-  if (data !== true) {
-    // One message for wrong, expired, already used and out of attempts. Telling
-    // somebody WHICH would tell an attacker whether they had the right digits.
-    return errorResponse(
-      c,
-      "confirmation_code_required",
-      "That code did not work. Ask for a new one and try again.",
-    );
-  }
-  return null;
-}
-
 async function announce(
   c: Context<AppEnv>,
   companyId: string,

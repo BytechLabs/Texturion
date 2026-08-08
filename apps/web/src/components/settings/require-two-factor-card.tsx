@@ -23,6 +23,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { ApiError } from "@/lib/api/error";
 import { useSetWorkspaceMfa } from "@/lib/api/mfa";
+import { useActionConfirmation } from "@/lib/hooks/use-action-confirmation";
+import { HandoverConfirmDialog } from "@/components/ownership/handover-confirm-dialog";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
 
 /**
@@ -45,18 +47,23 @@ export function RequireTwoFactorCard({
   graceUntil: string | null;
 }) {
   const setMfa = useSetWorkspaceMfa();
+  // #537 audit: turning this OFF lowers the whole crew's protection in one silent
+  // save, which is the first move somebody makes with a session they stole. Turning
+  // it ON asks for nothing — friction belongs on the door that opens.
+  const gate = useActionConfirmation();
   const [confirming, setConfirming] = useState(false);
   const [graceDays, setGraceDays] = useState("14");
 
   const enforcing = graceUntil !== null && Date.parse(graceUntil) <= Date.now();
 
-  function apply(nextRequired: boolean) {
+  function apply(nextRequired: boolean, code?: string) {
     setMfa.mutate(
       nextRequired
         ? { required: true, graceDays: Number(graceDays) }
-        : { required: false },
+        : { required: false, code },
       {
         onSuccess: (result) => {
+          gate.dismiss();
           setConfirming(false);
           toast.success(
             nextRequired
@@ -66,12 +73,21 @@ export function RequireTwoFactorCard({
               : "Two-factor is no longer required.",
           );
         },
-        onError: (error) =>
+        onError: (error) => {
+          if (
+            gate.demanded(error, "relax_mfa", (digits) =>
+              apply(nextRequired, digits),
+            )
+          ) {
+            return;
+          }
+          gate.dismiss();
           toast.error(
             error instanceof ApiError
               ? error.message
               : "Couldn't save that. Try again.",
-          ),
+          );
+        },
       },
     );
   }
@@ -181,6 +197,17 @@ export function RequireTwoFactorCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* #537 audit: the proof the server asks for before this comes off. Never
+          reached on the way on — that call is not gated. */}
+      <HandoverConfirmDialog
+        kind={gate.kind}
+        pending={setMfa.isPending || gate.requesting}
+        rejected={gate.rejected}
+        onConfirm={gate.confirm}
+        onResend={gate.resend}
+        onCancel={gate.dismiss}
+      />
     </SettingsCard>
   );
 }

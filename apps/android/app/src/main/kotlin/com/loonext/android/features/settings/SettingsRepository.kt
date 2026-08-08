@@ -225,12 +225,20 @@ class SettingsRepository(
         companyId: String,
         required: Boolean,
         graceDays: Int = 14,
+        /**
+         * The #537 confirmation, read by the server only when this turns the
+         * requirement OFF. No screen on this phone does that yet — the workspace
+         * switch is web-only — but the parameter belongs with the call rather than
+         * with whoever adds the screen.
+         */
+        code: String? = null,
     ): WorkspaceMfa =
         api.put(
             "/v1/company/mfa",
             buildJsonObject {
                 put("required", required)
                 put("grace_days", graceDays)
+                if (code != null) put("confirmation_code", code)
             },
             companyId = companyId,
         )
@@ -445,10 +453,28 @@ class SettingsRepository(
         companyId = companyId,
     )
 
-    /** DELETE /v1/numbers/:id — owner-only; returns the released row. */
-    suspend fun releaseNumber(companyId: String, numberId: String): PhoneNumberSummary =
+    /**
+     * DELETE /v1/numbers/:id — owner-only; returns the released row.
+     *
+     * `code` is the #537 confirmation. Sent only on a retry: the first attempt is
+     * what tells us which of the two proofs the server wants.
+     */
+    suspend fun releaseNumber(
+        companyId: String,
+        numberId: String,
+        code: String? = null,
+    ): PhoneNumberSummary =
         api.json.decodeFromString(
-            api.raw("DELETE", "/v1/numbers/$numberId", companyId = companyId),
+            api.raw(
+                "DELETE",
+                "/v1/numbers/$numberId",
+                body = code?.let {
+                    api.json.encodeToString(
+                        buildJsonObject { put("confirmation_code", it) },
+                    )
+                },
+                companyId = companyId,
+            ),
         )
 
     suspend fun numberAccess(companyId: String, numberId: String): NumberAccess =

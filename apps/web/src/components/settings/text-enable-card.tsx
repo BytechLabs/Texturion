@@ -25,6 +25,8 @@ import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
 import { useReleaseNumber } from "@/lib/api/numbers";
+import { useActionConfirmation } from "@/lib/hooks/use-action-confirmation";
+import { HandoverConfirmDialog } from "@/components/ownership/handover-confirm-dialog";
 import {
   useCancelTextEnablement,
   useRequestTextEnablementCode,
@@ -269,6 +271,47 @@ function ReleaseHostedNumberDialog({
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   const release = useReleaseNumber();
+  // #537 audit: this gives the number up for good, same as the settings release —
+  // so it asks for the same proof. Typing the number guards against a slip, not
+  // against somebody who is not the owner.
+  const gate = useActionConfirmation();
+
+  /** One attempt. The number is closed over, so a retry releases the same one. */
+  function attempt(code?: string) {
+    setError(null);
+    release.mutate(
+      { numberId: hostedNumber.id, code },
+      {
+        onSuccess: () => {
+          // useReleaseNumber already patches the numbers cache and invalidates
+          // the company view; the order row converges server-side too, so
+          // refetch every affected surface.
+          queryClient.invalidateQueries({
+            queryKey: keys.numbers(companyId),
+            refetchType: "active",
+          });
+          queryClient.invalidateQueries({
+            queryKey: keys.textEnablements.all(companyId),
+            refetchType: "active",
+          });
+          gate.dismiss();
+          close(false);
+          toast.success(`Texting removed from ${display}.`);
+        },
+        onError: (cause) => {
+          if (gate.demanded(cause, "release_number", (digits) => attempt(digits))) {
+            return;
+          }
+          gate.dismiss();
+          setError(
+            cause instanceof ApiError
+              ? cause.message
+              : "Couldn't release the number. Try again.",
+          );
+        },
+      },
+    );
+  }
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -334,37 +377,24 @@ function ReleaseHostedNumberDialog({
             <Button
               variant="destructive"
               disabled={!matches || release.isPending}
-              onClick={() =>
-                release.mutate(hostedNumber.id, {
-                  onSuccess: () => {
-                    // useReleaseNumber already patches the numbers cache and
-                    // invalidates the company view; the order row converges
-                    // server-side too, so refetch every affected surface.
-                    queryClient.invalidateQueries({
-                      queryKey: keys.numbers(companyId),
-                      refetchType: "active",
-                    });
-                    queryClient.invalidateQueries({
-                      queryKey: keys.textEnablements.all(companyId),
-                      refetchType: "active",
-                    });
-                    close(false);
-                    toast.success(`Texting removed from ${display}.`);
-                  },
-                  onError: (cause) =>
-                    setError(
-                      cause instanceof ApiError
-                        ? cause.message
-                        : "Couldn't release the number. Try again.",
-                    ),
-                })
-              }
+              onClick={() => attempt()}
             >
               {release.isPending ? "Releasing…" : "Remove texting"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* #537 audit: the proof the server asks for before the number is gone for
+          good. A sibling of the dialog, so it stacks over it. */}
+      <HandoverConfirmDialog
+        kind={gate.kind}
+        pending={release.isPending || gate.requesting}
+        rejected={gate.rejected}
+        onConfirm={gate.confirm}
+        onResend={gate.resend}
+        onCancel={gate.dismiss}
+      />
     </>
   );
 }

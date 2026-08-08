@@ -18,6 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ApiError } from "@/lib/api/error";
 import { useReleaseNumber } from "@/lib/api/numbers";
+import { useActionConfirmation } from "@/lib/hooks/use-action-confirmation";
+import { HandoverConfirmDialog } from "@/components/ownership/handover-confirm-dialog";
 import type { PhoneNumberSummary } from "@/lib/api/types";
 import { formatPhone } from "@/lib/format/phone";
 
@@ -53,8 +55,38 @@ export function ReleaseNumberDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const release = useReleaseNumber();
+  // #537 audit: permanent, and whoever holds this number next receives the texts
+  // this business's customers send it. Typing the number guards against a slip; it
+  // is no guard at all against somebody who is not the owner.
+  const gate = useActionConfirmation();
   const [typed, setTyped] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  /** One attempt. The number is closed over, so a retry releases the same one. */
+  function attempt(code?: string) {
+    setError(null);
+    release.mutate(
+      { numberId: number.id, code },
+      {
+        onSuccess: () => {
+          gate.dismiss();
+          close(false);
+          toast.success(`${display} released.`);
+        },
+        onError: (cause) => {
+          if (gate.demanded(cause, "release_number", (digits) => attempt(digits))) {
+            return;
+          }
+          gate.dismiss();
+          setError(
+            cause instanceof ApiError
+              ? cause.message
+              : "Couldn't release the number. Try again.",
+          );
+        },
+      },
+    );
+  }
 
   const display = number.number_e164 ? formatPhone(number.number_e164) : "";
   const expectedDigits = (number.number_e164 ?? "").replace(/\D/g, "");
@@ -72,6 +104,7 @@ export function ReleaseNumberDialog({
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={close}>
       <DialogContent>
         <DialogHeader>
@@ -101,25 +134,25 @@ export function ReleaseNumberDialog({
           <Button
             variant="destructive"
             disabled={!matches || release.isPending}
-            onClick={() =>
-              release.mutate(number.id, {
-                onSuccess: () => {
-                  close(false);
-                  toast.success(`${display} released.`);
-                },
-                onError: (cause) =>
-                  setError(
-                    cause instanceof ApiError
-                      ? cause.message
-                      : "Couldn't release the number. Try again.",
-                  ),
-              })
-            }
+            onClick={() => attempt()}
           >
             {release.isPending ? "Releasing…" : "Release number"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* #537 audit: the proof the server asks for before the number is gone for
+        good. A sibling rather than a child, so it stacks over this dialog and
+        outlives it — a Radix root expects triggers and portals as children. */}
+    <HandoverConfirmDialog
+      kind={gate.kind}
+      pending={release.isPending || gate.requesting}
+      rejected={gate.rejected}
+      onConfirm={gate.confirm}
+      onResend={gate.resend}
+      onCancel={gate.dismiss}
+    />
+    </>
   );
 }

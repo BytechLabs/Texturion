@@ -579,6 +579,43 @@ private fun ReleaseNumberDialog(
     val matches = expectedDigits.isNotEmpty() &&
         (typedDigits == expectedDigits || "1$typedDigits" == expectedDigits)
 
+    // #537 audit: permanent, and whoever holds this number next receives the texts
+    // this business's customers send it. Typing the number guards against a slip; it
+    // is no guard at all against somebody who is not the owner.
+    var proof by remember { mutableStateOf<HandoverProof?>(null) }
+    var codeRejected by remember { mutableStateOf(false) }
+
+    /** One attempt. The number is closed over, so a retry releases the same one. */
+    fun attempt(code: String?) {
+        pending = true
+        error = null
+        coroutines.launch {
+            val request = HandoverProof(
+                action = "release_number",
+                label = "$display released.",
+            ) { digits -> scope.repo.releaseNumber(scope.companyId, number.id, digits) }
+            when (val outcome = attemptHandover(scope, request, code, proof != null)) {
+                is HandoverOutcome.Done -> {
+                    proof = null
+                    codeRejected = false
+                    scope.showMessage(request.label)
+                    onReleased()
+                }
+
+                is HandoverOutcome.NeedsCode -> {
+                    codeRejected = outcome.refused
+                    proof = request.copy(kind = outcome.kind)
+                }
+
+                is HandoverOutcome.Failed -> {
+                    proof = null
+                    error = outcome.message
+                }
+            }
+            pending = false
+        }
+    }
+
     ConfirmDialog(
         title = "Release $display?",
         body = releaseNumberBody(heldOverAllowance),
@@ -591,19 +628,7 @@ private fun ReleaseNumberDialog(
         onDismiss = onDismiss,
         onConfirm = {
             haptics.reject()
-            pending = true
-            error = null
-            coroutines.launch {
-                try {
-                    scope.repo.releaseNumber(scope.companyId, number.id)
-                    scope.showMessage("$display released.")
-                    onReleased()
-                } catch (cause: Exception) {
-                    error = cause.userMessage()
-                } finally {
-                    pending = false
-                }
-            }
+            attempt(null)
         },
         extraContent = {
             OutlinedTextField(
@@ -619,6 +644,29 @@ private fun ReleaseNumberDialog(
             )
         },
     )
+
+    // #537 audit: the proof the server asks for before the number is gone for good.
+    proof?.let { pendingProof ->
+        HandoverConfirmDialog(
+            kind = pendingProof.kind,
+            pending = pending,
+            rejected = codeRejected,
+            onConfirm = { code -> attempt(code) },
+            onResend = {
+                coroutines.launch {
+                    runCatching {
+                        scope.repo.requestHandoverCode(scope.companyId, pendingProof.action)
+                    }
+                    // Said either way. Whether an address exists is not ours to leak.
+                    scope.showMessage("Sent. Check your email.")
+                }
+            },
+            onDismiss = {
+                proof = null
+                codeRejected = false
+            },
+        )
+    }
 }
 
 // ---------------------------------------------------------------------------

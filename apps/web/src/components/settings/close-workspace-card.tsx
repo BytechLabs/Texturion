@@ -19,6 +19,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCloseWorkspace } from "@/lib/api/companies";
+import { useActionConfirmation } from "@/lib/hooks/use-action-confirmation";
+import { HandoverConfirmDialog } from "@/components/ownership/handover-confirm-dialog";
 import { ApiError } from "@/lib/api/error";
 import type { CompanyView } from "@/lib/api/types";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
@@ -42,13 +44,17 @@ import { getSupabaseBrowser } from "@/lib/supabase/browser";
 export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
   const router = useRouter();
   const close = useCloseWorkspace();
+  // #537 audit: this file's own copy calls the closure irreversible after 30 days,
+  // and the number release irreversible immediately. Being the owner is what a
+  // stolen session already is, so the server now asks who this actually is.
+  const gate = useActionConfirmation();
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
 
   const confirmed = typed.trim() === company.name.trim();
 
-  async function confirm() {
-    close.mutate(undefined, {
+  async function confirm(code?: string) {
+    close.mutate(code, {
       onSuccess: async (result) => {
         // The session is already dead server-side; clear this browser too so
         // nothing lingers on a shared machine.
@@ -69,12 +75,17 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
         );
         router.replace("/login");
       },
-      onError: (cause) =>
+      onError: (cause) => {
+        if (gate.demanded(cause, "close_workspace", (digits) => void confirm(digits))) {
+          return;
+        }
+        gate.dismiss();
         toast.error(
           cause instanceof ApiError
             ? cause.message
             : "Couldn't close the workspace. Try again in a moment.",
-        ),
+        );
+      },
     });
   }
 
@@ -187,6 +198,17 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* #537 audit: the proof the server asks for before a business account ends.
+          A sibling of the type-to-confirm dialog, so it stacks over it. */}
+      <HandoverConfirmDialog
+        kind={gate.kind}
+        pending={close.isPending || gate.requesting}
+        rejected={gate.rejected}
+        onConfirm={gate.confirm}
+        onResend={gate.resend}
+        onCancel={gate.dismiss}
+      />
     </SettingsCard>
   );
 }

@@ -157,10 +157,14 @@ export function useReleaseNumber() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (numberId: string) =>
+    // #537 audit: `code` is the confirmation the server asks for before a number
+    // is given up for good. Sent only on a retry — the first attempt is what tells
+    // us which of the two proofs it wants.
+    mutationFn: ({ numberId, code }: { numberId: string; code?: string }) =>
       apiFetch<PhoneNumberSummary>(`/v1/numbers/${numberId}`, {
         method: "DELETE",
         companyId,
+        body: code === undefined ? undefined : { confirmation_code: code },
       }),
     onSuccess: (released) => {
       queryClient.setQueryData<Page<PhoneNumberSummary>>(

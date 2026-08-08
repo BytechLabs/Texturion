@@ -45,6 +45,15 @@ vi.mock("@/lib/company/provider", () => ({
     membership: { name: "Ace Locksmith" },
   }),
 }));
+/**
+ * #537 audit: the confirmation gate reaches for the code-request mutation, which
+ * needs a QueryClient. Stubbed rather than provided, because these render a card and
+ * assert its words — the gate has its own tests.
+ */
+vi.mock("@/lib/api/ownership", () => ({
+  useRequestHandoverCode: () => ({ isPending: false, mutate: vi.fn() }),
+}));
+
 vi.mock("@/lib/api/companies", () => ({
   useCompany: () => ({
     data: { id: "co_1", name: "Ace Locksmith", plan: "pro" },

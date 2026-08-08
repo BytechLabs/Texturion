@@ -23,6 +23,7 @@ import { isValidIanaTimezone } from "./core/timezone";
 
 import { recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
+import { requireActionConfirmation } from "../auth/confirm-action";
 import { resolveNumberAccess } from "../auth/number-access";
 import { computeRingContext } from "../calls/runtime";
 import { MAX_LEGS_PER_SESSION } from "../calls/transitions";
@@ -48,7 +49,12 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
-import { parseJsonBody, parseWith, pathUuid } from "./core/http";
+import {
+  parseJsonBody,
+  parseOptionalJsonBody,
+  parseWith,
+  pathUuid,
+} from "./core/http";
 import {
   areaCodeOf,
   MAX_PROVISION_ATTEMPTS,
@@ -622,11 +628,22 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
  * DELETE /v1/numbers/:id — owner only (SPEC §7, §12 step 18): release a
  * number (type-to-confirm in the UI, needed pre-downgrade, never automatic).
  */
+/**
+ * The body exists only to carry the confirmation code (#537 audit). A DELETE with a
+ * body is already how `/v1/device-push-tokens` works, and the alternative — a code in
+ * a query string — puts a credential in every access log between here and the
+ * customer.
+ */
+const releaseBodySchema = z.object({
+  confirmation_code: z.string().trim().min(1).max(16).optional(),
+});
+
 numbersRoutes.delete("/:id", requireCapability("workspace.own"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const id = pathUuid(c, "id");
   const companyId = c.get("companyId");
+  const body = await parseOptionalJsonBody(c, releaseBodySchema);
 
   const { data, error } = await db
     .from("phone_numbers")
@@ -640,6 +657,19 @@ numbersRoutes.delete("/:id", requireCapability("workspace.own"), async (c) => {
   if (row.status === "released") {
     return errorResponse(c, "conflict", "This number is already released.");
   }
+
+  // #537 audit: permanent, and whoever holds this number next receives the texts
+  // this business's customers send it. Typing the number to confirm guards against a
+  // slip; it is no guard at all against somebody who is not the owner. Asked AFTER
+  // the lookup so an already-released number still says so plainly rather than
+  // demanding a code for something that cannot happen.
+  const refused = await requireActionConfirmation(
+    c,
+    "release_number",
+    "giving this number up",
+    body.confirmation_code,
+  );
+  if (refused) return refused;
 
   const released = await releaseNumberRow(env, row);
 

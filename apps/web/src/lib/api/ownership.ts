@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useCompanyId } from "@/lib/company/provider";
 
+import type { ConfirmableAction } from "@/lib/hooks/use-action-confirmation";
+
 import { apiFetch } from "./client";
 import { keys } from "./keys";
 
@@ -68,7 +70,7 @@ type OwnershipAction =
 export function useRequestHandoverCode() {
   const companyId = useCompanyId();
   return useMutation({
-    mutationFn: (action: "offer" | "claim" | "accept") =>
+    mutationFn: (action: ConfirmableAction) =>
       apiFetch<{ sent: boolean }>("/v1/company/ownership/confirm-code", {
         method: "POST",
         companyId,

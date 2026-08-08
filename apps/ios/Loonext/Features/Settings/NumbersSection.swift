@@ -430,6 +430,11 @@ private struct ReleaseNumberSheet: View {
     @State private var typed = ""
     @State private var pending = false
     @State private var error: String?
+    // #537 audit: permanent, and whoever holds this number next receives the texts
+    // this business's customers send it. Typing the number guards against a slip; it
+    // is no guard at all against somebody who is not the owner.
+    @State private var proof: HandoverProof?
+    @State private var codeRejected = false
 
     private var display: String { formatPhone(number.number_e164) }
 
@@ -453,7 +458,7 @@ private struct ReleaseNumberSheet: View {
             error: error,
             confirmEnabled: matches,
             dismissLabel: "Keep the number",
-            onConfirm: { release() },
+            onConfirm: { attempt(nil) },
             onDismiss: { onDismiss() }
         ) {
             TextField("Type \(display) to confirm", text: $typed)
@@ -462,20 +467,65 @@ private struct ReleaseNumberSheet: View {
                 .disabled(pending)
                 .padding(.top, 10)
         }
+        // #537 audit: the proof the server asks for before the number is gone for
+        // good. A sheet over this one — presented from inside the presented view, so
+        // it stacks rather than fighting it for the screen.
+        .sheet(item: $proof) { pendingProof in
+            HandoverProofSheet(
+                kind: pendingProof.kind,
+                pending: pending,
+                rejected: codeRejected,
+                onConfirm: { code in attempt(code) },
+                onResend: { resendCode(pendingProof) },
+                onDismiss: {
+                    proof = nil
+                    codeRejected = false
+                }
+            )
+        }
     }
 
-    private func release() {
+    /// One attempt. The number is closed over, so a retry releases the same one.
+    private func attempt(_ code: String?) {
         pending = true
         error = nil
+        let companyId = scope.companyId
+        let repo = scope.repo
+        let numberId = number.id
+        let done = "\(display) released."
         Task {
-            do {
-                _ = try await scope.repo.releaseNumber(scope.companyId, numberId: number.id)
-                scope.showMessage("\(display) released.")
+            let request = HandoverProof(action: "release_number", label: done) { digits in
+                _ = try await repo.releaseNumber(companyId, numberId: numberId, code: digits)
+            }
+            let outcome = await attemptHandover(
+                scope: scope, proof: request, code: code, alreadyOpen: proof != nil
+            )
+            switch outcome {
+            case .done:
+                proof = nil
+                codeRejected = false
+                scope.showMessage(done)
                 onReleased()
-            } catch {
-                self.error = error.userMessage
+
+            case let .needsCode(kind, refused):
+                codeRejected = refused
+                proof = request.with(kind: kind)
+
+            case let .failed(message):
+                proof = nil
+                error = message
             }
             pending = false
+        }
+    }
+
+    private func resendCode(_ pendingProof: HandoverProof) {
+        Task {
+            try? await scope.repo.requestHandoverCode(
+                scope.companyId, action: pendingProof.action
+            )
+            // Said either way. Whether an address exists is not ours to leak.
+            scope.showMessage("Sent. Check your email.")
         }
     }
 }

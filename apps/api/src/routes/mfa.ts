@@ -24,6 +24,7 @@ import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
+import { requireActionConfirmation } from "../auth/confirm-action";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { sendEmail } from "../email/resend";
@@ -238,6 +239,8 @@ const companyMfaSchema = z.object({
    * on and never moved by a later save.
    */
   grace_days: z.number().int().min(0).max(90).optional(),
+  /** #537 audit — only ever read when this call turns the requirement OFF. */
+  confirmation_code: z.string().trim().min(1).max(16).optional(),
 });
 
 mfaRoutes.put("/company/mfa", requireCapability("workspace.own"), async (c) => {
@@ -245,6 +248,34 @@ mfaRoutes.put("/company/mfa", requireCapability("workspace.own"), async (c) => {
   const companyId = c.get("companyId");
   const env = getEnv(c.env);
   const db = getDb(env);
+
+  // #537 audit: turning this OFF lowers the whole crew's protection in one silent
+  // call, which is the move an attacker makes first. So it asks for proof — while
+  // turning it ON stays one tap, because friction belongs on the door that opens.
+  //
+  // The current state is read first: a save that leaves the requirement off, or
+  // re-saves it on, is not a relaxation and must not be treated as one.
+  if (!body.required) {
+    const { data: current, error: readError } = await db
+      .from("companies")
+      .select("mfa_required_at")
+      .eq("id", companyId)
+      .maybeSingle();
+    if (readError) throw new Error(`companies read failed: ${readError.message}`);
+    // `mfa_required_at` is when it was switched on, and null is off — the same
+    // reading the enforcement itself uses.
+    const wasRequired =
+      (current as { mfa_required_at?: string | null } | null)?.mfa_required_at != null;
+    if (wasRequired) {
+      const refused = await requireActionConfirmation(
+        c,
+        "relax_mfa",
+        "turning two-factor authentication off for your team",
+        body.confirmation_code,
+      );
+      if (refused) return refused;
+    }
+  }
 
   const { data, error } = await db.rpc("api_set_company_mfa", {
     p_company_id: companyId,

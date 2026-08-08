@@ -23,15 +23,18 @@
  */
 import * as Sentry from "@sentry/cloudflare";
 import { Hono } from "hono";
+import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
+import { requireActionConfirmation } from "../auth/confirm-action";
 import { idempotencyKey } from "../billing/idempotency";
 import { getStripe } from "../billing/stripe";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv, type Env } from "../env";
 import { errorResponse } from "../http/errors";
+import { parseOptionalJsonBody } from "./core/http";
 import { releaseCompanyNumbers } from "../telnyx/provisioning";
 import {
   lookupUserEmail,
@@ -52,10 +55,32 @@ interface CloseResult {
   stripe_customer_id?: string | null;
 }
 
+/**
+ * The body exists only to carry the confirmation code (#537). A DELETE with a body is
+ * already how `/v1/device-push-tokens` works, and the alternative — a code in a query
+ * string — puts a credential in every access log between here and the customer.
+ */
+const closeSchema = z.object({
+  confirmation_code: z.string().trim().min(1).max(16).optional(),
+});
+
 workspaceClosureRoutes.delete("/company", requireCapability("workspace.own"), async (c) => {
   const companyId = c.get("companyId");
   const env = getEnv(c.env);
   const db = getDb(env);
+
+  // #537 audit: being the owner is not the same as being who you say you are, and a
+  // stolen session answers the first question perfectly. Everybody is about to be
+  // signed out and the number released — of the three things this file calls
+  // irreversible, only the data comes back.
+  const body = await parseOptionalJsonBody(c, closeSchema);
+  const refused = await requireActionConfirmation(
+    c,
+    "close_workspace",
+    "closing this workspace",
+    body.confirmation_code,
+  );
+  if (refused) return refused;
 
   const { data, error } = await db.rpc("close_workspace", {
     p_company_id: companyId,

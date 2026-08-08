@@ -243,14 +243,21 @@ struct SettingsRepository: Sendable {
     func setWorkspaceMfa(
         _ companyId: String,
         required: Bool,
-        graceDays: Int = 14
+        graceDays: Int = 14,
+        /// The #537 confirmation, read by the server only when this turns the
+        /// requirement OFF. No screen on this phone does that yet — the workspace
+        /// switch is web-only — but the parameter belongs with the call rather than
+        /// with whoever adds the screen.
+        code: String? = nil
     ) async throws -> WorkspaceMfa {
-        try await api.put(
+        var body: [String: JSONValue] = [
+            "required": .bool(required),
+            "grace_days": .number(Double(graceDays)),
+        ]
+        if let code { body["confirmation_code"] = .string(code) }
+        return try await api.put(
             "/v1/company/mfa",
-            body: JSONValue.object([
-                "required": .bool(required),
-                "grace_days": .number(Double(graceDays)),
-            ]),
+            body: JSONValue.object(body),
             companyId: companyId
         )
     }
@@ -501,8 +508,25 @@ struct SettingsRepository: Sendable {
     }
 
     /// DELETE /v1/numbers/:id — owner-only; returns the released row.
-    func releaseNumber(_ companyId: String, numberId: String) async throws -> PhoneNumberSummary {
-        let data = try await api.raw("DELETE", "/v1/numbers/\(numberId)", companyId: companyId)
+    /// `code` is the #537 confirmation. Sent only on a retry: the first attempt is
+    /// what tells us which of the two proofs the server wants.
+    func releaseNumber(
+        _ companyId: String,
+        numberId: String,
+        code: String? = nil
+    ) async throws -> PhoneNumberSummary {
+        var body: Data?
+        if let code {
+            body = try JSONEncoder().encode(
+                JSONValue.object(["confirmation_code": .string(code)])
+            )
+        }
+        let data = try await api.raw(
+            "DELETE",
+            "/v1/numbers/\(numberId)",
+            body: body,
+            companyId: companyId
+        )
         return try JSONDecoder().decode(PhoneNumberSummary.self, from: data)
     }
 

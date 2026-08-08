@@ -174,10 +174,14 @@ export function useUpdateCompany() {
 export function useCloseWorkspace() {
   const companyId = useCompanyId();
   return useMutation({
-    mutationFn: () =>
+    // #537 audit: `code` is the confirmation the server asks for before a business
+    // account ends. Sent only on a retry — the first attempt is what tells us which
+    // of the two proofs it wants.
+    mutationFn: (code?: string) =>
       apiFetch<WorkspaceClosure>("/v1/company", {
         method: "DELETE",
         companyId,
+        body: code === undefined ? undefined : { confirmation_code: code },
       }),
   });
 }

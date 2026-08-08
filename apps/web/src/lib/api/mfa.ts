@@ -86,13 +86,21 @@ export function useSetWorkspaceMfa() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { required: boolean; graceDays?: number }) =>
+    // #537 audit: `code` is the confirmation the server asks for before the
+    // requirement comes OFF — never when it goes on. Sent only on a retry, since
+    // the first attempt is what tells us which of the two proofs it wants.
+    mutationFn: (input: {
+      required: boolean;
+      graceDays?: number;
+      code?: string;
+    }) =>
       apiFetch<WorkspaceMfa>("/v1/company/mfa", {
         method: "PUT",
         companyId,
         body: {
           required: input.required,
           ...(input.graceDays === undefined ? {} : { grace_days: input.graceDays }),
+          ...(input.code === undefined ? {} : { confirmation_code: input.code }),
         },
       }),
     onSuccess: () => {

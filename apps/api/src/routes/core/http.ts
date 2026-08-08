@@ -27,6 +27,38 @@ export async function parseJsonBody<S extends z.ZodType>(
   return result.data;
 }
 
+/**
+ * The same, but NO body is the same as an empty one.
+ *
+ * For a route whose body carries nothing but an optional extra — the #537
+ * confirmation code on a DELETE, say. The first call legitimately has no code to
+ * send, and an installed app build from before the field existed sends no body at
+ * all; both must reach the handler and be told what is missing, not be turned away
+ * with "request body must be valid JSON".
+ *
+ * A body that IS present and malformed still fails, because that is a client bug
+ * worth reporting rather than silently ignoring.
+ */
+export async function parseOptionalJsonBody<S extends z.ZodType>(
+  c: Context,
+  schema: S,
+): Promise<z.output<S>> {
+  const text = (await c.req.text()).trim();
+  let raw: unknown = {};
+  if (text.length > 0) {
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      throw new ApiError("validation_failed", "Request body must be valid JSON.");
+    }
+  }
+  const result = schema.safeParse(raw);
+  if (!result.success) {
+    throw new ApiError("validation_failed", summarizeIssues(result.error));
+  }
+  return result.data;
+}
+
 /** Zod-validate an already-parsed value (query params etc.) — 422 on failure. */
 export function parseWith<S extends z.ZodType>(
   schema: S,

@@ -9,6 +9,15 @@ import { describe, expect, it, vi } from "vitest";
  * move, and that "immediately" is labelled as the lockout it is.
  */
 
+/**
+ * #537 audit: the confirmation gate reaches for the code-request mutation, which
+ * needs a QueryClient. Stubbed rather than provided, because these render a card and
+ * assert its words — the gate has its own tests.
+ */
+vi.mock("@/lib/api/ownership", () => ({
+  useRequestHandoverCode: () => ({ isPending: false, mutate: vi.fn() }),
+}));
+
 vi.mock("@/lib/api/mfa", () => ({
   useSetWorkspaceMfa: () => ({ isPending: false, mutate: vi.fn() }),
 }));

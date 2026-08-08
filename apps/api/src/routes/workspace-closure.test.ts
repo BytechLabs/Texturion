@@ -60,7 +60,14 @@ function closed(overrides: Record<string, unknown> = {}) {
 }
 
 function world(
-  options: { role?: string; close?: Record<string, unknown> } = {},
+  options: {
+    role?: string;
+    close?: Record<string, unknown>;
+    /** #537 audit: does this owner hold an authenticator? */
+    enrolled?: boolean;
+    /** #537 audit: does the code they presented work? */
+    codeAccepted?: boolean;
+  } = {},
 ): {
   sb: SupabaseStub;
   routes: FetchRoute[];
@@ -76,6 +83,18 @@ function world(
   );
   sb.on("POST", "/rest/v1/rpc/close_workspace", () => options.close ?? closed());
   sb.on("POST", "/rest/v1/rpc/api_revoke_user_sessions", () => 2);
+  // #537 audit. No authenticator, so the emailed code is the path — and by default
+  // the code presented is the right one.
+  sb.on(
+    "POST",
+    "/rest/v1/rpc/user_has_verified_mfa",
+    () => options.enrolled ?? false,
+  );
+  sb.on(
+    "POST",
+    "/rest/v1/rpc/api_use_ownership_code",
+    () => options.codeAccepted ?? true,
+  );
   sb.on("GET", "/rest/v1/phone_numbers", () => [
     {
       id: NUMBER_ID,
@@ -135,11 +154,22 @@ function world(
   };
 }
 
-async function close(routes: FetchRoute[]) {
+/**
+ * #537 audit: the route now asks for proof of identity. These tests are about the
+ * teardown, so they satisfy it the way most owners will — no authenticator, so an
+ * emailed code — and the gate itself is pinned separately below.
+ */
+async function close(
+  routes: FetchRoute[],
+  // `null` means send NO body — an explicit `undefined` would take the default,
+  // which is how the first version of this quietly sent a code it meant to omit.
+  body: Record<string, unknown> | null = { confirmation_code: "123456" },
+) {
   stubFetch(jwksRoute(auth), ...routes);
   return apiRequest(app, env, await auth.token(), "/v1/company", {
     method: "DELETE",
     companyId: COMPANY_ID,
+    body: body ?? undefined,
   });
 }
 
@@ -332,6 +362,53 @@ describe("DELETE /v1/company (#341 phase 1)", () => {
       });
       await close(routes);
       expect(emails).toEqual([]);
+    });
+  });
+  // -------------------------------------------------------------------------
+  // #537 audit: proof of identity, not just proof of role
+  // -------------------------------------------------------------------------
+  describe("the confirmation in front of it (#537)", () => {
+    it("will not close a workspace on a role check alone", async () => {
+      // The whole point. Being the owner is what a stolen session already is.
+      const { sb, routes } = world();
+      const res = await close(routes, null);
+
+      expect(res.status).toBe(403);
+      expect(await res.json()).toMatchObject({
+        error: { code: "confirmation_code_required" },
+      });
+      // And nothing happened: no teardown, no released number, no cancelled
+      // subscription, no audit row claiming otherwise.
+      expect(sb.find("POST", "/rest/v1/rpc/close_workspace")).toHaveLength(0);
+      expect(sb.find("POST", "/rest/v1/audit_log")).toHaveLength(0);
+    }, 20_000);
+
+    it("says the same thing for a code that does not work", async () => {
+      const { sb, routes } = world({ codeAccepted: false });
+      const res = await close(routes, { confirmation_code: "000000" });
+
+      expect(res.status).toBe(403);
+      // One message for wrong, expired, spent and out of attempts — naming which
+      // would say whether the digits were right.
+      expect(await res.json()).toMatchObject({
+        error: { code: "confirmation_code_required" },
+      });
+      expect(sb.find("POST", "/rest/v1/rpc/close_workspace")).toHaveLength(0);
+    });
+
+    it("asks an owner who has an authenticator for THAT, not for an email", async () => {
+      // Somebody holding a factor must never be offered the weaker path, or the
+      // weaker path is the effective one for everybody — including an attacker.
+      const { sb, routes } = world({ enrolled: true });
+      const res = await close(routes, { confirmation_code: "123456" });
+
+      expect(res.status).toBe(403);
+      expect(await res.json()).toMatchObject({
+        error: { code: "mfa_challenge_required" },
+      });
+      // The emailed code was not even consulted.
+      expect(sb.find("POST", "/rest/v1/rpc/api_use_ownership_code")).toHaveLength(0);
+      expect(sb.find("POST", "/rest/v1/rpc/close_workspace")).toHaveLength(0);
     });
   });
 });

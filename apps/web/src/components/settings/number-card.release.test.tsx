@@ -33,6 +33,15 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 // The release mutation is the only hook this card owns. Everything else it
 // mounts is a sibling dialog with its own suite and its own query surface —
 // stubbed so a test about ONE control does not drag four unrelated ones in.
+/**
+ * #537 audit: the confirmation gate reaches for the code-request mutation, which
+ * needs a QueryClient. Stubbed rather than provided, because these render a card and
+ * assert its words — the gate has its own tests.
+ */
+vi.mock("@/lib/api/ownership", () => ({
+  useRequestHandoverCode: () => ({ isPending: false, mutate: vi.fn() }),
+}));
+
 vi.mock("@/lib/api/numbers", () => ({
   useReleaseNumber: () => ({ isPending: false, mutate: vi.fn() }),
 }));

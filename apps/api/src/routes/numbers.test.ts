@@ -167,7 +167,15 @@ function buildHarness(
 
   const telnyx = new TelnyxMock();
   const emails: SentEmailCapture[] = [];
-  const state = { role: "admin" as MemberRole };
+  const state = {
+    role: "admin" as MemberRole,
+    // #537 audit: releasing a number now asks for proof of identity. The default
+    // is the common case — no authenticator, and the code presented is right.
+    enrolled: false,
+    codeAccepted: true,
+  };
+  rest.rpc("user_has_verified_mfa", () => state.enrolled);
+  rest.rpc("api_use_ownership_code", () => state.codeAccepted);
 
   const app = new Hono<AppEnv>();
   app.use("*", async (c, next) => {
@@ -196,6 +204,19 @@ function buildHarness(
     state,
     request: (path: string, init?: RequestInit) =>
       app.request(path, init, env as unknown as Bindings),
+  };
+}
+
+/**
+ * The #537-audit confirmation, for the tests that are about the release itself.
+ *
+ * A DELETE carrying a body, which is how the code travels — a code in a query
+ * string would land in every access log between here and the customer.
+ */
+function withCode(code = "123456"): RequestInit {
+  return {
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ confirmation_code: code }),
   };
 }
 
@@ -1341,6 +1362,90 @@ describe("DELETE /v1/numbers/:id", () => {
     expect(res.status).toBe(409);
   });
 
+  describe("the confirmation in front of it (#537 audit)", () => {
+    /** An active number this owner could give up. */
+    function releasable(harness: ReturnType<typeof buildHarness>) {
+      harness.state.role = "owner";
+      const row = harness.rest.insert("phone_numbers", {
+        company_id: COMPANY_ID,
+        status: "active",
+        provisioning_key: "cs_gate",
+        country: "US",
+        number_e164: "+12125550777",
+        telnyx_phone_number_id: "pn-gate",
+      });
+      harness.telnyx.on(
+        "DELETE",
+        /^\/v2\/phone_numbers\/pn-gate$/,
+        () => new Response(null, { status: 204 }),
+      );
+      return row.id as string;
+    }
+
+    it("will not give a number up on a role check alone", async () => {
+      // Permanent, and whoever holds this number next receives the texts this
+      // business's customers send it. Being the owner is what a stolen session
+      // already is.
+      const harness = buildHarness();
+      const id = releasable(harness);
+      const res = await harness.request(`/v1/numbers/${id}`, { method: "DELETE" });
+
+      expect(res.status).toBe(403);
+      expect(await res.json()).toMatchObject({
+        error: { code: "confirmation_code_required" },
+      });
+      // Still ours: nothing was said to Telnyx.
+      expect(harness.telnyx.callsTo("DELETE", /phone_numbers/)).toHaveLength(0);
+    });
+
+    it("says the same thing for a code that does not work", async () => {
+      const harness = buildHarness();
+      const id = releasable(harness);
+      harness.state.codeAccepted = false;
+      const res = await harness.request(`/v1/numbers/${id}`, {
+        method: "DELETE",
+        ...withCode("000000"),
+      });
+
+      expect(res.status).toBe(403);
+      expect(harness.telnyx.callsTo("DELETE", /phone_numbers/)).toHaveLength(0);
+    });
+
+    it("asks an owner who has an authenticator for THAT, not for an email", async () => {
+      const harness = buildHarness();
+      const id = releasable(harness);
+      harness.state.enrolled = true;
+      const res = await harness.request(`/v1/numbers/${id}`, {
+        method: "DELETE",
+        ...withCode(),
+      });
+
+      expect(res.status).toBe(403);
+      expect(await res.json()).toMatchObject({
+        error: { code: "mfa_challenge_required" },
+      });
+      expect(harness.telnyx.callsTo("DELETE", /phone_numbers/)).toHaveLength(0);
+    });
+
+    it("still says a released number is released, rather than asking for a code", async () => {
+      // The order matters: demanding proof for something that cannot happen sends
+      // somebody to their inbox to satisfy a request that was never going to work.
+      const harness = buildHarness();
+      harness.state.role = "owner";
+      const row = harness.rest.insert("phone_numbers", {
+        company_id: COMPANY_ID,
+        status: "released",
+        provisioning_key: "cs_done",
+        country: "US",
+        released_at: "2026-06-01T00:00:00.000Z",
+      });
+      const res = await harness.request(`/v1/numbers/${row.id as string}`, {
+        method: "DELETE",
+      });
+      expect(res.status).toBe(409);
+    });
+  });
+
   it("releasing a paid extra converges the Stripe quantity down (#105)", async () => {
     // Pro with 3 numbers (2 included + 1 paid, item quantity 1). Releasing one
     // brings the count to 2 → desired quantity 0 → the item is deleted with a
@@ -1380,6 +1485,7 @@ describe("DELETE /v1/numbers/:id", () => {
 
     const res = await harness.request(`/v1/numbers/${row.id as string}`, {
       method: "DELETE",
+      ...withCode(),
     });
     expect(res.status).toBe(200);
 
@@ -1407,6 +1513,7 @@ describe("DELETE /v1/numbers/:id", () => {
 
     const res = await harness.request(`/v1/numbers/${row.id as string}`, {
       method: "DELETE",
+      ...withCode(),
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
@@ -1432,6 +1539,7 @@ describe("DELETE /v1/numbers/:id", () => {
     );
     const res = await harness.request(`/v1/numbers/${row.id as string}`, {
       method: "DELETE",
+      ...withCode(),
     });
     expect(res.status).toBe(500);
     expect(harness.rest.rows("phone_numbers")[0].status).toBe("suspended");
