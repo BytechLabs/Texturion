@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.12.0](https://github.com/BytechLabs/Texturion/compare/web-v0.11.1...web-v0.12.0) (2026-08-08)
+
+
+### Features
+
+* **clients:** draw every measure on the dashboard, on all three ([9c44463](https://github.com/BytechLabs/Texturion/commit/9c444635165262c90ceaf28336c6dfdefaee2029)), closes [#540](https://github.com/BytechLabs/Texturion/issues/540)
+* **clients:** let a member take a measure off their own screen ([58af901](https://github.com/BytechLabs/Texturion/commit/58af90141641f0456949013089c872c3d51a65dc)), closes [#540](https://github.com/BytechLabs/Texturion/issues/540)
+* **clients:** say why the customer's clock is the one that counts ([28134b2](https://github.com/BytechLabs/Texturion/commit/28134b2a521d4a3fc7d856057094e2e3fa8a9a2a)), closes [#539](https://github.com/BytechLabs/Texturion/issues/539)
+* **web:** choose which clock a scheduled time is in ([3562d68](https://github.com/BytechLabs/Texturion/commit/3562d68d6bd8b651c8d59f8a71ea8c1a2aafa3c9)), closes [#539](https://github.com/BytechLabs/Texturion/issues/539)
+* **web:** draw how many new customers actually got answered ([83c507b](https://github.com/BytechLabs/Texturion/commit/83c507be16a75737faa581c32a3cc95cb2a58cc4)), closes [#540](https://github.com/BytechLabs/Texturion/issues/540)
+* **web:** lay the landing screen out for the screen it is on ([006d2bd](https://github.com/BytechLabs/Texturion/commit/006d2bdad9b7925924fc3db407250d585687afa8)), closes [#540](https://github.com/BytechLabs/Texturion/issues/540)
+* **web:** put the most urgent thing first on the landing screen ([9f4d909](https://github.com/BytechLabs/Texturion/commit/9f4d90963cb033ceb79168335c350858c0c4703a)), closes [#540](https://github.com/BytechLabs/Texturion/issues/540)
+* **web:** sign in with a face or a fingerprint instead of typing a code ([04525dc](https://github.com/BytechLabs/Texturion/commit/04525dc4ccc7810369cb77309f6b387a70b628ee)), closes [#473](https://github.com/BytechLabs/Texturion/issues/473)
+
+
+### Bug Fixes
+
+* **clients:** name each switch after the card it turns off ([16d43d1](https://github.com/BytechLabs/Texturion/commit/16d43d111aeffa46a395258529c3155e1b07e83c)), closes [#540](https://github.com/BytechLabs/Texturion/issues/540)
+* **clients:** say whose clock a scheduled message is set to ([f9422a4](https://github.com/BytechLabs/Texturion/commit/f9422a44d6c382738cc908f7d37ad3ee1aa4a08a)), closes [#539](https://github.com/BytechLabs/Texturion/issues/539)
+* **clients:** show transfer advice at the same point on every device ([ce00869](https://github.com/BytechLabs/Texturion/commit/ce00869f5b4489e106e81fef6599a57894866aa0))
+* **web:** line the four measures up as one row ([5cd78cc](https://github.com/BytechLabs/Texturion/commit/5cd78cc2c21e9f7e2384ab730b482801dc5a5b42)), closes [#540](https://github.com/BytechLabs/Texturion/issues/540)
+* **web:** order the landing sections to match the strip above them ([1bb4d2a](https://github.com/BytechLabs/Texturion/commit/1bb4d2a21e2ac7d85e73a72fe68ec24854ae7791)), closes [#540](https://github.com/BytechLabs/Texturion/issues/540)
+
 ## [0.11.1](https://github.com/BytechLabs/Texturion/compare/web-v0.11.0...web-v0.11.1) (2026-08-07)
 
 

@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.9.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.8.1...shared-v0.9.0) (2026-08-08)
+
+
+### Features
+
+* **api:** decide in one place whether a call may be summarised, and say no ([134e2f9](https://github.com/BytechLabs/Texturion/commit/134e2f92e6175560e0d4072419fe23b3782a7880)), closes [#509](https://github.com/BytechLabs/Texturion/issues/509)
+* **clients:** let a member take a measure off their own screen ([58af901](https://github.com/BytechLabs/Texturion/commit/58af90141641f0456949013089c872c3d51a65dc)), closes [#540](https://github.com/BytechLabs/Texturion/issues/540)
+* **clients:** say why the customer's clock is the one that counts ([28134b2](https://github.com/BytechLabs/Texturion/commit/28134b2a521d4a3fc7d856057094e2e3fa8a9a2a)), closes [#539](https://github.com/BytechLabs/Texturion/issues/539)
+* **shared:** decide when a time needs to name whose clock it is ([44547b1](https://github.com/BytechLabs/Texturion/commit/44547b14994b560dc7994b4549b4a27947a69d90)), closes [#539](https://github.com/BytechLabs/Texturion/issues/539)
+* **web:** choose which clock a scheduled time is in ([3562d68](https://github.com/BytechLabs/Texturion/commit/3562d68d6bd8b651c8d59f8a71ea8c1a2aafa3c9)), closes [#539](https://github.com/BytechLabs/Texturion/issues/539)
+* **web:** put the most urgent thing first on the landing screen ([9f4d909](https://github.com/BytechLabs/Texturion/commit/9f4d90963cb033ceb79168335c350858c0c4703a)), closes [#540](https://github.com/BytechLabs/Texturion/issues/540)
+
+
+### Bug Fixes
+
+* **clients:** name each switch after the card it turns off ([16d43d1](https://github.com/BytechLabs/Texturion/commit/16d43d111aeffa46a395258529c3155e1b07e83c)), closes [#540](https://github.com/BytechLabs/Texturion/issues/540)
+* **clients:** read the number from a phone export, not the label next to it ([af1c14f](https://github.com/BytechLabs/Texturion/commit/af1c14fa97d47bf5ddc2088b943f1276b7f4c6fb)), closes [#248](https://github.com/BytechLabs/Texturion/issues/248)
+* **clients:** show transfer advice at the same point on every device ([ce00869](https://github.com/BytechLabs/Texturion/commit/ce00869f5b4489e106e81fef6599a57894866aa0))
+
+
+### Reverts
+
+* **api:** drop live call recording and summaries for good ([ef67c62](https://github.com/BytechLabs/Texturion/commit/ef67c629121e93cb02a98d06b13572ccb32c62d6)), closes [#509](https://github.com/BytechLabs/Texturion/issues/509)
+
 ## [0.8.1](https://github.com/BytechLabs/Texturion/compare/shared-v0.8.0...shared-v0.8.1) (2026-08-07)
 
 

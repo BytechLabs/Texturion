@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/BytechLabs/Texturion/compare/api-v0.11.1...api-v0.12.0) (2026-08-08)
+
+
+### Features
+
+* **clients:** let a member take a measure off their own screen ([58af901](https://github.com/BytechLabs/Texturion/commit/58af90141641f0456949013089c872c3d51a65dc)), closes [#540](https://github.com/BytechLabs/Texturion/issues/540)
+
 ## [0.11.1](https://github.com/BytechLabs/Texturion/compare/api-v0.11.0...api-v0.11.1) (2026-08-07)
 
 
