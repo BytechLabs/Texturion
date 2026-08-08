@@ -509,7 +509,8 @@ describe("#537 — proving it is you before the business moves", () => {
       // The CODE, not just the status. `workspace.own` also answers 403, so a
       // status-only assertion would pass just as happily if the step-up were
       // deleted and the capability gate happened to refuse instead.
-      expect((await res.json()).error.code).toBe("mfa_challenge_required");
+      const refusal = (await res.json()) as { error: { code: string } };
+      expect(refusal.error.code).toBe("mfa_challenge_required");
       // And nothing happened. A refusal that still moved the business would be
       // the worst of both.
       expect(
