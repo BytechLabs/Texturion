@@ -7422,3 +7422,51 @@ changes that — the ceiling bounds what is DRAWN.
 `unreadableFlagValues` (already counted past its bound to say "and 12 more" —
 this is that treatment applied to the screen one level up), D122 (surfaced, not
 gated), and the two deleted classifiers.
+
+## D124 — the website widget is built behind the contact form's four layers, or not at all (#232, 2026-08-07)
+
+**Decision.** The "Text us" widget's public intake reuses the abuse posture
+already proven on `POST /contact`, in the same order, plus one layer that route
+does not need. Nothing about the widget ships before all five are in place:
+
+1. **Honeypot** — a field humans never see. A bot that fills it gets the ordinary
+   success response and nothing happens, so it never learns it was dropped.
+2. **Per-IP rate limit** on the `CF-Connecting-IP` the edge stamps, absent-binding
+   → skipped exactly as the existing limiter uses do.
+3. **Turnstile**, verified server-side against siteverify. Already configured.
+4. **A guarded-claim daily cap** — advisory-lock re-count plus insert in one RPC,
+   the `api_claim_contact_message` idiom, because a read-check-insert in the
+   Worker races and a raced cap is not a cap.
+5. **Phone verification before anything is created.** New, and the reason this
+   decision exists.
+
+**Why layer 5 is not negotiable.** Without it the endpoint sends a text to any
+number a stranger types, on our Telnyx account. That is an open relay with our
+billing attached — the single most expensive thing this product could own — and it
+is also the difference between a consent *record* and a consent *claim*. No
+contact, conversation or message is created until the code is confirmed; the
+verification exchange is what writes the express-consent ledger row.
+
+**No reusable primitive exists for it, which is worth stating plainly** so the
+next person does not go looking. The 6-digit code in onboarding is Telnyx's 10DLC
+sole-proprietor registration OTP; `VERIFY_RATE_LIMITER` bounds the
+text-enablement ownership check per target number. Neither verifies an anonymous
+visitor, so layer 5 is a new lifecycle: code hash, expiry, attempt ceiling,
+resend throttle, and its own per-number and per-company budgets.
+
+**The cap alerts before it bites.** Per the cost-protection mandate, a company
+approaching its daily ceiling is told while it can still act, and crossing it
+degrades honestly — the visitor is told to phone instead, never left with a form
+that silently swallowed their message.
+
+**What this rejects.** Shipping the widget first and hardening it after. The
+issue's own devil's advocate is right that a public write endpoint on other
+people's domains that spends our money is only acceptable locked down, and every
+layer above is cheaper to add now than to retrofit around a live embed on
+somebody's WordPress site.
+
+**Consistency:** `POST /contact` (layers 1–4, documented in
+`apps/api/src/routes/contact.ts`), D75/#335 `public-links/guard.ts` (the
+public-surface middleware: IP limit, noindex, no shared caching, one failure
+answer for every failure), the cost-protection mandate, and #226/#248's rule that
+a consent basis is recorded rather than assumed.
