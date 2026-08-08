@@ -36,6 +36,12 @@ class AppPrefs(private val context: Context) {
         // workspace-scoped — it is about THIS phone's data plan, and the same
         // person on a laptop has a different answer.
         val WIFI_ONLY_ORIGINALS = booleanPreferencesKey("wifi_only_originals")
+        // #330: the app lock, device-scoped for the same reason as the line
+        // above — it is about THIS phone, which is the tech's own and gets
+        // handed to whoever is covering the weekend. A workspace-wide setting
+        // would put a lock on a sole operator's phone to protect a truck
+        // phone in a different van.
+        val APP_LOCK = booleanPreferencesKey("app_lock_enabled")
         val OAUTH_STATE = stringPreferencesKey("pending_oauth_state")
         val OAUTH_VERIFIER = stringPreferencesKey("pending_oauth_verifier")
         val OAUTH_CREATED_AT = longPreferencesKey("pending_oauth_created_at")
@@ -61,6 +67,18 @@ class AppPrefs(private val context: Context) {
     val wifiOnlyOriginals: Flow<Boolean> =
         context.appPrefs.data.map { it[Keys.WIFI_ONLY_ORIGINALS] ?: false }
 
+    /**
+     * #330: ask for a fingerprint, face or screen lock before showing the inbox.
+     *
+     * Default OFF, and that is a decision rather than laziness. This product
+     * promises answering a customer inside the five minutes that decide the job,
+     * and a lock a sole operator never asked for is friction on the only thing we
+     * sell. The crew sharing one truck phone and the person working alone have
+     * opposite correct answers, so the phone asks rather than assuming.
+     */
+    val appLockEnabled: Flow<Boolean> =
+        context.appPrefs.data.map { it[Keys.APP_LOCK] ?: false }
+
     suspend fun currentCompanyId(): String? = activeCompanyId.first()
 
     suspend fun setActiveCompany(companyId: String?) {
@@ -76,6 +94,10 @@ class AppPrefs(private val context: Context) {
 
     suspend fun setDevMode(enabled: Boolean) {
         context.appPrefs.edit { it[Keys.DEV_MODE] = enabled }
+    }
+
+    suspend fun setAppLockEnabled(enabled: Boolean) {
+        context.appPrefs.edit { it[Keys.APP_LOCK] = enabled }
     }
 
     suspend fun setWifiOnlyOriginals(enabled: Boolean) {

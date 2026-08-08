@@ -11,6 +11,10 @@ navigationCompose = "2.9.8"
 datastore = "1.2.1"
 coreKtx = "1.19.0"
 coreSplashscreen = "1.2.0"
+# #330 app lock. 1.1.0 is the latest STABLE; 1.2.0 is alpha-only, and the same
+# rule as coreTelecom applies — never ship an alpha on a path whose failure
+# means either a customer's inbox is exposed or the owner cannot get into it.
+biometric = "1.1.0"
 # Jetpack Telecom (#171): the OS owns the ringing session, audio mode, mic FGS,
 # and route. 1.0.1 is the latest STABLE (1.1.0 is alpha-only — never ship an
 # alpha on the ring path). Backports to minSdk 26; the project is minSdk 28.
@@ -33,6 +37,7 @@ robolectric = "4.16.1"
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
+androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
 androidx-core-telecom = { group = "androidx.core", name = "core-telecom", version.ref = "coreTelecom" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }

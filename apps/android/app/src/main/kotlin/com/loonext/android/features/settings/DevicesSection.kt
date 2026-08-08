@@ -28,6 +28,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import com.loonext.android.core.security.AppLock
+import com.loonext.android.features.security.deviceCanLock
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -100,7 +103,8 @@ fun DevicesSection(scope: SettingsScope) {
             // rather than what is signed in, so it goes first — a reader who
             // came here for it should not have to scroll past a list of
             // sessions to find it.
-            DataUseCard(scope)
+            AppLockCard(scope)
+        DataUseCard(scope)
             MyDevicesCard(scope, data.mine, onChanged = { refreshKey++ })
             if (data.crew != null) {
                 CrewDevicesCard(
@@ -402,6 +406,54 @@ private fun DeviceRow(
  * *Applying: Zen of Clarity — one control, and the sentence that makes it safe
  * to touch.*
  */
+/**
+ * #330 — the lock on this phone, beside the other setting that is about THIS
+ * phone rather than the workspace.
+ *
+ * The device this app runs on is the tech's own: bought by them, carried
+ * off-shift, and a spare one lives in the truck and gets handed to whoever is
+ * covering the weekend. Nothing sat between "signed in" and "signed out".
+ *
+ * OFF BY DEFAULT, and the switch refuses where the phone cannot enforce it. A
+ * toggle that flips on a device with no fingerprint and no screen lock would
+ * leave somebody believing the phone in their glovebox was protected, which is
+ * worse than not offering it — so the row says what to do instead.
+ *
+ * *Applying: Ethical Friction, in the one place friction belongs — a deliberate
+ * pause in front of somebody else's customers.*
+ */
+@Composable
+private fun AppLockCard(scope: SettingsScope) {
+    val coroutines = rememberCoroutineScope()
+    val context = LocalContext.current
+    val enabled by scope.graph.prefs.appLockEnabled
+        .collectAsStateWithLifecycle(initialValue = false)
+    // Read once per composition: a person who goes to Settings and adds a screen
+    // lock comes back to a screen that has recomposed.
+    val canLock = remember(context) { deviceCanLock(context) }
+
+    SettingsCard(
+        title = "Lock this app",
+        description = "This phone only. Your other devices keep their own answer.",
+    ) {
+        LabeledSwitchRow(
+            label = "Ask before showing the inbox",
+            supporting = if (canLock) {
+                "Your fingerprint, face or screen lock, whenever the app has been " +
+                    "away for a minute. Worth it if this phone is ever handed to " +
+                    "somebody else."
+            } else {
+                AppLock.CANNOT_ENABLE_NOTE
+            },
+            checked = enabled && canLock,
+            enabled = canLock,
+            onCheckedChange = { next ->
+                coroutines.launch { scope.graph.prefs.setAppLockEnabled(next) }
+            },
+        )
+    }
+}
+
 @Composable
 private fun DataUseCard(scope: SettingsScope) {
     val coroutines = rememberCoroutineScope()

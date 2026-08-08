@@ -5,6 +5,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.ContactsContract
 import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
+import com.loonext.android.features.security.AppLockGate
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -253,7 +255,17 @@ private fun parseDeepLink(uri: Uri?): DeepLink? {
     )
 }
 
-class MainActivity : ComponentActivity() {
+/**
+ * #330: a [FragmentActivity] rather than a [ComponentActivity], and the one-word
+ * change is load-bearing. `androidx.biometric.BiometricPrompt` hosts its sheet in
+ * a fragment and takes a `FragmentActivity` — with a `ComponentActivity` the cast
+ * in `AppLockGate` is always null, so the app lock would draw and never open.
+ * Caught by reading the class rather than by a tester holding a phone.
+ *
+ * `FragmentActivity` IS a `ComponentActivity`, so `setContent`, the activity-result
+ * APIs and everything else here are untouched; it needs no AppCompat theme.
+ */
+class MainActivity : FragmentActivity() {
     /** Latest unconsumed deep link; the Ready shell consumes and clears it. */
     private val deepLinks = MutableStateFlow<DeepLink?>(null)
 
@@ -284,6 +296,12 @@ class MainActivity : ComponentActivity() {
             val windowSizeClass = calculateWindowSizeClass(this)
             LoonextTheme(darkTheme = darkTheme) {
                 CompositionLocalProvider(LocalWindowSizeClass provides windowSizeClass) {
+                    // #330: OUTSIDE Root, so a locked app does not compose the
+                    // inbox at all rather than covering it. A scrim is one
+                    // screenshot — or one recents thumbnail — away from being
+                    // nothing, and the recents view is exactly where a
+                    // handed-over phone shows its last screen.
+                    AppLockGate(graph.prefs) {
                     Root(graph, deepLinks)
                     // #168A: no adb on the founder's device — if the last run
                     // crashed, offer the saved report once via the share sheet.
@@ -295,6 +313,7 @@ class MainActivity : ComponentActivity() {
                         .collectAsStateWithLifecycle(initialValue = UpdateState())
                     LaunchedEffect(Unit) { graph.updates.refresh() }
                     UpdatePrompt(updateState)
+                    }
                 }
             }
         }

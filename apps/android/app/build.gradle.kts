@@ -111,6 +111,10 @@ dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.core.splashscreen)
+    // #330: the app lock for a phone that gets handed to whoever is covering
+    // the weekend. BiometricPrompt also offers the device credential, so a
+    // phone with a PIN and no fingerprint is still protectable.
+    implementation(libs.androidx.biometric)
     // Jetpack Telecom (#171): CallsManager.addCall + CallControlScope — the OS
     // owns presentation + audio for every registered call.
     implementation(libs.androidx.core.telecom)
