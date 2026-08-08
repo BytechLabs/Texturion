@@ -934,7 +934,17 @@ func theirTimeLine(_ clock: DestinationClock?) -> String? {
     guard let clock, clock.isQuiet else { return nil }
     let suffix = clock.hour < 12 ? "am" : "pm"
     let twelve = clock.hour % 12 == 0 ? 12 : clock.hour % 12
-    return "It's about \(twelve)\(suffix) where they are (\(clockProvenance(clock.rung)))."
+    let line = "It's about \(twelve)\(suffix) where they are (\(clockProvenance(clock.rung)))."
+    // #539: WHY theirs is the clock that counts, and that a wrong guess is
+    // correctable. The issue asked "why are we deriving time from customers area
+    // codes even? what if i bought my phone number in quebec but now live in
+    // alberta?" and the answer was on no screen.
+    //
+    // Only on the GUESSED rung: somebody who already set the zone on the contact
+    // does not need telling they can, and offering to correct a non-geographic
+    // number would be offering to fix an inference we never made.
+    guard clock.rung == "area_code" else { return line }
+    return "\(line) \(TwoClocks.areaCodeNote)"
 }
 
 /// Which rung answered, said plainly.

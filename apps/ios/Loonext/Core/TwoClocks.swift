@@ -43,6 +43,16 @@ enum TwoClocks {
     /// ...and the reader's own. Not "my time": the screen is talking TO them.
     static let here = "yours"
 
+    /// #539 — why the CUSTOMER'S clock decides, and how to fix a wrong guess.
+    ///
+    /// The rule about when a business may text somebody keys on where the RECIPIENT
+    /// is, not the sender, so their clock governs whether a send is allowed. The area
+    /// code is how we guess it when nobody has told us, and it goes wrong exactly the
+    /// way the issue describes: a mobile keeps its code when its owner moves.
+    static let areaCodeNote =
+        "The rules about when you may text go by their clock, not yours. "
+        + "If this number moved, set their timezone on the contact."
+
     /// Are these two rendered wall clocks the same moment on the same clock face?
     ///
     /// Takes the FORMATTED strings rather than the zones, so the comparison is

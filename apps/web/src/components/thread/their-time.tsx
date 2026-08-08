@@ -2,6 +2,8 @@
 
 import { Moon } from "lucide-react";
 
+import { CLOCK_AREA_CODE_NOTE } from "@loonext/shared";
+
 import type { DestinationClock } from "@/lib/api/types";
 
 /**
@@ -41,11 +43,27 @@ export function TheirTime({ clock }: { clock: DestinationClock | null }) {
           "your workspace's timezone — we don't know theirs";
 
   return (
-    <p className="flex items-center gap-1.5 px-1 pb-1.5 text-xs text-muted-foreground">
-      <Moon className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
+    <p className="flex items-start gap-1.5 px-1 pb-1.5 text-xs text-muted-foreground">
+      <Moon
+        className="mt-0.5 size-3.5 shrink-0"
+        strokeWidth={1.75}
+        aria-hidden
+      />
       <span>
         It&apos;s about {twelve}
-        {suffix} where they are ({provenance}).
+        {suffix} where they are ({provenance}).{" "}
+        {/* #539: WHY theirs is the clock that counts, and that a wrong guess is
+            correctable. The issue asked "why are we deriving time from customers
+            area codes even? what if i bought my phone number in quebec but now
+            live in alberta?" and the answer was on no screen — the line said
+            where the guess came from without saying what it decides or how to
+            fix it.
+
+            Only on the GUESSED rung. Somebody who already set the zone on the
+            contact does not need telling they can, and offering to correct a
+            non-geographic number would be offering to fix an inference we never
+            made. */}
+        {clock.source === "area_code" && <span>{CLOCK_AREA_CODE_NOTE}</span>}
       </span>
     </p>
   );

@@ -159,6 +159,24 @@ class TwoClocksTest {
         )
     }
 
+    /**
+     * The area-code explanation matches the shared module, word for word.
+     *
+     * This is the sentence that answers the founder's "why are we deriving time from
+     * customers area codes even?", and a phone that words it differently from the
+     * laptop reads as two products disagreeing about their own rules. Asserted
+     * against the shared text rather than against another copy of itself — that is
+     * the mistake that let two Customise labels drift on #540.
+     */
+    @Test
+    fun `the area-code explanation matches the shared module`() {
+        val shared = repoFile("packages/shared/src/two-clocks.ts")
+        assertTrue(
+            "AREA_CODE_NOTE has drifted: ${TwoClocks.AREA_CODE_NOTE}",
+            shared.contains(TwoClocks.AREA_CODE_NOTE),
+        )
+    }
+
     /** And the separator, which is the one character a narrow row can lose. */
     @Test
     fun `the separator matches the shared module`() {

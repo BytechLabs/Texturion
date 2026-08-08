@@ -148,6 +148,21 @@ final class TwoClocksTests: XCTestCase {
         )
     }
 
+    /// The area-code explanation matches the shared module, word for word.
+    ///
+    /// This is the sentence that answers the founder's "why are we deriving time from
+    /// customers area codes even?", and a phone that words it differently from the
+    /// laptop reads as two products disagreeing about their own rules. Asserted
+    /// against the shared text rather than against another copy of itself — that is
+    /// the mistake that let two Customise labels drift on #540.
+    func testTheAreaCodeExplanationMatchesTheSharedModule() throws {
+        let shared = try sharedSource()
+        XCTAssertTrue(
+            shared.contains(TwoClocks.areaCodeNote),
+            "areaCodeNote has drifted: \(TwoClocks.areaCodeNote)"
+        )
+    }
+
     /// And the separator, which is the one character a narrow row can lose.
     func testTheSeparatorMatchesTheSharedModule() throws {
         let shared = try sharedSource()

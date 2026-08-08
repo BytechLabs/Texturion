@@ -1,5 +1,6 @@
 package com.loonext.android.features.thread
 
+import com.loonext.android.core.time.TwoClocks
 import com.loonext.android.core.model.AcknowledgeResult
 import com.loonext.android.core.model.Attachment
 import com.loonext.android.features.inbox.SAVED_VIEW_COUNT_MAX_VIEWS
@@ -1007,7 +1008,17 @@ fun theirTimeLine(clock: DestinationClock?): String? {
     if (clock == null || !clock.quiet) return null
     val suffix = if (clock.local_hour < 12) "am" else "pm"
     val twelve = if (clock.local_hour % 12 == 0) 12 else clock.local_hour % 12
-    return "It's about $twelve$suffix where they are (${clockProvenance(clock.source)})."
+    val line = "It's about $twelve$suffix where they are (${clockProvenance(clock.source)})."
+    // #539: WHY theirs is the clock that counts, and that a wrong guess is
+    // correctable. The issue asked "why are we deriving time from customers area
+    // codes even? what if i bought my phone number in quebec but now live in
+    // alberta?" and the answer was on no screen.
+    //
+    // Only on the GUESSED rung: somebody who already set the zone on the contact
+    // does not need telling they can, and offering to correct a non-geographic
+    // number would be offering to fix an inference we never made.
+    if (clock.source != "area_code") return line
+    return "$line ${TwoClocks.AREA_CODE_NOTE}"
 }
 
 /**

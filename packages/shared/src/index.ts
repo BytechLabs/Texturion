@@ -816,6 +816,8 @@ export {
   CLOCK_CHOICE_LABELS,
   CLOCK_HERE,
   CLOCK_THERE,
+  CLOCK_AREA_CODE_FIX,
+  CLOCK_AREA_CODE_NOTE,
   type ClockChoice,
   instantForWallClock,
   sameClock,

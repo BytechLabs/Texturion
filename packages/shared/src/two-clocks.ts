@@ -234,3 +234,28 @@ export function wallClockInZone(
     return null;
   }
 }
+
+/**
+ * #539 — why the CUSTOMER'S clock is the one that decides, and how to fix it.
+ *
+ * The issue asks "why are we deriving time from customers area codes even? what if
+ * i bought my phone number in quebec but now live in alberta?" — and the honest
+ * answer was nowhere on any screen.
+ *
+ * The answer is that the rule about when a business may text somebody keys on
+ * where the RECIPIENT is, not where the sender is, so their clock is the one that
+ * governs whether a send is allowed. The area code is how we guess it when nobody
+ * has told us, and it is a guess that goes wrong exactly the way the issue
+ * describes: a mobile keeps its code when its owner moves.
+ *
+ * So the line says both halves — why theirs is the clock that counts, and that a
+ * wrong guess is correctable — and it is shown ONLY on the guessed rung. A member
+ * who already set the zone on the contact does not need to be told they can, and
+ * saying it on a non-geographic number where we admit we are showing the shop's own
+ * clock would be offering to correct something we never inferred.
+ */
+export const CLOCK_AREA_CODE_NOTE =
+  "The rules about when you may text go by their clock, not yours. If this number moved, set their timezone on the contact.";
+
+/** Where a member goes to correct it, so three clients name the same screen. */
+export const CLOCK_AREA_CODE_FIX = "set their timezone on the contact";
