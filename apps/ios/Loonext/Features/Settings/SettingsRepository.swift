@@ -185,10 +185,21 @@ struct SettingsRepository: Sendable {
         try await api.get("/v1/numbers/access/explain/\(userId)", companyId: companyId)
     }
 
-    func setMemberRole(_ companyId: String, memberId: String, role: String) async throws -> Member {
-        try await api.patch(
+    /// #538: `confirmLosingAccess` travels only when somebody is giving up their
+    /// OWN access, having been shown what that costs. The server refuses a
+    /// self-downgrade without it, so this is the evidence the warning was seen —
+    /// not a flag to set by default.
+    func setMemberRole(
+        _ companyId: String,
+        memberId: String,
+        role: String,
+        confirmLosingAccess: Bool = false
+    ) async throws -> Member {
+        var body: [String: JSONValue] = ["role": .string(role)]
+        if confirmLosingAccess { body[SelfDowngrade.ack] = .bool(true) }
+        return try await api.patch(
             "/v1/members/\(memberId)",
-            body: JSONValue.object(["role": .string(role)]),
+            body: JSONValue.object(body),
             companyId: companyId
         )
     }

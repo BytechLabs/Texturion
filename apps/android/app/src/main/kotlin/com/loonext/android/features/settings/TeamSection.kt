@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import com.loonext.android.core.roles.SelfDowngrade
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -185,6 +187,10 @@ private fun MembersCard(scope: SettingsScope, members: List<Member>, onChanged: 
 @Composable
 private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Unit) {
     val isSelf = member.user_id == scope.me.user_id
+    // #538: the role this person has asked to give themselves, held until they
+    // confirm. Null the rest of the time, which is almost always.
+    var givingUp by remember { mutableStateOf<String?>(null) }
+
     val name = member.display_name.ifBlank { "Teammate" }
     val canChangeRole = SettingsRoleGate.canChangeRoleOf(scope.role, member)
     val canDeactivate = SettingsRoleGate.canDeactivate(scope.role, member, scope.me.user_id)
@@ -199,6 +205,57 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
     var actionError by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    /**
+     * #538: one path for both the menu and the confirmation, so the acknowledged
+     * change cannot drift from the ordinary one.
+     */
+    fun changeRole(role: String, acknowledged: Boolean = false) {
+        busy = true
+        actionError = null
+        coroutines.launch {
+            try {
+                scope.repo.setMemberRole(
+                    scope.companyId, member.id, role,
+                    confirmLosingAccess = acknowledged,
+                )
+                haptics.confirm()
+                scope.showMessage("$name is now ${roleLabel(role).lowercase()}.")
+                onChanged()
+            } catch (cause: Exception) {
+                scope.showMessage(cause.userMessage())
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    // #538: before you take powers off yourself.
+    //
+    // Ethical friction, and only here: this is the one role change the person
+    // making it cannot reverse. Not a typed confirmation — nothing is destroyed
+    // and an owner restores a role in a tap, so making somebody type their
+    // workspace name would be theatre, and theatre is what teaches people to
+    // dismiss the dialogs that matter.
+    givingUp?.let { role ->
+        AlertDialog(
+            onDismissRequest = { givingUp = null },
+            title = { Text("Give up your own access?") },
+            // The sentence comes from the shared rule, so the phone, the laptop
+            // and the server agree about what a role costs.
+            text = { Text(SelfDowngrade.warning(member.role, role) ?: "") },
+            confirmButton = {
+                // Says what happens rather than "OK", so somebody skimming the
+                // buttons still reads the decision.
+                TextButton(onClick = {
+                    givingUp = null
+                    changeRole(role, acknowledged = true)
+                }) { Text("Make me ${roleLabel(role).lowercase()}") }
+            },
+            dismissButton = {
+                TextButton(onClick = { givingUp = null }) { Text("Keep my access") }
+            },
+        )
+    }
 
     Row(
         Modifier
@@ -254,24 +311,22 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
                             onClick = {
                                 roleMenuOpen = false
                                 if (role == member.role) return@DropdownMenuItem
-                                busy = true
-                                actionError = null
-                                coroutines.launch {
-                                    try {
-                                        scope.repo.setMemberRole(
-                                            scope.companyId, member.id, role,
-                                        )
-                                        haptics.confirm()
-                                        scope.showMessage(
-                                            "$name is now ${roleLabel(role).lowercase()}.",
-                                        )
-                                        onChanged()
-                                    } catch (cause: Exception) {
-                                        scope.showMessage(cause.userMessage())
-                                    } finally {
-                                        busy = false
-                                    }
+                                // #538: TAKING POWERS OFF YOURSELF STOPS AND ASKS.
+                                //
+                                // Picking a lesser role for your own row loses the
+                                // ability to change roles in the same tap — the
+                                // ability that would let you change it back. The
+                                // menu gave no sign of that, so an afternoon of
+                                // chasing the owner started with two taps.
+                                //
+                                // Only for this person's own row, and only when it
+                                // takes something away: a confirmation that fires
+                                // on everything is one people learn to dismiss.
+                                if (isSelf && SelfDowngrade.isDowngrade(member.role, role)) {
+                                    givingUp = role
+                                    return@DropdownMenuItem
                                 }
+                                changeRole(role)
                             },
                         )
                     }

@@ -53,6 +53,15 @@ private func roleBlurb(_ role: String) -> String {
 /// Team (#163): who can see and answer your customers' texts. Members list
 /// with inline role change + deactivation (admin+), the invite form gated by
 /// the seat formula, and the pending-invite list with the Copy-link fallback.
+/// #538: a role awaiting confirmation, wrapped so `.sheet(item:)` can key on it.
+///
+/// A bare `String?` is not `Identifiable`, and extending the standard library's
+/// String to make it so would put an `id` on every string in the target for the
+/// sake of one sheet.
+private struct PendingRole: Identifiable {
+    let id: String
+}
+
 @MainActor
 struct TeamSectionView: View {
     let scope: SettingsScope
@@ -165,6 +174,9 @@ private struct MemberRow: View {
     @State private var actionError: String?
     // #348: what this person actually reaches, on demand.
     @State private var showingAccess = false
+    /// #538: the role this person has asked to give themselves, held until they
+    /// confirm. Nil the rest of the time, which is almost always.
+    @State private var givingUp: PendingRole?
 
     private var isSelf: Bool { member.user_id == scope.me.user_id }
     private var name: String { member.display_name.isBlank ? "Teammate" : member.display_name }
@@ -247,15 +259,60 @@ private struct MemberRow: View {
         .sheet(isPresented: $showingAccess) {
             MemberAccessSheet(scope: scope, member: member, name: name)
         }
+        // #538: before you take powers off yourself.
+        //
+        // Ethical friction, and only here: this is the one role change the person
+        // making it cannot reverse. Not a typed confirmation — nothing is destroyed
+        // and an owner restores a role in a tap, so making somebody type their
+        // workspace name would be theatre, and theatre is what teaches people to
+        // dismiss the dialogs that matter.
+        .sheet(item: $givingUp) { pending in
+            ConfirmSheet(
+                title: "Give up your own access?",
+                // The sentence comes from the shared rule, so the phone, the laptop
+                // and the server agree about what a role costs.
+                message: SelfDowngrade.warning(from: member.role, to: pending.id) ?? "",
+                // Says what happens rather than "OK", so somebody skimming the
+                // buttons still reads the decision.
+                confirmLabel: "Make me \(roleLabel(pending.id).lowercased())",
+                destructive: true,
+                pending: busy,
+                error: actionError,
+                onConfirm: {
+                    let role = pending.id
+                    givingUp = nil
+                    changeRole(role, acknowledged: true)
+                },
+                onDismiss: { givingUp = nil }
+            )
+        }
     }
 
-    private func changeRole(_ role: String) {
+    private func changeRole(_ role: String, acknowledged: Bool = false) {
         guard role != member.role else { return }
+        // #538: TAKING POWERS OFF YOURSELF STOPS AND ASKS.
+        //
+        // Picking a lesser role for your own row loses the ability to change roles
+        // in the same tap — the ability that would let you change it back. The menu
+        // gave no sign of that, so an afternoon of chasing the owner started with
+        // two taps.
+        //
+        // Only for this person's own row, and only when it takes something away: a
+        // confirmation that fires on everything is one people learn to dismiss.
+        if !acknowledged, isSelf, SelfDowngrade.isDowngrade(from: member.role, to: role) {
+            givingUp = PendingRole(id: role)
+            return
+        }
         busy = true
         actionError = nil
         Task {
             do {
-                _ = try await scope.repo.setMemberRole(scope.companyId, memberId: member.id, role: role)
+                _ = try await scope.repo.setMemberRole(
+                    scope.companyId,
+                    memberId: member.id,
+                    role: role,
+                    confirmLosingAccess: acknowledged
+                )
                 scope.showMessage("\(name) is now \(roleLabel(role).lowercased()).")
                 onChanged()
             } catch {
