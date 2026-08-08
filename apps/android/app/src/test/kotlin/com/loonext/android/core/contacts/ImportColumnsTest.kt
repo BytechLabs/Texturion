@@ -209,6 +209,34 @@ class ImportColumnsTest {
         // difference between pre-filling a third-party export and pre-filling
         // nothing, and the wrong choice compiles, type-checks and says nothing.
         assertEquals(0, ImportColumns.detectColumns(listOf("Phone Number"))["phone"])
+    }
+
+    @Test
+    fun `the phone NUMBER wins over the label beside it`() {
+        // THE REAL HEADER ROW of a Google Contacts export, which is what a
+        // contractor leaving a personal phone actually has. Google writes every
+        // repeatable field as a pair — `Phone 1 - Type` holding "Mobile", then
+        // `Phone 1 - Value` holding the number — and the label comes FIRST.
+        //
+        // Guessing the label means every row's number reads "Mobile", every row is
+        // skipped as unusable, and the person is left to work out why.
+        val google = listOf(
+            "Name",
+            "Given Name",
+            "Additional Name",
+            "Family Name",
+            "Group Membership",
+            "E-mail 1 - Type",
+            "E-mail 1 - Value",
+            "Phone 1 - Type",
+            "Phone 1 - Value",
+            "Organization 1 - Name",
+            "Notes",
+        )
+        val found = ImportColumns.detectColumns(google)
+        assertEquals("Phone 1 - Value", google[found["phone"]!!])
+        assertEquals("Given Name", google[found["first_name"]!!])
+        assertEquals("Family Name", google[found["last_name"]!!])
         assertEquals(0, ImportColumns.detectColumns(listOf("Mobile Number"))["phone"])
         assertEquals(0, ImportColumns.detectColumns(listOf("Site Address"))["address"])
     }

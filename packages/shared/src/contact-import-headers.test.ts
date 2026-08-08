@@ -350,3 +350,42 @@ describe("joinContactName", () => {
     expect(joinContactName({ first: " ", last: "", full: "  " })).toBeNull();
   });
 });
+
+describe("#248 the exports a switching customer already has", () => {
+  // THE REAL HEADER ROW of a Google Contacts CSV export, which is what a
+  // contractor leaving a personal phone actually has on their laptop — Google
+  // Takeout hands it to them, and it is the most common contacts export there is.
+  //
+  // The shape that matters is the PAIR: Google writes every repeatable field as
+  // `<Field> N - Type` followed by `<Field> N - Value`, where Type holds "Mobile"
+  // or "Home" and Value holds the number. Both contain the word "phone", Type
+  // comes first, and the detector scans left to right.
+  const GOOGLE_CONTACTS = [
+    "Name",
+    "Given Name",
+    "Additional Name",
+    "Family Name",
+    "Group Membership",
+    "E-mail 1 - Type",
+    "E-mail 1 - Value",
+    "Phone 1 - Type",
+    "Phone 1 - Value",
+    "Organization 1 - Name",
+    "Notes",
+  ];
+
+  it("guesses the phone NUMBER column, not the label beside it", () => {
+    // The whole point of #248: the customer uploads the file they already have.
+    // Guessing `Phone 1 - Type` means every row's number reads "Mobile", every
+    // row is skipped as unusable, and the person is left to work out why — at the
+    // exact moment they have the least patience for us.
+    const found = detectContactColumns(GOOGLE_CONTACTS);
+    expect(GOOGLE_CONTACTS[found.phone!]).toBe("Phone 1 - Value");
+  });
+
+  it("guesses the split name columns Google actually writes", () => {
+    const found = detectContactColumns(GOOGLE_CONTACTS);
+    expect(GOOGLE_CONTACTS[found.first_name!]).toBe("Given Name");
+    expect(GOOGLE_CONTACTS[found.last_name!]).toBe("Family Name");
+  });
+});

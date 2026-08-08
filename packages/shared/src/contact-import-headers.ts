@@ -58,7 +58,42 @@ const FIELD_PATTERNS: readonly [ContactImportField, RegExp[]][] = [
       /blocked/,
     ],
   ],
-  ["phone", [/^phone$/, /phone/, /mobile/, /^cell/, /^tel/, /number/]],
+  [
+    "phone",
+    [
+      /^phone$/,
+      // #248: Google's paired shape, and it has to outrank the loose `/phone/`
+      // below rather than sit beside it. A Google Contacts export — what a
+      // contractor leaving a personal phone actually has, straight out of
+      // Takeout — writes every repeatable field as a PAIR:
+      //
+      //   Phone 1 - Type    Phone 1 - Value
+      //   Mobile            +1 613 555 0100
+      //
+      // Both normalise to something containing "phone", and Type comes FIRST.
+      // Since patterns are tried in order and each pattern scans the columns
+      // left to right, the loose pattern claimed the labels: every row's number
+      // read "Mobile", every row was unusable, and the person was left to work
+      // out why — at the moment they have least patience for us, which is the
+      // whole complaint #248 is about.
+      //
+      // A pattern rather than a rule about columns called "Type": this says
+      // which header IS the number, and does not need a list of the words that
+      // are not. The digits are optional because the pair is numbered per entry
+      // and a bare "Phone Value" is the same claim.
+      //
+      // `[0-9]` and NOT `\d`, which is not a preference: a shared pattern
+      // carrying a backslash cannot be copied into the Kotlin and Swift ports —
+      // `\b` was a silent BACKSPACE in Kotlin once — and there is a test on the
+      // iOS side that fails the moment one appears here.
+      /^phone[0-9]*value$/,
+      /phone/,
+      /mobile/,
+      /^cell/,
+      /^tel/,
+      /number/,
+    ],
+  ],
   // #248: split first/last columns, the dominant shape in every CRM and phone
   // export. Anchored forms first, then the loose ones ("Contact First Name"),
   // and never the bare `/name/` catch-all — that belongs to `name` alone.

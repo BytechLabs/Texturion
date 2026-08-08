@@ -356,7 +356,24 @@ enum ContactColumns {
                 "blocked",
             ]
         ),
-        (.phone, ["^phone$", "phone", "mobile", "^cell", "^tel", "number"]),
+        // #248: the paired form outranks the loose `phone` on purpose. A Google
+        // Contacts export writes every repeatable field as a PAIR — `Phone 1 -
+        // Type` holding "Mobile", then `Phone 1 - Value` holding the number — and
+        // the label comes FIRST. Patterns are tried in order and each scans the
+        // columns left to right, so the loose one claimed the labels: every row's
+        // number read "Mobile" and every row was unusable.
+        (
+            .phone,
+            [
+                "^phone$",
+                "^phone[0-9]*value$",
+                "phone",
+                "mobile",
+                "^cell",
+                "^tel",
+                "number",
+            ]
+        ),
         (.firstName, ["^firstname$", "^givenname$", "^first$", "^fname$", "firstname|givenname"]),
         (
             .lastName,

@@ -117,6 +117,35 @@ final class ContactImportColumnsTests: XCTestCase {
         }
     }
 
+    /// The phone NUMBER wins over the label beside it.
+    ///
+    /// THE REAL HEADER ROW of a Google Contacts export, which is what a contractor
+    /// leaving a personal phone actually has. Google writes every repeatable field
+    /// as a pair — `Phone 1 - Type` holding "Mobile", then `Phone 1 - Value`
+    /// holding the number — and the label comes FIRST. Patterns are tried in order
+    /// and each scans the columns left to right, so the loose `phone` pattern
+    /// claimed the labels: every row's number read "Mobile", every row was
+    /// unusable, and the person was left to work out why.
+    func testThePhoneNumberColumnWinsOverTheLabelBesideIt() {
+        let google = [
+            "Name",
+            "Given Name",
+            "Additional Name",
+            "Family Name",
+            "Group Membership",
+            "E-mail 1 - Type",
+            "E-mail 1 - Value",
+            "Phone 1 - Type",
+            "Phone 1 - Value",
+            "Organization 1 - Name",
+            "Notes",
+        ]
+        let found = ContactColumns.detect(google)
+        XCTAssertEqual(found[.phone].map { google[$0] }, "Phone 1 - Value")
+        XCTAssertEqual(found[.firstName].map { google[$0] }, "Given Name")
+        XCTAssertEqual(found[.lastName].map { google[$0] }, "Family Name")
+    }
+
     func testTheFlagVocabulariesAreTheSharedContracts() throws {
         let source = try sharedHeadersSource()
         XCTAssertEqual(try sharedStringList("FLAG_TRUE", in: source), ContactColumns.flagTrue)

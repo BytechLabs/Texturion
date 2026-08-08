@@ -79,7 +79,21 @@ object ImportColumns {
             "^stop$|^stopped$",
             "blocked",
         ),
-        FIELD_PHONE to listOf("^phone$", "phone", "mobile", "^cell", "^tel", "number"),
+        // #248: `^phone\d*value$` outranks the loose `phone` on purpose. A Google
+        // Contacts export writes every repeatable field as a PAIR — `Phone 1 -
+        // Type` holding "Mobile", then `Phone 1 - Value` holding the number — and
+        // the label comes FIRST. Patterns are tried in order and each scans the
+        // columns left to right, so the loose one claimed the labels: every row's
+        // number read "Mobile" and every row was unusable.
+        FIELD_PHONE to listOf(
+            "^phone$",
+            "^phone[0-9]*value$",
+            "phone",
+            "mobile",
+            "^cell",
+            "^tel",
+            "number",
+        ),
         "first_name" to listOf(
             "^firstname$",
             "^givenname$",
