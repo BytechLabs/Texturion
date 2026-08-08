@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.2](https://github.com/BytechLabs/Texturion/compare/ios-v0.12.1...ios-v0.12.2) (2026-08-08)
+
+
+### Bug Fixes
+
+* **clients:** say why a save failed instead of guessing ([f9ed2f7](https://github.com/BytechLabs/Texturion/commit/f9ed2f7d3d94d1417e94b90f82502946cd9bea20))
+
 ## [0.12.1](https://github.com/BytechLabs/Texturion/compare/ios-v0.12.0...ios-v0.12.1) (2026-08-08)
 
 
