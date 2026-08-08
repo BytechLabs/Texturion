@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.2](https://github.com/BytechLabs/Texturion/compare/api-v0.14.1...api-v0.14.2) (2026-08-08)
+
+
+### Bug Fixes
+
+* **notifications:** let quiet hours and batching actually save ([8a7e0ef](https://github.com/BytechLabs/Texturion/commit/8a7e0efc301b4c7e8488cb545d9de633480c0649)), closes [#552](https://github.com/BytechLabs/Texturion/issues/552)
+* **settings:** show the call settings that were already saved ([82275bb](https://github.com/BytechLabs/Texturion/commit/82275bb86f67d2b2c8f77c06307065d4cb6a08ac)), closes [#552](https://github.com/BytechLabs/Texturion/issues/552)
+
 ## [0.14.1](https://github.com/BytechLabs/Texturion/compare/api-v0.14.0...api-v0.14.1) (2026-08-08)
 
 

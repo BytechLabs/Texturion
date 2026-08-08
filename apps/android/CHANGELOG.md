@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.12.2](https://github.com/BytechLabs/Texturion/compare/android-v0.12.1...android-v0.12.2) (2026-08-08)
+
+
+### Bug Fixes
+
+* **android:** keep a customer's words out of the diagnostics log ([f77c09d](https://github.com/BytechLabs/Texturion/commit/f77c09d550dbf539b20313deaa1f738489bc1e2e)), closes [#555](https://github.com/BytechLabs/Texturion/issues/555)
+* **android:** stop a blank screen when the server sends an empty field ([abb5566](https://github.com/BytechLabs/Texturion/commit/abb55668d4e78eaa0176d5767e8abd7247de2e6a))
+* **clients:** say why a save failed instead of guessing ([f9ed2f7](https://github.com/BytechLabs/Texturion/commit/f9ed2f7d3d94d1417e94b90f82502946cd9bea20))
+
 ## [0.12.1](https://github.com/BytechLabs/Texturion/compare/android-v0.12.0...android-v0.12.1) (2026-08-08)
 
 
