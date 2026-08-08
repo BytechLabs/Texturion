@@ -96,6 +96,8 @@ export default function PortNumberPage() {
           ...(timezone ? { timezone } : {}),
           // #370: the crew size answered back on the name step.
           ...(draft.crewSize ? { crew_size: draft.crewSize } : {}),
+          // #288: and how they say they heard about us.
+          ...(draft.signupSource ? { signup_source: draft.signupSource } : {}),
           // #501: the link this signup arrived through, if it arrived through one.
           ...referralCodeForCreate(),
           // #296: which marketing page started this, if we recorded one.

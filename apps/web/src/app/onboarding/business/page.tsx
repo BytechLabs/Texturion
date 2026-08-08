@@ -335,6 +335,10 @@ export default function BusinessIdentityPage() {
           ...(timezone ? { timezone } : {}),
           // #370: the crew size answered back on the name step.
           ...(state.draft.crewSize ? { crew_size: state.draft.crewSize } : {}),
+          // #288: and how they say they heard about us.
+          ...(state.draft.signupSource
+            ? { signup_source: state.draft.signupSource }
+            : {}),
           // #501: the link this signup arrived through, if it arrived through one.
           ...referralCodeForCreate(),
           // #296: which marketing page started this, if we recorded one.

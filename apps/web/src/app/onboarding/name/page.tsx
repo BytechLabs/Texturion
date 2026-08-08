@@ -6,7 +6,14 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { CREW_SIZE_BUCKETS, CREW_SIZE_LABELS } from "@loonext/shared";
+import {
+  CREW_SIZE_BUCKETS,
+  CREW_SIZE_LABELS,
+  SIGNUP_SOURCES,
+  SIGNUP_SOURCE_HINT,
+  SIGNUP_SOURCE_LABELS,
+  SIGNUP_SOURCE_PROMPT,
+} from "@loonext/shared";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +46,11 @@ const schema = z.object({
   // #370: optional on purpose. A signup that skips it is a signup we still
   // want, and the column keeps "never asked" distinguishable from "solo".
   crewSize: z.enum(CREW_SIZE_BUCKETS).optional(),
+  // #288: optional for the same reason, and it is the ONLY signal that can see
+  // word of mouth. An owner told about us at a supply counter who then searches
+  // for the name arrives with no landing path, no referrer and no campaign —
+  // every passive measure reads them as direct traffic.
+  signupSource: z.enum(SIGNUP_SOURCES).optional(),
 });
 
 /**
@@ -49,7 +61,13 @@ const schema = z.object({
  * reasons. It is the only pre-company step with room, so the answer rides the
  * local draft to whichever of the three creation call sites fires (number,
  * business, port) without a second round trip. And it is the cheapest screen in
- * the funnel to add a tap to: one field, and the most whitespace.
+ * the funnel to add a tap to.
+ *
+ * #288 adds "how did you hear about us?" on the same reasoning and to the same
+ * draft. The screen is now one typed field and two rows of chips, and both chip
+ * rows are skippable — the compliance step is the wrong home for a question no
+ * carrier requires, and a marketing question next to "upload your LOA" reads as
+ * badly as it sounds.
  *
  * Applying: Smart Personalization (the answer produces an immediate,
  * personalised outcome rather than disappearing into analytics), Chunking (four
@@ -69,17 +87,22 @@ export default function CompanyNamePage() {
 
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", crewSize: undefined },
+    defaultValues: { name: "", crewSize: undefined, signupSource: undefined },
   });
 
   // Prefill from a saved draft once resume state is in.
   const draftName = state.draft.name ?? "";
   const draftCrewSize = state.draft.crewSize;
+  const draftSignupSource = state.draft.signupSource;
   useEffect(() => {
     if (draftName && form.getValues("name") === "") {
-      form.reset({ name: draftName, crewSize: draftCrewSize });
+      form.reset({
+        name: draftName,
+        crewSize: draftCrewSize,
+        signupSource: draftSignupSource,
+      });
     }
-  }, [draftName, draftCrewSize, form]);
+  }, [draftName, draftCrewSize, draftSignupSource, form]);
 
   if (state.status === "error") return <StepError onRetry={state.retry} />;
   if (!ready || !state.snapshot) return <StepLoading />;
@@ -91,6 +114,7 @@ export default function CompanyNamePage() {
     writeOnboardingDraft({
       name: values.name,
       ...(values.crewSize ? { crewSize: values.crewSize } : {}),
+      ...(values.signupSource ? { signupSource: values.signupSource } : {}),
     });
     trackOnboardingStepCompleted("name");
     router.push("/onboarding/number");
@@ -173,6 +197,56 @@ export default function CompanyNamePage() {
                 <FormDescription>
                   {chosenCrew ? crewFitCopy(chosenCrew) : CREW_FIT_PROMPT}
                 </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* #288: the cheap step the issue asks for before amplifying a
+              channel — "ask new signups how they heard about us, and find out
+              whether this channel exists". Passive attribution structurally
+              cannot: a plumber told about us at a supply counter who searches
+              for the name a week later lands on '/' with nothing attached.
+
+              *Applying: Chunking* — four answers, inside the three-to-four the
+              brain holds, each mapping to a decision we would actually make.
+              *Zen of Clarity* — the same chips as the row above it, so this
+              reads as one more tap rather than a new kind of control.
+
+              No default, and the same Smart Defaults deviation the crew-size
+              row names: pre-selecting would write an answer nobody gave, and
+              the column deliberately keeps "never asked" apart from every
+              reply. */}
+          <FormField
+            control={form.control}
+            name="signupSource"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{SIGNUP_SOURCE_PROMPT}</FormLabel>
+                <FormControl>
+                  <RadioGroup
+                    value={field.value ?? ""}
+                    onValueChange={field.onChange}
+                    className="grid grid-cols-2 gap-3"
+                  >
+                    {SIGNUP_SOURCES.map((source) => (
+                      <Label
+                        key={source}
+                        className={cn(
+                          "flex h-11 cursor-pointer items-center justify-center rounded-lg border px-3 text-center text-sm font-medium transition-colors duration-150 ease-out",
+                          "focus-within:ring-[3px] focus-within:ring-ring",
+                          field.value === source
+                            ? "border-primary bg-primary/5"
+                            : "border-border bg-card hover:bg-accent",
+                        )}
+                      >
+                        <RadioGroupItem value={source} className="sr-only" />
+                        {SIGNUP_SOURCE_LABELS[source]}
+                      </Label>
+                    ))}
+                  </RadioGroup>
+                </FormControl>
+                <FormDescription>{SIGNUP_SOURCE_HINT}</FormDescription>
                 <FormMessage />
               </FormItem>
             )}

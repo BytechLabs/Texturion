@@ -39,6 +39,7 @@ import { getDb } from "../db";
 import {
   ATTRIBUTION_PARAMS,
   CREW_SIZE_BUCKETS,
+  SIGNUP_SOURCES,
   sanitizeAttributionValue,
   sanitizeLandingPath,
 } from "@loonext/shared";
@@ -88,6 +89,13 @@ const createSchema = z.object({
   // a signup that skips the question is a signup we still want, and "not
   // asked" has to stay distinguishable from "solo" in the reporting.
   crew_size: z.enum(CREW_SIZE_BUCKETS).optional(),
+  // #288: how they say they heard about us. OPTIONAL for the same reason the
+  // crew size above is — a signup that skips the question is a signup we still
+  // want, and "never asked" must stay distinguishable from every answer. It is
+  // the only signal that can see word of mouth: an owner who was told about us
+  // at a supply counter and then searched for the name arrives with no landing
+  // path, no referrer and no campaign.
+  signup_source: z.enum(SIGNUP_SOURCES).optional(),
   // #399: the code from a ?ref= link, if the signup arrived through one.
   // Bounded rather than shaped — a wrong code must produce a workspace without
   // attribution, never a 422 that blocks a signup over eight characters.
@@ -447,15 +455,21 @@ companiesRoutes.post("/companies", async (c) => {
   // onto the ordered number at checkout.
   // #370: stamp the crew size alongside the chosen number, on the same
   // follow-up update path — the create RPC's signature is fixed.
-  if (body.crew_size) {
-    const { error: crewError } = await db
+  // #288: and how they heard about us, on the same follow-up update and under
+  // the same rule — never fail a signup over a question we asked for our own
+  // benefit.
+  const staged: Record<string, string> = {};
+  if (body.crew_size) staged.crew_size = body.crew_size;
+  if (body.signup_source) staged.signup_source = body.signup_source;
+  if (Object.keys(staged).length > 0) {
+    const { error: stageError } = await db
       .from("companies")
-      .update({ crew_size: body.crew_size })
+      .update(staged)
       .eq("id", company.id as string);
-    if (crewError) {
+    if (stageError) {
       // Never fail the signup over a segmentation field. The workspace is more
-      // important than knowing how big its crew is.
-      console.error(`crew size persist skipped: ${crewError.message}`);
+      // important than knowing how big its crew is or where it came from.
+      console.error(`signup segmentation persist skipped: ${stageError.message}`);
     }
   }
 

@@ -1,4 +1,4 @@
-import type { CrewSizeBucket } from "@loonext/shared";
+import type { CrewSizeBucket, SignupSource } from "@loonext/shared";
 
 import type {
   CompanyView,
@@ -73,6 +73,14 @@ export interface OnboardingDraft {
    * three creation call sites (number, business, port) each carry it through.
    */
   crewSize?: CrewSizeBucket;
+  /**
+   * #288 — how they say they heard about us, asked on the name step.
+   *
+   * Optional the whole way down like the crew size above, and absent is a real
+   * answer: the column keeps "never asked" distinguishable from every reply, so
+   * a skipped question must not be reported as "somewhere else".
+   */
+  signupSource?: SignupSource;
   areaCode?: string;
   /** Choose-your-number: the specific E.164 picked in the number step (new mode). */
   chosenNumber?: string;

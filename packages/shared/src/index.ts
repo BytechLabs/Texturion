@@ -548,6 +548,15 @@ export type {
 } from "./referral-share";
 
 export {
+  SIGNUP_SOURCES,
+  SIGNUP_SOURCE_HINT,
+  SIGNUP_SOURCE_LABELS,
+  SIGNUP_SOURCE_PROMPT,
+  isSignupSource,
+} from "./signup-source";
+export type { SignupSource } from "./signup-source";
+
+export {
   CREW_SIZE_BUCKETS,
   CREW_SIZE_LABELS,
   isBeyondSupportedCrew,

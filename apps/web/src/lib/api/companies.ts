@@ -6,7 +6,12 @@ import {
 
 import { useCompanyId } from "@/lib/company/provider";
 
-import type { CrewSizeBucket, HoursException, Locale } from "@loonext/shared";
+import type {
+  CrewSizeBucket,
+  HoursException,
+  Locale,
+  SignupSource,
+} from "@loonext/shared";
 
 import { apiFetch } from "./client";
 import { keys } from "./keys";
@@ -42,6 +47,8 @@ export interface CreateCompanyInput {
    * reporting depends on telling them apart.
    */
   crew_size?: CrewSizeBucket;
+  /** #288: how they say they heard about us. Absent when they skipped it. */
+  signup_source?: SignupSource;
   /**
    * #501: the code from the `?ref=` link this signup arrived through, if any.
    * Read from storage at the call site, never typed.

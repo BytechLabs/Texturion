@@ -1,4 +1,4 @@
-import { isCrewSizeBucket } from "@loonext/shared";
+import { isCrewSizeBucket, isSignupSource } from "@loonext/shared";
 
 import type { OnboardingDraft, PortDraft } from "./steps";
 
@@ -43,6 +43,9 @@ export function parseDraft(raw: string | null): OnboardingDraft {
     // hand-edited or stale draft must not turn into a bucket the enum does not
     // have, which the API would 422 — and refusing the whole signup over a
     // segmentation field is the one outcome this question is not worth.
+    if (typeof obj.signupSource === "string" && isSignupSource(obj.signupSource)) {
+      draft.signupSource = obj.signupSource;
+    }
     if (typeof obj.crewSize === "string" && isCrewSizeBucket(obj.crewSize)) {
       draft.crewSize = obj.crewSize;
     }

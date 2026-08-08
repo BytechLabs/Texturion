@@ -183,15 +183,6 @@ struct BillingSectionView: View {
             ) {
                 PortalButton(scope: scope, label: "Manage payment & invoices")
             }
-            // #288/#399: the referral link, on the billing screen because the
-            // reward is a month off the invoice, and behind the same
-            // billing.manage gate for the same reason. Only on a plan we are told
-            // is running — a workspace with nothing to discount cannot be paid,
-            // and offering the month anyway would be an offer we already know we
-            // will not keep.
-            if company.plan != nil && company.subscriptionActive {
-                ReferralCardSection(scope: scope)
-            }
             if company.subscriptionActive {
                 CancelCard(
                     scope: scope,
@@ -218,6 +209,21 @@ struct BillingSectionView: View {
                     },
                     onRefreshCompany: onRefreshCompany
                 )
+            }
+            // #288/#399: the referral link, on the billing screen because the
+            // reward is a month off the invoice, and behind the same
+            // billing.manage gate for the same reason. Only on a plan we are told
+            // is running — a workspace with nothing to discount cannot be paid,
+            // and offering the month anyway would be an offer we already know we
+            // will not keep.
+            //
+            // BELOW THE CANCEL CARD, matching Android, where PauseOfferTest says
+            // why in as many words: nothing new may render above the way out,
+            // because every card added there is height between a thumb and that
+            // button. An invitation to go and recommend us is the last thing that
+            // should stand between an owner and leaving.
+            if company.plan != nil && company.subscriptionActive {
+                ReferralCardSection(scope: scope)
             }
         } else {
             SettingsCard(title: "Billing") {

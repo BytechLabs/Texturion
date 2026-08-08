@@ -349,6 +349,84 @@ describe("POST /v1/companies — AUP signup screening (#303)", () => {
   });
 });
 
+describe("POST /v1/companies — how did you hear about us (#288)", () => {
+  function createStub(): SupabaseStub {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/rpc/api_create_company", () => ({ id: COMPANY_ID }));
+    return sb;
+  }
+
+  async function create(body: Record<string, unknown>): Promise<Response> {
+    return apiRequest(app, env, await auth.token(), "/v1/companies", {
+      method: "POST",
+      companyId: null,
+      body: { ...validBody, requested_area_code: "212", ...body },
+    });
+  }
+
+  it("records the answer on the company", async () => {
+    const sb = createStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await create({ signup_source: "another_business" });
+    expect(res.status).toBe(201);
+
+    const [update] = sb.find("PATCH", "/rest/v1/companies");
+    expect(update.body).toEqual({ signup_source: "another_business" });
+    expect(update.url.searchParams.get("id")).toBe(`eq.${COMPANY_ID}`);
+  });
+
+  it("writes nothing at all when the question was skipped", async () => {
+    // NULL means never answered, and that has to stay distinguishable from
+    // every answer. A skipped question stored as "other" would quietly become
+    // the largest source we have.
+    const sb = createStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await create({});
+    expect(res.status).toBe(201);
+    expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(0);
+  });
+
+  it("carries the crew size in the SAME write rather than a second one", async () => {
+    // #370 and #288 are one follow-up update. Two PATCHes for two optional
+    // segmentation fields is two round trips on the signup path.
+    const sb = createStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await create({ signup_source: "search", crew_size: "solo" });
+    const updates = sb.find("PATCH", "/rest/v1/companies");
+    expect(updates).toHaveLength(1);
+    expect(updates[0].body).toEqual({
+      crew_size: "solo",
+      signup_source: "search",
+    });
+  });
+
+  it("refuses an answer that is not one of the four", async () => {
+    const sb = createStub();
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await create({ signup_source: "billboard" });
+    expect(res.status).toBe(422);
+  });
+
+  it("still creates the workspace when the answer cannot be stored", async () => {
+    // THE ONE THAT MATTERS. This is a question asked for our benefit, and it
+    // must never be able to cost somebody their signup.
+    const sb = createStub();
+    sb.on("PATCH", "/rest/v1/companies", () => {
+      throw new Error("column is having a bad day");
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await create({ signup_source: "another_business" });
+    expect(res.status).toBe(201);
+    // And it was genuinely attempted — otherwise this passes because the write
+    // never happened rather than because the failure was swallowed.
+    expect(sb.find("PATCH", "/rest/v1/companies").length).toBeGreaterThan(0);
+  });
+});
+
 describe("POST /v1/companies — first-touch attribution (#296)", () => {
   function createStub(): SupabaseStub {
     const sb = supabaseStub(env);
