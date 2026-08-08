@@ -9,7 +9,8 @@ person can reach cannot be reviewed, diffed, or checked against the code by
 anyone else. Doubly so here, where iOS cannot be built on the founder's machine
 and the console is the only other place this would exist.
 
-**Last reconciled with the code:** 2026-08-01.
+**Last reconciled with the code:** 2026-08-07 — the v0.9.1 review (#533), which
+is when contact import reached both phone apps.
 
 ---
 
@@ -30,7 +31,7 @@ stated.
 | User content | Emails or text messages | Every text sent and received, plus internal notes |
 | User content | Photos or videos | Picture messages and job photos |
 | User content | Audio data | Voicemail recordings |
-| User content | Other user content | Files attached to notes and jobs |
+| User content | Other user content | Files attached to notes and jobs; a spreadsheet or vCard the user imports contacts from |
 | Contacts | Contacts | Customer records the business keeps |
 | Location | Coarse location | Job addresses geocoded to a point; the map's "my location"; the city a device signed in from, shown on the signed-in-devices list (#236) |
 | Usage data | Product interaction | Call history: who called, when, how it ended |

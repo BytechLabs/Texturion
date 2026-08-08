@@ -8,7 +8,8 @@ Kept in the repo on purpose: a declaration that lives only in a web console one
 person can reach cannot be reviewed, diffed, or checked against the code by
 anyone else.
 
-**Last reconciled with the code:** 2026-08-01.
+**Last reconciled with the code:** 2026-08-07 — the v0.9.1 review (#533), which
+is when contact import reached both phone apps.
 
 ---
 
@@ -42,7 +43,7 @@ advertising, and none is sold.
 | Messages → Other in-app messages | Yes | Yes | App functionality |
 | Photos and videos → Photos | Yes | Yes | App functionality (picture messages, job photos) |
 | Audio → Voice or sound recordings | Yes | Yes | App functionality (voicemail) |
-| Files and docs | Yes | Yes | App functionality (attachments) |
+| Files and docs | Yes | Yes | App functionality (attachments; a spreadsheet or vCard the user imports contacts from) |
 | Contacts | Yes | Yes | App functionality |
 | Location → Approximate location | Yes | Yes | App functionality (job map); Fraud prevention, security, and compliance (#236 signed-in devices) |
 | App activity → Other actions | Yes | Yes | App functionality (call history) |
@@ -70,8 +71,8 @@ subscription identifiers only.
 > Reading: the app shows and searches the phone's contacts beside the crew's
 > shared ones, so a tradesperson can text or call somebody without retyping a
 > number or adding them twice. It reads names, organisations and phone numbers
-> only, the matching and searching happen on the device, and no contact is
-> uploaded to our servers.
+> only, the matching and searching happen on the device, and nothing this
+> permission reads is uploaded to our servers.
 >
 > Writing: with the user's explicit permission, the app adds "Call with
 > Loonext" and "Text with Loonext" actions to their existing contacts, so a
@@ -89,6 +90,20 @@ workspace. The phone's own address book is read, matched and searched on the
 device and never sent to us. `docs/DATA-INVENTORY.md` states the distinction in
 full; declaring the address book as collected would claim we hold data we never
 receive.
+
+**The app DOES upload contact records by another route, and the sentence above is
+scoped so it cannot be read as denying it.** From v0.9.1 both phone apps can
+import a spreadsheet or a vCard file the user picks, and its contents — names,
+numbers, addresses and notes — are uploaded. That is a *file the person chose to
+hand us*, not the address book this permission opens, and it needs no permission
+at all because the system file picker is the user's own act. It is declared: those
+records are the Contacts, Name, Phone number and Address rows in the table above,
+and the file itself is the Files and docs row.
+
+The distinction matters because the previous wording said "no contact is uploaded
+to our servers" inside a permission justification. Every word was true of the
+permission and none of it was true of the app, which is the shape of discrepancy a
+review sweep raises — and by then the remedy is a pulled app rather than an edit.
 
 ### `RECORD_AUDIO`, `MANAGE_OWN_CALLS`, `FOREGROUND_SERVICE_MICROPHONE`, `FOREGROUND_SERVICE_PHONE_CALL`
 
