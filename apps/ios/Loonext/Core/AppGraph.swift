@@ -153,6 +153,18 @@ final class AuthManager {
         }
         sessionStore.clear()
         prefs.setActiveCompany(nil)
+        // #330: and the per-company unread bookkeeping, which outlives the
+        // session otherwise. `NotificationsReadState.clear()` was written for
+        // exactly this — its own comment calls it "sign-out parity with the
+        // Android cache clear" — and nothing had ever called it, so Android
+        // dropped it on sign-out and this app kept it.
+        //
+        // It matters because of who owns the phone. D12's customer is a crew
+        // texting from personal handsets, and a spare phone in the truck gets
+        // handed to whoever is covering the weekend. Signing out and passing it
+        // over left the next person holding the previous member's unread counts
+        // for every workspace they had open.
+        NotificationsReadState.shared.clear()
     }
 }
 

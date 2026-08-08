@@ -236,3 +236,70 @@ final class AuthFlowsTests: XCTestCase {
         XCTAssertEqual(rateLimit?.message, "Rate limit exceeded")
     }
 }
+
+/// #330 — signing out leaves nothing of the previous member on the phone.
+///
+/// The customer D12 describes is a crew texting from personal handsets, and a
+/// spare phone in the truck gets handed to whoever is covering the weekend. So
+/// "signed out" has to mean the next person sees nothing of the last one, and the
+/// parts of that which live in memory are the easiest to forget — they leave no
+/// file behind to notice.
+///
+/// A SOURCE LINT, because `signOut` is an async method on the composition root
+/// that reaches the network and the keychain; standing that up in a unit test
+/// would be a fake of everything except the one line being asserted. What is
+/// checked is that the line is there, which is precisely what was missing:
+/// `NotificationsReadState.clear()` existed, its own comment described it as
+/// "sign-out parity with the Android cache clear", and nothing had ever called
+/// it — so Android dropped the state and this app kept it.
+final class SignOutClearsLocalStateTests: XCTestCase {
+    private func repoPath(_ relative: String) throws -> URL {
+        var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        while true {
+            let candidate = dir.appendingPathComponent(relative)
+            if FileManager.default.fileExists(atPath: candidate.path) { return candidate }
+            let parent = dir.deletingLastPathComponent()
+            if parent.path == dir.path { break }
+            dir = parent
+        }
+        XCTFail("\(relative) is not reachable from \(#filePath)")
+        throw CocoaError(.fileNoSuchFile)
+    }
+
+    func testSignOutClearsTheUnreadBookkeeping() throws {
+        let source = try String(
+            contentsOf: try repoPath("apps/ios/Loonext/Core/AppGraph.swift"),
+            encoding: .utf8
+        )
+        guard let start = source.range(of: "func signOut() async {") else {
+            return XCTFail("signOut has moved — point this lint at the new shape")
+        }
+        // The method body up to the next declaration at the same indent.
+        let rest = source[start.upperBound...]
+        let body = String(rest.prefix(while: { $0 != "}" }))
+
+        XCTAssertTrue(
+            body.contains("sessionStore.clear()"),
+            "sign-out must drop the session"
+        )
+        XCTAssertTrue(
+            body.contains("NotificationsReadState.shared.clear()"),
+            "sign-out must drop the per-company unread bookkeeping, or the next "
+                + "person holding this phone inherits the last member's counts"
+        )
+    }
+
+    /// And the thing being called still exists to be called.
+    ///
+    /// Without this, deleting `clear()` and the call together would leave the
+    /// lint above passing on a file that no longer mentions either.
+    func testTheReadStateStillOffersAClear() throws {
+        let source = try String(
+            contentsOf: try repoPath(
+                "apps/ios/Loonext/Features/Notifications/NotificationsReadState.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertTrue(source.contains("func clear()"))
+    }
+}
