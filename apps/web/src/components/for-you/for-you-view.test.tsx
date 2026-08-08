@@ -734,9 +734,12 @@ describe("#540 the bento gives the widest slot to the queue that needs it", () =
       unread: [],
       triage: null,
     };
-    // Four cards in one grid at xl. Stacking them full width across a wide screen
-    // was the dead space this issue opened with.
-    expect(render()).toContain("xl:grid-cols-4");
+    // One row, and as many columns as actually have a card. A FIXED column count
+    // is what this asserted first, and it was wrong in real pixels: two of these
+    // cards decide for themselves whether to render, so a four-column row on a
+    // workspace with three cards left an empty track — the dead space this issue
+    // opened with, one card at a time. `auto-fit` collapses it.
+    expect(render()).toContain("repeat(auto-fit,minmax(15rem,1fr))");
   });
 });
 
@@ -804,6 +807,6 @@ describe("ForYouView customising (#540)", () => {
       "satisfaction",
       "lead_sources",
     ];
-    expect(render()).not.toContain("xl:grid-cols-4");
+    expect(render()).not.toContain("repeat(auto-fit,minmax(15rem,1fr))");
   });
 });

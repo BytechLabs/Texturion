@@ -157,3 +157,85 @@ describe("what CustomiseDashboard refuses to offer (#540)", () => {
     expect(screen.getByText(/The queue always stays/)).toBeTruthy();
   });
 });
+
+describe("the switch is named after the card it controls (#540)", () => {
+  /**
+   * THIS IS THE ONE THAT ALREADY CAUGHT SOMETHING.
+   *
+   * The panel first said "Where customers came from" while the card on the screen
+   * behind it said "Where YOUR customers come from". Nothing failed: the ids
+   * matched, all three clients agreed with each other, and both parity tests were
+   * green — because they compared the ports to the shared module rather than
+   * comparing the label to the thing it names. It took a screenshot with the panel
+   * open over the card to see it.
+   *
+   * A switch whose label is not the heading is a switch you have to guess about,
+   * so the label is checked against the CARD's own source rather than against
+   * another copy of itself.
+   */
+  /**
+   * The HEADING, not the source. Matching anywhere in the file is what makes a
+   * guard like this decorative: "Pipeline" appears in `pipeline-card.tsx` as
+   * `export function PipelineCard()`, so a substring check would have waved
+   * through a switch labelled after a symbol nobody can see on the screen. Only
+   * the text inside the card's heading element counts.
+   */
+  const CARDS: Record<string, { file: string; heading: RegExp }> = {
+    response_time: {
+      file: "src/components/for-you/response-time-card.tsx",
+      heading: /<h2[\s\S]*?<\/h2>/,
+    },
+    pipeline: {
+      file: "src/components/for-you/pipeline-card.tsx",
+      heading: /<h2[\s\S]*?<\/h2>/,
+    },
+    satisfaction: {
+      file: "src/components/for-you/satisfaction-card.tsx",
+      heading: /<h2[\s\S]*?<\/h2>/,
+    },
+    lead_sources: {
+      file: "src/components/for-you/lead-sources-card.tsx",
+      heading: /<h2[\s\S]*?<\/h2>/,
+    },
+    // Recent calls is a `Section`, whose heading comes from its label prop.
+    recent_calls: {
+      file: "src/components/for-you/for-you-view.tsx",
+      heading: /<Section label="Recent calls"/,
+    },
+  };
+
+  /**
+   * The words inside a heading, whatever is wrapped around them.
+   *
+   * Two of these cards put their 7/30/90 window picker INSIDE the `<h2>`, so the
+   * heading's first child is an element rather than text. Stripping tags is what
+   * makes this read the heading a person sees rather than the markup it is made
+   * of — the first attempt matched only text directly after `<h2>` and reported
+   * the heading as a single space.
+   */
+  function headingText(block: string): string {
+    return block
+      .replace(/<[^>]*>/g, " ")
+      .replace(/\{[\s\S]*?\}/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  for (const [id, { file, heading }] of Object.entries(CARDS)) {
+    it(`${id} is called what its card is called`, async () => {
+      const { readFileSync } = await import("node:fs");
+      const block = readFileSync(file, "utf8").match(heading)?.[0];
+      // A card whose heading this cannot find is a guard that has stopped
+      // guarding, so that fails rather than passing vacuously.
+      expect(block, `no heading found in ${file}`).toBeTruthy();
+      const text = id === "recent_calls" ? "Recent calls" : headingText(block!);
+      const label = DASHBOARD_PANEL_LABELS[id as keyof typeof DASHBOARD_PANEL_LABELS];
+      // A prefix, case-insensitively: the heading may carry a window the switch
+      // does not need to repeat ("Quotes" for "Quotes, last 30 days").
+      expect(
+        text.toLowerCase().startsWith(label.toLowerCase()),
+        `the Customise switch says "${label}" but the card's heading is "${text}"`,
+      ).toBe(true);
+    });
+  }
+});

@@ -887,6 +887,26 @@ function SpamReviewRow({ item }: { item: SpamReviewItem }) {
 }
 
 /**
+ * #540 — how the measures share a row: as many columns as actually have a card.
+ *
+ * A fixed `xl:grid-cols-4` was wrong for a reason that only showed up in real
+ * pixels. Two of these cards decide for THEMSELVES whether to render — the
+ * pipeline says nothing until there are quotes, and lead sources says nothing
+ * until a source exists — so a four-column row on a workspace with three cards
+ * left an empty track, which is a hole in the middle of the screen. Exactly the
+ * dead space this issue was opened about, reintroduced one card at a time.
+ *
+ * `auto-fit` is the fix rather than counting the cards, because the parent CANNOT
+ * count them: a card's decision to render nothing is made inside the card. Empty
+ * tracks collapse, so whatever renders shares the row equally — four cards, three,
+ * or one — and the same rule covers a member who put two away from Customise.
+ *
+ * The 15rem floor is what keeps it one column on a phone and stops a lone card
+ * from stretching across a desktop.
+ */
+const MEASURES_ROW = "grid gap-4 grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]";
+
+/**
  * #540 — the four measures, in one place, honouring what the member put away.
  *
  * ONE component rather than the same four tags written twice, because the
@@ -996,10 +1016,7 @@ function ForYouSections({
             Below the caught-up card rather than above it, on the same reasoning
             as the queue: what needs doing leads, and "nothing does" is still the
             first thing to say. */}
-        <Measures
-          hidden={hidden}
-          className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
-        />
+        <Measures hidden={hidden} className={MEASURES_ROW} />
         {!hidden.includes("recent_calls") && <RecentCallsSection />}
       </div>
     );
@@ -1140,10 +1157,7 @@ function ForYouSections({
           live here rather than inside `Measures` because they are this layout's
           business — the caught-up screen places the same four cards in a
           narrower shell. */}
-      <Measures
-        hidden={hidden}
-        className="grid gap-4 sm:grid-cols-2 lg:col-span-2 xl:col-span-3 xl:grid-cols-4"
-      />
+      <Measures hidden={hidden} className={MEASURES_ROW + " lg:col-span-2 xl:col-span-3"} />
 
       {/* #416/D53: shown to EVERY member, not owners and admins only. The
           company already pages the whole crew when a lead lands unclaimed, so

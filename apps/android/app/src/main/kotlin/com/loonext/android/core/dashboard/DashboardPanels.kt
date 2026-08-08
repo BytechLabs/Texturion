@@ -40,9 +40,9 @@ object DashboardPanels {
      */
     fun label(panel: Panel): String = when (panel) {
         Panel.RESPONSE_TIME -> "Response time"
-        Panel.PIPELINE -> "Pipeline"
+        Panel.PIPELINE -> "Quotes"
         Panel.SATISFACTION -> "Satisfaction"
-        Panel.LEAD_SOURCES -> "Where customers came from"
+        Panel.LEAD_SOURCES -> "Where your customers come from"
         Panel.RECENT_CALLS -> "Recent calls"
     }
 
@@ -55,7 +55,7 @@ object DashboardPanels {
      */
     fun note(panel: Panel): String = when (panel) {
         Panel.RESPONSE_TIME -> "How fast new customers got an answer this week."
-        Panel.PIPELINE -> "What is quoted, booked, and waiting on a decision."
+        Panel.PIPELINE -> "What you quoted this month, and how much of it landed."
         Panel.SATISFACTION -> "Whether the people you answered were happy."
         Panel.LEAD_SOURCES -> "Which channels are actually bringing work in."
         Panel.RECENT_CALLS -> "The last few calls, in and out."

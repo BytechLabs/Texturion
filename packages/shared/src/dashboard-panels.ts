@@ -4,8 +4,8 @@
  * ## The line, and why it is drawn here rather than "everything is optional"
  *
  * A dashboard nobody can adjust becomes somebody else's dashboard: an owner who
- * never sells on referrals still reads past "Where customers came from" every
- * morning. So the measures come off.
+ * never sells on referrals still reads past "Where your customers come from"
+ * every morning. So the measures come off.
  *
  * The QUEUES do not. Hiding "Unassigned" is not a preference — it is a way to
  * stop seeing leads that nobody has claimed, and the first time it matters the
@@ -51,9 +51,9 @@ export type DashboardPanelId = (typeof DASHBOARD_PANEL_IDS)[number];
  */
 export const DASHBOARD_PANEL_LABELS: Record<DashboardPanelId, string> = {
   response_time: "Response time",
-  pipeline: "Pipeline",
+  pipeline: "Quotes",
   satisfaction: "Satisfaction",
-  lead_sources: "Where customers came from",
+  lead_sources: "Where your customers come from",
   recent_calls: "Recent calls",
 };
 
@@ -61,12 +61,12 @@ export const DASHBOARD_PANEL_LABELS: Record<DashboardPanelId, string> = {
  * One line saying what a panel is for, shown under its name.
  *
  * Somebody deciding whether to keep a panel is deciding about the QUESTION it
- * answers, and four headings on their own do not distinguish "Pipeline" from
+ * answers, and four headings on their own do not distinguish "Quotes" from
  * "Response time" for anybody who has not already read both cards.
  */
 export const DASHBOARD_PANEL_NOTES: Record<DashboardPanelId, string> = {
   response_time: "How fast new customers got an answer this week.",
-  pipeline: "What is quoted, booked, and waiting on a decision.",
+  pipeline: "What you quoted this month, and how much of it landed.",
   satisfaction: "Whether the people you answered were happy.",
   lead_sources: "Which channels are actually bringing work in.",
   recent_calls: "The last few calls, in and out.",

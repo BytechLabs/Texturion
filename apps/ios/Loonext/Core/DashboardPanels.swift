@@ -40,9 +40,9 @@ enum DashboardPanels {
     static func label(_ panel: Panel) -> String {
         switch panel {
         case .responseTime: return "Response time"
-        case .pipeline: return "Pipeline"
+        case .pipeline: return "Quotes"
         case .satisfaction: return "Satisfaction"
-        case .leadSources: return "Where customers came from"
+        case .leadSources: return "Where your customers come from"
         case .recentCalls: return "Recent calls"
         }
     }
@@ -55,7 +55,7 @@ enum DashboardPanels {
     static func note(_ panel: Panel) -> String {
         switch panel {
         case .responseTime: return "How fast new customers got an answer this week."
-        case .pipeline: return "What is quoted, booked, and waiting on a decision."
+        case .pipeline: return "What you quoted this month, and how much of it landed."
         case .satisfaction: return "Whether the people you answered were happy."
         case .leadSources: return "Which channels are actually bringing work in."
         case .recentCalls: return "The last few calls, in and out."
