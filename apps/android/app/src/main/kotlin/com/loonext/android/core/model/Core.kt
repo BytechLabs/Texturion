@@ -480,6 +480,8 @@ data class CompanyView(
      * that asks a homeowner to send it is on by default too.
      */
     val emergency_keyword_enabled: Boolean = true,
+    /** #553: whether we TEXT BACK, separately from whether we notice at all. */
+    val emergency_reply_enabled: Boolean = true,
     /**
      * #460: the workspace's own emergency words, or null for the product list.
      * Null means "use the default", never "watch for nothing".

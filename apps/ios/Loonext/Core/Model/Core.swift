@@ -459,6 +459,8 @@ struct CompanyView: Codable, Sendable {
     /// Defaults TRUE against a lagging server, matching it — the away copy
     /// that asks a homeowner to send it is on by default too.
     @Default<DefaultTrue> var emergency_keyword_enabled: Bool
+    /// #553: whether we TEXT BACK, separately from whether we notice at all.
+    @Default<DefaultTrue> var emergency_reply_enabled: Bool
     /// #460: the workspace's own emergency words, or nil for the product list.
     /// Nil means "use the default", never "watch for nothing".
     var emergency_keywords: [String]?

@@ -325,4 +325,109 @@ begin
   end if;
 end $$;
 
+-- ===========================================================================
+-- EK-10. #553: the reply is its own choice, and turning it off still TELLS the
+--        crew. Being told an emergency arrived and messaging the customer back
+--        were one boolean, so the only way to stop us sending on somebody's
+--        behalf was to stop the product noticing emergencies at all.
+-- ===========================================================================
+do $$
+declare
+  res     jsonb;
+  em_at   timestamptz;
+  flagged int;
+  before_msgs int;
+begin
+  -- A clean thread, so the throttle and the earlier cases cannot muddy this.
+  update public.conversations
+     set emergency_at = null, last_emergency_ack_at = null
+   where id = 'e4140000-0000-4000-8000-000000000005';
+
+  select count(*) into before_msgs
+    from public.messages
+   where conversation_id = 'e4140000-0000-4000-8000-000000000005'
+     and direction = 'outbound';
+
+  update public.companies
+     set emergency_reply_enabled = false
+   where id = 'e4140000-0000-4000-8000-000000000002';
+
+  res := public.claim_emergency_ack(
+    'e4140000-0000-4000-8000-000000000002',
+    'e4140000-0000-4000-8000-000000000005',
+    'Flagged as urgent - call 911 if anyone is in danger.', 1, 3600, 50);
+
+  if res->>'skipped' is distinct from 'reply_disabled' then
+    raise exception
+      'EK-10 FAILED: expected skipped=reply_disabled, got %', res;
+  end if;
+
+  -- THE POINT OF THE SPLIT. The crew still learns about it.
+  select emergency_at into em_at
+    from public.conversations
+   where id = 'e4140000-0000-4000-8000-000000000005';
+  if em_at is null then
+    raise exception
+      'EK-10 FAILED: the inbox flag was not stamped, so turning off the reply '
+      'also stopped the crew being told — which is the bug, not the fix';
+  end if;
+
+  select count(*) into flagged
+    from public.conversation_events
+   where conversation_id = 'e4140000-0000-4000-8000-000000000005'
+     and type = 'emergency_flagged';
+  if flagged < 1 then
+    raise exception 'EK-10 FAILED: no emergency_flagged event was written';
+  end if;
+
+  -- And no message went to the customer, which is the one thing withheld.
+  if (
+    select count(*) from public.messages
+     where conversation_id = 'e4140000-0000-4000-8000-000000000005'
+       and direction = 'outbound'
+  ) is distinct from before_msgs then
+    raise exception
+      'EK-10 FAILED: a reply was sent with emergency_reply_enabled = false';
+  end if;
+
+  raise notice
+    'EK-10 PASSED: the reply is off, the crew is still told, the customer is not';
+end $$;
+
+-- ===========================================================================
+-- EK-11. And the two switches are genuinely different: turning RECOGNITION off
+--        writes no flag at all. Without this, EK-10 could pass against a
+--        function that ignored the new column and skipped for another reason.
+-- ===========================================================================
+do $$
+declare res jsonb; em_at timestamptz;
+begin
+  update public.conversations
+     set emergency_at = null, last_emergency_ack_at = null
+   where id = 'e4140000-0000-4000-8000-000000000005';
+  update public.companies
+     set emergency_keyword_enabled = false, emergency_reply_enabled = true
+   where id = 'e4140000-0000-4000-8000-000000000002';
+
+  res := public.claim_emergency_ack(
+    'e4140000-0000-4000-8000-000000000002',
+    'e4140000-0000-4000-8000-000000000005',
+    'Flagged as urgent - call 911 if anyone is in danger.', 1, 3600, 50);
+
+  if res->>'skipped' is distinct from 'emergency_disabled' then
+    raise exception
+      'EK-11 FAILED: recognition off should skip as emergency_disabled, got %', res;
+  end if;
+
+  select emergency_at into em_at
+    from public.conversations
+   where id = 'e4140000-0000-4000-8000-000000000005';
+  if em_at is not null then
+    raise exception
+      'EK-11 FAILED: recognition is off, so nothing should have been flagged';
+  end if;
+
+  raise notice 'EK-11 PASSED: the two switches mean different things';
+end $$;
+
 rollback;

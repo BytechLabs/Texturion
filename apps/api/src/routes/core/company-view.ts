@@ -51,6 +51,11 @@ export const COMPANY_COLUMNS =
   // and leaves the other making an offer nobody answers.
   "business_hours,business_hours_exceptions,away_enabled,away_message," +
   "emergency_keyword_enabled,emergency_keywords,emergency_message," +
+  // #553: and whether we text the customer BACK, which is a separate choice from
+  // whether we notice at all. Added here in the same commit as the schema field,
+  // because company-view.writable.test.ts refuses the pairing otherwise — which is
+  // exactly what it caught on this change.
+  "emergency_reply_enabled," +
   // #552 — THESE FIVE WERE WRITABLE AND UNREADABLE, which is the worst pairing
   // of the two. `PATCH /v1/company` has accepted all of them for months
   // (routes/companies.ts) and this select list never carried any of them, so the

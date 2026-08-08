@@ -71,6 +71,34 @@ fun EmergencyCard(
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
+    // #553: held locally so the switch moves on the tap rather than a round trip
+    // later, re-seeded whenever the company row changes.
+    var replyEnabled by remember(company.emergency_reply_enabled) {
+        mutableStateOf(company.emergency_reply_enabled)
+    }
+
+    /**
+     * #553: saved on the tap, not behind the card's Save button.
+     *
+     * The words and the message are a draft somebody composes and commits. This is
+     * a switch, and a switch that needs a separate Save is a switch people believe
+     * they have already thrown. On failure it goes back to what the server has, so
+     * the control never shows a state the account is not in.
+     */
+    fun saveReplyEnabled(next: Boolean) {
+        coroutines.launch {
+            try {
+                val updated = scope.repo.updateCompany(
+                    scope.companyId,
+                    buildJsonObject { put("emergency_reply_enabled", next) },
+                )
+                onCompanyUpdated(updated)
+            } catch (cause: Exception) {
+                replyEnabled = !next
+                error = cause.userMessage()
+            }
+        }
+    }
     val trimmedMessage = message.trim()
     val dirty = words != savedWords ||
         trimmedMessage != company.emergency_message.orEmpty().trim()
@@ -182,6 +210,28 @@ fun EmergencyCard(
 
         Spacer(Modifier.height(16.dp))
         Text("Automatic reply", style = MaterialTheme.typography.labelLarge)
+        // #553: the switch lives NEXT TO the thing it governs.
+        //
+        // It always existed, but under Hours — a screen away from the words and the
+        // message it controls — so the founder reported the reply as "enforced". A
+        // setting nobody can find is not a setting.
+        //
+        // And it is now a DIFFERENT switch. `emergency_keyword_enabled` used to
+        // gate four things at once, so the only way to stop us texting on the
+        // crew's behalf was to stop the product noticing emergencies. Turning this
+        // one off keeps the crew escalation, the push and the inbox flag, and
+        // withholds only the message.
+        LabeledSwitchRow(
+            label = "Text the customer back",
+            checked = replyEnabled,
+            onCheckedChange = { next ->
+                replyEnabled = next
+                saveReplyEnabled(next)
+            },
+            supporting = "Off means we still alert the crew and flag the thread — " +
+                "we just don't message the customer for you.",
+            modifier = Modifier.padding(top = 4.dp),
+        )
         Text(
             "Sent once per hour, at most, to a customer who texts one of these words. " +
                 "Say what is true for your business.",

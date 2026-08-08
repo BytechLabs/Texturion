@@ -100,6 +100,8 @@ export interface CompanyPatch {
   offramp_message?: string | null;
   /** #414: whether a reply of URGENT wakes the whole crew. */
   emergency_keyword_enabled?: boolean;
+  /** #553: whether we TEXT BACK, separately from whether we notice at all. */
+  emergency_reply_enabled?: boolean;
   /** #460: the workspace's own emergency words. `null` restores the product
    *  list; omit the key entirely to leave it alone. */
   emergency_keywords?: string[] | null;

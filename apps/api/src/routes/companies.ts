@@ -187,6 +187,16 @@ export const patchSchema = z
     // and should then take the offer out of its away message too, which is
     // why the switch lives next to the message on every client.
     emergency_keyword_enabled: z.boolean().optional(),
+    /**
+     * #553: whether we TEXT THE CUSTOMER BACK, separately from whether we notice
+     * at all.
+     *
+     * One boolean used to gate both, so the only way to stop us sending a message
+     * on the crew's behalf was to stop the product noticing emergencies — the
+     * escalation, the push and the inbox flag went with it. Turning this off keeps
+     * every one of those and withholds only the message.
+     */
+    emergency_reply_enabled: z.boolean().optional(),
     // #460: the words THIS workspace treats as an emergency. Null restores the
     // product list — the same nullable-means-default contract away_message uses,
     // so improving the defaults later still reaches everybody who never opened

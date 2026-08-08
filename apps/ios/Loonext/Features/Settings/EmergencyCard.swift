@@ -26,6 +26,7 @@ struct EmergencyCard: View {
     @State private var words: [String]
     @State private var draft = ""
     @State private var message: String
+    @State private var replyEnabled: Bool
     @State private var saving = false
     @State private var error: String?
 
@@ -43,6 +44,9 @@ struct EmergencyCard: View {
         // fastest way to make somebody think the feature is broken.
         _words = State(initialValue: company.effectiveEmergencyWords)
         _message = State(initialValue: company.emergency_message ?? "")
+        // #553: held locally so the switch moves on the tap rather than a round
+        // trip later.
+        _replyEnabled = State(initialValue: company.emergency_reply_enabled)
     }
 
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
@@ -114,6 +118,29 @@ struct EmergencyCard: View {
             Spacer().frame(height: 16)
             Text("Automatic reply")
                 .font(.callout)
+            // #553: the switch lives NEXT TO the thing it governs.
+            //
+            // It always existed, but under Hours — a screen away from the words and
+            // the message it controls — so the founder reported the reply as
+            // "enforced". A setting nobody can find is not a setting.
+            //
+            // And it is now a DIFFERENT switch. `emergency_keyword_enabled` used to
+            // gate four things at once, so the only way to stop us texting on the
+            // crew's behalf was to stop the product noticing emergencies. Turning
+            // this one off keeps the crew escalation, the push and the inbox flag,
+            // and withholds only the message.
+            Toggle("Text the customer back", isOn: $replyEnabled)
+                .font(.callout)
+                .disabled(!canEdit || saving)
+                .onChange(of: replyEnabled) { _, next in saveReplyEnabled(next) }
+                .padding(.top, 4)
+            Text(
+                "Off means we still alert the crew and flag the thread — we just "
+                    + "don't message the customer for you."
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            Spacer().frame(height: 6)
             Text(
                 "Sent once per hour, at most, to a customer who texts one of these "
                     + "words. Say what is true for your business."
@@ -201,6 +228,27 @@ struct EmergencyCard: View {
         }
         error = nil
         words.removeAll { $0 == word }
+    }
+
+    /// #553: saved on the tap, not behind the card's Save button.
+    ///
+    /// The words and the message are a draft somebody composes and commits. This is
+    /// a switch, and a switch that needs a separate Save is a switch people believe
+    /// they have already thrown. On failure it goes back to what the server has, so
+    /// the control never shows a state the account is not in.
+    private func saveReplyEnabled(_ next: Bool) {
+        Task {
+            do {
+                let updated = try await scope.repo.updateCompany(
+                    scope.companyId,
+                    patch: .object(["emergency_reply_enabled": .bool(next)])
+                )
+                onCompanyUpdated(updated)
+            } catch {
+                replyEnabled = !next
+                self.error = error.userMessage
+            }
+        }
     }
 
     private func save() {
