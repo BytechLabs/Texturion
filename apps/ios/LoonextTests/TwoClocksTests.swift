@@ -161,3 +161,85 @@ final class TwoClocksTests: XCTestCase {
         )
     }
 }
+
+/// #539 — turning "8:30 their time" into a moment on iOS.
+///
+/// `Calendar.date(from:)` is doing the work, and "the platform probably does the
+/// right thing" is not a claim worth shipping on the two mornings a year it
+/// matters. These assert the PROPERTY that matters — never earlier than what was
+/// asked for — rather than a specific minute past the gap, which is Foundation's
+/// business and not worth pinning to a constant nobody here can observe.
+final class ReinterpretClockTests: XCTestCase {
+
+    private let toronto = TimeZone(identifier: "America/Toronto")!
+    private let vancouver = TimeZone(identifier: "America/Vancouver")!
+
+    private func components(_ at: Date, _ zone: TimeZone) -> DateComponents {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = zone
+        return cal.dateComponents([.year, .month, .day, .hour, .minute], from: at)
+    }
+
+    private func instant(_ iso: String) -> Date {
+        let f = ISO8601DateFormatter()
+        return f.date(from: iso)!
+    }
+
+    func testTheSameDigitsBecomeADifferentMoment() {
+        // THE WHOLE POINT. 8:30 in Toronto is a different instant from 8:30 in
+        // Vancouver; if these matched, the switch would be decorative.
+        let shown = instant("2026-08-11T12:30:00Z")  // 8:30 AM Toronto
+        let asTheirs = TwoClocks.reinterpret(shown, from: toronto, to: vancouver)
+        XCTAssertNotEqual(shown, asTheirs)
+        // And the digits survived: 8:30 on THEIR clock.
+        let there = components(asTheirs, vancouver)
+        XCTAssertEqual(there.hour, 8)
+        XCTAssertEqual(there.minute, 30)
+    }
+
+    func testTheSameZoneIsTheSameMoment() {
+        let shown = instant("2026-08-11T12:30:00Z")
+        XCTAssertEqual(TwoClocks.reinterpret(shown, from: toronto, to: toronto), shown)
+    }
+
+    func testAHalfHourZoneKeepsItsMinutes() {
+        // Newfoundland is UTC-3:30, where an hours-apart number is wrong every day.
+        let stJohns = TimeZone(identifier: "America/St_Johns")!
+        let shown = instant("2026-08-11T12:30:00Z")
+        let asTheirs = TwoClocks.reinterpret(shown, from: toronto, to: stJohns)
+        let there = components(asTheirs, stJohns)
+        XCTAssertEqual(there.hour, 8)
+        XCTAssertEqual(there.minute, 30)
+    }
+
+    func testAskingForATimeThatNeverHappenedNeverGoesEarlier() {
+        // 2:30am does not exist on 2026-03-08 in Toronto — the clocks jump 2 to 3.
+        // Whatever Foundation picks, it must not be BEFORE what was asked for: an
+        // hour early is a text at 1:30am that the sender never authorised.
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = vancouver
+        // 2:30 on the Vancouver morning that also skips it.
+        let shown = cal.date(from: DateComponents(
+            year: 2026, month: 3, day: 8, hour: 6, minute: 30
+        ))!
+        let landed = TwoClocks.reinterpret(shown, from: vancouver, to: toronto)
+        let there = components(landed, toronto)
+        XCTAssertGreaterThanOrEqual(
+            there.hour!, 3,
+            "a send asked for at a time that never happened must not go earlier"
+        )
+    }
+
+    func testARepeatedHourTakesTheEarlierOfTheTwo() {
+        // 1:30am happens twice on 2026-11-01 in Toronto. The later one would send an
+        // hour after the sender expected.
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = vancouver
+        let shown = cal.date(from: DateComponents(
+            year: 2026, month: 11, day: 1, hour: 1, minute: 30
+        ))!
+        let landed = TwoClocks.reinterpret(shown, from: vancouver, to: toronto)
+        // EDT is UTC-4, so the first 1:30 is 05:30Z; the second is 06:30Z.
+        XCTAssertEqual(landed, instant("2026-11-01T05:30:00Z"))
+    }
+}

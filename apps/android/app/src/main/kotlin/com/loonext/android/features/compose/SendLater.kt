@@ -14,6 +14,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
+import com.loonext.android.core.time.TwoClocks
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTimePickerState
@@ -163,6 +167,17 @@ fun SendLaterPicker(
     val seedLocal = seed.atZone(device)
     var pickedDate by remember { mutableStateOf<LocalDate?>(null) }
     var stage by remember { mutableStateOf(PickerStage.Date) }
+    // #539: WHICH CLOCK THE TYPED TIME IS IN — the switch the issue asks for
+    // ("why cant i choose? let me switch?").
+    //
+    // Only offered when it would change the answer: if the customer's clock reads
+    // the same as this device's, a Their/Your toggle is two buttons that do the
+    // same thing, which is worse than no toggle because it implies a difference
+    // that is not there.
+    var choice by remember { mutableStateOf(TwoClocks.DEFAULT_CHOICE) }
+    val theirZone = destinationZone(clock)
+    val canSwitch = clock != null &&
+        !TwoClocks.sameClock(clockOf(seed, theirZone), clockOf(seed, device))
 
     when (stage) {
         PickerStage.Date -> {
@@ -204,8 +219,36 @@ fun SendLaterPicker(
                 text = {
                     Column {
                         TimePicker(state = timeState)
+                        if (canSwitch) {
+                            // Two buttons, not a zone picker. The question a sender
+                            // has is "did I mean 8am here or 8am there"; offering
+                            // 400 IANA zones to answer it would be a worse version
+                            // of the same confusion.
+                            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                                TwoClocks.Choice.entries.forEachIndexed { index, option ->
+                                    SegmentedButton(
+                                        selected = choice == option,
+                                        onClick = { choice = option },
+                                        shape = SegmentedButtonDefaults.itemShape(
+                                            index = index,
+                                            count = TwoClocks.Choice.entries.size,
+                                        ),
+                                    ) { Text(option.label) }
+                                }
+                            }
+                        }
                         Text(
-                            senderClockNote(clock, device),
+                            pickerClockNote(
+                                clock = clock,
+                                device = device,
+                                canSwitch = canSwitch,
+                                choice = choice,
+                                at = wallInstant(
+                                    pickedDate, timeState.hour, timeState.minute,
+                                    device, theirZone, choice, canSwitch,
+                                ),
+                                theirZone = theirZone,
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -213,11 +256,12 @@ fun SendLaterPicker(
                 },
                 confirmButton = {
                     TextButton(onClick = {
-                        val date = pickedDate ?: LocalDate.now(device)
-                        val at = LocalDateTime.of(
-                            date,
-                            LocalTime.of(timeState.hour, timeState.minute),
-                        ).atZone(device).toInstant()
+                        // #539: resolved against whichever clock is selected. The
+                        // digits do not change; what they mean does.
+                        val at = wallInstant(
+                            pickedDate, timeState.hour, timeState.minute,
+                            device, theirZone, choice, canSwitch,
+                        )
                         // A time already behind us would be refused by the API,
                         // so the dialog simply does not send it — the person
                         // stays in the picker they are already looking at.
@@ -363,5 +407,50 @@ private fun SendLaterRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+/**
+ * #539 — the instant a picked date and time means, on the CHOSEN clock.
+ *
+ * The digits in the picker never change; the calendar they are resolved against
+ * does. An unresolvable destination zone falls back to the device's, so a send goes
+ * at the time the sender read on screen rather than at a guessed instant.
+ */
+internal fun wallInstant(
+    date: LocalDate?,
+    hour: Int,
+    minute: Int,
+    device: ZoneId,
+    theirZone: ZoneId,
+    choice: TwoClocks.Choice,
+    canSwitch: Boolean,
+): Instant {
+    val wall = LocalDateTime.of(date ?: LocalDate.now(device), LocalTime.of(hour, minute))
+    val zone = if (canSwitch && choice == TwoClocks.Choice.THEIRS) theirZone else device
+    return TwoClocks.instantForWallClock(wall, zone.id) ?: wall.atZone(device).toInstant()
+}
+
+/**
+ * The line under the picker: which clock this is, and the same moment on the other.
+ *
+ * #539 asked "what about my timzeone equivalent?" — answered with a rendered time
+ * rather than an hours-apart number, which is wrong every day in the half-hour
+ * zones and wrong twice a year everywhere else. Falls back to the original
+ * reassurance sentence when there is only one clock in play.
+ */
+internal fun pickerClockNote(
+    clock: DestinationClock?,
+    device: ZoneId,
+    canSwitch: Boolean,
+    choice: TwoClocks.Choice,
+    at: Instant,
+    theirZone: ZoneId,
+): String {
+    if (!canSwitch) return senderClockNote(clock, device)
+    return if (choice == TwoClocks.Choice.THEIRS) {
+        "That's ${clockOf(at, device)} ${TwoClocks.HERE}"
+    } else {
+        "That's ${clockOf(at, theirZone)} ${TwoClocks.THERE}"
     }
 }

@@ -125,6 +125,9 @@ struct SendLaterPicker: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var value: Date
+    /// #539: which clock the picked time is in — the switch the issue asks for
+    /// ("why cant i choose? let me switch?").
+    @State private var choice: TwoClocks.Choice = TwoClocks.defaultChoice
 
     init(clock: DestinationClock?, onConfirm: @escaping @MainActor (Date) -> Void) {
         self.clock = clock
@@ -144,7 +147,18 @@ struct SendLaterPicker: View {
                     in: horizon,
                     displayedComponents: [.date, .hourAndMinute]
                 )
-                Text(senderClockNote(clock, device: .current))
+                if canSwitch {
+                    // Two buttons, not a zone picker. The question a sender has is
+                    // "did I mean 8am here or 8am there"; offering 400 IANA zones
+                    // to answer it would be a worse version of the same confusion.
+                    Picker("Which clock", selection: $choice) {
+                        ForEach(TwoClocks.Choice.allCases) { option in
+                            Text(option.label).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                Text(clockNote)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -157,12 +171,48 @@ struct SendLaterPicker: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Schedule") {
                         dismiss()
-                        onConfirm(value)
+                        // #539: resolved against whichever clock is selected. The
+                        // digits on screen do not change; what they mean does.
+                        onConfirm(resolved)
                     }
                 }
             }
         }
         .presentationDetents([.medium])
+    }
+
+    /// The destination's zone, or the device's when there is nothing to resolve.
+    private var theirZone: TimeZone { destinationZone(clock) }
+
+    /// #539: only offered when it would change the answer.
+    ///
+    /// If the customer's clock reads the same as this device's, a Their/Your toggle
+    /// is two buttons that do the same thing — worse than none, because it implies a
+    /// difference that is not there.
+    private var canSwitch: Bool {
+        guard clock != nil else { return false }
+        return !TwoClocks.sameClock(
+            clockOf(value, in: theirZone),
+            clockOf(value, in: .current)
+        )
+    }
+
+    /// The instant the picked digits mean, on the chosen clock.
+    private var resolved: Date {
+        guard canSwitch, choice == .theirs else { return value }
+        return TwoClocks.reinterpret(value, from: .current, to: theirZone)
+    }
+
+    /// The line under the picker: the same moment on the OTHER clock.
+    ///
+    /// #539 asked "what about my timzeone equivalent?" — answered with a rendered
+    /// time rather than an hours-apart number, which is wrong every day in the
+    /// half-hour zones and twice a year everywhere else.
+    private var clockNote: String {
+        guard canSwitch else { return senderClockNote(clock, device: .current) }
+        return choice == .theirs
+            ? "That's \(clockOf(resolved, in: .current)) \(TwoClocks.here)"
+            : "That's \(clockOf(resolved, in: theirZone)) \(TwoClocks.there)"
     }
 
     /// Both bounds mirror the API's, so the wheel simply cannot reach a time

@@ -107,4 +107,37 @@ enum TwoClocks {
     /// to theirs would mean the value shown is not the value held, which is a worse
     /// bug than the one this switch exists to fix.
     static let defaultChoice: Choice = .yours
+
+    /// The instant at which a given zone's clock reads the same wall time this
+    /// instant reads on `from`.
+    ///
+    /// What the switch needs. The picker binds a `Date` and displays it in the
+    /// DEVICE's zone, so "8am their time" means: take the digits on screen, and find
+    /// the moment the customer's calendar reads those digits instead.
+    ///
+    /// ## The two days a year
+    ///
+    /// `Calendar.date(from:)` resolves both edges the way the shared module does:
+    /// the earlier of a repeated hour when the clocks go back, and a moment PAST the
+    /// gap when they go forward — never earlier than what was asked for. The tests
+    /// assert that property rather than a specific minute, because which minute past
+    /// the gap Foundation picks is its business and not something worth pinning.
+    ///
+    /// Returns the original instant when the components cannot be resolved, so a
+    /// send goes at the time the sender read on screen rather than at a guess.
+    static func reinterpret(
+        _ at: Date,
+        from: TimeZone,
+        to: TimeZone
+    ) -> Date {
+        var source = Calendar(identifier: .gregorian)
+        source.timeZone = from
+        let parts = source.dateComponents(
+            [.year, .month, .day, .hour, .minute],
+            from: at
+        )
+        var target = Calendar(identifier: .gregorian)
+        target.timeZone = to
+        return target.date(from: parts) ?? at
+    }
 }

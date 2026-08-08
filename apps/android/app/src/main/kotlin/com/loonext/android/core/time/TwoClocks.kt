@@ -1,5 +1,9 @@
 package com.loonext.android.core.time
 
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+
 /**
  * #539 — a time on this screen must say whose clock it is on.
  *
@@ -104,4 +108,31 @@ object TwoClocks {
      * bug than the one this switch exists to fix.
      */
     val DEFAULT_CHOICE = Choice.YOURS
+
+    /**
+     * The instant at which a given zone's clock reads this wall time.
+     *
+     * What the switch needs: a time picker reads and writes the DEVICE's zone, so
+     * "8am their time" is not something the picker can express — the same digits
+     * have to be resolved against a different calendar.
+     *
+     * ## The two days a year, and why this is a one-liner here
+     *
+     * `java.time` already resolves both edges the way the shared module's iterative
+     * version does, and the tests assert that rather than trusting it:
+     *
+     *   - SPRING FORWARD skips an hour, so 2:30am does not exist. `atZone` shifts
+     *     forward by the gap, landing at 3:30 — a send asked for at a time that
+     *     never happened goes at the first moment that did, never an hour early.
+     *   - FALL BACK has 1:30am twice. `atZone` takes the EARLIER offset, so the
+     *     message goes at the first 1:30 rather than an hour after the sender
+     *     expected.
+     *
+     * Returns null for a zone id the runtime rejects, so a caller falls back to the
+     * device's own clock rather than sending at a guessed instant.
+     */
+    fun instantForWallClock(wall: LocalDateTime, timeZone: String): Instant? {
+        val zone = runCatching { ZoneId.of(timeZone) }.getOrNull() ?: return null
+        return wall.atZone(zone).toInstant()
+    }
 }
