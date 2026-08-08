@@ -121,3 +121,116 @@ export const CLOCK_CHOICE_LABELS: Record<ClockChoice, string> = {
  * meant the other one.
  */
 export const CLOCK_CHOICE_DEFAULT: ClockChoice = "yours";
+
+/** A wall clock, as a person reads it off a picker. */
+export interface WallClock {
+  year: number;
+  /** 1–12, the way a person says it. */
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+}
+
+/**
+ * The instant at which a given zone's clock reads this wall time.
+ *
+ * This is what the #539 switch needs. A native date-and-time field can only read
+ * and write the DEVICE's zone, so "8am their time" is not something the field can
+ * express — the value has to be converted, and the conversion is the whole reason
+ * this function is here rather than being an offset subtraction at the call site.
+ *
+ * ## Why it iterates instead of adding an offset
+ *
+ * You cannot know a zone's offset until you know the instant, and you cannot know
+ * the instant until you know the offset. So: assume the wall time is UTC, ask the
+ * zone what it renders as, correct by the difference, and ask again. Two rounds
+ * settle every real zone including the ones offset by 30 or 45 minutes, because
+ * the second round is already within an hour of the answer.
+ *
+ * ## The two days a year
+ *
+ * SPRING FORWARD skips an hour, so 2:30am simply does not exist. The correction
+ * lands just past the gap, which is the only sane answer — a send asked for at a
+ * time that never happens goes at the first moment that did.
+ *
+ * FALL BACK has 1:30am twice. This returns the FIRST, the earlier of the two, so a
+ * message asked for at 1:30 goes at the first 1:30 rather than an hour later than
+ * the sender expected.
+ *
+ * Returns null for a zone the runtime rejects, so a caller can fall back to the
+ * reader's own clock rather than sending at a guessed instant.
+ */
+export function instantForWallClock(
+  wall: WallClock,
+  timeZone: string,
+): Date | null {
+  const target = Date.UTC(
+    wall.year,
+    wall.month - 1,
+    wall.day,
+    wall.hour,
+    wall.minute,
+  );
+  let guess = target;
+  let previous = target;
+  for (let round = 0; round < 2; round += 1) {
+    const rendered = wallClockInZone(new Date(guess), timeZone);
+    if (rendered === null) return null;
+    const renderedUtc = Date.UTC(
+      rendered.year,
+      rendered.month - 1,
+      rendered.day,
+      rendered.hour,
+      rendered.minute,
+    );
+    const drift = renderedUtc - target;
+    if (drift === 0) return new Date(guess);
+    previous = guess;
+    guess -= drift;
+  }
+  // NEITHER ROUND SETTLED, so the wall time does not exist — the clocks jumped
+  // over it. Two candidates straddle the gap, and taking the LATER one is the
+  // only sane answer: a send asked for at 2:30 on the morning that has no 2:30
+  // goes at the first moment that did happen, never at 1:30, which is earlier
+  // than the sender asked for. Correcting blindly lands on the earlier one,
+  // which is the bug this line exists to prevent.
+  return new Date(Math.max(guess, previous));
+}
+
+/**
+ * What a zone's clock reads at an instant, as numbers.
+ *
+ * `Intl` rather than arithmetic, so the runtime's own tzdata answers and DST is
+ * never something this file computes. Null for a zone it rejects.
+ */
+export function wallClockInZone(
+  at: Date,
+  timeZone: string,
+): WallClock | null {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(at);
+    const get = (type: string): number =>
+      Number(parts.find((p) => p.type === type)?.value ?? Number.NaN);
+    const wall = {
+      year: get("year"),
+      month: get("month"),
+      day: get("day"),
+      // Midnight comes back as hour 24 in some ICU versions, which would put the
+      // day one out for every send timed at exactly 00:00.
+      hour: get("hour") % 24,
+      minute: get("minute"),
+    };
+    return Object.values(wall).some(Number.isNaN) ? null : wall;
+  } catch {
+    return null;
+  }
+}

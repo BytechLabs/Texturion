@@ -817,5 +817,8 @@ export {
   CLOCK_HERE,
   CLOCK_THERE,
   type ClockChoice,
+  instantForWallClock,
   sameClock,
+  type WallClock,
+  wallClockInZone,
 } from "./two-clocks";

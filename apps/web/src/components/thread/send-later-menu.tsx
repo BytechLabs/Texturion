@@ -4,6 +4,11 @@ import { CalendarClock, Clock } from "lucide-react";
 import { useState } from "react";
 
 import {
+  CLOCK_CHOICE_DEFAULT,
+  CLOCK_CHOICE_LABELS,
+  type ClockChoice,
+  instantForWallClock,
+  sameClock,
   SCHEDULED_HORIZON_DAYS,
   schedulePresets,
   scheduledClockProvenance,
@@ -25,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import type { DestinationClock } from "@/lib/api/types";
+import { cn } from "@/lib/utils";
 
 /**
  * #233 — "send this Monday at 8", from the composer.
@@ -120,6 +126,17 @@ export function SendLaterDialog({
   onConfirm: (sendAtIso: string) => void;
 }) {
   const zone = clock?.timezone ?? deviceZone();
+  const here = deviceZone();
+  // #539: WHICH CLOCK THE TYPED TIME IS IN — the switch the issue asks for
+  // ("why cant i choose? let me switch?").
+  //
+  // Only offered when it would change the answer. If the customer's clock reads
+  // the same as the reader's, a Their/Your toggle is two buttons that do exactly
+  // the same thing, which is worse than no toggle at all.
+  const [choice, setChoice] = useState<ClockChoice>(CLOCK_CHOICE_DEFAULT);
+  const canSwitch =
+    clock !== null && !sameClock(nowIn(zone), nowIn(here));
+
   // Smart Defaults: starts on the next preset, so this is an adjustment rather
   // than a blank form. Read at OPEN time, not at mount, so a dialog opened
   // tomorrow does not still offer yesterday.
@@ -127,12 +144,32 @@ export function SendLaterDialog({
     schedulePresets(new Date(), zone)[0]?.at ?? new Date(Date.now() + 3_600_000);
   const [value, setValue] = useState(() => toLocalInput(initial()));
 
-  const parsed = value === "" ? Number.NaN : new Date(value).getTime();
+  // The instant the typed wall clock means, in whichever clock is selected.
+  //
+  // The FIELD always holds the device's wall time — a datetime-local cannot do
+  // otherwise — so "their time" is a reinterpretation of the same digits, not a
+  // different field. Handing the digits to the shared resolver is what makes that
+  // correct on the two days a year the clocks move.
+  const resolved =
+    choice === "theirs" && canSwitch
+      ? instantForWallClock(parseLocalInput(value), zone)
+      : value === ""
+        ? null
+        : new Date(value);
+  const parsed = resolved === null ? Number.NaN : resolved.getTime();
   const horizon = Date.now() + SCHEDULED_HORIZON_DAYS * 86_400_000;
   // Both bounds mirror the API's, so the field goes quiet rather than letting
   // somebody submit into a rejection they could have been shown.
   const valid =
     !Number.isNaN(parsed) && parsed > Date.now() && parsed <= horizon;
+  // The same instant on the OTHER clock, so nobody has to do the arithmetic the
+  // issue complained about ("what about my timzeone equivalent?").
+  const equivalent =
+    valid && canSwitch
+      ? choice === "theirs"
+        ? `That's ${clockAt(new Date(parsed), here)} your time`
+        : `That's ${clockAt(new Date(parsed), zone)} their time`
+      : null;
 
   return (
     <Dialog
@@ -146,23 +183,63 @@ export function SendLaterDialog({
         <DialogHeader>
           <DialogTitle>Send later</DialogTitle>
           <DialogDescription>
-            {/* Which clock this FIELD is in, stated plainly. The presets above
-                are the customer's morning; this box is the sender's own wall
-                clock, because that is the only zone a datetime-local input can
-                round-trip without silently shifting by hours. */}
-            This is your own time
-            {clock && clock.source !== "company"
-              ? `, and they are ${hoursApart(clock.timezone)}`
-              : ""}
-            . You can change or cancel it any time before it goes.
+            {/* #539: the field is the sender's own wall clock unless they say
+                otherwise, and now they CAN say otherwise. Before this the
+                sentence explained the constraint and left the reader to do the
+                arithmetic; the switch below removes the arithmetic entirely. */}
+            {canSwitch
+              ? `Pick which clock you mean. They are ${hoursApart(zone)}.`
+              : "This is your own time. You can change or cancel it any time before it goes."}
           </DialogDescription>
         </DialogHeader>
+        {canSwitch && (
+          // Two buttons, not a zone picker. The question a sender has is "did I
+          // mean 8am here or 8am there" — offering 400 IANA zones to answer it
+          // would be a worse version of the same confusion.
+          // *Applying: the Safety Principle — a segmented control in a
+          // conventional place, matching the 7/30/90 pickers elsewhere.*
+          <div
+            role="group"
+            aria-label="Which clock"
+            className="flex gap-1 rounded-full bg-app-inset p-0.5"
+          >
+            {(["yours", "theirs"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={choice === option}
+                onClick={() => setChoice(option)}
+                className={cn(
+                  "flex-1 rounded-full px-3 py-1 text-[12.5px] font-medium transition-colors",
+                  choice === option
+                    ? "bg-app-paper text-app-ink shadow-xs"
+                    : "text-app-muted hover:text-app-ink",
+                )}
+              >
+                {CLOCK_CHOICE_LABELS[option]}
+              </button>
+            ))}
+          </div>
+        )}
         <Input
           type="datetime-local"
           value={value}
-          aria-label="Send date and time"
+          aria-label={
+            canSwitch
+              ? `Send date and time, ${CLOCK_CHOICE_LABELS[choice].toLowerCase()}`
+              : "Send date and time"
+          }
           onChange={(event) => setValue(event.target.value)}
         />
+        {/* The same instant on the other clock. This is the "my timezone
+            equivalent" the issue asked for, and it is a rendered time rather than
+            an hours-apart number — which is wrong every day in the half-hour
+            zones and wrong twice a year everywhere else. */}
+        {equivalent && (
+          <p role="status" className="text-[12.5px] text-app-muted">
+            {equivalent}
+          </p>
+        )}
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
@@ -297,4 +374,64 @@ export function hoursApart(timeZone: string): string {
 export function toLocalInput(at: Date): string {
   const local = new Date(at.getTime() - at.getTimezoneOffset() * 60_000);
   return local.toISOString().slice(0, 16);
+}
+
+/**
+ * The reverse: the digits in a `datetime-local` field, as a bare wall clock.
+ *
+ * #539: deliberately NOT `new Date(value)`, which would resolve those digits in
+ * the DEVICE's zone. The point of the switch is to resolve the same digits in the
+ * customer's zone instead, so they have to leave this function as numbers and let
+ * the shared resolver decide the instant.
+ *
+ * An empty or malformed field yields NaNs, which the resolver rejects and the
+ * caller reads as "not valid yet" — the same state a blank field was already in.
+ */
+export function parseLocalInput(value: string): {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+} {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value);
+  const n = (index: number): number =>
+    match ? Number(match[index]) : Number.NaN;
+  return {
+    year: n(1),
+    month: n(2),
+    day: n(3),
+    hour: n(4),
+    minute: n(5),
+  };
+}
+
+/** "8:00 AM" at an instant, in a zone. Used for the other-clock line. */
+function clockAt(at: Date, timeZone: string): string {
+  try {
+    return at.toLocaleString(undefined, {
+      timeZone,
+      weekday: "short",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return at.toLocaleString(undefined, {
+      weekday: "short",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  }
+}
+
+/**
+ * What a zone's clock reads RIGHT NOW, used only to decide whether the switch is
+ * worth showing.
+ *
+ * If the customer's clock reads the same as the reader's, a Their/Your toggle is
+ * two buttons that do the same thing — worse than no toggle, because it implies a
+ * difference that is not there.
+ */
+function nowIn(timeZone: string): string {
+  return clockAt(new Date(), timeZone);
 }

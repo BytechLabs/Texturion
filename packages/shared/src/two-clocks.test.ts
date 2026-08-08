@@ -5,7 +5,9 @@ import {
   bothClocksSpoken,
   CLOCK_CHOICE_DEFAULT,
   CLOCK_CHOICE_LABELS,
+  instantForWallClock,
   sameClock,
+  wallClockInZone,
 } from "./two-clocks";
 
 /** What each client will actually pass: an instant rendered in a zone. */
@@ -106,5 +108,89 @@ describe("two clocks (#539)", () => {
     expect(CLOCK_CHOICE_DEFAULT).toBe("yours");
     expect(CLOCK_CHOICE_LABELS.yours).toBe("Your time");
     expect(CLOCK_CHOICE_LABELS.theirs).toBe("Their time");
+  });
+});
+
+describe("instantForWallClock (#539's switch)", () => {
+  /** What a zone's clock reads at an instant, for asserting the round trip. */
+  function reads(at: Date, timeZone: string): string {
+    return at.toLocaleString("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+
+  it("finds the instant when the customer's clock reads what was typed", () => {
+    // "8am their time" for a customer in Vancouver, from a sender anywhere.
+    const at = instantForWallClock(
+      { year: 2026, month: 8, day: 11, hour: 8, minute: 0 },
+      "America/Vancouver",
+    );
+    expect(at).not.toBeNull();
+    expect(at!.toISOString()).toBe("2026-08-11T15:00:00.000Z");
+  });
+
+  it("round-trips every whole hour of a day in a half-hour zone", () => {
+    // Newfoundland is UTC-3:30 (UTC-2:30 in summer). An offset rounded to hours
+    // would be wrong every single hour of every day here, not twice a year.
+    for (let hour = 0; hour < 24; hour += 1) {
+      const wall = { year: 2026, month: 8, day: 11, hour, minute: 45 };
+      const at = instantForWallClock(wall, "America/St_Johns");
+      expect(at, `hour ${hour}`).not.toBeNull();
+      expect(wallClockInZone(at!, "America/St_Johns"), `hour ${hour}`).toEqual(wall);
+    }
+  });
+
+  it("takes the FIRST of a repeated hour when the clocks go back", () => {
+    // 1:30am happens twice on 2026-11-01 in Toronto. Returning the second would
+    // send an hour later than the sender asked for, on a day nobody is thinking
+    // about DST.
+    const at = instantForWallClock(
+      { year: 2026, month: 11, day: 1, hour: 1, minute: 30 },
+      "America/Toronto",
+    );
+    expect(at).not.toBeNull();
+    // EDT is UTC-4, so the first 1:30 is 05:30Z; the second is 06:30Z.
+    expect(at!.toISOString()).toBe("2026-11-01T05:30:00.000Z");
+  });
+
+  it("lands just past the gap when the typed time never happens", () => {
+    // 2:30am does not exist on 2026-03-08 in Toronto — the clocks jump 2:00 to
+    // 3:00. A send asked for then has to go at the first moment that did happen
+    // rather than not at all.
+    const at = instantForWallClock(
+      { year: 2026, month: 3, day: 8, hour: 2, minute: 30 },
+      "America/Toronto",
+    );
+    expect(at).not.toBeNull();
+    const rendered = wallClockInZone(at!, "America/Toronto")!;
+    // 3:30 EDT — the same wall-clock minute, on the far side of the hour that
+    // was skipped. Never 1:30, which would be BEFORE what was asked for.
+    expect(rendered.hour).toBe(3);
+    expect(rendered.minute).toBe(30);
+  });
+
+  it("handles midnight, where an hour of 24 would move the day", () => {
+    const wall = { year: 2026, month: 8, day: 11, hour: 0, minute: 0 };
+    const at = instantForWallClock(wall, "America/Toronto");
+    expect(wallClockInZone(at!, "America/Toronto")).toEqual(wall);
+    expect(reads(at!, "America/Toronto")).toContain("08/11/2026");
+  });
+
+  it("returns null for a zone the runtime rejects", () => {
+    // The caller then falls back to the reader's own clock rather than sending at
+    // a guessed instant.
+    expect(
+      instantForWallClock(
+        { year: 2026, month: 8, day: 11, hour: 8, minute: 0 },
+        "Mars/Olympus_Mons",
+      ),
+    ).toBeNull();
+    expect(wallClockInZone(new Date(), "Mars/Olympus_Mons")).toBeNull();
   });
 });
