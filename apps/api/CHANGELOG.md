@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/BytechLabs/Texturion/compare/api-v0.14.0...api-v0.14.1) (2026-08-08)
+
+
+### Bug Fixes
+
+* **ratings:** tell the crew when a customer rates the job badly ([0a2d127](https://github.com/BytechLabs/Texturion/commit/0a2d127c81328c0f72ba21c0b4c3d830e5cee019)), closes [#554](https://github.com/BytechLabs/Texturion/issues/554)
+
 ## [0.14.0](https://github.com/BytechLabs/Texturion/compare/api-v0.13.0...api-v0.14.0) (2026-08-08)
 
 
