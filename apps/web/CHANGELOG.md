@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.15.0](https://github.com/BytechLabs/Texturion/compare/web-v0.14.0...web-v0.15.0) (2026-08-08)
+
+
+### Features
+
+* **settings:** choose whether we text a customer back about an emergency ([902a303](https://github.com/BytechLabs/Texturion/commit/902a303cb6923dd0e2a34913a3e367886d808f9b)), closes [#553](https://github.com/BytechLabs/Texturion/issues/553)
+
+
+### Bug Fixes
+
+* **inbox:** make every filter say what it is doing, and undo it ([5c5ad8f](https://github.com/BytechLabs/Texturion/commit/5c5ad8f711f09a88820256fcacbec5cb253775d3)), closes [#548](https://github.com/BytechLabs/Texturion/issues/548)
+* **web,api:** stop sending a shared link's secret to our analytics vendor ([f53a434](https://github.com/BytechLabs/Texturion/commit/f53a434a21d7f5128a8b54b8cc099966c39fbfbf)), closes [#558](https://github.com/BytechLabs/Texturion/issues/558)
+* **web:** a revoked photo link stops working immediately ([3003824](https://github.com/BytechLabs/Texturion/commit/3003824dd2433b5e7eac035ab947544437bd3077)), closes [#559](https://github.com/BytechLabs/Texturion/issues/559)
+
 ## [0.14.0](https://github.com/BytechLabs/Texturion/compare/web-v0.13.0...web-v0.14.0) (2026-08-08)
 
 

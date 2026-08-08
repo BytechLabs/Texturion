@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.13.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.12.2...ios-v0.13.0) (2026-08-08)
+
+
+### Features
+
+* **settings:** choose whether we text a customer back about an emergency ([902a303](https://github.com/BytechLabs/Texturion/commit/902a303cb6923dd0e2a34913a3e367886d808f9b)), closes [#553](https://github.com/BytechLabs/Texturion/issues/553)
+
+
+### Bug Fixes
+
+* **clients:** give a server error a reference somebody can quote ([f80e079](https://github.com/BytechLabs/Texturion/commit/f80e07958f42b2257877fdd0db38e9d012be9b6d)), closes [#555](https://github.com/BytechLabs/Texturion/issues/555)
+* **inbox:** make every filter say what it is doing, and undo it ([5c5ad8f](https://github.com/BytechLabs/Texturion/commit/5c5ad8f711f09a88820256fcacbec5cb253775d3)), closes [#548](https://github.com/BytechLabs/Texturion/issues/548)
+* **ios:** give the inbox a way back to an unfiltered list ([10f1b15](https://github.com/BytechLabs/Texturion/commit/10f1b15f7ed07e973af51d98e447df63d6ea5666))
+
 ## [0.12.2](https://github.com/BytechLabs/Texturion/compare/ios-v0.12.1...ios-v0.12.2) (2026-08-08)
 
 
