@@ -87,6 +87,32 @@ const SURFACES = [
 
   // ---- deliberate asymmetries, each with its reason -----------------------
   {
+    key: "public",
+    // #294 — the job photo page a HOMEOWNER opens, and the first surface in
+    // this product built for a customer's customer (D75).
+    //
+    // Web-only by nature rather than by omission. The person opening it has no
+    // account, has never heard of us, and tapped a link in a text message from
+    // their plumber. Asking them to install an app to look at photos of their
+    // own boiler is the opposite of the point; a URL is the whole delivery
+    // mechanism.
+    //
+    // The phones are not missing anything here: they mint and revoke the link
+    // from the task screen, which is the crew-facing half and IS on all three.
+    // What lives in this directory is only what the customer's browser renders.
+    //
+    // If a native "view my job" experience is ever wanted, it belongs to a
+    // different question — whether homeowners get an app at all — and not to
+    // this directory.
+    web: "public",
+    android: null,
+    androidReason:
+      "the page is opened by the customer's customer in a browser from a texted link; a homeowner installs nothing",
+    ios: null,
+    iosReason:
+      "the page is opened by the customer's customer in a browser from a texted link; a homeowner installs nothing",
+  },
+  {
     key: "security",
     // #330 — the app lock, and the asymmetry is the point rather than a gap.
     //

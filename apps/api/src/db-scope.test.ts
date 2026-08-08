@@ -165,6 +165,14 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
     count: 1,
     why: "D19 reclaim sweep: selects soft-deleted objects platform-wide",
   },
+  // #294: not a table read at all. `db.storage.from("attachments")` is the
+  // BUCKET api, and the scanner cannot tell the two `.from()` calls apart. The
+  // path it signs came out of a row two statements earlier that WAS scoped by
+  // company_id, so nothing here widens what the caller could already reach.
+  "routes/job-photos.ts::attachments": {
+    count: 1,
+    why: "the storage bucket, not the table; the path came from a company-scoped row above it",
+  },
   "attachments/sweep.ts::egress_events": {
     count: 1,
     why: "egress ledger retention prune, platform-wide by age",

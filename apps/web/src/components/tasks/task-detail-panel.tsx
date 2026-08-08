@@ -82,6 +82,7 @@ import { TaskDoneCheckbox } from "./task-atoms";
 import { taskDeleteContent, taskDeleteSummary } from "./task-delete";
 import { useSetTaskReminders, useTaskDone } from "./use-task-mutations";
 import { taskEventSentence } from "./task-activity";
+import { ShareJobPhotos } from "@/components/tasks/share-job-photos";
 
 /** Sentinel <Select> value for "unassigned" (Radix forbids an empty string). */
 const UNASSIGNED = "__unassigned__";
@@ -533,6 +534,14 @@ function TaskDetailLoaded({
                 Attachments
               </p>
               <TaskAttachments items={task.attachments} names={memberNames} />
+              {/* #294: only when there are photos to send. The control belongs
+                  under the set it shares, not in a menu at the top of a drawer. */}
+              <ShareJobPhotos
+                taskId={task.id}
+                photoCount={
+                  task.attachments.filter((item) => item.kind === "image").length
+                }
+              />
             </section>
 
             {/* Merged activity + discussion timeline (D-C + D-D). */}

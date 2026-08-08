@@ -110,6 +110,10 @@ import { auditLogRoutes } from "./routes/audit-log";
 import { workspaceClosureRoutes } from "./routes/workspace-closure";
 import { tagsRoutes } from "./routes/tags";
 import { tasksRoutes } from "./routes/tasks";
+import {
+  jobPhotoShareRoutes,
+  publicJobPhotoRoutes,
+} from "./routes/job-photos";
 import { teamRoutes } from "./routes/team";
 import { templatesRoutes } from "./routes/templates";
 import { textEnablementRoutes } from "./routes/text-enablement";
@@ -193,6 +197,11 @@ app.get("/health", (c) => {
  * every copy of the app learns on first launch anyway.
  */
 app.route("/", appReleaseRoutes);
+// #294 — the page a customer opens with no account. Mounted at the ROOT, not
+// under /v1, because /v1 is where the auth middleware lives: a public route
+// under it would either be refused or would need an exemption, and an
+// exemption inside an authed prefix is the kind of thing that gets copied.
+app.route("/", publicJobPhotoRoutes);
 
 /**
  * The /v1 surface (SPEC §7). Every sub-app sits behind the CORS → JWT →
@@ -221,6 +230,7 @@ app.route("/v1", appointmentReminderRoutes); // #237 reminder rules
 app.route("/v1", onCallRoutes); // #244 rota + acknowledge
 app.route("/v1", conversationsRoutes);
 app.route("/v1", tasksRoutes); // D17 tasks + GET /v1/conversations/:id/tasks
+app.route("/v1", jobPhotoShareRoutes); // #294 mint/revoke a job photo link
 app.route("/v1", messageRoutes);
 app.route("/v1", attachmentsRoutes);
 // #309: recording lives here; SELECTING a greeting stays on the identity

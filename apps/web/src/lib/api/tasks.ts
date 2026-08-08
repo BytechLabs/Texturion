@@ -258,6 +258,35 @@ export function useTask(taskId: string, options?: { enabled?: boolean }) {
   });
 }
 
+/**
+ * #294 — mint a link to this job's photos, for the customer.
+ *
+ * The plaintext token comes back exactly once and is never retrievable again
+ * (D75), so whatever the caller does with the URL, it does it now.
+ */
+export function useShareJobPhotos(taskId: string) {
+  const companyId = useCompanyId();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ url: string; expires_at: string }>(
+        `/v1/tasks/${taskId}/photos/share`,
+        { method: "POST", companyId },
+      ),
+  });
+}
+
+/** #294 — the customer should not be able to open it any more. */
+export function useRevokeJobPhotos(taskId: string) {
+  const companyId = useCompanyId();
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ revoked: number }>(`/v1/tasks/${taskId}/photos/share`, {
+        method: "DELETE",
+        companyId,
+      }),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Metadata mutations (create / assign / set-due / update / delete)
 //

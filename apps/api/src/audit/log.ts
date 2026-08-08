@@ -130,6 +130,12 @@ export type AuditAction =
   // here, and the one an owner is most likely to ask us about afterwards.
   | "workspace.closed"
   | "workspace.reopened"
+  // #294: a job's photos handed to the customer as a page. Recorded because it
+  // is the moment a record of the inside of somebody's home became reachable
+  // without a login, and "when did this go out, and who sent it" is the first
+  // question if that link turns up somewhere it should not have.
+  | "job_photos.shared"
+  | "job_photos.share_revoked"
   // #404: actions taken by a PLATFORM operator rather than by anyone in the
   // workspace — the support fixes that used to be hand-written SQL leaving no
   // trace at all. They carry a null actor (the schema's system-actor slot) and
