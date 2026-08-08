@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { MEMBER_ROLES } from "./capabilities";
 import {
   capabilitiesLost,
   isDowngrade,
@@ -59,11 +60,27 @@ describe("self downgrade (#538)", () => {
     expect(warning.endsWith(".")).toBe(true);
   });
 
+  it("handles the roles that are not on a line (#315)", () => {
+    // The phones offer four roles, not two. read_only and bookkeeper are
+    // capability SETS rather than rungs, so "downgrade" cannot be a rank
+    // comparison — a bookkeeper has billing that a plain member does not.
+    expect(isDowngrade("member", "read_only")).toBe(true);
+    expect(selfDowngradeWarning("member", "read_only")).toContain("lose access");
+    // A member moving to bookkeeper GAINS billing and LOSES the ability to send,
+    // so it is a downgrade in the only sense that matters here: something goes.
+    expect(isDowngrade("member", "bookkeeper")).toBe(true);
+    // Neither takes role control away, because a member never had it.
+    expect(losesRoleControl("member", "read_only")).toBe(false);
+    // An admin dropping to either loses it, and must be told.
+    expect(losesRoleControl("admin", "read_only")).toBe(true);
+    expect(losesRoleControl("admin", "bookkeeper")).toBe(true);
+  });
+
   it("covers every role pair without throwing", () => {
     // Including the owner, whose row is immutable — the helper must still answer
     // rather than the caller having to know which pairs are reachable.
-    for (const from of ["owner", "admin", "member"] as const) {
-      for (const to of ["owner", "admin", "member"] as const) {
+    for (const from of MEMBER_ROLES) {
+      for (const to of MEMBER_ROLES) {
         expect(() => selfDowngradeWarning(from, to)).not.toThrow();
       }
     }

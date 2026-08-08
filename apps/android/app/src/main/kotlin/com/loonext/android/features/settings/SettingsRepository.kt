@@ -1,5 +1,6 @@
 package com.loonext.android.features.settings
 
+import com.loonext.android.core.roles.SelfDowngrade
 import com.loonext.android.BuildConfig
 import com.loonext.android.core.auth.await
 import com.loonext.android.core.model.BillingModules
@@ -167,8 +168,26 @@ class SettingsRepository(
     suspend fun myNumberAccess(companyId: String): MemberNumberAccess =
         api.get("/v1/numbers/access/me", companyId = companyId)
 
-    suspend fun setMemberRole(companyId: String, memberId: String, role: String): Member =
-        api.patch("/v1/members/$memberId", buildJsonObject { put("role", role) }, companyId)
+    /**
+     * #538: [confirmLosingAccess] travels only when somebody is giving up their
+     * OWN access, having been shown what that costs. The server refuses a
+     * self-downgrade without it, so this is the evidence the warning was seen —
+     * not a flag to set by default.
+     */
+    suspend fun setMemberRole(
+        companyId: String,
+        memberId: String,
+        role: String,
+        confirmLosingAccess: Boolean = false,
+    ): Member =
+        api.patch(
+            "/v1/members/$memberId",
+            buildJsonObject {
+                put("role", role)
+                if (confirmLosingAccess) put(SelfDowngrade.ACK, true)
+            },
+            companyId,
+        )
 
     suspend fun deactivateMember(companyId: String, memberId: String) {
         api.delete("/v1/members/$memberId", companyId = companyId)
