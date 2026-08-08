@@ -217,12 +217,7 @@ private struct PortCard: View {
     /// leaving it out would blank the guidance for most of the wait. The
     /// tracker already folds it in with the other two at "In progress"
     /// (`portStepIndex`), and web/Android gate on the same four.
-    private var isPreCutover: Bool {
-        port.status == PortStatus.submitted
-            || port.status == PortStatus.inProcess
-            || port.status == PortStatus.focDateConfirmed
-            || port.status == PortStatus.activationInProgress
-    }
+    private var isPreCutover: Bool { preCutoverStatuses.contains(port.status) }
 
     var body: some View {
         SettingsCard(title: "Transfer: \(formatPhone(port.phone_e164))") {
@@ -489,25 +484,9 @@ private struct PreCutoverChecklist: View {
             Text("Before your number switches")
                 .font(.footnote.weight(.semibold))
                 .fixedSize(horizontal: false, vertical: true)
-            item(
-                "Keep your old service active.",
-                "Cancelling before the transfer finishes can release the number back "
-                    + "to the carrier, and that is the one way to genuinely lose it."
-            )
-            item(
-                "Export your message history.",
-                "The number moves, your old conversations do not."
-            )
-            item(
-                "Tell the crew the switch date.",
-                "From that morning, calls and texts arrive in this inbox instead of "
-                    + "the old one."
-            )
-            item(
-                "Expect texting to trail calls.",
-                "Voice and texting can finish on different clocks, so texts may take "
-                    + "an extra day. We will tell you when both are live."
-            )
+            ForEach(preCutoverSteps, id: \.lead) { step in
+                item(step.lead, step.detail)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
@@ -845,3 +824,56 @@ private struct FixPortSheet: View {
         }
     }
 }
+
+/// One row of the pre-cutover list: a bold lead a skim can stop at, and the
+/// sentence it owns.
+struct PortPreCutoverStep {
+    let lead: String
+    let detail: String
+}
+
+/// #248: the guidance as DATA, so a test can hold it against
+/// `packages/shared/src/porting.ts` rather than a person holding it in their head.
+///
+/// It was written inline in the view here, which is why nothing could check it.
+/// The shared module has said from the start that these four strings exist as data
+/// precisely so they can be asserted across web, Android and iOS, "and it drifts
+/// silently if hand-kept" — and then two of the three kept them by hand anyway.
+///
+/// The first line is the whole reason: cancelling the old service before the
+/// transfer completes can release the number back to the carrier pool, which is
+/// the one way a business genuinely loses the number on its trucks.
+let preCutoverSteps: [PortPreCutoverStep] = [
+    PortPreCutoverStep(
+        lead: "Keep your old service active.",
+        detail: "Cancelling before the transfer finishes can release the number back "
+            + "to the carrier, and that is the one way to genuinely lose it."
+    ),
+    PortPreCutoverStep(
+        lead: "Export your message history.",
+        detail: "The number moves, your old conversations do not."
+    ),
+    PortPreCutoverStep(
+        lead: "Tell the crew the switch date.",
+        detail: "From that morning, calls and texts arrive in this inbox instead of "
+            + "the old one."
+    ),
+    PortPreCutoverStep(
+        lead: "Expect texting to trail calls.",
+        detail: "Voice and texting can finish on different clocks, so texts may take "
+            + "an extra day. We will tell you when both are live."
+    ),
+]
+
+/// The four statuses a transfer is in flight for, and the list is shown for.
+///
+/// Excluded on purpose: `draft` (nothing in flight yet), `exception` (the rejection
+/// notice owns that screen), and `ported` onwards (too late to export, moot once
+/// the switch has happened). An allowlist, so a status the carrier adds later
+/// starts silent and gets considered.
+let preCutoverStatuses: Set<String> = [
+    PortStatus.submitted,
+    PortStatus.inProcess,
+    PortStatus.focDateConfirmed,
+    PortStatus.activationInProgress,
+]

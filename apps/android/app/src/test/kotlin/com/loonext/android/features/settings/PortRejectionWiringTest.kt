@@ -121,6 +121,62 @@ class PortRejectionWiringTest {
 
     // ------------------------------------------------------------- plumbing
 
+    // ------------------- #248: the guidance that can lose them the number
+
+    /** Walk UP to the repo root, so the shared module can be read from Gradle. */
+    private fun repoFile(relative: String): String {
+        var dir: File? = File("").absoluteFile
+        while (dir != null) {
+            val candidate = File(dir, relative)
+            if (candidate.exists()) return candidate.readText()
+            dir = dir.parentFile
+        }
+        fail("$relative not found walking up from ${File("").absolutePath}")
+        error("unreachable")
+    }
+
+    private fun sharedPorting(): String = repoFile("packages/shared/src/porting.ts")
+
+    /**
+     * And it is shown at the same four points in the transfer.
+     *
+     * Shown too early it is noise on a draft nobody has submitted; too late it is
+     * advice about a deadline that has passed. Drift here is worse than drift in
+     * the words, because it is invisible — the list simply does not appear.
+     */
+    @Test
+    fun `the statuses that show it match the shared module`() {
+        val shared = Regex(""""([a-z-]+)",""")
+            .findAll(
+                sharedPorting()
+                    .substringAfter("PORT_PRE_CUTOVER_STATUSES")
+                    // AFTER the opening bracket, not before the first `]`: the
+                    // declaration is `: readonly string[] = [`, so cutting at the
+                    // first `]` stops inside the TYPE and reads nothing at all.
+                    // The empty set this produced is what the test caught first.
+                    .substringAfter("= [")
+                    .substringBefore("]"),
+            )
+            .map { it.groupValues[1] }
+            .toSet()
+        assertEquals(
+            setOf("submitted", "in-process", "foc-date-confirmed", "activation-in-progress"),
+            shared,
+        )
+        // Compared to the real set at RUNTIME rather than scraped from the source.
+        // The first version of this used a regex and read NOTHING, because these are
+        // `PortStatus` constants and not string literals — and an extraction that
+        // silently finds nothing is a test that starts passing the moment somebody
+        // "fixes" the expectation to match the emptiness.
+        val ported = PRE_CUTOVER_STATUSES
+        assertEquals(
+            "the statuses this card shows the pre-cutover list for have drifted from " +
+                "packages/shared/src/porting.ts",
+            shared,
+            ported,
+        )
+    }
+
     private fun mainRoot(): File {
         val bases = listOf(
             "src/main/kotlin/com/loonext/android",

@@ -25,7 +25,12 @@ import { describe, expect, it } from "vitest";
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
 
 const SOURCES: Record<string, string> = {
-  web: join(REPO_ROOT, "apps/web/src/components/porting/copy.ts"),
+  // #248: the TypeScript definition moved to the shared package, which is where
+  // a contract three clients depend on belongs — `copy.ts` re-exports it, so
+  // every call site on web is unchanged. This path follows the definition; the
+  // guard is unaffected, because what it checks is that all three languages say
+  // the same sentences and that is still hand-kept on two of them.
+  web: join(REPO_ROOT, "packages/shared/src/porting.ts"),
   android: join(
     REPO_ROOT,
     "apps/android/app/src/main/kotlin/com/loonext/android/features/settings/PortCards.kt",

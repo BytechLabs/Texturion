@@ -1,6 +1,10 @@
 "use client";
 
-import { explainRejection, roleHasCapability } from "@loonext/shared";
+import {
+  explainRejection,
+  isBeforePortCutover,
+  roleHasCapability,
+} from "@loonext/shared";
 import { AlertTriangle, Check, CircleDashed, Loader2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -281,11 +285,9 @@ export function PortCard({
   // flight yet), `exception` (the rejection notice owns that screen and a
   // checklist under it would bury the fix), and everything from `ported`
   // onwards (too late to export, and moot once the switch has happened).
-  const beforeCutover =
-    port.status === "submitted" ||
-    port.status === "in-process" ||
-    port.status === "foc-date-confirmed" ||
-    port.status === "activation-in-progress";
+  // #248: the same four statuses, from the shared module, so a phone cannot show
+  // this list at a different point in the transfer than the laptop does.
+  const beforeCutover = isBeforePortCutover(port.status);
 
   // A cancelled/abandoned transfer collapses to a quiet released-style note.
   if (ui.cancelled && port.status === "cancelled") {

@@ -104,30 +104,16 @@ export const PORT_STATE_COPY = {
  * asserted across web/Android/iOS: this is guidance a customer may read on one
  * client and act on from another, and it drifts silently if hand-kept.
  */
-export const PORT_PRE_CUTOVER_CHECKLIST = {
-  heading: "Before your number switches",
-  items: [
-    {
-      lead: "Keep your old service active.",
-      detail:
-        "Cancelling before the transfer finishes can release the number back to the carrier, and that is the one way to genuinely lose it.",
-    },
-    {
-      lead: "Export your message history.",
-      detail: "The number moves, your old conversations do not.",
-    },
-    {
-      lead: "Tell the crew the switch date.",
-      detail:
-        "From that morning, calls and texts arrive in this inbox instead of the old one.",
-    },
-    {
-      lead: "Expect texting to trail calls.",
-      detail:
-        "Voice and texting can finish on different clocks, so texts may take an extra day. We will tell you when both are live.",
-    },
-  ],
-} as const;
+// #248: MOVED TO `@loonext/shared` AND RE-EXPORTED HERE, which is what the
+// paragraph above was always asking for. It said these four strings exist as data
+// so they can be asserted across web/Android/iOS, "and it drifts silently if
+// hand-kept" — and then they lived in a web-only file, so neither phone ever said
+// any of it. A port is managed from whatever device is to hand, and the mistake
+// the first line prevents is available on all of them.
+//
+// Re-exported rather than moved-and-rewritten so every call site here is
+// unchanged, and there is still exactly one definition.
+export { PORT_PRE_CUTOVER_CHECKLIST } from "@loonext/shared";
 
 /** Plain one-liners explaining the two required documents (labels, not jargon). */
 export const PORT_DOCUMENT_HINTS = {

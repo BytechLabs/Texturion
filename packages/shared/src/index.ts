@@ -772,3 +772,10 @@ export {
   type Locale,
   type AutomatedCopy,
 } from "./locale";
+
+export {
+  PORT_PRE_CUTOVER_CHECKLIST,
+  PORT_PRE_CUTOVER_STATUSES,
+  isBeforePortCutover,
+  type PortPreCutoverItem,
+} from "./porting";

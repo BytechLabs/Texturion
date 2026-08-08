@@ -78,3 +78,65 @@ final class PortRejectionRoutingTests: XCTestCase {
         XCTAssertNil(explainRejection(.port, "### ###"))
     }
 }
+
+/// #248 — the guidance that can lose a business its number says the same thing
+/// here as in `packages/shared/src/porting.ts`.
+///
+/// A port is managed from whatever device is to hand, and the mistake the first
+/// line prevents — cancelling the old service before the transfer completes, which
+/// can release the number back to the carrier pool — is available on all of them.
+/// The shared module has always said these four strings exist as data so they can
+/// be asserted across the three clients, "and it drifts silently if hand-kept".
+/// Nothing checked until now, and two of the three kept them by hand.
+final class PortPreCutoverParityTests: XCTestCase {
+    private func repoPath(_ relative: String) throws -> URL {
+        var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        while true {
+            let candidate = dir.appendingPathComponent(relative)
+            if FileManager.default.fileExists(atPath: candidate.path) { return candidate }
+            let parent = dir.deletingLastPathComponent()
+            if parent.path == dir.path { break }
+            dir = parent
+        }
+        XCTFail("packages/shared is not reachable from \(#filePath)")
+        throw CocoaError(.fileNoSuchFile)
+    }
+
+    private func sharedPorting() throws -> String {
+        try String(contentsOf: try repoPath("packages/shared/src/porting.ts"), encoding: .utf8)
+    }
+
+    /// And it is shown at the same four points in the transfer.
+    ///
+    /// Drift here is worse than drift in the words, because it is invisible — the
+    /// list simply does not appear.
+    func testTheStatusesThatShowItMatchTheSharedModule() throws {
+        let source = try sharedPorting()
+        // AFTER the opening bracket: the declaration is `: readonly string[] = [`,
+        // so cutting at the first `]` stops inside the TYPE and reads nothing.
+        guard let listStart = source.range(of: "PORT_PRE_CUTOVER_STATUSES"),
+            let open = source.range(of: "= [", range: listStart.upperBound ..< source.endIndex),
+            let close = source.range(of: "]", range: open.upperBound ..< source.endIndex)
+        else {
+            return XCTFail("PORT_PRE_CUTOVER_STATUSES is no longer a list in the shared module")
+        }
+        let body = source[open.upperBound ..< close.lowerBound]
+        let shared = Set(
+            body
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "\"")) }
+        )
+        XCTAssertEqual(
+            shared,
+            ["submitted", "in-process", "foc-date-confirmed", "activation-in-progress"]
+        )
+        XCTAssertEqual(
+            shared,
+            preCutoverStatuses,
+            "the statuses this card shows the pre-cutover list for have drifted from "
+                + "packages/shared/src/porting.ts"
+        )
+    }
+}

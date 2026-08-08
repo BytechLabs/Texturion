@@ -522,7 +522,14 @@ private fun PortStepper(status: String) {
  * own tracker already groups it with the other two at "In progress"
  * (portStepIndex).
  */
-private val PRE_CUTOVER_STATUSES = setOf(
+/**
+ * #248: `internal` rather than private so a test can compare it to the shared
+ * module at RUNTIME. The first attempt read this set out of the source with a
+ * regex and got nothing — these are constants, not string literals — which is the
+ * fragility that makes a source lint the wrong tool when the real values are
+ * reachable. Same reason `portPill` above is internal.
+ */
+internal val PRE_CUTOVER_STATUSES = setOf(
     PortStatus.SUBMITTED,
     PortStatus.IN_PROCESS,
     PortStatus.FOC_DATE_CONFIRMED,
