@@ -221,6 +221,11 @@ export default function PrivacyPage() {
           on if a spare phone gets shared around the crew.
         </p>
         <p>
+          <strong>Passing the phone to a colleague</strong> is one tap in Settings.
+          It signs you out, clears everything above, and leaves them to sign in as
+          themselves so their replies are theirs.
+        </p>
+        <p>
           <strong>Your phone&apos;s address book is never uploaded.</strong> If you
           give the app permission, it shows your own contacts beside the
           crew&apos;s so you do not have to retype a number. That search happens on

@@ -860,3 +860,15 @@ export {
   type HandoverConfirmationKind,
   isHandoverCode,
 } from "./handover-confirmation";
+
+// #330 — handing the truck phone to whoever is covering the evening. A full, clean
+// exit made fast, rather than a stored account switcher: keeping the previous
+// person's session on the device is the thing that issue exists to stop.
+export {
+  HAND_OVER_PHONE_ACTION,
+  HAND_OVER_PHONE_CANCEL,
+  HAND_OVER_PHONE_CONFIRM,
+  HAND_OVER_PHONE_TITLE,
+  handOverPhoneBody,
+  handOverPhoneCosts,
+} from "./hand-over-phone";

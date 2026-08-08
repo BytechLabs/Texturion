@@ -159,6 +159,9 @@ struct SettingsHome: View {
     @State private var versionTaps = 0
     @State private var lastVersionTap = Date.distantPast
     @State private var diagnosticsUnlocked = DiagnosticsAccess.isUnlocked
+    /// #330: the truck-phone handover, and what it would cost right now.
+    @State private var askingToHandOver = false
+    @State private var unsentAtHandover = 0
 
     private var repo: SettingsRepository {
         SettingsRepository(api: graph.api, sessionStore: graph.sessionStore)
@@ -272,6 +275,10 @@ struct SettingsHome: View {
             VStack(alignment: .leading, spacing: 13) {
                 ScreenTitle(text: "Settings")
                 identityCard(company)
+                // Directly under the identity card and tight against it, because it
+                // belongs to "you are signed in as this person" — which is the
+                // thought somebody is having when they hand the phone on.
+                handOverRow
                 // #515: a handover addressed to the reader, above the section
                 // list they may not be able to use. The index is the one
                 // surface every role reaches — it is the whole app for a
@@ -313,6 +320,69 @@ struct SettingsHome: View {
         }
         .background(BrandColor.canvas)
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    /// #330 — the handover, on the screen every role lands on.
+    ///
+    /// ## Evaluation
+    ///
+    /// D12's customer is a crew texting from personal handsets, and a spare phone
+    /// lives in the truck. Handing it to whoever is covering the evening meant
+    /// Settings, Profile, a scroll and "Sign out on this device" — four steps against
+    /// a fast path of just passing the phone over still signed in, which attributes
+    /// every reply to the wrong person and gives them permissions that are not theirs.
+    ///
+    /// ## What binds it
+    ///
+    /// *Prioritize Intent* — the label is the sentence already in somebody's head.
+    /// "Sign out on this device" describes the mechanism; this describes the act.
+    ///
+    /// *Relationship Strength* — directly under the identity card and tight against
+    /// it, because it belongs to "you are signed in as this person".
+    ///
+    /// *Zen of Clarity* — one quiet row, not a card. Findable in a second, and not
+    /// competing with the workspace settings that fill this screen.
+    ///
+    /// *Ethical Friction, and only as much as it earns* — one confirmation, because a
+    /// mis-tap on a job site costs a full sign-in. It says what leaves the phone, and
+    /// counts anything that would be discarded with it.
+    private var handOverRow: some View {
+        Button {
+            // Read when the sheet opens rather than on every redraw of the hub: this
+            // touches disk, and the number is only shown inside the confirmation.
+            unsentAtHandover = Outbox().all().count
+            askingToHandOver = true
+        } label: {
+            HStack(spacing: 9) {
+                Image(systemName: "rectangle.portrait.and.arrow.right")
+                    .font(.scaled(15))
+                    .foregroundStyle(BrandColor.muted600)
+                Text(HandOverPhone.action)
+                    .font(.golos(13))
+                    .foregroundStyle(BrandColor.muted600)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 9)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .alert(HandOverPhone.title, isPresented: $askingToHandOver) {
+            Button(HandOverPhone.cancel, role: .cancel) {}
+            Button(
+                HandOverPhone.confirm,
+                // Destructive only when something would actually be lost. Colouring a
+                // clean handover as a danger teaches people to ignore the colour on
+                // the day it means something.
+                role: HandOverPhone.costs(unsent: unsentAtHandover)
+                    ? ButtonRole.destructive
+                    : nil
+            ) {
+                onSignOut()
+            }
+        } message: {
+            Text(HandOverPhone.body(unsent: unsentAtHandover))
+        }
     }
 
     /// Spec-28 ink identity card: who you are, your role, and the workspace

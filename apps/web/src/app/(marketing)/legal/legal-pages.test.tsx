@@ -197,6 +197,13 @@ describe("#330 privacy — what stays on a phone the company does not own", () =
     expect(html).toContain("off by default");
   });
 
+  it("points at the handover, since a shared phone is the case this is about", () => {
+    // A crew spare phone gets passed around mid-shift. Saying the data is cleared
+    // is only half an answer if the way to clear it is four screens deep.
+    expect(html).toContain("Passing the phone to a colleague");
+    expect(html).toContain("sign in as");
+  });
+
   it("keeps the address-book promise where a customer can find it", () => {
     // It was true and recorded in an internal inventory. A promise nobody outside
     // the repo can read is not a promise to the person it protects.

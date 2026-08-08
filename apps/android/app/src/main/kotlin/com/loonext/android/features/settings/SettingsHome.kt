@@ -106,6 +106,9 @@ import com.loonext.android.ui.theme.BrandColor
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.launch
+import com.loonext.android.core.security.HandOverPhone
+import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.ui.draw.clip
 
 /** The stacked settings index (#157) — mirrors the web's mobile section list. */
 /**
@@ -317,6 +320,14 @@ fun SettingsHome(
                         company = company,
                         me = me,
                         role = role,
+                        // #330: the truck-phone handover, on the one screen every
+                        // role lands on. Buried in Profile it lost to the fast
+                        // path, which was to hand the phone over still signed in.
+                        onHandOver = onSignOut,
+                        unsentCount = {
+                            com.loonext.android.features.thread.Outbox(context)
+                                .all().size
+                        },
                         usage = usage,
                         devMode = devMode,
                         onOpen = onOpenSection,
@@ -422,6 +433,10 @@ private fun SettingsIndex(
     company: CompanyView,
     me: Me,
     role: String?,
+    /** #330: ends the session, and lands exactly where signing out lands. */
+    onHandOver: () -> Unit,
+    /** How many messages are still waiting for signal, read when the sheet opens. */
+    unsentCount: suspend () -> Int,
     usage: Usage?,
     devMode: Boolean,
     onOpen: (SettingsSection) -> Unit,
@@ -444,6 +459,10 @@ private fun SettingsIndex(
         verticalArrangement = Arrangement.spacedBy(if (compact) 9.dp else 13.dp),
     ) {
         IdentityCard(company, me, role, onCopyNumber)
+        // Directly under the identity card and above everything else: tight
+        // spacing because it belongs to "you are signed in as this person", which
+        // is the thought somebody is having when they hand the phone on.
+        HandOverPhoneRow(onHandOver = onHandOver, unsentCount = unsentCount)
         // #515: a handover addressed to the reader, above the section list
         // they may not be able to use. The index is the one surface every role
         // reaches — it is the whole app for a bookkeeper — and the named
@@ -697,6 +716,92 @@ private fun IdentityCard(
 }
 
 /**
+ * #330 — the handover, on the screen every role lands on.
+ *
+ * ## Evaluation
+ *
+ * D12's customer is a crew texting from personal handsets, and a spare phone lives in
+ * the truck. Handing it to whoever is covering the evening meant Settings, Profile,
+ * a scroll and "Sign out on this device" — four steps against a fast path of just
+ * passing the phone over still signed in, which attributes every reply to the wrong
+ * person and gives them permissions that are not theirs.
+ *
+ * ## What binds it
+ *
+ * *Prioritize Intent* — the label is the sentence already in somebody's head. "Sign
+ * out on this device" describes the mechanism; this describes the act.
+ *
+ * *Relationship Strength* — directly under the identity card and tight against it,
+ * because it belongs to "you are signed in as this person", which is exactly the
+ * thought somebody is having when they hand the phone on.
+ *
+ * *Zen of Clarity* — one quiet row, not a card. It must be findable in a second and
+ * must not compete with the workspace settings that fill this screen.
+ *
+ * *Ethical Friction, and only as much as it earns* — one confirmation, because a
+ * mis-tap on a job site costs a full sign-in. The confirmation says what leaves the
+ * phone, and counts anything that would be discarded with it.
+ */
+@Composable
+private fun HandOverPhoneRow(
+    onHandOver: () -> Unit,
+    unsentCount: suspend () -> Int,
+) {
+    var asking by remember { mutableStateOf(false) }
+    // Read when the sheet opens rather than on every recomposition of the hub: this
+    // touches disk, and the number is only ever shown inside the confirmation.
+    var unsent by remember { mutableStateOf(0) }
+    val coroutines = rememberCoroutineScope()
+    val haptics = rememberHaptics()
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .clickable {
+                haptics.tap()
+                coroutines.launch {
+                    unsent = runCatching { unsentCount() }.getOrDefault(0)
+                    asking = true
+                }
+            }
+            .padding(horizontal = 6.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.AutoMirrored.Outlined.Logout,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(17.dp),
+        )
+        Spacer(Modifier.width(9.dp))
+        Text(
+            HandOverPhone.ACTION,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
+    if (asking) {
+        ConfirmDialog(
+            title = HandOverPhone.TITLE,
+            body = HandOverPhone.body(unsent),
+            confirmLabel = HandOverPhone.CONFIRM,
+            // Destructive only when something would actually be lost. Colouring a
+            // clean handover as a danger teaches people to ignore the colour on the
+            // day it means something.
+            destructive = HandOverPhone.costs(unsent),
+            dismissLabel = HandOverPhone.CANCEL,
+            onDismiss = { asking = false },
+            onConfirm = {
+                asking = false
+                onHandOver()
+            },
+        )
+    }
+}
+
+/**
  * The hub's usage whisper (#178): one calm line driven by the server's
  * `status`, never a meter or an "X of Y". 'quiet' is the overwhelming
  * default; 'pacing' and 'capped' surface the early warning here too. Tapping
@@ -917,6 +1022,8 @@ private fun SettingsIndexPreview() {
                 role = "owner",
                 usage = previewUsage(),
                 devMode = false,
+                onHandOver = {},
+                unsentCount = { 0 },
                 onOpen = {},
                 onCopyNumber = {},
                 onOpenDiagnostics = {},
