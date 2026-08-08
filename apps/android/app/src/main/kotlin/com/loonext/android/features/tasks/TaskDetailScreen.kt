@@ -131,6 +131,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import com.loonext.android.core.jobs.groupJobPhotos
 
 private const val NOTE_FILE_MAX_BYTES = 25L * 1024 * 1024
 private const val NOTE_FILES_MAX = 10
@@ -843,20 +844,39 @@ private fun TaskDetailBody(
                 }
 
                 if (detail.attachments.isNotEmpty()) {
+                    // #294 — grouped into the visits they arrived on, oldest first.
+                    // One flat row made a job with four site visits look identical
+                    // to a job with one, and said nothing about which pictures were
+                    // the finished work. Every file already knows the note it came
+                    // in on, and that note has a time, an author and a label.
                     item(key = "attachments") {
                         Column(Modifier.padding(horizontal = 18.dp).padding(top = 14.dp)) {
                             SectionHeader("Files", count = detail.attachments.size)
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(
-                                    detail.attachments.size,
-                                    key = { detail.attachments[it].id },
-                                ) { index ->
-                                    AttachmentCell(
-                                        item = detail.attachments[index],
-                                        mutations = mutations,
-                                        companyId = companyId,
-                                        onError = onActionError,
-                                    )
+                            groupJobPhotos(detail.attachments).forEach { group ->
+                                PhotoGroupHeader(
+                                    phase = group.workPhase,
+                                    at = group.at,
+                                    addedByUserId = group.addedByUserId,
+                                    fromCustomer = group.noteId == null,
+                                    // The resolver this screen already uses for
+                                    // the assignee and the activity timeline.
+                                    nameOf = ::memberName,
+                                )
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.padding(bottom = 10.dp),
+                                ) {
+                                    items(
+                                        group.items.size,
+                                        key = { group.items[it].id },
+                                    ) { index ->
+                                        AttachmentCell(
+                                            item = group.items[index],
+                                            mutations = mutations,
+                                            companyId = companyId,
+                                            onError = onActionError,
+                                        )
+                                    }
                                 }
                             }
                         }

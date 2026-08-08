@@ -2,6 +2,7 @@ package com.loonext.android.core.model
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
+import com.loonext.android.core.jobs.JobPhotoLike
 
 /**
  * A task is metadata over a real message; `done`/`status` are DERIVED from the
@@ -119,14 +120,32 @@ data class TaskActivityItem(
 /** One item of the D28 derived attachments union (no URL — mint per item). */
 @Serializable
 data class TaskAttachmentItem(
-    val id: String,
+    override val id: String,
     val source: String,
     val kind: String,
     val file_name: String? = null,
     val content_type: String? = null,
     val size_bytes: Long? = null,
     val created_at: String,
-)
+    /**
+     * #294 — the three fields that make a job record out of a file list.
+     *
+     * All inherited from the NOTE a file arrived on, never set per file: D28 keeps
+     * a task's attachments a derived view, and a per-file label would be the third
+     * upload path it removed. All null for the customer's own texted media, which
+     * did not arrive in visits and is nobody's before.
+     *
+     * Defaulted so a client running against an older server still decodes.
+     */
+    val note_id: String? = null,
+    val work_phase: String? = null,
+    val added_by_user_id: String? = null,
+) : JobPhotoLike {
+    override val noteId: String? get() = note_id
+    override val workPhase: String? get() = work_phase
+    override val addedByUserId: String? get() = added_by_user_id
+    override val createdAt: String get() = created_at
+}
 
 /** GET /v1/tasks/:id. viewer_level 'none' withholds conversation content. */
 @Serializable

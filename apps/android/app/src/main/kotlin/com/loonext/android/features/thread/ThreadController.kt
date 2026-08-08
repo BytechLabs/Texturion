@@ -930,11 +930,19 @@ class ThreadController(
         body: String,
         files: List<StagedFile>,
         mentionUserIds: List<String> = emptyList(),
+        /** #294: before or after, for the photos arriving on this note. */
+        workPhase: String? = null,
         onRestore: () -> Unit,
     ) {
         scope.launch {
             val note = try {
-                repo.createNote(companyId, conversationId, body, mentionUserIds = mentionUserIds)
+                repo.createNote(
+                    companyId,
+                    conversationId,
+                    body,
+                    mentionUserIds = mentionUserIds,
+                    workPhase = workPhase,
+                )
             } catch (cause: Exception) {
                 onRestore()
                 notify(cause.userMessage())

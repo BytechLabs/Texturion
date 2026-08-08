@@ -89,6 +89,12 @@ data class NoteBody(
      * the no-mention case, send exactly what they always did.
      */
     val mention_user_ids: List<String>? = null,
+    /**
+     * #294: before or after, for the photos arriving on this note. Omitted when
+     * absent so an older server sends exactly what it always did, and because
+     * absent is the honest value for most notes.
+     */
+    val work_phase: String? = null,
 )
 
 /**
@@ -587,12 +593,14 @@ class MessagingRepository(private val api: ApiClient) {
         body: String,
         taskId: String? = null,
         mentionUserIds: List<String> = emptyList(),
+        workPhase: String? = null,
     ): Message = api.post(
         "/v1/conversations/$conversationId/notes",
         NoteBody(
             body = body,
             task_id = taskId,
             mention_user_ids = mentionUserIds.ifEmpty { null },
+            work_phase = workPhase,
         ),
         companyId = companyId,
     )

@@ -1158,9 +1158,9 @@ private fun ThreadLoaded(
                     composer.restore(body, photos, emptyList())
                 }
             },
-            onSaveNote = { body, files, mentionUserIds ->
+            onSaveNote = { body, files, mentionUserIds, workPhase ->
                 val picked = composer.picked
-                controller.saveNote(body, files, mentionUserIds) {
+                controller.saveNote(body, files, mentionUserIds, workPhase) {
                     // Put the picks back with the words: a restored draft that
                     // still reads "@Sam" must still be able to tell Sam.
                     composer.restore(body, emptyList(), files, picked)

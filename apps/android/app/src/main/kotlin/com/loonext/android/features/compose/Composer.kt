@@ -186,6 +186,15 @@ class ComposerState(
     var files by mutableStateOf(listOf<StagedFile>())
 
     /**
+     * #294: whether these photos are the before or the after.
+     *
+     * Null unless somebody says otherwise. Defaulting to "before" would mislabel
+     * most notes, and a job record that is confidently wrong is worse than one
+     * that says nothing.
+     */
+    var workPhase by mutableStateOf<String?>(null)
+
+    /**
      * Display metadata for staged MMS media, keyed by staged id (#189 file
      * chips need a name + size the wire format doesn't carry). Survives
      * [clearForSend] on purpose: a failed send [restore] puts the same staged
@@ -264,6 +273,7 @@ class ComposerState(
         photos = emptyList()
         files = emptyList()
         picked = emptyList()
+        workPhase = null
         saveJob?.cancel()
         scope.launch { drafts.clear(draftKey) }
     }
@@ -358,7 +368,12 @@ fun ThreadComposer(
      *  somebody can act on, "someone replied" is not. */
     memberName: (String) -> String? = { null },
     meUserId: String = "",
-    onSaveNote: (body: String, files: List<StagedFile>, mentionUserIds: List<String>) -> Unit,
+    onSaveNote: (
+        body: String,
+        files: List<StagedFile>,
+        mentionUserIds: List<String>,
+        workPhase: String?,
+    ) -> Unit,
     onNotice: (String) -> Unit,
     modifier: Modifier = Modifier,
     /** Ask for AI-drafted replies. Null hides the affordance entirely. */
@@ -768,8 +783,9 @@ fun ThreadComposer(
                 )
                 wrapUpDictated = null
             }
+            val phase = state.workPhase
             state.clearForSend()
-            onSaveNote(body, files, mentionIds)
+            onSaveNote(body, files, mentionIds, phase)
         } else {
             val photos = state.photos
             state.clearForSend()
@@ -994,6 +1010,15 @@ fun ThreadComposer(
                 onRemove = { id ->
                     haptics.tap()
                     state.files = state.files.filterNot { it.id == id }
+                },
+            )
+            // #294: only once there are photos to describe. A before/after choice on
+            // a text-only note is noise on the most common thing anybody does here.
+            WorkPhaseRow(
+                value = state.workPhase,
+                onChange = { next ->
+                    haptics.tap()
+                    state.workPhase = next
                 },
             )
         }
