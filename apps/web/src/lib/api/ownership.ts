@@ -47,9 +47,9 @@ export function useOwnership() {
 
 type OwnershipAction =
   | { action: "backup"; memberId: string | null }
-  | { action: "offer"; memberId: string }
-  | { action: "claim" }
-  | { action: "accept" }
+  | { action: "offer"; memberId: string; code?: string }
+  | { action: "claim"; code?: string }
+  | { action: "accept"; code?: string }
   | { action: "cancel" };
 
 /**
@@ -58,6 +58,25 @@ type OwnershipAction =
  * would mean five near-identical hooks and five chances to forget an
  * invalidation.
  */
+/**
+ * #537 — POST /v1/company/ownership/confirm-code. "Email me a code."
+ *
+ * Its own hook rather than a sixth branch of the action above: it changes no
+ * ownership state, invalidates nothing, and is the only one a client calls twice in
+ * a row on purpose.
+ */
+export function useRequestHandoverCode() {
+  const companyId = useCompanyId();
+  return useMutation({
+    mutationFn: (action: "offer" | "claim" | "accept") =>
+      apiFetch<{ sent: boolean }>("/v1/company/ownership/confirm-code", {
+        method: "POST",
+        companyId,
+        body: { action },
+      }),
+  });
+}
+
 export function useOwnershipAction() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
@@ -67,12 +86,20 @@ export function useOwnershipAction() {
         input.action === "backup"
           ? "/v1/company/ownership/backup"
           : `/v1/company/ownership/${input.action}`;
-      const body =
-        input.action === "backup"
+      // #537: the confirmation travels with the action it authorises. Cancel
+      // never carries one — vetoing a handover is the safe direction and is
+      // deliberately not gated, so an owner who has lost their authenticator can
+      // still stop one.
+      const code =
+        input.action === "backup" || input.action === "cancel"
+          ? undefined
+          : input.code;
+      const body = {
+        ...(input.action === "backup" || input.action === "offer"
           ? { member_id: input.memberId }
-          : input.action === "offer"
-            ? { member_id: input.memberId }
-            : {};
+          : {}),
+        ...(code ? { confirmation_code: code } : {}),
+      };
       return apiFetch<Ownership>(path, { method: "POST", companyId, body });
     },
     onSuccess: (next) => {

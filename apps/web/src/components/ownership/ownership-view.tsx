@@ -23,7 +23,18 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/error";
-import { useOwnership, useOwnershipAction, type Ownership } from "@/lib/api/ownership";
+import {
+  useOwnership,
+  useOwnershipAction,
+  useRequestHandoverCode,
+  type Ownership,
+} from "@/lib/api/ownership";
+import {
+  handoverConfirmationKind,
+  type HandoverConfirmationKind,
+} from "@loonext/shared";
+
+import { HandoverConfirmDialog } from "@/components/ownership/handover-confirm-dialog";
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
 
@@ -52,7 +63,73 @@ export function OwnershipView() {
   const ownership = useOwnership();
   const act = useOwnershipAction();
   const { membership } = useActiveCompany();
+  const requestCode = useRequestHandoverCode();
   const [confirmingClaim, setConfirmingClaim] = useState(false);
+  /**
+   * #537: the action the server asked us to prove, held so it can be retried
+   * verbatim with a code. Null the rest of the time.
+   *
+   * The whole input is kept rather than just the action name, because an offer
+   * carries the member it is going to — retrying with a rebuilt input would be a
+   * chance to hand the business to somebody else.
+   */
+  const [confirming, setConfirming] = useState<{
+    kind: HandoverConfirmationKind;
+    input: Parameters<typeof act.mutate>[0];
+    done: string;
+  } | null>(null);
+  const [codeRejected, setCodeRejected] = useState(false);
+
+  /** Retry the held action, this time with the digits. */
+  function confirmWith(code: string) {
+    if (!confirming) return;
+    const { input, done } = confirming;
+    setCodeRejected(false);
+    act.mutate(
+      { ...input, code } as typeof input,
+      {
+        onSuccess: () => {
+          setConfirming(null);
+          setConfirmingClaim(false);
+          toast.success(done);
+        },
+        onError: (error) => {
+          // Still refused: the code was wrong, expired, spent or the fifth
+          // guess. The dialog stays open and says so once — the server does not
+          // distinguish those, so neither does this.
+          if (
+            error instanceof ApiError &&
+            handoverConfirmationKind(error.code) !== null
+          ) {
+            setCodeRejected(true);
+            return;
+          }
+          setConfirming(null);
+          toast.error(
+            error instanceof ApiError
+              ? error.message
+              : "That didn't go through. Try again.",
+          );
+        },
+      },
+    );
+  }
+
+  /** What `run` calls when the server wants proof. */
+  function needsCode(
+    kind: HandoverConfirmationKind,
+    input: Parameters<typeof act.mutate>[0],
+    done: string,
+  ) {
+    setCodeRejected(false);
+    setConfirming({ kind, input, done });
+    // The email path needs a code to exist before it can be entered. Asked for
+    // automatically rather than behind a button, because the alternative is a
+    // dialog whose only working action is "Send it again".
+    if (kind === "email" && input.action !== "backup" && input.action !== "cancel") {
+      requestCode.mutate(input.action);
+    }
+  }
 
   const workspace = membership.name?.trim() || "this workspace";
 
@@ -78,7 +155,13 @@ export function OwnershipView() {
           state={ownership.data}
           busy={act.isPending}
           onAccept={() =>
-            run(act, { action: "accept" }, "You now own this workspace.")
+            run(
+              act,
+              { action: "accept" },
+              "You now own this workspace.",
+              undefined,
+              (kind, input) => needsCode(kind, input, "You now own this workspace."),
+            )
           }
           onCancel={() =>
             run(act, { action: "cancel" }, "Stopped. Nothing changed hands.")
@@ -86,6 +169,27 @@ export function OwnershipView() {
           onAskToClaim={() => setConfirmingClaim(true)}
         />
       )}
+
+      {/* #537: the proof the server asks for before the business moves. Mounted
+          here rather than inside a branch, because every action that can demand
+          it is above and the dialog shows nothing until one does. */}
+      <HandoverConfirmDialog
+        kind={confirming?.kind ?? null}
+        pending={act.isPending || requestCode.isPending}
+        rejected={codeRejected}
+        onConfirm={confirmWith}
+        onResend={() => {
+          const action = confirming?.input.action;
+          if (action === "offer" || action === "claim" || action === "accept") {
+            setCodeRejected(false);
+            requestCode.mutate(action);
+          }
+        }}
+        onCancel={() => {
+          setConfirming(null);
+          setCodeRejected(false);
+        }}
+      />
 
       {/* Ethical friction: asking to take over a business is the one action
           here that starts something, so it gets the pause and the full
@@ -120,6 +224,12 @@ export function OwnershipView() {
                   { action: "claim" },
                   "Asked. The owner has 7 days to stop it.",
                   () => setConfirmingClaim(false),
+                  (kind, input) =>
+                    needsCode(
+                      kind,
+                      input,
+                      "Asked. The owner has 7 days to stop it.",
+                    ),
                 )
               }
             >
@@ -329,23 +439,44 @@ function detailFor(state: Ownership, kind?: HandoverPromptKind): string {
   return `This completes ${formatAbsoluteDateTime(pending.ripens_at)} unless the owner stops it. Stopping it takes effect immediately.`;
 }
 
-/** One toast grammar for all five actions, as on the Team card. */
+/**
+ * One toast grammar for all five actions, as on the Team card.
+ *
+ * #537: except when the refusal is "prove it is you". That is not an error to
+ * report — it is the next step — so it is handed back to the caller, which opens
+ * the confirmation dialog and retries the SAME input with a code.
+ *
+ * Only those two codes divert. A handover refused because one is already in flight,
+ * or because the caller is not the owner, still toasts: prompting for a code that
+ * could never help would hide the real reason behind it.
+ */
 function run(
   act: ReturnType<typeof useOwnershipAction>,
   input: Parameters<ReturnType<typeof useOwnershipAction>["mutate"]>[0],
   done: string,
   onSettled?: () => void,
+  onNeedsCode?: (
+    kind: HandoverConfirmationKind,
+    input: Parameters<ReturnType<typeof useOwnershipAction>["mutate"]>[0],
+  ) => void,
 ) {
   act.mutate(input, {
     onSuccess: () => {
       onSettled?.();
       toast.success(done);
     },
-    onError: (error) =>
+    onError: (error) => {
+      const kind =
+        error instanceof ApiError ? handoverConfirmationKind(error.code) : null;
+      if (kind && onNeedsCode) {
+        onNeedsCode(kind, input);
+        return;
+      }
       toast.error(
         error instanceof ApiError
           ? error.message
           : "That didn't go through. Try again.",
-      ),
+      );
+    },
   });
 }

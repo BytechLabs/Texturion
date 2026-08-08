@@ -845,3 +845,18 @@ export {
   ON_CALL_SILENCE_CONFIRM,
   onCallSilenceWarning,
 } from "./on-call-notifications";
+
+// #537: the words in front of a handover. Two mechanisms, one dialog — and the
+// difference lives entirely in the copy, because sending somebody to open an app
+// they never installed is a dead end.
+export {
+  HANDOVER_CONFIRM_FIELD,
+  HANDOVER_CONFIRM_REJECTED,
+  HANDOVER_CONFIRM_RESEND,
+  HANDOVER_CONFIRM_SUBMIT,
+  HANDOVER_CONFIRM_TITLE,
+  HANDOVER_CONFIRM_WHERE,
+  handoverConfirmationKind,
+  type HandoverConfirmationKind,
+  isHandoverCode,
+} from "./handover-confirmation";
