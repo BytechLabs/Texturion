@@ -53,3 +53,12 @@ a127f9abb61ba8b8cd05f878d4b1908f0335f1f9:apps/web/scripts/indexnow-ping.mjs:gene
 # (`11111111-1111-...`) so the entropy floor is never reached and no entry is
 # needed here at all.
 ef37c6d58565582d0015bbf4798a5161bda78efb:apps/api/src/routes/billing.held-numbers.test.ts:generic-api-key:31
+
+# Two token-shaped fixtures for #558, replaced at 7376c420 with a built value
+# (`not-a-real-token-xxx…`) exactly as the note above prescribes. They were
+# 43-char base64url strings written to look like a real D75 share token, which
+# is precisely why the scanner objected; neither ever opened anything. Pinned by
+# fingerprint rather than by rule, so the shape still fails for the next one —
+# and a share token is the one shape we most need it to catch.
+f53a434a21d7f5128a8b54b8cc099966c39fbfbf:apps/api/src/observability/sentry.test.ts:generic-api-key:216
+f53a434a21d7f5128a8b54b8cc099966c39fbfbf:apps/web/src/lib/observability/scrub.test.ts:generic-api-key:293
