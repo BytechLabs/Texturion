@@ -31,10 +31,13 @@ struct LeadSourcesCard: View {
     var body: some View {
         // Loading, or a month in which nothing happened. Silence, not a zero.
         if let report, report.total > 0 {
+            // #540: the same heading treatment as the other three measures. Two of
+            // the four carried their title inside the card and two above it, which
+            // read as two different species of panel in one list.
+            VStack(alignment: .leading, spacing: 0) {
+            MeasureHeader("Where your customers come from")
             PaperCard {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Where your customers come from")
-                        .font(.subheadline.weight(.medium))
 
                     if report.sources.isEmpty {
                         // Sources exist as a feature and this workspace has
@@ -53,6 +56,7 @@ struct LeadSourcesCard: View {
                     }
                 }
                 .padding(16)
+            }
             }
             .padding(.top, 12)
         }

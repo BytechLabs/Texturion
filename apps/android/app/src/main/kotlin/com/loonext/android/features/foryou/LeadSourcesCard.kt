@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.model.LeadSourceReport
 import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.MeasureHeader
 
 /**
  * #301 — where these customers came from, on the home surface.
@@ -52,12 +53,12 @@ fun LeadSourcesCard(report: LeadSourceReport?) {
     // Loading, or a month in which nothing happened. Silence, not a zero.
     if (report == null || report.total == 0) return
 
-    PaperCard(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+    // #540: the same heading treatment as the other three measures — see
+    // PipelineCard for why the four have to agree.
+    Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+    MeasureHeader("Where your customers come from")
+    PaperCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Text(
-                "Where your customers come from",
-                style = MaterialTheme.typography.titleSmall,
-            )
 
             if (report.sources.isEmpty()) {
                 // Sources exist as a feature and this workspace has set none
@@ -108,6 +109,7 @@ fun LeadSourcesCard(report: LeadSourceReport?) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
     }
 }
 

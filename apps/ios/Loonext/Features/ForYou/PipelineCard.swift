@@ -101,13 +101,18 @@ struct PipelineCard: View {
 
     var body: some View {
         if let report, report.current.quoted > 0 {
+            // #540: the same heading treatment as the other three measures — see
+            // Theme/Measures.swift for why the four have to agree.
+            VStack(alignment: .leading, spacing: 0) {
+            MeasureHeader("Quotes") {
+                Text("last 30 days")
+                    .font(.golos(10.5))
+                    .foregroundStyle(BrandColor.muted500)
+            }
             PaperCard {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(alignment: .top, spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Quotes, last 30 days")
-                                .font(.golos(12.5, weight: .medium))
-                                .foregroundStyle(BrandColor.muted700)
                             Text(headline)
                                 .font(.golos(15, weight: .medium))
                                 .foregroundStyle(BrandColor.ink)
@@ -159,6 +164,7 @@ struct PipelineCard: View {
                     )
                 }
                 .padding(16)
+            }
             }
         }
     }

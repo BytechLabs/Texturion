@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.model.PipelineReportResponse
 import com.loonext.android.ui.common.PaperCard
+import com.loonext.android.ui.common.MeasureHeader
 import com.loonext.android.ui.common.ShareBar
 import com.loonext.android.ui.common.ShareSegment
 
@@ -56,15 +57,21 @@ fun PipelineCard(report: PipelineReportResponse?) {
         null
     }
 
-    PaperCard(Modifier.fillMaxWidth().padding(top = 15.dp)) {
+    // #540: the same heading treatment as the other three measures. Two of the
+    // four carried their title inside the card and two above it, which read as
+    // two different species of panel in one list.
+    Column(Modifier.fillMaxWidth().padding(top = 15.dp)) {
+    MeasureHeader("Quotes") {
+        Text(
+            "last 30 days",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    PaperCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        "Quotes, last 30 days",
-                        style = MaterialTheme.typography.labelMedium,
-                    )
-                    Spacer(Modifier.height(4.dp))
                     Text(
                         report.insight ?: tooEarly(report.current.quoted),
                         style = MaterialTheme.typography.bodyLarge,
@@ -123,6 +130,7 @@ fun PipelineCard(report: PipelineReportResponse?) {
                     "and ${report.current.open} still out",
             )
         }
+    }
     }
 }
 

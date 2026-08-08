@@ -136,3 +136,37 @@ struct ShareBar: View {
         }
     }
 }
+
+/// The small heading above a measure card.
+///
+/// #540: two of the four measures put their title INSIDE the card and two put it
+/// above, so the four read as two different species of panel in one list. On web
+/// the same split showed up as card tops thirty pixels apart in a row, which is a
+/// large part of what "looks amateur" meant on that screen.
+///
+/// One heading, so there is one answer. `trailing` is for the 7/30/90 window the
+/// two windowed cards carry; the others pass a quiet note or nothing.
+struct MeasureHeader<Trailing: View>: View {
+    let label: String
+    @ViewBuilder var trailing: () -> Trailing
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(label.uppercased())
+                .font(.golos(10.5, weight: .bold))
+                .kerning(1.2)
+                .foregroundStyle(BrandColor.muted500)
+            Spacer(minLength: 8)
+            trailing()
+        }
+        .padding(.horizontal, 6)
+        .padding(.bottom, 7)
+    }
+}
+
+extension MeasureHeader where Trailing == EmptyView {
+    init(_ label: String) {
+        self.label = label
+        self.trailing = { EmptyView() }
+    }
+}
