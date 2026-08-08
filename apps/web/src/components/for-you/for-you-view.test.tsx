@@ -653,6 +653,7 @@ describe("#540 the strip and the sections agree, and both lead with urgency", ()
           last_message_at: hoursAgo(26),
           has_overdue_task: false,
           urgency: 1,
+          unread: false,
         },
       ],
       my_tasks: [],
