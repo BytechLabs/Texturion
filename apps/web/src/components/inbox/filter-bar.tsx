@@ -21,19 +21,24 @@ import { useConversations } from "@/lib/api/conversations";
 import { flattenPages } from "@/lib/api/pagination";
 import { useTags } from "@/lib/api/tags";
 import { useMembers } from "@/lib/api/team";
+import type { ConversationStatus } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
 import {
   activeChips,
   applySegment,
+  clearAllFilters,
   clearSecondary,
   formatOpenCount,
+  hasActiveFilters,
   INBOX_SEGMENTS,
+  isSearchingInbox,
   nextSegmentIndex,
   OPEN_COUNT_CAP,
   OPEN_COUNT_FILTERS,
   segmentOf,
+  STATUS_CHIP_LABELS,
   type InboxUrlFilters,
   type SecondaryFilterKey,
 } from "./filter-url";
@@ -60,12 +65,17 @@ export function FilterBar({
   const segment = segmentOf(filters);
   const openCount = useOpenCount();
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  // #548: a search reads every conversation, so while one is running these
+  // controls cannot narrow anything. They used to stay lit and pressable and
+  // change nothing at all — the tab moved, the results did not.
+  const searching = isSearchingInbox(filters);
 
   // §7 / #11: the WAI-ARIA tablist keyboard contract the roles promise — Arrow
   // keys (and Home/End) move the selection AND focus (automatic activation), so
   // the announced `role="tab"` semantics match real behavior instead of leaving
   // arrow keys dead. Roving tabindex keeps a single Tab stop on the control.
   const onTablistKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (searching) return;
     const current = INBOX_SEGMENTS.findIndex((s) => s.id === segment);
     const next = nextSegmentIndex(event.key, current, INBOX_SEGMENTS.length);
     if (next === current) return;
@@ -83,8 +93,12 @@ export function FilterBar({
       <div
         role="tablist"
         aria-label="Conversation status"
+        aria-disabled={searching || undefined}
         onKeyDown={onTablistKeyDown}
-        className="flex gap-0.5 rounded-full bg-app-line-soft p-[3px] dark:bg-white/5"
+        className={cn(
+          "flex gap-0.5 rounded-full bg-app-line-soft p-[3px] transition-opacity duration-150 ease-out dark:bg-white/5",
+          searching && "opacity-45",
+        )}
       >
         {INBOX_SEGMENTS.map(({ id, label }, index) => {
           const selected = segment === id;
@@ -96,6 +110,7 @@ export function FilterBar({
               type="button"
               role="tab"
               aria-selected={selected}
+              disabled={searching}
               tabIndex={selected ? 0 : -1}
               ref={(el) => {
                 tabRefs.current[index] = el;
@@ -125,7 +140,14 @@ export function FilterBar({
           );
         })}
       </div>
-      <ChipRow filters={filters} onChange={onChange} />
+      <ChipRow filters={filters} onChange={onChange} disabled={searching} />
+      {searching && (
+        // Said once, quietly, instead of leaving the row above to imply
+        // otherwise. It names what search DOES rather than what it ignores.
+        <p className="px-0.5 text-[11px] text-app-muted">
+          Search looks through every conversation, so these filters are paused.
+        </p>
+      )}
     </div>
   );
 }
@@ -233,9 +255,11 @@ function SearchField({
 function ChipRow({
   filters,
   onChange,
+  disabled,
 }: {
   filters: InboxUrlFilters;
   onChange: (next: InboxUrlFilters) => void;
+  disabled: boolean;
 }) {
   const chips = activeChips(filters);
   const tags = useTags();
@@ -243,6 +267,12 @@ function ChipRow({
 
   const labelFor = (key: SecondaryFilterKey, value?: string): string => {
     switch (key) {
+      case "status":
+        // #548: only ever a status the segments cannot show, so the word alone
+        // would sit beside four tabs meaning the same kind of thing.
+        return `Status: ${
+          value ? STATUS_CHIP_LABELS[value as ConversationStatus] : "set"
+        }`;
       case "assignee":
         return (
           members.data?.data.find((m) => m.user_id === value)?.display_name ||
@@ -263,26 +293,64 @@ function ChipRow({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      {chips.map((chip) => (
-        <Chip
-          key={chip.key}
-          label={labelFor(chip.key, chip.value)}
-          onRemove={() => onChange(clearSecondary(filters, chip.key))}
+      {/* Only the NARROWING controls go quiet during a search — they are the
+          ones a search overrules. Clear all stays live below, because it also
+          clears the query, which makes it the way out rather than another
+          control that does nothing. */}
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-1.5 transition-opacity duration-150 ease-out",
+          disabled && "opacity-45",
+        )}
+      >
+        {chips.map((chip) => (
+          <Chip
+            key={chip.key}
+            label={labelFor(chip.key, chip.value)}
+            disabled={disabled}
+            onRemove={() => onChange(clearSecondary(filters, chip.key))}
+          />
+        ))}
+        <FilterPopover
+          filters={filters}
+          onChange={onChange}
+          disabled={disabled}
         />
-      ))}
-      <FilterPopover filters={filters} onChange={onChange} />
+      </div>
+      {/* #548: the way back to the whole list, in one press. Last in the row
+          because it is the exit, not the first thing to reach for, and absent
+          when there is nothing to clear — a control that usually does nothing
+          is furniture. Android and iOS carry the same one. */}
+      {hasActiveFilters(filters) && (
+        <button
+          type="button"
+          onClick={() => onChange(clearAllFilters())}
+          className="tap-target inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium text-app-muted underline decoration-app-line underline-offset-2 transition-colors duration-150 ease-out hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Clear all
+        </button>
+      )}
     </div>
   );
 }
 
 /** §2.2 removable stone-tinted chip — same tokens as the status pills, not petrol. */
-function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
+function Chip({
+  label,
+  onRemove,
+  disabled,
+}: {
+  label: string;
+  onRemove: () => void;
+  disabled: boolean;
+}) {
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-secondary py-0.5 pl-2 pr-1 text-[11px] font-medium text-secondary-foreground">
       {label}
       <button
         type="button"
         onClick={onRemove}
+        disabled={disabled}
         aria-label={`Remove ${label} filter`}
         className="tap-target rounded-full p-0.5 text-muted-foreground transition-colors duration-150 ease-out hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
@@ -303,9 +371,11 @@ function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
 function FilterPopover({
   filters,
   onChange,
+  disabled,
 }: {
   filters: InboxUrlFilters;
   onChange: (next: InboxUrlFilters) => void;
+  disabled: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const tags = useTags();
@@ -332,6 +402,7 @@ function FilterPopover({
       <PopoverTrigger asChild>
         <button
           type="button"
+          disabled={disabled}
           aria-label="Add filter"
           className="tap-target inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >

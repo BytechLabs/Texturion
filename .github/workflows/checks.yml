@@ -219,6 +219,14 @@ jobs:
       - name: Guard the conversation-event vocabulary
         run: node scripts/check-conversation-events.mjs
 
+      # #548: an inbox filter is an id; the Member/Tag is only its label. Both
+      # phones held the object instead, so a saved view applied before the
+      # roster loaded lost its assignee and tag with no error and no chip. The
+      # two clients are hand-ported from each other, which is how one shape of
+      # bug came to exist twice — so both are asked the same question here.
+      - name: Guard inbox filters against a roster race
+        run: node scripts/check-inbox-filter-ids.mjs
+
       # #377: there is ONE deployed environment, so a variable that reaches
       # code without reaching the deploy reference is discovered in production
       # or on an invoice. The two env docs that used to disagree each shipped a

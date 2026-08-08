@@ -283,10 +283,27 @@ private class InboxController(
 ) {
     var tab by mutableStateOf(InboxStatusTab.Open)
         private set
-    var assignee by mutableStateOf<Member?>(null)
+    /**
+     * #548: the FILTER is an id. The [Member] is only how that id gets a name.
+     *
+     * It used to be the other way round — the state held the Member — and so
+     * applying a saved view before `/members` had landed ran
+     * `members.find { … }`, got null, and dropped the filter along with the
+     * label. A saved view is one tap on a cold start, which is exactly when
+     * that race is lost.
+     */
+    var assigneeUserId by mutableStateOf<String?>(null)
         private set
-    var tag by mutableStateOf<Tag?>(null)
+    var tagId by mutableStateOf<String?>(null)
         private set
+
+    /** The filtered teammate, once the roster can name them. Labels only. */
+    val assignee: Member?
+        get() = assigneeUserId?.let { id -> members.find { it.user_id == id } }
+
+    /** Likewise the tag. A filter that outlives its label is still a filter. */
+    val tag: Tag?
+        get() = tagId?.let { id -> allTags.find { it.id == id } }
     var unreadOnly by mutableStateOf(false)
         private set
     var spamOnly by mutableStateOf(false)
@@ -388,9 +405,9 @@ private class InboxController(
      */
     private val filterKey: String
         get() {
-            val assigneeId = if (tab == InboxStatusTab.Mine) null else assignee?.user_id
+            val assigneeId = if (tab == InboxStatusTab.Mine) null else assigneeUserId
             val isDefault = tab == InboxStatusTab.Open && assigneeId == null &&
-                tag == null && !unreadOnly && !spamOnly && !snoozedOnly &&
+                tagId == null && !unreadOnly && !spamOnly && !snoozedOnly &&
                 !awaitingOnly
             if (isDefault) return "default"
             return buildString {
@@ -437,8 +454,8 @@ private class InboxController(
         get() = InboxFilterState(
             segment = if (tab == InboxStatusTab.Open) null else tab.name.lowercase(),
             assignedToMe = tab == InboxStatusTab.Mine,
-            assigneeUserId = assignee?.user_id,
-            tagId = tag?.id,
+            assigneeUserId = assigneeUserId,
+            tagId = tagId,
             unreadOnly = unreadOnly,
             spamOnly = spamOnly,
             snoozedOnly = snoozedOnly,
@@ -471,12 +488,12 @@ private class InboxController(
     }
 
     fun setAssigneeFilter(member: Member?) {
-        assignee = member
+        assigneeUserId = member?.user_id
         showPane()
     }
 
     fun setTagFilter(next: Tag?) {
-        tag = next
+        tagId = next?.id
         showPane()
     }
 
@@ -515,12 +532,12 @@ private class InboxController(
      */
     fun landOnAwaiting() {
         val alreadyThere = awaitingOnly && tab == InboxStatusTab.All &&
-            assignee == null && tag == null && !unreadOnly && !spamOnly &&
+            assigneeUserId == null && tagId == null && !unreadOnly && !spamOnly &&
             !snoozedOnly
         if (alreadyThere) return
         tab = InboxStatusTab.All
-        assignee = null
-        tag = null
+        assigneeUserId = null
+        tagId = null
         unreadOnly = false
         spamOnly = false
         snoozedOnly = false
@@ -534,8 +551,8 @@ private class InboxController(
         // that could not see it made Reset a control that did nothing.
         if (!isFiltered) return
         tab = InboxStatusTab.Open
-        assignee = null
-        tag = null
+        assigneeUserId = null
+        tagId = null
         unreadOnly = false
         spamOnly = false
         snoozedOnly = false
@@ -549,9 +566,9 @@ private class InboxController(
     internal val currentSelection: ViewSelection
         get() = ViewSelection(
             tab = tab,
-            assigneeUserId = if (tab == InboxStatusTab.Mine) null else assignee?.user_id,
+            assigneeUserId = if (tab == InboxStatusTab.Mine) null else assigneeUserId,
             assignedToMe = tab == InboxStatusTab.Mine,
-            tagId = tag?.id,
+            tagId = tagId,
             unreadOnly = unreadOnly,
             spamOnly = spamOnly,
             snoozedOnly = snoozedOnly,
@@ -567,8 +584,11 @@ private class InboxController(
     fun applyView(view: SavedView) {
         val selection = viewToSelection(view.filters)
         tab = selection.tab
-        assignee = selection.assigneeUserId?.let { id -> members.find { it.user_id == id } }
-        tag = selection.tagId?.let { id -> allTags.find { it.id == id } }
+        // #548: the ids, not a lookup. `members`/`allTags` may not have landed
+        // yet — a view applied on a cold start used to lose its assignee and tag
+        // to `find` returning null, and nothing said so.
+        assigneeUserId = selection.assigneeUserId
+        tagId = selection.tagId
         unreadOnly = selection.unreadOnly
         spamOnly = selection.spamOnly
         snoozedOnly = selection.snoozedOnly
@@ -669,9 +689,9 @@ private class InboxController(
             },
             assignedUserId = when {
                 tab == InboxStatusTab.Mine -> meUserId
-                else -> assignee?.user_id
+                else -> assigneeUserId
             },
-            tagId = tag?.id,
+            tagId = tagId,
             // Spam is hidden from defaults server-side; the chip reveals it.
             spam = if (spamOnly) true else null,
             // #293: same for deferrals. Null leaves the field off entirely,
@@ -2113,7 +2133,7 @@ private fun FiltersSheet(
                     ) {
                         FilterPill(
                             text = "Anyone",
-                            selected = controller.assignee == null,
+                            selected = controller.assigneeUserId == null,
                             onClick = { controller.setAssigneeFilter(null) },
                         )
                         controller.members.filter { it.deactivated_at == null }.forEach { member ->
@@ -2124,7 +2144,7 @@ private fun FiltersSheet(
                             }
                             FilterPill(
                                 text = label,
-                                selected = controller.assignee?.user_id == member.user_id,
+                                selected = controller.assigneeUserId == member.user_id,
                                 onClick = { controller.setAssigneeFilter(member) },
                                 leading = {
                                     Box(
@@ -2168,7 +2188,7 @@ private fun FiltersSheet(
                     ) {
                         FilterPill(
                             text = "Any tag",
-                            selected = controller.tag == null,
+                            selected = controller.tagId == null,
                             onClick = { controller.setTagFilter(null) },
                         )
                         controller.allTags.forEach { tag ->
@@ -2179,7 +2199,7 @@ private fun FiltersSheet(
                             }
                             FilterPill(
                                 text = tag.name,
-                                selected = controller.tag?.id == tag.id,
+                                selected = controller.tagId == tag.id,
                                 onClick = { controller.setTagFilter(tag) },
                                 outlined = true,
                                 leading = tint?.let { dot ->

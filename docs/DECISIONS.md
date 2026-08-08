@@ -7666,3 +7666,48 @@ request is the wrong trade.
 
 **Consistency:** works inside D28's two-door model rather than adding a third path,
 and it is the ingest half of the promise the privacy policy makes about what we keep.
+
+---
+
+## D129 — the phones keep a filter sheet; "one-glance" was a claim about visibility, not about geometry (#548, 2026-08-08)
+
+**APP-LAYOUT-V2 §2 says to delete the overflow filter sheet entirely and that "there
+is no filter drawer/sheet anywhere". About the web inbox that is still true. About
+Android and iOS it is now false, and it should be.**
+
+The founder asked for the sheet on the phones and it is what shipped. The document
+was written for the laptop, where a 1200px-wide list header has room for a segmented
+control, six chips and a search field on two lines. A 375px screen does not. Forcing
+the web layout onto a phone produces either a chip row that scrolls horizontally past
+the edge — hiding the very state §2 exists to keep visible — or a row so cramped that
+nothing in it is a tap target, which is exactly the defect this issue was filed for.
+
+**So the rule is restated as what it was actually protecting.** §2's substance is:
+
+1. the active arrangement is visible on the list screen without opening anything;
+2. the status is not hidden inside a menu; and
+3. every dimension is undoable from where it is shown.
+
+A sheet that *edits* filters satisfies all three as long as the list screen says what
+is on. Android does: the header carries a dot when anything is filtered, and the chip
+row shows each active dimension with the sheet behind a labelled control. iOS shows
+its chips inline with a Clear filters chip at the end of the row. Neither hides state;
+both put the *editing* somewhere a thumb can reach.
+
+**What this does not license.** Not a drawer on web — the room is there, so hiding
+state there would be a choice rather than a constraint. Not a sheet that is the only
+way to see what is filtered; the list screen must still say so on its own. And not a
+Reset that lives more than a screen away from the controls it resets, which is how
+#548 began: Android's Reset sat forty points above a Status section it could not see,
+so pressing it gave a haptic and did nothing.
+
+**Why this is recorded rather than fixed by editing §2 in place.** Someone reading
+§2 in six months will be reading it about web, where it is correct and load-bearing.
+An agent reading it about the phones would delete a surface the founder asked for —
+which is a thing that nearly happened while this issue was open. §2 now points here.
+
+**Consistency:** the shared rule behind (1) and (3) is one module,
+`packages/shared/src/inbox-filters.ts`, read by all three clients. It exists because
+the rule had been written out three times and two copies had forgotten that the status
+segment is a filter — which is what made a Reset button do nothing on Android and made
+the iOS empty state blame filters nobody could see.

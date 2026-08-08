@@ -1,16 +1,27 @@
 import { describe, expect, it } from "vitest";
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { INBOX_FILTER_DIMENSIONS } from "@loonext/shared";
+
 import {
   activeChips,
   applySegment,
+  clearAllFilters,
   clearSecondary,
   formatOpenCount,
   hasActiveFilters,
+  INBOX_SEARCH_MIN_CHARS,
+  isSearchingInbox,
   nextSegmentIndex,
   parseInboxSearchParams,
   segmentOf,
   serializeInboxFilters,
+  STATUS_CHIP_LABELS,
   toConversationFilters,
+  toInboxFilterState,
+  unrepresentedStatus,
 } from "./filter-url";
 
 describe("parseInboxSearchParams", () => {
@@ -282,5 +293,168 @@ describe("nextSegmentIndex (#11 tablist keyboard)", () => {
     expect(nextSegmentIndex("Enter", 2, COUNT)).toBe(2);
     expect(nextSegmentIndex("a", 0, COUNT)).toBe(0);
     expect(nextSegmentIndex("Tab", 3, COUNT)).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #548 — a status no segment can show, and the way back out
+// ---------------------------------------------------------------------------
+
+describe("unrepresentedStatus", () => {
+  it("is null for the statuses the segments own", () => {
+    expect(unrepresentedStatus({})).toBeNull();
+    expect(unrepresentedStatus({ status: "open" })).toBeNull();
+    expect(unrepresentedStatus({ status: "closed" })).toBeNull();
+  });
+
+  it("names a status the segmented control cannot show", () => {
+    // Both are storable in a saved view (packages/shared/src/saved-views.ts),
+    // and `segmentOf` answers "all" for each — so the All tab lit up over a
+    // list narrowed to one status, with nothing to press to undo it.
+    expect(unrepresentedStatus({ status: "waiting" })).toBe("waiting");
+    expect(unrepresentedStatus({ status: "new" })).toBe("new");
+  });
+
+  it("catches a status the Mine segment swallows", () => {
+    // ?status=open&assignee=me lights Mine, which owns no status at all.
+    expect(unrepresentedStatus({ status: "open", assignee: "me" })).toBe("open");
+  });
+
+  it("has a label for every status it can return", () => {
+    // The chip renders STATUS_CHIP_LABELS[value]; a status with no entry there
+    // would read "Status: undefined" on screen.
+    for (const status of ["new", "open", "waiting", "closed"] as const) {
+      expect(STATUS_CHIP_LABELS[status]).toBeTruthy();
+    }
+  });
+});
+
+describe("activeChips with an unrepresented status", () => {
+  it("puts the orphan status first and clears it like any chip", () => {
+    const filters = { status: "waiting", tag: "t-1" } as const;
+    expect(activeChips(filters)).toEqual([
+      { key: "status", value: "waiting" },
+      { key: "tag", value: "t-1" },
+    ]);
+    expect(clearSecondary(filters, "status")).toEqual({ tag: "t-1" });
+  });
+
+  it("adds no chip for a status a tab already shows", () => {
+    expect(activeChips({ status: "closed" })).toEqual([]);
+  });
+});
+
+describe("isSearchingInbox", () => {
+  it("takes the pane over only at the documented length", () => {
+    expect(isSearchingInbox({})).toBe(false);
+    expect(isSearchingInbox({ q: " " })).toBe(false);
+    expect(isSearchingInbox({ q: "a" })).toBe(false);
+    expect(isSearchingInbox({ q: " a " })).toBe(false);
+    expect(isSearchingInbox({ q: "ab" })).toBe(true);
+  });
+
+  it("agrees with the constant the docs quote", () => {
+    expect(INBOX_SEARCH_MIN_CHARS).toBe(2);
+    expect(isSearchingInbox({ q: "x".repeat(INBOX_SEARCH_MIN_CHARS) })).toBe(
+      true,
+    );
+  });
+
+  it("counts a too-short query as a filter even so", () => {
+    // One character does not swap the pane, so the list stays — and its empty
+    // state has to say the query is why.
+    expect(isSearchingInbox({ q: "a" })).toBe(false);
+    expect(hasActiveFilters({ q: "a" })).toBe(true);
+  });
+});
+
+describe("clearAllFilters", () => {
+  it("drops the status, every chip and the query", () => {
+    const everything = {
+      status: "waiting",
+      assignee: "u-2",
+      tag: "t-1",
+      unread: true,
+      spam: true,
+      snoozed: true,
+      awaiting: true,
+      q: "roof",
+    } as const;
+    expect(hasActiveFilters(everything)).toBe(true);
+    expect(clearAllFilters()).toEqual({});
+    expect(hasActiveFilters(clearAllFilters())).toBe(false);
+    expect(serializeInboxFilters(clearAllFilters())).toBe("");
+  });
+});
+
+describe("toInboxFilterState", () => {
+  it("hands Mine to the segment and drops the named assignee", () => {
+    // The request does the same (`assigned_user_id` becomes the viewer), and
+    // the chip strip hides the assignee while Mine is lit.
+    expect(toInboxFilterState({ assignee: "me", status: "open" })).toEqual({
+      segment: "open",
+      assignedToMe: true,
+      assigneeUserId: null,
+      tagId: null,
+      unreadOnly: false,
+      spamOnly: false,
+      snoozedOnly: false,
+      awaitingOnly: false,
+    });
+  });
+
+  it("passes a named assignee through", () => {
+    const state = toInboxFilterState({ assignee: "u-9", tag: "t-1" });
+    expect(state.assignedToMe).toBe(false);
+    expect(state.assigneeUserId).toBe("u-9");
+    expect(state.tagId).toBe("t-1");
+    expect(state.segment).toBeNull();
+  });
+
+  it("is empty for a bare URL, so nothing reads as filtered", () => {
+    expect(hasActiveFilters({})).toBe(false);
+    expect(toInboxFilterState({}).segment).toBeNull();
+  });
+});
+
+describe("the shared rule this file now defers to", () => {
+  /**
+   * Web reads `isInboxFiltered` rather than keeping a fourth copy of the rule.
+   * That only helps if this file feeds it every dimension it knows about — a
+   * `toInboxFilterState` that forgot one would make web wrong again, quietly,
+   * and every test above would still pass.
+   *
+   * So: the shared module's own list of dimensions, against the dimensions this
+   * URL can actually turn on.
+   */
+  it("can turn on every dimension the shared module has", () => {
+    const perDimension: Record<string, Parameters<typeof hasActiveFilters>[0]> =
+      {
+        segment: { status: "closed" },
+        assignee: { assignee: "u-2" },
+        tag: { tag: "t-1" },
+        unread: { unread: true },
+        spam: { spam: true },
+        snoozed: { snoozed: true },
+        awaiting: { awaiting: true },
+      };
+    expect(Object.keys(perDimension).sort()).toEqual(
+      [...INBOX_FILTER_DIMENSIONS].sort(),
+    );
+    for (const [dimension, filters] of Object.entries(perDimension)) {
+      expect(hasActiveFilters(filters), dimension).toBe(true);
+    }
+  });
+
+  it("is the same source the two phones were ported from", () => {
+    // Cheap, but it is the thing that broke: three hand-written copies, two of
+    // them missing the status segment. If this module moves, the Kotlin and
+    // Swift parity tests go looking for it too.
+    const shared = readFileSync(
+      join(__dirname, "../../../../../packages/shared/src/inbox-filters.ts"),
+      "utf8",
+    );
+    expect(shared).toContain("export function isInboxFiltered");
+    expect(shared).toContain("INBOX_FILTER_DIMENSIONS");
   });
 });

@@ -36,7 +36,7 @@ running seeded app.
    `nav | list | thread | (optional context)`, each column scrolls on its own, the page body
    never scrolls, the composer is docked to the thread's bottom. Message *text* is capped at a
    reading measure inside a wider thread pane.
-2. **The filter fly-out drawer/sheet is deleted.** Filtering is one-glance: persistent inline
+2. **The filter fly-out drawer/sheet is deleted** (on web — see D129 for the phones). Filtering is one-glance: persistent inline
    segmented status tabs + removable chips + a compact command popover (reusing Cmd-K's surface).
    All filter state lives in the URL.
 3. **The composer is rebuilt as a Google-Messages pill**: far-left `+` overflow, auto-grow field,
@@ -190,6 +190,11 @@ the conversation.
 
 ## 2. Filter redesign — kill the fly-out, make triage one-glance (supersedes DESIGN.md G4 filter bar)
 
+> **Scope: this section is about the WEB inbox.** Android and iOS keep a sheet for editing
+> filters — see **D129** — because a 375px header cannot hold this layout without hiding the state
+> the section exists to keep visible. The three things §2 actually requires hold on all three
+> clients; the geometry does not.
+
 **Delete the overflow filter sheet/drawer entirely.** UX evidence is unambiguous that segmented
 controls beat dropdowns/drawers for a small set of instantly-applied, mutually-exclusive filters,
 and that persistent chips beat hidden state. The new model has three visible layers, no modal that
@@ -239,8 +244,12 @@ hides the active filter.
 - Search field in the list header (§1.4), debounced 250ms, fires `/v1/search` at ≥2 chars, results
   grouped Conversations / Contacts with snippet highlights (unchanged from G4). `?q=` in the URL.
 
-**Auditable:** there is no filter drawer/sheet anywhere; the active status is a stone segment; all
-active secondary filters are visible as chips; every filter dimension round-trips through the URL.
+**Auditable (web):** there is no filter drawer/sheet in the web inbox; the active status is a stone
+segment; all active secondary filters are visible as chips; every filter dimension round-trips
+through the URL. **The phones keep a sheet for EDITING filters — see D129**, which restates what
+this section was protecting (the arrangement is visible on the list screen, the status is not
+hidden, every dimension is undoable from where it is shown) as something a 375px screen can
+satisfy. Do not delete the phone sheet on the strength of this section.
 
 ---
 
@@ -547,7 +556,8 @@ never a KPI dashboard (APP-UI-ELEVATION §6).
    user-selectable Fixed/Float knob), and holds the calm core — Contact, Consent, Tags, the Tasks
    checklist, and a "View all attachments (N)" row (the gallery itself opens from the thread-header
    overflow, one entry point).
-6. **The filter fly-out drawer is deleted**; filtering is one-glance via segmented status tabs
+6. **The filter fly-out drawer is deleted** on web (D129: the phones edit filters in a sheet);
+   filtering is one-glance via segmented status tabs
    (Open/Mine/All/Closed, quiet stone active — never petrol) with a **single quiet count on Open only**
    (stone, `>0`, capped `9+`) — reconciled with the anti-KPI lock, not a count on every tab.
 7. **Secondary filters are always-visible removable chips + a `+ Filter` cmdk popover** (reusing

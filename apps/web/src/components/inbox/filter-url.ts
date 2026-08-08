@@ -1,3 +1,8 @@
+import {
+  isInboxFiltered,
+  type InboxFilterState,
+} from "@loonext/shared";
+
 import type { ConversationFilters } from "@/lib/api/filters";
 import type { ConversationStatus } from "@/lib/api/types";
 
@@ -183,18 +188,71 @@ export function toConversationFilters(
   return out;
 }
 
-/** True when anything beyond the plain "All" view is active (empty-state copy). */
+/**
+ * This URL, in the shape the shared rule reads (#548).
+ *
+ * The rule used to be written out once per client — here, in InboxTab.kt and in
+ * InboxTab.swift — and two of the three had forgotten that the status segment is
+ * a filter. Three copies, two wrong. So there is one copy now and web reads it
+ * rather than being a fourth.
+ */
+export function toInboxFilterState(filters: InboxUrlFilters): InboxFilterState {
+  const named =
+    filters.assignee !== undefined && filters.assignee !== "me"
+      ? filters.assignee
+      : null;
+  return {
+    // Open is the phones' home view; on web the home view is a bare URL, so
+    // every status here — Open included — is the segment having moved.
+    segment: filters.status ?? null,
+    assignedToMe: filters.assignee === "me",
+    assigneeUserId: named,
+    tagId: filters.tag ?? null,
+    unreadOnly: filters.unread === true,
+    spamOnly: filters.spam === true,
+    snoozedOnly: filters.snoozed === true,
+    awaitingOnly: filters.awaiting === true,
+  };
+}
+
+/** Is there a search query long enough to matter (§2.4)? */
+export function searchQueryOf(filters: InboxUrlFilters): string {
+  return filters.q?.trim() ?? "";
+}
+
+/** §2.4: below this the query is still being typed and the list stays put. */
+export const INBOX_SEARCH_MIN_CHARS = 2;
+
+/**
+ * Has the query taken the pane over (§2.4)?
+ *
+ * One place, because two answers to this would be two different screens: the
+ * pane swaps the list for /v1/search on one rule, and the filter bar has to go
+ * quiet on the SAME one — search reads every conversation, so a status tab it
+ * left lit would be a control that changes nothing.
+ */
+export function isSearchingInbox(filters: InboxUrlFilters): boolean {
+  return searchQueryOf(filters).length >= INBOX_SEARCH_MIN_CHARS;
+}
+
+/**
+ * True when the list is narrowed by anything at all — what the empty-state copy
+ * asks, and what Clear all offers to undo.
+ *
+ * `q` is checked HERE and is deliberately not one of the shared dimensions: a
+ * search REPLACES the list with results from every conversation rather than
+ * narrowing this one, on all three clients. It still counts for this question,
+ * because a one-character `q` is too short to swap the pane and leaves the list
+ * looking unfiltered while the empty state has to explain itself.
+ */
 export function hasActiveFilters(filters: InboxUrlFilters): boolean {
-  return Boolean(
-    filters.status ||
-      filters.assignee ||
-      filters.tag ||
-      filters.unread ||
-      filters.spam ||
-      filters.snoozed ||
-      filters.awaiting ||
-      (filters.q !== undefined && filters.q.trim() !== ""),
-  );
+  return isInboxFiltered(toInboxFilterState(filters)) ||
+    searchQueryOf(filters) !== "";
+}
+
+/** Back to the unfiltered list: no status, no chips, no query. */
+export function clearAllFilters(): InboxUrlFilters {
+  return {};
 }
 
 // ---------------------------------------------------------------------------
@@ -226,6 +284,7 @@ export function formatOpenCount(count: number): string {
 
 /** The URL params a secondary chip / the `+ Filter` popover can toggle. */
 export type SecondaryFilterKey =
+  | "status"
   | "assignee"
   | "tag"
   | "unread"
@@ -251,6 +310,11 @@ export interface ActiveChip {
  */
 export function activeChips(filters: InboxUrlFilters): ActiveChip[] {
   const chips: ActiveChip[] = [];
+  // #548: a status no segment can show gets a chip, so it is at least visible
+  // and removable. First in the row because it is the widest of these — it
+  // decides which conversations exist before any chip narrows them.
+  const orphan = unrepresentedStatus(filters);
+  if (orphan !== null) chips.push({ key: "status", value: orphan });
   if (filters.assignee && filters.assignee !== "me") {
     chips.push({ key: "assignee", value: filters.assignee });
   }
@@ -260,6 +324,36 @@ export function activeChips(filters: InboxUrlFilters): ActiveChip[] {
   if (filters.snoozed) chips.push({ key: "snoozed" });
   if (filters.awaiting) chips.push({ key: "awaiting" });
   return chips;
+}
+
+/** What each status is called when it has to be shown as a chip (#548). */
+export const STATUS_CHIP_LABELS: Record<ConversationStatus, string> = {
+  new: "New",
+  open: "Open",
+  waiting: "Waiting on them",
+  closed: "Closed",
+};
+
+/**
+ * A status the segmented control cannot represent, or `null` (#548).
+ *
+ * `new` and `waiting` are two of the four statuses a saved view may store
+ * (packages/shared/src/saved-views.ts), and neither is a segment. `segmentOf`
+ * answered "all" for both, so the All tab lit up while the list was quietly
+ * narrowed to one status, with nothing on screen to say so and nothing to press
+ * to undo it.
+ *
+ * Asked as a round trip — does the segment this URL lights reproduce this
+ * status? — rather than by naming the two, so a fifth status appears as a chip
+ * on the day it is added rather than on the day somebody notices.
+ */
+export function unrepresentedStatus(
+  filters: InboxUrlFilters,
+): ConversationStatus | null {
+  const { status } = filters;
+  if (status === undefined) return null;
+  const roundTrip = applySegment(filters, segmentOf(filters)).status;
+  return roundTrip === status ? null : status;
 }
 
 /** Clear one secondary dimension, returning the next filter set. */

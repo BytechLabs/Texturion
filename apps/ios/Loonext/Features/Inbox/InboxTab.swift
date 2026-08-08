@@ -138,8 +138,26 @@ private final class InboxController {
     let meUserId: String
 
     private(set) var tab: InboxStatusTab = .open
-    private(set) var assignee: Member?
-    private(set) var tag: Tag?
+    /// #548: the FILTER is an id. The `Member` is only how that id gets a name.
+    ///
+    /// It used to be the other way round — the state held the `Member` — so a
+    /// saved view applied before `/members` had landed ran `members.first { … }`,
+    /// got nil, and dropped the filter along with the label. A saved view is one
+    /// tap on a cold start, which is exactly when that race is lost.
+    private(set) var assigneeUserId: String?
+    private(set) var tagId: String?
+
+    /// The filtered teammate, once the roster can name them. Labels only.
+    var assignee: Member? {
+        guard let id = assigneeUserId else { return nil }
+        return members.first { $0.user_id == id }
+    }
+
+    /// Likewise the tag. A filter that outlives its label is still a filter.
+    var tag: Tag? {
+        guard let id = tagId else { return nil }
+        return allTags.first { $0.id == id }
+    }
     private(set) var unreadOnly = false
     private(set) var spamOnly = false
     /// #293: the Snoozed view. Same shape as `spamOnly` — a population hidden
@@ -210,8 +228,8 @@ private final class InboxController {
         InboxFilterState(
             segment: tab == .open ? nil : String(describing: tab),
             assignedToMe: tab == .mine,
-            assigneeUserId: assignee?.user_id,
-            tagId: tag?.id,
+            assigneeUserId: self.assigneeUserId,
+            tagId: self.tagId,
             unreadOnly: unreadOnly,
             spamOnly: spamOnly,
             snoozedOnly: snoozedOnly,
@@ -241,8 +259,8 @@ private final class InboxController {
     func clearFilters() {
         if !isFiltered { return }
         tab = .open
-        assignee = nil
-        tag = nil
+        assigneeUserId = nil
+        tagId = nil
         unreadOnly = false
         spamOnly = false
         snoozedOnly = false
@@ -257,12 +275,12 @@ private final class InboxController {
     }
 
     func setAssigneeFilter(_ member: Member?) {
-        assignee = member
+        assigneeUserId = member?.user_id
         reload(showLoading: true)
     }
 
     func setTagFilter(_ next: Tag?) {
-        tag = next
+        tagId = next?.id
         reload(showLoading: true)
     }
 
@@ -297,12 +315,12 @@ private final class InboxController {
     ///
     /// Idempotent: arriving twice is arriving once.
     func landOnAwaiting() {
-        let alreadyThere = awaitingOnly && tab == .all && assignee == nil
-            && tag == nil && !unreadOnly && !spamOnly && !snoozedOnly
+        let alreadyThere = awaitingOnly && tab == .all && assigneeUserId == nil
+            && tagId == nil && !unreadOnly && !spamOnly && !snoozedOnly
         if alreadyThere { return }
         tab = .all
-        assignee = nil
-        tag = nil
+        assigneeUserId = nil
+        tagId = nil
         unreadOnly = false
         spamOnly = false
         snoozedOnly = false
@@ -323,8 +341,8 @@ private final class InboxController {
         }
         return ViewSelection(
             tab: mapped,
-            assigneeUserId: tab == .mine ? nil : assignee?.user_id,
-            tagId: tag?.id,
+            assigneeUserId: tab == .mine ? nil : assigneeUserId,
+            tagId: tagId,
             unreadOnly: unreadOnly,
             spamOnly: spamOnly,
             snoozedOnly: snoozedOnly,
@@ -344,8 +362,11 @@ private final class InboxController {
         case .all: tab = .all
         case .closed: tab = .closed
         }
-        assignee = selection.assigneeUserId.flatMap { id in members.first { $0.user_id == id } }
-        tag = selection.tagId.flatMap { id in allTags.first { $0.id == id } }
+        // #548: the ids, not a lookup. `members`/`allTags` may not have landed
+        // yet — a view applied on a cold start used to lose its assignee and tag
+        // to a `first` returning nil, and nothing said so.
+        assigneeUserId = selection.assigneeUserId
+        tagId = selection.tagId
         unreadOnly = selection.unreadOnly
         spamOnly = selection.spamOnly
         snoozedOnly = selection.snoozedOnly
@@ -444,8 +465,8 @@ private final class InboxController {
                 default: nil
                 }
             }(),
-            assignedUserId: tab == .mine ? meUserId : assignee?.user_id,
-            tagId: tag?.id,
+            assignedUserId: tab == .mine ? meUserId : assigneeUserId,
+            tagId: tagId,
             // Spam is hidden from defaults server-side; the chip reveals it.
             spam: spamOnly ? true : nil,
             unread: unreadOnly ? true : nil,
@@ -1360,7 +1381,7 @@ private struct FilterChipRow: View {
     }
 
     private var assigneeClear: (@MainActor () -> Void)? {
-        guard controller.assignee != nil else { return nil }
+        guard controller.assigneeUserId != nil else { return nil }
         return { controller.setAssigneeFilter(nil) }
     }
 
@@ -1370,7 +1391,7 @@ private struct FilterChipRow: View {
     }
 
     private var tagClear: (@MainActor () -> Void)? {
-        guard controller.tag != nil else { return nil }
+        guard controller.tagId != nil else { return nil }
         return { controller.setTagFilter(nil) }
     }
 
@@ -1380,14 +1401,14 @@ private struct FilterChipRow: View {
                 if controller.tab != .mine {
                     FilterChip(
                         label: assigneeLabel,
-                        selected: controller.assignee != nil,
+                        selected: controller.assigneeUserId != nil,
                         onTap: onPickAssignee,
                         onClear: assigneeClear
                     )
                 }
                 FilterChip(
                     label: tagLabel,
-                    selected: controller.tag != nil,
+                    selected: controller.tagId != nil,
                     onTap: onPickTag,
                     onClear: tagClear
                 )
@@ -1457,12 +1478,24 @@ private struct FilterChip: View {
     let onTap: @MainActor () -> Void
     let onClear: (@MainActor () -> Void)?
 
+    // #548: the pill's padding belongs to the BUTTONS, not to the HStack around
+    // them. Outside, it made the bare text glyph the only place a tap counted —
+    // pressing the visible capsule an eighth of an inch off the letters did
+    // nothing, on the row that is the whole filter UI. Explicit types because
+    // swiftc's checker gives up on inline ternaries in this file (CI run 7).
+    private var labelTrailing: CGFloat { onClear == nil ? 13 : 3 }
+    private var chipVertical: CGFloat { 10 }
+
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 0) {
             Button(action: onTap) {
                 Text(label)
                     .font(.golos(12, weight: selected ? .semibold : .medium))
                     .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted700)
+                    .padding(.leading, 13)
+                    .padding(.trailing, labelTrailing)
+                    .padding(.vertical, chipVertical)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             if let onClear {
@@ -1470,13 +1503,18 @@ private struct FilterChip: View {
                     Image(systemName: "xmark")
                         .font(.scaled(10, weight: .semibold))
                         .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted500)
+                        // A 10pt glyph is not a target. This gives the X its own
+                        // slice of the pill, wide enough to hit without aiming and
+                        // without stealing the taps meant for the label.
+                        .padding(.leading, 3)
+                        .padding(.trailing, 11)
+                        .padding(.vertical, chipVertical)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear filter")
             }
         }
-        .padding(.horizontal, 13)
-        .padding(.vertical, 8)
         .background(selected ? BrandColor.ink : BrandColor.paper, in: Capsule())
     }
 }

@@ -19,7 +19,9 @@ import { FilterBar } from "./filter-bar";
 import { GettingStartedCard } from "./getting-started-card";
 import {
   hasActiveFilters,
+  isSearchingInbox,
   parseInboxSearchParams,
+  searchQueryOf,
   serializeInboxFilters,
   toConversationFilters,
   type InboxUrlFilters,
@@ -79,8 +81,10 @@ export function InboxPane() {
     );
   }, [savedViews.data, searchParams, router, pathname]);
 
-  const q = filters.q?.trim() ?? "";
-  const searching = q.length >= 2;
+  const q = searchQueryOf(filters);
+  // #548: the same rule the filter bar goes quiet on. Written out twice, the
+  // bar could leave a status tab lit over results that ignore it.
+  const searching = isSearchingInbox(filters);
   const activeConversationId =
     typeof params.conversationId === "string" && params.conversationId !== "new"
       ? params.conversationId
