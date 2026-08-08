@@ -61,6 +61,8 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var confirming by remember { mutableStateOf(false) }
     var actionError by remember { mutableStateOf<String?>(null) }
+    var proof by remember { mutableStateOf<HandoverProof?>(null) }
+    var codeRejected by remember { mutableStateOf(false) }
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
 
@@ -99,6 +101,48 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
         }
     }
 
+    /**
+     * The two actions here that move a business, both of which the server refuses
+     * until it has seen a code (#537).
+     *
+     * This card matters MORE than the one on Team for this: the named backup often
+     * cannot open Team at all, so completing a takeover from here is the only path
+     * they have. Cancelling stays ungated — stopping a handover is the safe
+     * direction, and a code standing between somebody and "no" would be a trap.
+     */
+    fun attempt(pending: HandoverProof, code: String?) {
+        busy = true
+        actionError = null
+        coroutines.launch {
+            when (
+                val outcome =
+                    attemptHandover(scope, pending, code, alreadyOpen = proof != null)
+            ) {
+                is HandoverOutcome.Done -> {
+                    proof = null
+                    codeRejected = false
+                    confirming = false
+                    haptics.confirm()
+                    scope.showMessage(pending.label)
+                    onChanged()
+                }
+
+                is HandoverOutcome.NeedsCode -> {
+                    codeRejected = outcome.refused
+                    proof = pending.copy(kind = outcome.kind)
+                    actionError = null
+                }
+
+                is HandoverOutcome.Failed -> {
+                    actionError = outcome.message
+                    if (!confirming && proof == null) scope.showMessage(outcome.message)
+                }
+            }
+            busy = false
+            refreshKey++
+        }
+    }
+
     // PaperCard + the index's own 18/15 padding and micro-label caption, NOT
     // [SettingsCard]: that one carries its own 16dp horizontal inset for the
     // section screens, and inside the index's 18dp column it would sit visibly
@@ -133,9 +177,18 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
                     HandoverPrompt.ACCEPT_OFFER, HandoverPrompt.COMPLETE_CLAIM -> {
                         Button(
                             onClick = {
-                                run("You now own this workspace.") {
-                                    scope.repo.acceptOwnership(scope.companyId)
-                                }
+                                attempt(
+                                    HandoverProof(
+                                        action = "accept",
+                                        label = "You now own this workspace.",
+                                    ) { code ->
+                                        state = scope.repo.acceptOwnership(
+                                            scope.companyId,
+                                            code,
+                                        )
+                                    },
+                                    null,
+                                )
                             },
                             enabled = !busy,
                         ) {
@@ -189,9 +242,37 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
             error = actionError,
             onDismiss = { confirming = false },
             onConfirm = {
-                run("Asked. The owner has 7 days to stop it.") {
-                    scope.repo.claimOwnership(scope.companyId)
+                attempt(
+                    HandoverProof(
+                        action = "claim",
+                        label = "Asked. The owner has 7 days to stop it.",
+                    ) { code ->
+                        state = scope.repo.claimOwnership(scope.companyId, code)
+                    },
+                    null,
+                )
+            },
+        )
+    }
+
+    proof?.let { pending ->
+        HandoverConfirmDialog(
+            kind = pending.kind,
+            pending = busy,
+            rejected = codeRejected,
+            onConfirm = { code -> attempt(pending, code) },
+            onResend = {
+                coroutines.launch {
+                    runCatching {
+                        scope.repo.requestHandoverCode(scope.companyId, pending.action)
+                    }
+                    // Said either way. Whether an address exists is not ours to leak.
+                    scope.showMessage("Sent. Check your email.")
                 }
+            },
+            onDismiss = {
+                proof = null
+                codeRejected = false
             },
         )
     }

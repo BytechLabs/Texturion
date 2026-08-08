@@ -61,6 +61,8 @@ fun OwnershipCard(
     var confirming by remember { mutableStateOf<String?>(null) }
     var offerTo by remember { mutableStateOf<Member?>(null) }
     var actionError by remember { mutableStateOf<String?>(null) }
+    var proof by remember { mutableStateOf<HandoverProof?>(null) }
+    var codeRejected by remember { mutableStateOf(false) }
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
 
@@ -90,6 +92,51 @@ fun OwnershipCard(
         }
     }
 
+    /**
+     * The three actions that move a business, each of which the server refuses
+     * until it has seen a code (#537).
+     *
+     * A refusal naming one of the two proofs opens the dialog and the SAME attempt
+     * is retried with the code — held whole rather than rebuilt, because rebuilding
+     * it would be a chance to hand the business to somebody other than the person
+     * named in the first attempt. Every other refusal stays an error, so "a transfer
+     * is already in flight" is never dressed up as a code that could not have
+     * helped.
+     */
+    fun attempt(pending: HandoverProof, code: String?) {
+        busy = true
+        actionError = null
+        coroutines.launch {
+            val outcome = attemptHandover(scope, pending, code, alreadyOpen = proof != null)
+            when (outcome) {
+                is HandoverOutcome.Done -> {
+                    confirming = null
+                    proof = null
+                    codeRejected = false
+                    haptics.confirm()
+                    scope.showMessage(pending.label)
+                    onChanged()
+                }
+
+                is HandoverOutcome.NeedsCode -> {
+                    // A code that came back refused says so IN the dialog rather than
+                    // closing it — the next thing to do is ask for another one.
+                    codeRejected = outcome.refused
+                    proof = pending.copy(kind = outcome.kind)
+                    actionError = null
+                }
+
+                is HandoverOutcome.Failed -> {
+                    actionError = outcome.message
+                    if (confirming == null && proof == null) {
+                        scope.showMessage(outcome.message)
+                    }
+                }
+            }
+            busy = false
+        }
+    }
+
     SettingsCard(
         title = "Ownership",
         description = "The owner controls billing, the spending cap, and your numbers. " +
@@ -104,9 +151,13 @@ fun OwnershipCard(
                 canCancel = state.can_cancel,
                 busy = busy,
                 onAccept = {
-                    run("You now own this workspace.") {
-                        scope.repo.acceptOwnership(scope.companyId)
-                    }
+                    attempt(
+                        HandoverProof(
+                            action = "accept",
+                            label = "You now own this workspace.",
+                        ) { code -> scope.repo.acceptOwnership(scope.companyId, code) },
+                        null,
+                    )
                 },
                 onCancel = {
                     run("Stopped. Nothing changed hands.") {
@@ -236,9 +287,15 @@ fun OwnershipCard(
             onDismiss = { confirming = null },
             onConfirm = {
                 val target = offerTo ?: return@ConfirmDialog
-                run("Offered to ${nameOf(target.id)}. They have 7 days to accept.") {
-                    scope.repo.offerOwnership(scope.companyId, target.id)
-                }
+                attempt(
+                    HandoverProof(
+                        action = "offer",
+                        label = "Offered to ${nameOf(target.id)}. They have 7 days to accept.",
+                    ) { code ->
+                        scope.repo.offerOwnership(scope.companyId, target.id, code)
+                    },
+                    null,
+                )
             },
         )
 
@@ -253,13 +310,39 @@ fun OwnershipCard(
             error = actionError,
             onDismiss = { confirming = null },
             onConfirm = {
-                run("Asked. The owner has 7 days to stop it.") {
-                    scope.repo.claimOwnership(scope.companyId)
-                }
+                attempt(
+                    HandoverProof(
+                        action = "claim",
+                        label = "Asked. The owner has 7 days to stop it.",
+                    ) { code -> scope.repo.claimOwnership(scope.companyId, code) },
+                    null,
+                )
             },
         )
 
         else -> Unit
+    }
+
+    proof?.let { pending ->
+        HandoverConfirmDialog(
+            kind = pending.kind,
+            pending = busy,
+            rejected = codeRejected,
+            onConfirm = { code -> attempt(pending, code) },
+            onResend = {
+                coroutines.launch {
+                    runCatching {
+                        scope.repo.requestHandoverCode(scope.companyId, pending.action)
+                    }
+                    // Said either way. Whether an address exists is not ours to leak.
+                    scope.showMessage("Sent. Check your email.")
+                }
+            },
+            onDismiss = {
+                proof = null
+                codeRejected = false
+            },
+        )
     }
 }
 

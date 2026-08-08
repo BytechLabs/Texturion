@@ -278,28 +278,56 @@ struct SettingsRepository: Sendable {
     }
 
     /// Offer ownership. Nothing moves until the recipient accepts.
-    func offerOwnership(_ companyId: String, memberId: String) async throws -> Ownership {
-        try await api.post(
+    ///
+    /// `code` is the confirmation from an authenticator or an email (#537). Sent only
+    /// on a retry — the first attempt is what tells us which of the two the server
+    /// wants, and asking for a code nobody has been asked for yet is noise.
+    func offerOwnership(
+        _ companyId: String,
+        memberId: String,
+        code: String? = nil
+    ) async throws -> Ownership {
+        var body: [String: JSONValue] = ["member_id": .string(memberId)]
+        if let code { body["confirmation_code"] = .string(code) }
+        return try await api.post(
             "/v1/company/ownership/offer",
-            body: JSONValue.object(["member_id": .string(memberId)]),
+            body: JSONValue.object(body),
             companyId: companyId
         )
     }
 
     /// The named backup asks to take over. Starts the owner's veto window.
-    func claimOwnership(_ companyId: String) async throws -> Ownership {
+    func claimOwnership(_ companyId: String, code: String? = nil) async throws -> Ownership {
         try await api.post(
             "/v1/company/ownership/claim",
-            body: JSONValue.object([:]),
+            body: JSONValue.object(Self.confirmationBody(code)),
             companyId: companyId
         )
     }
 
     /// Accept an offer, or complete a claim whose waiting period is over.
-    func acceptOwnership(_ companyId: String) async throws -> Ownership {
+    func acceptOwnership(_ companyId: String, code: String? = nil) async throws -> Ownership {
         try await api.post(
             "/v1/company/ownership/accept",
-            body: JSONValue.object([:]),
+            body: JSONValue.object(Self.confirmationBody(code)),
+            companyId: companyId
+        )
+    }
+
+    /// A body carrying nothing but the confirmation code, when there is one (#537).
+    private static func confirmationBody(_ code: String?) -> [String: JSONValue] {
+        guard let code else { return [:] }
+        return ["confirmation_code": .string(code)]
+    }
+
+    /// Ask for a confirmation code by email (#537).
+    ///
+    /// Only for somebody with no authenticator. The answer is always "sent" whether or
+    /// not it was, so nothing here can be used to find out who holds an account.
+    func requestHandoverCode(_ companyId: String, action: String) async throws {
+        let _: JSONValue = try await api.post(
+            "/v1/company/ownership/confirm-code",
+            body: JSONValue.object(["action": .string(action)]),
             companyId: companyId
         )
     }

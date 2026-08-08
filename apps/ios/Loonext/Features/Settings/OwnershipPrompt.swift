@@ -32,6 +32,8 @@ struct OwnershipPrompt: View {
     @State private var busy = false
     @State private var confirmingClaim = false
     @State private var actionError: String?
+    @State private var proof: HandoverProof?
+    @State private var codeRejected = false
 
     var body: some View {
         Group {
@@ -97,20 +99,56 @@ struct OwnershipPrompt: View {
         // take over is the one action that STARTS something. Accepting does not
         // get a second sheet — by then the owner has already been told and has
         // already had their week.
-        .sheet(isPresented: $confirmingClaim) {
-            ConfirmSheet(
-                title: "Ask to take over this workspace?",
-                message: "The owner will be emailed straight away and can stop this with "
-                    + "one click for the next 7 days. Everyone on the team is told too. "
-                    + "If nobody stops it, you can complete the takeover after 7 days. "
-                    + "Only do this if the owner genuinely cannot act.",
-                confirmLabel: "Ask to take over",
-                pending: busy,
-                error: actionError,
-                onConfirm: { claim() },
-                onDismiss: { confirmingClaim = false }
-            )
+        //
+        // ONE sheet, two faces (#537). When the server asks for a code the CONTENT
+        // changes and the sheet itself is never dismissed and re-presented — a swap of
+        // two sheets at the same level is where SwiftUI drops the second one, and this
+        // file cannot be run on the machine it was written on.
+        .sheet(isPresented: sheetUp) {
+            if let pending = proof {
+                HandoverProofSheet(
+                    kind: pending.kind,
+                    pending: busy,
+                    rejected: codeRejected,
+                    onConfirm: { code in attempt(pending, code: code) },
+                    onResend: { resendCode(pending) },
+                    onDismiss: { dismissSheet() }
+                )
+            } else {
+                ConfirmSheet(
+                    title: "Ask to take over this workspace?",
+                    message: "The owner will be emailed straight away and can stop this with "
+                        + "one click for the next 7 days. Everyone on the team is told too. "
+                        + "If nobody stops it, you can complete the takeover after 7 days. "
+                        + "Only do this if the owner genuinely cannot act.",
+                    confirmLabel: "Ask to take over",
+                    pending: busy,
+                    error: actionError,
+                    onConfirm: { claim() },
+                    onDismiss: { confirmingClaim = false }
+                )
+            }
         }
+    }
+
+    /// Is a sheet up, whichever face it is wearing?
+    ///
+    /// One binding rather than two presentations: accepting an offer has no
+    /// confirmation of its own, so a code demand has to be able to raise the sheet by
+    /// itself — and when the claim confirmation is already up, a code demand must
+    /// change its face rather than fight it for the screen.
+    private var sheetUp: Binding<Bool> {
+        Binding(
+            get: { confirmingClaim || proof != nil },
+            set: { up in if !up { dismissSheet() } }
+        )
+    }
+
+    /// Swiped away rather than answered: the whole handover is off, not just the code.
+    private func dismissSheet() {
+        confirmingClaim = false
+        proof = nil
+        codeRejected = false
     }
 
     // MARK: - Actions
@@ -145,10 +183,61 @@ struct OwnershipPrompt: View {
         }
     }
 
-    private func accept() {
-        run("You now own this workspace.") {
-            try await scope.repo.acceptOwnership(scope.companyId)
+    /// The two actions here that move a business, both of which the server refuses
+    /// until it has seen a code (#537).
+    ///
+    /// This card matters MORE than the one on Team for this: the named backup often
+    /// cannot open Team at all, so completing a takeover from here is the only path
+    /// they have. Cancelling stays ungated — stopping a handover is the safe
+    /// direction, and a code standing between somebody and "no" would be a trap.
+    private func attempt(_ pending: HandoverProof, code: String?) {
+        busy = true
+        actionError = nil
+        Task {
+            let outcome = await attemptHandover(
+                scope: scope, proof: pending, code: code, alreadyOpen: proof != nil
+            )
+            switch outcome {
+            case .done:
+                proof = nil
+                codeRejected = false
+                confirmingClaim = false
+                scope.showMessage(pending.label)
+                onChanged()
+
+            case let .needsCode(kind, refused):
+                codeRejected = refused
+                actionError = nil
+                proof = pending.with(kind: kind)
+
+            case let .failed(message):
+                actionError = message
+                if !confirmingClaim, proof == nil { scope.showMessage(message) }
+            }
+            busy = false
+            reloadKey += 1
         }
+    }
+
+    private func resendCode(_ pending: HandoverProof) {
+        Task {
+            try? await scope.repo.requestHandoverCode(
+                scope.companyId, action: pending.action
+            )
+            // Said either way. Whether an address exists is not ours to leak.
+            scope.showMessage("Sent. Check your email.")
+        }
+    }
+
+    private func accept() {
+        let companyId = scope.companyId
+        let repo = scope.repo
+        attempt(
+            HandoverProof(action: "accept", label: "You now own this workspace.") { code in
+                state = try await repo.acceptOwnership(companyId, code: code)
+            },
+            code: nil
+        )
     }
 
     private func cancel() {
@@ -158,8 +247,16 @@ struct OwnershipPrompt: View {
     }
 
     private func claim() {
-        run("Asked. The owner has 7 days to stop it.") {
-            try await scope.repo.claimOwnership(scope.companyId)
-        }
+        let companyId = scope.companyId
+        let repo = scope.repo
+        attempt(
+            HandoverProof(
+                action: "claim",
+                label: "Asked. The owner has 7 days to stop it."
+            ) { code in
+                state = try await repo.claimOwnership(companyId, code: code)
+            },
+            code: nil
+        )
     }
 }

@@ -256,21 +256,56 @@ class SettingsRepository(
             companyId = companyId,
         )
 
-    /** Offer ownership. Nothing moves until the recipient accepts. */
-    suspend fun offerOwnership(companyId: String, memberId: String): Ownership =
+    /**
+     * Offer ownership. Nothing moves until the recipient accepts.
+     *
+     * `code` is the confirmation from an authenticator or an email (#537). Sent only
+     * on a retry — the first attempt is what tells us which of the two the server
+     * wants, and asking for a code nobody has been asked for yet is noise.
+     */
+    suspend fun offerOwnership(
+        companyId: String,
+        memberId: String,
+        code: String? = null,
+    ): Ownership =
         api.post(
             "/v1/company/ownership/offer",
-            buildJsonObject { put("member_id", memberId) },
+            buildJsonObject {
+                put("member_id", memberId)
+                if (code != null) put("confirmation_code", code)
+            },
             companyId = companyId,
         )
 
     /** The named backup asks to take over. Starts the owner's veto window. */
-    suspend fun claimOwnership(companyId: String): Ownership =
-        api.post("/v1/company/ownership/claim", companyId = companyId)
+    suspend fun claimOwnership(companyId: String, code: String? = null): Ownership =
+        api.post(
+            "/v1/company/ownership/claim",
+            buildJsonObject { if (code != null) put("confirmation_code", code) },
+            companyId = companyId,
+        )
 
     /** Accept an offer, or complete a claim whose waiting period is over. */
-    suspend fun acceptOwnership(companyId: String): Ownership =
-        api.post("/v1/company/ownership/accept", companyId = companyId)
+    suspend fun acceptOwnership(companyId: String, code: String? = null): Ownership =
+        api.post(
+            "/v1/company/ownership/accept",
+            buildJsonObject { if (code != null) put("confirmation_code", code) },
+            companyId = companyId,
+        )
+
+    /**
+     * Ask for a confirmation code by email (#537).
+     *
+     * Only for somebody with no authenticator. The answer is always "sent" whether
+     * or not it was, so nothing here can be used to find out who holds an account.
+     */
+    suspend fun requestHandoverCode(companyId: String, action: String) {
+        api.post<JsonObject, JsonObject>(
+            "/v1/company/ownership/confirm-code",
+            buildJsonObject { put("action", action) },
+            companyId = companyId,
+        )
+    }
 
     /** The owner's veto and the recipient's decline are the same call. */
     suspend fun cancelOwnershipTransfer(companyId: String): Ownership =
