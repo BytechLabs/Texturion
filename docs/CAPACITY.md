@@ -256,6 +256,53 @@ place telling the truth. Fixed by putting `ORDER BY` inside all nine aggregates.
 milliseconds. It is that a plan chosen for 50,000 rows is a different plan, and it
 is the only thing that exercises the assumptions an empty-table test cannot reach.
 
+### The index finally earns its place — FIXED 2026-08-07 (#535)
+
+**Where the hot queries actually stand now**, at 50,000 conversations / 200,000
+messages, against the original 2026-08-02 figures at the top of this section:
+
+| query | 2026-08-02 | now | |
+|---|---|---|---|
+| `api_for_you` | 227.7 ms | **104.2 ms** | 2.2× |
+| inbox, first page | 501.4 ms | **63.0 ms** | **8.0×** |
+| `status=open` | 220.2 ms | **38.7 ms** | 5.7× |
+| search | 191.5 ms | **54.2 ms** | 3.5× |
+
+The remaining ~160 ms this document attributed to the plan cache was **one clause**,
+and the diagnosis in §1 and in #535 was wrong about it. The search filter read the
+joined contact:
+
+```sql
+join public.contacts ct on ct.id = c.contact_id
+...
+and (p_q is null or ct.name ilike ... or ct.phone_e164 ilike ...)
+```
+
+A disjunction mentioning a column of the joined table cannot be evaluated before
+the join, so the join was formed for the whole workspace and the newest thirty
+found by sorting all of it — no ordered index is reachable from that shape, whatever
+indexes exist. As a semi-join the predicate belongs to `conversations` alone,
+`contacts` leaves the page query, and an ordered index scan reads thirty rows and
+stops. Everything else held equal: **156 ms against 0.65 ms**.
+
+**And this is where `(company_id, is_spam, last_message_at desc, id desc)` stops
+being useless.** This document says twice that the index changed nothing, and both
+times that was accurate — while the plan was a sort over the whole workspace there
+was nothing for it to do. It shipped in the same migration as the clause that makes
+it reachable, because either alone is a cost with no return.
+
+**The plan-cache theory was tested, not assumed, and it was wrong.** Under
+`plan_cache_mode = force_generic_plan` — the worst case, no literals at all — the
+rewritten shape still uses the index and still returns in under a millisecond.
+Forcing the opposite, `force_custom_plan` on the function, changed nothing (211 ms).
+So no dynamic SQL was written, and none of the injection surface that made #535 the
+risky option was introduced.
+
+**One honest cost:** the new index is maintained on every write to
+`conversations`. Bulk-seeding 50,000 rows got materially slower, which is the
+expected shape — that is 50,000 index inserts in one go, not the one-at-a-time
+writes real traffic makes. It has not been measured against a realistic write mix.
+
 ---
 
 ## 2. What is NOT measured, and why not
