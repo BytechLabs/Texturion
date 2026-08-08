@@ -780,16 +780,3 @@ export {
   type PortPreCutoverItem,
 } from "./porting";
 
-// #509: live-call capture is OFF, and this module is where that is decided. The
-// export exists so the call machine and the clients cannot each invent their own
-// answer to "may this be captured" — see the file for the two legal forks that
-// keep it disabled.
-export {
-  DIARIZATION_REFUSED,
-  LIVE_CALL_CAPTURE_ENABLED,
-  liveCallCaptureDecision,
-  partyAddedDuringCapture,
-  type LiveCallCaptureDecision,
-  type LiveCallCaptureRefusal,
-  type LiveCallLegConsent,
-} from "./live-call-consent";

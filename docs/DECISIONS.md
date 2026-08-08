@@ -7520,3 +7520,49 @@ enrolled passkey on a second device, which is a thing to require, not to assume.
 factor), D69, `docs/ACCOUNT-RECOVERY.md`, and the D8 boundary that keeps
 enrolment talking to GoTrue directly while the Worker issues only what Supabase
 does not.
+
+## D126 — live call recording and summaries are dropped, not deferred (#509, 2026-08-07)
+
+**Decision.** The product will not capture, transcribe or summarise a live call.
+#509 is closed as won't-build, the consent machinery written for it is deleted
+rather than parked, and this supersedes the "buildable, but not on the
+justification originally given" position D117 left open.
+
+**Why, and it is the owner's call rather than an engineering one.** The feature is
+buildable and the engineering was written — per-leg announcement gated on
+completion, one un-announced party refusing the whole call, a decline ending it
+permanently, no retroactive capture. What it is not is *answerable*: whether a
+diarizing pipeline captures a biometric identifier under BIPA 740 ILCS 14/15(b)
+and Texas CUBI §503.001 is being litigated right now, and no phone prompt produces
+the written release those statutes want from a homeowner who has no account with
+us. Texas is a one-party wiretap state, so that exposure survives entirely outside
+the all-party consent map that the rest of the design was built around.
+
+**The alternative was worse than not having it.** Shipping it geo-gated off in
+Illinois, Texas, Washington and Quebec, with no speaker labelling anywhere, gives
+a materially weaker feature — an undifferentiated transcript rather than "the
+customer asked X, the tech quoted Y" — while still requiring a
+consent-to-intercept clause in the Terms and still resting on an unanswered
+question. Paying the full compliance cost for the diminished version is the worst
+of both.
+
+**What we keep, and it was always the larger share of the value.** #507's Phase 1
+ships the wrap-up the crew dictates themselves. No other party is recorded, no
+announcement is needed, no statute is engaged, and the thing an owner actually
+wanted — "what came out of that call" written down without typing it — is
+delivered.
+
+**The code is deleted, not disabled.** A hard-disabled module for a dropped
+feature is dead code that reads as a plan, and the next person to find it would
+reasonably assume it is waiting for a flag rather than abandoned. The rules are
+recorded in this entry; that is the durable form.
+
+**Reopen only if** counsel answers the voiceprint question affirmatively for a
+non-persisting diarizer AND there is a customer asking for it, in that order. The
+requirements are in #509's history and in this entry, so nothing needs
+rediscovering.
+
+**Consistency:** supersedes the open half of D117 and the "no recording" half of
+D112 (which stands — this makes it permanent rather than provisional), #507
+(Phase 1, shipped), and the cost-protection instinct that a feature nobody has
+asked for should not carry a criminal-statute exposure.
