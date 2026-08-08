@@ -51,6 +51,23 @@ export const COMPANY_COLUMNS =
   // and leaves the other making an offer nobody answers.
   "business_hours,business_hours_exceptions,away_enabled,away_message," +
   "emergency_keyword_enabled,emergency_keywords,emergency_message," +
+  // #552 — THESE FIVE WERE WRITABLE AND UNREADABLE, which is the worst pairing
+  // of the two. `PATCH /v1/company` has accepted all of them for months
+  // (routes/companies.ts) and this select list never carried any of them, so the
+  // value saved fine and the screen went back to showing the default. On Android
+  // permanently: `CallingSection.kt` reads `company.ring_strategy`, the model
+  // declares `String = "all"`, and an absent key means the default wins forever.
+  // On web the control renders with nothing selected at all.
+  //
+  // The founder reported this shape on the notifications screen and asked us to
+  // "find and discover all issues of this kind". This is one, in the calling
+  // screen, and `company-view.writable.test.ts` now fails on the next one.
+  "after_hours_calls,after_hours_greeting_id," +
+  "ring_strategy,ring_seconds," +
+  // And a FIFTH, which the new guard found on its first run rather than a person
+  // finding it in production: the workspace's default voicemail greeting could be
+  // chosen and always read back as "none".
+  "voicemail_greeting_id," +
   // #388: the unanswered-lead ladder switches.
   // #228: the language automated texts go out in, and the default every
   // contact without one of its own inherits.

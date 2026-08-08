@@ -120,7 +120,17 @@ const dayHoursSchema = z.object({
   close: z.string(),
 });
 
-const patchSchema = z
+/**
+ * Exported for `company-view.writable.test.ts` only.
+ *
+ * #552: a field this schema accepts and `COMPANY_COLUMNS` does not select is a
+ * setting that saves and then shows its default forever. That happened to four
+ * calling controls, and to the notification preferences before them, and both
+ * times it was invisible because nothing compared the two lists. Exporting the
+ * schema is what lets a test compare them by IDENTITY rather than by parsing
+ * source, so it cannot go stale the way a hand-written roster would.
+ */
+export const patchSchema = z
   .object({
     name: z.string().trim().min(1).max(200).optional(),
     timezone: z.string().trim().min(1).max(100).optional(),
