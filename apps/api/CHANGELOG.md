@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.13.0](https://github.com/BytechLabs/Texturion/compare/api-v0.12.0...api-v0.13.0) (2026-08-08)
+
+
+### Features
+
+* **api:** ask for a code before the business changes hands ([7c24dd4](https://github.com/BytechLabs/Texturion/commit/7c24dd4366c71d065c1ddf0a5f468ebd7f6e8e19)), closes [#537](https://github.com/BytechLabs/Texturion/issues/537)
+* **api:** send the handover code, and require it from owners with no app ([68d74c3](https://github.com/BytechLabs/Texturion/commit/68d74c3b3a67b544d8bedd5014e0b7090ead72ad)), closes [#537](https://github.com/BytechLabs/Texturion/issues/537)
+* ask who you are before the doors that don't reopen ([d3ac642](https://github.com/BytechLabs/Texturion/commit/d3ac642ee535ed6c2a575dffa3fd86d0c65d2539)), closes [#537](https://github.com/BytechLabs/Texturion/issues/537)
+
+
+### Bug Fixes
+
+* **api:** make taking your own access away deliberate ([12c7b24](https://github.com/BytechLabs/Texturion/commit/12c7b24f1310b82a1939c20537880c76b29776bd)), closes [#538](https://github.com/BytechLabs/Texturion/issues/538)
+* **api:** register the confirmation table as tenant-scoped ([d5746f5](https://github.com/BytechLabs/Texturion/commit/d5746f5936bf94527835467188d576fadcffa15d)), closes [#537](https://github.com/BytechLabs/Texturion/issues/537)
+* **api:** type the refusal body the ownership test reads ([73867e9](https://github.com/BytechLabs/Texturion/commit/73867e9a37f28dcbe92610743d274087e1380979)), closes [#537](https://github.com/BytechLabs/Texturion/issues/537)
+
 ## [0.12.0](https://github.com/BytechLabs/Texturion/compare/api-v0.11.1...api-v0.12.0) (2026-08-08)
 
 
