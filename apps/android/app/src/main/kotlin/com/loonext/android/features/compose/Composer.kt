@@ -89,6 +89,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.loonext.android.core.time.TwoClocks
 import com.loonext.android.features.thread.MentionLogic
 import com.loonext.android.features.thread.MentionableMember
 import com.loonext.android.features.thread.PickedMention
@@ -111,6 +112,7 @@ import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
 import java.io.ByteArrayOutputStream
+import java.time.ZoneId
 import java.time.Instant
 import java.util.Locale
 import kotlin.math.abs
@@ -707,9 +709,17 @@ fun ThreadComposer(
                     quietConfirmFor = null
                     state.clearForSend()
                     templateUse = null
+                    // #539: the confirmation names the clock too. It used to
+                    // render the customer's time unlabelled, so the one sentence
+                    // telling somebody what they had just scheduled was the same
+                    // trap as the queued row it was confirming.
                     onNotice(
-                        "Sending ${sendAtLabel(at, destinationZone(destinationClock))}. " +
-                            ScheduledSend.copy("picker_reassurance"),
+                        "Sending ${
+                            TwoClocks.bothClocks(
+                                sendAtLabel(at, destinationZone(destinationClock)),
+                                sendAtLabel(at, ZoneId.systemDefault()),
+                            )
+                        }. " + ScheduledSend.copy("picker_reassurance"),
                     )
                 }
 

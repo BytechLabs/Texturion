@@ -1153,8 +1153,12 @@ struct ThreadComposerView: View {
                 quietConfirmFor = nil
                 state.clearForSend()
                 templateUse = nil
+                // #539: the confirmation names the clock too. It used to render
+                // the customer's time unlabelled, so the one sentence telling
+                // somebody what they had just scheduled was the same trap as the
+                // queued row it was confirming.
                 onNotice(
-                    "Sending \(sendAtLabel(at, in: destinationZone(destinationClock))). "
+                    "Sending \(TwoClocks.bothClocks(sendAtLabel(at, in: destinationZone(destinationClock)), sendAtLabel(at, in: .current))). "
                         + ScheduledSend.copyLine("picker_reassurance")
                 )
             case .needsQuietHoursConfirm:
