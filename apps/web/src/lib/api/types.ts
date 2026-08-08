@@ -161,6 +161,17 @@ export interface Membership {
   name: string;
   role: MemberRole;
   subscription_status: SubscriptionStatus;
+  /**
+   * #540: the dashboard panels THIS member has put away in THIS workspace.
+   *
+   * On the membership rather than on `Me`, because it belongs to the pair: the
+   * bookkeeper and the foreman are the same two people in one workspace, and
+   * somebody in two workspaces reasonably wants a different screen in each.
+   *
+   * Optional so a client running ahead of a Worker still parses — absent means
+   * nothing hidden, which is the same as the default.
+   */
+  dashboard_hidden?: string[];
 }
 
 /** GET /v1/me — optionally hydrated with `company` when X-Company-Id is sent. */

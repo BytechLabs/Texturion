@@ -83,6 +83,13 @@ const SELF_SCOPED_WRITES = new Set([
   // comes from the verified session — so there is nobody it could be said on
   // behalf of, and it pairs with a read every role already holds.
   "POST /me/oriented",
+  // #540: which measures YOU have taken off YOUR OWN landing screen. The user id
+  // comes from the verified session and the company from the context middleware,
+  // so there is no body a caller can send that rearranges somebody else's
+  // dashboard — and the SQL touches exactly one column of one membership row.
+  // Gating it on anything higher would mean a member cannot tidy their own
+  // screen, which is the whole feature.
+  "PUT /me/dashboard",
 ]);
 
 /**

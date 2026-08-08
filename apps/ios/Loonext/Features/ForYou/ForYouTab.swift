@@ -50,6 +50,50 @@ struct ForYouTab: View {
     /// after the reader has wandered off it, and an unchanged command says
     /// nothing new to the inbox.
     @State private var unansweredTaps = 0
+    /// #540: which panels this member has put away.
+    ///
+    /// Held here as well as read from `me` because the toggle is OPTIMISTIC — the
+    /// switch has to move on the tap, not a round trip later, and `me` is owned by
+    /// the shell and will not refresh until the next app load. `nil` means "not
+    /// seeded yet", so the membership's value is used until somebody changes
+    /// something; that distinction is why this is not simply `[]`.
+    @State private var hiddenOverride: [String]?
+    @State private var customiseOpen = false
+    @State private var customiseFailed = false
+
+    /// The set to render from: whatever this session last chose, else the server's.
+    private var hidden: [String] {
+        hiddenOverride
+            ?? me.memberships.first { $0.company_id == companyId }?.dashboard_hidden
+            ?? []
+    }
+
+    /// #540: the whole set goes up, matching the route — the body describes the
+    /// screen they want rather than a delta against a state two devices may
+    /// disagree about. On failure the row goes back to exactly what it was, so a
+    /// dropped connection never leaves the phone showing a preference the server
+    /// has not got.
+    private func toggle(_ panel: DashboardPanels.Panel, _ visible: Bool) {
+        let before = hidden
+        let next = DashboardPanels.normalise(
+            visible
+                ? before.filter { $0 != panel.rawValue }
+                : before + [panel.rawValue]
+        ).map(\.rawValue)
+        hiddenOverride = next
+        customiseFailed = false
+        Task {
+            do {
+                try await graph.meApi.setDashboardHidden(
+                    companyId: companyId,
+                    hidden: next
+                )
+            } catch {
+                hiddenOverride = before
+                customiseFailed = true
+            }
+        }
+    }
 
     var body: some View {
         Group {
@@ -105,9 +149,19 @@ struct ForYouTab: View {
                             token: unansweredTaps
                         )
                         AppRouter.shared.openInbox = true
-                    }
+                    },
+                    // #540: what this member has put away, and the door to change it.
+                    hidden: hidden,
+                    onCustomise: { customiseOpen = true }
                 )
             }
+        }
+        .sheet(isPresented: $customiseOpen, onDismiss: { customiseFailed = false }) {
+            CustomiseSheet(
+                hidden: hidden,
+                onToggle: { panel, visible in toggle(panel, visible) },
+                failed: customiseFailed
+            )
         }
         .task(id: "\(companyId)#\(refreshKey)") { await reload() }
         .task(id: "\(companyId)#\(refreshKey)") { await reloadSpamReview() }
@@ -250,6 +304,10 @@ private struct ForYouList: View {
     let onOpenSettings: @MainActor (SettingsSection) -> Void
     /// #508: the response-time card's unanswered row. Required — see the card.
     let onOpenUnanswered: @MainActor () -> Void
+    /// #540: the panels this member has put away. Empty for almost everybody.
+    let hidden: [String]
+    /// #540: opens the Customise sheet.
+    let onCustomise: @MainActor () -> Void
 
     /// #306: the work, not the page. Counting the rows meant a member 60
     /// conversations behind read "20 things need you", and the queue looked
@@ -295,29 +353,40 @@ private struct ForYouList: View {
                 // #239 — the claim we sell, measured. Above the queue because the
                 // arc is the reason a contractor stays, and it is a result to
                 // read rather than a task to do.
-                ResponseTimeCard(
-                    report: responseTime,
-                    days: responseDays,
-                    onWindow: onResponseWindow,
-                    onOpenUnanswered: onOpenUnanswered
-                )
+                // #540: each measure can be put away from Customise. Gated here
+                // rather than inside each card, so a hidden panel contributes no
+                // stack spacing and leaves no gap where a card used to be.
+                if DashboardPanels.isVisible(hidden, .responseTime) {
+                    ResponseTimeCard(
+                        report: responseTime,
+                        days: responseDays,
+                        onWindow: onResponseWindow,
+                        onOpenUnanswered: onOpenUnanswered
+                    )
+                }
                 // #354: beside its neighbour, and absent entirely until there
                 // is something true to say.
-                PipelineCard(report: pipeline)
+                if DashboardPanels.isVisible(hidden, .pipeline) {
+                    PipelineCard(report: pipeline)
+                }
                 // #301: last of the four, because it answers a slower question
                 // than the three above it — next month's spending rather than
                 // this week's work.
-                LeadSourcesCard(report: leadSources)
+                if DashboardPanels.isVisible(hidden, .leadSources) {
+                    LeadSourcesCard(report: leadSources)
+                }
                 // #313: directly under the speed number on purpose. How fast
                 // you answered and whether it landed are one thought, and
                 // separating them onto two screens is how a business optimises
                 // the first while the second quietly slides.
-                SatisfactionCard(
-                    report: satisfaction,
-                    days: responseDays,
-                    onWindow: onResponseWindow,
-                    onOpenPoor: onOpenUnanswered
-                )
+                if DashboardPanels.isVisible(hidden, .satisfaction) {
+                    SatisfactionCard(
+                        report: satisfaction,
+                        days: responseDays,
+                        onWindow: onResponseWindow,
+                        onOpenPoor: onOpenUnanswered
+                    )
+                }
                 // #342: above the queue, because "you're all caught up" is not
                 // true if somebody has been texting a thread nobody can see.
                 spamReviewSection
@@ -353,13 +422,47 @@ private struct ForYouList: View {
     }
 
     private var heading: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            ScreenTitle(text: "For you")
-            Text(subtitle)
-                .font(.golos(13))
-                .foregroundStyle(BrandColor.muted600)
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
+                ScreenTitle(text: "For you")
+                Text(subtitle)
+                    .font(.golos(13))
+                    .foregroundStyle(BrandColor.muted600)
+            }
+            Spacer(minLength: 0)
+            // #540: quiet, and to the side. THE DOT MATTERS MORE THAN IT LOOKS
+            // LIKE IT DOES — somebody who put two panels away in April has no
+            // other way to find out why their screen is shorter than a
+            // colleague's, and "the app is missing the pipeline card" is a
+            // support conversation nobody can win.
+            Button(action: onCustomise) {
+                Image(systemName: "slider.horizontal.3")
+                    // Scaled, so the glyph grows with the reader's font setting
+                    // rather than staying 15pt for somebody who asked for larger.
+                    .font(.scaled(15, weight: .medium))
+                    .foregroundStyle(BrandColor.muted700)
+                    .frame(width: 40, height: 40)
+                    .background(BrandColor.paper, in: Circle())
+                    .overlay(alignment: .topTrailing) {
+                        if !hidden.isEmpty {
+                            Circle()
+                                .fill(BrandColor.lime)
+                                .frame(width: 8, height: 8)
+                                .overlay(Circle().stroke(BrandColor.canvas, lineWidth: 2))
+                        }
+                    }
+            }
+            .accessibilityLabel(customiseLabel)
         }
         .padding(.bottom, 2)
+    }
+
+    /// The control's accessible name, carrying the count the dot only hints at.
+    private var customiseLabel: String {
+        let count = DashboardPanels.normalise(hidden).count
+        if count == 0 { return "Customise this screen" }
+        let noun = count == 1 ? "panel" : "panels"
+        return "Customise this screen — \(count) \(noun) put away"
     }
 
     /// #342 — the spam marks that do not look like spam, and the two answers.
@@ -567,8 +670,20 @@ private struct ForYouList: View {
     // Recent calls (#161/D43) — the mobile doorway into the Calls surface.
     // Hidden entirely while loading or empty; an honest error line when the
     // log couldn't load (Android twin parity).
+    // #540: and hideable, unlike everything above it in the queue. Calls already
+    // happened — this is history a member reads, not work they owe anybody, so it
+    // is the one section here that can come off.
     @ViewBuilder
     private var recentCallsSection: some View {
+        if !DashboardPanels.isVisible(hidden, .recentCalls) {
+            EmptyView()
+        } else {
+            recentCallsBody
+        }
+    }
+
+    @ViewBuilder
+    private var recentCallsBody: some View {
         switch recentCalls {
         case .loading:
             EmptyView()
@@ -826,7 +941,10 @@ private func previewCall(
         company: nil,
         onOpenContacts: {},
         onOpenSettings: { _ in },
-        onOpenUnanswered: {}
+        onOpenUnanswered: {},
+        // #540: previews render the whole screen — nothing put away.
+        hidden: [],
+        onCustomise: {}
     )
 }
 
@@ -852,7 +970,10 @@ private func previewCall(
         company: nil,
         onOpenContacts: {},
         onOpenSettings: { _ in },
-        onOpenUnanswered: {}
+        onOpenUnanswered: {},
+        // #540: previews render the whole screen — nothing put away.
+        hidden: [],
+        onCustomise: {}
     )
 }
 
@@ -897,7 +1018,10 @@ private func previewCall(
         company: nil,
         onOpenContacts: {},
         onOpenSettings: { _ in },
-        onOpenUnanswered: {}
+        onOpenUnanswered: {},
+        // #540: previews render the whole screen — nothing put away.
+        hidden: [],
+        onCustomise: {}
     )
 }
 

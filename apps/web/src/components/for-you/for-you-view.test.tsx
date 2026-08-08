@@ -5,7 +5,7 @@
  * absent while there are no calls.
  */
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Call, ForYou, SpamReviewItem } from "@/lib/api/types";
 
@@ -14,10 +14,13 @@ const state: {
   forYou: ForYou;
   calls: Call[];
   spamReview: SpamReviewItem[];
+  /** #540: the panels this member has put away. */
+  hidden: string[];
 } = {
   forYou: { waiting_on_you: [], my_tasks: [], unread: [], triage: null },
   calls: [],
   spamReview: [],
+  hidden: [],
 };
 
 // #416: deliberately a plain MEMBER, not an owner. Before #416 this flip
@@ -75,6 +78,10 @@ vi.mock("@/lib/api/for-you", () => ({
 // module-level env validation into a test about queue rendering.
 vi.mock("@/lib/api/me-company", () => ({
   useMeCompany: () => ({ data: undefined }),
+  // #540: the customise preference, driven from `state` so the tests below can
+  // assert that a panel a member put away actually stays off the screen.
+  useHiddenPanels: () => state.hidden,
+  useSetHiddenPanels: () => ({ mutate: vi.fn(), isError: false }),
 }));
 
 vi.mock("@/lib/api/conversations", () => ({
@@ -155,6 +162,13 @@ const followUpItem = {
 function render(): string {
   return renderToStaticMarkup(<ForYouView />);
 }
+
+// #540: nothing put away unless a test says so. Without this, one test hiding a
+// panel silently changes every test written after it, and the failure surfaces
+// somewhere unrelated.
+beforeEach(() => {
+  state.hidden = [];
+});
 
 describe("ForYouView follow-up reminders (#293)", () => {
   it("leads with the reason, above everything else in the queue", () => {
@@ -723,5 +737,73 @@ describe("#540 the bento gives the widest slot to the queue that needs it", () =
     // Four cards in one grid at xl. Stacking them full width across a wide screen
     // was the dead space this issue opened with.
     expect(render()).toContain("xl:grid-cols-4");
+  });
+});
+
+describe("ForYouView customising (#540)", () => {
+  it("keeps a panel off the screen when the member has put it away", () => {
+    state.forYou = queue({ waiting_on_you: [waitingItem] });
+    state.calls = [call()];
+    expect(render()).toContain("Recent calls");
+
+    state.hidden = ["recent_calls"];
+    expect(render()).not.toContain("Recent calls");
+  });
+
+  it("honours the same preference on a caught-up morning", () => {
+    // TWO STATES, ONE PREFERENCE. The dashboard renders the measures in a
+    // working queue AND under the caught-up card, and the second one is exactly
+    // where a preference gets forgotten — it is the branch nobody looks at while
+    // building the busy one.
+    state.forYou = queue();
+    state.calls = [call()];
+    const busy = render();
+    expect(busy).toContain("You&#x27;re all caught up.");
+    expect(busy).toContain("Recent calls");
+
+    state.hidden = ["recent_calls"];
+    expect(render()).not.toContain("Recent calls");
+  });
+
+  it("offers no way to hide the queue", () => {
+    // THE LINE. Hiding unclaimed work is not a preference — it is a way to stop
+    // seeing customers nobody answered. Sending a queue id must change nothing,
+    // and the shared module plus the API both refuse it; this is the third place,
+    // asserting the SCREEN does not honour it either.
+    state.forYou = queue({ waiting_on_you: [waitingItem] });
+    state.hidden = ["waiting", "unassigned", "tasks", "unread"];
+    const html = render();
+    expect(html).toContain("Waiting on you");
+    expect(html).toContain("Wendy Lead");
+  });
+
+  it("marks the control when something is put away, and not before", () => {
+    state.forYou = queue({ waiting_on_you: [waitingItem] });
+    // The dot is the only way somebody finds out why their dashboard is shorter
+    // than a colleague's months after they trimmed it.
+    expect(render()).toContain("Customise this screen");
+    expect(render()).not.toContain("put away");
+
+    state.hidden = ["pipeline", "recent_calls"];
+    expect(render()).toContain("2 panels put away");
+  });
+
+  it("says panel, not panels, for one", () => {
+    state.forYou = queue({ waiting_on_you: [waitingItem] });
+    state.hidden = ["pipeline"];
+    expect(render()).toContain("1 panel put away");
+  });
+
+  it("draws no empty grid when every measure is off", () => {
+    // An empty grid still carries its gap, so the screen keeps a band of space
+    // that reads as four panels failing to load.
+    state.forYou = queue({ waiting_on_you: [waitingItem] });
+    state.hidden = [
+      "response_time",
+      "pipeline",
+      "satisfaction",
+      "lead_sources",
+    ];
+    expect(render()).not.toContain("xl:grid-cols-4");
   });
 });

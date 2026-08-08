@@ -68,6 +68,23 @@ class MeRepository(private val api: ApiClient) {
      */
     suspend fun markOriented(companyId: String): Map<String, Boolean> =
         api.post("/v1/me/oriented", companyId = companyId)
+
+    /**
+     * #540: which dashboard panels this member has put away.
+     *
+     * PUT because the body IS the whole set. A member switching two panels off is
+     * describing the screen they want, not applying a delta to a state they cannot
+     * see — two devices toggling from stale state would otherwise merge into a
+     * layout neither of them asked for.
+     *
+     * There is no matching read: the set arrives on [me], embedded in the
+     * membership, so the landing screen knows the layout before it draws.
+     */
+    suspend fun setDashboardHidden(
+        companyId: String,
+        hidden: List<String>,
+    ): Map<String, List<String>> =
+        api.put("/v1/me/dashboard", mapOf("hidden" to hidden), companyId = companyId)
 }
 
 class ForYouRepository(private val api: ApiClient) {

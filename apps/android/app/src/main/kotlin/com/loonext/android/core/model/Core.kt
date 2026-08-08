@@ -141,6 +141,18 @@ data class Membership(
     val name: String,
     val role: String,
     val subscription_status: String,
+    /**
+     * #540: the dashboard panels THIS member has put away in THIS workspace.
+     *
+     * On the membership rather than on [Me] because it belongs to the pair — the
+     * bookkeeper and the foreman are the same two people in one workspace, and
+     * somebody in two workspaces reasonably wants a different screen in each.
+     *
+     * Defaults to empty so a build running against an older Worker renders the
+     * whole screen, which is also the default for everybody who has never opened
+     * Customise.
+     */
+    val dashboard_hidden: List<String> = emptyList(),
 )
 
 /**

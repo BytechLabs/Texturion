@@ -9,6 +9,7 @@ import {
   apiRequest,
   buildTestApp,
   membershipResponder,
+  pgError,
   supabaseStub,
   type SupabaseStub,
 } from "../test/routes-harness";
@@ -75,6 +76,9 @@ describe("GET /v1/me", () => {
           name: "Acme Plumbing",
           role: "owner",
           subscription_status: "active",
+          // #540: the empty set for a member who has put nothing away, which is
+          // everybody until they open Customise.
+          dashboard_hidden: [],
         },
       ],
     });
@@ -361,6 +365,227 @@ describe("POST /v1/me/oriented (#286: the joining orientation)", () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ oriented: false });
+  });
+});
+
+describe("PUT /v1/me/dashboard (#540: a member puts a panel away)", () => {
+  function dashboardStub(): SupabaseStub {
+    const sb = supabaseStub(env);
+    sb.on("POST", AUTHORIZE_RPC, membershipResponder(MEMBER_ID, "member"));
+    return sb;
+  }
+
+  it("saves the set for the CALLER, in the company they sent", async () => {
+    const sb = dashboardStub();
+    sb.on("POST", "/rest/v1/rpc/api_set_dashboard_hidden", () => [
+      "pipeline",
+      "recent_calls",
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/me/dashboard",
+      {
+        method: "PUT",
+        companyId: COMPANY_ID,
+        body: { hidden: ["pipeline", "recent_calls"] },
+      },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ hidden: ["pipeline", "recent_calls"] });
+
+    // The user id is the verified `sub`, never the body — there is no request a
+    // caller can make that rearranges somebody else's dashboard.
+    const call = sb.find("POST", "/rest/v1/rpc/api_set_dashboard_hidden")[0];
+    expect(call.body).toEqual({
+      p_company_id: COMPANY_ID,
+      p_user_id: auth.subject,
+      p_hidden: ["pipeline", "recent_calls"],
+    });
+  });
+
+  it("stores the declared order whatever order the boxes were clicked in", async () => {
+    // Otherwise the same screen has several stored spellings, and the next thing
+    // that compares two sets — a test, a support answer — is comparing noise.
+    const sb = dashboardStub();
+    sb.on("POST", "/rest/v1/rpc/api_set_dashboard_hidden", () => [
+      "response_time",
+      "recent_calls",
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    await apiRequest(app, env, await auth.token(), "/v1/me/dashboard", {
+      method: "PUT",
+      companyId: COMPANY_ID,
+      body: { hidden: ["recent_calls", "response_time", "recent_calls"] },
+    });
+    const call = sb.find("POST", "/rest/v1/rpc/api_set_dashboard_hidden")[0];
+    expect(call.body).toMatchObject({
+      p_hidden: ["response_time", "recent_calls"],
+    });
+  });
+
+  it("refuses a panel id that is not a panel", async () => {
+    // The column is read back on every app load. An open write is how it fills
+    // with ids nobody can render, and it never gets cleaned up.
+    const sb = dashboardStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/me/dashboard",
+      {
+        method: "PUT",
+        companyId: COMPANY_ID,
+        body: { hidden: ["unassigned"] },
+      },
+    );
+    expect(res.status).toBe(422);
+    expect(sb.find("POST", "/rest/v1/rpc/api_set_dashboard_hidden")).toHaveLength(
+      0,
+    );
+  });
+
+  it("refuses to hide a queue section even though it is a real tile id", async () => {
+    // THE LINE, asserted at the edge as well as in the shared module: the queue
+    // is the work, and "waiting" is a tile a client could plausibly send.
+    const sb = dashboardStub();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/me/dashboard",
+      { method: "PUT", companyId: COMPANY_ID, body: { hidden: ["waiting"] } },
+    );
+    expect(res.status).toBe(422);
+  });
+
+  it("accepts an empty set — that is how a member puts a panel back", async () => {
+    const sb = dashboardStub();
+    sb.on("POST", "/rest/v1/rpc/api_set_dashboard_hidden", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/me/dashboard",
+      { method: "PUT", companyId: COMPANY_ID, body: { hidden: [] } },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ hidden: [] });
+  });
+
+  it("refuses somebody who is not a member of the company they named", async () => {
+    const sb = supabaseStub(env);
+    sb.on("POST", AUTHORIZE_RPC, membershipResponder(MEMBER_ID, null));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/me/dashboard",
+      {
+        method: "PUT",
+        companyId: OTHER_COMPANY_ID,
+        body: { hidden: ["pipeline"] },
+      },
+    );
+    expect(res.status).toBe(403);
+    expect(sb.find("POST", "/rest/v1/rpc/api_set_dashboard_hidden")).toHaveLength(
+      0,
+    );
+  });
+
+  it("reports a membership deactivated mid-session as forbidden, not as a failed save", async () => {
+    // A retry can never work, so an error that invites one is the wrong answer.
+    const sb = dashboardStub();
+    sb.on("POST", "/rest/v1/rpc/api_set_dashboard_hidden", () =>
+      pgError("P0002", "no active membership for this user in this company"),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/me/dashboard",
+      {
+        method: "PUT",
+        companyId: COMPANY_ID,
+        body: { hidden: ["pipeline"] },
+      },
+    );
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("GET /v1/me carries the dashboard preference (#540)", () => {
+  it("reads it off the membership rather than a second round trip", async () => {
+    // The landing screen has to know the layout BEFORE it paints. A route of its
+    // own would render the four measures and then take two away, which reads as
+    // a broken page rather than as a preference being honoured.
+    const sb = supabaseStub(env);
+    sb.on("GET", "/rest/v1/profiles", () => [{ display_name: "Casey Owner" }]);
+    sb.on("POST", "/rest/v1/rpc/api_user_has_password", () => true);
+    sb.on("GET", "/rest/v1/company_members", () => [
+      {
+        company_id: COMPANY_ID,
+        role: "owner",
+        dashboard_hidden: ["recent_calls", "pipeline", "not_a_panel"],
+        companies: { name: "Acme Plumbing", subscription_status: "active" },
+      },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/me", {
+      companyId: null,
+    });
+    const body = (await res.json()) as {
+      memberships: { dashboard_hidden: string[] }[];
+    };
+    // Normalised on the way out: the stale id is DROPPED rather than handed to
+    // three clients to defend against, and the order is the declared one.
+    expect(body.memberships[0].dashboard_hidden).toEqual([
+      "pipeline",
+      "recent_calls",
+    ]);
+    // One query, not two — the column rides on the select that was already
+    // happening on the hottest route in the product.
+    expect(sb.find("GET", "/rest/v1/company_members")).toHaveLength(1);
+  });
+
+  it("treats a null column as nothing hidden", async () => {
+    // A membership predating the column, and the state every client already
+    // renders correctly.
+    const sb = supabaseStub(env);
+    sb.on("GET", "/rest/v1/profiles", () => [{ display_name: "Casey Owner" }]);
+    sb.on("POST", "/rest/v1/rpc/api_user_has_password", () => true);
+    sb.on("GET", "/rest/v1/company_members", () => [
+      {
+        company_id: COMPANY_ID,
+        role: "owner",
+        dashboard_hidden: null,
+        companies: { name: "Acme Plumbing", subscription_status: "active" },
+      },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/me", {
+      companyId: null,
+    });
+    const body = (await res.json()) as {
+      memberships: { dashboard_hidden: string[] }[];
+    };
+    expect(body.memberships[0].dashboard_hidden).toEqual([]);
   });
 });
 

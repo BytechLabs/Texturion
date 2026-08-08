@@ -20,6 +20,7 @@ import {
   useForYou,
   useSpamReview,
 } from "@/lib/api/for-you";
+import { useHiddenPanels } from "@/lib/api/me-company";
 import type {
   Call,
   ForYou,
@@ -35,6 +36,7 @@ import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
 import { callOutcomeLabel } from "@/lib/format/call";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatRelativeTime } from "@/lib/format/time";
+import { CustomiseDashboard } from "@/components/for-you/customise-dashboard";
 import { LeadSourcesCard } from "@/components/for-you/lead-sources-card";
 import { PipelineCard } from "@/components/for-you/pipeline-card";
 import { ResponseTimeCard } from "@/components/for-you/response-time-card";
@@ -704,19 +706,28 @@ export function ForYouView() {
               : "You're all caught up."}
           </p>
         </div>
-        {/* Desktop hosts search + bell in the top bar; keep them here only on
-            mobile (which has no top bar) so they aren't duplicated on lg+. */}
-        <div className="flex items-center gap-1 pt-0.5 lg:hidden">
+        {/* Desktop hosts search + bell in the top bar; keep those two here only
+            on mobile (which has no top bar) so they aren't duplicated on lg+.
+            #540's Customise is NOT one of them — it belongs to this screen
+            rather than to the shell, so it stays at every width. */}
+        <div className="flex items-center gap-1 pt-0.5">
           <button
             type="button"
             onClick={openCommand}
             aria-label="Search"
             aria-keyshortcuts="Meta+K Control+K"
-            className="grid size-8 place-items-center rounded-[9px] border border-app-line bg-app-paper text-app-muted transition-colors hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="grid size-8 place-items-center rounded-[9px] border border-app-line bg-app-paper text-app-muted transition-colors hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
           >
             <Search className="size-[15px]" strokeWidth={1.9} aria-hidden />
           </button>
-          <NotificationBell />
+          <span className="lg:hidden">
+            <NotificationBell />
+          </span>
+          {/* Last in the row, and quiet: it is the control you go looking for,
+              not one that should compete with the queue.
+              *Applying: Zen of Clarity — a secondary action collapsed behind one
+              affordance.* */}
+          <CustomiseDashboard />
         </div>
       </header>
 
@@ -875,6 +886,47 @@ function SpamReviewRow({ item }: { item: SpamReviewItem }) {
   );
 }
 
+/**
+ * #540 — the four measures, in one place, honouring what the member put away.
+ *
+ * ONE component rather than the same four tags written twice, because the
+ * dashboard renders them in two states (a working queue, and a caught-up
+ * morning) and the preference has to apply identically in both. Two copies is
+ * how one of them quietly stops honouring it.
+ *
+ * Renders nothing at all when every measure is hidden — an empty grid still
+ * carries its gap and leaves a band of space that reads as a panel failing to
+ * load.
+ */
+function Measures({
+  hidden,
+  className,
+}: {
+  hidden: readonly string[];
+  className?: string;
+}) {
+  const shown = (
+    [
+      ["response_time", <ResponseTimeCard key="response_time" />],
+      // #354: beside its neighbour, and absent entirely until there is
+      // something true to say.
+      ["pipeline", <PipelineCard key="pipeline" />],
+      // #313: "satisfaction alongside response time is the beginnings of an
+      // honest picture". Next to the speed number on purpose — how fast you
+      // answered and whether it landed are one thought, and separating them is
+      // how a business optimises the first while the second quietly slides.
+      ["satisfaction", <SatisfactionCard key="satisfaction" />],
+      // #301: last of the four, because it answers a slower question. Response
+      // time and satisfaction are about this week's work; where the customers
+      // came from is about next month's spending.
+      ["lead_sources", <LeadSourcesCard key="lead_sources" />],
+    ] as const
+  ).filter(([id]) => !hidden.includes(id));
+
+  if (shown.length === 0) return null;
+  return <div className={className}>{shown.map(([, node]) => node)}</div>;
+}
+
 function ForYouSections({
   data,
   order,
@@ -883,6 +935,10 @@ function ForYouSections({
   /** #540: the shared order, so the sections match the strip above them. */
   order: readonly DashboardTileId[];
 }) {
+  // #540: which measures this member has put away. Read from the /v1/me payload
+  // the shell already holds, so the decision is known before this paints —
+  // rendering four cards and then removing two looks like a broken page.
+  const hidden = useHiddenPanels();
   const { waiting_on_you, my_tasks, unread, triage } = data;
   // #293: absent from an older Worker, which is "no reminders" — the state
   // every client written before this shipped was already rendering.
@@ -940,13 +996,11 @@ function ForYouSections({
             Below the caught-up card rather than above it, on the same reasoning
             as the queue: what needs doing leads, and "nothing does" is still the
             first thing to say. */}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <ResponseTimeCard />
-          <PipelineCard />
-          <SatisfactionCard />
-          <LeadSourcesCard />
-        </div>
-        <RecentCallsSection />
+        <Measures
+          hidden={hidden}
+          className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        />
+        {!hidden.includes("recent_calls") && <RecentCallsSection />}
       </div>
     );
   }
@@ -1082,24 +1136,14 @@ function ForYouSections({
           four unrelated strips and left the space beside them empty.
           *Applying: Chunking, and Relationship Strength — one group, spaced as
           one.* */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:col-span-2 xl:col-span-3 xl:grid-cols-4">
-        <ResponseTimeCard />
-        {/* #354: beside its neighbour, and absent entirely until there is
-            something true to say. */}
-        <PipelineCard />
-        {/* #313: "satisfaction alongside response time is the beginnings of an
-            honest picture". Directly under the speed number on purpose — how
-            fast you answered and whether it landed are one thought, and
-            separating them onto two screens is how a business optimises the
-            first while the second quietly slides. */}
-        <SatisfactionCard />
-        {/* #301: last of the four, because it answers a slower question than
-            the three above it. Response time and satisfaction are about this
-            week's work; where the customers came from is about next month's
-            spending, and it is the one an owner opens deliberately rather than
-            glances at. */}
-        <LeadSourcesCard />
-      </div>
+      {/* #540: and each one can be put away from Customise. The grid classes
+          live here rather than inside `Measures` because they are this layout's
+          business — the caught-up screen places the same four cards in a
+          narrower shell. */}
+      <Measures
+        hidden={hidden}
+        className="grid gap-4 sm:grid-cols-2 lg:col-span-2 xl:col-span-3 xl:grid-cols-4"
+      />
 
       {/* #416/D53: shown to EVERY member, not owners and admins only. The
           company already pages the whole crew when a lead lands unclaimed, so
@@ -1141,9 +1185,14 @@ function ForYouSections({
             {queueSections[id]}
           </div>
         ))}
-      <div className="lg:col-span-2 xl:col-span-3">
-        <RecentCallsSection />
-      </div>
+      {/* #540: hideable, unlike everything above it in the queue. Calls already
+          happened — this is history a member reads, not work they owe anybody,
+          so it is the one section on this screen that can come off. */}
+      {!hidden.includes("recent_calls") && (
+        <div className="lg:col-span-2 xl:col-span-3">
+          <RecentCallsSection />
+        </div>
+      )}
     </div>
   );
 }

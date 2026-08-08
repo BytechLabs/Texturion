@@ -8,6 +8,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.loonext.android.core.dashboard.DashboardTiles
+import com.loonext.android.core.dashboard.DashboardPanels
 import com.loonext.android.core.snooze.parseInstantMillis
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -259,6 +261,19 @@ fun ForYouTab(
     // return to the foreground.
     ResyncOnResume(companyId) { refreshKey++ }
 
+    // #540: which panels this member has put away, from the membership already in
+    // hand. Held locally as well as read from [me] because the toggle is
+    // OPTIMISTIC — the sheet's switch has to move on the tap, not a round trip
+    // later, and `me` is owned by the shell and will not refresh until the next
+    // app load. Seeded per membership so a genuine refresh reseeds it.
+    val serverHidden = me.memberships
+        .firstOrNull { it.company_id == companyId }
+        ?.dashboard_hidden
+        .orEmpty()
+    var hidden by remember(companyId, serverHidden) { mutableStateOf(serverHidden) }
+    var customiseOpen by remember { mutableStateOf(false) }
+    var customiseFailed by remember { mutableStateOf(false) }
+
     // Pull-to-refresh rides the same silent refreshKey revalidation the
     // realtime ticks use (cache-first: rows never blank underneath); the
     // crest spins just long enough to acknowledge the gesture.
@@ -270,6 +285,39 @@ fun ForYouTab(
         }
     }
     val haptics = rememberHaptics()
+
+    // #540: the whole set goes up, matching the route — the body describes the
+    // screen they want rather than a delta against a state two devices may
+    // disagree about. On failure the row goes back to exactly what it was, so a
+    // dropped connection never leaves the phone showing a preference the server
+    // has not got.
+    fun toggle(panel: DashboardPanels.Panel, visible: Boolean) {
+        val before = hidden
+        val next = DashboardPanels.normalise(
+            if (visible) before.filterNot { it == panel.id } else before + panel.id,
+        ).map { it.id }
+        hidden = next
+        customiseFailed = false
+        coroutines.launch {
+            runCatching { graph.meRepo.setDashboardHidden(companyId, next) }
+                .onFailure {
+                    hidden = before
+                    customiseFailed = true
+                }
+        }
+    }
+
+    if (customiseOpen) {
+        CustomiseSheet(
+            hidden = hidden,
+            onToggle = ::toggle,
+            onDismiss = {
+                customiseOpen = false
+                customiseFailed = false
+            },
+            failed = customiseFailed,
+        )
+    }
 
     when (val current = state) {
         // First fetch only (#176 keeps every revisit cached): shimmer in the
@@ -317,6 +365,9 @@ fun ForYouTab(
                 onOpenContacts = onOpenContacts,
                 onOpenSettings = onOpenSettings,
                 onOpenUnanswered = onOpenUnanswered,
+                // #540: what this member has put away, and the door to change it.
+                hidden = hidden,
+                onCustomise = { customiseOpen = true },
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -349,6 +400,10 @@ private fun ForYouList(
     onOpenSettings: (SettingsSection) -> Unit,
     /** #508: the response-time card's unanswered row. Required — see ForYouTab. */
     onOpenUnanswered: () -> Unit,
+    /** #540: the panels this member has put away. Empty for almost everybody. */
+    hidden: List<String>,
+    /** #540: opens the Customise sheet. */
+    onCustomise: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // #306: what each section HOLDS, not how many rows came back. Counting the
@@ -377,12 +432,35 @@ private fun ForYouList(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 AvatarCircle(me.display_name.ifBlank { null }, size = 40.dp, fontSize = 13.sp)
-                CircleIconButton(
-                    icon = Icons.Outlined.Notifications,
-                    contentDescription = "Notifications",
-                    onClick = onOpenNotifications,
-                    showDot = unreadNotifications > 0,
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // #540: quiet, and beside the bell that was already here.
+                    // THE DOT MATTERS MORE THAN IT LOOKS LIKE IT DOES — somebody
+                    // who put two panels away in April has no other way to find
+                    // out why their screen is shorter than a colleague's, and
+                    // "the app is missing the pipeline card" is a support
+                    // conversation nobody can win.
+                    CircleIconButton(
+                        icon = Icons.Outlined.Tune,
+                        contentDescription = if (hidden.isEmpty()) {
+                            "Customise this screen"
+                        } else {
+                            val n = DashboardPanels.normalise(hidden).size
+                            "Customise this screen — $n " +
+                                (if (n == 1) "panel" else "panels") + " put away"
+                        },
+                        onClick = onCustomise,
+                        showDot = hidden.isNotEmpty(),
+                    )
+                    CircleIconButton(
+                        icon = Icons.Outlined.Notifications,
+                        contentDescription = "Notifications",
+                        onClick = onOpenNotifications,
+                        showDot = unreadNotifications > 0,
+                    )
+                }
             }
         }
 
@@ -402,36 +480,47 @@ private fun ForYouList(
         // #239 — the claim we sell, measured. Above the queue because the arc
         // is the reason a contractor stays, and it is a result to read rather
         // than a task to do.
-        item(key = "response-time") {
-            ResponseTimeCard(
-                report = responseTime,
-                days = responseDays,
-                onWindow = onResponseWindow,
-                onOpenUnanswered = onOpenUnanswered,
-            )
+        // #540: each measure can be put away from Customise. Gated on the ITEM
+        // rather than inside the card, so a hidden panel holds no list slot and
+        // leaves no gap where a card used to be.
+        if (DashboardPanels.isVisible(hidden, DashboardPanels.Panel.RESPONSE_TIME)) {
+            item(key = "response-time") {
+                ResponseTimeCard(
+                    report = responseTime,
+                    days = responseDays,
+                    onWindow = onResponseWindow,
+                    onOpenUnanswered = onOpenUnanswered,
+                )
+            }
         }
 
         // #354: beside its neighbour, and absent entirely until there is
         // something true to say.
-        item(key = "pipeline") {
-            PipelineCard(report = pipeline)
-            // #301: last of the four, because it answers a slower question
-            // than the three above it — next month's spending rather than
-            // this week's work.
-            LeadSourcesCard(report = leadSources)
+        if (DashboardPanels.isVisible(hidden, DashboardPanels.Panel.PIPELINE)) {
+            item(key = "pipeline") { PipelineCard(report = pipeline) }
+        }
+
+        // #301: last of the four, because it answers a slower question than the
+        // three above it — next month's spending rather than this week's work.
+        // #540: its own item now rather than sharing the pipeline's, because the
+        // two are separately hideable and a shared slot cannot hide one of them.
+        if (DashboardPanels.isVisible(hidden, DashboardPanels.Panel.LEAD_SOURCES)) {
+            item(key = "lead-sources") { LeadSourcesCard(report = leadSources) }
         }
 
         // #313: directly under the speed number on purpose. How fast you
         // answered and whether it landed are one thought, and separating them
         // onto two screens is how a business optimises the first while the
         // second quietly slides.
-        item(key = "satisfaction") {
-            SatisfactionCard(
-                report = satisfaction,
-                days = responseDays,
-                onWindow = onResponseWindow,
-                onOpenPoor = onOpenUnanswered,
-            )
+        if (DashboardPanels.isVisible(hidden, DashboardPanels.Panel.SATISFACTION)) {
+            item(key = "satisfaction") {
+                SatisfactionCard(
+                    report = satisfaction,
+                    days = responseDays,
+                    onWindow = onResponseWindow,
+                    onOpenPoor = onOpenUnanswered,
+                )
+            }
         }
 
         item(key = "title") {
@@ -655,33 +744,38 @@ private fun ForYouList(
         // Recent calls (#165/D43) — the mobile doorway into the Calls
         // surface. Hidden entirely while there are no calls; an honest error
         // line when the log couldn't load.
-        when (recentCalls) {
-            is LoadState.Loading -> Unit
-            is LoadState.Failed -> item(key = "calls-error") {
-                Column(Modifier.animateItem().padding(top = 14.dp)) {
-                    RecentCallsHeader(onOpenCalls)
-                    Text(
-                        "Couldn't load recent calls.",
-                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 6.dp, top = 2.dp),
-                    )
-                }
-            }
-
-            is LoadState.Ready -> if (recentCalls.value.isNotEmpty()) {
-                item(key = "calls") {
+        // #540: and hideable, unlike everything above it in the queue. Calls
+        // already happened — this is history a member reads, not work they owe
+        // anybody, so it is the one section here that can come off.
+        if (DashboardPanels.isVisible(hidden, DashboardPanels.Panel.RECENT_CALLS)) {
+            when (recentCalls) {
+                is LoadState.Loading -> Unit
+                is LoadState.Failed -> item(key = "calls-error") {
                     Column(Modifier.animateItem().padding(top = 14.dp)) {
                         RecentCallsHeader(onOpenCalls)
-                        PaperCard(Modifier.fillMaxWidth()) {
-                            recentCalls.value.forEachIndexed { index, call ->
-                                if (index > 0) RowDivider()
-                                RecentCallRow(
-                                    call = call,
-                                    onClick = call.conversation_id?.let { id ->
-                                        { onOpenConversation(id) }
-                                    },
-                                )
+                        Text(
+                            "Couldn't load recent calls.",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 6.dp, top = 2.dp),
+                        )
+                    }
+                }
+
+                is LoadState.Ready -> if (recentCalls.value.isNotEmpty()) {
+                    item(key = "calls") {
+                        Column(Modifier.animateItem().padding(top = 14.dp)) {
+                            RecentCallsHeader(onOpenCalls)
+                            PaperCard(Modifier.fillMaxWidth()) {
+                                recentCalls.value.forEachIndexed { index, call ->
+                                    if (index > 0) RowDivider()
+                                    RecentCallRow(
+                                        call = call,
+                                        onClick = call.conversation_id?.let { id ->
+                                            { onOpenConversation(id) }
+                                        },
+                                    )
+                                }
                             }
                         }
                     }

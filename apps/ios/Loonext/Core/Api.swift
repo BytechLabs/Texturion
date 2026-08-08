@@ -46,6 +46,23 @@ struct MeApi: Sendable {
             body: JSONValue.object(["display_name": .string(name)])
         )
     }
+
+    /// #540: which dashboard panels this member has put away.
+    ///
+    /// PUT because the body IS the whole set. A member switching two panels off is
+    /// describing the screen they want, not applying a delta to a state they cannot
+    /// see — two devices toggling from stale state would otherwise merge into a
+    /// layout neither of them asked for.
+    ///
+    /// There is no matching read: the set arrives on `me()`, embedded in the
+    /// membership, so the landing screen knows the layout before it draws.
+    func setDashboardHidden(companyId: String, hidden: [String]) async throws {
+        let _: JSONValue = try await api.put(
+            "/v1/me/dashboard",
+            body: JSONValue.object(["hidden": .array(hidden.map(JSONValue.string))]),
+            companyId: companyId
+        )
+    }
 }
 
 struct ForYouApi: Sendable {

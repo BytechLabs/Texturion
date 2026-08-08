@@ -172,6 +172,16 @@ struct Membership: Codable, Sendable {
     let name: String
     let role: String
     let subscription_status: String
+    /// #540: the dashboard panels THIS member has put away in THIS workspace.
+    ///
+    /// On the membership rather than on `Me` because it belongs to the pair — the
+    /// bookkeeper and the foreman are the same two people in one workspace, and
+    /// somebody in two workspaces reasonably wants a different screen in each.
+    ///
+    /// Optional with a default so a build running against an older Worker still
+    /// decodes, and so the three places that construct a Membership for a preview
+    /// keep compiling. `nil` and `[]` mean the same thing: the whole screen.
+    var dashboard_hidden: [String]? = nil
 }
 
 /// GET /v1/me — optionally hydrated with `company` when X-Company-Id is sent.

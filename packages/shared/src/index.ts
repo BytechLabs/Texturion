@@ -793,3 +793,15 @@ export {
   type DashboardTileId,
   type DashboardTileInput,
 } from "./dashboard-tiles";
+
+// #540: which panels a member has put away, and the line between a preference
+// and missing a customer — the queue is not in the hideable set.
+export {
+  DASHBOARD_PANEL_IDS,
+  DASHBOARD_PANEL_LABELS,
+  DASHBOARD_PANEL_NOTES,
+  DASHBOARD_PANELS_DEFAULT,
+  type DashboardPanelId,
+  isPanelVisible,
+  normaliseHiddenPanels,
+} from "./dashboard-panels";

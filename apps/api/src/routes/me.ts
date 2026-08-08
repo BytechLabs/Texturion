@@ -13,6 +13,7 @@
  * profile name — the signup form is the only other place that sets one, and
  * invitees never pass through it).
  */
+import { DASHBOARD_PANEL_IDS, normaliseHiddenPanels } from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -34,8 +35,22 @@ const updateMeSchema = z.object({
 interface MembershipRow {
   company_id: string;
   role: string;
+  dashboard_hidden: string[] | null;
   companies: { name: string; subscription_status: string };
 }
+
+/**
+ * #540 — PUT /v1/me/dashboard body. The panels this member has put away.
+ *
+ * A closed enum, not free text: the stored set is read back on every app load,
+ * and an open column would let a client write ids nobody can render and grow
+ * forever. Length is capped at the number of panels that exist, which after
+ * normalisation is unreachable — it is the belt on a route that writes to the
+ * table holding roles.
+ */
+const dashboardHiddenSchema = z.object({
+  hidden: z.array(z.enum(DASHBOARD_PANEL_IDS)).max(DASHBOARD_PANEL_IDS.length),
+});
 
 export const meRoutes = new Hono<AppEnv>();
 
@@ -149,6 +164,54 @@ meRoutes.post(
   },
 );
 
+/**
+ * PUT /v1/me/dashboard — #540. Which measures this member has taken off their
+ * own landing screen.
+ *
+ * PUT rather than PATCH because the body IS the whole set. A member unticking two
+ * boxes is describing the screen they want, not applying a delta to a screen they
+ * cannot see the current state of — and two clients toggling from stale state
+ * would otherwise merge into a layout neither of them asked for.
+ *
+ * Read back on GET /v1/me rather than here: the dashboard needs the set before it
+ * paints, so it rides on the call it was already making.
+ *
+ * Scoped to the member by the verified session. The user id comes from `sub` and
+ * the company from the context middleware, so there is no body a caller can send
+ * that saves a preference onto somebody else's screen.
+ */
+meRoutes.put(
+  "/me/dashboard",
+  requireCapability("workspace.access"),
+  async (c) => {
+    const body = await parseJsonBody(c, dashboardHiddenSchema);
+    const db = getDb(getEnv(c.env));
+    // Normalised before storage as well as after reading it: the stored order is
+    // then the declared order whatever order the boxes were clicked in, and a
+    // double-send cannot store the same id twice.
+    const hidden = normaliseHiddenPanels(body.hidden);
+    const { data, error } = await db.rpc("api_set_dashboard_hidden", {
+      p_company_id: c.get("companyId"),
+      p_user_id: c.get("userId"),
+      p_hidden: hidden,
+    });
+    if (error) {
+      // The membership went away between the context check and this write —
+      // deactivated mid-session. Report it as what it is rather than as a
+      // failure to save, which would invite a retry that can never work.
+      if (error.code === "P0002" || /no active membership/i.test(error.message)) {
+        return errorResponse(
+          c,
+          "forbidden",
+          "Not an active member of this company.",
+        );
+      }
+      throw new Error(`dashboard preference save failed: ${error.message}`);
+    }
+    return c.json({ hidden: normaliseHiddenPanels(data ?? hidden) });
+  },
+);
+
 // #112: the caller sets their OWN display name (the team sees it everywhere —
 // members list, avatars, notes). Company-exempt: the invite flow collects the
 // name BEFORE the first membership exists. Upsert mirrors the signup trigger
@@ -213,7 +276,14 @@ meRoutes.get("/me", async (c) => {
     db
       .from("company_members")
       .select(
-        "company_id,role,companies!inner(name,subscription_status,deleted_at)",
+        // #540: `dashboard_hidden` travels HERE rather than on its own route,
+        // and that is the whole point. The landing screen has to know which
+        // panels are put away before it paints, or it renders the four measures
+        // and then removes them a moment later — which is worse than not
+        // offering the preference at all. One more column on a select that was
+        // already happening costs nothing; a second round trip would cost a
+        // flash on every app load.
+        "company_id,role,dashboard_hidden,companies!inner(name,subscription_status,deleted_at)",
       )
       .eq("user_id", userId)
       .is("deactivated_at", null)
@@ -243,6 +313,10 @@ meRoutes.get("/me", async (c) => {
     name: row.companies.name,
     role: row.role,
     subscription_status: row.companies.subscription_status,
+    // #540: normalised on the way out, so an id this build no longer renders is
+    // simply not hidden any more rather than a panel the client cannot account
+    // for. Clients then need no defensive handling of their own.
+    dashboard_hidden: normaliseHiddenPanels(row.dashboard_hidden ?? []),
   }));
 
   const body: Record<string, unknown> = {

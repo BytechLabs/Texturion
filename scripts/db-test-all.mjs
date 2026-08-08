@@ -151,6 +151,7 @@ const SUITES = [
   "number_allowance",
   "dead_provisioning",
   "thread_summary",
+  "dashboard_panels",
 ];
 
 const args = process.argv.slice(2);
