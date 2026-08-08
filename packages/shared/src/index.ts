@@ -805,3 +805,17 @@ export {
   isPanelVisible,
   normaliseHiddenPanels,
 } from "./dashboard-panels";
+
+// #539: one instant, two wall clocks — say both, but only when they differ.
+// The rule and the words live here; formatting stays with each client's own
+// date formatter.
+export {
+  bothClocks,
+  bothClocksSpoken,
+  CLOCK_CHOICE_DEFAULT,
+  CLOCK_CHOICE_LABELS,
+  CLOCK_HERE,
+  CLOCK_THERE,
+  type ClockChoice,
+  sameClock,
+} from "./two-clocks";
