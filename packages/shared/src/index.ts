@@ -780,3 +780,16 @@ export {
   type PortPreCutoverItem,
 } from "./porting";
 
+
+// #540: the dashboard strip's ORDER and its per-tile signal. Shared because an
+// owner who learns the strip on a laptop must find the same one in the van;
+// rendering a duration stays with each client's own time formatter.
+export {
+  AGED_MILLIS,
+  DASHBOARD_TILE_LABELS,
+  dashboardTiles,
+  type DashboardSignal,
+  type DashboardTile,
+  type DashboardTileId,
+  type DashboardTileInput,
+} from "./dashboard-tiles";

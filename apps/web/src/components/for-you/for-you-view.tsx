@@ -2,6 +2,7 @@
 
 import { ArrowRight, Check, Search } from "lucide-react";
 import Link from "next/link";
+import { useMemo } from "react";
 import { toast } from "sonner";
 
 import { avatarInitials } from "@/components/shell/avatar-color";
@@ -39,6 +40,11 @@ import { PipelineCard } from "@/components/for-you/pipeline-card";
 import { ResponseTimeCard } from "@/components/for-you/response-time-card";
 import { SatisfactionCard } from "@/components/for-you/satisfaction-card";
 import { WhileYouWait } from "@/components/for-you/while-you-wait";
+import {
+  DASHBOARD_TILE_LABELS,
+  dashboardTiles,
+  type DashboardTile,
+} from "@loonext/shared";
 import { cn } from "@/lib/utils";
 
 /** Open the shared command-K palette (the search glyph in the header). */
@@ -84,13 +90,16 @@ function Section({
   label,
   count,
   children,
+  id,
 }: {
   label: string;
   count?: number;
   children: React.ReactNode;
+  /** #540: what the summary strip's tile links to. */
+  id?: string;
 }) {
   return (
-    <section>
+    <section id={id} className="scroll-mt-4">
       <h2 className="flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
         {label}
         {count !== undefined && count > 0 && (
@@ -448,29 +457,98 @@ function SectionSkeleton() {
  * sections below are where you act, and inventing navigation here would just
  * add a second way to do the same thing.
  */
-function SummaryTile({ label, count }: { label: string; count: number }) {
-  const active = count > 0;
-  return (
-    <div
-      className={cn(
-        "rounded-app-card border px-3 py-2.5",
-        active
-          ? "border-app-line bg-app-paper"
-          : "border-transparent bg-app-inset",
-      )}
-    >
+/**
+ * #540 — one tile of the summary strip.
+ *
+ * WAS a `div` holding a number and a label, in a fixed slot, doing nothing when
+ * pressed. Three changes, each answering a word in the complaint:
+ *
+ *   dynamic     the strip's ORDER now comes from `dashboardTiles`, so the first
+ *               tile is the thing to do first rather than whichever category
+ *               happened to be written first.
+ *   contextual  a count with no age is not a signal. "4 unread" is a different
+ *               morning depending on whether the oldest is four minutes or four
+ *               days old, so the tile says which.
+ *   not amateur it is an anchor. The number that tells you where the work is now
+ *               takes you to it.
+ *
+ * *Applying: Meaningful Highlights & Context — never a bare stat; pair it with
+ * the thing to do about it.*
+ */
+function SummaryTile({
+  tile,
+  href,
+}: {
+  tile: DashboardTile;
+  href: string;
+}) {
+  const active = tile.count > 0;
+  const overdue = tile.signal?.kind === "overdue";
+  // The one warm mark on the strip, spent on the only state that has actually
+  // slipped. Everything else stays quiet — a strip where four things shout is a
+  // strip that says nothing.
+  const signal =
+    tile.signal === null
+      ? null
+      : tile.signal.kind === "overdue"
+        ? `${tile.signal.count} overdue`
+        : `oldest ${formatRelativeTime(
+            new Date(Date.now() - tile.signal.ageMillis).toISOString(),
+          )}`;
+
+  const body = (
+    <>
       <p
         className={cn(
           "text-[20px] font-semibold leading-none tabular-nums",
           active ? "text-app-ink" : "text-app-muted-2",
         )}
       >
-        {count}
+        {tile.count}
       </p>
-      <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.06em] text-app-muted-2">
-        {label}
+      <p className="mt-1 truncate text-[11px] font-medium uppercase tracking-[0.06em] text-app-muted-2">
+        {DASHBOARD_TILE_LABELS[tile.id]}
       </p>
-    </div>
+      {/* Reserved whether or not there is a signal, so the tiles keep one height
+          and the strip does not jump as items age past four hours. */}
+      <p
+        className={cn(
+          "mt-0.5 h-4 truncate text-[11px]",
+          overdue ? "font-semibold text-app-clay" : "text-app-muted-2",
+        )}
+      >
+        {signal ?? ""}
+      </p>
+    </>
+  );
+
+  const shell = cn(
+    "block rounded-app-card border px-3 py-2.5 text-left transition-colors",
+    active
+      ? "border-app-line bg-app-paper hover:bg-app-hover"
+      : "border-transparent bg-app-inset",
+  );
+
+  // An empty tile is not a link. It keeps its place in the strip — "nothing
+  // unassigned" is worth seeing — but sending somebody to an empty section is a
+  // dead end dressed as an action.
+  if (!active) {
+    return (
+      <div className={shell} aria-hidden={false}>
+        {body}
+      </div>
+    );
+  }
+  return (
+    <a
+      href={href}
+      className={cn(
+        shell,
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+      )}
+    >
+      {body}
+    </a>
   );
 }
 
@@ -567,7 +645,50 @@ export function ForYouView() {
   // #306: and not how many rows the SERVER sent either — that was capped at 20,
   // so the busiest crews were told they were the least busy.
   const total = forYou.data ? headlineWork(forYou.data) : 0;
-  const totals = forYou.data?.totals;
+
+  // #540: the strip, ordered by what to do first and carrying the age that makes
+  // a count mean something.
+  //
+  // The COUNTS come from `totals` where the Worker sent them, because the rows are
+  // one page of a section and a strip reporting 20 for a crew with 300 is the bug
+  // #306 fixed in the headings. The SIGNAL comes from the rows, which is the
+  // honest limit of it: the oldest row we were given is not necessarily the oldest
+  // in the section, so an under-report is possible and an over-report is not. A
+  // signal that is never worse than the truth is the right direction for one that
+  // decides where somebody looks first.
+  const strip = useMemo(() => {
+    const data = forYou.data;
+    if (!data) return [];
+    const now = Date.now();
+    const age = (iso: string) => Math.max(0, now - new Date(iso).getTime());
+    const ordered = dashboardTiles({
+      unassignedAgesMillis: [
+        ...(data.triage?.conversations ?? []).map((row) => age(row.last_message_at)),
+        // A triage task has no timestamp of its own on this payload, so it counts
+        // towards the number without claiming an age it cannot support.
+        ...(data.triage?.tasks ?? []).map(() => 0),
+      ],
+      waiting: data.waiting_on_you.map((row) => ({
+        ageMillis: age(row.last_message_at),
+        overdue: row.has_overdue_task,
+      })),
+      tasks: data.my_tasks.map((row) => ({
+        ageMillis: row.due_at ? age(row.due_at) : null,
+        overdue: row.overdue,
+      })),
+      unreadAgesMillis: data.unread.map((row) => age(row.last_message_at)),
+    });
+    // Swap the row-derived counts for the section totals where we have them.
+    const counts: Record<string, number> = {
+      unassigned:
+        (data.totals?.triage_conversations ?? data.triage?.conversations.length ?? 0) +
+        (data.totals?.triage_tasks ?? data.triage?.tasks.length ?? 0),
+      waiting: data.totals?.waiting_on_you ?? data.waiting_on_you.length,
+      tasks: data.totals?.my_tasks ?? data.my_tasks.length,
+      unread: data.totals?.unread ?? data.unread.length,
+    };
+    return ordered.map((tile) => ({ ...tile, count: counts[tile.id] ?? tile.count }));
+  }, [forYou.data]);
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8 lg:max-w-5xl">
@@ -608,29 +729,20 @@ export function ForYouView() {
       {/* The dashboard's summary strip: where the work is, before you read a
           single card. Hidden while loading and when the queue is empty, where
           the caught-up card already says everything. */}
+      {/* #540: the summary strip. Its ORDER is decided by `dashboardTiles`, so
+          the first tile is the thing to do first — the previous version was four
+          fixed slots that looked the same whatever was happening. Hidden while
+          loading and when the queue is empty, where the caught-up card already
+          says everything. */}
       {forYou.data && total > 0 && (
         <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <SummaryTile
-            label="Unassigned"
-            count={
-              totals
-                ? totals.triage_conversations + totals.triage_tasks
-                : (forYou.data.triage?.conversations.length ?? 0) +
-                  (forYou.data.triage?.tasks.length ?? 0)
-            }
-          />
-          <SummaryTile
-            label="Waiting on you"
-            count={totals?.waiting_on_you ?? forYou.data.waiting_on_you.length}
-          />
-          <SummaryTile
-            label="My tasks"
-            count={totals?.my_tasks ?? forYou.data.my_tasks.length}
-          />
-          <SummaryTile
-            label="Unread"
-            count={totals?.unread ?? forYou.data.unread.length}
-          />
+          {strip.map((tile) => (
+            <SummaryTile
+              key={tile.id}
+              tile={tile}
+              href={`#for-you-${tile.id}`}
+            />
+          ))}
         </div>
       )}
 
@@ -858,7 +970,7 @@ function ForYouSections({ data }: { data: ForYou }) {
           *Applying: the Safety Principle — the fix must not move an owner's
           dashboard around while it widens the audience.* */}
       {triageCount > 0 && (
-        <Section label="Unassigned" count={triageCount}>
+        <Section id="for-you-unassigned" label="Unassigned" count={triageCount}>
           {triage?.conversations.map((item) => (
             <TriageConvRow key={item.conversation_id} item={item} />
           ))}
@@ -896,7 +1008,7 @@ function ForYouSections({ data }: { data: ForYou }) {
       )}
 
       {waiting_on_you.length > 0 && (
-        <Section label="Waiting on you" count={waitingTotal}>
+        <Section id="for-you-waiting" label="Waiting on you" count={waitingTotal}>
           {waiting_on_you.map((item) => (
             <WaitingRow key={item.conversation_id} item={item} />
           ))}
@@ -913,7 +1025,7 @@ function ForYouSections({ data }: { data: ForYou }) {
       )}
 
       {my_tasks.length > 0 && (
-        <Section label="My tasks" count={tasksTotal}>
+        <Section id="for-you-tasks" label="My tasks" count={tasksTotal}>
           {my_tasks.map((task) => (
             <TaskRow key={task.task_id} task={task} />
           ))}
@@ -930,7 +1042,7 @@ function ForYouSections({ data }: { data: ForYou }) {
       )}
 
       {unread.length > 0 && (
-        <Section label="Unread" count={unreadTotal}>
+        <Section id="for-you-unread" label="Unread" count={unreadTotal}>
           {unread.map((item) => (
             <UnreadRow key={item.conversation_id} item={item} />
           ))}
