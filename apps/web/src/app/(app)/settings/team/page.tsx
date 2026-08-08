@@ -8,7 +8,13 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import { roleHasCapability } from "@loonext/shared";
+import {
+  isDowngrade,
+  type MemberRole,
+  roleHasCapability,
+  SELF_DOWNGRADE_ACK,
+  selfDowngradeWarning,
+} from "@loonext/shared";
 
 import { OwnershipCard } from "@/components/settings/ownership-card";
 import { RequireTwoFactorCard } from "@/components/settings/require-two-factor-card";
@@ -112,10 +118,31 @@ function MemberRow({
 }) {
   const updateRole = useUpdateMemberRole();
   const [confirming, setConfirming] = useState(false);
+  // #538: the role this person has asked to give themselves, held until they
+  // confirm. Null the rest of the time, which is almost always.
+  const [givingUp, setGivingUp] = useState<"admin" | "member" | null>(null);
   // #348: what this person actually reaches, on demand.
   const [showingAccess, setShowingAccess] = useState(false);
   const name = member.display_name || "Teammate";
   const deactivated = member.deactivated_at !== null;
+
+  function changeRole(role: "admin" | "member", acknowledged = false) {
+    updateRole.mutate(
+      {
+        memberId: member.id,
+        role,
+        ...(acknowledged ? { [SELF_DOWNGRADE_ACK]: true } : {}),
+      },
+      {
+        onError: (cause) =>
+          toast.error(
+            cause instanceof ApiError
+              ? cause.message
+              : "Couldn't change the role. Try again.",
+          ),
+      },
+    );
+  }
 
   return (
     <div className="flex items-center gap-3 py-3">
@@ -164,19 +191,27 @@ function MemberRow({
       {canManage && member.role !== "owner" && !deactivated ? (
         <Select
           value={member.role}
-          onValueChange={(role) =>
-            updateRole.mutate(
-              { memberId: member.id, role: role as "admin" | "member" },
-              {
-                onError: (cause) =>
-                  toast.error(
-                    cause instanceof ApiError
-                      ? cause.message
-                      : "Couldn't change the role. Try again.",
-                  ),
-              },
-            )
-          }
+          onValueChange={(value) => {
+            const role = value as "admin" | "member";
+            // #538: TAKING POWERS OFF YOURSELF STOPS AND ASKS.
+            //
+            // An admin who picks "member" here loses the ability to change roles
+            // in the same stroke — which is the ability that would let them
+            // change it back. The dropdown gave no sign of that, so an afternoon
+            // of chasing the owner started with a two-click gesture.
+            //
+            // Only for THIS person's own row, and only when it takes something
+            // away. An owner demoting somebody else can undo it, and a
+            // confirmation that fires on everything is one people learn to
+            // dismiss before it matters.
+            // *Applying: Ethical Friction — a confirmation layer on the action
+            // this person cannot reverse themselves.*
+            if (roleChangeNeedsConfirming(isSelf, member.role, role)) {
+              setGivingUp(role);
+              return;
+            }
+            changeRole(role);
+          }}
           disabled={updateRole.isPending}
         >
           <SelectTrigger
@@ -196,6 +231,20 @@ function MemberRow({
       ) : (
         <Badge variant="secondary">{ROLE_LABELS[member.role]}</Badge>
       )}
+      {/* #538: mounted OUTSIDE the offboard block, which is guarded on `!isSelf`
+          — the one case this dialog exists for. It renders nothing until somebody
+          asks to give up their own access, which is almost always. */}
+      <GiveUpAccessDialog
+        from={member.role}
+        to={givingUp}
+        pending={updateRole.isPending}
+        onCancel={() => setGivingUp(null)}
+        onConfirm={() => {
+          const role = givingUp;
+          setGivingUp(null);
+          if (role) changeRole(role, true);
+        }}
+      />
       {canManage && member.role !== "owner" && !isSelf && (
         <>
           <Button
@@ -239,6 +288,89 @@ const UNASSIGNED = "unassigned";
  * back. So this asks the one question that was missing — where does their work
  * go — and only asks it when there is work to move.
  */
+/**
+ * #538 — before you take powers off yourself.
+ *
+ * ## Evaluation
+ *
+ * The role dropdown applied instantly. An admin choosing "member" for their own
+ * row lost the ability to change roles in the same gesture — the ability that
+ * would have let them change it back — and nothing said so. The way out is to find
+ * the owner.
+ *
+ * ## What binds it
+ *
+ * *Ethical Friction* — a confirmation layer, because this is the one role change
+ * the person making it cannot reverse. It is NOT a typed confirmation: nothing is
+ * destroyed and an owner restores it in a tap, so a dialog that made somebody type
+ * their workspace name would be theatre.
+ *
+ * *Meaningful Highlights* — the sentence names what is actually lost, in things
+ * they do rather than permission names, and says who can undo it. "Are you sure?"
+ * is the version of this dialog that teaches people to click through.
+ *
+ * The confirm button says what happens rather than "OK", so somebody skimming the
+ * buttons still reads the decision.
+ */
+/**
+ * #538 — does this role change have to stop and ask first?
+ *
+ * A named function rather than an inline condition, so the decision is testable
+ * without driving a Radix dropdown through a headless DOM. That matters: the thing
+ * worth asserting here is WHEN the product interrupts somebody, and a test that
+ * could only reach it by simulating pointer events on a portal would be a test
+ * about Radix.
+ *
+ * True only for the caller's own row, and only when the change takes something
+ * away. An owner demoting somebody else can undo it, and a confirmation that fires
+ * on everything is one people learn to dismiss before it matters.
+ */
+export function roleChangeNeedsConfirming(
+  isSelf: boolean,
+  from: MemberRole,
+  to: MemberRole,
+): boolean {
+  return isSelf && isDowngrade(from, to);
+}
+
+export function GiveUpAccessDialog({
+  from,
+  to,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  from: MemberRole;
+  /** The role being asked for, or null when nothing is being given up. */
+  to: "admin" | "member" | null;
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  // The warning comes from the shared rule, so the three clients and the server
+  // agree about what a role costs — see packages/shared/src/self-downgrade.ts.
+  const warning = to ? selfDowngradeWarning(from, to) : null;
+
+  return (
+    <Dialog open={to !== null} onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Give up your own access?</DialogTitle>
+          <DialogDescription>{warning}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onCancel} disabled={pending}>
+            Keep my access
+          </Button>
+          <Button variant="destructive" onClick={onConfirm} disabled={pending}>
+            {pending ? "Changing…" : `Make me a ${to}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function OffboardDialog({
   open,
   onOpenChange,

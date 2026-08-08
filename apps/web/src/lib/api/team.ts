@@ -1,3 +1,4 @@
+import { SELF_DOWNGRADE_ACK } from "@loonext/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useCompanyId } from "@/lib/company/provider";
@@ -29,11 +30,26 @@ export function useUpdateMemberRole() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { memberId: string; role: "admin" | "member" }) =>
+    mutationFn: (input: {
+      memberId: string;
+      role: "admin" | "member";
+      /**
+       * #538: present only when somebody is giving up their OWN access, having
+       * been shown what that costs. The server refuses a self-downgrade without
+       * it, so this is the client's evidence that the dialog was seen — not a
+       * flag to set by default.
+       */
+      [SELF_DOWNGRADE_ACK]?: true;
+    }) =>
       apiFetch<Omit<Member, "display_name">>(`/v1/members/${input.memberId}`, {
         method: "PATCH",
         companyId,
-        body: { role: input.role },
+        body: {
+          role: input.role,
+          ...(input[SELF_DOWNGRADE_ACK]
+            ? { [SELF_DOWNGRADE_ACK]: true }
+            : {}),
+        },
       }),
     onSuccess: (updated) => {
       queryClient.setQueryData<Page<Member>>(keys.members(companyId), (page) =>
