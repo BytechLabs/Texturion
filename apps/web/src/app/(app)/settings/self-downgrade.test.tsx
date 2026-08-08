@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   GiveUpAccessDialog,
   roleChangeNeedsConfirming,
-} from "./team/page";
+} from "@/components/settings/give-up-access-dialog";
 
 afterEach(cleanup);
 
