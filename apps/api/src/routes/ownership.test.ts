@@ -67,6 +67,14 @@ interface StubOptions {
   state?: ReturnType<typeof state>;
   /** The emails every member of the workspace would receive. */
   emails?: string[];
+  /**
+   * #537: has this person a verified second factor?
+   *
+   * Defaults to false, which is what leaves every test written before the step-up
+   * behaving exactly as it did — `requireStepUpForEnrolled` asks nothing of
+   * somebody who holds no factor.
+   */
+  enrolled?: boolean;
 }
 
 function stub(options: StubOptions = {}): SupabaseStub {
@@ -87,6 +95,11 @@ function stub(options: StubOptions = {}): SupabaseStub {
     email: `${call.path.split("/").pop()}@crew.example`,
   }));
   sb.on("POST", "/rest/v1/audit_log", () => []);
+  sb.on(
+    "POST",
+    "/rest/v1/rpc/user_has_verified_mfa",
+    () => options.enrolled ?? false,
+  );
   return sb;
 }
 
@@ -463,5 +476,110 @@ describe("POST /v1/company/ownership/cancel", () => {
       { method: "POST", companyId: COMPANY_ID, body: {} },
     );
     expect(res.status).toBe(403);
+  });
+});
+
+describe("#537 — proving it is you before the business moves", () => {
+  /**
+   * Every route here is already behind the company gate, which demands a second
+   * factor from anybody holding one AT SIGN-IN. These ask again at the moment of
+   * the act, because a session that proved itself this morning is not the same
+   * claim as "the person tapping this right now is the owner".
+   */
+  const MOVES: { path: string; body?: Record<string, unknown> }[] = [
+    { path: "offer", body: { member_id: PARTNER_MEMBER_ID } },
+    { path: "claim" },
+    { path: "accept" },
+  ];
+
+  for (const move of MOVES) {
+    it(`asks an enrolled owner for a code before ${move.path}`, async () => {
+      const sb = stub({ enrolled: true });
+      stubFetch(jwksRoute(auth), sb.route);
+
+      const res = await apiRequest(
+        app,
+        env,
+        // A session that has NOT presented the second factor.
+        await auth.token(),
+        `/v1/company/ownership/${move.path}`,
+        { method: "POST", companyId: COMPANY_ID, body: move.body ?? {} },
+      );
+      expect(res.status).toBe(403);
+      // The CODE, not just the status. `workspace.own` also answers 403, so a
+      // status-only assertion would pass just as happily if the step-up were
+      // deleted and the capability gate happened to refuse instead.
+      expect((await res.json()).error.code).toBe("mfa_challenge_required");
+      // And nothing happened. A refusal that still moved the business would be
+      // the worst of both.
+      expect(
+        sb.find("POST", `/rest/v1/rpc/api_${move.path}_ownership`),
+      ).toHaveLength(0);
+    });
+
+    it(`lets them through once they have presented it: ${move.path}`, async () => {
+      const sb = stub({ enrolled: true });
+      sb.on("POST", `/rest/v1/rpc/api_${move.path}_ownership`, () => ({
+        outcome: "forbidden",
+      }));
+      stubFetch(jwksRoute(auth), sb.route);
+
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token({ aal: "aal2" }),
+        `/v1/company/ownership/${move.path}`,
+        { method: "POST", companyId: COMPANY_ID, body: move.body ?? {} },
+      );
+      // Past the step-up and into the SQL, which is what this asserts — the
+      // outcome beyond it is that route's own business.
+      expect(
+        sb.find("POST", `/rest/v1/rpc/api_${move.path}_ownership`),
+      ).toHaveLength(1);
+    });
+  }
+
+  it("NEVER asks for a code to cancel", async () => {
+    // THE ONE THAT MATTERS MOST. Cancelling is the safe direction: it is how an
+    // owner stops a handover they did not intend. Asking for a code while
+    // somebody is racing to veto a takeover would be helping the attacker, and
+    // an owner who has lost their authenticator must still be able to say no.
+    const sb = stub({ enrolled: true });
+    sb.on("POST", "/rest/v1/rpc/api_cancel_ownership_transfer", () => ({
+      outcome: "cancelled",
+    }));
+    const mail = mailStub();
+    stubFetch(jwksRoute(auth), mail.route as never, sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/company/ownership/cancel",
+      { method: "POST", companyId: COMPANY_ID, body: {} },
+    );
+    expect(
+      sb.find("POST", "/rest/v1/rpc/api_cancel_ownership_transfer"),
+    ).toHaveLength(1);
+  });
+
+  it("asks nothing of somebody who holds no second factor — yet", async () => {
+    // The gap this leaves is deliberate and NOT the finished state: an owner with
+    // no authenticator gets no extra proof, because there is nothing to ask them
+    // for. The email code that covers them is the other half of #537.
+    const sb = stub({ enrolled: false });
+    sb.on("POST", "/rest/v1/rpc/api_offer_ownership", () => ({
+      outcome: "forbidden",
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/company/ownership/offer",
+      { method: "POST", companyId: COMPANY_ID, body: { member_id: PARTNER_MEMBER_ID } },
+    );
+    expect(sb.find("POST", "/rest/v1/rpc/api_offer_ownership")).toHaveLength(1);
   });
 });

@@ -39,6 +39,7 @@ import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
+import { requireStepUpForEnrolled } from "../auth/step-up";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { sendEmail } from "../email/resend";
@@ -199,6 +200,19 @@ ownershipRoutes.post(
   "/company/ownership/offer",
   requireCapability("workspace.own"),
   async (c) => {
+    // #537 — PROVE IT IS YOU BEFORE ARMING A TRANSFER OF THE BUSINESS.
+    //
+    // The company gate already demands a second factor from anybody holding one,
+    // but that is a SESSION check made once at sign-in. This is asked at the
+    // moment of the act, because offering is the step a stolen session can use to
+    // start an irreversible handover — and the owner's window to veto lasts only
+    // as long as it takes the recipient to tap accept, which can be seconds.
+    const stepUp = await requireStepUpForEnrolled(
+      c,
+      "handing the workspace over",
+    );
+    if (stepUp) return stepUp;
+
     const body = await parseJsonBody(c, offerSchema);
     const companyId = c.get("companyId");
     const db = getDb(getEnv(c.env));
@@ -258,6 +272,12 @@ ownershipRoutes.post(
   "/company/ownership/claim",
   requireCapability("workspace.access"),
   async (c) => {
+    // #537: the same reasoning as the offer. A claim starts the transfer of a
+    // whole business to the person making it, so it is asked of them at the
+    // moment they make it.
+    const stepUp = await requireStepUpForEnrolled(c, "claiming the workspace");
+    if (stepUp) return stepUp;
+
     const companyId = c.get("companyId");
     const db = getDb(getEnv(c.env));
 
@@ -317,6 +337,12 @@ ownershipRoutes.post(
   "/company/ownership/accept",
   requireCapability("workspace.access"),
   async (c) => {
+    // #537: the moment the business actually moves. Whoever is about to own it
+    // proves they are themselves first — the offer told the crew this was coming,
+    // and this is the step that cannot be undone.
+    const stepUp = await requireStepUpForEnrolled(c, "taking ownership");
+    if (stepUp) return stepUp;
+
     const companyId = c.get("companyId");
     const db = getDb(getEnv(c.env));
     const before = await loadState(db, companyId);

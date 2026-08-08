@@ -19,8 +19,24 @@ import { errorResponse } from "../http/errors";
  * rather than a workspace — and it is also the single most destructive thing
  * the API can do, permanent, and reachable with a stolen password alone.
  *
- * So this is asked THERE and nowhere else: a person who has said "require a
- * second factor to be me" must present it before their account is destroyed.
+ * So this was asked THERE first: a person who has said "require a second factor
+ * to be me" must present it before their account is destroyed.
+ *
+ * ## #537 — and before they hand the business over
+ *
+ * The second caller is the ownership handover, and it needed a different argument
+ * to arrive at the same place. Those routes are NOT company-exempt, so the
+ * company gate already demands `aal2` from a factor-holder — but that is a
+ * SESSION-level check made once at sign-in, and the transfer of a whole business
+ * deserves to be asked at the moment it happens rather than inherited from
+ * something that happened this morning.
+ *
+ * Offering is where a stolen session can arm an irreversible transfer, and the
+ * veto window is only as long as it takes the recipient to tap accept — which can
+ * be seconds. Accepting and claiming are the moments the business actually moves.
+ * Cancelling is deliberately NOT gated: it is the safe direction, and asking an
+ * owner for a code while they are racing to veto a takeover would be helping the
+ * attacker.
  *
  * It is not a lockout. Somebody who genuinely lost their authenticator burns a
  * recovery code first — that removes the factor, which is the loud, auditable
@@ -28,6 +44,14 @@ import { errorResponse } from "../http/errors";
  */
 export async function requireStepUpForEnrolled(
   c: Context<AppEnv>,
+  /**
+   * What the person is about to do, in the second half of "Enter the code from
+   * your authenticator app before ___".
+   *
+   * #537 added the second caller, and a shared message would have told an owner
+   * handing over their business that they were deleting their account.
+   */
+  before = "deleting your account",
 ): Promise<Response | null> {
   if (c.get("aal") === "aal2") return null;
 
@@ -47,6 +71,6 @@ export async function requireStepUpForEnrolled(
   return errorResponse(
     c,
     "mfa_challenge_required",
-    "Enter the code from your authenticator app before deleting your account.",
+    `Enter the code from your authenticator app before ${before}.`,
   );
 }
