@@ -38,11 +38,13 @@ struct DevicesSectionView: View {
                 CenteredError(message: message) { refreshKey += 1 }
                     .frame(height: 200)
             case .ready(let data):
-                // #289: this phone's own data plan, above the device list. It
-                // is the only setting on this screen that changes what the app
-                // DOES rather than what is signed in, so it goes first — a
-                // reader who came here for it should not have to scroll past a
-                // list of sessions to find it.
+                // #289/#330: the two settings about THIS phone, above the device
+                // list. They are the ones that change what the app DOES rather
+                // than what is signed in, so they go first — a reader who came
+                // here for one should not scroll past a list of sessions to find
+                // it. The lock leads because it is the one somebody arrives
+                // looking for after handing their phone to a colleague.
+                AppLockCard(scope: scope)
                 DataUseCard(scope: scope)
                 MyDevicesCard(scope: scope, sessions: data.mine) { refreshKey += 1 }
                 if let crew = data.crew {
@@ -392,6 +394,57 @@ private struct DeviceRow<Action: View>: View {
  *Applying: Zen of Clarity — one control, and the sentence that makes it safe to
  touch.*
  */
+/**
+ #330 — the lock on this phone, beside the other setting that is about THIS phone
+ rather than the workspace.
+
+ The device this app runs on is the tech's own: bought by them, carried off-shift,
+ and a spare one lives in the truck and gets handed to whoever is covering the
+ weekend. Nothing sat between "signed in" and "signed out".
+
+ OFF BY DEFAULT, and the toggle refuses where the phone cannot enforce it. A
+ switch that flips on a device with no Face ID and no passcode would leave
+ somebody believing the phone in their glovebox was protected, which is worse than
+ not offering it — so the row says what to do instead.
+
+ *Applying: Ethical Friction, in the one place friction belongs — a deliberate
+ pause in front of somebody else's customers.*
+ */
+private struct AppLockCard: View {
+    let scope: SettingsScope
+
+    /// Read once per appearance: somebody who leaves to add a passcode comes back
+    /// to a view that has been rebuilt.
+    @State private var canLock = true
+
+    var body: some View {
+        SettingsCard(
+            title: "Lock this app",
+            description: "This phone only. Your other devices keep their own answer."
+        ) {
+            Toggle(isOn: Binding(
+                get: { scope.graph.prefs.appLockEnabled && canLock },
+                set: { scope.graph.prefs.appLockEnabled = $0 }
+            )) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Ask before showing the inbox").font(.body)
+                    Text(
+                        canLock
+                            ? "Face ID, Touch ID or your passcode, whenever the app "
+                                + "has been away for a minute. Worth it if this phone "
+                                + "is ever handed to somebody else."
+                            : AppLock.cannotEnableNote
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                }
+            }
+            .disabled(!canLock)
+        }
+        .onAppear { canLock = deviceCanLock() }
+    }
+}
+
 private struct DataUseCard: View {
     let scope: SettingsScope
 

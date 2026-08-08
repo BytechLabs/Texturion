@@ -18,6 +18,10 @@ final class AppPrefs {
         static let theme = "theme" // system | light | dark
         // #289: full-size photos wait for Wi-Fi on this phone.
         static let wifiOnlyOriginals = "wifi_only_originals"
+        // #330: the app lock, device-scoped for the same reason as the line
+        // above — it is about THIS phone, which is the tech's own and gets
+        // handed to whoever is covering the weekend.
+        static let appLockEnabled = "app_lock_enabled"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -41,11 +45,25 @@ final class AppPrefs {
         didSet { defaults.set(wifiOnlyOriginals, forKey: Keys.wifiOnlyOriginals) }
     }
 
+    /**
+     #330: ask for Face ID, Touch ID or the passcode before showing the inbox.
+
+     Default OFF, and that is a decision rather than laziness. This product
+     promises answering a customer inside the five minutes that decide the job,
+     and a lock a sole operator never asked for is friction on the only thing we
+     sell. A crew sharing one truck phone and a person working alone have
+     opposite correct answers, so the phone asks rather than assuming.
+     */
+    var appLockEnabled: Bool {
+        didSet { defaults.set(appLockEnabled, forKey: Keys.appLockEnabled) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         activeCompanyId = defaults.string(forKey: Keys.activeCompany)
         theme = defaults.string(forKey: Keys.theme) ?? Theme.system
         wifiOnlyOriginals = defaults.bool(forKey: Keys.wifiOnlyOriginals)
+        appLockEnabled = defaults.bool(forKey: Keys.appLockEnabled)
     }
 
     func setActiveCompany(_ companyId: String?) {

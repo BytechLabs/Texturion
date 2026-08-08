@@ -31,7 +31,13 @@ struct LoonextApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView(graph: graph)
+            // #330: OUTSIDE RootView, so a locked app does not build the inbox at
+            // all rather than covering it. An overlay is one app-switcher snapshot
+            // away from being nothing, and the switcher is exactly where a
+            // handed-over phone shows its last screen.
+            AppLockGate(prefs: graph.prefs) {
+                RootView(graph: graph)
+            }
                 .tint(BrandColor.olive)
                 .preferredColorScheme(preferredScheme)
                 // Universal links: app.loonext.com/inbox/{id} and
