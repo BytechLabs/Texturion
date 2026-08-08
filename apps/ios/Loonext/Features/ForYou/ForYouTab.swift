@@ -321,15 +321,25 @@ private struct ForYouList: View {
                 // #342: above the queue, because "you're all caught up" is not
                 // true if somebody has been texting a thread nobody can see.
                 spamReviewSection
-                triageSection
-                // #293: ABOVE "Waiting on you". A quote nobody answered is the
-                // most valuable thing in the business to be reminded about, and
-                // unlike every section below it this one only appears because
-                // the member asked for it — so it has earned the top.
+                // #293: ABOVE the queue. A quote nobody answered is the most
+                // valuable thing in the business to be reminded about, and unlike
+                // every section below it this one only appears because the member
+                // asked for it — so it keeps the top regardless of what the
+                // ordering below says is urgent today.
                 followUpsSection
-                waitingSection
-                tasksSection
-                unreadSection
+                // #540: the four queues in the order the SHARED rule gives, so the
+                // phone leads with the same thing the laptop does. Web spends its
+                // horizontal room on a strip of four tiles; a phone cannot afford
+                // two rows of chrome above the work, so the same decision orders
+                // the sections — which is all the strip was ever an index of.
+                ForEach(queueOrder, id: \.self) { tile in
+                    switch tile {
+                    case .unassigned: triageSection
+                    case .waiting: waitingSection
+                    case .tasks: tasksSection
+                    case .unread: unreadSection
+                    }
+                }
                 recentCallsSection
             }
             .padding(.horizontal, 18)
@@ -382,6 +392,39 @@ private struct ForYouList: View {
                 }
             }
         }
+    }
+
+    /// #540 — the order the four queues are read in, from the shared rule.
+    ///
+    /// Ages come from the rows we were sent, which is the honest limit: the oldest
+    /// row on this page is not necessarily the oldest in the section, so the age can
+    /// be younger than the truth and never older. That is the safe direction for a
+    /// number deciding what somebody looks at first.
+    private var queueOrder: [DashboardTiles.Tile] {
+        let now = Date().timeIntervalSince1970
+        func age(_ iso: String?) -> TimeInterval? {
+            guard let iso, let parsed = parseWireTimestamp(iso) else { return nil }
+            return max(0, now - parsed.timeIntervalSince1970)
+        }
+        return DashboardTiles.order(
+            DashboardTiles.Input(
+                unassignedAges:
+                    (forYou.triage?.conversations.map { age($0.last_message_at) ?? 0 } ?? [])
+                    // A triage task carries no timestamp on this payload, so it
+                    // counts towards the number without claiming an age.
+                    + (forYou.triage?.tasks.map { _ in TimeInterval(0) } ?? []),
+                waiting: forYou.waiting_on_you.map {
+                    DashboardTiles.Row(
+                        ageSeconds: age($0.last_message_at),
+                        overdue: $0.has_overdue_task
+                    )
+                },
+                tasks: forYou.my_tasks.map {
+                    DashboardTiles.Row(ageSeconds: age($0.due_at), overdue: $0.overdue)
+                },
+                unreadAges: forYou.unread.map { age($0.last_message_at) ?? 0 }
+            )
+        ).map(\.tile)
     }
 
     @ViewBuilder
