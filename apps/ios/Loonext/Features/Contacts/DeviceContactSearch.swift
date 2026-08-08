@@ -18,9 +18,6 @@ import Foundation
 /// than with a regex boundary, which does not compile in a Swift regex literal
 /// and is a backspace character in the Kotlin twin.
 
-/// How many device rows a list shows before it says there are more.
-let maxDeviceContactRows = 50
-
 /// Fewest characters before a device search runs. Below this, show the head.
 let minDeviceQuery = 1
 
@@ -34,12 +31,6 @@ struct DeviceContactListRow: Identifiable, Equatable {
     let name: String
     /// E.164 when the number is NANP, otherwise whatever the device stored.
     let number: String
-}
-
-/// The rows to show for a query, and whether the cap hid any.
-struct DeviceContactPage: Equatable {
-    let rows: [DeviceContactListRow]
-    let truncated: Bool
 }
 
 /// True when a device row answers what somebody typed.
@@ -88,20 +79,24 @@ func deviceContactMatches(_ row: DeviceContactListRow, query: String) -> Bool {
     return false
 }
 
-/// The device rows to show for a query, capped.
+/// Every device row that answers what somebody typed. All of them.
 ///
-/// Reports whether anything was hidden rather than silently cutting the list. A
-/// list that stops at fifty without saying so reads as "these are all of them",
-/// and somebody who cannot find their plumber concludes we never read their
-/// contacts at all.
+/// The cap that used to be here is gone (#547). It produced a defect the founder
+/// found in a minute of use: the collapsed group showed five rows under a "Show
+/// all from this phone" button, pressing it showed FIFTY, and under those fifty
+/// sat the sentence "Showing the first 50. Search to find someone else." A
+/// control labelled "Show all" that does not show all is worse than no control.
+///
+/// It was never protecting anything. These rows never leave the phone and are
+/// already in memory, and the group renders inside a lazy list, so the four
+/// hundredth row costs nothing until somebody scrolls to it.
+///
+/// The PREVIEW is still capped, by the caller, while the group is collapsed — a
+/// personal address book above the crew's shared one would bury the thing the
+/// product is for. That is a layout decision and it lives in the layout.
 func filterDeviceContacts(
     _ rows: [DeviceContactListRow],
-    query: String,
-    limit: Int = maxDeviceContactRows
-) -> DeviceContactPage {
-    let matched = rows.filter { deviceContactMatches($0, query: query) }
-    return DeviceContactPage(
-        rows: Array(matched.prefix(limit)),
-        truncated: matched.count > limit
-    )
+    query: String
+) -> [DeviceContactListRow] {
+    rows.filter { deviceContactMatches($0, query: query) }
 }

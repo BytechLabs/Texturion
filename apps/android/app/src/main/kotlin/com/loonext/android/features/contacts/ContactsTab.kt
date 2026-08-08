@@ -104,7 +104,6 @@ import com.loonext.android.ui.common.SkeletonList
 import androidx.core.content.ContextCompat
 import com.loonext.android.features.contacts.device.ContentResolverDeviceContacts
 import com.loonext.android.features.contacts.device.DeviceContactListRow
-import com.loonext.android.features.contacts.device.MAX_DEVICE_CONTACT_ROWS
 import com.loonext.android.features.contacts.device.deviceContactRows
 import com.loonext.android.features.contacts.device.filterDeviceContacts
 import com.loonext.android.ui.common.formatPhone
@@ -871,17 +870,20 @@ private fun ContactListScreen(
                                 // four hundred personal numbers above forty
                                 // shared ones would bury the thing the product
                                 // is for.
-                                val devicePage = filterDeviceContacts(deviceRows, debouncedQ)
+                                // #547: every match, not the first fifty. The
+                                // preview cap below is this layout's decision
+                                // and applies only while the group is collapsed.
+                                val deviceMatches = filterDeviceContacts(deviceRows, debouncedQ)
                                 val deviceVisible =
                                     if (deviceExpanded || debouncedQ.isNotEmpty()) {
-                                        devicePage.rows
+                                        deviceMatches
                                     } else {
-                                        devicePage.rows.take(DEVICE_PREVIEW_ROWS)
+                                        deviceMatches.take(DEVICE_PREVIEW_ROWS)
                                     }
                                 item(key = "device-header") {
                                     DeviceContactsHeader(
                                         granted = deviceGranted,
-                                        matchCount = devicePage.rows.size,
+                                        matchCount = deviceMatches.size,
                                         onGrant = {
                                             haptics.tap()
                                             deviceContactsPermission.launch(
@@ -930,7 +932,7 @@ private fun ContactListScreen(
                                     deviceGranted &&
                                     debouncedQ.isEmpty() &&
                                     !deviceExpanded &&
-                                    devicePage.rows.size > DEVICE_PREVIEW_ROWS
+                                    deviceMatches.size > DEVICE_PREVIEW_ROWS
                                 ) {
                                     item(key = "device-more") {
                                         Box(
@@ -944,26 +946,6 @@ private fun ContactListScreen(
                                                 Text("Show all from this phone")
                                             }
                                         }
-                                    }
-                                }
-                                if (devicePage.truncated) {
-                                    item(key = "device-truncated") {
-                                        // Said out loud rather than cutting the
-                                        // list silently: a list that stops at
-                                        // fifty without saying so reads as
-                                        // "these are all of them".
-                                        Text(
-                                            "Showing the first " +
-                                                MAX_DEVICE_CONTACT_ROWS +
-                                                ". Search to find someone else.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier
-                                                .animateItem()
-                                                .fillMaxWidth()
-                                                .padding(top = 8.dp),
-                                            textAlign = TextAlign.Center,
-                                        )
                                     }
                                 }
                                 item(key = "footer") {

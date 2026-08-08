@@ -501,10 +501,12 @@ struct ContactsTab: View {
     /// each with its own heading, and a wide gap between them.
     @ViewBuilder
     private var devicePhoneSection: some View {
-        let page = filterDeviceContacts(deviceRows, query: debouncedQ)
+        // #547: every match, not the first fifty. The preview cap below is this
+        // layout's decision and applies only while the group is collapsed.
+        let matches = filterDeviceContacts(deviceRows, query: debouncedQ)
         let visible = (deviceExpanded || !debouncedQ.isEmpty)
-            ? page.rows
-            : Array(page.rows.prefix(devicePreviewRows))
+            ? matches
+            : Array(matches.prefix(devicePreviewRows))
 
         VStack(alignment: .leading, spacing: 0) {
             Text("On this phone")
@@ -514,7 +516,7 @@ struct ContactsTab: View {
 
             if deviceAuthorized {
                 Text(
-                    page.rows.isEmpty
+                    matches.isEmpty
                         ? "Nobody here matches."
                         : "Your own contacts. They stay on your phone."
                 )
@@ -535,22 +537,11 @@ struct ContactsTab: View {
                     .padding(.top, 10)
                 }
 
-                if debouncedQ.isEmpty, !deviceExpanded, page.rows.count > devicePreviewRows {
+                if debouncedQ.isEmpty, !deviceExpanded, matches.count > devicePreviewRows {
                     Button("Show all from this phone") { deviceExpanded = true }
                         .buttonStyle(.plain)
                         .font(.golos(12, weight: .semibold))
                         .foregroundStyle(BrandColor.olive)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 10)
-                }
-
-                if page.truncated {
-                    // Said out loud rather than cutting the list silently: a
-                    // list that stops at fifty without saying so reads as
-                    // "these are all of them".
-                    Text("Showing the first \(maxDeviceContactRows). Search to find someone else.")
-                        .font(.golos(12))
-                        .foregroundStyle(BrandColor.muted500)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 10)
                 }

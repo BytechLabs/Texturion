@@ -72,20 +72,22 @@ class DeviceContactSearchTest {
     }
 
     @Test
-    fun `says when the cap hid rows rather than cutting the list silently`() {
-        val many = (0 until MAX_DEVICE_CONTACT_ROWS + 5).map {
+    fun `returns every match, however many there are`() {
+        // #547: there was a cap at fifty here, so "Show all from this phone"
+        // showed fifty and then apologised for it. Somebody with a
+        // four-hundred-entry address book could not reach most of it.
+        val many = (0 until 400).map {
             DeviceContactListRow(id = "id-$it", name = "Person $it", number = "+1416555" + (1000 + it))
         }
-        val page = filterDeviceContacts(many, "")
-        assertEquals(MAX_DEVICE_CONTACT_ROWS, page.rows.size)
-        assertTrue(page.truncated)
+        assertEquals(400, filterDeviceContacts(many, "").size)
     }
 
     @Test
-    fun `is not truncated when everything fits`() {
-        val page = filterDeviceContacts(listOf(row("Dana Smith")), "dana")
-        assertEquals(1, page.rows.size)
-        assertFalse(page.truncated)
+    fun `still filters rather than returning everything regardless`() {
+        // The positive twin: a function that ignored the query would also pass
+        // the test above.
+        val rows = listOf(row("Dana Smith"), row("Alaska Roofing"))
+        assertEquals(listOf("Dana Smith"), filterDeviceContacts(rows, "dana").map { it.name })
     }
 
     @Test

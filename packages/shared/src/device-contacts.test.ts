@@ -8,7 +8,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  MAX_DEVICE_CONTACT_ROWS,
   deviceContactMatches,
   filterDeviceContacts,
   type DeviceContactListRow,
@@ -71,25 +70,27 @@ describe("deviceContactMatches", () => {
 });
 
 describe("filterDeviceContacts", () => {
-  it("says when the cap hid rows rather than cutting the list silently", () => {
-    // A list that stops at fifty without saying so reads as "these are all of
-    // them", and somebody who cannot find their plumber concludes we never
-    // read their contacts.
-    const many = Array.from({ length: MAX_DEVICE_CONTACT_ROWS + 5 }, (_, i) =>
+  it("returns every match, however many there are (#547)", () => {
+    // THE DEFECT THIS REPLACES. There was a cap at fifty, so "Show all from
+    // this phone" showed fifty and then said "Showing the first 50" — a control
+    // that did not do what it said, under a sentence admitting it. Somebody
+    // with a four-hundred-entry address book could not reach most of it.
+    const many = Array.from({ length: 400 }, (_, i) =>
       row(`Person ${i}`, `+1416555${String(1000 + i)}`, `id-${i}`),
     );
-    const page = filterDeviceContacts(many, "");
-    expect(page.rows).toHaveLength(MAX_DEVICE_CONTACT_ROWS);
-    expect(page.truncated).toBe(true);
+    expect(filterDeviceContacts(many, "")).toHaveLength(400);
   });
 
-  it("is not truncated when everything fits", () => {
-    const page = filterDeviceContacts([row("Dana Smith")], "dana");
-    expect(page.rows).toHaveLength(1);
-    expect(page.truncated).toBe(false);
+  it("still filters rather than returning everything regardless", () => {
+    // The positive twin: a function that ignored the query would also pass the
+    // test above.
+    const rows = [row("Dana Smith"), row("Alaska Roofing")];
+    expect(filterDeviceContacts(rows, "dana").map((r) => r.name)).toEqual([
+      "Dana Smith",
+    ]);
   });
 
   it("returns nothing when nothing matches", () => {
-    expect(filterDeviceContacts([row("Dana Smith")], "zzz").rows).toEqual([]);
+    expect(filterDeviceContacts([row("Dana Smith")], "zzz")).toEqual([]);
   });
 });

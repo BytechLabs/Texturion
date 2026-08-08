@@ -497,12 +497,11 @@ export {
 export type { DialerCandidate, DialerMatch, DialerSource } from "./dialer";
 
 export {
-  MAX_DEVICE_CONTACT_ROWS,
   MIN_DEVICE_QUERY,
   deviceContactMatches,
   filterDeviceContacts,
 } from "./device-contacts";
-export type { DeviceContactPage, DeviceContactListRow } from "./device-contacts";
+export type { DeviceContactListRow } from "./device-contacts";
 
 export {
   REFERRAL_CODE_ALPHABET,

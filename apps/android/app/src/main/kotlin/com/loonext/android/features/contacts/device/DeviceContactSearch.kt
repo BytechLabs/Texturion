@@ -21,9 +21,6 @@ package com.loonext.android.features.contacts.device
  * so it would compile and silently match nothing.
  */
 
-/** How many device rows a list shows before it says there are more. */
-const val MAX_DEVICE_CONTACT_ROWS = 50
-
 /** Fewest characters before a device search runs. Below this, show the head. */
 const val MIN_DEVICE_QUERY = 1
 
@@ -39,12 +36,6 @@ data class DeviceContactListRow(
     val name: String,
     /** E.164 when the number is NANP, otherwise whatever the device stored. */
     val number: String,
-)
-
-/** The rows to show for a query, and whether the cap hid any. */
-data class DeviceContactPage(
-    val rows: List<DeviceContactListRow>,
-    val truncated: Boolean,
 )
 
 /**
@@ -79,21 +70,26 @@ fun deviceContactMatches(row: DeviceContactListRow, query: String): Boolean {
 }
 
 /**
- * The device rows to show for a query, capped.
+ * Every device row that answers what somebody typed. All of them.
  *
- * Reports whether anything was hidden rather than silently cutting the list. A
- * list that stops at fifty without saying so reads as "these are all of them",
- * and somebody who cannot find their plumber concludes we never read their
- * contacts at all.
+ * The cap that used to be here is gone (#547). It produced a defect the founder
+ * found in a minute of use: the collapsed group showed five rows under a "Show
+ * all from this phone" button, pressing it showed FIFTY, and under those fifty
+ * sat the sentence "Showing the first 50. Search to find someone else." A
+ * control labelled "Show all" that does not show all is worse than no control.
+ *
+ * It was never protecting anything. These rows never leave the phone and are
+ * already in memory, and the list is a LazyColumn, so the four-hundredth row
+ * costs nothing until somebody scrolls to it.
+ *
+ * The PREVIEW is still capped, by the caller, while the group is collapsed — a
+ * personal address book above the crew's shared one would bury the thing the
+ * product is for. That is a layout decision and it lives in the layout.
  */
 fun filterDeviceContacts(
     rows: List<DeviceContactListRow>,
     query: String,
-    limit: Int = MAX_DEVICE_CONTACT_ROWS,
-): DeviceContactPage {
-    val matched = rows.filter { deviceContactMatches(it, query) }
-    return DeviceContactPage(rows = matched.take(limit), truncated = matched.size > limit)
-}
+): List<DeviceContactListRow> = rows.filter { deviceContactMatches(it, query) }
 
 /**
  * Flatten loaded device contacts into list rows — one per contact, on its FIRST

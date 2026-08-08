@@ -59,24 +59,26 @@ final class DeviceContactSearchTests: XCTestCase {
         XCTAssertTrue(deviceContactMatches(row("Dana", "(416) 555-0123"), query: "4165550123"))
     }
 
-    func testSaysWhenTheCapHidRowsRatherThanCuttingTheListSilently() {
-        let many = (0..<(maxDeviceContactRows + 5)).map {
+    func testReturnsEveryMatchHoweverManyThereAre() {
+        // #547: there was a cap at fifty here, so "Show all from this phone"
+        // showed fifty and then apologised for it. Somebody with a
+        // four-hundred-entry address book could not reach most of it.
+        let many = (0..<400).map {
             DeviceContactListRow(
                 id: "id-\($0)", name: "Person \($0)", number: "+1416555\(1000 + $0)"
             )
         }
-        let page = filterDeviceContacts(many, query: "")
-        XCTAssertEqual(page.rows.count, maxDeviceContactRows)
-        XCTAssertTrue(page.truncated)
+        XCTAssertEqual(filterDeviceContacts(many, query: "").count, 400)
     }
 
-    func testIsNotTruncatedWhenEverythingFits() {
-        let page = filterDeviceContacts([row("Dana Smith")], query: "dana")
-        XCTAssertEqual(page.rows.count, 1)
-        XCTAssertFalse(page.truncated)
+    func testStillFiltersRatherThanReturningEverythingRegardless() {
+        // The positive twin: a function that ignored the query would also pass
+        // the test above.
+        let rows = [row("Dana Smith"), row("Alaska Roofing")]
+        XCTAssertEqual(filterDeviceContacts(rows, query: "dana").map(\.name), ["Dana Smith"])
     }
 
     func testReturnsNothingWhenNothingMatches() {
-        XCTAssertTrue(filterDeviceContacts([row("Dana Smith")], query: "zzz").rows.isEmpty)
+        XCTAssertTrue(filterDeviceContacts([row("Dana Smith")], query: "zzz").isEmpty)
     }
 }

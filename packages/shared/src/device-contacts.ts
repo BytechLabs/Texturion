@@ -27,9 +27,6 @@
 
 import { nationalDigits } from "./dialer";
 
-/** How many device rows a list shows before it says there are more. */
-export const MAX_DEVICE_CONTACT_ROWS = 50;
-
 /** Fewest characters before a device search runs. Below this, show the head. */
 export const MIN_DEVICE_QUERY = 1;
 
@@ -73,28 +70,33 @@ export function deviceContactMatches(row: DeviceContactListRow, query: string): 
   return false;
 }
 
-export interface DeviceContactPage {
-  rows: DeviceContactListRow[];
-  /** True when the cap hid rows, so the list can say so instead of lying. */
-  truncated: boolean;
-}
-
 /**
- * The device rows to show for a query, capped.
+ * Every device row that answers what somebody typed. All of them.
  *
- * Returns whether anything was hidden rather than silently cutting the list.
- * A list that stops at fifty without saying so reads as "these are all of
- * them", and a person who cannot find their plumber then concludes we did not
- * read their contacts at all.
+ * # Why there is no cap here any more (#547)
+ *
+ * There was one, at fifty, and it produced a defect the founder found in a
+ * minute of use: the collapsed group showed five rows under a "Show all from
+ * this phone" button, and pressing it showed FIFTY, followed by the sentence
+ * "Showing the first 50. Search to find someone else." A control labelled
+ * "Show all" that does not show all is worse than no control, and the sentence
+ * under it was the product admitting so.
+ *
+ * The cap was never protecting anything. These rows never leave the phone and
+ * are already in memory — the dialer loaded the address book — and both clients
+ * render them in a virtualised list, so the four-hundredth row costs nothing
+ * until somebody scrolls to it. The cap was bounding a cost that does not
+ * exist, at the price of the one thing the feature is for.
+ *
+ * The PREVIEW is still capped, and that is a different decision made in a
+ * different place: each client takes its own head of this list while the group
+ * is collapsed, because a personal address book above the crew's shared one
+ * would bury the thing the product is for. That is a layout choice and it
+ * belongs to the layout, not to the search.
  */
 export function filterDeviceContacts(
   rows: DeviceContactListRow[],
   query: string,
-  limit: number = MAX_DEVICE_CONTACT_ROWS,
-): DeviceContactPage {
-  const matched = rows.filter((row) => deviceContactMatches(row, query));
-  return {
-    rows: matched.slice(0, limit),
-    truncated: matched.length > limit,
-  };
+): DeviceContactListRow[] {
+  return rows.filter((row) => deviceContactMatches(row, query));
 }
