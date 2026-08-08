@@ -58,7 +58,7 @@ actor ApiClient {
         query: [String: String?] = [:],
         companyId: String? = nil
     ) async throws -> T {
-        try Self.decode(await raw("GET", path, query: query, companyId: companyId))
+        try Self.decode(path, await raw("GET", path, query: query, companyId: companyId))
     }
 
     func post<T: Decodable & Sendable>(
@@ -68,6 +68,7 @@ actor ApiClient {
         idempotencyKey: String? = nil
     ) async throws -> T {
         try Self.decode(
+            path,
             await raw(
                 "POST",
                 path,
@@ -83,7 +84,7 @@ actor ApiClient {
         body: some Encodable & Sendable,
         companyId: String? = nil
     ) async throws -> T {
-        try Self.decode(await raw("PATCH", path, body: Self.encode(body), companyId: companyId))
+        try Self.decode(path, await raw("PATCH", path, body: Self.encode(body), companyId: companyId))
     }
 
     func put<T: Decodable & Sendable>(
@@ -91,7 +92,7 @@ actor ApiClient {
         body: some Encodable & Sendable,
         companyId: String? = nil
     ) async throws -> T {
-        try Self.decode(await raw("PUT", path, body: Self.encode(body), companyId: companyId))
+        try Self.decode(path, await raw("PUT", path, body: Self.encode(body), companyId: companyId))
     }
 
     func delete(_ path: String, companyId: String? = nil) async throws {
@@ -106,7 +107,7 @@ actor ApiClient {
         _ path: String,
         companyId: String? = nil
     ) async throws -> T {
-        try Self.decode(await raw("DELETE", path, companyId: companyId))
+        try Self.decode(path, await raw("DELETE", path, companyId: companyId))
     }
 
     // MARK: - Core
@@ -302,8 +303,23 @@ actor ApiClient {
         }
     }
 
-    private static func decode<T: Decodable>(_ data: Data) throws -> T {
-        try JSONDecoder().decode(T.self, from: data)
+    /// #555: the path travels with the data, so a failure can name the route.
+    ///
+    /// A decode failure used to throw a bare `DecodingError`, which is not an
+    /// `ApiError`, so `userMessage` gave the generic line and nothing was recorded
+    /// anywhere. The screen was blank and the reason was gone.
+    ///
+    /// Only `decodeSummary` reaches the log — the case and the coding path, never
+    /// a value. `DiagnosticsLog` does not scrub, and what it holds rides into the
+    /// support email from Settings > Help.
+    private static func decode<T: Decodable>(_ path: String, _ data: Data) throws -> T {
+        do {
+            return try JSONDecoder().decode(T.self, from: data)
+        } catch {
+            let summary = decodeSummary(error)
+            DiagnosticsLog.record(.api, "decode \(path)", detail: summary)
+            throw ApiDecodeError(path: path, summary: summary)
+        }
     }
 
     private static func encode(_ body: (some Encodable)?) -> Data? {

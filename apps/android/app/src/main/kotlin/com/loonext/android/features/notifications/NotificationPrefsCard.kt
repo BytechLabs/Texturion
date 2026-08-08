@@ -132,9 +132,16 @@ fun NotificationPrefsCard(
         scope.launch {
             try {
                 state = LoadState.Ready(repo.updatePrefs(companyId, next))
-            } catch (_: Exception) {
+            } catch (cause: Exception) {
                 state = LoadState.Ready(previous)
-                saveError = "That didn't save. Try again."
+                // #552/D80: the SERVER'S sentence, not ours. This card hardcoded
+                // "That didn't save. Try again." — and the reason it would not save
+                // was a 422 naming the exact field, which is the one thing that
+                // would have told the founder what was wrong. D80:
+                // "a client that overwrites a server's error copy is making a bet
+                // that the server will never have anything more specific to say."
+                // That bet was already lost here.
+                saveError = cause.userMessage()
             }
         }
     }

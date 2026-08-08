@@ -8,10 +8,38 @@ enum LoadState<T> {
 }
 
 extension Error {
-    /// The server's verbatim message when this is an ApiError; a calm generic
-    /// line otherwise (never a raw decoding/transport dump).
+    /// The sentence a screen shows when a load or a save failed.
+    ///
+    /// THE SERVER'S OWN MESSAGE comes first and verbatim, as it always did: those
+    /// are written to be read, and D80 is explicit that a client overwriting one
+    /// "is making a bet that the server will never have anything more specific to
+    /// say."
+    ///
+    /// A DECODE FAILURE SAYS SOMETHING DIFFERENT, because it is a different thing
+    /// (#555). It means we could not read what the server sent — our bug, not the
+    /// customer's, and one that "try again" cannot fix, because the same response
+    /// will fail the same way. Telling somebody to retry a permanent failure is
+    /// the specific dishonesty this replaces.
+    ///
+    /// The reason is never shown. "Response for /v1/conversations/abc did not
+    /// match the client model" is a sentence for us, and it is recorded in the
+    /// diagnostics log instead (see `ApiClient.decode`).
+    ///
+    /// An app update is named because it is the one action that genuinely might
+    /// help — a Worker ahead of this build is the commonest cause, and the phones
+    /// ship on their own cadence — and it is named as a possibility rather than a
+    /// promise. The Diagnostics screen is deliberately NOT mentioned: it is behind
+    /// a seven-tap unlock, so pointing anybody at it would be directions to a door
+    /// they cannot see.
+    ///
+    /// Word for word the same as the Android twin in `ui/common/Ui.kt`.
     var userMessage: String {
-        (self as? ApiError)?.message ?? "Something went wrong."
+        if let api = self as? ApiError { return api.message }
+        if self is ApiDecodeError {
+            return "This didn't load. It's a problem on our side, not something "
+                + "you did. If there's an app update, that usually fixes it."
+        }
+        return "Something went wrong."
     }
 }
 

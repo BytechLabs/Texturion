@@ -47,3 +47,54 @@ struct ApiError: Error, LocalizedError {
 
     var errorDescription: String? { message }
 }
+
+/// A 200 whose body did not match this build's model.
+///
+/// #555 — the founder tapped a call entry and got "Something went wrong, try
+/// again". On Android the cause was one nullable column arriving as an explicit
+/// null, and the reason was discarded because a decode failure was not an
+/// `ApiError` and so fell through to the generic line. iOS had the identical
+/// anonymity: `JSONDecoder` throws a plain `DecodingError`, which is not an
+/// `ApiError`, so `userMessage` said the same nine words with nothing recorded.
+///
+/// This is the type that lets the sentence and the diagnostic be different things.
+struct ApiDecodeError: Error, LocalizedError {
+    let path: String
+    let summary: String
+
+    var errorDescription: String? { "Response for \(path) did not match the client model" }
+}
+
+/// What a decode failure is allowed to say out loud.
+///
+/// THE FIELD PATH IS THE WHOLE DIAGNOSTIC, and the value never was. Knowing that
+/// `spam_signals` arrived as a null is what fixes the bug; knowing what the
+/// customer wrote adds nothing to it.
+///
+/// Stricter than the Android twin on purpose. `RecentErrors` there at least
+/// redacts phone numbers and emails; `DiagnosticsLog` here only TRUNCATES, and
+/// its contents ride into a support email from Settings > Help. So nothing but
+/// the case name and the coding path is ever built into this string —
+/// `Context.debugDescription` is deliberately never read, because for a corrupted
+/// payload it can quote the payload.
+func decodeSummary(_ error: Error) -> String {
+    guard let decoding = error as? DecodingError else {
+        return String(describing: type(of: error))
+    }
+    func path(_ context: DecodingError.Context) -> String {
+        let keys = context.codingPath.map(\.stringValue)
+        return keys.isEmpty ? "(root)" : keys.joined(separator: ".")
+    }
+    switch decoding {
+    case let .keyNotFound(key, context):
+        return "missing \(path(context)).\(key.stringValue)"
+    case let .valueNotFound(_, context):
+        return "null at \(path(context))"
+    case let .typeMismatch(_, context):
+        return "wrong type at \(path(context))"
+    case let .dataCorrupted(context):
+        return "corrupted at \(path(context))"
+    @unknown default:
+        return "decode failed"
+    }
+}

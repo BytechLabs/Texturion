@@ -189,14 +189,21 @@ func feedbackMailto(
     companyId: String,
     companyName: String?,
     plan: String?,
-    appVersion: String?
+    appVersion: String?,
+    /// #555: the parameter this function did not have. `supportMailto` and
+    /// `supportBody` both accepted recent client failures and defaulted them to an
+    /// empty array, and every call site here took the default — so the log that
+    /// records a failure was never attached to anything. Web has always sent it.
+    /// Recording a diagnosis nobody can collect is the same as not recording it.
+    recentErrors: [String] = []
 ) -> URL? {
     supportMailto(
         companyId: companyId,
         companyName: companyName,
         plan: plan,
         appVersion: appVersion,
-        subject: "Idea for Loonext"
+        subject: "Idea for Loonext",
+        recentErrors: recentErrors
     )
 }
 
@@ -213,12 +220,18 @@ struct HelpSectionView: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
     }
 
+    /// #555: whatever has failed on this device recently rides along. The
+    /// customer should not have to know what we need in order to be helped, and
+    /// they cannot read a log.
+    private var recentErrors: [String] { DiagnosticsLog.recentLines() }
+
     private var body_: String {
         supportBody(
             companyId: scope.companyId,
             companyName: company.name,
             plan: company.plan,
-            appVersion: appVersion
+            appVersion: appVersion,
+            recentErrors: recentErrors
         )
     }
 
@@ -233,7 +246,8 @@ struct HelpSectionView: View {
                     companyId: scope.companyId,
                     companyName: company.name,
                     plan: company.plan,
-                    appVersion: appVersion
+                    appVersion: appVersion,
+                    recentErrors: recentErrors
                 ) {
                     openURL(url)
                 }
@@ -269,7 +283,8 @@ struct HelpSectionView: View {
                     companyId: scope.companyId,
                     companyName: company.name,
                     plan: company.plan,
-                    appVersion: appVersion
+                    appVersion: appVersion,
+                    recentErrors: recentErrors
                 ) {
                     openURL(url)
                 }

@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.diag.RecentErrors
 import java.net.URLEncoder
 
 /**
@@ -181,7 +182,18 @@ fun feedbackMailto(
     companyName: String?,
     plan: String?,
     appVersion: String?,
+    /**
+     * #555: the parameter this function did not have.
+     *
+     * `supportMailto` and `supportBody` both accepted recent client failures and
+     * defaulted them to an empty list, and every call site on this screen took the
+     * default — so the ring that records a failure was never attached to anything.
+     * Web has always sent it. Recording a diagnosis nobody can collect is the same
+     * as not recording it.
+     */
+    recentErrors: List<String> = emptyList(),
 ): String = supportMailto(
+    recentErrors = recentErrors,
     companyId = companyId,
     companyName = companyName,
     plan = plan,
@@ -201,7 +213,14 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName
     }.getOrNull()
 
-    val body = supportBody(scope.companyId, companyName, plan, appVersion)
+    // #555: whatever has failed on this device recently rides along. The
+    // customer should not have to know what we need in order to be helped, and
+    // they cannot read a log. Already scrubbed by RecentErrors.
+    val recentErrors = RecentErrors.recentLines()
+    val body = supportBody(
+        scope.companyId, companyName, plan, appVersion,
+        recentErrors = recentErrors,
+    )
 
     SettingsCard(
         title = "Email us",
@@ -212,7 +231,10 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
             onClick = {
                 openExternal(
                     context,
-                    supportMailto(scope.companyId, companyName, plan, appVersion),
+                    supportMailto(
+                        scope.companyId, companyName, plan, appVersion,
+                        recentErrors = recentErrors,
+                    ),
                 )
             },
         ) { Text("Email $SUPPORT_EMAIL") }
@@ -243,7 +265,10 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
             onClick = {
                 openExternal(
                     context,
-                    feedbackMailto(scope.companyId, companyName, plan, appVersion),
+                    feedbackMailto(
+                        scope.companyId, companyName, plan, appVersion,
+                        recentErrors = recentErrors,
+                    ),
                 )
             },
         ) { Text("Send an idea") }
