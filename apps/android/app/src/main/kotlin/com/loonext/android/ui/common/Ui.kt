@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.net.ApiDecodeException
 import com.loonext.android.core.net.ApiException
 import java.time.Duration
 import java.time.Instant
@@ -32,8 +33,37 @@ sealed interface LoadState<out T> {
     data class Failed(val message: String, val code: String? = null) : LoadState<Nothing>
 }
 
-fun Throwable.userMessage(): String =
-    (this as? ApiException)?.message ?: "Something went wrong."
+/**
+ * The sentence a screen shows when a load or a save failed.
+ *
+ * #555 — "This page shows up in a lot of countless places... Needs a better
+ * system or observability or something idk."
+ *
+ * THE SERVER'S OWN MESSAGE comes first and verbatim, as it always did: those are
+ * written to be read.
+ *
+ * A DECODE FAILURE NOW SAYS SOMETHING DIFFERENT, because it is a different thing.
+ * It means we could not read what the server sent — our bug, not the customer's,
+ * and one that "try again" cannot fix, because the same response will fail the
+ * same way. Telling somebody to retry a permanent failure is the specific
+ * dishonesty this replaces. The reason itself is never shown: "Response for
+ * /v1/conversations/abc did not match the client model" is a sentence for us, and
+ * it is recorded where we can reach it (see ApiClient.decodeBody) rather than
+ * printed at a customer.
+ *
+ * An app update is named because it is the one action that genuinely might help —
+ * a server ahead of this build is the commonest cause — and it is named as a
+ * possibility rather than a promise. The Diagnostics screen is deliberately NOT
+ * mentioned: it is hidden until unlocked, so pointing anybody at it would be
+ * directions to a door they cannot see.
+ */
+fun Throwable.userMessage(): String = when {
+    this is ApiException -> message
+    this is ApiDecodeException ->
+        "This didn't load. It's a problem on our side, not something you did. " +
+            "If there's an app update, that usually fixes it."
+    else -> "Something went wrong."
+}
 
 /** Centered expressive loading indicator — first load only, never spinners over data. */
 @Composable

@@ -54,10 +54,36 @@ class ApiClient(
         .connectionPool(okhttp3.ConnectionPool(3, 5, java.util.concurrent.TimeUnit.MINUTES))
         .build()
 
+    /**
+     * #555/#549: `coerceInputValues` is the one that matters, and its absence was
+     * a whole class of blank screen.
+     *
+     * kotlinx.serialization tolerates a MISSING key on a property with a default
+     * and THROWS on an explicit `null` unless the property is nullable. PostgREST
+     * emits an explicit null for every nullable column it selects. So
+     * `ConversationDetail.spam_signals` — `List<SpamSignal> = emptyList()`, backed
+     * by a nullable jsonb column the spam classifier fills in later — made
+     * `GET /v1/conversations/:id` undecodable for every thread that had never been
+     * scored, which is most of them. Tapping a call entry opens that thread, the
+     * decode threw, and `Throwable.userMessage()` turned it into "Something went
+     * wrong." with the reason discarded.
+     *
+     * That was ONE of about two hundred fields with the same shape. Coercing an
+     * explicit null onto the declared default fixes the class rather than the
+     * instance, and `NullTolerantDecodeTest` pins both the flag and the behaviour.
+     *
+     * The cost, stated: an invalid ENUM value now also falls back to its default
+     * rather than throwing, so a server sending a state this build has not heard of
+     * degrades quietly instead of blanking the screen. That is the right trade for
+     * a phone in a truck — and it is only quiet because the decode failures that
+     * DO remain are now recorded (see `userMessage`), not because nobody is
+     * watching.
+     */
     val json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
         encodeDefaults = true
+        coerceInputValues = true
     }
 
     private val refreshMutex = Mutex()
@@ -129,6 +155,16 @@ class ApiClient(
     inline fun <reified T> decodeBody(path: String, bodyText: String): T = try {
         json.decodeFromString(bodyText)
     } catch (cause: Exception) {
+        // #555: recorded HERE, at the one place these are constructed, rather than
+        // inside the formatter that turns them into a sentence. A decode failure
+        // used to be completely anonymous — the caller caught it, showed
+        // "Something went wrong.", and the path and the missing field went nowhere.
+        // The founder could see the screen and nobody could see the reason.
+        //
+        // RecentErrors scrubs phone numbers and emails and keeps a bounded ring
+        // that the Diagnostics screen shares, so the next report can arrive with
+        // the failing route attached instead of a description of a blank page.
+        RecentErrors.record("decode $path: ${cause.message}")
         throw ApiDecodeException(path, cause)
     }
 
