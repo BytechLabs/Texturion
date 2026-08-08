@@ -3,6 +3,7 @@ package com.loonext.android
 import android.app.Application
 import com.loonext.android.core.auth.AppPrefs
 import com.loonext.android.core.auth.AuthManager
+import com.loonext.android.core.auth.SessionEnded
 import com.loonext.android.core.auth.SessionStore
 import com.loonext.android.core.auth.SupabaseAuth
 import com.loonext.android.core.data.AiRepository
@@ -165,7 +166,12 @@ class AppGraph(private val app: Application) {
     }
 
     init {
-        authManager.onSignedOut = {
+        // #330: registered on SessionEnded rather than on the Sign out button, so a
+        // session the SERVER ended clears the same things. An owner signing a
+        // departed tech's phone out (#236) used to drop only the token, leaving every
+        // cached conversation and unread count on a phone the company cannot ask
+        // back — which is the case that matters once somebody has actually left.
+        SessionEnded.onEnded {
             storeCache.clear()
             notificationsReadState.clear()
             // #183 part 3: tear down the Connected-Apps account so the
@@ -173,6 +179,15 @@ class AppGraph(private val app: Application) {
             runCatching {
                 com.loonext.android.features.contacts.sync.LoonextContactsAccount
                     .remove(android.accounts.AccountManager.get(app))
+            }
+            // And the outbox — what somebody was in the middle of saying to a
+            // customer, and the photos they attached. It survived every exit until
+            // now: an unsent message to a homeowner sitting on a phone the company
+            // does not own, which could also flush under a session that is gone.
+            appScope.launch {
+                runCatching {
+                    com.loonext.android.features.thread.Outbox(app).clear()
+                }
             }
         }
         // #176 warmer: the moment a company is active, prime every tab's

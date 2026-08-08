@@ -140,6 +140,22 @@ final class Outbox {
         try? FileManager.default.removeItem(at: directory(for: localId))
     }
 
+    /// #330 — everything, and the photos with it, when the session ends.
+    ///
+    /// The queue holds what somebody was in the middle of saying to a customer, and
+    /// the photos they attached. On a phone the company does not own, that has to go
+    /// when the session does: a tech leaves, the owner signs their phone out from
+    /// Devices, and an unsent message to a homeowner must not be sitting there
+    /// afterwards — nor flush to the customer under a session that no longer exists.
+    ///
+    /// The whole directory rather than a walk over the rows: a row that failed to
+    /// decode is a row `all()` cannot see, and its photos would survive a per-row
+    /// sweep. What must not remain is the bytes.
+    func clear() {
+        defaults.removeObject(forKey: Self.storageKey)
+        try? FileManager.default.removeItem(at: mediaRoot)
+    }
+
     /// Everything queued for one thread, oldest first (the timeline order).
     func forConversation(_ conversationId: String) -> [QueuedSend] {
         all()

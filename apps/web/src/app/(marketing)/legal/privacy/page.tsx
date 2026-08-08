@@ -33,6 +33,7 @@ const sections = [
   { id: "why", number: "3", heading: "Why we use it" },
   { id: "sms-consent", number: "4", heading: "SMS and consent data" },
   { id: "where", number: "5", heading: "Where your data lives" },
+  { id: "on-your-phone", number: "5a", heading: "What stays on your phone" },
   { id: "sharing", number: "6", heading: "Who we share with" },
   { id: "ai", number: "7", heading: "AI features" },
   { id: "retention", number: "8", heading: "How long we keep it" },
@@ -167,6 +168,63 @@ export default function PrivacyPage() {
             sub-processors page
           </LegalLink>
           .
+        </p>
+      </LegalSectionBlock>
+
+      {/* #330: section 5 described our servers and said nothing about the device
+          the app runs on. D12's customer is a crew texting from PERSONAL handsets:
+          a phone they bought, carry off-shift, hand to their kid and sell in
+          eighteen months. What sits on it is a fair question, and nobody could
+          answer it from this page.
+
+          NO DASHES in anything rendered here, per the guard in
+          legal-pages.test.tsx. */}
+      <LegalSectionBlock
+        id="on-your-phone"
+        number="5a"
+        heading="What stays on your phone"
+      >
+        <p>
+          Our app is almost certainly on a phone you own rather than one your
+          company issued. So here is what it keeps on the device itself, and what
+          happens to it.
+        </p>
+        <ul>
+          <li>
+            <strong>Your sign-in.</strong> Held in the phone&apos;s own secure
+            storage (the Keychain on iPhone, app-private storage on Android), so
+            no other app can read it.
+          </li>
+          <li>
+            <strong>Recent conversations, contacts and unread counts,</strong> so
+            the app opens to something rather than a spinner on a weak signal.
+          </li>
+          <li>
+            <strong>Messages you sent while offline,</strong> with any photos
+            attached, until the phone gets signal and they go.
+          </li>
+        </ul>
+        <p>
+          <strong>All of it is deleted when your session ends,</strong> whether
+          you sign out yourself or an owner signs your phone out from their team
+          settings. Not marked for later: removed, including the photos.
+        </p>
+        <p>
+          <strong>Notifications never contain a message.</strong> We leave the
+          words out of the notification itself rather than relying on a phone
+          setting, so nothing a customer wrote can appear on your lock screen for
+          whoever picks the phone up.
+        </p>
+        <p>
+          <strong>You can put a lock on the app,</strong> separate from the
+          phone&apos;s own lock, in Settings. It is off by default, and worth turning
+          on if a spare phone gets shared around the crew.
+        </p>
+        <p>
+          <strong>Your phone&apos;s address book is never uploaded.</strong> If you
+          give the app permission, it shows your own contacts beside the
+          crew&apos;s so you do not have to retype a number. That search happens on
+          the phone, and none of it is sent to us.
         </p>
       </LegalSectionBlock>
 

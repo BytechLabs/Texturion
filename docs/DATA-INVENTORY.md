@@ -101,6 +101,43 @@ declare access we do not take.
 
 ---
 
+## What sits on the device, and when it leaves (#330)
+
+D12's customer is a crew texting from PERSONAL handsets. The device is not a work
+device: it is bought by the tech, carried off-shift, handed to a kid, sold in
+eighteen months, and taken with them when they quit. So what the app keeps locally
+is a disclosure in its own right, and it is answered for customers in the privacy
+policy under **"What stays on your phone"** rather than only here.
+
+| On the device | Where | Cleared when the session ends |
+|---|---|---|
+| The Supabase session | iOS Keychain (this-device-only); Android app-private DataStore | Yes, by definition |
+| Render cache: recent conversations, contacts, list rows | Android `storeCache` (memory) | Yes |
+| Per-workspace unread counts | Android `NotificationsReadState`; iOS `NotificationsReadState` | Yes |
+| Offline outbox: message text + attached photo bytes | Android DataStore + `filesDir/outbox-media`; iOS UserDefaults + `Application Support/Outbox` | Yes, rows and photo files |
+| Android Connected-Apps account ("Call/Text with Loonext" rows) | System `AccountManager` | Yes, the account is removed |
+| The phone's own address book | Never copied. Read and searched in place | N/A, nothing is stored |
+
+**"When the session ends" means BOTH ways it can end**, and that is the part that
+was broken. A session ends when somebody taps Sign out, or when the server refuses
+the refresh token because the session was revoked (#236: an owner signing a departed
+tech's phone out). Only the first went through the sign-out path, so only the first
+cleared any of the above. The clean-up is now attached to
+`SessionStore.clear()` on both platforms and announced through `SessionEnded`, so a
+third exit path cannot forget.
+
+Files: `apps/android/app/src/main/kotlin/com/loonext/android/core/auth/SessionStore.kt`,
+`apps/ios/Loonext/Core/SessionStore.swift` (the `SessionEnded` hook),
+`apps/android/app/src/main/kotlin/com/loonext/android/LoonextApp.kt`, `apps/ios/Loonext/Core/AppGraph.swift`
+(the listeners).
+
+**Notification payloads carry no message content** (#430) — stripped server-side, so
+no device setting can reveal what was never sent. **An optional app lock** (#330,
+biometric or device credential) is off by default and configurable, because a crew
+sharing one truck phone and a sole operator have opposite correct answers.
+
+---
+
 ## Reading the device address book is not collecting contacts
 
 Both apps read the phone's own contact book, and neither uploads it. This is the

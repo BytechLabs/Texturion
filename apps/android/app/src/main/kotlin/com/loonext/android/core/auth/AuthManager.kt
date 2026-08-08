@@ -195,14 +195,17 @@ class AuthManager(
         sessionStore.save(session)
     }
 
-    /** Set by AppGraph — drops the render cache so account data dies with the session. */
-    var onSignedOut: (() -> Unit)? = null
-
     suspend fun signOut() {
         val session = sessionStore.current()
         if (session != null) auth.signOut(session.accessToken)
-        sessionStore.clear()
+        // #330: clearing the session is what drops the render cache, the unread
+        // counts and the Connected-Apps rows — `SessionEnded` fires from inside
+        // `clear()`. It used to be a callback invoked here, which meant a session the
+        // SERVER ended cleared nothing.
+        // Active company FIRST: the prefetch warmer watches it, and clearing the
+        // render cache while a company is still selected is a window where the
+        // warmer could put rows back.
         prefs.setActiveCompany(null)
-        onSignedOut?.invoke()
+        sessionStore.clear()
     }
 }

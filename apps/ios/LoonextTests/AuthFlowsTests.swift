@@ -294,10 +294,71 @@ final class SignOutClearsLocalStateTests: XCTestCase {
             body.contains("sessionStore.clear()"),
             "sign-out must drop the session"
         )
+    }
+
+    /// #330 — and the clean-up is wired to the SESSION ENDING, not to the button.
+    ///
+    /// This is the stronger version of the lint above, and it exists because the
+    /// weaker one passed while the bug was live. A session ends two ways: somebody
+    /// taps Sign out, or the server refuses the refresh token because the session was
+    /// revoked. Only the first came through `signOut()`. So an owner signing a
+    /// departed tech's phone out from Devices dropped the token and left the previous
+    /// member's unread counts on a phone the company cannot ask back.
+    ///
+    /// Asserting the wiring rather than the call site is the point: a guard that only
+    /// checks `signOut()` cannot see the exit that skips it.
+    func testTheCleanUpIsWiredToTheSessionEndingRatherThanTheButton() throws {
+        let graph = try String(
+            contentsOf: try repoPath("apps/ios/Loonext/Core/AppGraph.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(
+            graph.contains("SessionEnded.onEnded"),
+            "nothing is registered for the session ending, so a revoked session "
+                + "clears the token and leaves the customer's data on the phone"
+        )
+        // The registration and the thing it must do, in the same block.
+        guard let start = graph.range(of: "SessionEnded.onEnded {") else {
+            return XCTFail("the registration has moved — point this lint at it")
+        }
+        var depth = 1
+        var body = ""
+        for character in graph[start.upperBound...] {
+            if character == "{" { depth += 1 }
+            if character == "}" {
+                depth -= 1
+                if depth == 0 { break }
+            }
+            body.append(character)
+        }
         XCTAssertTrue(
             body.contains("NotificationsReadState.shared.clear()"),
-            "sign-out must drop the per-company unread bookkeeping, or the next "
-                + "person holding this phone inherits the last member's counts"
+            "the session ending must drop the per-company unread bookkeeping, or the "
+                + "next person holding this phone inherits the last member's counts"
+        )
+
+        // And the store actually fires it. Registering a listener nobody calls is the
+        // same bug in a different place.
+        let store = try String(
+            contentsOf: try repoPath("apps/ios/Loonext/Core/SessionStore.swift"),
+            encoding: .utf8
+        )
+        guard let clearStart = store.range(of: "func clear() {") else {
+            return XCTFail("SessionStore.clear has moved — point this lint at it")
+        }
+        var clearDepth = 1
+        var clearBody = ""
+        for character in store[clearStart.upperBound...] {
+            if character == "{" { clearDepth += 1 }
+            if character == "}" {
+                clearDepth -= 1
+                if clearDepth == 0 { break }
+            }
+            clearBody.append(character)
+        }
+        XCTAssertTrue(
+            clearBody.contains("SessionEnded.fire()"),
+            "clearing the session must announce it, or every listener is decoration"
         )
     }
 

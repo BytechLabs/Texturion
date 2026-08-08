@@ -52,6 +52,11 @@ class OutboxTest {
             val live = rows.map { it.localId }.toSet()
             files = files.filterKeys { it in live }
         }
+
+        override suspend fun clear() {
+            rows = emptyList()
+            files = emptyMap()
+        }
     }
 
     /**
@@ -357,4 +362,5 @@ class OutboxTest {
         )
         assertEquals(listOf("a", "b"), store.forConversation("conv").map { it.localId })
     }
+
 }

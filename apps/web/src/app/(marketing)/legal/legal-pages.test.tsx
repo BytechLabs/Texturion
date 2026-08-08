@@ -158,6 +158,52 @@ describe("privacy — the PIPEDA/Law 25 posture survives", () => {
   });
 });
 
+describe("#330 privacy — what stays on a phone the company does not own", () => {
+  const html = PAGES[1].html;
+
+  it("answers the question at all", () => {
+    // Section 5 described our servers and stopped. The app runs on the tech's OWN
+    // phone, and until this section nothing on the page said what sits there.
+    expect(html).toContain("What stays on your phone");
+  });
+
+  it("names each thing it keeps, rather than gesturing at 'some data'", () => {
+    // A list somebody can check against their own expectations. "We may store
+    // certain information locally" is not an answer to "what is on my phone".
+    expect(html).toContain("Your sign-in");
+    expect(html).toContain("Recent conversations, contacts and unread counts");
+    expect(html).toContain("Messages you sent while offline");
+  });
+
+  it("promises deletion on a session ending, not just on sign-out", () => {
+    // THE LOAD-BEARING PROMISE, and the one the code had to change to make true:
+    // a session revoked by an owner used to clear the token and leave everything
+    // else behind. If this sentence is ever softened, check that it was softened
+    // because the behaviour changed — not to match a regression.
+    expect(html).toContain("deleted when your session ends");
+    expect(html).toContain("signs your phone out");
+    expect(html).toContain("including the photos");
+  });
+
+  it("says notifications carry no message, and does not blame a phone setting", () => {
+    // #430 strips the content server-side, so this is a statement about what is
+    // never transmitted rather than about what a device chooses to hide.
+    expect(html).toContain("Notifications never contain a message");
+    expect(html).toContain("rather than relying on a phone");
+  });
+
+  it("tells somebody the app lock exists and that it is theirs to turn on", () => {
+    expect(html).toContain("put a lock on the app");
+    expect(html).toContain("off by default");
+  });
+
+  it("keeps the address-book promise where a customer can find it", () => {
+    // It was true and recorded in an internal inventory. A promise nobody outside
+    // the repo can read is not a promise to the person it protects.
+    expect(html).toContain("address book is never uploaded");
+  });
+});
+
 describe("aup — the consent rules survive", () => {
   const html = PAGES[2].html;
   it("keeps SHAFT, the list ban, and immediate opt-out", () => {

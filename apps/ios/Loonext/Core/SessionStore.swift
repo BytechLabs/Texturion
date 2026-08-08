@@ -16,6 +16,54 @@ struct Session: Codable, Sendable {
     }
 }
 
+/// #330 — everything of the customer's that lives outside the session, wiped when the
+/// session ends.
+///
+/// ## Why it hangs off the STORE rather than off sign-out
+///
+/// A session ends two ways: somebody taps Sign out, or the server refuses the refresh
+/// token because the session was revoked. Only the first went through
+/// `AppGraph.signOut`, so only the first cleared the per-workspace unread counts. The
+/// second — a member deactivated, or an owner signing a departed tech's phone out from
+/// Devices (#236) — dropped the token and left the customer's data sitting on a phone
+/// the company does not own and cannot ask back. That is the case #330 says matters
+/// most.
+///
+/// Attaching it to `SessionStore.clear()` rather than to either call site means a
+/// third way for a session to end cannot forget: whatever kills the session runs this.
+///
+/// ## Every listener must tolerate being wrong about the reason
+///
+/// A revocation arrives on a background refresh with a screen open. The token is
+/// already gone and the person is on their way to the sign-in screen either way, so a
+/// failed cache eviction must never become a crash on the way out.
+enum SessionEnded {
+    private static let lock = NSLock()
+    private nonisolated(unsafe) static var listeners: [() -> Void] = []
+
+    /// Registered once, by the composition root.
+    static func onEnded(_ listener: @escaping () -> Void) {
+        lock.lock()
+        listeners.append(listener)
+        lock.unlock()
+    }
+
+    /// Called by `SessionStore.clear()`.
+    static func fire() {
+        lock.lock()
+        let current = listeners
+        lock.unlock()
+        for listener in current { listener() }
+    }
+
+    /// Tests only: the app registers at startup and never unregisters.
+    static func reset() {
+        lock.lock()
+        listeners.removeAll()
+        lock.unlock()
+    }
+}
+
 /// Keychain-backed session persistence (kSecClassGenericPassword, this-device-only).
 ///
 /// `changes` broadcasts every save/clear (a refresh save included) so the root
@@ -66,6 +114,10 @@ final class SessionStore: @unchecked Sendable {
         SecItemDelete(baseQuery as CFDictionary)
         let continuations = Array(observers.values)
         lock.unlock()
+        // #330: the customer's data goes with the session, however it ended. Fired
+        // before the observers so the root state machine never repaints a signed-out
+        // screen over caches that are still full.
+        SessionEnded.fire()
         for continuation in continuations { continuation.yield(nil) }
     }
 

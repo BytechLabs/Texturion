@@ -169,20 +169,21 @@ final class AuthManager {
         if let session = sessionStore.current() {
             await auth.signOut(accessToken: session.accessToken)
         }
-        sessionStore.clear()
-        prefs.setActiveCompany(nil)
-        // #330: and the per-company unread bookkeeping, which outlives the
-        // session otherwise. `NotificationsReadState.clear()` was written for
-        // exactly this — its own comment calls it "sign-out parity with the
-        // Android cache clear" — and nothing had ever called it, so Android
-        // dropped it on sign-out and this app kept it.
+        // #330: the per-company unread bookkeeping outlives the session otherwise.
+        // `NotificationsReadState.clear()` was written for exactly this — its own
+        // comment calls it "sign-out parity with the Android cache clear" — and
+        // nothing had ever called it.
         //
-        // It matters because of who owns the phone. D12's customer is a crew
-        // texting from personal handsets, and a spare phone in the truck gets
-        // handed to whoever is covering the weekend. Signing out and passing it
-        // over left the next person holding the previous member's unread counts
-        // for every workspace they had open.
-        NotificationsReadState.shared.clear()
+        // It matters because of who owns the phone. D12's customer is a crew texting
+        // from personal handsets, and a spare phone in the truck gets handed to
+        // whoever is covering the weekend. Signing out and passing it over left the
+        // next person holding the previous member's unread counts for every workspace
+        // they had open.
+        //
+        // The call now lives on `SessionEnded`, registered by the composition root,
+        // because a session the SERVER ended never came through here at all.
+        prefs.setActiveCompany(nil)
+        sessionStore.clear()
     }
 }
 
@@ -238,6 +239,22 @@ final class AppGraph {
         self.contactsApi = ContactsApi(api: api)
         self.notificationsApi = NotificationsApi(api: api)
         self.searchApi = SearchApi(api: api)
+
+        // #330: registered on SessionEnded rather than on the Sign out button, so a
+        // session the SERVER ended clears the same things. An owner signing a departed
+        // tech's phone out (#236) used to drop only the token, leaving the previous
+        // member's unread counts on a phone the company cannot ask back — which is the
+        // case that matters once somebody has actually left.
+        SessionEnded.onEnded {
+            NotificationsReadState.shared.clear()
+            // And the outbox — what somebody was in the middle of saying to a
+            // customer, and the photos they attached. It survived every exit until
+            // now: an unsent message to a homeowner sitting on a phone the company
+            // does not own, which could also flush under a session that is gone. A
+            // fresh instance clears the same storage; the queue lives in
+            // UserDefaults and one fixed directory, not in the object.
+            Outbox().clear()
+        }
 
         // Realtime channels authorize with the Supabase JWT — keep it fresh.
         Task {

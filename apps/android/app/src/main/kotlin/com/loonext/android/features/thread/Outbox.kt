@@ -143,6 +143,17 @@ interface Outbox {
     /** Delete photo files whose message is no longer queued. */
     suspend fun pruneMedia()
 
+    /**
+     * #330 — everything, and the photos with it, when the session ends.
+     *
+     * The queue holds what somebody was in the middle of saying to a customer, and
+     * the photos they attached. On a phone the company does not own, that has to go
+     * when the session does: a tech leaves, the owner signs their phone out from
+     * Devices, and an unsent message to a homeowner must not be sitting there
+     * afterwards — nor flush to the customer under a session that no longer exists.
+     */
+    suspend fun clear()
+
     /** Everything queued for one thread, oldest first (the timeline order). */
     suspend fun forConversation(conversationId: String): List<QueuedSend> =
         all().filter { it.conversationId == conversationId }.sortedBy { it.createdAt }
@@ -226,6 +237,14 @@ private class DataStoreOutbox(private val context: Context) : Outbox {
             val file = java.io.File(dirFor(localId), item.fileName)
             runCatching { if (file.isFile) file.readBytes() else null }.getOrNull()
         }
+
+    override suspend fun clear() {
+        context.outboxStore.edit { it.clear() }
+        // The whole directory rather than a walk over the rows: a row that failed to
+        // decode is a row `all()` cannot see, and its photos would survive a per-row
+        // sweep. What must not remain is the bytes.
+        withContext(Dispatchers.IO) { runCatching { mediaRoot().deleteRecursively() } }
+    }
 
     override suspend fun pruneMedia() {
         val live = all().map { it.localId }.toSet()
