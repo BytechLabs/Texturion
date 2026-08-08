@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.10.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.9.0...shared-v0.10.0) (2026-08-08)
+
+
+### Features
+
+* **api:** send the handover code, and require it from owners with no app ([68d74c3](https://github.com/BytechLabs/Texturion/commit/68d74c3b3a67b544d8bedd5014e0b7090ead72ad)), closes [#537](https://github.com/BytechLabs/Texturion/issues/537)
+* **clients:** hand the truck phone over in one tap ([614ec2c](https://github.com/BytechLabs/Texturion/commit/614ec2cef808fd7b7afe44432bca287d521303c5)), closes [#330](https://github.com/BytechLabs/Texturion/issues/330)
+* **web:** enter the code that confirms a handover ([6fab110](https://github.com/BytechLabs/Texturion/commit/6fab11054777425e8de047455c5b61d75a204f0d)), closes [#537](https://github.com/BytechLabs/Texturion/issues/537)
+* **web:** warn before going quiet while you are on call ([fc5134c](https://github.com/BytechLabs/Texturion/commit/fc5134c424670ad15d002ae4d0a6eeed7722ae06)), closes [#538](https://github.com/BytechLabs/Texturion/issues/538)
+
+
+### Bug Fixes
+
+* **api:** make taking your own access away deliberate ([12c7b24](https://github.com/BytechLabs/Texturion/commit/12c7b24f1310b82a1939c20537880c76b29776bd)), closes [#538](https://github.com/BytechLabs/Texturion/issues/538)
+
 ## [0.9.0](https://github.com/BytechLabs/Texturion/compare/shared-v0.8.1...shared-v0.9.0) (2026-08-08)
 
 

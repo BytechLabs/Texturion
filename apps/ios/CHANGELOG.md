@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.11.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.10.0...ios-v0.11.0) (2026-08-08)
+
+
+### Features
+
+* ask who you are before the doors that don't reopen ([d3ac642](https://github.com/BytechLabs/Texturion/commit/d3ac642ee535ed6c2a575dffa3fd86d0c65d2539)), closes [#537](https://github.com/BytechLabs/Texturion/issues/537)
+* **clients:** confirm a handover from your phone ([4906b4d](https://github.com/BytechLabs/Texturion/commit/4906b4d6ba1359f861516dd4ebfc2060ad3c1866)), closes [#537](https://github.com/BytechLabs/Texturion/issues/537)
+* **clients:** hand the truck phone over in one tap ([614ec2c](https://github.com/BytechLabs/Texturion/commit/614ec2cef808fd7b7afe44432bca287d521303c5)), closes [#330](https://github.com/BytechLabs/Texturion/issues/330)
+* **mobile:** ask before you give up your own access ([dda9d7e](https://github.com/BytechLabs/Texturion/commit/dda9d7e5ff33c17f8409fb268504a8448858928a)), closes [#538](https://github.com/BytechLabs/Texturion/issues/538)
+* **mobile:** warn before going quiet while you are on call ([c4193cd](https://github.com/BytechLabs/Texturion/commit/c4193cd394296890bbf6ba62dc84dcc93d65e22a)), closes [#538](https://github.com/BytechLabs/Texturion/issues/538)
+
+
+### Bug Fixes
+
+* **clients:** clear the phone when a session is ended for you ([b79639f](https://github.com/BytechLabs/Texturion/commit/b79639f3266234244fb8d5eb0b27a2da6858349d)), closes [#330](https://github.com/BytechLabs/Texturion/issues/330)
+* **ios:** read the on-call rota without a repository that wants a session store ([26764d8](https://github.com/BytechLabs/Texturion/commit/26764d89b2b5f608427bc276ffa90f5c08279ac1)), closes [#538](https://github.com/BytechLabs/Texturion/issues/538)
+
 ## [0.10.0](https://github.com/BytechLabs/Texturion/compare/ios-v0.9.1...ios-v0.10.0) (2026-08-08)
 
 

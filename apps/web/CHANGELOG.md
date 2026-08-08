@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.13.0](https://github.com/BytechLabs/Texturion/compare/web-v0.12.0...web-v0.13.0) (2026-08-08)
+
+
+### Features
+
+* ask who you are before the doors that don't reopen ([d3ac642](https://github.com/BytechLabs/Texturion/commit/d3ac642ee535ed6c2a575dffa3fd86d0c65d2539)), closes [#537](https://github.com/BytechLabs/Texturion/issues/537)
+* **clients:** hand the truck phone over in one tap ([614ec2c](https://github.com/BytechLabs/Texturion/commit/614ec2cef808fd7b7afe44432bca287d521303c5)), closes [#330](https://github.com/BytechLabs/Texturion/issues/330)
+* **web:** ask before you give up your own access ([f5c2baa](https://github.com/BytechLabs/Texturion/commit/f5c2baab681e55fdf1d741fdcef3bc43296c4cea)), closes [#538](https://github.com/BytechLabs/Texturion/issues/538)
+* **web:** enter the code that confirms a handover ([6fab110](https://github.com/BytechLabs/Texturion/commit/6fab11054777425e8de047455c5b61d75a204f0d)), closes [#537](https://github.com/BytechLabs/Texturion/issues/537)
+* **web:** warn before going quiet while you are on call ([fc5134c](https://github.com/BytechLabs/Texturion/commit/fc5134c424670ad15d002ae4d0a6eeed7722ae06)), closes [#538](https://github.com/BytechLabs/Texturion/issues/538)
+
+
+### Bug Fixes
+
+* **clients:** clear the phone when a session is ended for you ([b79639f](https://github.com/BytechLabs/Texturion/commit/b79639f3266234244fb8d5eb0b27a2da6858349d)), closes [#330](https://github.com/BytechLabs/Texturion/issues/330)
+* **web:** move the access dialog out of the page file ([a0e2de4](https://github.com/BytechLabs/Texturion/commit/a0e2de4d03449f0dc87ef4187bf5c51216cc33dc)), closes [#538](https://github.com/BytechLabs/Texturion/issues/538)
+
 ## [0.12.0](https://github.com/BytechLabs/Texturion/compare/web-v0.11.1...web-v0.12.0) (2026-08-08)
 
 
