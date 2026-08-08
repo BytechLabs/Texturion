@@ -232,6 +232,8 @@ struct ThreadComposerView: View {
     /// Declared after ``wrapUp`` for the same memberwise-init reason it gives.
     var onScheduleSend: (@MainActor (String, String, Bool) async -> ScheduleOutcome)?
 
+    /// #294: the staged photo open in the markup editor, with its decoded bitmap.
+    @State private var markingUp: (file: StagedFile, image: UIImage)?
     @State private var templatePickerOpen = false
     @State private var mentionPickerOpen = false
     /// #475: which saved reply is in the box, and what it said on arrival.
@@ -410,12 +412,24 @@ struct ThreadComposerView: View {
                 }
             }
             if isNote, !state.files.isEmpty {
-                FileChipsRow(files: state.files) { id in
-                    if let file = state.files.first(where: { $0.id == id }) {
-                        Task.detached { discardStagedFile(file) }
+                FileChipsRow(
+                    files: state.files,
+                    onRemove: { id in
+                        if let file = state.files.first(where: { $0.id == id }) {
+                            Task.detached { discardStagedFile(file) }
+                        }
+                        state.files.removeAll { $0.id == id }
+                    },
+                    onMarkUp: { id in
+                        guard let file = state.files.first(where: { $0.id == id }),
+                              let data = readStagedFile(file),
+                              let decoded = UIImage(data: data)
+                        else { return }
+                        // A photo the phone cannot decode is a photo it cannot mark
+                        // up: opening an empty canvas would look broken.
+                        markingUp = (file, decoded)
                     }
-                    state.files.removeAll { $0.id == id }
-                }
+                )
                 // #294: only once there are photos to describe. A before/after choice
                 // on a text-only note is noise on the most common thing anybody does
                 // in this composer.
@@ -479,6 +493,35 @@ struct ThreadComposerView: View {
                 stageFiles(result)
             } else {
                 stageMedia(result)
+            }
+        }
+        // #294 — the marks are burned into the staged bytes and the file is
+        // replaced, so what uploads is an ordinary note attachment. D28 keeps two
+        // doors, and this does not add a third.
+        .sheet(
+            isPresented: Binding(
+                get: { markingUp != nil },
+                set: { if !$0 { markingUp = nil } }
+            )
+        ) {
+            if let open = markingUp {
+                PhotoMarkupSheet(
+                    image: open.image,
+                    onDone: { data in
+                        markingUp = nil
+                        // Keeping the unmarked original beats losing the photo: an
+                        // arrow that did not save is annoying, a missing picture is
+                        // not acceptable.
+                        guard let replacement = stageMarkedUpPhoto(open.file, data: data)
+                        else { return }
+                        if let index = state.files.firstIndex(where: {
+                            $0.id == open.file.id
+                        }) {
+                            state.files[index] = replacement
+                        }
+                    },
+                    onCancel: { markingUp = nil }
+                )
             }
         }
         .sheet(isPresented: $templatePickerOpen) {
@@ -1476,16 +1519,26 @@ struct PhotoChipsRow: View {
 struct FileChipsRow: View {
     let files: [StagedFile]
     let onRemove: @MainActor (String) -> Void
+    /// #294: open the markup editor on this photo. Nil where marking up makes no
+    /// sense — these chips carry documents too, and an editor on a PDF is a control
+    /// that does nothing.
+    var onMarkUp: (@MainActor (String) -> Void)?
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(files) { file in
                     HStack(spacing: 6) {
+                        // #294: the name is the handle for marking up, so pointing
+                        // at something costs one tap on the thing already on screen.
+                        let markable =
+                            onMarkUp != nil && file.contentType.hasPrefix("image/")
                         Text(file.name)
                             .font(.footnote)
                             .lineLimit(1)
                             .frame(maxWidth: 160)
+                            .underline(markable)
+                            .onTapGesture { if markable { onMarkUp?(file.id) } }
                         Button {
                             onRemove(file.id)
                         } label: {

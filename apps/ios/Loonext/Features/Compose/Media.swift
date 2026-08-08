@@ -358,3 +358,32 @@ nonisolated func readStagedFile(_ file: StagedFile) -> Data? {
 nonisolated func discardStagedFile(_ file: StagedFile) {
     try? FileManager.default.removeItem(at: file.localURL)
 }
+
+/// #294 — park marked-up bytes where the uploader already knows how to read them.
+///
+/// A staged file is a URL on disk, not a buffer, so an edited photo needs somewhere
+/// to live between the editor and the send. It goes beside the scratch copy it
+/// replaces, and the OLD file is deleted — leaving a copy of a customer's kitchen
+/// around to be swept later is the opposite of what #330 spent a day on.
+///
+/// Returns nil when the write fails, and the caller keeps the unmarked original:
+/// losing the arrow is annoying, losing the photo is not acceptable.
+nonisolated func stageMarkedUpPhoto(_ original: StagedFile, data: Data) -> StagedFile? {
+    let name = PhotoMarkup.markedUpFileName(original.name)
+    let target = original.localURL
+        .deletingLastPathComponent()
+        .appendingPathComponent("markup-\(original.id)-\(name)")
+    do {
+        try data.write(to: target)
+    } catch {
+        return nil
+    }
+    try? FileManager.default.removeItem(at: original.localURL)
+    return StagedFile(
+        id: original.id,
+        localURL: target,
+        name: name,
+        contentType: "image/jpeg",
+        sizeBytes: Int64(data.count)
+    )
+}
