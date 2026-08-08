@@ -42,6 +42,26 @@ import { errorResponse } from "../http/errors";
  * recovery code first — that removes the factor, which is the loud, auditable
  * path — and then deletes. The exit exists; it just is not silent.
  */
+/**
+ * #537 — does this caller hold a verified second factor at all?
+ *
+ * Split out because the ownership routes need the ANSWER, not just the refusal:
+ * somebody with a factor is asked for it, and somebody without one is asked for a
+ * code by email instead. A helper that can only refuse cannot express that fork.
+ *
+ * A failure throws rather than guessing. Guessing "no factor" would silently
+ * downgrade an owner who has one to the weaker path, which is the wrong direction
+ * for the one flow that hands over a business.
+ */
+export async function hasVerifiedFactor(c: Context<AppEnv>): Promise<boolean> {
+  const db = getDb(getEnv(c.env));
+  const { data, error } = await db.rpc("user_has_verified_mfa", {
+    p_user_id: c.get("userId"),
+  });
+  if (error) throw new Error(`step-up check failed: ${error.message}`);
+  return data === true;
+}
+
 export async function requireStepUpForEnrolled(
   c: Context<AppEnv>,
   /**

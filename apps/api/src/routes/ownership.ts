@@ -39,7 +39,10 @@ import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
-import { requireStepUpForEnrolled } from "../auth/step-up";
+import {
+  hasVerifiedFactor,
+  requireStepUpForEnrolled,
+} from "../auth/step-up";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { sendEmail } from "../email/resend";
@@ -55,7 +58,26 @@ const backupSchema = z.object({
   member_id: z.uuid().nullable(),
 });
 
-const offerSchema = z.object({ member_id: z.uuid() });
+const offerSchema = z.object({
+  member_id: z.uuid(),
+  /** #537: present when the caller is confirming by emailed code. */
+  confirmation_code: z.string().trim().regex(/^\d{6}$/).optional(),
+});
+
+/** #537: claim and accept carry no other input, only the code. */
+const confirmOnlySchema = z.object({
+  confirmation_code: z.string().trim().regex(/^\d{6}$/).optional(),
+});
+
+/**
+ * #537 — which handover step a requested code is for.
+ *
+ * Scoped, because a code issued to hand the business over must not accept it
+ * instead: those are opposite decisions made by different people.
+ */
+const codeRequestSchema = z.object({
+  action: z.enum(["offer", "claim", "accept"]),
+});
 
 interface OwnershipState {
   owner_user_id: string;
@@ -196,6 +218,87 @@ ownershipRoutes.post(
   },
 );
 
+/**
+ * POST /v1/company/ownership/confirm-code — #537. Send me a code.
+ *
+ * ## Why this exists
+ *
+ * The step-up on the handover routes asks for a second factor from anybody who
+ * holds one. Most owners hold none, so the protection the issue asked for would
+ * have reached a minority of the people who need it most. This is the other half:
+ * six digits to the address on the account.
+ *
+ * ## Why it is not gated on being the owner
+ *
+ * `workspace.access`, because the three steps a code can satisfy are not all the
+ * owner's. A named backup starting a claim is routinely a plain member, and a
+ * recipient accepting is by definition not the owner yet. Asking for a code is
+ * harmless in itself: it proves nothing and unlocks nothing until the code is
+ * presented alongside an action the SQL already gates.
+ *
+ * ## It always answers the same way
+ *
+ * Nothing in the response says whether a code was sent, whether the caller could
+ * have done the action anyway, or whether they hold a second factor. A request
+ * that reported "you are not the owner" would be a way to enumerate who is.
+ */
+ownershipRoutes.post(
+  "/company/ownership/confirm-code",
+  requireCapability("workspace.access"),
+  async (c) => {
+    const body = await parseJsonBody(c, codeRequestSchema);
+    const companyId = c.get("companyId");
+    const userId = c.get("userId");
+    const env = getEnv(c.env);
+    const db = getDb(env);
+
+    const { data, error } = await db.rpc("api_issue_ownership_code", {
+      p_company_id: companyId,
+      p_user_id: userId,
+      p_action: body.action,
+    });
+    if (error) {
+      throw new Error(`api_issue_ownership_code failed: ${error.message}`);
+    }
+    const code = String(data ?? "");
+
+    // To the CALLER's own address and nobody else's. `announce` mails the whole
+    // crew, which is right for "a handover is happening" and catastrophic for a
+    // code — it would hand every teammate the confirmation.
+    await notify(c, async (innerEnv, innerDb) => {
+      const [email] = await memberEmails(innerDb, [userId]);
+      if (!email) return;
+      const name = await companyName(innerDb, companyId);
+      await mail(
+        innerEnv,
+        [email],
+        `${name}: your confirmation code`,
+        [
+          `Your code is ${code}`,
+          "It works once, for ten minutes, for this one action. If you did not " +
+            "ask for it, somebody may have your password — change it now, and " +
+            "tell the rest of the crew.",
+          handoverLink(innerEnv),
+        ].join("\n\n"),
+      );
+    });
+
+    // #537: the request itself is worth recording. "A code was asked for at
+    // 14:02 and the handover happened at 14:03" is the shape of an incident
+    // review, and a code nobody remembers requesting is the first sign.
+    await recordAuditFromRequest(db, c, {
+      companyId,
+      action: "ownership.code_requested",
+      targetType: "company",
+      targetId: companyId,
+      after: { for: body.action },
+    });
+
+    // Deliberately no detail. See the docblock.
+    return c.json({ sent: true });
+  },
+);
+
 ownershipRoutes.post(
   "/company/ownership/offer",
   requireCapability("workspace.own"),
@@ -207,13 +310,15 @@ ownershipRoutes.post(
     // moment of the act, because offering is the step a stolen session can use to
     // start an irreversible handover — and the owner's window to veto lasts only
     // as long as it takes the recipient to tap accept, which can be seconds.
-    const stepUp = await requireStepUpForEnrolled(
-      c,
-      "handing the workspace over",
-    );
-    if (stepUp) return stepUp;
-
     const body = await parseJsonBody(c, offerSchema);
+    const refused = await requireHandoverConfirmation(
+      c,
+      "offer",
+      "handing the workspace over",
+      body.confirmation_code,
+    );
+    if (refused) return refused;
+
     const companyId = c.get("companyId");
     const db = getDb(getEnv(c.env));
 
@@ -275,8 +380,14 @@ ownershipRoutes.post(
     // #537: the same reasoning as the offer. A claim starts the transfer of a
     // whole business to the person making it, so it is asked of them at the
     // moment they make it.
-    const stepUp = await requireStepUpForEnrolled(c, "claiming the workspace");
-    if (stepUp) return stepUp;
+    const claimBody = await parseJsonBody(c, confirmOnlySchema);
+    const refused = await requireHandoverConfirmation(
+      c,
+      "claim",
+      "claiming the workspace",
+      claimBody.confirmation_code,
+    );
+    if (refused) return refused;
 
     const companyId = c.get("companyId");
     const db = getDb(getEnv(c.env));
@@ -340,8 +451,14 @@ ownershipRoutes.post(
     // #537: the moment the business actually moves. Whoever is about to own it
     // proves they are themselves first — the offer told the crew this was coming,
     // and this is the step that cannot be undone.
-    const stepUp = await requireStepUpForEnrolled(c, "taking ownership");
-    if (stepUp) return stepUp;
+    const acceptBody = await parseJsonBody(c, confirmOnlySchema);
+    const refused = await requireHandoverConfirmation(
+      c,
+      "accept",
+      "taking ownership",
+      acceptBody.confirmation_code,
+    );
+    if (refused) return refused;
 
     const companyId = c.get("companyId");
     const db = getDb(getEnv(c.env));
@@ -467,6 +584,60 @@ ownershipRoutes.post(
  * involved. The person best placed to notice a handover that should not be
  * happening is a colleague who knows the owner is on holiday, not a system.
  */
+/**
+ * #537 — the confirmation in front of a handover, whichever kind the caller has.
+ *
+ * Returns a Response to send back, or null to carry on.
+ *
+ * ONE FORK, TWO MECHANISMS. Somebody with an authenticator is asked to present it;
+ * somebody without one is asked for the code emailed to their own address. The
+ * clients show the same dialog either way — see `confirm-code` above.
+ *
+ * The order matters: a factor-holder is asked for their factor and NOT offered the
+ * email path, because letting anybody fall back to email would make the weaker
+ * mechanism the effective one for everybody.
+ */
+async function requireHandoverConfirmation(
+  c: Context<AppEnv>,
+  action: "offer" | "claim" | "accept",
+  before: string,
+  code: string | undefined,
+): Promise<Response | null> {
+  if (await hasVerifiedFactor(c)) {
+    // The session check. `requireStepUpForEnrolled` re-reads the factor, which is
+    // one extra round trip on a rare, deliberate act and keeps that helper usable
+    // on its own from `DELETE /v1/account`.
+    return requireStepUpForEnrolled(c, before);
+  }
+
+  if (!code) {
+    return errorResponse(
+      c,
+      "confirmation_code_required",
+      `Enter the code we emailed you before ${before}.`,
+    );
+  }
+
+  const db = getDb(getEnv(c.env));
+  const { data, error } = await db.rpc("api_use_ownership_code", {
+    p_company_id: c.get("companyId"),
+    p_user_id: c.get("userId"),
+    p_action: action,
+    p_code: code,
+  });
+  if (error) throw new Error(`api_use_ownership_code failed: ${error.message}`);
+  if (data !== true) {
+    // One message for wrong, expired, already used and out of attempts. Telling
+    // somebody WHICH would tell an attacker whether they had the right digits.
+    return errorResponse(
+      c,
+      "confirmation_code_required",
+      "That code did not work. Ask for a new one and try again.",
+    );
+  }
+  return null;
+}
+
 async function announce(
   c: Context<AppEnv>,
   companyId: string,

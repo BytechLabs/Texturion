@@ -68,6 +68,11 @@ export type AuditAction =
   // backup named, and by whom" is the first question anyone asks about a
   // handover that turns out to be wrong.
   | "ownership.backup_named"
+  // #537: somebody asked for a confirmation code. Recorded because "a code was
+  // requested at 14:02 and the handover happened at 14:03" is the shape of an
+  // incident review — and a code nobody remembers asking for is the first sign
+  // that somebody else has the password.
+  | "ownership.code_requested"
   | "ownership.offered"
   | "ownership.claim_started"
   | "ownership.transferred"

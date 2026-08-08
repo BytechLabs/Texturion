@@ -90,6 +90,13 @@ const SELF_SCOPED_WRITES = new Set([
   // Gating it on anything higher would mean a member cannot tidy their own
   // screen, which is the whole feature.
   "PUT /me/dashboard",
+  // #537: asking for a confirmation code to be emailed TO YOURSELF. It proves
+  // nothing and unlocks nothing on its own — the code is only worth anything
+  // presented alongside a handover step the SQL already gates. Deliberately open
+  // to any member, because the steps a code can satisfy are not all the owner's:
+  // a named backup starting a claim is routinely a plain member, and a recipient
+  // accepting is by definition not the owner yet.
+  "POST /company/ownership/confirm-code",
 ]);
 
 /**

@@ -49,6 +49,13 @@ export const ERROR_CODES = [
   // screen is a dead end that invites them to add a SECOND factor to fix being
   // asked for the first. Shares the 403 status with `forbidden`.
   "mfa_challenge_required",
+  // #537: prove it is you by the code we emailed, because you hold no
+  // authenticator to be challenged on. Distinct from `mfa_challenge_required`
+  // because the remedy is a different screen — that one says "open your
+  // authenticator app", this one says "check your email" — and a client that
+  // conflated them would send somebody hunting for an app they never installed.
+  // Shares the 403 status with its sibling so the two forks look alike.
+  "confirmation_code_required",
   "rate_limited",
   // #283: a subsystem is switched off at the runtime kill switch — an
   // operator's deliberate act during an incident, not the customer's fault and
@@ -77,6 +84,7 @@ export const ERROR_CODE_STATUS = {
   quiet_hours_confirmation_required: 409,
   mfa_required: 403,
   mfa_challenge_required: 403,
+  confirmation_code_required: 403,
   rate_limited: 429,
   service_unavailable: 503,
 } as const satisfies Record<ErrorCode, number>;

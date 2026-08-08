@@ -75,6 +75,8 @@ interface StubOptions {
    * somebody who holds no factor.
    */
   enrolled?: boolean;
+  /** #537: does the emailed code check out? Defaults to yes. */
+  codeOk?: boolean;
 }
 
 function stub(options: StubOptions = {}): SupabaseStub {
@@ -100,6 +102,15 @@ function stub(options: StubOptions = {}): SupabaseStub {
     "/rest/v1/rpc/user_has_verified_mfa",
     () => options.enrolled ?? false,
   );
+  // #537: the emailed code is accepted by default, so a test about the handover
+  // does not have to re-teach the confirmation. `codeOk: false` is how the tests
+  // ABOUT the confirmation make it refuse.
+  sb.on(
+    "POST",
+    "/rest/v1/rpc/api_use_ownership_code",
+    () => options.codeOk ?? true,
+  );
+  sb.on("POST", "/rest/v1/rpc/api_issue_ownership_code", () => "424242");
   return sb;
 }
 
@@ -199,7 +210,8 @@ describe("POST /v1/company/ownership/backup", () => {
       env,
       await auth.token(),
       "/v1/company/ownership/backup",
-      { method: "POST", companyId: COMPANY_ID, body: { member_id: PARTNER_MEMBER_ID } },
+      { method: "POST", companyId: COMPANY_ID,
+        body: { member_id: PARTNER_MEMBER_ID, confirmation_code: "424242" } },
     );
     expect(res.status).toBe(403);
     expect(sb.find("POST", "/rest/v1/rpc/api_set_backup_owner")).toHaveLength(0);
@@ -219,7 +231,8 @@ describe("POST /v1/company/ownership/backup", () => {
       env,
       await auth.token(),
       "/v1/company/ownership/backup",
-      { method: "POST", companyId: COMPANY_ID, body: { member_id: PARTNER_MEMBER_ID } },
+      { method: "POST", companyId: COMPANY_ID,
+        body: { member_id: PARTNER_MEMBER_ID, confirmation_code: "424242" } },
     );
     expect(res.status).toBe(200);
     expect(sb.find("POST", "/rest/v1/audit_log")[0].body).toMatchObject({
@@ -276,7 +289,8 @@ describe("POST /v1/company/ownership/offer", () => {
       env,
       await auth.token(),
       "/v1/company/ownership/offer",
-      { method: "POST", companyId: COMPANY_ID, body: { member_id: PARTNER_MEMBER_ID } },
+      { method: "POST", companyId: COMPANY_ID,
+        body: { member_id: PARTNER_MEMBER_ID, confirmation_code: "424242" } },
     );
     expect(res.status).toBe(403);
   });
@@ -295,7 +309,8 @@ describe("POST /v1/company/ownership/offer", () => {
       env,
       await auth.token(),
       "/v1/company/ownership/offer",
-      { method: "POST", companyId: COMPANY_ID, body: { member_id: PARTNER_MEMBER_ID } },
+      { method: "POST", companyId: COMPANY_ID,
+        body: { member_id: PARTNER_MEMBER_ID, confirmation_code: "424242" } },
     );
     expect(res.status).toBe(200);
     // A handover nobody was told about is indistinguishable from a takeover,
@@ -319,7 +334,8 @@ describe("POST /v1/company/ownership/offer", () => {
       env,
       await auth.token(),
       "/v1/company/ownership/offer",
-      { method: "POST", companyId: COMPANY_ID, body: { member_id: PARTNER_MEMBER_ID } },
+      { method: "POST", companyId: COMPANY_ID,
+        body: { member_id: PARTNER_MEMBER_ID, confirmation_code: "424242" } },
     );
     expect(res.status).toBe(409);
   });
@@ -340,7 +356,7 @@ describe("POST /v1/company/ownership/claim", () => {
       env,
       await auth.token(),
       "/v1/company/ownership/claim",
-      { method: "POST", companyId: COMPANY_ID, body: {} },
+      { method: "POST", companyId: COMPANY_ID, body: { confirmation_code: "424242" } },
     );
     expect(res.status).toBe(200);
     // The loudest message in the feature: the owner has a week and one click.
@@ -357,7 +373,7 @@ describe("POST /v1/company/ownership/claim", () => {
       env,
       await auth.token(),
       "/v1/company/ownership/claim",
-      { method: "POST", companyId: COMPANY_ID, body: {} },
+      { method: "POST", companyId: COMPANY_ID, body: { confirmation_code: "424242" } },
     );
     expect(res.status).toBe(403);
     const message = ((await res.json()) as { error: { message: string } }).error.message;
@@ -398,7 +414,7 @@ describe("POST /v1/company/ownership/accept", () => {
       env,
       await auth.token(),
       "/v1/company/ownership/accept",
-      { method: "POST", companyId: COMPANY_ID, body: {} },
+      { method: "POST", companyId: COMPANY_ID, body: { confirmation_code: "424242" } },
     );
     expect(res.status).toBe(200);
     expect(sb.find("POST", "/rest/v1/audit_log")[0].body).toMatchObject({
@@ -417,7 +433,7 @@ describe("POST /v1/company/ownership/accept", () => {
       env,
       await auth.token(),
       "/v1/company/ownership/accept",
-      { method: "POST", companyId: COMPANY_ID, body: {} },
+      { method: "POST", companyId: COMPANY_ID, body: { confirmation_code: "424242" } },
     );
     expect(res.status).toBe(409);
   });
@@ -431,7 +447,7 @@ describe("POST /v1/company/ownership/accept", () => {
       env,
       await auth.token(),
       "/v1/company/ownership/accept",
-      { method: "POST", companyId: COMPANY_ID, body: {} },
+      { method: "POST", companyId: COMPANY_ID, body: { confirmation_code: "424242" } },
     );
     expect(res.status).toBe(403);
   });
@@ -452,7 +468,7 @@ describe("POST /v1/company/ownership/cancel", () => {
       env,
       await auth.token(),
       "/v1/company/ownership/cancel",
-      { method: "POST", companyId: COMPANY_ID, body: {} },
+      { method: "POST", companyId: COMPANY_ID, body: { confirmation_code: "424242" } },
     );
     expect(res.status).toBe(200);
     expect(sb.find("POST", "/rest/v1/audit_log")[0].body).toMatchObject({
@@ -473,7 +489,7 @@ describe("POST /v1/company/ownership/cancel", () => {
       env,
       await auth.token(),
       "/v1/company/ownership/cancel",
-      { method: "POST", companyId: COMPANY_ID, body: {} },
+      { method: "POST", companyId: COMPANY_ID, body: { confirmation_code: "424242" } },
     );
     expect(res.status).toBe(403);
   });
@@ -557,17 +573,16 @@ describe("#537 — proving it is you before the business moves", () => {
       env,
       await auth.token(),
       "/v1/company/ownership/cancel",
-      { method: "POST", companyId: COMPANY_ID, body: {} },
+      { method: "POST", companyId: COMPANY_ID, body: { confirmation_code: "424242" } },
     );
     expect(
       sb.find("POST", "/rest/v1/rpc/api_cancel_ownership_transfer"),
     ).toHaveLength(1);
   });
 
-  it("asks nothing of somebody who holds no second factor — yet", async () => {
-    // The gap this leaves is deliberate and NOT the finished state: an owner with
-    // no authenticator gets no extra proof, because there is nothing to ask them
-    // for. The email code that covers them is the other half of #537.
+  it("asks somebody with no authenticator for the code emailed to them", async () => {
+    // The other fork. Most owners hold no factor, so this is the path that
+    // actually protects most of them.
     const sb = stub({ enrolled: false });
     sb.on("POST", "/rest/v1/rpc/api_offer_ownership", () => ({
       outcome: "forbidden",
@@ -581,6 +596,106 @@ describe("#537 — proving it is you before the business moves", () => {
       "/v1/company/ownership/offer",
       { method: "POST", companyId: COMPANY_ID, body: { member_id: PARTNER_MEMBER_ID } },
     );
-    expect(sb.find("POST", "/rest/v1/rpc/api_offer_ownership")).toHaveLength(1);
+    expect(res.status).toBe(403);
+    const refusal = (await res.json()) as { error: { code: string } };
+    expect(refusal.error.code).toBe("confirmation_code_required");
+    expect(sb.find("POST", "/rest/v1/rpc/api_offer_ownership")).toHaveLength(0);
+  });
+
+  it("refuses a code that does not check out, without saying why", async () => {
+    // Wrong, expired, already spent and out of attempts all answer the same way.
+    // Telling somebody WHICH would tell an attacker whether they had the digits.
+    const sb = stub({ enrolled: false, codeOk: false });
+    sb.on("POST", "/rest/v1/rpc/api_offer_ownership", () => ({
+      outcome: "forbidden",
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/company/ownership/offer",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { member_id: PARTNER_MEMBER_ID, confirmation_code: "000000" },
+      },
+    );
+    expect(res.status).toBe(403);
+    const refusal = (await res.json()) as { error: { message: string } };
+    expect(refusal.error.message).not.toContain("expired");
+    expect(refusal.error.message).not.toContain("attempts");
+    expect(sb.find("POST", "/rest/v1/rpc/api_offer_ownership")).toHaveLength(0);
+  });
+
+  it("never lets a code stand in for an authenticator somebody HAS", async () => {
+    // THE SECURITY PROPERTY. If a factor-holder could fall back to email, the
+    // weaker mechanism would quietly become the effective one for everybody —
+    // and an attacker with the password plus mailbox access would be past a
+    // second factor that was never asked for.
+    const sb = stub({ enrolled: true, codeOk: true });
+    sb.on("POST", "/rest/v1/rpc/api_offer_ownership", () => ({
+      outcome: "forbidden",
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/company/ownership/offer",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { member_id: PARTNER_MEMBER_ID, confirmation_code: "424242" },
+      },
+    );
+    expect(res.status).toBe(403);
+    const refusal = (await res.json()) as { error: { code: string } };
+    expect(refusal.error.code).toBe("mfa_challenge_required");
+    // And the code was never even looked at.
+    expect(sb.find("POST", "/rest/v1/rpc/api_use_ownership_code")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_offer_ownership")).toHaveLength(0);
+  });
+
+  it("emails the code to the CALLER and nobody else", async () => {
+    // `announce` mails the whole crew, which is right for "a handover is
+    // happening" and catastrophic for a code — it would hand every teammate the
+    // confirmation.
+    const sb = stub({ enrolled: false });
+    const mail = mailStub();
+    stubFetch(jwksRoute(auth), mail.route as never, sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/company/ownership/confirm-code",
+      { method: "POST", companyId: COMPANY_ID, body: { action: "offer" } },
+    );
+    expect(res.status).toBe(200);
+    expect(mail.sent).toHaveLength(1);
+    expect(mail.sent[0].to).toEqual([`${auth.subject}@crew.example`]);
+    // Not the partner, who is the other member of this workspace.
+    expect(mail.sent[0].to).not.toContain(`${PARTNER_USER_ID}@crew.example`);
+  });
+
+  it("says nothing in the response about whether it could have worked", async () => {
+    // A request that reported "you are not the owner" would be a way to
+    // enumerate who is.
+    const sb = stub({ role: "member", enrolled: false });
+    const mail = mailStub();
+    stubFetch(jwksRoute(auth), mail.route as never, sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/company/ownership/confirm-code",
+      { method: "POST", companyId: COMPANY_ID, body: { action: "accept" } },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ sent: true });
   });
 });
