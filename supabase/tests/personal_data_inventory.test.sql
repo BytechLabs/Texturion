@@ -110,7 +110,10 @@ declare
     'conversation_tags', 'feature_flags', 'feature_flag_overrides',
     'grace_notices', 'high_priority_push_budget', 'high_priority_push_days',
     'inbound_notification_days', 'liveness_heartbeats', 'message_mentions',
-    'outbound_call_authorizations', 'outbound_dial_leases', 'ownership_transfers',
+    'outbound_call_authorizations', 'outbound_dial_leases',
+    -- #537: a workspace id, a user id, a step, and a HASH of the emailed code.
+    -- A credential rather than personal data, and dead within ten minutes.
+    'ownership_confirmations', 'ownership_transfers',
     'call_silence_state', 'retention_notices',
     -- #475: a template id, a count and a timestamp. Deliberately carries no
     -- contact and no conversation — "which reply did you send this person"

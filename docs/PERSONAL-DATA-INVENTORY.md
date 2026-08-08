@@ -142,11 +142,21 @@ gets overlooked.
 `conversation_tags`, `feature_flags`, `feature_flag_overrides`, `grace_notices`,
 `high_priority_push_budget`, `high_priority_push_days`,
 `inbound_notification_days`, `liveness_heartbeats`, `message_mentions`,
-`outbound_call_authorizations`, `outbound_dial_leases`, `ownership_transfers`,
-`call_silence_state`, `probe_results`, `retention_notices`, `template_uses`.
+`outbound_call_authorizations`, `outbound_dial_leases`, `ownership_confirmations`,
+`ownership_transfers`, `call_silence_state`, `probe_results`,
+`retention_notices`, `template_uses`.
 
 Ids and counters. Listed rather than omitted, so "not in the document" always
 means "somebody forgot", never "deliberately excluded".
+
+One of them deserves a sentence rather than a place in a list.
+`ownership_confirmations` (#537) holds no name, address or message — a workspace
+id, a user id, which handover step it is for, and a **hash** of the six-digit code
+that was emailed. It is a CREDENTIAL rather than personal data, which is why it is
+here and not in section 5: nothing in it describes a person. It is also
+short-lived by construction — a row is spent on first use and dead after ten
+minutes either way — so there is nothing to retain and nothing an export would
+usefully contain.
 
 `template_uses` (#475) is here for the same conditional reason, and the
 condition is the shape of the table: it holds a template id, a boolean, and a
