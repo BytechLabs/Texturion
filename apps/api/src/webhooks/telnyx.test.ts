@@ -113,8 +113,24 @@ function serve(...routes: (Stub | { route: FetchRoute })[]) {
     ),
     () => [],
   );
+  // #288: the activation stamp no longer depends on analytics being configured,
+  // and this test env has no PostHog key — so what used to be an immediate return
+  // now does real work on every inbound. These end that path where the early
+  // return used to: no dispatched outbound on the thread means the customer
+  // started it, which is not the activation loop closing. LAST, like the rest, so
+  // a test that cares stubs them itself and wins.
+  const replyPrecedent = stubRoute(restMatch(env, "GET", "messages"), () => []);
+  const qualifyReferral = stubRoute(rpcMatch(env, "qualify_referral"), () => ({
+    outcome: "noop",
+  }));
   stubFetch(
-    ...[...routes, blockedSenders, awayConversation].map((stub) => stub.route),
+    ...[
+      ...routes,
+      blockedSenders,
+      awayConversation,
+      replyPrecedent,
+      qualifyReferral,
+    ].map((stub) => stub.route),
   );
 }
 

@@ -65,6 +65,16 @@ function notAwaySelect(url: URL): boolean {
  */
 function spamDefaults(): Stub[] {
   return [
+    // #288: the activation stamp no longer depends on analytics being configured,
+    // and this test env has no PostHog key — so what used to be an immediate
+    // return now does real work on EVERY inbound. These two defaults end that path
+    // where the early return used to: no dispatched outbound on the thread means
+    // the customer started it, which is not the activation loop closing.
+    //
+    // A test that cares stubs both itself and wins, because `serve` appends these
+    // last and the harness is first-match-wins.
+    stubRoute(restMatch(env, "GET", "messages"), () => []),
+    stubRoute(rpcMatch(env, "qualify_referral"), () => ({ outcome: "noop" })),
     // Nobody blocked this sender. Nothing else is needed: an ordinary
     // customer text scores no content signals, so the classifier never
     // reaches its relationship queries.
@@ -241,6 +251,117 @@ describe("handleInboundMessage — #121 storage is free (media never budget-gate
     // usage-alerts cron's storage_abuse arm now, never an ingest gate).
     expect(planCanary.calls).toHaveLength(0);
     expect(usageCanary.calls).toHaveLength(0);
+  });
+});
+
+describe("handleInboundMessage — #288 the reply that earns a referral", () => {
+  /**
+   * The workspace row this handler reads. `first_inbound_reply_at` null means the
+   * activation loop has not closed yet, which is the only case any of this runs in.
+   */
+  function unactivatedCompany(): Stub {
+    return stubRoute(
+      restMatch(env, "GET", "companies"),
+      () => [
+        {
+          id: COMPANY_ID,
+          first_inbound_reply_at: null,
+          country: "US",
+          us_texting_enabled: true,
+        },
+      ],
+    );
+  }
+
+  it("stamps activation and qualifies the referral on the reply itself", async () => {
+    // Both halves matter. The stamp is D12's second condition, and qualifying HERE
+    // rather than on the referee's next send is the difference between a referrer
+    // being paid and being paid whenever their friend happens to text somebody
+    // again — which nobody would ever have reported as a bug.
+    const precedent = stubRoute(
+      restMatch(env, "GET", "messages"),
+      () => [{ id: "an-earlier-outbound" }],
+    );
+    const stamp = stubRoute(restMatch(env, "PATCH", "companies"), () => [
+      { id: COMPANY_ID },
+    ]);
+    const qualify = stubRoute(rpcMatch(env, "qualify_referral"), () => ({
+      outcome: "noop",
+    }));
+    serve(
+      numberStub(),
+      unactivatedCompany(),
+      threadStub({}),
+      awayDisabledStub(),
+      precedent,
+      stamp,
+      qualify,
+    );
+
+    await handleInboundMessage(env, inboundEvent({}));
+
+    expect(stamp.calls, "activation was not stamped").toHaveLength(1);
+    expect(qualify.calls, "the referral was not qualified on the reply").toHaveLength(1);
+    expect(qualify.calls[0].body).toMatchObject({ p_referee_company: COMPANY_ID });
+  });
+
+  it("stamps activation even with analytics switched off", async () => {
+    // THE ONE THAT MATTERS. The whole block used to return early when
+    // POSTHOG_API_KEY was absent, so `first_inbound_reply_at` — a product column
+    // that reports read and that a referral payout now turns on — was written only
+    // as a side effect of analytics being configured. Nothing would have surfaced
+    // that: reports would just have shown nobody ever activating.
+    const quiet: Env = { ...env, POSTHOG_API_KEY: undefined };
+    const precedent = stubRoute(
+      restMatch(quiet, "GET", "messages"),
+      () => [{ id: "an-earlier-outbound" }],
+    );
+    const stamp = stubRoute(restMatch(quiet, "PATCH", "companies"), () => [
+      { id: COMPANY_ID },
+    ]);
+    const qualify = stubRoute(rpcMatch(quiet, "qualify_referral"), () => ({
+      outcome: "noop",
+    }));
+    serve(
+      numberStub(),
+      unactivatedCompany(),
+      threadStub({}),
+      awayDisabledStub(),
+      precedent,
+      stamp,
+      qualify,
+    );
+
+    await handleInboundMessage(quiet, inboundEvent({}));
+
+    expect(stamp.calls, "activation depends on analytics being on").toHaveLength(1);
+    expect(qualify.calls).toHaveLength(1);
+  });
+
+  it("does nothing for a thread the customer started", async () => {
+    // A reply needs something to reply TO. An inbound on a thread with no dispatched
+    // outbound is a new customer getting in touch, not the activation loop closing.
+    const precedent = stubRoute(restMatch(env, "GET", "messages"), () => []);
+    const stamp = stubRoute(restMatch(env, "PATCH", "companies"), () => [
+      { id: COMPANY_ID },
+    ]);
+    const qualify = stubRoute(rpcMatch(env, "qualify_referral"), () => ({
+      outcome: "noop",
+    }));
+    serve(
+      numberStub(),
+      unactivatedCompany(),
+      threadStub({}),
+      awayDisabledStub(),
+      precedent,
+      stamp,
+      qualify,
+    );
+
+    await handleInboundMessage(env, inboundEvent({}));
+
+    expect(stamp.calls).toHaveLength(0);
+    expect(qualify.calls).toHaveLength(0);
   });
 });
 

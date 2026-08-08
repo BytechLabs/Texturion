@@ -154,6 +154,7 @@ const SUITES = [
   "dashboard_panels",
   "ownership_codes",
   "work_phase",
+  "referral_payout",
 ];
 
 const args = process.argv.slice(2);

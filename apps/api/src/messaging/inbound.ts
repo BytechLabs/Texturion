@@ -29,6 +29,7 @@ import type { Env } from "../env";
 import { notifyInboundMessage } from "../notifications/inbound";
 import { classifyInbound } from "./spam-flag";
 import { stripImageLocation } from "../attachments/location";
+import { qualifyReferralForSender } from "../referrals/referrals";
 import { scanAttachment } from "../attachments/scan";
 import { bytesMatchDeclaredType } from "../routes/core/attachments";
 import { insertConversationEvents } from "../routes/core/events";
@@ -105,6 +106,10 @@ type InboundThreadResult = ThreadResult & {
  * Best-effort throughout, and deliberately so: the inbound message is already
  * durable and threaded by the time this runs. Analytics must never wedge a
  * customer's incoming text in a retry loop.
+ *
+ * #288: the name is now half right. This stamps the ACTIVATION — a product fact
+ * that reports read and that a referral payout turns on — and then, only if
+ * analytics is configured, sends the event about it.
  */
 async function captureFirstInboundReply(
   env: Env,
@@ -118,7 +123,13 @@ async function captureFirstInboundReply(
     usTextingEnabled: boolean | null | undefined;
   },
 ): Promise<void> {
-  if (!env.POSTHOG_API_KEY) return; // analytics off — keep the hot path clean
+  // #288: the POSTHOG gate used to wrap this WHOLE function, which meant
+  // `first_inbound_reply_at` — a product column that reports read and that a
+  // referral payout now turns on — was written only as a side effect of analytics
+  // being configured. Turning analytics off would have quietly stopped every
+  // workspace from ever counting as activated, and stopped paying referrers.
+  //
+  // The stamp is the product fact and always runs. Only the event below is gated.
   if (args.alreadyStampedAt) return; // the loop closed long ago
   try {
     // A reply needs something to reply TO: one of OUR dispatched outbounds on
@@ -151,10 +162,24 @@ async function captureFirstInboundReply(
     // #369: Canada-only and US-enabled workspaces have structurally different
     // time-to-value — a Canada-only workspace has no registration wait at all —
     // so averaging them hides both. Two booleans, no free text.
-    await capture(env, "first_inbound_reply", args.companyId, {
-      country: args.country ?? "unknown",
-      us_texting_enabled: args.usTextingEnabled === true,
-    });
+    if (env.POSTHOG_API_KEY) {
+      await capture(env, "first_inbound_reply", args.companyId, {
+        country: args.country ?? "unknown",
+        us_texting_enabled: args.usTextingEnabled === true,
+      });
+    }
+
+    // #288 — this is the moment a referral is earned, so it is the moment to say so.
+    //
+    // The payout now requires D12 activation, which is exactly the line just
+    // crossed. Without this call the referral would wait for the referee's NEXT
+    // send, and a workspace that sends once and gets a reply — the most ordinary
+    // possible start — would leave its referrer unpaid until they happened to text
+    // somebody again. Nobody would ever have reported that as a bug.
+    //
+    // Rides the same never-throws contract as everything else in this block: a
+    // referral bookkeeping problem must not fail a customer's inbound message.
+    await qualifyReferralForSender(env, db, args.companyId);
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : String(cause);
     console.error("first_inbound_reply capture skipped:", detail);
