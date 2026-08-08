@@ -71,8 +71,36 @@ import {
   unwrap,
 } from "./core/http";
 
-/** "22:00" or "07:00" — a wall clock, not an instant. */
-const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+/**
+ * "22:00" or "07:00" — a wall clock, not an instant.
+ *
+ * #552: THE SECONDS ARE OPTIONAL, and their absence was the founder's bug. These
+ * are backed by Postgres `time` columns, and a `time` serialises to JSON as
+ * "21:30:00" — so GET served a value that this schema then refused on the way
+ * back, and quiet hours could not be saved at all. Proven:
+ *
+ *   select to_jsonb('21:30'::time)  ->  "21:30:00"
+ *   /^([01]\d|2[0-3]):[0-5]\d$/.test("21:30:00")  ->  false
+ *
+ * A validator that rejects what its own GET just served is not strictness, it is
+ * a round trip that cannot close. The seconds are accepted and dropped, so what
+ * reaches the column is the wall clock the client meant either way.
+ */
+/**
+ * The eight columns that ARE the preference, named once.
+ *
+ * #552: GET and the upsert echo each had their own list and they disagreed, so a
+ * save returned a different object from the read it replaced. One constant, so
+ * the round trip cannot lose a field again.
+ */
+const PREFS_COLUMNS =
+  "email_enabled,push_enabled,quiet_from,quiet_to,quiet_timezone," +
+  "delivery,batch_window_minutes,summary_at";
+
+const clockTime = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/)
+  .transform((value) => value.slice(0, 5));
 
 /**
  * #297: category -> mode. An ABSENT key means immediate, so a client that has
@@ -191,10 +219,7 @@ notificationsRoutes.get(
     const rows = unwrap<PrefsRow[]>(
       await db
         .from("notification_prefs")
-        .select(
-          "email_enabled,push_enabled,quiet_from,quiet_to,quiet_timezone," +
-            "delivery,batch_window_minutes,summary_at",
-        )
+        .select(PREFS_COLUMNS)
         .eq("user_id", c.get("userId"))
         .eq("company_id", c.get("companyId"))
         .limit(1),
@@ -251,10 +276,17 @@ notificationsRoutes.put(
           },
           { onConflict: "user_id,company_id" },
         )
-        .select("email_enabled,push_enabled"),
+        .select(PREFS_COLUMNS),
       "notification prefs upsert",
     );
-    // Same shape as GET so client caches never lose the key on a toggle save.
+    // #552: the SAME shape as GET, which this comment already claimed and the
+    // code did not do — it selected two of the eight columns. Every client
+    // replaces its whole state with this response, so a save of Email or Push
+    // came back without the grouping or the quiet window and they vanished from
+    // the screen. Worse, the NEXT save wrote that truncated state back, and
+    // because an omitted field CLEARS here by design, the grouping was then gone
+    // from the database as well. A toggle quietly deleting a neighbouring
+    // setting is the shape of defect the founder was describing.
     return c.json({ ...rows[0], vapid_public_key: env.VAPID_PUBLIC_KEY });
   },
 );

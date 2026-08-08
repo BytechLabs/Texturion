@@ -148,13 +148,127 @@ describe("GET /v1/notification-prefs", () => {
   });
 });
 
+describe("#552 PUT accepts the clock GET just served", () => {
+  /**
+   * THE FOUNDER'S BUG. quiet_from/quiet_to/summary_at are Postgres `time`
+   * columns, and a `time` serialises to JSON as "21:30:00" — so GET handed the
+   * client a value the PUT schema then refused, and quiet hours could not be
+   * saved at all. Proven outside this suite:
+   *
+   *   select to_jsonb('21:30'::time)  ->  "21:30:00"
+   *
+   * A validator that rejects what its own GET just served is a round trip that
+   * cannot close.
+   */
+  it("accepts a time with seconds, as the column actually serves it", async () => {
+    const sb = memberStub();
+    sb.on("POST", "/rest/v1/notification_prefs", () =>
+      Response.json([{ email_enabled: true, push_enabled: true }], { status: 201 }),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notification-prefs",
+      {
+        method: "PUT",
+        companyId: COMPANY_ID,
+        body: {
+          email_enabled: true,
+          push_enabled: true,
+          quiet_from: "21:30:00",
+          quiet_to: "07:00:00",
+          quiet_timezone: "America/Toronto",
+          summary_at: "08:00:00",
+        },
+      },
+    );
+    expect(res.status).toBe(200);
+
+    // And the seconds are dropped on the way in, so the column stores the wall
+    // clock the client meant rather than two shapes of the same time.
+    const upsert = sb.find("POST", "/rest/v1/notification_prefs")[0];
+    expect(upsert.body).toMatchObject({
+      quiet_from: "21:30",
+      quiet_to: "07:00",
+      summary_at: "08:00",
+    });
+  });
+
+  it("still accepts a bare HH:MM, which is what the clients send", async () => {
+    const sb = memberStub();
+    sb.on("POST", "/rest/v1/notification_prefs", () =>
+      Response.json([{ email_enabled: true, push_enabled: true }], { status: 201 }),
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notification-prefs",
+      {
+        method: "PUT",
+        companyId: COMPANY_ID,
+        // BOTH halves: #244 requires it, and a window with one end is not a
+        // window. The first version of this test sent only quiet_from, got the
+        // 422 it deserved, and was the test that was wrong.
+        body: {
+          email_enabled: true,
+          push_enabled: true,
+          quiet_from: "21:30",
+          quiet_to: "07:00",
+        },
+      },
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("still refuses a time that is not one", async () => {
+    // The positive twin: a schema that accepted anything would also pass both
+    // tests above.
+    const sb = memberStub();
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notification-prefs",
+      {
+        method: "PUT",
+        companyId: COMPANY_ID,
+        body: { email_enabled: true, push_enabled: true, quiet_from: "25:99" },
+      },
+    );
+    expect(res.status).toBe(422);
+  });
+});
+
 describe("PUT /v1/notification-prefs", () => {
   it("upserts on (user_id, company_id) and echoes the saved prefs", async () => {
     const sb = memberStub();
+    // #552: the stub now returns what PostgREST returns for the route's select
+    // list — ALL EIGHT columns. It used to return two, and the assertion below
+    // used to expect two, so the test passed while the shipped behaviour silently
+    // dropped the grouping and the quiet window on every save.
     sb.on("POST", "/rest/v1/notification_prefs", () =>
-      Response.json([{ email_enabled: true, push_enabled: false }], {
-        status: 201,
-      }),
+      Response.json(
+        [
+          {
+            email_enabled: true,
+            push_enabled: false,
+            quiet_from: "21:30:00",
+            quiet_to: "07:00:00",
+            quiet_timezone: "America/Toronto",
+            delivery: { messages: "batched" },
+            batch_window_minutes: 30,
+            summary_at: "08:00:00",
+          },
+        ],
+        { status: 201 },
+      ),
     );
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -172,9 +286,20 @@ describe("PUT /v1/notification-prefs", () => {
     expect(res.status).toBe(200);
     // PUT echoes the GET shape (key included) so a toggle save never strips
     // the VAPID key from a client cache.
+    //
+    // #552: and never strips a SETTING either. Every client replaces its whole
+    // state with this object, so a missing field disappeared from the screen and
+    // was then written back as null by the next save — a toggle deleting its
+    // neighbour.
     expect(await res.json()).toEqual({
       email_enabled: true,
       push_enabled: false,
+      quiet_from: "21:30:00",
+      quiet_to: "07:00:00",
+      quiet_timezone: "America/Toronto",
+      delivery: { messages: "batched" },
+      batch_window_minutes: 30,
+      summary_at: "08:00:00",
       vapid_public_key: env.VAPID_PUBLIC_KEY,
     });
 
