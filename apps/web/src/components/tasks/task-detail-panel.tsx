@@ -12,7 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { StagedFileChips } from "@/components/attachments/staged-file-chips";
@@ -179,6 +179,22 @@ function TaskDetailLoaded({
 
   const assignee = task.assigned_user_id ?? UNASSIGNED;
   const memberOptions = members.data?.data ?? [];
+  /**
+   * #294: user id → display name, so a group of photos can say who took them.
+   *
+   * Built from the roster this panel already loaded for the assignee picker rather
+   * than fetched again — a second lookup for the same names is a second thing that
+   * can be a step behind them.
+   */
+  const memberNames = useMemo(
+    () =>
+      new Map(
+        memberOptions
+          .filter((member) => member.user_id !== null)
+          .map((member) => [member.user_id as string, member.display_name]),
+      ),
+    [memberOptions],
+  );
 
   const saveTitle = () => {
     const trimmed = title.trim();
@@ -513,7 +529,7 @@ function TaskDetailLoaded({
               <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
                 Attachments
               </p>
-              <TaskAttachments items={task.attachments} />
+              <TaskAttachments items={task.attachments} names={memberNames} />
             </section>
 
             {/* Merged activity + discussion timeline (D-C + D-D). */}

@@ -35,6 +35,9 @@ function attachment(id: string): TaskAttachmentItem {
     content_type: "application/pdf",
     size_bytes: 10,
     created_at: "2026-07-02T10:00:00Z",
+    note_id: null,
+    work_phase: null,
+    added_by_user_id: null,
   };
 }
 

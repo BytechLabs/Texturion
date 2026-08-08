@@ -89,6 +89,7 @@ import {
 import {
   duplicateReplyPrompt,
   duplicateReplyWarning,
+  type WorkPhase,
 } from "@loonext/shared";
 
 import { ApiError } from "@/lib/api/error";
@@ -129,6 +130,7 @@ import {
 import { TemplatePicker } from "./template-picker";
 import { useWrapUpRecorder } from "./use-wrap-up-recorder";
 import { WrapUpButton, WrapUpStrip } from "./wrap-up-dictation";
+import { WorkPhasePicker } from "@/components/thread/work-phase-picker";
 
 export interface DraftAttachment {
   id: string;
@@ -568,6 +570,14 @@ export function Composer({
   // count) — rendered above the pill, replaced or cleared on the next intake.
   const [mediaErrors, setMediaErrors] = useState<string[]>([]);
   const noteStage = useStagedFiles();
+  /**
+   * #294: whether these photos are the before or the after.
+   *
+   * Null by default and stays null unless somebody says otherwise. Defaulting to
+   * "before" would mislabel most notes, and a job record that is confidently wrong
+   * is worse than one that says nothing.
+   */
+  const [workPhase, setWorkPhase] = useState<WorkPhase | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   // AI-drafted replies for THIS thread. Kept per conversation until it moves:
   // asking costs a real AI call, so closing the strip and opening it again, or
@@ -930,9 +940,11 @@ export function Composer({
       // each staged file POSTs with the returned note id.
       const draftFiles = noteStage.files;
       const draftPicked = picked;
+      const draftPhase = workPhase;
       setText("");
       noteStage.clear();
       setPicked([]);
+      setWorkPhase(null);
       clearDraftMentions(conversationId);
 
       let note: Awaited<ReturnType<typeof createNote.mutateAsync>>;
@@ -943,11 +955,13 @@ export function Composer({
         note = await createNote.mutateAsync({
           body: draftText,
           mentionUserIds: resolveMentions(draftText, draftPicked),
+          workPhase: draftPhase,
         });
       } catch (error) {
         setText(draftText);
         noteStage.restore(draftFiles);
         setPicked(draftPicked);
+        setWorkPhase(draftPhase);
         toast.error(
           error instanceof ApiError
             ? mentionAwareMessage(error.message)
@@ -1326,6 +1340,11 @@ export function Composer({
           onRemove={noteStage.remove}
           className="mx-auto max-w-[42rem] px-1 pb-2"
         />
+      )}
+      {/* #294: only once there are photos to describe. A before/after choice on a
+          text-only note is noise on the most common thing anybody does here. */}
+      {isNote && noteStage.files.length > 0 && (
+        <WorkPhasePicker value={workPhase} onChange={setWorkPhase} />
       )}
       {/* #507: the same slot Lou's reply drafts use in text mode, so the
           composer swaps what is in one region rather than growing another.

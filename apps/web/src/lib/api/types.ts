@@ -7,6 +7,7 @@ import {
 } from "@loonext/shared";
 import type { PipelineStage } from "@loonext/shared";
 import type { DeferralKind } from "@loonext/shared";
+import type { WorkPhase } from "@loonext/shared";
 
 /**
  * API resource shapes, derived by reading apps/api/src/routes/*.ts (never
@@ -1071,6 +1072,17 @@ export interface TaskAttachmentItem {
   content_type: string | null;
   size_bytes: number | null;
   created_at: string;
+  /**
+   * #294 — the three fields that make a job record out of a file list.
+   *
+   * All inherited from the NOTE a file arrived on, never set per file: D28 keeps a
+   * task's attachments a derived view, and a per-file label would be the third
+   * upload path it removed. All null for the customer's own texted media, which
+   * did not arrive in visits and is nobody's before.
+   */
+  note_id: string | null;
+  work_phase: WorkPhase | null;
+  added_by_user_id: string | null;
 }
 
 /** GET /v1/tasks/:id — the full detail (row + resolved profiles + source). */

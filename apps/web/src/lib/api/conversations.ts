@@ -6,7 +6,7 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 
-import type { DeferralKind } from "@loonext/shared";
+import type { DeferralKind, WorkPhase } from "@loonext/shared";
 
 import { useCompanyId } from "@/lib/company/provider";
 
@@ -560,7 +560,16 @@ export function useCreateNote(conversationId: string) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: string | { body: string; mentionUserIds?: string[] }) => {
+    mutationFn: (
+      input:
+        | string
+        | {
+            body: string;
+            mentionUserIds?: string[];
+            /** #294: before or after, for the photos arriving on this note. */
+            workPhase?: WorkPhase | null;
+          },
+    ) => {
       const draft = typeof input === "string" ? { body: input } : input;
       return apiFetch<Message>(`/v1/conversations/${conversationId}/notes`, {
         method: "POST",
@@ -572,6 +581,8 @@ export function useCreateNote(conversationId: string) {
           ...(draft.mentionUserIds?.length
             ? { mention_user_ids: draft.mentionUserIds }
             : {}),
+          // Same rule: absent means "neither", which is most notes.
+          ...(draft.workPhase ? { work_phase: draft.workPhase } : {}),
         },
       });
     },

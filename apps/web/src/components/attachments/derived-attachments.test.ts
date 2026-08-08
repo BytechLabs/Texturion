@@ -24,6 +24,11 @@ function item(overrides: Partial<TaskAttachmentItem>): TaskAttachmentItem {
     content_type: "application/pdf",
     size_bytes: 1024,
     created_at: "2026-07-04T10:00:00Z",
+    // #294: present on every row the API returns, null on the ones that came
+    // from a customer's text rather than a crew note.
+    note_id: null,
+    work_phase: null,
+    added_by_user_id: null,
     ...overrides,
   };
 }

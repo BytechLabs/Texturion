@@ -13,10 +13,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { groupJobPhotos } from "@loonext/shared";
+
 import { useDeleteAttachment } from "@/lib/api/attachments";
 import type { TaskAttachmentItem } from "@/lib/api/types";
 
 import { AttachmentItem } from "./attachment-item";
+import { PhotoGroupHeader } from "./photo-group-header";
 import { taskAttachmentView } from "./derived-attachments";
 
 /**
@@ -46,7 +49,20 @@ import { taskAttachmentView } from "./derived-attachments";
  * bytes are the thing, and the customer may have sent the only copy they have.
  * See `docs/UNDO-AUDIT.md`.
  */
-export function TaskAttachments({ items }: { items: TaskAttachmentItem[] }) {
+export function TaskAttachments({
+  items,
+  names,
+}: {
+  items: TaskAttachmentItem[];
+  /**
+   * #294: user id → display name, for saying WHO took a set of photos.
+   *
+   * Passed in rather than fetched: the drawer already resolved the crew for the
+   * assignee picker and the activity timeline, and a third lookup for the same
+   * names would be a third thing that can be a step behind them.
+   */
+  names?: Map<string, string>;
+}) {
   const del = useDeleteAttachment();
   const [pendingDelete, setPendingDelete] = useState<TaskAttachmentItem | null>(
     null,
@@ -80,25 +96,43 @@ export function TaskAttachments({ items }: { items: TaskAttachmentItem[] }) {
 
   return (
     <>
-      <ul className="space-y-1.5">
-        {items.map((item) => {
-          const view = taskAttachmentView(item);
-          return (
-            <li key={item.id}>
-              <AttachmentItem
-                attachment={item}
-                meta={view.sourceTag}
-                onRemove={
-                  view.deletable ? () => setPendingDelete(item) : undefined
-                }
-                removing={
-                  del.isPending && del.variables?.attachmentId === item.id
-                }
-              />
-            </li>
-          );
-        })}
-      </ul>
+      {/* #294 — grouped into the visits they arrived on, oldest first.
+          Before this it was one flat list: a job with four site visits looked
+          identical to a job with one, and nothing said which pictures were the
+          finished work. The grouping is free — every file already knows the note
+          it came in on, and that note has a time, an author and a label. */}
+      <div className="space-y-3">
+        {groupJobPhotos(items).map((group) => (
+          <section key={group.note_id ?? "customer"} className="space-y-1.5">
+            <PhotoGroupHeader
+              phase={group.work_phase}
+              at={group.at}
+              addedByUserId={group.added_by_user_id}
+              fromCustomer={group.note_id === null}
+              names={names}
+            />
+            <ul className="space-y-1.5">
+              {group.items.map((item) => {
+                const view = taskAttachmentView(item);
+                return (
+                  <li key={item.id}>
+                    <AttachmentItem
+                      attachment={item}
+                      meta={view.sourceTag}
+                      onRemove={
+                        view.deletable ? () => setPendingDelete(item) : undefined
+                      }
+                      removing={
+                        del.isPending && del.variables?.attachmentId === item.id
+                      }
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+      </div>
 
       <Dialog
         open={pendingDelete !== null}
