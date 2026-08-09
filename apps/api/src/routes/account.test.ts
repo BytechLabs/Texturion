@@ -216,6 +216,9 @@ describe("DELETE /v1/account", () => {
       deleted: true,
       workspaces_left: 1,
       personal_rows_removed: 7,
+      // Nothing to revoke in this vector: this account holds no credential. The
+      // vector below is the one where it does.
+      voice_credentials_revoked: 0,
       receipt_emailed: true,
     });
 
@@ -239,6 +242,78 @@ describe("DELETE /v1/account", () => {
     };
     expect(severed.email).toContain("@account.invalid");
     expect(severed.ban_duration).toBeTruthy();
+  });
+
+  it("#581/C7: deletes the softphone credential AT TELNYX, not just its row", async () => {
+    /**
+     * THE ASSERTION THAT WAS MISSING, and its absence is why this shipped.
+     *
+     * `delete_account` deleted the credential row and counted it as one more personal
+     * row removed, and nothing ever told Telnyx. The credential is durable and the
+     * login token minted from it stays valid, so a handset that had already registered
+     * kept ringing and could answer a customer as the business — for somebody who had
+     * just deleted their account. Worse, the row holding the id was gone, so the orphan
+     * was unreachable by us and fully functional for whoever held the phone.
+     *
+     * What is asserted is the DELETE reaching Telnyx. A count in the response would
+     * have been satisfied by the row delete alone, which is exactly the mistake.
+     */
+    const sb = world({
+      deleteResult: {
+        outcome: "deleted",
+        personal_rows: 7,
+        voice_credentials: ["cred-leaver"],
+      },
+    });
+    const deleted: string[] = [];
+    // A FetchRoute is a FUNCTION `(url, request) => Response | undefined`, not an
+    // object — and getting that wrong is invisible, because the throw lands in the
+    // best-effort catch and the count stays 0, which reads as "the code never called
+    // Telnyx" rather than "the stub was the wrong shape".
+    stubFetch(jwksRoute(auth), sb.route, mailbox(sb).route, (url, request) => {
+      if (!url.pathname.startsWith("/v2/telephony_credentials/")) return undefined;
+      if (request.method === "DELETE") {
+        deleted.push(url.pathname.split("/").pop() ?? "");
+      }
+      return Response.json({ data: {} });
+    });
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/account", {
+      method: "DELETE",
+    });
+
+    expect(res.status).toBe(200);
+    expect(deleted).toEqual(["cred-leaver"]);
+    expect(await res.json()).toMatchObject({ voice_credentials_revoked: 1 });
+  });
+
+  it("#581/C7: still deletes the account when Telnyx refuses", async () => {
+    // A provider outage must not tell somebody their deletion did not happen when it
+    // entirely did — the rows are gone by the time this runs. The credential that
+    // survived is logged with its id rather than swallowed into a count, because it
+    // means a device that can still ring and somebody has to be able to find it.
+    const sb = world({
+      deleteResult: {
+        outcome: "deleted",
+        personal_rows: 7,
+        voice_credentials: ["cred-doomed"],
+      },
+    });
+    stubFetch(jwksRoute(auth), sb.route, mailbox(sb).route, (url) =>
+      url.pathname.startsWith("/v2/telephony_credentials/")
+        ? new Response("upstream is down", { status: 503 })
+        : undefined,
+    );
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/account", {
+      method: "DELETE",
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      deleted: true,
+      voice_credentials_revoked: 0,
+    });
   });
 
   it("refuses an owner, naming what they have to do", async () => {

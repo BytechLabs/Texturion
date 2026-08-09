@@ -27,6 +27,7 @@ import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
+import { revokeSessions } from "../auth/revoke-sessions";
 import { requireActionConfirmation } from "../auth/confirm-action";
 import { idempotencyKey } from "../billing/idempotency";
 import { getStripe } from "../billing/stripe";
@@ -105,7 +106,7 @@ workspaceClosureRoutes.delete("/company", requireCapability("workspace.own"), as
     });
   }
 
-  const access = await endEveryMembersAccess(db, result.user_ids ?? []);
+  const access = await endEveryMembersAccess(db, env, result.user_ids ?? []);
   const numbersReleased = await releaseNumbers(env, companyId);
   const subscriptionCancelled = await cancelSubscription(
     env,
@@ -133,6 +134,9 @@ workspaceClosureRoutes.delete("/company", requireCapability("workspace.own"), as
       purge_after: result.purge_after ?? null,
       sessions_ended: access.sessions,
       push_devices_removed: access.devices,
+      // The softphones too — a handset still ringing for a closed workspace is
+      // exactly what somebody asks about afterwards.
+      voice_credentials_revoked: access.voice,
       numbers_released: numbersReleased,
       subscription_cancelled: subscriptionCancelled,
       receipt_emailed: receiptSentTo,
@@ -144,6 +148,7 @@ workspaceClosureRoutes.delete("/company", requireCapability("workspace.own"), as
     purge_after: result.purge_after ?? null,
     sessions_ended: access.sessions,
     push_devices_removed: access.devices,
+    voice_credentials_revoked: access.voice,
     numbers_released: numbersReleased,
     subscription_cancelled: subscriptionCancelled,
     receipt_emailed: receiptSentTo,
@@ -232,17 +237,31 @@ async function mailTheOwner(
  */
 async function endEveryMembersAccess(
   db: Db,
+  env: Env,
   userIds: readonly string[],
-): Promise<{ sessions: number; devices: number }> {
+): Promise<{ sessions: number; devices: number; voice: number }> {
   let ended = 0;
   let devices = 0;
+  let voice = 0;
   for (const userId of userIds) {
     try {
-      const { data, error } = await db.rpc("api_revoke_user_sessions", {
-        p_user_id: userId,
+      // Through the shared path, which also deletes each member's softphone
+      // credential at Telnyx. This used to call `api_revoke_user_sessions`, a
+      // wrapper returning a bare count, and nothing here ever spoke to Telnyx at
+      // all — so closing a workspace deleted every credential ROW and left every
+      // credential alive at the provider. A handset that had already registered
+      // went on ringing for a business that no longer exists, and could answer a
+      // customer as it.
+      const result = await revokeSessions(db, env, {
+        userId,
+        sessionIds: null,
+        except: null,
+        actor: null,
+        reason: "member_removed",
       });
-      if (error) throw new Error(error.message);
-      ended += Number(data ?? 0);
+      ended += result.sessions;
+      devices += result.devices;
+      voice += result.voice;
     } catch (cause) {
       Sentry.captureMessage(
         `workspace close: session revoke failed for ${userId}: ${
@@ -277,7 +296,7 @@ async function endEveryMembersAccess(
       devices += (data ?? []).length;
     }
   }
-  return { sessions: ended, devices };
+  return { sessions: ended, devices, voice };
 }
 
 /**

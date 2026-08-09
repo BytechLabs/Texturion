@@ -1119,7 +1119,13 @@ describe("DELETE /v1/members/:id (offboard, not delete)", () => {
     sb.on("POST", "/rest/v1/rpc/offboard_member", () => outcome);
     // D43 (#135): deactivation revokes the softphone — no credential row here.
     sb.on("GET", "/rest/v1/member_telephony_credentials", () => []);
-    sb.on("POST", "/rest/v1/rpc/api_revoke_user_sessions", () => 2);
+    sb.on("POST", "/rest/v1/rpc/api_revoke_sessions", () => ({
+    sessions: 2,
+    devices: 0,
+    // #581/C7: the ids the route deletes at Telnyx. Returned rather than
+    // counted so a failure there can name the credential.
+    voice_credentials: ["cred-gone"],
+  }));
     sb.on("DELETE", "/rest/v1/push_subscriptions", () => [{ id: "s-1" }]);
     sb.on("DELETE", "/rest/v1/device_push_tokens", () => [
       { id: "d-1" },
@@ -1160,8 +1166,12 @@ describe("DELETE /v1/members/:id (offboard, not delete)", () => {
 
     // #236: removing someone means their access is over, not that they are
     // hidden from a list. Sessions end and push stops reaching their devices.
-    expect(sb.find("POST", "/rest/v1/rpc/api_revoke_user_sessions")[0].body).toEqual({
+    expect(sb.find("POST", "/rest/v1/rpc/api_revoke_sessions")[0].body).toEqual({
       p_user_id: "u-target",
+      p_session_ids: null,
+      p_except: null,
+      p_actor: null,
+      p_reason: "member_removed",
     });
     expect(sb.find("DELETE", "/rest/v1/push_subscriptions")).toHaveLength(1);
     expect(sb.find("DELETE", "/rest/v1/device_push_tokens")).toHaveLength(1);
@@ -1217,7 +1227,7 @@ describe("DELETE /v1/members/:id (offboard, not delete)", () => {
     );
     expect(res.status).toBe(422);
     // Nothing was touched: no sessions ended, no push removed.
-    expect(sb.find("POST", "/rest/v1/rpc/api_revoke_user_sessions")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_revoke_sessions")).toHaveLength(0);
     expect(sb.find("POST", "/rest/v1/audit_log")).toHaveLength(0);
   });
 
@@ -1260,7 +1270,7 @@ describe("DELETE /v1/members/:id (offboard, not delete)", () => {
     sb.on("GET", "/rest/v1/member_telephony_credentials", () => []);
     sb.on(
       "POST",
-      "/rest/v1/rpc/api_revoke_user_sessions",
+      "/rest/v1/rpc/api_revoke_sessions",
       () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
     );
     sb.on(
@@ -1419,7 +1429,13 @@ describe("DELETE /v1/members/me (#406 — leaving on your own)", () => {
     // The same cleanup surface an owner-initiated removal touches — leaving
     // has to mean the access is over, not that a name left a list (#236).
     sb.on("GET", "/rest/v1/member_telephony_credentials", () => []);
-    sb.on("POST", "/rest/v1/rpc/api_revoke_user_sessions", () => 2);
+    sb.on("POST", "/rest/v1/rpc/api_revoke_sessions", () => ({
+    sessions: 2,
+    devices: 0,
+    // #581/C7: the ids the route deletes at Telnyx. Returned rather than
+    // counted so a failure there can name the credential.
+    voice_credentials: ["cred-gone"],
+  }));
     sb.on("DELETE", "/rest/v1/push_subscriptions", () => [{ id: "s-1" }]);
     sb.on("DELETE", "/rest/v1/device_push_tokens", () => [{ id: "d-1" }]);
     sb.on("GET", /\/auth\/v1\/admin\/users\//, () => ({

@@ -43,6 +43,7 @@ import { billingRecipients } from "../billing/recipients";
 import { renderEmailHtml } from "../email/html";
 import { capture } from "../analytics/posthog";
 import { requireCapability } from "../auth/company";
+import { revokeSessions } from "../auth/revoke-sessions";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { emailLayout, escapeHtml } from "../email/html";
@@ -452,7 +453,7 @@ teamRoutes.delete("/members/me", requireCapability("workspace.access"), async (c
       cause instanceof Error ? cause.message : String(cause),
     );
   }
-  const ended = await endMemberAccess(db, userId);
+  const ended = await endMemberAccess(db, env, userId);
 
   await recordAuditFromRequest(db, c, {
     companyId,
@@ -467,6 +468,9 @@ teamRoutes.delete("/members/me", requireCapability("workspace.access"), async (c
       tasks_released: moved.tasks,
       sessions_ended: ended.sessions,
       push_devices_removed: ended.devices,
+      // A softphone that kept ringing after somebody was removed is exactly the
+      // kind of thing asked about weeks later, so the number is on the record.
+      voice_credentials_revoked: ended.voice,
     },
   });
 
@@ -594,7 +598,7 @@ teamRoutes.delete("/members/:id", requireCapability("team.manage"), async (c) =>
       cause instanceof Error ? cause.message : String(cause),
     );
   }
-  const ended = await endMemberAccess(db, userId);
+  const ended = await endMemberAccess(db, env, userId);
 
   // #231/#276: the offboarding and everything it moved, on the record.
   await recordAuditFromRequest(db, c, {
@@ -610,6 +614,9 @@ teamRoutes.delete("/members/:id", requireCapability("team.manage"), async (c) =>
       tasks_moved: moved.tasks,
       sessions_ended: ended.sessions,
       push_devices_removed: ended.devices,
+      // A softphone that kept ringing after somebody was removed is exactly the
+      // kind of thing asked about weeks later, so the number is on the record.
+      voice_credentials_revoked: ended.voice,
     },
   });
 
@@ -631,16 +638,33 @@ teamRoutes.delete("/members/:id", requireCapability("team.manage"), async (c) =>
  */
 async function endMemberAccess(
   db: Db,
+  env: Env,
   userId: string,
-): Promise<{ sessions: number; devices: number }> {
+): Promise<{ sessions: number; devices: number; voice: number }> {
   let sessions = 0;
   let devices = 0;
+  let voice = 0;
   try {
-    const { data, error } = await db.rpc("api_revoke_user_sessions", {
-      p_user_id: userId,
+    // Through the shared path, which also deletes softphone credentials at Telnyx.
+    //
+    // The caller has already deleted the credential for THIS workspace
+    // (`revokeMemberTelephonyCredential`, which is company-scoped). Revoking
+    // sessions is not company-scoped — a session belongs to the person, not to one
+    // workspace — so the sweep behind this call deletes the rows for every OTHER
+    // workspace they belong to as well. Those ids used to be thrown away by
+    // `api_revoke_user_sessions`, a wrapper that returns a bare count, and the
+    // credentials stayed alive at Telnyx: a phone that had already registered went
+    // on ringing for those workspaces and could answer a customer as the business.
+    const result = await revokeSessions(db, env, {
+      userId,
+      sessionIds: null,
+      except: null,
+      actor: null,
+      reason: "member_removed",
     });
-    if (error) throw new Error(error.message);
-    sessions = Number(data ?? 0);
+    sessions = result.sessions;
+    devices += result.devices;
+    voice = result.voice;
   } catch (cause) {
     console.error(
       `session revoke on deactivation failed for user ${userId}:`,
@@ -662,7 +686,7 @@ async function endMemberAccess(
     }
     devices += (data ?? []).length;
   }
-  return { sessions, devices };
+  return { sessions, devices, voice };
 }
 
 teamRoutes.get("/invites", requireCapability("team.manage"), async (c) => {

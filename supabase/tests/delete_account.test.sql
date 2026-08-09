@@ -183,4 +183,61 @@ begin
   raise notice 'DA-4 PASSED: deleting twice is a safe no-op';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- DA-5. [#581/C7] The softphone credential's PROVIDER id comes back out.
+--
+--       Deleting the row is what stops us handing that credential to a new
+--       registration. It is not what stops a handset that has already
+--       registered: the credential still exists at Telnyx and the login token
+--       minted from it stays valid, so the phone of somebody who just deleted
+--       their account went on ringing and could answer a customer as the
+--       business. And the row holding the id was gone, so nobody could find
+--       the orphan afterwards either.
+--
+--       SQL cannot make an HTTP call, so the ids travel out in the return value
+--       and the route deletes them at Telnyx. This pins that they are RETURNED
+--       rather than reduced to one more "personal row removed", because a count
+--       is exactly what the row delete alone would have satisfied.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_crew uuid := 'da000000-0000-4000-8000-00000000000c';
+  -- The workspace the fixture already built. A second one would need every
+  -- NOT NULL column it carries, and none of them is what this test is about.
+  v_company uuid := 'da000000-0000-4000-8000-000000000001';
+  v jsonb;
+begin
+  -- A trigger creates the profile row alongside the auth user, so nothing
+  -- inserts one here.
+  insert into auth.users (id, email) values (v_crew, 'softphone-leaver@test.local');
+  insert into public.company_members (id, company_id, user_id, role)
+  values ('da000000-0000-4000-8000-000000000012', v_company, v_crew, 'member');
+  insert into public.member_telephony_credentials
+    (company_id, user_id, telnyx_credential_id, sip_username)
+  values (v_company, v_crew, 'cred-da5', 'sip-da5');
+
+  v := public.delete_account(v_crew);
+
+  if v->>'outcome' is distinct from 'deleted' then
+    raise exception 'DA-5 FAILED: deletion refused: %', v;
+  end if;
+  -- The id, not a count. This is the whole point.
+  if v->'voice_credentials' is distinct from '["cred-da5"]'::jsonb then
+    raise exception
+      'DA-5 FAILED: the credential id did not come back — got %',
+      coalesce(v->'voice_credentials', 'null'::jsonb);
+  end if;
+  -- And it is still counted among the personal rows, as it always was.
+  if (v->>'personal_rows')::int < 1 then
+    raise exception 'DA-5 FAILED: the credential row was not counted: %', v;
+  end if;
+  if exists (
+    select 1 from public.member_telephony_credentials where user_id = v_crew
+  ) then
+    raise exception 'DA-5 FAILED: the credential row survived';
+  end if;
+
+  raise notice 'DA-5 PASSED: the provider id comes back so the route can use it';
+end $$;
+
 rollback;

@@ -26,6 +26,7 @@ import { Hono } from "hono";
 import { recordAudit } from "../audit/log";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
+import { releaseTelnyxCredentials } from "../auth/revoke-sessions";
 import { requireStepUpForEnrolled } from "../auth/step-up";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
@@ -132,7 +133,11 @@ accountRoutes.delete("/account", async (c) => {
 
   const { data, error } = await db.rpc("delete_account", { p_user_id: userId });
   if (error) throw new Error(`delete_account failed: ${error.message}`);
-  const result = data as { outcome: string; personal_rows?: number };
+  const result = data as {
+    outcome: string;
+    personal_rows?: number;
+    voice_credentials?: string[];
+  };
   if (result.outcome === "owner") {
     // Raced: they became an owner between the preview and here.
     return errorResponse(
@@ -141,6 +146,23 @@ accountRoutes.delete("/account", async (c) => {
       "You own a workspace. Hand it to someone else, or close it, and then you can delete your account.",
     );
   }
+
+  // #581/C7: and the softphone stops ringing at Telnyx, not just in our table.
+  //
+  // The rows are already gone — `delete_account` deleted them and handed back their
+  // provider ids, because SQL cannot make an HTTP call. Until this runs, the credential
+  // still exists at Telnyx and the login token minted from it stays valid, so a handset
+  // that had already registered goes on ringing and can answer a customer as the
+  // business, for somebody who has just deleted their account. And the row that held
+  // the id is gone, so nobody could find the orphan afterwards either.
+  //
+  // Best-effort and loud, like every other path: the account IS deleted by now, and
+  // failing here would tell somebody their deletion did not happen when it did.
+  const voiceRevoked = await releaseTelnyxCredentials(
+    env,
+    result.voice_credentials ?? [],
+    `account deletion ${userId}`,
+  );
 
   // #371 — the receipt, and the ORDERING IS THE WHOLE POINT. `severAuthIdentity`
   // replaces the address with a non-routable `.invalid` one, so a receipt sent
@@ -158,6 +180,7 @@ accountRoutes.delete("/account", async (c) => {
     deleted: true,
     workspaces_left: memberships.length,
     personal_rows_removed: Number(result.personal_rows ?? 0),
+    voice_credentials_revoked: voiceRevoked,
     receipt_emailed: receipt.sent,
   });
 });

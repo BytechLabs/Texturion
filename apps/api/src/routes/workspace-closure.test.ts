@@ -82,7 +82,13 @@ function world(
     membershipResponder(MEMBER_ID, options.role ?? "owner"),
   );
   sb.on("POST", "/rest/v1/rpc/close_workspace", () => options.close ?? closed());
-  sb.on("POST", "/rest/v1/rpc/api_revoke_user_sessions", () => 2);
+  sb.on("POST", "/rest/v1/rpc/api_revoke_sessions", () => ({
+    sessions: 2,
+    devices: 0,
+    // #581/C7: the ids the route deletes at Telnyx. Returned rather than
+    // counted so a failure there can name the credential.
+    voice_credentials: ["cred-gone"],
+  }));
   // #537 audit. No authenticator, so the emailed code is the path — and by default
   // the code presented is the right one.
   sb.on(
@@ -197,7 +203,7 @@ describe("DELETE /v1/company (#341 phase 1)", () => {
     expect(sb.find("POST", "/rest/v1/rpc/close_workspace")[0].body).toEqual({
       p_company_id: COMPANY_ID,
     });
-    expect(sb.find("POST", "/rest/v1/rpc/api_revoke_user_sessions")).toHaveLength(1);
+    expect(sb.find("POST", "/rest/v1/rpc/api_revoke_sessions")).toHaveLength(1);
     expect(stripe.some((call) => call.includes("subscriptions"))).toBe(true);
 
     // #231: the end of a business's account is the most consequential thing
@@ -263,7 +269,7 @@ describe("DELETE /v1/company (#341 phase 1)", () => {
       subscription_cancelled: false,
     });
     // Nothing external ran a second time.
-    expect(sb.find("POST", "/rest/v1/rpc/api_revoke_user_sessions")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_revoke_sessions")).toHaveLength(0);
     expect(sb.find("GET", "/rest/v1/phone_numbers")).toHaveLength(0);
   });
 
