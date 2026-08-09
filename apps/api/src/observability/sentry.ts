@@ -1,3 +1,22 @@
+/**
+ * PII scrubbing for Worker telemetry (SPEC §10, D8): message bodies, contact
+ * names, addresses, and phone numbers never reach Sentry.
+ *
+ * Worker twin of apps/web/src/lib/observability/scrub.ts — same patterns, same
+ * markers, same URL treatment; only the Sentry SDK the types come from differs.
+ *
+ * PARITY NOTE, rewritten because the previous one hid the bug it described
+ * (#581). It lived in the twin, said this file "only phone-redacts its URL
+ * fields", and pointed at `request.url` — which had already been fixed, so the
+ * sentence read as a stale nag about finished work while the field that had
+ * never been covered at all, `breadcrumb.data.url`, went unnamed. Name the field
+ * or do not write the note.
+ *
+ * The one intended difference left: the browser keeps an enumerated allow-list
+ * of campaign parameters (`utm_*`, `gclid`) on the URLs it cuts, because signup
+ * attribution has no other feedback loop. Nothing in this Worker attributes a
+ * signup, so its cut is unconditional — absent on purpose, not unported.
+ */
 import type {
   Breadcrumb,
   CloudflareOptions,
@@ -43,6 +62,63 @@ const TOKEN_SEGMENT_PATTERN = new RegExp(
 /** `/photos/<256 bits of secret>` → `/photos/[token]`. */
 export function redactTokenPaths(text: string): string {
   return text.replace(TOKEN_SEGMENT_PATTERN, `/$1/${TOKEN_REDACTED}`);
+}
+
+/**
+ * Keys whose string value is a URL or path. Twin of URL_KEY_PATTERN in
+ * apps/web/src/lib/observability/scrub.ts, copied whole rather than narrowed to
+ * the keys a Worker actually sees: a subset is what a twin drifts into, and
+ * every case here is strictly MORE redaction than the default branch, so
+ * carrying the browser's `pathname`/`referer` arms costs nothing.
+ *
+ * The arm that matters here is `url`. `fetchIntegration` is a DEFAULT integration
+ * of @sentry/cloudflare and records `{ method, url, status_code }` for EVERY
+ * outbound fetch, attached to any event captured in the same isolate — so until
+ * #581 each of these shipped its query string to a third party:
+ *   - Nominatim `/search?q=` — a customer's street address, one per geocode, and
+ *     a whole batch of them when the geocode cron's AggregateError is captured;
+ *   - PostgREST `PATCH /contacts?address=eq.` — the same address, as a filter;
+ *   - PostgREST `GET /contacts?or=(name.ilike.*…*)` — whatever the crew typed;
+ *   - PostgREST `GET /email_suppressions?email=in.(…)` — on every email send;
+ *   - Telnyx's saved-recording URL — see `scrubUrl` for why the cut suffices.
+ */
+export const URL_KEY_PATTERN = /url|referr?er|pathname|^(?:from|to)$/i;
+
+/**
+ * Cut the query string and fragment: `/contacts?address=eq.140+Maple+Ave` →
+ * `/contacts`.
+ *
+ * Cut, not redacted. Addresses, typed search terms and email addresses are not
+ * digit-shaped, so no pattern can find them and leave the rest intact; for a
+ * value nobody has seen yet, dropping it is the only treatment that holds.
+ * Origin + path survives because that is the part a crash report needs — WHICH
+ * upstream call failed.
+ */
+function stripQueryAndHash(url: string): string {
+  const cut = url.search(/[?#]/);
+  return cut === -1 ? url : url.slice(0, cut);
+}
+
+/**
+ * Full URL treatment: cut at `?`/`#`, redact secret path segments, then redact
+ * phone-shaped ones.
+ *
+ * Tokens before phones on purpose. A base64url token can open with a ten-digit
+ * run, and the phone pattern would then eat only that much of it and leave the
+ * rest of the secret in place — a partial redaction that reads like a complete
+ * one.
+ *
+ * Telnyx's `recording_urls.mp3` is itself a bearer credential (anyone holding it
+ * can download the caller's recorded voice for ten minutes), and the cut is
+ * enough for it: Telnyx hands back an AWS SigV4 presigned URL, which carries
+ * `X-Amz-Signature` and `X-Amz-Expires=600` in the QUERY STRING — Telnyx,
+ * "Storing call recordings", read 2026-08-09. What survives the cut is a bucket
+ * path that answers 403. Had the signature sat in the path instead, the shape
+ * D75's own links use, cutting would have left the credential whole and the
+ * value would have had to go in its entirety.
+ */
+export function scrubUrl(url: string): string {
+  return redactPhones(redactTokenPaths(stripQueryAndHash(url)));
 }
 
 /** Keys that carry a person's name: `name`, `*_name`, `*-name`, `*Name`. */
@@ -91,20 +167,41 @@ export function scrubHeaders(
   return scrubbed;
 }
 
-/** Deep-scrub arbitrary JSON-ish data: redact phones, strip name-keyed values. */
+/**
+ * Deep-scrub arbitrary JSON-ish data: strip name-keyed values, cut URL-keyed
+ * values at the query string, redact phones everywhere else.
+ */
 function scrubUnknown(value: unknown): unknown {
   if (typeof value === "string") return redactPhones(value);
   if (Array.isArray(value)) return value.map(scrubUnknown);
   if (value !== null && typeof value === "object") {
     const scrubbed: Record<string, unknown> = {};
     for (const [key, entry] of Object.entries(value)) {
-      scrubbed[key] = isNameKey(key) ? NAME_REDACTED : scrubUnknown(entry);
+      if (isNameKey(key)) {
+        scrubbed[key] = NAME_REDACTED;
+      } else if (URL_KEY_PATTERN.test(key) && typeof entry === "string") {
+        // Keyed on the field NAME, which means a URL parked under a name that
+        // does not say "url" (`recording_urls: { mp3 }`) falls through to the
+        // phone pass. Kept key-driven anyway: sniffing every string for a `?`
+        // would truncate real message text at its first question mark. Nothing
+        // reaches Sentry by that route today — no webhook payload is attached to
+        // an event or handed to console — and the crumb `fetchIntegration`
+        // writes, the one path that carries all five sinks, uses `url`.
+        scrubbed[key] = scrubUrl(entry);
+      } else {
+        scrubbed[key] = scrubUnknown(entry);
+      }
     }
     return scrubbed;
   }
   return value;
 }
 
+/**
+ * `beforeBreadcrumb`. Almost every crumb in this Worker is `fetchIntegration`'s,
+ * so this is the hook that cuts an outbound URL — before the crumb is added to
+ * the scope, rather than only on the way out with an event.
+ */
 export function scrubBreadcrumb(breadcrumb: Breadcrumb): Breadcrumb {
   if (breadcrumb.message) {
     breadcrumb.message = redactPhones(breadcrumb.message);
@@ -117,13 +214,15 @@ export function scrubBreadcrumb(breadcrumb: Breadcrumb): Breadcrumb {
 
 /**
  * `beforeSend` scrubber (SPEC §10 PII policy): message bodies, contact names,
- * and phone numbers never reach Sentry.
+ * addresses, and phone numbers never reach Sentry.
  *
  * - E.164 patterns are redacted anywhere in the event message, log entry,
  *   exception values, breadcrumbs, request URL/headers, extra, tags, and
  *   contexts.
  * - Request bodies (`request.data`), cookies, and query strings are dropped
- *   outright.
+ *   outright, and EVERY URL-carrying field is cut at `?`/`#`: `request.url`
+ *   here, plus any URL-keyed value in structured data, which is what covers the
+ *   fetch breadcrumb's `data.url` (#581).
  * - Contact names are stripped: any `name`/`*_name`/`*Name` key in structured
  *   data is replaced, and `event.user` is reduced to its id.
  */
@@ -148,15 +247,10 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent {
     delete event.request.query_string; // may embed destination numbers / search terms
     if (event.request.url) {
       // Deleting `query_string` above doesn't touch the full URL, which embeds
-      // the SAME params (search terms, addresses, destination numbers). Keep
-      // only origin + path, then redact secret path segments (#558: this Worker
-      // serves GET /photos/:token, so the path itself can be the secret), then
-      // phone-redact what remains.
-      const url = event.request.url;
-      const cut = url.search(/[?#]/);
-      event.request.url = redactPhones(
-        redactTokenPaths(cut === -1 ? url : url.slice(0, cut)),
-      );
+      // the SAME params (search terms, addresses, destination numbers). Same
+      // treatment as every other URL-carrying field, through the same function,
+      // so the two can no longer disagree about what a URL deserves.
+      event.request.url = scrubUrl(event.request.url);
     }
     if (event.request.headers) {
       event.request.headers = scrubHeaders(
@@ -211,6 +305,16 @@ export function sentryOptions(bindings: Bindings): CloudflareOptions {
     // Keeps a local or preview Worker's noise out of the production issue
     // stream; without it every environment shared one bucket.
     environment: env.GIT_SHA ? "production" : "development",
+    // #581 asked whether outbound fetch breadcrumbs are worth keeping at all
+    // once scrubbed. They are, so `integrations` stays unset and
+    // `fetchIntegration({ breadcrumbs: false })` is deliberately NOT passed:
+    // with `tracesSampleRate: 0` there are no spans, which makes those crumbs
+    // the only record anywhere of which upstream call preceded a crash, and
+    // every one of them is a call this Worker made to Nominatim, PostgREST,
+    // Telnyx or Resend — where origin + path IS the diagnostic. What made them
+    // dangerous was the query string, and that is now cut at the single hook
+    // every crumb passes through. A second belt would buy nothing the cut does
+    // not already buy, and would cost the trail.
     beforeSend: scrubEvent,
     beforeBreadcrumb: scrubBreadcrumb,
   };

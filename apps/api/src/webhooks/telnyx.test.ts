@@ -523,9 +523,11 @@ describe("inbound pipeline — notification pipeline (§8)", () => {
         },
       ],
     );
+    // With `role`, because the audience filter asks the capability table whether
+    // this member may read conversations (#581) and a roleless row fails closed.
     const membersLookup = stubRoute(
       restMatch(env, "GET", "company_members"),
-      () => [{ user_id: MEMBER_USER }],
+      () => [{ user_id: MEMBER_USER, role: "member" }],
     );
     // Email on, push off: the email leg alone proves the pipeline ran.
     const prefsLookup = stubRoute(

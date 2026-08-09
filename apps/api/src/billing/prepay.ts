@@ -67,6 +67,9 @@ export type PrepayIneligibleReason =
   | "not_activated"
   | "already_prepaid"
   | "plan_change_pending"
+  // #399: a free referral month is unspent on the licensed item, and granting
+  // the year would overwrite it. See the gate in prepayEligibility.
+  | "referral_month_pending"
   // #277: the workspace's plan is paused. See the gate in prepayEligibility.
   | "workspace_paused"
   // #522: the catalog cannot charge a year in this workspace's currency.
@@ -269,6 +272,32 @@ export async function prepayEligibility(
       currency: wanted,
     };
   }
+  /**
+   * An unspent referral month is riding the same item this sell would write.
+   *
+   * `grantPrepaidYear` sends `discounts: [{ coupon }]`, which REPLACES the
+   * item's discount array, so granting the year here would silently delete a
+   * free month the customer had already earned — and once the coupon is off the
+   * item, `referralMonthPending` can no longer tell it was ever there.
+   *
+   * Refused at the SELL rather than patched at the grant, because the grant runs
+   * after the money is taken: by then the only choices are to destroy the month
+   * or to stack it on a line already discounted to $0, where a `duration: once`
+   * coupon is consumed against a $0 invoice and evaporates anyway. Refusing here
+   * costs the customer one billing cycle of waiting and nothing else.
+   *
+   * `pauseEligibility` has carried this exact gate, with a test, since the
+   * referral month shipped; this path had it missing, which is what makes it an
+   * omission rather than a policy.
+   */
+  if (referralMonthPending(env, subscription)) {
+    return {
+      eligible: false,
+      reason: "referral_month_pending",
+      priceCents,
+      currency: wanted,
+    };
+  }
   if (!(await hasSentOutbound(db, company.id))) {
     return {
       eligible: false,
@@ -314,6 +343,63 @@ export function itemHasDiscount(
     if (discount.coupon?.id) return discount.coupon.id === couponId;
     return discount.id === couponId;
   });
+}
+
+/**
+ * Is a #399 referral free month still sitting unspent on the licensed item?
+ *
+ * ASKED OF STRIPE, NOT OF OUR REFERRAL TABLE, and that is the whole trick. The
+ * coupon is `duration: once`, so Stripe DROPS the discount from the item the
+ * moment it is applied to an invoice. "The item still carries the coupon" is
+ * therefore the same question as "the month has not been spent yet" — a
+ * `referrals.referrer_rewarded_at` timestamp answers a different one (it says a
+ * month was granted, months ago, and cannot say whether it has since landed).
+ *
+ * False when the coupon is unprovisioned: with no configured coupon we cannot
+ * tell a referral discount from any other, and refusing every pause on a guess
+ * would be worse than the money at stake. Nothing pays out in that state either
+ * (see rewardSide), so there is no unspent month to protect.
+ */
+export function referralMonthPending(
+  env: Env,
+  subscription: Stripe.Subscription | null | undefined,
+): boolean {
+  const coupon = env.STRIPE_REFERRAL_MONTH_COUPON_ID;
+  if (!coupon || !subscription) return false;
+  const licensed = licensedItemOf(env, subscription);
+  return licensed ? itemHasDiscount(licensed, coupon) : false;
+}
+
+/**
+ * Is a prepaid year's coupon riding the licensed item with no row behind it?
+ *
+ * THE SAME HAZARD AS referralMonthPending, FOR THE OTHER COUPON, and the
+ * `prepayments` row does not cover it. `openPrepayment` requires `granted_at`,
+ * and `grantPrepaidYear` deliberately does NOT throw when `stamp_prepayment`
+ * fails — throwing would let the webhook sweeper retry and re-apply a coupon
+ * whose twelve months would restart, which is the worst outcome that path has.
+ * So a logged stamp failure leaves the discount live on the item and the row
+ * ungranted, and `pauseEligibility` sees nothing in the way.
+ *
+ * A pause then swaps that item's PRICE, and Stripe carries the item's discounts
+ * across a price change untouched. The result is a twelve-month 100%-off coupon
+ * sitting on the ~$5 holding fee: a genuinely free pause, on a workspace that
+ * also burns the year it paid for on a hold. Exactly the harm the
+ * `already_prepaid` gate exists to prevent, reached through the one hole that
+ * gate cannot see.
+ *
+ * Asked of STRIPE for the same reason referralMonthPending is: the item either
+ * carries the coupon or it does not, and no timestamp of ours can say so once
+ * the write that would have stamped it has been lost.
+ */
+export function prepaidCouponPending(
+  env: Env,
+  subscription: Stripe.Subscription | null | undefined,
+): boolean {
+  const coupon = env.STRIPE_PREPAID_YEAR_COUPON_ID;
+  if (!coupon || !subscription) return false;
+  const licensed = licensedItemOf(env, subscription);
+  return licensed ? itemHasDiscount(licensed, coupon) : false;
 }
 
 export type GrantOutcome = "granted" | "already" | "revoked";
@@ -428,6 +514,24 @@ export async function grantPrepaidYear(
   // and stop rather than applying it again, which would restart the year.
   // A pause still to lift is written regardless: an item that carries the coupon
   // but is still priced at the holding fee is the worst of both states.
+  // A referral month should never still be here — `prepayEligibility` refuses
+  // the sell while one is unspent — but the money is already taken by the time
+  // this runs, so the race gets a backstop rather than a throw. Carried through
+  // instead of replaced: the array write below would delete it, and destroying a
+  // month somebody earned is worse than stacking it on a line that is about to
+  // be $0 anyway. Logged loudly because reaching this means the sell gate was
+  // bypassed and somebody should know which way.
+  const referralCoupon = env.STRIPE_REFERRAL_MONTH_COUPON_ID;
+  const carriedReferral =
+    referralCoupon && itemHasDiscount(licensed, referralCoupon)
+      ? [{ coupon: referralCoupon }]
+      : [];
+  if (carriedReferral.length > 0) {
+    console.error(
+      `prepay grant for ${session.id}: an unspent referral month was on the ` +
+        `licensed item — carried through, but the sell gate should have refused this.`,
+    );
+  }
   if (!itemHasDiscount(licensed, couponId) || resumePrice !== null) {
     await stripe.subscriptions.update(
       subscriptionId,
@@ -436,7 +540,7 @@ export async function grantPrepaidYear(
           {
             id: licensed.id,
             ...(resumePrice ? { price: resumePrice } : {}),
-            discounts: [{ coupon: couponId }],
+            discounts: [...carriedReferral, { coupon: couponId }],
           } as Stripe.SubscriptionUpdateParams.Item,
         ],
         // Only on the resume path, and `none` rather than the pause routes'

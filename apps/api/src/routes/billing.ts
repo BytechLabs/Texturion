@@ -43,9 +43,11 @@ import {
 } from "../billing/number-allowance";
 import { cartSignature, idempotencyKey } from "../billing/idempotency";
 import {
+  openPrepayment,
   PREPAY_METADATA_FIELD,
   PREPAY_METADATA_KIND,
   PREPAY_PLAN_FIELD,
+  prepaidCouponPending,
   prepayEligibility,
 } from "../billing/prepay";
 import {
@@ -834,6 +836,58 @@ billingRoutes.post("/change-plan", async (c) => {
   const subscription = await stripe.subscriptions.retrieve(
     company.stripe_subscription_id,
   );
+
+  /**
+   * D107 requirement 4 — a plan change during a prepaid year is a branch, not a
+   * default. This is the branch, and it refuses.
+   *
+   * A prepaid year is a 100%-off/12-month coupon riding the LICENSED item, and
+   * both plan branches below rewrite that item's price. Stripe carries an item's
+   * discounts across a price-only update untouched — the same semantics
+   * `prepaidCouponPending` is built on and that `revokePrepaidYear` relies on
+   * when it clears with `discounts: []`. So without this gate:
+   *
+   *   - UPGRADING re-points a live 100%-off coupon at the Pro price. Two clicks
+   *     turn $290 of prepaid Starter into a year of Pro worth $948, repeatable
+   *     per workspace, and nothing detects it afterwards — the cost model reads
+   *     the claim row, so that tenant still reports $24/mo of revenue.
+   *   - DOWNGRADING is the same defect pointed the other way: the customer paid
+   *     for a Pro year and spends the rest of it on Starter. D107 calls that
+   *     outcome equally unacceptable, which is why the gate sits above the
+   *     branch rather than inside the upgrade arm.
+   *
+   * Refused rather than converted, and the refusal is the honest half of the
+   * "converts or refuses" D107 offers. Converting means revoking the coupon,
+   * valuing the unused months from the claim row and re-granting sized to what
+   * remains at the new price — real money arithmetic that changes what the
+   * customer is charged, so it needs their consent and its own review, not a
+   * silent recalculation inside a plan-switch click. Same reasoning as the
+   * paused-workspace refusal above: where only the customer can settle it, ask.
+   *
+   * Ordered exactly as `pauseEligibility` orders it — the row first because the
+   * row is the record, then the coupon as the backstop for the one case where
+   * the row is missing (see `prepaidCouponPending`).
+   */
+  const openPrepaid = await openPrepayment(db, company.id);
+  if (openPrepaid) {
+    return errorResponse(
+      c,
+      "conflict",
+      `You have already paid for a year of ${openPrepaid.plan}, and it runs until ` +
+        `${openPrepaid.granted_through.slice(0, 10)}. Switching plans now would ` +
+        `move those paid months onto a different price. Get in touch and we'll ` +
+        `work out the difference with you.`,
+    );
+  }
+  if (prepaidCouponPending(env, subscription)) {
+    return errorResponse(
+      c,
+      "conflict",
+      "Your prepaid year is still running on this plan, so switching would move " +
+        "those paid months onto a different price. Get in touch and we'll sort it out.",
+    );
+  }
+
   // D36: a voice-module subscription carries TWO metered items (SMS + voice),
   // so "the metered item" must be identified by price, not by find-first.
   const licensedItem = subscription.items.data.find(
@@ -1161,7 +1215,15 @@ billingRoutes.post("/prepay", async (c) => {
                 "."
               : eligibility.reason === "plan_change_pending"
                 ? "You have a plan change waiting to take effect. Once it lands you can pay for a year."
-                : // #522: `currency_unavailable` deliberately lands here with
+                : eligibility.reason === "referral_month_pending"
+                  ? // Named, not folded into the generic sentence, because this
+                    // one is entirely actionable and waiting costs one cycle:
+                    // the year would overwrite the free month, so let the month
+                    // land and then buy the year.
+                    "You have a free month from a referral waiting on your next " +
+                    "bill. Paying for a year now would use it up on a $0 line — " +
+                    "let it land first, then buy the year."
+                  : // #522: `currency_unavailable` deliberately lands here with
                   // the generic sentence. It is our provisioning gap, not
                   // theirs, and the alternative — "we can only take this one in
                   // US dollars" — invites somebody to say yes to a bill that

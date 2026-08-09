@@ -239,6 +239,29 @@ describe("#400 eligibility", () => {
     expect(r.open?.granted_through).toBe("2027-01-01T00:00:00Z");
   });
 
+  it("refuses while an unspent REFERRAL month rides the same item", async () => {
+    /**
+     * #399's free month is a 100%-off coupon on the licensed item, and
+     * `grantPrepaidYear` writes `discounts: [{ coupon }]` — an array write, which
+     * REPLACES. So selling the year here deletes a month the customer had
+     * already earned, and once the coupon is off the item nothing can tell it
+     * was ever there.
+     *
+     * Refused at the SELL, not patched at the grant: the grant runs after the
+     * money is taken, and by then the only choices are to destroy the month or
+     * to stack it on a line already discounted to $0, where a `duration: once`
+     * coupon is consumed against a $0 invoice and evaporates anyway.
+     *
+     * `pauseEligibility` has carried this exact gate since the referral month
+     * shipped, which is what makes its absence here an omission.
+     */
+    const withMonth = subscriptionWith([
+      { id: "di_ref", coupon: { id: env.STRIPE_REFERRAL_MONTH_COUPON_ID } },
+    ]);
+    const r = await prepayEligibility(env, fakeDb(), company, withMonth as never);
+    expect(r).toMatchObject({ eligible: false, reason: "referral_month_pending" });
+  });
+
   it("refuses when the catalog is half-provisioned — the coupon counts", async () => {
     // The coupon is as load-bearing as the price: without it the money buys
     // nothing at all.
@@ -419,6 +442,28 @@ describe("#400 grantPrepaidYear", () => {
     );
     expect(r.outcome).toBe("granted");
     expect(stub.updates).toHaveLength(0);
+  });
+
+  it("CARRIES an unspent referral month through instead of deleting it", async () => {
+    // The sell gate above should mean this never happens, but the money is
+    // already taken by the time a grant runs, so the race gets a backstop rather
+    // than a throw. Carried rather than replaced: the array write would delete a
+    // month somebody earned, and that is worse than stacking it on a line about
+    // to be $0 anyway.
+    const stub = stripeStub(
+      subscriptionWith([
+        { id: "di_ref", coupon: { id: env.STRIPE_REFERRAL_MONTH_COUPON_ID } },
+      ]),
+    );
+    await withStripe(stub, () => grantPrepaidYear(env, fakeDb(), session()));
+    expect(stub.updates).toHaveLength(1);
+    const item = (
+      stub.updates[0].params as { items: { discounts: { coupon: string }[] }[] }
+    ).items[0];
+    expect(item.discounts.map((d) => d.coupon)).toEqual([
+      env.STRIPE_REFERRAL_MONTH_COUPON_ID,
+      COUPON,
+    ]);
   });
 
   it("refuses to re-grant a revoked year", async () => {

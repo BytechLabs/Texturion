@@ -340,6 +340,46 @@ describe("#399 rewardQualifiedReferral", () => {
     spy.mockRestore();
   });
 
+  it("HOLDS the month while a prepaid year rides the same item, and leaves it unstamped", async () => {
+    /**
+     * The write is `discounts: [{ coupon }]`, and an array write REPLACES — the
+     * same semantics `revokePrepaidYear` depends on when it clears with
+     * `discounts: []`. A prepaid year is a 100%-off/12-month coupon on this exact
+     * item, so paying the reward here DELETES it: the customer keeps being billed
+     * the full plan price for months they already paid for, up to $790, while
+     * `prepayments.granted_through` still records them as covered.
+     *
+     * `itemHasDiscount` cannot see this — it is asked only about the referral
+     * coupon — which is why the check has to be separate and come first.
+     *
+     * Held rather than merged: with the plan line already at $0 a `duration:
+     * once` coupon would be consumed against a $0 invoice and evaporate.
+     */
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const prepaid = subscriptionOn(env.STRIPE_STARTER_PRICE_ID);
+    prepaid.items.data[0].discounts = [
+      { id: "di_prepaid", coupon: { id: env.STRIPE_PREPAID_YEAR_COUPON_ID } },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ] as any;
+    const stub = stripeStub(prepaid);
+    const db = subDb();
+    await withStripe(stub, () =>
+      rewardQualifiedReferral(env, db, {
+        referralId: "ref-1",
+        referrerCompanyId: REFERRER,
+        refereeCompanyId: COMPANY,
+      }),
+    );
+    expect(stub.updates).toHaveLength(0);
+    // Unstamped is what makes it recoverable: `payPendingReferralRewards` retries
+    // unstamped qualified rows behind every send, so the month lands by itself
+    // once the year ends.
+    expect((db.calls as RpcCall[]).some((c) => c.fn === "stamp_referral_reward")).toBe(
+      false,
+    );
+    spy.mockRestore();
+  });
+
   it("still pays the referee when the referrer's side fails", async () => {
     // A referrer who has since cancelled must not cost the referee the month
     // they earned by actually using the product.

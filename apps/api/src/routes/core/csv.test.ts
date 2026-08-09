@@ -4,6 +4,7 @@ import {
   CsvUnterminatedQuoteError,
   csvField,
   csvSafeText,
+  csvUnguardText,
   parseCsv,
   serializeCsv,
 } from "./csv";
@@ -108,10 +109,14 @@ describe("csvSafeText (OWASP CSV/formula-injection guard)", () => {
     expect(csvSafeText("O'Brien")).toBe("O'Brien");
     expect(csvSafeText("Won;Quote sent")).toBe("Won;Quote sent");
   });
-  it("leaves a bare E.164 phone number untouched (not a free-text column, but guards must never mangle it)", () => {
-    // A '+'-led string WOULD be guarded — that's why the export leaves the
-    // phone column bare (never routed through csvSafeText). Assert csvSafeText
-    // is a pure guard and the export's column choice is what protects phones.
+  it("GUARDS a bare E.164 phone number — a leading '+' is a formula in Excel", () => {
+    // The title and comment here used to say the opposite of the assertion: that
+    // the export left the phone column bare and this proved the guard was pure.
+    // It was never true — contacts.ts had already routed the phone through here,
+    // with a comment arguing it needs guarding MORE than a name does, because
+    // `+14165550199` is a formula that evaluates and loses the '+'. Every cell of
+    // every export goes through the guard now (#580), so the recorded reason and
+    // the code agree for the first time.
     expect(csvSafeText("+14165550199")).toBe("'+14165550199");
   });
   it("renders null/undefined as the empty field", () => {
@@ -125,17 +130,43 @@ describe("serializeCsv", () => {
     expect(serializeCsv([["a", "b"], ["1", "2"]])).toBe("a,b\r\n1,2");
   });
 
-  it("round-trips with parseCsv (export→import is lossless, D20 §3.1)", () => {
+  it("round-trips through parse + unguard (export→import is lossless, D20 §3.1)", () => {
+    /**
+     * The round trip is `serializeCsv` → `parseCsv` → `csvUnguardText`, and the
+     * last step is not optional — which this test used to imply it was.
+     *
+     * It passed with `parseCsv` alone only because the export left the phone
+     * column unguarded, so no cell in the fixture ever carried the guard
+     * apostrophe. Every cell is guarded as of #580, so `+14165550199` now goes out
+     * as `'+14165550199` and `parseCsv` — documented to return RAW cells, and used
+     * by the import preview as well as the import — correctly hands it back that
+     * way. The importer has always stripped it (contacts.ts); the assertion was
+     * checking a layer the product does not round-trip through.
+     */
     const rows = [
       ["name", "phone", "tags"],
       ["Smith, John", "+14165550199", "Quote sent;Won"],
       ['Has "quote"', "+15125550100", ""],
       ["line1\nline2", "+12125550133", null],
+      // A formula payload survives the trip as itself, which is the whole point:
+      // guarded on the way out, un-guarded on the way back, never evaluated.
+      ["=IMPORTDATA(\"https://x.test\")", "+13125550111", "-5"],
     ];
-    const parsed = parseCsv(serializeCsv(rows));
+    const serialized = serializeCsv(rows);
+    // Guarded on the wire — the property the export exists for.
+    expect(serialized).toContain("'=IMPORTDATA(");
+    expect(serialized).toContain("'+14165550199");
+    const parsed = parseCsv(serialized).map((row) => row.map(csvUnguardText));
     // parseCsv drops rows that are entirely empty but preserves these.
-    expect(parsed).toEqual(
-      rows.map((row) => row.map((cell) => cell ?? "")),
-    );
+    expect(parsed).toEqual(rows.map((row) => row.map((cell) => cell ?? "")));
+  });
+
+  it("leaves an ordinary leading apostrophe alone on the way back in", () => {
+    // The strip is conditional on a trigger following the apostrophe, so a name
+    // that genuinely starts with one keeps it. Without that condition the round
+    // trip would quietly eat a character from every `'Tis` in the book.
+    expect(csvUnguardText("'Tis Fixed")).toBe("'Tis Fixed");
+    expect(csvUnguardText("'=SUM(A1)")).toBe("=SUM(A1)");
+    expect(csvUnguardText(null)).toBe(null);
   });
 });

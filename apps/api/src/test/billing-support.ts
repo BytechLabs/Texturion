@@ -78,6 +78,20 @@ export function makeHarness(endpoints: StubEndpoint[]): Harness {
       pattern: /\/rest\/v1\/phone_numbers/,
       handler: () => countResponse(1),
     } as StubEndpoint,
+    // change-plan now asks whether a prepaid year is running before it rewrites
+    // the licensed item's price, because that item is where the 100%-off coupon
+    // rides and Stripe carries an item's discounts across a price change (D107
+    // requirement 4). The ambient answer is "no year has been bought" — true of
+    // every workspace in every suite written before the gate, and the state the
+    // whole prepay feature is an exception to.
+    //
+    // Registered LAST, like the two blocks above: a test that cares states the
+    // window and wins the match.
+    {
+      method: "POST",
+      pattern: /\/rest\/v1\/rpc\/open_prepayment/,
+      handler: () => null,
+    } as StubEndpoint,
   ];
   const route: FetchRoute = async (url, request) => {
     const match = all.find(

@@ -9,6 +9,12 @@
  * bookkeeper and read-only gaps are not on the owner ⊃ admin ⊃ member line,
  * and a rank gate refuses them wholesale rather than asking the right question.
  *
+ * #581 added the READ half. Every check here matched a write verb, so a GET
+ * gated on the capability EVERY role holds was not weakly guarded in this file's
+ * eyes — it was outside its field of view entirely, which is how the
+ * notifications feed served every customer's name and number to the one preset
+ * documented as never seeing a customer.
+ *
  * `requireRole("member")` is deliberately still allowed. Those 91 routes mean
  * "any active member", and they split two ways — some read, some send as the
  * business. They get converted by hand, route by route, when the read-only
@@ -156,6 +162,75 @@ const UNGATED_WRITES: Record<string, string> = {
     "`p_user_id: c.get(\"userId\")`, so one member cannot silence another's",
 };
 
+/**
+ * #581 — READS the bookkeeper preset can pass, each because the payload carries
+ * nothing a conversation is made of.
+ *
+ * This is the list the check below is FOR, and the reason it is a list of
+ * exemptions rather than a list of suspicious routes. "Conversation-derived" is
+ * not decidable from a route file: the honest options were a vocabulary
+ * (`contacts(`, `conversation_id`, `api_notifications`, …) or the gate itself.
+ * A vocabulary fails OPEN — the next read that serves a customer's name through
+ * a differently-named RPC is invisible to it, and being invisible to this file
+ * is exactly what let #581 ship. The gate fails CLOSED: a new read is a finding
+ * until somebody writes down what it serves.
+ *
+ * Every entry is `GET /path`. Adding one is the moment somebody has to say out
+ * loud that a read reveals nothing about a customer to the one role documented
+ * as never seeing one.
+ */
+const NON_CONVERSATION_READS: Record<string, string> = {
+  "GET /company": "the workspace record the app boots on — name, hours, plan " +
+    "flags. A role that cannot read it cannot render a screen",
+  "GET /company/ai-settings":
+    "which AI switches are on. Workspace config; no customer appears in it",
+  "GET /company/ownership":
+    "#332: the handover state — the named backup and whether a claim is open. " +
+    "Teammates, not customers",
+  "GET /me/firsts":
+    "#405: three booleans about the CALLER'S OWN actions (have you replied, " +
+    "noted, marked done). Nothing it counts is identified",
+  "GET /me/joining-note":
+    "#521: what the caller was told when they were added, in their inviter's " +
+    "words",
+  "GET /members": "the crew — teammates, their roles and their invite state",
+  "GET /notification-prefs":
+    "the caller's own delivery settings, plus the VAPID key their own browser " +
+    "subscribes with",
+  "GET /access/me":
+    "#106: which of the WORKSPACE'S OWN lines the caller may use, by E.164 and " +
+    "verdict — deliberately including the ones they cannot. Never a line's " +
+    "label or greeting, and never a customer",
+  "GET /usage": "the plan's meters and money, which is what billing.manage is " +
+    "for; the bookkeeper preset exists to read exactly this",
+};
+
+/**
+ * Every `GET` route declaration paired with the capability it is gated on.
+ *
+ * Whole-line `//` comments are stripped first, because the space between a path
+ * and its gate is the natural place to explain the gate — and a comment there
+ * would push `requireCapability` out of reach of this regex, quietly exempting
+ * the one route somebody cared enough about to justify. Whole lines only: route
+ * files are full of `https://` inside string literals, and a general stripper
+ * would eat from there to the end of the line.
+ *
+ * The path must start with `/`, which is what separates a route declaration
+ * from the `c.get("userId")` in every handler below it.
+ */
+function gatedReads(): { name: string; route: string; capability: string }[] {
+  const found: { name: string; route: string; capability: string }[] = [];
+  for (const { name, src } of routeSources()) {
+    const code = src.replace(/^[ \t]*\/\/.*$/gm, "");
+    for (const match of code.matchAll(
+      /\.get\(\s*"(\/[^"]+)"\s*,\s*requireCapability\("([^"]+)"\)/g,
+    )) {
+      found.push({ name, route: `GET ${match[1]}`, capability: match[2] });
+    }
+  }
+  return found;
+}
+
 describe("route gates ask for a capability, not a rank", () => {
   it("finds the route sources (the lint itself still works)", () => {
     const sources = routeSources();
@@ -265,6 +340,70 @@ describe("route gates ask for a capability, not a rank", () => {
     expect(
       stale,
       `SELF_SCOPED_WRITES names routes that no longer exist: ${stale.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  it("no READ the bookkeeper can pass serves conversation data (#581)", () => {
+    // THE ONE THIS FILE COULD NOT ASK. Every check above matches
+    // `.post|.patch|.put|.delete`, so a READ gated on too weak a capability was
+    // never a finding — it was structurally invisible. `GET /notifications` and
+    // `GET /notifications/unread-count` sat on `workspace.access` serving
+    // `contact.name` and `contact.phone_e164` for every unassigned inbound miss
+    // in the workspace, and this file had nothing to say about it.
+    //
+    // The question is not "is this gate weak", it is "can the one role
+    // documented as never seeing a customer pass it". That set is DERIVED from
+    // the capability table, so narrowing or widening the bookkeeper preset
+    // re-checks every read in the product for free — the same trick the
+    // read-only check above uses. (Today the member of that set which actually
+    // bites is `workspace.access`; `billing.manage` is in it so that the first
+    // per-route billing READ gets asked the question too.)
+    //
+    // TWO THINGS IT CANNOT SEE, both by construction. A read covered by a
+    // ROUTER-level gate (`billingRoutes.use("*", …)`) has no capability at its
+    // call site, so it is not scanned at all — billing's router asks for
+    // `billing.manage`, which is the bookkeeper's by design, but a conversation
+    // read mounted under a router-wide `workspace.access` would slip past. And a
+    // GET with NO gate at all is not examined either: that is the read twin of
+    // #519's UNGATED_WRITES, and it needs its own list of public and
+    // pre-company reads before it can be asked.
+    const bookkeeper = new Set<string>(capabilitiesOf("bookkeeper"));
+    const offenders: string[] = [];
+    let reads = 0;
+    for (const { name, route, capability } of gatedReads()) {
+      reads += 1;
+      if (!bookkeeper.has(capability)) continue;
+      if (route in NON_CONVERSATION_READS) continue;
+      offenders.push(`${name}: ${route} -> ${capability}`);
+    }
+    expect(
+      offenders,
+      "These reads are open to a role that must never see a customer. Either " +
+        "gate them on conversations.read, or add them to " +
+        "NON_CONVERSATION_READS saying what they actually serve:\n  " +
+        offenders.join("\n  "),
+    ).toEqual([]);
+    // Guard the guard: this regex is the newest in the file, and an empty scan
+    // is a passing one.
+    expect(reads).toBeGreaterThan(50);
+  });
+
+  it("the non-conversation read list has no entries that stopped existing (#581)", () => {
+    // Same reason both lists above have this twin: an exemption that outlives
+    // its route is pre-approval for whatever takes the name next, and `/company`
+    // or `/members` are names a future read would plausibly reuse.
+    const declared = new Set<string>();
+    for (const { src } of routeSources()) {
+      for (const match of src.matchAll(/\.get\(\s*"(\/[^"]+)"/g)) {
+        declared.add(`GET ${match[1]}`);
+      }
+    }
+    const stale = Object.keys(NON_CONVERSATION_READS).filter(
+      (route) => !declared.has(route),
+    );
+    expect(
+      stale,
+      `NON_CONVERSATION_READS names routes that no longer exist: ${stale.join(", ")}`,
     ).toEqual([]);
   });
   it("every write is gated, or says why it needs no gate (#519)", () => {

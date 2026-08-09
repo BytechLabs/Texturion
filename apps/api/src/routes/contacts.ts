@@ -58,6 +58,7 @@ import { buildPage, encodeCursor } from "../http/pagination";
 import {
   CsvUnterminatedQuoteError,
   csvSafeText,
+  csvUnguardText,
   parseCsvRows,
   serializeCsv,
   type CsvRow,
@@ -2280,13 +2281,12 @@ contactsRoutes.post(
       const value = (cells[index] ?? "").trim();
       return value === "" ? null : value;
     };
-    // Undo the export's CSV-injection guard (csvSafeText): a name we exported
-    // that began with a formula trigger carries a single leading apostrophe
-    // followed by that trigger char (=+-@ / tab / CR / LF). Strip exactly that
-    // apostrophe so an export→import round-trip is lossless (D20 §3.1), without
-    // touching a legitimate leading apostrophe before ordinary text.
-    const unguard = (value: string | null): string | null =>
-      value !== null && /^'[=+\-@\t\r\n]/.test(value) ? value.slice(1) : value;
+    // Undo the export's CSV-injection guard so an export→import round-trip is
+    // lossless (D20 §3.1). It lives beside the guard now rather than here: this
+    // was an inline regex repeating csvSafeText's trigger set, and every cell of
+    // every export is guarded as of #580, so the set is load-bearing in two
+    // directions and cannot be allowed to differ between them.
+    const unguard = csvUnguardText;
     // One timestamp for the whole file: every row in an import consented at the
     // same moment as far as the ledger is concerned, and a per-row now() would
     // make the evidence chain look like a thousand separate events.

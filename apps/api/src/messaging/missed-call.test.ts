@@ -449,8 +449,12 @@ describe("sendMissedCallText — text-back + alert", () => {
       () => [messageRow({ status: "failed", telnyx_message_id: null })],
     );
     // Capture the alert email to a single member.
+    // `role` is not decoration: the audience filter asks whether the member
+    // can read conversations at all (#581), and a row without one fails CLOSED —
+    // the production query selects `user_id,role`, so a fixture that omits it is
+    // describing a member who cannot exist.
     const members = stubRoute(restMatch(env, "GET", "company_members"), () => [
-      { user_id: "99999999-9999-4999-8999-999999999999" },
+      { user_id: "99999999-9999-4999-8999-999999999999", role: "member" },
     ]);
     const prefs = stubRoute(
       restMatch(env, "GET", "notification_prefs"),

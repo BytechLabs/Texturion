@@ -270,3 +270,143 @@ describe("#558 a tokenised path never reaches Sentry in full", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// #581 — fetchIntegration is a DEFAULT integration of @sentry/cloudflare and
+// `sentryOptions` never overrides `integrations`, so EVERY outbound fetch wrote
+// its full URL into `breadcrumb.data.url`, query string and all, attached to any
+// event captured in the same isolate.
+// ---------------------------------------------------------------------------
+
+/**
+ * The SHAPE of the AWS SigV4 signature Telnyx puts on a saved recording, with
+ * none of the entropy — built from a readable stem for the same reason
+ * SHARE_TOKEN is, and because the secret scan reads all history.
+ */
+const RECORDING_SIGNATURE = `not-a-real-signature-${"a".repeat(24)}`;
+
+/**
+ * The five outbound calls this Worker makes with a customer's data in the query
+ * string, each read off its call site rather than imagined: geocode/nominatim.ts
+ * (`/search?q=`), geocode/geocode-contacts.ts (the conditional write-back keyed
+ * on the captured address), routes/contacts.ts (`contactSearchOr`),
+ * email/resend.ts (`filterSuppressed`, which runs before every send), and
+ * messaging/inbound-ring.ts (`storeVoicemailRecording`).
+ *
+ * `secret` is the substring that must not survive anywhere in the crumb, and it
+ * is a name, an address, an email or a credential in every case — never a digit
+ * run, which is the point: `redactPhones` could not have found any of them.
+ */
+const FETCH_SINKS: readonly (readonly [
+  what: string,
+  url: string,
+  secret: string,
+  cut: string,
+])[] = [
+  [
+    "the geocoder's copy of a customer's street address",
+    "https://nominatim.openstreetmap.org/search?q=140+Maple+Ave%2C+Springfield&format=json&limit=1&countrycodes=us%2Cca",
+    "Maple",
+    "https://nominatim.openstreetmap.org/search",
+  ],
+  [
+    "the same address again as a PostgREST write-back filter",
+    "https://ref.supabase.co/rest/v1/contacts?id=eq.6f0c2f0e-6a5a-4bfa-9b6e-2d6d1a6c9e01&address=eq.140+Maple+Ave",
+    "Maple",
+    "https://ref.supabase.co/rest/v1/contacts",
+  ],
+  [
+    "the term a crew member typed into contact search",
+    "https://ref.supabase.co/rest/v1/contacts?select=id&or=%28name.ilike.%2AAlvarez%2A%2Cemail.ilike.%2AAlvarez%2A%29",
+    "Alvarez",
+    "https://ref.supabase.co/rest/v1/contacts",
+  ],
+  [
+    "the recipient addresses checked before every email send",
+    "https://ref.supabase.co/rest/v1/email_suppressions?select=email&email=in.%28maria%40example.com%29&cleared_at=is.null",
+    "maria%40example.com",
+    "https://ref.supabase.co/rest/v1/email_suppressions",
+  ],
+  [
+    "the presigned URL that IS the credential for a customer's recorded voice",
+    "https://s3.amazonaws.com/telephony-recorder-prod/rec-c0ffee.mp3" +
+      "?X-Amz-Algorithm=AWS4-HMAC-SHA256" +
+      "&X-Amz-Credential=not-a-real-key%2F20260809%2Fus-east-1%2Fs3%2Faws4_request" +
+      "&X-Amz-Date=20260809T000000Z&X-Amz-Expires=600&X-Amz-SignedHeaders=host" +
+      `&X-Amz-Signature=${RECORDING_SIGNATURE}`,
+    RECORDING_SIGNATURE,
+    "https://s3.amazonaws.com/telephony-recorder-prod/rec-c0ffee.mp3",
+  ],
+] as const;
+
+describe("#581 an outbound fetch breadcrumb never carries its query string", () => {
+  it.each(FETCH_SINKS)("cuts %s", (_what, url, secret, cut) => {
+    // The exact crumb fetchIntegration writes: { method, url, status_code }.
+    const crumb = scrubBreadcrumb({
+      category: "fetch",
+      type: "http",
+      data: { method: "GET", url, status_code: 500 },
+    });
+    const data = crumb.data as Record<string, unknown>;
+    expect(data.url).toBe(cut);
+    expect(JSON.stringify(crumb)).not.toContain(secret);
+    // Origin, path, method and status all survive: the crumb is scrubbed rather
+    // than switched off because with tracesSampleRate 0 it is the ONLY record of
+    // which upstream call preceded the crash (see sentryOptions).
+    expect(data.method).toBe("GET");
+    expect(data.status_code).toBe(500);
+  });
+
+  it("cuts the same crumb on the way out with an event, not only on the way in", () => {
+    // beforeBreadcrumb and beforeSend are independent hooks. A crumb added
+    // before Sentry.init ran — or by anything that bypasses beforeBreadcrumb —
+    // still ships inside event.breadcrumbs.
+    const [, url, secret] = FETCH_SINKS[0];
+    const event = scrubEvent({
+      type: undefined,
+      breadcrumbs: [{ category: "fetch", data: { method: "GET", url } }],
+    } as ErrorEvent);
+    expect(event.breadcrumbs?.[0]?.data?.url).toBe(
+      "https://nominatim.openstreetmap.org/search",
+    );
+    expect(JSON.stringify(event)).not.toContain(secret);
+  });
+
+  it("cuts a URL-keyed value wherever it is parked, not just on a breadcrumb", () => {
+    // `extra`, `tags` and `contexts` run through the same walker, so the rule
+    // does not have to be restated per container.
+    const [, url] = FETCH_SINKS[2];
+    const event = scrubEvent({
+      extra: { request_url: url },
+      contexts: { upstream: { url } },
+    } as unknown as ErrorEvent);
+    expect(event.extra?.request_url).toBe(
+      "https://ref.supabase.co/rest/v1/contacts",
+    );
+    expect(JSON.stringify(event)).not.toContain("Alvarez");
+  });
+
+  it("leaves the recording URL unreplayable, not merely tidier", () => {
+    // The CHECK #581 asked for. Telnyx's link is an AWS SigV4 presigned URL and
+    // SigV4 carries its signature in the query string, so the cut takes the
+    // credential with it and what remains is a bucket path that answers 403. If
+    // Telnyx ever moves to a path-embedded token this assertion still passes
+    // while the credential ships — which is why TOKEN_PATH_PREFIXES exists for
+    // the shape where the path IS the secret.
+    const [, url] = FETCH_SINKS[4];
+    const cut = scrubBreadcrumb({ data: { url } }).data?.url as string;
+    expect(cut).not.toContain("X-Amz-Signature");
+    expect(cut).not.toContain("X-Amz-Credential");
+    expect(cut).not.toContain("X-Amz-Expires");
+    expect(new URL(cut).search).toBe("");
+  });
+
+  it("still redacts a phone under a URL-shaped key", () => {
+    // `to`/`from` are navigation keys in the browser twin and destination
+    // numbers here. Both arms end in redactPhones, so adopting the twin's
+    // pattern wholesale cannot under-redact — this is the case that proves it.
+    expect(scrubBreadcrumb({ data: { to: PHONE } }).data?.to).toBe(
+      "[phone redacted]",
+    );
+  });
+});

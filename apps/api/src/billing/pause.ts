@@ -77,7 +77,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
 import { pauseLicensedPrice, planForLicensedPrice, type PlanId } from "./plans";
-import { itemHasDiscount, openPrepayment, type OpenPrepayment } from "./prepay";
+import {
+  openPrepayment,
+  prepaidCouponPending,
+  referralMonthPending,
+  type OpenPrepayment,
+} from "./prepay";
 import type { Stripe } from "./stripe";
 
 export type PauseIneligibleReason =
@@ -185,62 +190,7 @@ export async function pauseEligibility(
   return { eligible: true, open: null };
 }
 
-/**
- * Is a #399 referral free month still sitting unspent on the licensed item?
- *
- * ASKED OF STRIPE, NOT OF OUR REFERRAL TABLE, and that is the whole trick. The
- * coupon is `duration: once`, so Stripe DROPS the discount from the item the
- * moment it is applied to an invoice. "The item still carries the coupon" is
- * therefore the same question as "the month has not been spent yet" — a
- * `referrals.referrer_rewarded_at` timestamp answers a different one (it says a
- * month was granted, months ago, and cannot say whether it has since landed).
- *
- * False when the coupon is unprovisioned: with no configured coupon we cannot
- * tell a referral discount from any other, and refusing every pause on a guess
- * would be worse than the money at stake. Nothing pays out in that state either
- * (see rewardSide), so there is no unspent month to protect.
- */
-export function referralMonthPending(
-  env: Env,
-  subscription: Stripe.Subscription | null | undefined,
-): boolean {
-  const coupon = env.STRIPE_REFERRAL_MONTH_COUPON_ID;
-  if (!coupon || !subscription) return false;
-  const licensed = planLicensedItem(env, subscription);
-  return licensed ? itemHasDiscount(licensed, coupon) : false;
-}
 
-/**
- * Is a prepaid year's coupon riding the licensed item with no row behind it?
- *
- * THE SAME HAZARD AS referralMonthPending, FOR THE OTHER COUPON, and the
- * `prepayments` row does not cover it. `openPrepayment` requires `granted_at`,
- * and `grantPrepaidYear` deliberately does NOT throw when `stamp_prepayment`
- * fails — throwing would let the webhook sweeper retry and re-apply a coupon
- * whose twelve months would restart, which is the worst outcome that path has.
- * So a logged stamp failure leaves the discount live on the item and the row
- * ungranted, and `pauseEligibility` sees nothing in the way.
- *
- * A pause then swaps that item's PRICE, and Stripe carries the item's discounts
- * across a price change untouched. The result is a twelve-month 100%-off coupon
- * sitting on the ~$5 holding fee: a genuinely free pause, on a workspace that
- * also burns the year it paid for on a hold. Exactly the harm the
- * `already_prepaid` gate exists to prevent, reached through the one hole that
- * gate cannot see.
- *
- * Asked of STRIPE for the same reason referralMonthPending is: the item either
- * carries the coupon or it does not, and no timestamp of ours can say so once
- * the write that would have stamped it has been lost.
- */
-export function prepaidCouponPending(
-  env: Env,
-  subscription: Stripe.Subscription | null | undefined,
-): boolean {
-  const coupon = env.STRIPE_PREPAID_YEAR_COUPON_ID;
-  if (!coupon || !subscription) return false;
-  const licensed = planLicensedItem(env, subscription);
-  return licensed ? itemHasDiscount(licensed, coupon) : false;
-}
 
 /** A pause price we are willing to swap onto a subscription, and what it bills. */
 export interface PausePrice {

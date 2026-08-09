@@ -9,7 +9,11 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { isPauseLicensedPrice } from "../billing/plans";
-import { itemHasDiscount, licensedItemOf } from "../billing/prepay";
+import {
+  itemHasDiscount,
+  licensedItemOf,
+  prepaidCouponPending,
+} from "../billing/prepay";
 import { getStripe } from "../billing/stripe";
 import type { Env } from "../env";
 
@@ -267,6 +271,40 @@ async function rewardSide(
     console.log(
       `referral reward (${args.side}) held for ${args.companyId}: ` +
         (paused ? "workspace paused, pays on resume" : "no plan licensed item"),
+    );
+    return false;
+  }
+
+  /**
+   * A prepaid year is running, so the month is HELD rather than paid.
+   *
+   * The write below sends `discounts: [{ coupon }]`, and that REPLACES the item's
+   * discount array — the same semantics `revokePrepaidYear` depends on when it
+   * clears with `discounts: []`. A prepaid year is a 100%-off/12-month coupon on
+   * this exact item, so paying the reward here would delete it: the customer
+   * keeps being billed the full plan price for months they already paid for,
+   * while `prepayments.granted_through` still records them as covered. Up to
+   * $790 of paid service, destroyed by a referee sending their first text, with
+   * nothing detecting it.
+   *
+   * `itemHasDiscount` below cannot see this — it is asked only about the referral
+   * coupon — which is why the check is separate and comes first.
+   *
+   * Held, not merged: with the plan line already at $0, a `duration: once`
+   * referral coupon would be consumed against a $0 invoice and the free month
+   * would evaporate. Returning WITHOUT stamping is what makes it a hold —
+   * `payPendingReferralRewards` retries unstamped qualified rows behind every
+   * send, so the month lands by itself once the year ends. Exactly the shape the
+   * paused-workspace branch above already uses.
+   *
+   * `pauseEligibility` carries both sides of this collision with a test behind
+   * it; this path carried neither, which is what makes it an omission rather
+   * than a policy.
+   */
+  if (prepaidCouponPending(env, subscription)) {
+    console.log(
+      `referral reward (${args.side}) held for ${args.companyId}: ` +
+        "prepaid year running, pays when it ends",
     );
     return false;
   }

@@ -20,6 +20,7 @@ import {
   stubFetch,
   type TestAuth,
 } from "../test/support";
+import { notifyMissedCall } from "../notifications/missed-call";
 import { notificationsRoutes } from "./notifications";
 
 const env = completeEnv();
@@ -38,12 +39,17 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function memberStub(options: { pause?: unknown } = {}): SupabaseStub {
+function memberStub(
+  // #581: the caller's ROLE is a parameter now. The read-model routes and the
+  // prefs routes no longer answer to the same capability, so a suite about this
+  // file has to be able to arrive as somebody other than a plain member.
+  options: { pause?: unknown; role?: string } = {},
+): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
     "POST",
     "/rest/v1/rpc/api_authorize_request",
-    membershipResponder(MEMBER_ID, "member"),
+    membershipResponder(MEMBER_ID, options.role ?? "member"),
   );
   // #106: the read-model routes resolve number_access; [] = no rules →
   // unrestricted (p_hidden_number_ids null), so the RPC assertions are unchanged.
@@ -934,6 +940,199 @@ describe("GET /v1/notifications/unread-count — the pause a member can see (#34
 
     expect(sb.find("POST", "/rest/v1/rpc/api_notifications_unread_count")).toHaveLength(1);
     expect(sb.find("POST", "/rest/v1/rpc/api_notification_pause")).toHaveLength(1);
+  });
+});
+
+/**
+ * #581 — the notification subsystem predates the #315 presets.
+ *
+ * Both halves of it were gated on `workspace.access`, the baseline capability
+ * EVERY role holds, while everything they serve is conversation-derived: each
+ * feed row carries `contact.name` and `contact.phone_e164`, and the missed-call
+ * push titles itself `Missed call from <name>`. `bookkeeper` is exactly
+ * `workspace.access` + `billing.manage` — the one preset documented as never
+ * seeing a customer — so it passed. Per-number rules were no help either: a
+ * workspace that has never written one resolves to UNRESTRICTED, which is the
+ * default state, and the missed-call arm of the feed matches UNASSIGNED threads,
+ * so it needed nobody's cooperation.
+ *
+ * The two halves are tested together on purpose. Refusing the feed while the
+ * fan-out still put the customer's name on the same person's lock screen would
+ * be a fix in name only.
+ */
+describe("#581 the feed is conversation data, not workspace data", () => {
+  it("refuses a bookkeeper the feed, before the read that would have served it", async () => {
+    const sb = memberStub({ role: "bookkeeper" });
+    sb.on("POST", "/rest/v1/rpc/api_notifications", () => [NOTIF_A, NOTIF_B]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notifications",
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: { code: "forbidden", message: expect.any(String) },
+    });
+    // The RPC is stubbed and deliberately left unused: a gate that refused the
+    // RESPONSE after reading the rows would still have pulled two customers'
+    // names and numbers into the Worker.
+    expect(sb.find("POST", "/rest/v1/rpc/api_notifications")).toHaveLength(0);
+  });
+
+  it("refuses a bookkeeper the unread count, which is its own answer", async () => {
+    // "How many customers reached this business today" is a number worth
+    // withholding on its own, and it is the endpoint all three clients poll on a
+    // timer — so leaving it behind would have kept the leak on a schedule.
+    const sb = memberStub({ role: "bookkeeper" });
+    sb.on("POST", "/rest/v1/rpc/api_notifications_unread_count", () => 4);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notifications/unread-count",
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(403);
+    expect(
+      sb.find("POST", "/rest/v1/rpc/api_notifications_unread_count"),
+    ).toHaveLength(0);
+  });
+
+  it("still lets a bookkeeper read and save their OWN prefs", async () => {
+    // The other half of the split, and the reason this is not a one-line sweep
+    // of the file: where the phone rings and how loud is a per-person setting
+    // that every role owns. A bookkeeper who cannot turn off their own email is
+    // a role that cannot use the product.
+    const sb = memberStub({ role: "bookkeeper" });
+    sb.on("POST", "/rest/v1/notification_prefs", () => [
+      { email_enabled: false, push_enabled: true },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const read = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notification-prefs",
+      { companyId: COMPANY_ID },
+    );
+    expect(read.status).toBe(200);
+
+    const saved = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/notification-prefs",
+      {
+        method: "PUT",
+        companyId: COMPANY_ID,
+        body: { email_enabled: false, push_enabled: true },
+      },
+    );
+    expect(saved.status).toBe(200);
+  });
+});
+
+/**
+ * #581, the other half: `listConversationViewers`, through the fan-out that made
+ * it matter most.
+ *
+ * A gate on the poll is only half a fix — a bookkeeper with a registered device
+ * got `Missed call from Dana Smith` pushed to them without polling anything. The
+ * audience helper selected every non-deactivated membership row and filtered
+ * only on number access, and both of its paths are exercised here: an unruled
+ * number (the resolver answers with the whole crew) and no number at all (the
+ * early return, which skipped access resolution entirely).
+ *
+ * Lives in this suite rather than in the missed-call one because the change is
+ * the notification AUDIENCE rule; the missed-call fan-out is simply the consumer
+ * that carries a customer's name into a lock screen.
+ */
+describe("#581 the missed-call push audience", () => {
+  const TECH = "20000000-aaaa-4000-8000-000000000002";
+  const BOOKKEEPER = "30000000-aaaa-4000-8000-000000000003";
+  const CONVERSATION_ID = "bbbbbbbb-0000-4000-8000-00000000000b";
+  const NUMBER_ID = "dddddddd-0000-4000-8000-00000000000d";
+  const CREW = [
+    { user_id: TECH, role: "member" },
+    { user_id: BOOKKEEPER, role: "bookkeeper" },
+  ];
+
+  function missedCallWorld(phoneNumberId: string | null): SupabaseStub {
+    const sb = supabaseStub(env);
+    sb.on("GET", "/rest/v1/conversations", () => [
+      {
+        id: CONVERSATION_ID,
+        // Unassigned, like every inbound miss nobody has picked up — which is
+        // exactly the case the feed's missed_call arm also serves to everyone.
+        assigned_user_id: null,
+        phone_number_id: phoneNumberId,
+        contacts: { name: "Dana Smith", phone_e164: "+16135551000" },
+      },
+    ]);
+    sb.on("GET", "/rest/v1/company_members", () => CREW);
+    // An UNRULED number: the resolver answers with the whole crew at full use.
+    // That is the default state of every workspace that has never written an
+    // access rule, and the reason #106 could not be the thing keeping a
+    // bookkeeper out. Derived from the same CREW the member query answers with,
+    // so the fixture cannot describe two different crews (missed-call.test.ts
+    // idiom).
+    sb.on("POST", "/rest/v1/rpc/number_member_levels", () =>
+      CREW.map((member) => ({ ...member, level: "text" })),
+    );
+    // #244 reads the workspace clock only when the audience is more than one
+    // person — which it IS while the bug is present. Answering "no row" keeps
+    // this test about the capability filter instead of about business hours, and
+    // an unstubbed read here would have failed the pre-fix run with a network
+    // error instead of the assertion below.
+    sb.on("GET", "/rest/v1/companies", (call) =>
+      call.url.searchParams.get("select")?.startsWith("timezone,business_hours")
+        ? []
+        : undefined,
+    );
+    sb.on("GET", "/rest/v1/push_subscriptions", () => []);
+    return sb;
+  }
+
+  const INPUT = {
+    companyId: COMPANY_ID,
+    conversationId: CONVERSATION_ID,
+    callerE164: "+16135551000",
+    textStatus: "sent",
+  } as const;
+
+  it("wakes the tech and not the bookkeeper", async () => {
+    const sb = missedCallWorld(NUMBER_ID);
+    stubFetch(sb.route);
+
+    await notifyMissedCall(env, INPUT);
+
+    // Observed where the fan-out reads its targets (D45: there is no email leg
+    // for a miss). This list IS the set of lock screens the title `Missed call
+    // from Dana Smith` reaches.
+    const lookup = sb.find("GET", "/rest/v1/push_subscriptions")[0];
+    expect(lookup.url.searchParams.get("user_id")).toBe(`in.(${TECH})`);
+  });
+
+  it("holds for a thread with no number, where there was no filter at all", async () => {
+    const sb = missedCallWorld(null);
+    stubFetch(sb.route);
+
+    await notifyMissedCall(env, INPUT);
+
+    const lookup = sb.find("GET", "/rest/v1/push_subscriptions")[0];
+    expect(lookup.url.searchParams.get("user_id")).toBe(`in.(${TECH})`);
+    // And access resolution never ran, which is what made this path the wider
+    // hole of the two.
+    expect(
+      sb.find("POST", "/rest/v1/rpc/number_member_levels"),
+    ).toHaveLength(0);
   });
 });
 

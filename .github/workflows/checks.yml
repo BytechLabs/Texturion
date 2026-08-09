@@ -220,6 +220,23 @@ jobs:
       - name: Guard NULL-blind SQL assertions
         run: node scripts/check-sql-null-blind.mjs
 
+      # #580: the audit-log CSV export — "the export an owner hands to an insurer
+      # or a security questionnaire" — carried its own private cell writer that
+      # applied RFC-4180 quoting and never called `csvSafeText`. It was the only
+      # one of five exports that did not, and the quoting HELPED the payload by
+      # preserving the commas between a formula's arguments. Both reachable
+      # payloads were already in the data: an `=IMPORTDATA(…)` display name any
+      # member sets on themselves, and the E.164 number the opt-out actions write
+      # into `target_id`, which leads with `+` with nobody attacking anything.
+      #
+      # Nothing compared the five, so being the odd one out was invisible in every
+      # diff — a local helper called `csvCell` reads exactly like the thing you
+      # were supposed to call. The subject list is derived from the tree rather
+      # than typed, because a hand-written list of exports is how this one was
+      # missed, and it fails loudly on finding zero rather than printing a pass.
+      - name: Guard CSV exports against formula injection
+        run: node scripts/check-csv-escaping.mjs
+
       # #554: a customer replied "1" to "how did it go?" and nobody was told.
       # `job_rated` was inserted by shipped code and had never been added to
       # `conversation_event_type`, so the insert raised at runtime, the caller

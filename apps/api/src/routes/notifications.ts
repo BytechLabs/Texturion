@@ -1,6 +1,13 @@
 /**
  * Notification preference + Web Push subscription routes (SPEC §7, §8) AND the
- * derived notifications read-model (D24, HOME-AND-VIEWS.md) — any active member.
+ * derived notifications read-model (D24, HOME-AND-VIEWS.md).
+ *
+ * TWO gates, and the split is the point (#581). The prefs and subscription
+ * routes are `workspace.access` — a person's own settings and their own
+ * delivery targets, which every role owns. The read-model routes are
+ * `conversations.read`, because what they serve is somebody else's customers.
+ * This file predates the #315 presets, which is why it was all one gate.
+ *
  * Mounted by the integration layer at /v1:
  *
  *   GET    /v1/notification-prefs        { email_enabled, push_enabled,
@@ -418,7 +425,14 @@ const markOneReadSchema = z.object({
 
 notificationsRoutes.get(
   "/notifications",
-  requireCapability("workspace.access"),
+  // #581: the FEED is conversation data, not workspace data. Every row it
+  // returns carries `contact.name` and `contact.phone_e164`, and the missed-call
+  // arm matches unassigned threads — so gated on the baseline capability every
+  // role holds, a `bookkeeper` (billing and deliberately no inbox at all) could
+  // poll the whole workspace's customers out of it. The prefs and
+  // push-subscription routes above stay on `workspace.access` on purpose: those
+  // are a person's own settings, which is what the baseline is for.
+  requireCapability("conversations.read"),
   async (c) => {
     const limit = parseLimit(c, 25, 100);
     const cursor = parseCursor(c);
@@ -447,7 +461,10 @@ notificationsRoutes.get(
 
 notificationsRoutes.get(
   "/notifications/unread-count",
-  requireCapability("workspace.access"),
+  // #581: the badge counts the same rows the feed lists, so it answers to the
+  // same capability. A count that a role cannot open is also a probe — "how many
+  // customers reached this business today" is itself the answer.
+  requireCapability("conversations.read"),
   async (c) => {
     const db = getDb(getEnv(c.env));
     // #106: the badge must agree with the filtered feed.

@@ -612,8 +612,18 @@ export const handler = {
       } catch {
         // Reporting must never mask the response.
       }
+      // The PATH, never the full URL — the same cut the `route` tag above makes,
+      // for the same reason and by a route the scrubber cannot reach. Sentry's
+      // `consoleIntegration` is a default integration and turns this line into a
+      // breadcrumb carrying both the formatted message and `data.arguments`, an
+      // array of bare strings. `scrubBreadcrumb` keys off FIELD NAMES to find a
+      // URL, so it sees neither: a query string in here would go to Sentry
+      // untouched, which is what `?q=<a customer's street address>` looks like
+      // when it lands in a third-party log. SPEC §10 says addresses never reach
+      // Sentry, and this is the one path where honouring that is the caller's job.
       console.error(
-        `[fetch-guard] uncaught ${request.method} ${request.url} ray=${rayId ?? "-"}:`,
+        `[fetch-guard] uncaught ${request.method} ${new URL(request.url).pathname} ` +
+          `ray=${rayId ?? "-"}:`,
         error,
       );
       const res = Response.json(

@@ -142,23 +142,83 @@ export function csvField(value: string | null | undefined): string {
  * open — `=cmd|'…'!A1`, `+`/`-`/`@` DDE payloads, etc. Prefixing a single
  * apostrophe forces the engine to treat the whole cell as literal text.
  *
- * Applied ONLY at the export-cell level for free-text columns (name, tags) —
- * NOT inside csvField — so the phone (E.164) column and csvField's lossless RFC
- * quoting stay intact. Includes \t/\r/\n alongside =+-@ because several engines
- * treat a leading whitespace-then-formula the same way. The importer strips one
- * leading guard apostrophe so the export→import round-trip stays lossless
- * (D20 §3.1).
+ * Applied by {@link serializeCsv} to EVERY cell, and separately at some call
+ * sites where the author wanted it visible. Both is fine: the guard is
+ * idempotent, because the apostrophe it prepends is not itself a trigger
+ * character, so a second pass is a no-op.
+ *
+ * It did not always work that way. This used to be a per-column call the author
+ * had to remember, and the docblock here said it was for "free-text columns
+ * (name, tags)" only, leaving "the phone (E.164) column intact". Both halves of
+ * that turned out to be wrong. A leading `+` IS a formula in Excel, so the phone
+ * column needed it MORE than the names did (contacts.ts had already worked that
+ * out and guarded it, contradicting this comment); and the audit-log export
+ * shipped with no call at all (#580), where the reachable payload was a display
+ * name any member can set on themselves. A guard you have to remember per column
+ * is one that gets forgotten per column.
+ *
+ * Nothing is lost by guarding everything, and that was checked rather than
+ * assumed: across all five exports the cells that were NOT individually guarded
+ * are fixed vocabularies ("Customer", "Us", a task state), ISO timestamps, and
+ * `String()` of non-negative integers — none of which begins with a trigger
+ * character, so every one of them is byte-identical either way.
+ *
+ * Includes \t/\r/\n alongside =+-@ because several engines treat a leading
+ * whitespace-then-formula the same way. The importer strips one leading guard
+ * apostrophe so the export→import round-trip stays lossless (D20 §3.1).
  */
 export function csvSafeText(value: string | null | undefined): string {
   const text = value ?? "";
-  return /^[=+\-@\t\r\n]/.test(text) ? `'${text}` : text;
+  return FORMULA_TRIGGER.test(text) ? `'${text}` : text;
+}
+
+/**
+ * The characters a spreadsheet reads as the start of a formula.
+ *
+ * Named because {@link csvUnguardText} has to know the same set, and the two were
+ * an inline regex each in two files — one in the export guard, one in the import
+ * route. A character class written twice is a character class that gains a member
+ * in one place.
+ */
+const FORMULA_TRIGGER = /^[=+\-@\t\r\n]/;
+
+/**
+ * Undo {@link csvSafeText} on the way back in, so export → import is lossless.
+ *
+ * Strips ONE leading apostrophe, and only when the character after it is a
+ * trigger — which is what this guard produces and what a person typing an
+ * ordinary leading apostrophe does not. `'Tis` keeps its apostrophe; `'=SUM(A1)`
+ * gets it back off.
+ *
+ * The inverse belongs beside the guard rather than in the importer: the export
+ * decides to add the character, so the parse layer's job of removing it is the
+ * same rule read backwards, and D20 §3.1's losslessness claim is a property of
+ * the pair. It cannot go INSIDE `parseCsv`, which is documented to return raw
+ * cells and is used by the preview as well as the import.
+ */
+export function csvUnguardText(value: string | null): string | null {
+  if (value === null) return value;
+  return /^'[=+\-@\t\r\n]/.test(value) ? value.slice(1) : value;
 }
 
 /**
  * Serialize rows (a header row + data rows, each a string array) into an
  * RFC-4180 CSV string with CRLF line endings. Used by `GET /v1/contacts/export`
  * (D20 §3.1). The caller prepends a UTF-8 BOM for Excel.
+ *
+ * Every cell goes through {@link csvSafeText} before {@link csvField}, in that
+ * order — guard first so the apostrophe is inside whatever quoting the field
+ * needs. Doing it here rather than leaving it to each caller is what makes the
+ * #580 class of defect impossible instead of merely fixed: a new export cannot
+ * ship an unguarded column by forgetting a call, and an existing one cannot
+ * regress by having a column added to its row array.
+ *
+ * `check-csv-escaping.mjs` asserts this function still does it, because every
+ * producer now depends on it and a guard that only checks the callers would
+ * excuse the one place that matters.
  */
 export function serializeCsv(rows: (string | null | undefined)[][]): string {
-  return rows.map((row) => row.map(csvField).join(",")).join("\r\n");
+  return rows
+    .map((row) => row.map((cell) => csvField(csvSafeText(cell))).join(","))
+    .join("\r\n");
 }

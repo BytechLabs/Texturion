@@ -22,6 +22,7 @@ import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
+import { csvSafeText, serializeCsv } from "./core/csv";
 import { parseWith } from "./core/http";
 
 export const auditLogRoutes = new Hono<AppEnv>();
@@ -74,7 +75,29 @@ function decodeCursor(raw: string | undefined): {
   return { ts: raw.slice(0, split), id: raw.slice(split + 1) };
 }
 
-/** RFC 4180: quote every field, double any embedded quote. */
+/**
+ * #580: one cell's TEXT, guarded so a spreadsheet reads it instead of running it.
+ *
+ * This used to be a local `csvCell` that applied RFC-4180 quoting and nothing
+ * else, which left the only export in the repo that never called `csvSafeText`.
+ * The quoting was not neutral about it either — it PRESERVED the commas between
+ * a formula's arguments, so `=IMPORTDATA("https://…")` in the actor column
+ * survived the trip intact and fires in Google Sheets with no prompt.
+ *
+ * Guarded on every column rather than a chosen few. Three are already reachable:
+ * `actor` is `profiles.display_name`, which any member sets on themselves
+ * through `PATCH /v1/me` over any charset; `target_id` is `input.phoneE164` for
+ * the opt-out actions, so it leads with `+`; and `actor_ip` falls back to
+ * `X-Forwarded-For`, a header nobody validated. Choosing columns means deciding
+ * again for every column added later, and the docblock above describes who reads
+ * this file.
+ *
+ * Free of charge for everything else: `csvSafeText` only acts on a value LEADING
+ * with `=+-@` or whitespace, so the timestamps, the action vocabulary and the
+ * JSON blobs come through byte-for-byte. RFC-4180 quoting is `serializeCsv`'s
+ * layer below, not this one — separated precisely because one function doing
+ * both is how the guarding half went missing.
+ */
 function csvCell(value: unknown): string {
   const text =
     value === null || value === undefined
@@ -82,7 +105,7 @@ function csvCell(value: unknown): string {
       : typeof value === "object"
         ? JSON.stringify(value)
         : String(value);
-  return `"${text.replace(/"/g, '""')}"`;
+  return csvSafeText(text);
 }
 
 auditLogRoutes.get("/audit-log", requireCapability("history.read"), async (c) => {
@@ -119,21 +142,24 @@ auditLogRoutes.get("/audit-log", requireCapability("history.read"), async (c) =>
       "before",
       "after",
     ];
-    const body = rows.map((row) =>
-      [
-        row.occurred_at,
-        row.actor_name ?? row.actor_user_id ?? "system",
-        row.actor_ip,
-        row.action,
-        row.target_type,
-        row.target_id,
-        row.before,
-        row.after,
-      ]
-        .map(csvCell)
-        .join(","),
-    );
-    return new Response([header.join(","), ...body].join("\r\n"), {
+    // The header rides through the same serializer as the body: the column names
+    // are our own literals, and a second join here is a second CSV writer.
+    const table = [
+      header,
+      ...rows.map((row) =>
+        [
+          row.occurred_at,
+          row.actor_name ?? row.actor_user_id ?? "system",
+          row.actor_ip,
+          row.action,
+          row.target_type,
+          row.target_id,
+          row.before,
+          row.after,
+        ].map(csvCell),
+      ),
+    ];
+    return new Response(serializeCsv(table), {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
         "Content-Disposition": 'attachment; filename="audit-log.csv"',

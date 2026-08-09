@@ -14,9 +14,12 @@
  *
  * ORDER MATTERS, and it is CI's:
  *
- *   1. guards    — seven check-*.mjs steps that run BEFORE anything else in
- *                  Gate, and fail on things no test can see (client parity
- *                  rosters, action pins, open lists).
+ *   1. guards    — the check-*.mjs steps, which run BEFORE anything else in
+ *                  Gate and fail on things no test can see (client parity
+ *                  rosters, action pins, open lists, CSV escaping). Not counted
+ *                  here on purpose: this said "seven" for long enough to be
+ *                  wrong by nine, and `check-guards.mjs` derives the list from
+ *                  checks.yml, so the number has one home and it is not prose.
  *   2. typecheck — vitest TRANSPILES rather than type-checks, so a green test
  *                  run says nothing about types. Test files are exactly where
  *                  this hides: an aliased module is a mock at runtime and its

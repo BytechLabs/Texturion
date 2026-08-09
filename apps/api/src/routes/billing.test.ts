@@ -1246,6 +1246,91 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     expect(harness.callsTo("POST", /subscription_schedules/)).toHaveLength(0);
   });
 
+  /**
+   * D107 requirement 4 — a plan change during a prepaid year is a branch that
+   * refuses, not a default that shrugs.
+   *
+   * The prepaid year is a 100%-off/12-month coupon on the LICENSED item, and
+   * both plan branches rewrite that item's price. Stripe carries an item's
+   * discounts across a price-only update, so the swap re-points a live 100%-off
+   * coupon at whatever price it lands on. Each of these asserts Stripe was never
+   * WRITTEN, because a half-done swap is the thing there is no way to unwind.
+   */
+  const prepaidYear = (plan: "starter" | "pro" = "starter") => ({
+    session_id: "cs_prepay_1",
+    plan,
+    amount_cents: plan === "pro" ? 79000 : 29000,
+    currency: "usd",
+    months_granted: 12,
+    granted_at: "2026-03-01T00:00:00.000Z",
+    granted_through: "2027-03-01T00:00:00.000Z",
+    discount_id: "di_prepaid",
+  });
+
+  it("UPGRADE is refused while a prepaid year is running — the free-Pro-year path", async () => {
+    // The money: $290 of prepaid Starter becomes twelve months of Pro worth
+    // $948, from two ordinary API calls, repeatable per workspace. Nothing
+    // detects it afterwards either — the cost model reads the claim row, so the
+    // tenant keeps reporting $24/mo of revenue it is not collecting.
+    const harness = makeHarness([
+      companyEndpoint(activeStarter()),
+      endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => prepaidYear()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+    ]);
+    const response = await post("/v1/billing/change-plan", { plan: "pro" }, harness);
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as { error: { code: string; message: string } };
+    expect(body.error.code).toBe("conflict");
+    // Names the date, so "wait" is an instruction rather than a shrug.
+    expect(body.error.message).toMatch(/2027-03-01/);
+    expect(harness.callsTo("POST", /subscriptions\/sub_1/)).toHaveLength(0);
+  });
+
+  it("DOWNGRADE is refused too — the same defect pointed at the customer", async () => {
+    // Not a mirror for symmetry's sake: downgrading spends the rest of a paid
+    // Pro year on Starter, and D107 calls losing the customer's months equally
+    // unacceptable. It is why the gate sits above the branch, not inside the
+    // upgrade arm.
+    const harness = makeHarness([
+      companyEndpoint(activePro()),
+      endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => prepaidYear("pro")),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        proSubscription(),
+      ),
+    ]);
+    const response = await post(
+      "/v1/billing/change-plan",
+      { plan: "starter" },
+      harness,
+    );
+    expect(response.status).toBe(409);
+    expect(harness.callsTo("POST", /subscription_schedules/)).toHaveLength(0);
+    expect(harness.callsTo("POST", /subscriptions\/sub_1/)).toHaveLength(0);
+  });
+
+  it("refused on the ORPHANED coupon too, where there is no row to find", async () => {
+    // `grantPrepaidYear` deliberately does not throw when `stamp_prepayment`
+    // fails — throwing would let the sweeper retry and RESTART the twelve
+    // months. So a lost stamp leaves the discount live and the row ungranted,
+    // and the row check above sees nothing in the way. This is the backstop, and
+    // it is why the two checks are a pair rather than a choice.
+    const orphaned = subscriptionFixture();
+    (orphaned.items.data[0] as Record<string, unknown>).discounts = [
+      { id: "di_prepaid", coupon: { id: env.STRIPE_PREPAID_YEAR_COUPON_ID } },
+    ];
+    const harness = makeHarness([
+      companyEndpoint(activeStarter()),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () => orphaned),
+    ]);
+    const response = await post("/v1/billing/change-plan", { plan: "pro" }, harness);
+    expect(response.status).toBe(409);
+    expect(((await response.json()) as { error: { message: string } }).error.message)
+      .toMatch(/prepaid year/i);
+    expect(harness.callsTo("POST", /subscriptions\/sub_1/)).toHaveLength(0);
+  });
+
   it("downgrade is blocked (409) while members exceed the Starter seats", async () => {
     const harness = makeHarness([
       companyEndpoint(activePro()),

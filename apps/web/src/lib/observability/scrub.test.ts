@@ -424,4 +424,45 @@ describe("#558 the prefix list cannot go stale", () => {
     expect(workerPrefixes).toEqual([...TOKEN_PATH_PREFIXES]);
     expect(TOKEN_REDACTED).toBe("[token]");
   });
+
+  it("matches the Worker twin's URL and phone treatment, not just its token list", () => {
+    /**
+     * The assertion above compared ONE of the two things these files share, and
+     * the other one drifted for a year underneath it.
+     *
+     * This file has stripped query strings from URL-carrying fields since 2026-07
+     * because search-as-you-type round-trips typed names through `?q=`. The Worker
+     * had no URL branch at all, so every outbound fetch it made breadcrumbed its
+     * full URL — a customer's street address to the geocoder, a typed search term,
+     * `email=in.(…)` on every send, and a presigned URL to a recorded voicemail.
+     * The drift was written down as a comment in both files, which is exactly why
+     * nobody acted on it: the token half had a test and stayed in step, the URL
+     * half had prose and did not.
+     *
+     * So the pattern SOURCE is compared, not the behaviour: a behavioural test
+     * passes if both sides are wrong in the same way, and these two files are
+     * meant to be the same rule rather than merely to agree on the cases somebody
+     * thought to write down.
+     */
+    const worker = readFileSync(
+      join(__dirname, "../../../../api/src/observability/sentry.ts"),
+      "utf8",
+    );
+    // Both sides read as SOURCE TEXT rather than one side imported: it keeps the
+    // comparison symmetric, and it does not require exporting an internal from
+    // either file just so a test can see it.
+    const browser = readFileSync(join(__dirname, "./scrub.ts"), "utf8");
+    for (const name of ["URL_KEY_PATTERN", "PHONE_PATTERN"] as const) {
+      const pattern = new RegExp(`${name} = (/.*/[a-z]*);`);
+      const mine = pattern.exec(browser);
+      const theirs = pattern.exec(worker);
+      expect(mine, `this file no longer declares ${name}`).not.toBeNull();
+      expect(theirs, `the Worker no longer declares ${name}`).not.toBeNull();
+      expect(
+        theirs?.[1],
+        `${name} has drifted between the browser scrubber and the Worker twin. ` +
+          `They are one rule written twice; whichever moved is the bug.`,
+      ).toBe(mine?.[1]);
+    }
+  });
 });

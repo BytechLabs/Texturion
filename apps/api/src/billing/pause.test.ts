@@ -24,7 +24,6 @@ import {
   pausePriceSnapshot,
   pausedLicensedItem,
   planLicensedItem,
-  referralMonthPending,
   type CompanyForPause,
 } from "./pause";
 import {
@@ -33,6 +32,7 @@ import {
   PREPAY_PLAN_FIELD,
   grantPrepaidYear,
   prepayEligibility,
+  referralMonthPending,
 } from "./prepay";
 
 const env = completeEnv();

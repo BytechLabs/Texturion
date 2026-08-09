@@ -4,12 +4,19 @@
  *
  * Browser twin of the API Worker's scrubber — keep the redaction logic in
  * sync with apps/api/src/observability/sentry.ts (same patterns, same
- * markers; only the Sentry SDK the types come from differs). Known drift as
- * of 2026-07-07: this file also strips query strings/fragments from every
- * URL-carrying field (request.url, breadcrumb url/from/to, Referer) because
- * browser search-as-you-type round-trips typed names and message words
- * through `?q=`; the API twin still only phone-redacts its URL fields and
- * should adopt the same stripping for /v1/search?q= Worker-side errors.
+ * markers; only the Sentry SDK the types come from differs).
+ *
+ * No drift as of 2026-08-09, and the note that used to sit here is worth
+ * remembering rather than deleting silently. It recorded that this file strips
+ * query strings from URL-carrying fields and the Worker did not — a real gap,
+ * written down, in both files, for a year. Every outbound fetch the Worker made
+ * breadcrumbed its full URL: a customer's street address to the geocoder, a
+ * typed search term, and a presigned URL to a recorded voicemail.
+ *
+ * It survived because it was PROSE. The token-prefix list these two share had a
+ * test comparing both files and stayed in step; the URL treatment had a comment
+ * and did not. `scrub.test.ts` now compares the source of both patterns, so the
+ * next divergence fails a build instead of being described in a header.
  */
 import type { Breadcrumb, ErrorEvent } from "@sentry/browser";
 
