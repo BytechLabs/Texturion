@@ -765,16 +765,11 @@ private fun OngoingCallRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                // The card's one tinted element — the same coral the log
-                // reserves for its live/urgent accents.
-                Text(
-                    status,
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = coral,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                // #566: the number chip FIRST and at its own size, same as the
+                // log row below — it is the one fixed thing on this line, and a
+                // zero-weight sibling measured after an unbounded status Text
+                // gets whatever is left, which for "With <display_name>" (capped
+                // at 80 chars, routes/me.ts) is nothing.
                 numberLabel?.let { label ->
                     Surface(
                         shape = CircleShape,
@@ -785,10 +780,27 @@ private fun OngoingCallRow(
                             fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                         )
                     }
                 }
+                // The card's one tinted element — the same coral the log
+                // reserves for its live/urgent accents. #566: `maxLines = 1`
+                // already stopped it wrapping, but with no weight it was measured
+                // first and claimed the whole line; the weight is what makes it
+                // the element that gives way.
+                Text(
+                    status,
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = coral,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
             }
         }
         if (ongoingShowsTimer(phase)) {
@@ -955,6 +967,7 @@ private fun CallRow(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
                                     softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.padding(
                                         horizontal = 8.dp,
                                         vertical = 2.dp,
@@ -996,8 +1009,11 @@ private fun CallRow(
                     // #566: a non-weighted sibling is measured BEFORE the
                     // weighted Column beside it, so at a large OS font scale this
                     // took its full intrinsic width and crushed the name and
-                    // outcome. One line, never wrapped: "3h" and "Fri" have
-                    // nothing to gain from a second one.
+                    // outcome. One line, never wrapped — `relativeTime` emits
+                    // "now"/"5m"/"3h"/"3d" and, past a week, "Jul 16" or
+                    // "Jul 16 2025", and none of those reads better broken in two.
+                    // The dated forms are the widest at ~11 characters, which is
+                    // what this reserves from the name beside it.
                     maxLines = 1,
                     softWrap = false,
                 )
@@ -1034,6 +1050,7 @@ private fun CallRow(
                 sessionId = call.call_session_id,
                 seconds = call.voicemail_seconds ?: 0,
                 transcriptShown = !call.voicemail_transcript.isNullOrBlank(),
+                onRowTap = onOpen,
             )
             // #367: the two lines that answer "do I need to call back", ABOVE
             // the transcript they were read out of. A shortcut printed after the
@@ -1045,6 +1062,9 @@ private fun CallRow(
             call.voicemail_transcript?.takeIf { it.isNotBlank() }?.let { transcript ->
                 VoicemailTranscript(
                     transcript,
+                    // Inside this row's own clickable Column — without forwarding,
+                    // combinedClickable would eat the tap that opens the thread.
+                    onRowTap = onOpen,
                     modifier = Modifier.padding(
                         start = 64.dp,
                         end = 15.dp,
@@ -1157,6 +1177,11 @@ private fun VoicemailPlayerRow(
     seconds: Int,
     /** The row above already prints the words, so the player must not repeat them. */
     transcriptShown: Boolean,
+    /**
+     * The enclosing call row's tap action. Forwarded to the backfilled transcript
+     * below, whose long-press-to-copy would otherwise consume it (#566).
+     */
+    onRowTap: (() -> Unit)? = null,
 ) {
     var backfilledTranscript by remember(sessionId) { mutableStateOf<String?>(null) }
     var player by remember(sessionId) { mutableStateOf<MediaPlayer?>(null) }
@@ -1371,7 +1396,11 @@ private fun VoicemailPlayerRow(
             )
         }
         backfilledTranscript?.let {
-            VoicemailTranscript(it, modifier = Modifier.padding(top = 4.dp))
+            VoicemailTranscript(
+                it,
+                onRowTap = onRowTap,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }

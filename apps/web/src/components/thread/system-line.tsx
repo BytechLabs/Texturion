@@ -360,7 +360,11 @@ export function SystemLine({
         {transcript && (
           <VoicemailTranscript
             text={transcript}
-            className="mx-auto max-w-[36rem]"
+            // `w-fit` so the text and its copy control centre as ONE group. The
+            // component's root is a flex box, so width:auto filled the whole
+            // 36rem and pinned the button to the far right of an otherwise
+            // centred line — which the <p> this replaced never did.
+            className="mx-auto w-fit max-w-[36rem]"
           />
         )}
       </div>

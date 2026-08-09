@@ -39,13 +39,21 @@ import SwiftUI
 /// nothing and is already used at five sites in this app.
 struct VoicemailTranscript: View {
     let text: String
-    /// The thread timeline reads its transcript at full ink; rows read it muted.
-    var prominent = false
 
     var body: some View {
         Text(text)
             .font(.golos(12.5))
-            .foregroundStyle(prominent ? BrandColor.muted700 : BrandColor.muted600)
+            // One grey, and specifically muted700: it is byte-identical to
+            // Android's `onSurfaceVariant` in BOTH themes (0x5D5D5D light,
+            // 0x979797 dark), so the two phones read a transcript the same way.
+            //
+            // This started as a `prominent` flag switching muted700/muted600 —
+            // copied from the web twin, where the flag means the call permalink
+            // and changes SIZE as well. On iOS the two greys differ by 8/255 in
+            // light and are the same bytes in dark, so it rendered nothing at all
+            // while claiming a hierarchy #320 had already decided is carried by
+            // size and weight rather than by colour.
+            .foregroundStyle(BrandColor.muted700)
             .textSelection(.enabled)
             .contextMenu {
                 Button {

@@ -123,7 +123,11 @@ function OngoingCallRow({
         <span className="block truncate text-[14px] font-medium text-app-ink">
           {name}
         </span>
-        <span className="mt-0.5 flex items-center gap-2 text-[12.5px] text-app-muted">
+        {/* #566: `min-w-0` — the answered phase renders "With <display_name>",
+            and display_name is capped at 80 characters (routes/me.ts), so this
+            line carried the same unbounded name as the /calls row. This card is
+            PINNED above the log, so growing it pushes the whole list down. */}
+        <span className="mt-0.5 flex min-w-0 items-center gap-2 text-[12.5px] text-app-muted">
           {/* The call bar's live-dot grammar: warning pulse pre-answer,
               primary pulse once someone is on the line. */}
           <span
@@ -144,7 +148,10 @@ function OngoingCallRow({
               Outgoing call · <LiveOngoingDuration since={since} />
             </span>
           ) : (
-            <span>
+            // #566: the one element here that can be long, so it is the one that
+            // truncates. The duration rides inside it and is short by
+            // construction, so it is never what overflows.
+            <span className="min-w-0 truncate">
               With {memberName ?? "a teammate"} ·{" "}
               <LiveOngoingDuration since={since} />
             </span>

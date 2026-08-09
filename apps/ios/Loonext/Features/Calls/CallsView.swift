@@ -634,9 +634,11 @@ private struct CallRow: View {
                     .foregroundStyle(BrandColor.muted300)
                     .monospacedDigit()
                     // #566: at the largest Dynamic Type sizes this wrapped and
-                    // grew the row on its own. "3h" and "Fri" have nothing to gain
-                    // from a second line; `fixedSize` keeps it whole rather than
-                    // letting it be the thing that compresses.
+                    // grew the row on its own. `relativeTime` emits "now"/"5m"/
+                    // "3h"/"3d" and, past a week, "Jul 16" or "Jul 16 2025" — the
+                    // dated forms being the widest at ~11 characters, which is what
+                    // `fixedSize` reserves from the name beside it. None of them
+                    // reads better broken in two.
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }

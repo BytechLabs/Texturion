@@ -587,6 +587,9 @@ fun EventLine(
             if (transcript != null) {
                 VoicemailTranscript(
                     transcript,
+                    // An actionable event line is clickable; forward it, or the
+                    // copy gesture would swallow the tap that follows the link.
+                    onRowTap = onClick,
                     modifier = Modifier.padding(top = 3.dp),
                 )
             }

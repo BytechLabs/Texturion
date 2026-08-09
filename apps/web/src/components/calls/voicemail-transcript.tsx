@@ -32,9 +32,12 @@ import { cn } from "@/lib/utils";
  *
  * ## Why the click is swallowed
  *
- * A call row is an `<a>` (`call-row.tsx`), and a thread event line sits inside
- * one too. Copying must not navigate. Same reason the play button in
- * `voicemail-player.tsx` stops its event.
+ * A call row is an `<a>` (`call-row.tsx`, shared by /calls and a contact's call
+ * history), so copying there must not navigate — the same reason the play button in
+ * `voicemail-player.tsx` stops its own event. The thread's event line is NOT a
+ * link, and the call permalink is a page; the handler simply costs nothing at
+ * those two, so it is unconditional rather than a prop nobody would remember to
+ * set at the one site that needs it.
  */
 /**
  * Render ONLY real transcribed words.

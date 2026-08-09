@@ -837,9 +837,16 @@ private struct RecentCallRow: View {
                     Image(systemName: directionIcon)
                         .font(.scaled(10, weight: .medium))
                         .foregroundStyle(metaColor)
+                    // #566: the same unbounded label as the /calls row —
+                    // "Answered by <display_name> · 4m 32s", with display_name
+                    // capped at 80 characters (routes/me.ts). Android's twin has
+                    // had maxLines = 1 since it shipped; this was the last of the
+                    // three clients left to wrap.
                     Text(callOutcomeLabel(call))
                         .font(.golos(11.5, weight: isActionableMiss(call) ? .semibold : .regular))
                         .foregroundStyle(metaColor)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
             }
             Spacer(minLength: 8)
@@ -847,6 +854,11 @@ private struct RecentCallRow: View {
                 .font(.golos(11))
                 .monospacedDigit()
                 .foregroundStyle(BrandColor.muted300)
+                // #566: `relativeTime` reaches "Jul 16 2025" past a week — a
+                // multi-word string that wraps when squeezed. Kept whole so the
+                // name beside it is what gives way.
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
