@@ -989,11 +989,6 @@ export class CallSessionDO extends DurableObject<Env> {
     const placerState = parseOutboundPlacerState(payload.client_state);
 
     if (eventType === "call.initiated") {
-      // #213: the placer (op) leg's own call.initiated is a no-op — the DO
-      // server-dialed it and stamps its ccid from the dial response (dial-outcome);
-      // the webhook is redundant and must NOT fall through to the inbound
-      // loadInitiatedContext (its `to` is a sip: URI, direction outgoing).
-      if (placerState) return null;
       // #211 T-O1: a 4-part oc call.initiated (SERVER-dialed outbound customer
       // leg, part-4 = a well-formed UUID = S) mints an OUTBOUND machine. The router
       // only routes it here when part-4 is a valid UUID; loadOutboundInitiatedContext
@@ -1022,19 +1017,67 @@ export class CallSessionDO extends DurableObject<Env> {
         return { event: { type: "outbound-initiated", context: ctx } };
       }
 
+      /**
+       * THE DIAL-TARGET GATE, and it runs before any tag below is believed.
+       *
+       * #581: it used to run inside the `memberState` branch further down, which
+       * meant it covered ONE of the four tag families that reach this handler. The
+       * softphone writes its own `client_state`, so a member holding a WebRTC token
+       * could pick a different family and walk past it:
+       *
+       *   - `op|…` returned null at the top of this block with no Telnyx command at
+       *     all, leaving a live PSTN channel up with no `calls` row — so no cap, no
+       *     meter, no ops alert, and neither arm of the runaway-call sweeper can see
+       *     it, because both require a `calls` row.
+       *   - `bri|…` / `vmi|…` on an OUTGOING leg matched neither disjunct below
+       *     (they are not `memberState`, and the second disjunct required
+       *     `direction === "incoming"`), so they fell through to
+       *     `loadInitiatedContext` — the INBOUND path — which would mint a real
+       *     `calls` row against whichever number the tag named. Aimed at another
+       *     tenant's number that is a live row on somebody else's workspace,
+       *     occupying their line and ringing their crew.
+       *
+       * The fix is to ask the question the module was written to answer, in the one
+       * place every family passes through. `isOwnDialedLeg` trusts the DIAL TARGET
+       * and never the tag, exactly because the tag is attacker-controlled: every leg
+       * this server dials goes to a Telnyx credential URI, so an outgoing leg to a
+       * phone number cannot be one of ours whatever it claims.
+       *
+       * ORDER MATTERS AND IS THE WHOLE DIFFICULTY. This sits AFTER the `oc` branch
+       * above and BEFORE every tag read below:
+       *
+       *   - a legitimate outbound CUSTOMER leg (`oc`) genuinely does dial a PSTN
+       *     number, so this gate would hang up every outbound call in the product if
+       *     it ran first. `loadOutboundInitiatedContext` is that family's authority
+       *     — it consumes a nonce and checks the tag against it — and rejects and
+       *     hangs up a forgery itself;
+       *   - a legitimate placer (`op`) or ring (`brm`) leg dials a credential URI,
+       *     so `isOwnDialedLeg` is true and this gate does not touch it;
+       *   - a genuine inbound customer call is `direction: "incoming"`, which
+       *     `requiresUnauthorizedHangup` returns false for, so it falls through to
+       *     `loadInitiatedContext` as before.
+       */
+      if (requiresUnauthorizedHangup(payload)) {
+        if (payload.call_control_id) {
+          await this.rt.telnyx.hangup(payload.call_control_id);
+        }
+        return null;
+      }
+
+      // #213: the placer (op) leg's own call.initiated is a no-op — the DO
+      // server-dialed it and stamps its ccid from the dial response (dial-outcome);
+      // the webhook is redundant and must NOT fall through to the inbound
+      // loadInitiatedContext (its `to` is a sip: URI, direction outgoing).
+      if (placerState) return null;
+
       // T0: a tagged initiated (our own leg family / forgery) or an unowned
       // number is dropped by loadInitiatedContext.
       //
-      // Dropping is only safe for a leg WE dialed. The softphone controls its
-      // own client_state, so a member holding a WebRTC token can craft a
-      // session-family tag and dial any PSTN number; that leg reaches here and
-      // matches `memberState`. Dropping it without a Telnyx command would
-      // leave a live, billable channel up with no call row, no ledger entry
-      // and no cap, so the whole cost would land on the business.
+      // The hangup that used to live here moved above, to cover every tag family
+      // rather than this one. What is left is the DROP, which is correct for a leg
+      // that reached here having already been proven to be one of ours (a
+      // credential URI) or to be inbound.
       if (memberState || (payload.client_state && payload.direction === "incoming")) {
-        if (requiresUnauthorizedHangup(payload) && payload.call_control_id) {
-          await this.rt.telnyx.hangup(payload.call_control_id);
-        }
         return null;
       }
       const context = await this.rt.loadInitiatedContext({

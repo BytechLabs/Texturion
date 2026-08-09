@@ -1013,6 +1013,77 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
     expect((await instance.snapshot(OUTBOUND_S))?.direction).toBe("outbound");
   });
 
+  /**
+   * #581 — the dial-target gate covers EVERY tag family, not just `brm`.
+   *
+   * The softphone writes its own `client_state`, so a member holding a WebRTC
+   * token picks the tag. The gate used to sit inside the `memberState` branch,
+   * which covered one family of four; the other three walked past it. These pin
+   * both halves — the forged legs are hung up, and the legitimate ones are not.
+   */
+  it("a forged op tag dialing a PSTN number is hung up, not silently dropped", async () => {
+    // `op` returned null at the top of the handler with no Telnyx command at all,
+    // so this leg stayed UP: a live billable channel with no `calls` row, which
+    // means no cap, no meter, and neither arm of the runaway sweeper can see it.
+    const { instance, calls } = makeDO({ initiated: ctx() });
+    await instance.onTelnyxEvent({
+      data: {
+        id: "forged-op",
+        event_type: "call.initiated",
+        payload: {
+          call_control_id: "attacker-ccid",
+          call_session_id: "telnyx-T-forged",
+          direction: "outgoing",
+          // A PSTN number, not a credential URI — so it cannot be a leg we dialed.
+          to: "+15551239999",
+          from: "+19995000",
+          client_state: buildOutboundPlacerState(OUTBOUND_S, "attacker"),
+        } as never,
+      },
+    });
+    expect(calls.hangups).toContain("attacker-ccid");
+  });
+
+  it("a bri tag on an OUTGOING leg is hung up and never reaches the inbound mint", async () => {
+    // This is the cross-tenant half. `bri`/`vmi` matched neither disjunct of the
+    // old drop condition (not `memberState`, and the second required
+    // `direction === "incoming"`), so the leg fell through to the INBOUND path and
+    // would mint a real `calls` row against whatever number the tag named — on
+    // somebody else's workspace, occupying their line and ringing their crew.
+    //
+    // `initiated: ctx()` is configured to MINT, so "no machine exists" is what
+    // proves the inbound path was never taken.
+    const { instance, calls } = makeDO({ initiated: ctx() });
+    await instance.onTelnyxEvent({
+      data: {
+        id: "forged-bri",
+        event_type: "call.initiated",
+        payload: {
+          call_control_id: "bri-ccid",
+          call_session_id: SESSION,
+          direction: "outgoing",
+          to: "+15551239999",
+          from: "+19995000",
+          client_state: buildVoicemailState("+15551000"),
+        } as never,
+      },
+    });
+    expect(calls.hangups).toContain("bri-ccid");
+    expect(calls.dials).toHaveLength(0);
+    expect(await snapshot(instance)).toBeNull();
+  });
+
+  it("a genuine INBOUND customer leg still mints, gate or no gate", async () => {
+    // The regression that would matter most: `requiresUnauthorizedHangup` returns
+    // false for `direction: "incoming"`, so the product's ordinary path is
+    // untouched. (The legitimate `op` leg is covered by the no-op test above —
+    // its `to` is a credential URI, so the gate does not see it either.)
+    const { instance, calls } = makeDO({ initiated: ctx() });
+    await instance.onTelnyxEvent(initiatedEvent("e1"));
+    expect(calls.hangups).not.toContain("cust-ccid");
+    expect((await snapshot(instance))?.state).toBe("ringing");
+  });
+
   it("T-O5: the placer hanging up after answer tears the call down (customer hung up)", async () => {
     const { instance, calls } = makeDO({ outboundInitiated: ocCtx() });
     await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
