@@ -261,6 +261,28 @@ ownershipRoutes.post(
     const env = getEnv(c.env);
     const db = getDb(env);
 
+    // #574: minting was free, and minting reset the five-guess ceiling — so the
+    // ceiling was five guesses per request and requests were unlimited. The RPC now
+    // carries a failure count across reissues, and this stops the window being
+    // walked through at machine speed before that count bites.
+    //
+    // Keyed per person per action rather than per IP: the caller is authenticated,
+    // so the account is the thing to bound, and an attacker with a stolen session
+    // can change IP freely. Absent binding (local dev, tests) skips the gate, the
+    // same as every other limiter here.
+    if (env.VERIFY_RATE_LIMITER) {
+      const { success } = await env.VERIFY_RATE_LIMITER.limit({
+        key: `ownership-code:${companyId}:${userId}:${body.action}`,
+      });
+      if (!success) {
+        return errorResponse(
+          c,
+          "rate_limited",
+          "Too many code requests. Wait a minute and try again.",
+        );
+      }
+    }
+
     const { data, error } = await db.rpc("api_issue_ownership_code", {
       p_company_id: companyId,
       p_user_id: userId,

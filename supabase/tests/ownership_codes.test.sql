@@ -193,4 +193,85 @@ begin
   end;
 end $$;
 
+-- 9 (#574). A REISSUE does not buy more guesses.
+--
+--    Test 3 above proves five guesses kill one code. It was the whole ceiling, and
+--    a mint reset it: `api_issue_ownership_code` upserts `attempts = 0` on conflict,
+--    and minting was unrestricted. So the real ceiling was five guesses per request
+--    and requests were free — six digits against unlimited batches of five.
+--
+--    Ten failures inside a 24-hour window now refuse regardless of how many codes
+--    were issued, and the counter is not something a mint can clear.
+do $$
+declare
+  co    uuid := 'c0de2222-0000-4000-8000-000000000002';
+  us    uuid := 'c0de1111-0000-4000-8000-000000000001';
+  v_code text;
+  i     int;
+  round int;
+begin
+  -- Start clean: earlier blocks in this transaction have already spent guesses.
+  delete from public.ownership_confirmations where company_id = co and user_id = us;
+
+  -- Two rounds of five wrong guesses, with a fresh code minted in between. Before
+  -- this fix the second round was as good as the first, forever.
+  for round in 1..2 loop
+    v_code := public.api_issue_ownership_code(co, us, 'claim');
+    for i in 1..5 loop
+      if public.api_use_ownership_code(co, us, 'claim', '000000') then
+        raise exception 'a guess of 000000 was accepted (round %, try %)', round, i;
+      end if;
+    end loop;
+  end loop;
+
+  -- Ten failures are on the board. A fresh code must now be refused even when the
+  -- guess is RIGHT — which is the property the old ceiling lost at every reissue.
+  v_code := public.api_issue_ownership_code(co, us, 'claim');
+  if public.api_use_ownership_code(co, us, 'claim', v_code) then
+    raise exception
+      'the right code worked after ten failures across two reissues — the ceiling '
+      'still resets when a code is reissued';
+  end if;
+
+  -- And the counter is genuinely the thing refusing, not the per-code attempts:
+  -- that code was freshly minted, so its own `attempts` is 0.
+  if (select attempts from public.ownership_confirmations
+       where company_id = co and user_id = us and action = 'claim') is distinct from 1
+  then
+    raise exception 'expected the fresh code to have exactly one recorded attempt';
+  end if;
+  if (select failed_total from public.ownership_confirmations
+       where company_id = co and user_id = us and action = 'claim') < 10 then
+    raise exception 'failed_total did not survive the reissues';
+  end if;
+end $$;
+
+-- 10 (#574). The window reopens, so a fumbling owner is not locked out for ever.
+--
+--     A permanent lock would be worse than the bug for the person it protects: the
+--     owner IS the party confirming, so there is nobody above them to appeal to.
+do $$
+declare
+  co    uuid := 'c0de2222-0000-4000-8000-000000000002';
+  us    uuid := 'c0de1111-0000-4000-8000-000000000001';
+  v_code text;
+begin
+  -- Age the window past 24 hours, the way tomorrow would.
+  update public.ownership_confirmations
+     set window_started_at = now() - interval '25 hours'
+   where company_id = co and user_id = us and action = 'claim';
+
+  v_code := public.api_issue_ownership_code(co, us, 'claim');
+  if not public.api_use_ownership_code(co, us, 'claim', v_code) then
+    raise exception 'the window never reopens — a fumbled code locks an owner out';
+  end if;
+
+  -- A success clears the window, so a later handover step does not inherit it.
+  if (select coalesce(failed_total, 0) from public.ownership_confirmations
+       where company_id = co and user_id = us and action = 'claim') is distinct from 0
+  then
+    raise exception 'a successful use did not clear the failure window';
+  end if;
+end $$;
+
 rollback;
