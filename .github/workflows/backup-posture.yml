@@ -24,6 +24,12 @@ on:
     - cron: "0 6 * * 1"
   workflow_dispatch:
 
+# #545: least privilege, declared rather than inherited. This job talks to
+# Supabase with its own secret and needs nothing from the repository beyond the
+# checkout — so it says so, instead of running on whatever the default grant is.
+permissions:
+  contents: read
+
 # One at a time. A queued second run would report the same facts to no purpose.
 concurrency:
   group: backup-posture

@@ -18,6 +18,21 @@ on:
   pull_request:
   workflow_call:
 
+# #545: LEAST PRIVILEGE, declared rather than inherited. Without this block the
+# jobs below run with whatever the repository's default grant happens to be — and
+# on a `workflow_call` from main.yml that token is in scope alongside every secret,
+# while the steps run six third parties' action code and a full `pnpm install`.
+# The repository is PUBLIC, so the blast radius of a compromised publisher is the
+# whole repo rather than a fork.
+#
+# `issues: read` is here for exactly one step (Guard open-issue lists, below); if
+# that grant is ever removed the script fails loudly rather than passing over a
+# list it could not read. Nothing here writes: the only other token use is
+# upload-artifact, which needs no repository scope.
+permissions:
+  contents: read
+  issues: read
+
 # #122: cancel superseded runs on a pull request. Pushing a new commit
 # supersedes the in-flight checks for that branch, so the old run is wasted
 # work and just delays the queue.
