@@ -6287,6 +6287,49 @@ what makes D106's refund posture implementable again — "the unused portion"
 becomes remaining discounted months rather than a credit balance that no longer
 exists.
 
+### Requirement 1's convergence, built at last (#584, 2026-08-09)
+
+Requirement 1 above promised the discount would be "re-asserted on every mirror
+pass ... so a cancel-and-resubscribe, or any rewrite that drops it, self-heals".
+That half shipped eight days late, and the gap was lopsided in the worst
+direction: destroying paid months took one careless item write, restoring them
+took a human reading Stripe, and nothing on our side would ever have noticed.
+
+`ensurePrepaidDiscount` runs from the same mirror pass as `ensureVoiceMeteredItem`
+— so a resubscribe heals on its own webhook, in seconds, and the daily reconcile
+is the backstop for anything that produced no event.
+
+**The design question the issue left open was how to size it**, since re-applying
+the twelve-month coupon restarts the year — the exact defect the claim table was
+invented to prevent. Two answers were possible:
+
+| | |
+|---|---|
+| **Twelve deterministic remainder coupons** (chosen) | `loonext_prepaid_year_remainder_1..11`, ids derived from the configured base, `duration: repeating` at their own length. Twelve months *is* the base coupon, so eleven new objects is the ceiling however many customers there are. It self-expires and needs no new state |
+| A stored end date plus a cron that removes the coupon | More moving parts, and the part that must not fail is a scheduled job removing a discount — a failure there is free service, silently |
+
+They are provisioned by `stripe-setup.ts` **and** retrieved-or-created at the point
+of use, because a safety net that depends on somebody having re-run a script is not
+one.
+
+**The remainder is counted in INVOICES, not calendar months.** A coupon is spent on
+invoices, the subscription states when the next one falls, and they recur monthly
+from there — so "never longer than what is left" is exact rather than a rounding
+argument. The current period is deliberately not counted: its invoice already went
+out at full price because the discount was missing, nothing can undo that, and
+counting it would push the coupon past `granted_through`.
+
+**The gate reads the ROW, never the item**, and that is the whole safety of it.
+Coverage ends for three reasons now — a refund, a won chargeback, and (D131) a
+customer converting on a plan change — and all three deliberately remove the coupon
+seconds earlier. A convergence asking "is the discount missing?" would hand every
+one of them their year straight back.
+
+One consequence worth stating, because it reaches beyond this function: a prepaid
+year can now wear **any of twelve coupon ids**, so every question of the form "is a
+prepaid year on this subscription?" has twelve right answers. `itemHasPrepaidCoupon`
+is the only place that knows the roster, and it derives it.
+
 ### What would change this
 
 Stripe shipping a first-class "prepaid term on a metered subscription" primitive,
