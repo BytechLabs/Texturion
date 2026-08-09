@@ -183,11 +183,19 @@ export async function revokePublicLink(
  */
 export async function revokeLinksForSubject(
   db: SupabaseClient,
+  /**
+   * #571: the workspace that must own these links. REQUIRED, and first, because
+   * without it this function revoked any workspace's live customer link from a
+   * subject uuid alone — and a subject uuid is something the app shows people.
+   * The RPC enforces it too, so a future caller cannot forget.
+   */
+  companyId: string,
   subjectType: string,
   subjectId: string,
   reason?: string,
 ): Promise<number> {
   const { data, error } = await db.rpc("api_revoke_public_links_for_subject", {
+    p_company_id: companyId,
     p_subject_type: subjectType,
     p_subject_id: subjectId,
     p_reason: reason ?? null,

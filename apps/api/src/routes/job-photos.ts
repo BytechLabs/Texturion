@@ -115,7 +115,13 @@ jobPhotoShareRoutes.post(
     // Replace rather than accumulate. Two live links to the same photos is two
     // things to remember to revoke, and the crew asking again means the first one
     // did not reach anybody.
-    await revokeLinksForSubject(db, "task_photos", taskId, "replaced by a new link");
+    await revokeLinksForSubject(
+      db,
+      companyId,
+      "task_photos",
+      taskId,
+      "replaced by a new link",
+    );
 
     const expiresAt = new Date(Date.now() + (body.days ?? SHARE_DAYS) * 86_400_000);
     const link = await mintPublicLink(db, {
@@ -152,8 +158,30 @@ jobPhotoShareRoutes.delete(
     const companyId = c.get("companyId");
     const db = getDb(getEnv(c.env));
 
+    // #571: the task must be this workspace's — the same check the POST above
+    // makes before minting, which this had no counterpart to. Without it a
+    // `read_only` or `member` acting from a workspace they own could kill another
+    // workspace's live customer link, and the only audit row landed in theirs.
+    //
+    // Kept here as well as in the RPC on purpose: the RPC makes it unbypassable,
+    // this makes the answer honest. Without it a foreign id returns `{revoked: 0}`
+    // — a 200 saying nothing happened, which is indistinguishable from a link that
+    // had already expired.
+    const { data: task, error: taskError } = await db
+      .from("tasks")
+      .select("id")
+      .eq("id", taskId)
+      .eq("company_id", companyId)
+      .is("deleted_at", null)
+      .limit(1);
+    if (taskError) throw new Error(`task lookup failed: ${taskError.message}`);
+    if ((task ?? []).length === 0) {
+      return errorResponse(c, "not_found", "No such job.");
+    }
+
     const revoked = await revokeLinksForSubject(
       db,
+      companyId,
       "task_photos",
       taskId,
       "the crew withdrew it",

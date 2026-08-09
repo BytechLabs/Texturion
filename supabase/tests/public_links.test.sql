@@ -175,7 +175,25 @@ begin
     now() + interval '30 days'
   );
 
+  -- #571: another workspace passing the same subject id revokes NOTHING. Asserted
+  -- before the real revoke so a pass cannot be an accident of ordering — if the
+  -- predicate were missing, this call would revoke both links and the real one
+  -- below would then find zero and fail for the wrong reason.
   v_count := public.api_revoke_public_links_for_subject(
+    'ea000000-0000-4000-8000-0000000000c9'::uuid,
+    'quote', 'ea000000-0000-4000-8000-0000000000f5'::uuid, 'not yours'
+  );
+  if v_count is distinct from 0 then
+    raise exception
+      'a foreign workspace revoked % of another workspace''s live links', v_count;
+  end if;
+
+  if not (public.api_resolve_public_link(pg_temp.h('q2-view'), 'quote_view') ->> 'ok')::boolean then
+    raise exception 'the customer''s link must still work after a foreign revoke';
+  end if;
+
+  v_count := public.api_revoke_public_links_for_subject(
+    'ea000000-0000-4000-8000-0000000000c1'::uuid,
     'quote', 'ea000000-0000-4000-8000-0000000000f5'::uuid, 'withdrawn'
   );
   if v_count is distinct from 2 then
@@ -184,6 +202,39 @@ begin
 
   if (public.api_resolve_public_link(pg_temp.h('q2-view'), 'quote_view') ->> 'ok')::boolean then
     raise exception 'a withdrawn quote''s view link must stop working';
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- #571: the unscoped signature is GONE, not merely unused.
+--
+-- `create or replace` cannot add a parameter, so the fix had to drop and
+-- recreate. If a later migration ever restores the three-argument form, it would
+-- be granted to service_role and callable — and every caller that forgot the
+-- company id would silently get the old behaviour back.
+-- ---------------------------------------------------------------------------
+
+do $$
+declare
+  v_args text[];
+begin
+  select array_agg(pg_get_function_identity_arguments(p.oid) order by p.oid)
+    into v_args
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public'
+     and p.proname = 'api_revoke_public_links_for_subject';
+
+  if array_length(v_args, 1) is distinct from 1 then
+    raise exception
+      'expected exactly one revoke-by-subject function, found %: %',
+      coalesce(array_length(v_args, 1), 0), v_args;
+  end if;
+
+  if v_args[1] is distinct from
+     'p_company_id uuid, p_subject_type text, p_subject_id uuid, p_reason text'
+  then
+    raise exception 'revoke-by-subject signature changed: %', v_args[1];
   end if;
 end $$;
 

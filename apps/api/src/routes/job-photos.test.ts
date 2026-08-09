@@ -183,6 +183,68 @@ describe("minting a link (#294)", () => {
   });
 });
 
+describe("withdrawing a link (#571 / #545)", () => {
+  it("refuses a job that is not this workspace's, and revokes nothing", async () => {
+    // The gap this closes: the DELETE took a task id from the path and revoked
+    // that task's live links with no ownership check anywhere — the POST above
+    // has one, and this had no counterpart. The reachable actor was a `read_only`
+    // or `member` of the AFFECTED workspace (the two roles the route's
+    // `history.read` gate exists to exclude), acting from a workspace they own,
+    // because the app shows them task ids and workspaces are self-serve.
+    const sb = supabaseStub(env);
+    sb.on(
+      "POST",
+      "/rest/v1/rpc/api_authorize_request",
+      membershipResponder(MEMBER_ID, "admin"),
+    );
+    sb.on("GET", "/rest/v1/tasks", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject", () => 2);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/tasks/${TASK_ID}/photos/share`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+
+    // 404, not `{revoked: 0}`. A 200 saying nothing happened is indistinguishable
+    // from a link that had already expired, and it would confirm the id exists.
+    expect(res.status).toBe(404);
+    expect(
+      sb.find("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject"),
+    ).toHaveLength(0);
+  });
+
+  it("passes the workspace to the revoke, so the scope is enforced in the RPC too", async () => {
+    // Belt and braces, deliberately. The handler check above makes the ANSWER
+    // honest; the company id on the RPC call is what makes the scope
+    // unbypassable by a future caller who forgets the lookup.
+    // No second `sb.on` for the revoke RPC: this stub is FIRST-match-wins and
+    // `crew()` already answers it with 0, so a re-registration here would simply
+    // never run. The count is not what this test is about — the argument is.
+    const sb = crew();
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/tasks/${TASK_ID}/photos/share`,
+      { method: "DELETE", companyId: COMPANY_ID },
+    );
+
+    expect(res.status).toBe(200);
+    const [call] = sb.find("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject");
+    expect(call.body).toMatchObject({
+      p_company_id: COMPANY_ID,
+      p_subject_type: "task_photos",
+      p_subject_id: TASK_ID,
+    });
+  });
+});
+
 describe("what the customer's page contains (#294)", () => {
   it("serves the photos under the business's name", async () => {
     // The page appears under the BUSINESS's name, not ours. For many homeowners it
