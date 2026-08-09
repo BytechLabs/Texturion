@@ -35,14 +35,27 @@ function dbDouble(tables: {
   const build = (table: string, filters: Record<string, string>) => {
     const chain: Record<string, unknown> = {};
     const self = () => chain as never;
-    for (const method of ["select", "eq", "gte", "lte", "order", "limit"]) {
+    // `is` records like `eq` does, and #581/C14 is the reason it has to: the member
+    // read asks for an ACTIVE membership with `.is("deactivated_at", null)`, and a
+    // double that silently swallowed that filter would report the builder as safe
+    // whether or not it applied it.
+    for (const method of ["select", "eq", "is", "gte", "lte", "order", "limit"]) {
       chain[method] = (a?: unknown, b?: unknown) => {
-        if (method === "eq" && typeof a === "string") filters[a] = String(b);
+        if ((method === "eq" || method === "is") && typeof a === "string") {
+          filters[a] = method === "is" ? `is.${String(b)}` : String(b);
+        }
         return self();
       };
     }
     chain.maybeSingle = async () => ({
-      data: (tables.members ?? [])[0] ?? null,
+      // A row that exists but is DEACTIVATED is what offboarding leaves behind — the
+      // membership is never deleted, because history keeps its attribution. So the
+      // double answers the way the database would: a query restricted to active
+      // members does not see it.
+      data:
+        filters.deactivated_at === "is.null"
+          ? ((tables.members ?? []).find((row) => !row.deactivated_at) ?? null)
+          : ((tables.members ?? [])[0] ?? null),
       error: null,
     });
     chain.range = async () => {
@@ -165,6 +178,26 @@ describe("#304 the conversation-history export", () => {
     // workspace's messages to whoever collects the link (#276).
     await expect(
       run({ members: [], contacts: BASE.contacts, conversations: [] }),
+    ).rejects.toThrow(/no longer in the workspace/);
+  });
+
+  it("HX-4b [#581/C14]: refuses a requester who was REMOVED, row and all", async () => {
+    /**
+     * HX-4 above passes an empty member list, and offboarding never produces that:
+     * removing somebody sets `deactivated_at` and leaves the row, because history keeps
+     * its attribution — `team.ts` says exactly that where it does the removal. So the
+     * check HX-4 covers could not fire for the case it exists for, and somebody removed
+     * an hour ago still had their old role read back and a transcript of a customer's
+     * conversation written for whoever collected the link.
+     *
+     * The row is present here. What refuses it is the query asking for an ACTIVE one.
+     */
+    await expect(
+      run({
+        members: [{ role: "admin", deactivated_at: "2026-08-01T09:00:00Z" }],
+        contacts: BASE.contacts,
+        conversations: [],
+      }),
     ).rejects.toThrow(/no longer in the workspace/);
   });
 

@@ -203,6 +203,27 @@ const NON_CONVERSATION_READS: Record<string, string> = {
     "label or greeting, and never a customer",
   "GET /usage": "the plan's meters and money, which is what billing.manage is " +
     "for; the bookkeeper preset exists to read exactly this",
+  // The only two entries here whose SAFETY IS NOT A PROPERTY OF THE PAYLOAD, and worth
+  // reading as the exception they are. Both routes can serve exports that are pure
+  // customer data — a workspace export is a copy of every message and contact.
+  //
+  // What makes them safe for a bookkeeper is that the KIND is part of the query
+  // (`collectableKinds`, in exports.ts): the database is asked only for the kinds this
+  // caller's capabilities cover, so a row it may not collect never reaches the handler
+  // and cannot be leaked by a later addition to the response shape. A bookkeeper's
+  // query names `usage_summary` alone. An unrecognised kind is named by nobody, so a
+  // new export kind is invisible until somebody decides who collects it.
+  //
+  // #581/C13 is why they are reachable at all: the usage summary is minted behind
+  // `billing.manage`, and these two were gated on `contacts.bulk`, so a bookkeeper
+  // could start the export built for them and never collect it.
+  "GET /exports":
+    "#581/C13: recent exports, filtered SQL-side to the kinds the caller's " +
+    "capabilities cover. A bookkeeper's query asks for usage_summary and nothing " +
+    "else, so no message, contact or task ever appears",
+  "GET /exports/:id":
+    "#581/C13: one export, under the same SQL-side kind filter as the list — so a " +
+    "kind the caller cannot collect answers exactly as an id that does not exist",
 };
 
 /**

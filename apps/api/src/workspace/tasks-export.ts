@@ -97,6 +97,12 @@ export async function buildTaskExport(
     .select("role")
     .eq("company_id", args.companyId)
     .eq("user_id", args.requestedBy)
+    // #581/C14: ACTIVE, for the reason the history export states — removing somebody
+    // sets `deactivated_at` and never deletes the row, so "no membership" was a state
+    // offboarding could not produce and the check below never fired for the case it
+    // exists for. Every task hangs off a conversation (D17), so each row names a
+    // customer and quotes what they asked for.
+    .is("deactivated_at", null)
     .maybeSingle();
   if (memberError) {
     throw new Error(`task export role read failed: ${memberError.message}`);

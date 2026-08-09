@@ -120,6 +120,13 @@ export async function buildConversationHistory(
     .select("role")
     .eq("company_id", args.companyId)
     .eq("user_id", args.requestedBy)
+    // #581/C14: ACTIVE. Removing somebody sets `deactivated_at` and never deletes the
+    // row — history keeps its attribution, and `team.ts` says so at the offboarding
+    // itself — so without this the lookup happily finds the membership of a member who
+    // was removed an hour ago, and the export below is built with their old role. The
+    // branch beneath, whose comment says "they left", could not fire for the one case it
+    // was written for: leaving does not remove the row.
+    .is("deactivated_at", null)
     .maybeSingle();
   if (memberError) {
     throw new Error(`history export role read failed: ${memberError.message}`);

@@ -14,6 +14,11 @@ import { z } from "zod";
  * are minted at read time and short-lived rather than stored, so a link in an
  * old email cannot outlive the export it points at.
  */
+import {
+  roleHasCapability,
+  type Capability,
+  type MemberRole,
+} from "@loonext/shared";
 import { Hono } from "hono";
 
 import { alarmOnBulkContactAccess } from "../audit/bulk-contact-alarm";
@@ -38,6 +43,7 @@ const LIST_LIMIT = 5;
 
 interface ExportRow {
   id: string;
+  kind: string;
   status: "pending" | "running" | "ready" | "failed";
   storage_prefix: string | null;
   row_counts: Record<string, number>;
@@ -45,6 +51,65 @@ interface ExportRow {
   requested_at: string;
   completed_at: string | null;
   expires_at: string | null;
+}
+
+/** Every column the list and detail routes read. Named once so they cannot diverge. */
+const EXPORT_COLUMNS =
+  "id,kind,status,storage_prefix,row_counts,error,requested_at,completed_at,expires_at";
+
+/**
+ * Who may COLLECT an export, decided per export.
+ *
+ * #581/C13: the two GET routes were gated on `contacts.bulk` alone, and one of the
+ * POSTs is not. The usage summary is deliberately behind `billing.manage` — it counts
+ * messages, minutes and money and names nobody — and `bookkeeper` was given exactly
+ * that pairing so somebody's accountant can see the bill without being able to read a
+ * customer's texts. So a bookkeeper could START the export built for them and then had
+ * no way to list it or download it. The file was written, charged for, and unreachable
+ * by the only role that asked for it.
+ *
+ * The fix is per-row rather than a looser gate on the route, because the other kinds
+ * really are customer data: a workspace export is a copy of every message and contact,
+ * conversation history quotes what people wrote, and every task hangs off a
+ * conversation (D17) so a task list names customers too. Handing a bookkeeper the list
+ * route would hand them all of that.
+ *
+ * Fails CLOSED on a kind it does not recognise. A new export kind is then invisible
+ * until somebody decides who may collect it, which is the safe direction: the
+ * alternative is a new kind of customer data readable by whoever the default favoured.
+ */
+const EXPORT_KIND_CAPABILITY: Record<string, Capability> = {
+  // Counts of messages, minutes and money. Names nobody.
+  usage_summary: "billing.manage",
+  // All three are customer data: a workspace export is a copy of every message and
+  // contact, conversation history quotes what people wrote, and every task hangs off a
+  // conversation (D17) so a task list names customers and what they asked for.
+  workspace: "contacts.bulk",
+  conversation_history: "contacts.bulk",
+  tasks: "contacts.bulk",
+};
+
+/**
+ * The kinds this caller may collect — turned into the QUERY rather than applied to its
+ * result.
+ *
+ * Asking the database for only the collectable kinds is what makes this structural: a
+ * row the caller may not have cannot arrive in the first place, so no later addition to
+ * the response shape can leak one by accident. It also makes `LIST_LIMIT` mean what it
+ * says — a bookkeeper sees their five most recent usage summaries, rather than an empty
+ * page because the workspace's five newest exports were all of a kind they cannot
+ * collect. Same discipline as #106's number access, which is filtered SQL-side for the
+ * same reason.
+ *
+ * Unknown kinds are absent, so a new one is invisible to everybody until somebody
+ * decides who may collect it. That is the safe direction: the alternative is a new kind
+ * of customer data readable by whoever the default happened to favour.
+ */
+function collectableKinds(role: MemberRole | undefined): string[] {
+  if (role === undefined) return [];
+  return Object.entries(EXPORT_KIND_CAPABILITY)
+    .filter(([, capability]) => roleHasCapability(role, capability))
+    .map(([kind]) => kind);
 }
 
 exportsRoutes.post("/exports", requireCapability("contacts.bulk"), async (c) => {
@@ -319,17 +384,22 @@ exportsRoutes.post(
   },
 );
 
-exportsRoutes.get("/exports", requireCapability("contacts.bulk"), async (c) => {
+/**
+ * The floor is `workspace.access`; which exports exist AS FAR AS THIS CALLER IS
+ * CONCERNED is decided by [collectableKinds], in the query. An admin's list is
+ * unchanged — they hold both capabilities — and a bookkeeper sees the usage summaries
+ * they asked for and nothing else.
+ */
+exportsRoutes.get("/exports", requireCapability("workspace.access"), async (c) => {
   const companyId = c.get("companyId");
   const db = getDb(getEnv(c.env));
 
   const rows = unwrap<ExportRow[]>(
     await db
       .from("data_exports")
-      .select(
-        "id,status,storage_prefix,row_counts,error,requested_at,completed_at,expires_at",
-      )
+      .select(EXPORT_COLUMNS)
       .eq("company_id", companyId)
+      .in("kind", collectableKinds(c.get("role") as MemberRole | undefined))
       .order("requested_at", { ascending: false })
       .limit(LIST_LIMIT),
     "data export list",
@@ -387,16 +457,19 @@ async function signFiles(
   return signed.filter((entry): entry is { name: string; url: string } => entry !== null);
 }
 
-exportsRoutes.get("/exports/:id", requireCapability("contacts.bulk"), async (c) => {
+exportsRoutes.get("/exports/:id", requireCapability("workspace.access"), async (c) => {
   const db = getDb(getEnv(c.env));
   const rows = unwrap<ExportRow[]>(
     await db
       .from("data_exports")
-      .select(
-        "id,status,storage_prefix,row_counts,error,requested_at,completed_at,expires_at",
-      )
+      .select(EXPORT_COLUMNS)
       .eq("company_id", c.get("companyId"))
       .eq("id", c.req.param("id"))
+      // The same filter as the list, so an export of a kind this caller may not collect
+      // answers exactly as an id that does not exist. A 403 would confirm that this
+      // workspace holds one, and there is nothing they could do with that except learn
+      // it.
+      .in("kind", collectableKinds(c.get("role") as MemberRole | undefined))
       .limit(1),
     "data export lookup",
   );

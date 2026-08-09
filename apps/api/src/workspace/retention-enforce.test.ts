@@ -8,6 +8,9 @@
  * the ORDER of operations, which is the difference between deleted data and a
  * bucket full of files nobody can reach.
  */
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { supabaseStub } from "../test/routes-harness";
@@ -185,10 +188,22 @@ describe("voicemail audio retention", () => {
     return { sb, order, routes: [storage, sb.route] };
   }
 
-  it("removes the audio and then nulls the column that pointed at it", async () => {
+  it("removes the audio and then nulls BOTH columns that pointed at it", async () => {
     // Leaving the path set would leave a player aimed at a file that is gone —
     // which reads as a bug rather than a policy — and would make every later
     // run try to remove it again.
+    //
+    // BOTH columns, because the two surfaces disagree about which one means "there
+    // is a voicemail": the calls LIST draws its player from `voicemail_seconds`, and
+    // the detail route derives `has_voicemail` from `voicemail_path`. This cleared
+    // only the path, so the list kept a play button — on web and on Android — for
+    // audio deleted a moment earlier. The other sweep already clears both and its
+    // docblock says why; one rule written twice, and this was the copy that was
+    // wrong. It would first have gone off around July 2027.
+    //
+    // The old version of this test asserted `toContain('"voicemail_path":null')`,
+    // which is true of the broken behaviour as well — a substring check on the field
+    // that WAS being cleared can never see the field that was not.
     const w = voicemailWorld();
     stubFetch(...w.routes);
 
@@ -196,7 +211,12 @@ describe("voicemail audio retention", () => {
 
     expect(summary.voicemailsCleared).toBe(1);
     expect(w.order[0]).toBe("remove:audio");
-    expect(w.order[1]).toContain('"voicemail_path":null');
+    const clear = w.order[1] ?? "";
+    expect(clear.startsWith("clear:")).toBe(true);
+    expect(JSON.parse(clear.slice("clear:".length))).toEqual({
+      voicemail_path: null,
+      voicemail_seconds: null,
+    });
   });
 
   it("keeps the path when Storage refuses, so the audio is never stranded", async () => {
@@ -223,6 +243,54 @@ describe("voicemail audio retention", () => {
     expect(summary.companies).toBe(0);
     expect(summary.messagesDeleted).toBe(0);
     expect(summary.voicemailsCleared).toBe(1);
+  });
+});
+
+describe("the two voicemail pointers are cleared together, everywhere", () => {
+  it("no sweep clears one field and leaves the other", () => {
+    /**
+     * The shape, not the instance. Two independent jobs age voicemail audio out — this
+     * one on the published one-year promise, and `attachments/sweep.ts` on rows whose
+     * object has already gone — and each writes the same clear. One of them cleared
+     * only `voicemail_path`, so the calls LIST kept a play button (it reads
+     * `voicemail_seconds`) for audio that had just been deleted.
+     *
+     * A third job, or a fourth, will be written the same way. This is what makes the
+     * pairing structural instead of remembered: any update that nulls one must null the
+     * other, wherever it lives.
+     */
+    const apiSrc = join(import.meta.dirname, "..").replaceAll("\\", "/");
+    const walk = (dir: string): string[] =>
+      readdirSync(dir).flatMap((entry) => {
+        const full = join(dir, entry).replaceAll("\\", "/");
+        if (statSync(full).isDirectory()) return walk(full);
+        return /\.ts$/.test(full) && !/\.test\.ts$/.test(full) ? [full] : [];
+      });
+
+    const offenders: string[] = [];
+    let clears = 0;
+    for (const file of walk(apiSrc)) {
+      const body = readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+      // Every `.update({ … })` object that mentions nulling either pointer.
+      for (const match of body.matchAll(/\.update\(\{[^}]*voicemail_(?:path|seconds)[^}]*\}/g)) {
+        const object = match[0];
+        if (!/voicemail_path:\s*null/.test(object)) continue;
+        clears += 1;
+        if (!/voicemail_seconds:\s*null/.test(object)) {
+          offenders.push(`${file}: ${object.replace(/\s+/g, " ").slice(0, 90)}`);
+        }
+      }
+    }
+
+    // Loud rather than vacuous: if the shape of these writes changes, this stops
+    // matching anything and would pass forever.
+    expect(clears, "found no voicemail pointer clears at all — this check is inert").toBeGreaterThanOrEqual(2);
+    expect(
+      offenders,
+      "these null `voicemail_path` without `voicemail_seconds`. The calls list draws " +
+        "its player from seconds and the detail route derives has_voicemail from the " +
+        "path, so clearing one leaves a play button that 404s on exactly one screen.",
+    ).toEqual([]);
   });
 });
 

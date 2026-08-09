@@ -217,9 +217,24 @@ async function clearOverdueVoicemailAudio(db: SupabaseClient): Promise<number> {
       );
     }
 
+    // BOTH pointers, because the two surfaces disagree about which one means "there
+    // is a voicemail": the calls LIST draws its player from `voicemail_seconds` (web
+    // `call-row.tsx`, Android `CallsScreen.kt`, and the iOS twin), while the detail
+    // route derives `has_voicemail` from `voicemail_path`. Clearing only the path left
+    // a play button sitting on the list, on two clients, for audio that had been
+    // deleted a moment earlier — so pressing it 404s, and only on that one screen,
+    // which is harder to work out than either clearing both or clearing neither.
+    //
+    // The other sweep (`attachments/sweep.ts`) already clears both and says exactly
+    // this in its own docblock. One rule, written twice, and this copy was wrong: it
+    // would first have gone off in about July 2027, a year after the first workspace
+    // set a retention window.
+    //
+    // The TRANSCRIPT stays. Those are the words of a customer who rang, and they are
+    // the only remaining record of what that person wanted once the audio has gone.
     const { error: clearError } = await db
       .from("calls")
-      .update({ voicemail_path: null })
+      .update({ voicemail_path: null, voicemail_seconds: null })
       .in(
         "id",
         rows.map((row) => row.call_id),

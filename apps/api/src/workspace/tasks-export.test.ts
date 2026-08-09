@@ -139,6 +139,43 @@ describe("#304 the task export", () => {
     ).rejects.toThrow(/no longer in the workspace/);
   });
 
+  it("TE-3b [#581/C14]: someone REMOVED gets nothing, and removal keeps the row", async () => {
+    /**
+     * TE-3 above stubs "no membership row", and offboarding never produces that state:
+     * removing somebody sets `deactivated_at` and the row stays, because history keeps
+     * its attribution. So the check TE-3 covers could not fire for the case it exists
+     * for, and a member removed an hour ago still had their old role read back here —
+     * with every task naming a customer and quoting what they asked for (D17).
+     *
+     * This models the database rather than the outcome: the row is THERE, and the query
+     * only misses it if it asks for an active one. Without `.is("deactivated_at", null)`
+     * the handler below hands the role over and the export is built.
+     */
+    const h = makeHarness([
+      endpoint("GET", /\/rest\/v1\/company_members/, (call) =>
+        call.url.searchParams.get("deactivated_at") === "is.null"
+          ? []
+          : [{ role: "admin" }],
+      ),
+    ]);
+    stubFetch(h.route);
+
+    await expect(
+      buildTaskExport(
+        getDb(completeEnv()),
+        { companyId: COMPANY_ID, requestedBy: USER_ID, filters: {}, prefix: "c/e1", now: NOW },
+        async () => {},
+      ),
+    ).rejects.toThrow(/no longer in the workspace/);
+
+    // And the filter really was on the request, not merely implied by the result.
+    expect(
+      h.callsTo("GET", /\/rest\/v1\/company_members/)[0].url.searchParams.get(
+        "deactivated_at",
+      ),
+    ).toBe("is.null");
+  });
+
   it("TE-4: done comes from the source message, not from the task", async () => {
     // `tasks` has no completion column (D17). A reader who assumed otherwise
     // produces a file in which nothing was ever finished.

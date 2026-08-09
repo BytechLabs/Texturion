@@ -44,6 +44,11 @@ afterEach(() => {
 function readyRow(overrides: Record<string, unknown> = {}) {
   return {
     id: EXPORT_ID,
+    // #581/C13: NOT NULL with a default in the schema, so a row without it is a state
+    // production cannot produce — and the collect routes now decide per KIND who may
+    // see a row, so a fixture missing it would make every one of them invisible and
+    // read as a broken route rather than an incomplete fixture.
+    kind: "workspace",
     status: "ready",
     storage_prefix: `${COMPANY_ID}/${EXPORT_ID}`,
     row_counts: { messages: 120, contacts: 8 },
@@ -68,7 +73,19 @@ function world(
     "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, options.role ?? "admin"),
   );
-  sb.on("GET", "/rest/v1/data_exports", () => options.rows ?? [readyRow()]);
+  // #581/C13: the collect routes ask the database for only the kinds this caller may
+  // collect, so the stub answers the way PostgREST would — `kind=in.(a,b)` is applied,
+  // not ignored. A stub that returned every row regardless would report the routes as
+  // leaky-but-passing whether or not the filter was there.
+  sb.on("GET", "/rest/v1/data_exports", (call) => {
+    const rows = options.rows ?? [readyRow()];
+    const filter = call.url.searchParams.get("kind");
+    if (filter === null) return rows;
+    const allowed = new Set(
+      filter.replace(/^in\.\(/, "").replace(/\)$/, "").split(",").filter(Boolean),
+    );
+    return rows.filter((row) => allowed.has(String(row.kind)));
+  });
   sb.on("POST", "/rest/v1/rpc/request_data_export", () =>
     options.request ?? { outcome: "queued", export_id: EXPORT_ID },
   );
@@ -159,6 +176,85 @@ describe("GET /v1/exports", () => {
       "messages-0001.jsonl",
       "manifest.json",
     ]);
+  });
+
+  it("#581/C13: a bookkeeper collects the usage summary they asked for", async () => {
+    /**
+     * The usage summary sits behind `billing.manage` on purpose — it counts messages,
+     * minutes and money and names nobody — and `bookkeeper` exists precisely to pair
+     * that with no access to the inbox, so somebody's accountant can see the bill
+     * without reading a customer's texts.
+     *
+     * Both collect routes were gated on `contacts.bulk`, which a bookkeeper does not
+     * hold. So they could START the export built for them and then had no way to list
+     * it or download it: the file was written, charged for, and unreachable by the only
+     * role that wanted it.
+     */
+    const { routes } = world({
+      role: "bookkeeper",
+      rows: [readyRow({ kind: "usage_summary" })],
+    });
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/exports", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { id: string; files: { name: string }[] }[];
+    };
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0].files.length).toBeGreaterThan(0);
+  });
+
+  it("#581/C13: and never anybody else's customer data", async () => {
+    // The reason this is decided per row rather than by loosening the route: a
+    // workspace export is a copy of every message and contact, conversation history
+    // quotes what people wrote, and every task hangs off a conversation (D17) so a task
+    // list names customers too. A bookkeeper must see none of the three.
+    for (const kind of ["workspace", "conversation_history", "tasks"]) {
+      const { routes } = world({
+        role: "bookkeeper",
+        rows: [readyRow({ kind })],
+      });
+      stubFetch(jwksRoute(auth), ...routes);
+
+      const list = await apiRequest(app, env, await auth.token(), "/v1/exports", {
+        companyId: COMPANY_ID,
+      });
+      expect(list.status, kind).toBe(200);
+      expect((await list.json()) as { data: unknown[] }, kind).toMatchObject({
+        data: [],
+      });
+
+      // And by id: the same answer as an id that does not exist, so the reply never
+      // confirms that this workspace holds an export of a kind they may not collect.
+      const byId = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        `/v1/exports/${EXPORT_ID}`,
+        { companyId: COMPANY_ID },
+      );
+      expect(byId.status, kind).toBe(404);
+    }
+  });
+
+  it("#581/C13: an unrecognised kind is collected by nobody", async () => {
+    // Fails closed. A new export kind is invisible until somebody decides who may
+    // collect it — the alternative is a new kind of customer data readable by whoever
+    // the default happened to favour.
+    const { routes } = world({
+      role: "owner",
+      rows: [readyRow({ kind: "something_new" })],
+    });
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/exports", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ data: [] });
   });
 
   it("offers no links for an expired export", async () => {
