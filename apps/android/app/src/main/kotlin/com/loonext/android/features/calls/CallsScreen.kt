@@ -95,6 +95,7 @@ import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
+import com.loonext.android.ui.common.VoicemailTranscript
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.SkeletonBlock
@@ -932,6 +933,35 @@ private fun CallRow(
                             },
                             modifier = Modifier.size(12.dp),
                         )
+                        // #566: the screening pill comes BEFORE the outcome and
+                        // never yields. It used to be the last child of a plain
+                        // Row, so non-weighted measure order gave it whatever the
+                        // unbounded `callOutcomeLabel` left over — often nothing —
+                        // and "Spam likely" collapsed into a tall sliver beside a
+                        // three-line label. It is also a judgement about the
+                        // CALLER rather than about how the call went, so it reads
+                        // first: it says whether the rest of the line is worth
+                        // reading. Fixed content ("Spam likely"), so it is safe to
+                        // let it take its intrinsic width.
+                        screeningLabel(call.screening_result)?.let { label ->
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceContainer,
+                            ) {
+                                Text(
+                                    label,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.padding(
+                                        horizontal = 8.dp,
+                                        vertical = 2.dp,
+                                    ),
+                                )
+                            }
+                        }
                         Text(
                             callOutcomeLabel(call),
                             fontSize = 11.5.sp,
@@ -947,30 +977,29 @@ private fun CallRow(
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             },
+                            // #566: THE one element allowed to yield, and the only
+                            // one that can be long — this renders "Answered by
+                            // <display_name> · 4m 32s" and display_name is capped
+                            // at 80 characters (routes/me.ts), so it reaches ~100.
+                            // Unbounded it wrapped to three lines, grew the row and
+                            // starved the pill above.
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
                         )
-                        screeningLabel(call.screening_result)?.let { label ->
-                            Surface(
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surfaceContainer,
-                            ) {
-                                Text(
-                                    label,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(
-                                        horizontal = 8.dp,
-                                        vertical = 2.dp,
-                                    ),
-                                )
-                            }
-                        }
                     }
                 }
                 Text(
                     relativeTime(call.started_at),
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.outline,
+                    // #566: a non-weighted sibling is measured BEFORE the
+                    // weighted Column beside it, so at a large OS font scale this
+                    // took its full intrinsic width and crushed the name and
+                    // outcome. One line, never wrapped: "3h" and "Fri" have
+                    // nothing to gain from a second one.
+                    maxLines = 1,
+                    softWrap = false,
                 )
                 if (onDialBack != null) {
                     val dialBackInteraction = remember { MutableInteractionSource() }
@@ -1014,13 +1043,8 @@ private fun CallRow(
             // roof, in a truck, next to a running compressor. The player stays
             // above it: the recording is the record, this is the shortcut.
             call.voicemail_transcript?.takeIf { it.isNotBlank() }?.let { transcript ->
-                Text(
+                VoicemailTranscript(
                     transcript,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontSize = 12.5.sp,
-                        lineHeight = 18.sp,
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(
                         start = 64.dp,
                         end = 15.dp,
@@ -1347,15 +1371,7 @@ private fun VoicemailPlayerRow(
             )
         }
         backfilledTranscript?.let {
-            Text(
-                it,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = 12.5.sp,
-                    lineHeight = 18.sp,
-                ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
+            VoicemailTranscript(it, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }

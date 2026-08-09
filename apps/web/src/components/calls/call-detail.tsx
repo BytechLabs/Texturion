@@ -4,6 +4,7 @@ import { ArrowLeft, MessageSquare, User } from "lucide-react";
 import Link from "next/link";
 
 import { VoicemailPlayer } from "@/components/calls/voicemail-player";
+import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { LoadError } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -88,13 +89,15 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
           *Applying: Prioritize Intent.* */}
       <section className="rounded-lg border bg-card p-4">
         <h2 className="mb-2 text-[13px] font-bold">Voicemail</h2>
-        <p
-          className={
-            transcript.muted ? "text-sm text-muted-foreground" : "text-sm"
-          }
-        >
-          {transcript.text}
-        </p>
+        {/* #566: only REAL words get a copy control. `muted` means this is one
+            of the four honest not-transcribed sentences (call-detail-copy.ts) —
+            the page talking, not the caller — and offering to copy one would be
+            offering to copy our own apology. */}
+        {transcript.muted ? (
+          <p className="text-sm text-muted-foreground">{transcript.text}</p>
+        ) : (
+          <VoicemailTranscript text={transcript.text} prominent />
+        )}
         {row.has_voicemail && (
           <div className="mt-3">
             <VoicemailPlayer

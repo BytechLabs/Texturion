@@ -1568,9 +1568,7 @@ private struct ContactVoicemailPlayerRow: View {
                     .foregroundStyle(BrandColor.muted500)
             }
             if let words = storedTranscript ?? backfilledTranscript {
-                Text(words)
-                    .font(.golos(12))
-                    .foregroundStyle(BrandColor.muted600)
+                VoicemailTranscript(text: words)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

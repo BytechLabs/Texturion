@@ -67,6 +67,7 @@ import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
+import com.loonext.android.ui.common.VoicemailTranscript
 import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -612,15 +613,7 @@ private fun ContactVoicemailPlayerRow(
         // in a truck, next to a running compressor. The player stays above it:
         // the recording is the record, this is the shortcut.
         (storedTranscript ?: backfilledTranscript)?.let {
-            Text(
-                it,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = 12.5.sp,
-                    lineHeight = 18.sp,
-                ),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
+            VoicemailTranscript(it, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }

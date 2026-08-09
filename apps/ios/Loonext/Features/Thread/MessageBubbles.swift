@@ -434,9 +434,7 @@ struct EventLine: View {
             // this line only says a voicemail exists, which still leaves the
             // reader having to go and play it.
             if let transcript {
-                Text(transcript)
-                    .font(.golos(12.5))
-                    .foregroundStyle(BrandColor.muted700)
+                VoicemailTranscript(text: transcript, prominent: true)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

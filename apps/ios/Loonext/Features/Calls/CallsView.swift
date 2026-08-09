@@ -598,19 +598,34 @@ private struct CallRow: View {
                         Image(systemName: directionIcon)
                             .font(.scaled(11, weight: .medium))
                             .foregroundStyle(metaColor)
-                        Text(callOutcomeLabel(call))
-                            .font(.golos(
-                                11.5,
-                                weight: isActionableMiss(call) ? .semibold : .regular
-                            ))
-                            .foregroundStyle(metaColor)
+                        // #566: the screening mark comes BEFORE the outcome and
+                        // holds its size. It is a judgement about the CALLER, not
+                        // about how the call went, so it reads first — it says
+                        // whether the rest of the line is worth reading. Its text
+                        // is a fixed literal ("Spam likely"), so giving it
+                        // priority costs nothing.
                         if let label = screeningLabel(call.screening_result) {
                             DsChip(
                                 text: label,
                                 container: BrandColor.inset,
                                 content: BrandColor.muted600
                             )
+                            .layoutPriority(1)
                         }
+                        // #566: THE one element allowed to yield. This renders
+                        // "Answered by <display_name> · 4m 32s" and display_name
+                        // is capped at 80 characters (routes/me.ts), so it reaches
+                        // ~100. With no lineLimit it wrapped to two or three lines,
+                        // grew the row, and floated the avatar and timestamp to the
+                        // middle of it.
+                        Text(callOutcomeLabel(call))
+                            .font(.golos(
+                                11.5,
+                                weight: isActionableMiss(call) ? .semibold : .regular
+                            ))
+                            .foregroundStyle(metaColor)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                     }
                 }
                 Spacer(minLength: 8)
@@ -618,6 +633,12 @@ private struct CallRow: View {
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted300)
                     .monospacedDigit()
+                    // #566: at the largest Dynamic Type sizes this wrapped and
+                    // grew the row on its own. "3h" and "Fri" have nothing to gain
+                    // from a second line; `fixedSize` keeps it whole rather than
+                    // letting it be the thing that compresses.
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .padding(.horizontal, 15)
             .padding(.top, 11)
@@ -647,9 +668,7 @@ private struct CallRow: View {
                 // stays above it: the recording is the record, this is the
                 // shortcut.
                 if let transcript {
-                    Text(transcript)
-                        .font(.golos(12.5))
-                        .foregroundStyle(BrandColor.muted600)
+                    VoicemailTranscript(text: transcript)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.leading, 64)
                         .padding(.trailing, 15)
@@ -753,9 +772,7 @@ private struct VoicemailPlayerRow: View {
                     .foregroundStyle(BrandColor.muted500)
             }
             if let backfilledTranscript {
-                Text(backfilledTranscript)
-                    .font(.golos(12))
-                    .foregroundStyle(BrandColor.muted600)
+                VoicemailTranscript(text: backfilledTranscript)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

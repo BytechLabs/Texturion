@@ -9,6 +9,7 @@
 import { Play } from "lucide-react";
 import { useState } from "react";
 
+import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { useVoicemailUrl } from "@/lib/api/calls";
 import { formatCallDuration } from "@/lib/format/call";
 
@@ -45,9 +46,10 @@ export function VoicemailPlayer({
         {/* A recording from before transcription existed, or one whose
             transcription failed at the time, gets its words on first open. */}
         {showTranscript && voicemail.data.transcript && (
-          <span className="mt-1.5 block text-[12.5px] leading-[1.45] text-app-muted">
-            {voicemail.data.transcript}
-          </span>
+          <VoicemailTranscript
+            text={voicemail.data.transcript}
+            className="mt-1.5"
+          />
         )}
       </span>
     );

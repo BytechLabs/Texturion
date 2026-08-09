@@ -10,6 +10,7 @@ import {
 import type { ConversationEvent } from "@/lib/api/types";
 
 import { VoicemailPlayer } from "@/components/calls/voicemail-player";
+import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { statusLabel } from "@/components/inbox/status-pill";
 import { taskEventSentence } from "@/components/tasks/task-activity";
 import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
@@ -357,9 +358,10 @@ export function SystemLine({
             says a voicemail exists, which still leaves the reader having to
             stop and play it. */}
         {transcript && (
-          <p className="mx-auto max-w-[36rem] text-[12.5px] leading-[1.45] text-app-muted">
-            {transcript}
-          </p>
+          <VoicemailTranscript
+            text={transcript}
+            className="mx-auto max-w-[36rem]"
+          />
         )}
       </div>
     );

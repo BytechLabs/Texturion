@@ -77,6 +77,7 @@ import com.loonext.android.features.compose.icon
 import com.loonext.android.features.compose.mmsKindOf
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.pressScale
+import com.loonext.android.ui.common.VoicemailTranscript
 import com.loonext.android.ui.theme.BrandColor
 import java.time.Instant
 import java.time.ZoneId
@@ -584,13 +585,8 @@ fun EventLine(
             // this line only says a voicemail exists, which still leaves the
             // reader having to go and play it.
             if (transcript != null) {
-                Text(
+                VoicemailTranscript(
                     transcript,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontSize = 12.5.sp,
-                        lineHeight = 18.sp,
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(top = 3.dp),
                 )
             }

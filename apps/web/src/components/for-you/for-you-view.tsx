@@ -387,13 +387,23 @@ function RecentCallRow({ call }: { call: Call }) {
             {formatRelativeTime(call.started_at)}
           </span>
         </span>
-        <span className="mt-0.5 flex items-center">
+        {/* #566: the same unbounded label as the /calls row, on a card that is
+            narrower still. `callOutcomeLabel` renders "Answered by
+            <display_name> · 4m 32s" and display_name is capped at 80 characters
+            (routes/me.ts), so it wrapped here too. This row has no screening chip
+            to displace, so the only symptom was a card that grew — which is why
+            nobody reported it, and why it would have drifted back out of step
+            with the row it was copied from. */}
+        <span className="mt-0.5 flex min-w-0 items-center">
           {missedInbound ? (
-            <span className="inline-flex items-center rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-warning/15 dark:text-warning">
+            <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-warning/15 dark:text-warning">
               {callOutcomeLabel(call)}
             </span>
           ) : (
-            <span className="text-[11.5px] text-app-muted-2">
+            <span
+              className="min-w-0 truncate text-[11.5px] text-app-muted-2"
+              title={callOutcomeLabel(call)}
+            >
               {callOutcomeLabel(call)}
             </span>
           )}

@@ -16,6 +16,7 @@ import {
   VoicemailPlayer,
 } from "@/components/calls/voicemail-player";
 import { VoicemailIntakeSummary } from "@/components/calls/voicemail-intake-summary";
+import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { avatarColorClass, avatarInitials } from "@/components/shell/avatar-color";
 import type { Call } from "@/lib/api/types";
 import { callOutcomeLabel } from "@/lib/format/call";
@@ -58,13 +59,29 @@ function DirectionIcon({ call }: { call: Call }) {
 function OutcomePill({ call }: { call: Call }) {
   const label = callOutcomeLabel(call);
   if (call.outcome === "missed" && call.direction !== "outbound") {
+    // "Missed" / "No answer" — fixed and short, so it never yields. `shrink-0`
+    // matters even here: a pill that shrinks breaks its text at the space and
+    // becomes a two-line rounded rect, which is worse than anything it saves.
     return (
-      <span className="inline-flex items-center rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-warning/15 dark:text-warning">
+      <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-warning/15 dark:text-warning">
         {label}
       </span>
     );
   }
-  return <span className="text-[12.5px] text-muted-foreground">{label}</span>;
+  // #566: THE one flexible element on this line, and the only one that can be
+  // long — `callOutcomeLabel` renders "Answered by <display_name> · 4m 32s", and
+  // display_name is capped at 80 characters (routes/me.ts), so this string
+  // reaches ~100. Unconstrained it wrapped between words, grew the row, and
+  // starved the screening chip beside it. `title` keeps the full text reachable
+  // now that it ellipsizes.
+  return (
+    <span
+      className="min-w-0 truncate text-[12.5px] text-muted-foreground"
+      title={label}
+    >
+      {label}
+    </span>
+  );
 }
 
 export function CallRow({ call }: { call: Call }) {
@@ -89,22 +106,47 @@ export function CallRow({ call }: { call: Call }) {
             {formatRelativeTime(call.started_at)}
           </span>
         </span>
-        <span className="mt-0.5 flex items-center gap-2">
+        {/* #566: `min-w-0` so this line may be narrower than its content —
+            without it the line's automatic minimum is its widest child and the
+            whole row overflowed, silently clipped by the card's `overflow-hidden`
+            rather than scrolling. Exactly one child is allowed to yield, and it
+            is the outcome label. */}
+        <span className="mt-0.5 flex min-w-0 items-center gap-2">
           <DirectionIcon call={call} />
-          <OutcomePill call={call} />
           {/* D43: honest carrier-screening label — quiet, never a color
-              scream; the verdict itself came from the network. */}
+              scream; the verdict itself came from the network.
+
+              #566: FIRST on the line, and immovable. It used to sit after the
+              outcome label, so a long answerer name squeezed it past its own
+              minimum and broke "Spam likely" into a two-line pill — a mark that
+              changes shape depending on whose name is beside it is a mark people
+              stop reading. It is also a judgement about the CALLER, not about how
+              the call went, so it belongs before the outcome rather than after
+              it: it tells you whether the rest of the line is worth reading. */}
           {screeningLabel(call.screening_result) && (
-            <span className="inline-flex items-center rounded-full bg-app-inset px-2 py-0.5 text-[11px] font-medium text-app-muted dark:bg-white/5">
+            <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-app-inset px-2 py-0.5 text-[11px] font-medium text-app-muted dark:bg-white/5">
               {screeningLabel(call.screening_result)}
             </span>
           )}
+          <OutcomePill call={call} />
           {/* #133: an unthreaded row (anonymous caller / no open thread) is
-              deliberately not a link — say why, quietly. */}
+              deliberately not a link — say why, quietly.
+
+              #566: it hard-reserved ~155px on a line that has ~287px at 390px,
+              forcing the entire deficit onto the two elements that carry the
+              call itself. Below `sm` it is the thing that yields — but only
+              visually: the sentence stays in the DOM for a screen reader, which
+              is the reader most likely to be asking why a row does nothing. */}
           {!call.conversation_id && (
-            <span className="ml-auto shrink-0 text-[12px] text-app-muted-2">
-              Not linked to a conversation
-            </span>
+            <>
+              <span className="sr-only">Not linked to a conversation</span>
+              <span
+                aria-hidden
+                className="ml-auto hidden shrink-0 text-[12px] text-app-muted-2 sm:inline"
+              >
+                Not linked to a conversation
+              </span>
+            </>
           )}
         </span>
         {/* D43: the message itself, playable in place. */}
@@ -127,16 +169,12 @@ export function CallRow({ call }: { call: Call }) {
                 roof, in a truck, next to a running compressor. The player
                 stays: the recording is the record, this is the shortcut. */}
             {call.voicemail_transcript && (
-              <span
-                className={cn(
-                  "block text-[12.5px] leading-[1.45] text-app-muted",
-                  // Tight to the summary above when there is one — they are the
-                  // same fact twice, and the gap should say so.
-                  call.voicemail_intake ? "mt-1" : "mt-1.5",
-                )}
-              >
-                {call.voicemail_transcript}
-              </span>
+              <VoicemailTranscript
+                text={call.voicemail_transcript}
+                // Tight to the summary above when there is one — they are the
+                // same fact twice, and the gap should say so.
+                className={call.voicemail_intake ? "mt-1" : "mt-1.5"}
+              />
             )}
           </span>
         ) : null}
