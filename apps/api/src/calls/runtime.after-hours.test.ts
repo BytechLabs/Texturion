@@ -52,6 +52,12 @@ interface World {
   onCallFails?: boolean;
   /** Members who hold a telephony credential and can be rung. */
   crew?: string[];
+  /**
+   * #581 — each member's ROLE. Defaults to `member` for everybody, which is what
+   * every test written before the capability filter was asserting without saying
+   * so, and holds both the capabilities the audience now asks for.
+   */
+  roles?: Record<string, string>;
 }
 
 function world(w: World) {
@@ -110,7 +116,10 @@ function world(w: World) {
       }
       if (path.includes("/company_members")) {
         return Response.json(
-          crew.map((user_id) => ({ user_id, role: "member" })),
+          crew.map((user_id) => ({
+            user_id,
+            role: w.roles?.[user_id] ?? "member",
+          })),
         );
       }
       if (path.includes("/push_subscriptions")) {
@@ -160,6 +169,47 @@ describe("#278 after-hours call routing", () => {
     expect(ctx.afterHoursVoicemail).toBe(false);
     expect(ctx.dialTargets.map((t) => t.userId).sort()).toEqual([ALICE, BOB].sort());
     expect(ctx.pushAudience.sort()).toEqual([ALICE, BOB].sort());
+  });
+
+  it("#581: a bookkeeper is neither rung nor pushed, whatever the number level says", async () => {
+    /**
+     * Number level answers "which lines may this person work on". Since the #315
+     * presets it stopped answering "may this person work on lines at all", and the
+     * two came apart: this fixture's resolver returns `text` for the whole crew,
+     * which is the state of every number until somebody writes an access rule.
+     *
+     * So `bookkeeper` — documented and unit-tested as the one role that never
+     * sees a customer — was rung for every inbound call and pushed a notification
+     * whose title carries the caller's number.
+     */
+    const ctx = await contextAt(MIDDAY, {
+      roles: { [BOB]: "bookkeeper" },
+    });
+    expect(ctx.dialTargets.map((t) => t.userId)).toEqual([ALICE]);
+    expect(ctx.pushAudience).toEqual([ALICE]);
+  });
+
+  it("#581: a read_only member is pushed but never rung", async () => {
+    // The two audiences are different acts, which is why they ask different
+    // capabilities. Being told a customer is calling is `conversations.read`;
+    // being handed a live line to speak to them on is `conversations.send`. A
+    // view-only member legitimately gets the first and must never get the second.
+    const ctx = await contextAt(MIDDAY, {
+      roles: { [BOB]: "read_only" },
+    });
+    expect(ctx.dialTargets.map((t) => t.userId)).toEqual([ALICE]);
+    expect(ctx.pushAudience.sort()).toEqual([ALICE, BOB].sort());
+  });
+
+  it("#581: an unknown role is neither rung nor pushed — the enum can outrun the Worker", async () => {
+    // Fails CLOSED, because `roleHasCapability` does. The `member_role` enum can
+    // gain a value before a Worker that knows it is deployed, and the safe side of
+    // that window is a missed notification rather than a leaked number.
+    const ctx = await contextAt(MIDDAY, {
+      roles: { [BOB]: "role_from_the_future" },
+    });
+    expect(ctx.dialTargets.map((t) => t.userId)).toEqual([ALICE]);
+    expect(ctx.pushAudience).toEqual([ALICE]);
   });
 
   it("AH-R2: inside hours, nothing is narrowed whatever the setting says", async () => {

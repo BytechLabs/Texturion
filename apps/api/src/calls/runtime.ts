@@ -13,6 +13,7 @@ import {
   isAfterHours,
   nextOpening,
   resolveNumberIdentity,
+  roleHasCapability,
   RING_SECONDS_MAX,
   type AfterHoursCalls,
   type RingStrategy,
@@ -1523,10 +1524,46 @@ export async function computeRingContext(
     // reads the thread; handing them the phone would let them speak to a
     // customer on a number they were denied texting on.
     if (levelByUser.get(userId) !== "text") continue;
+    /**
+     * #581 — and the ROLE, which this loop had in hand and never asked.
+     *
+     * Number level answers "which lines may this person work on". Since the #315
+     * presets it stopped answering "may this person work on lines at all", and
+     * the two questions came apart: on a number with no access rules — the state
+     * of every number until somebody writes one — the resolver's default level is
+     * `text` for the whole company. So `bookkeeper`, the preset documented and
+     * unit-tested as the one role that never sees a customer, was rung and pushed
+     * for every inbound call, and the push carries the caller's number in its
+     * title.
+     *
+     * Two capabilities rather than one, because the two audiences are different
+     * acts. Being RUNG means being handed a live line to speak to a customer on,
+     * which is `conversations.send`. Being PUSHED means being told a customer's
+     * number, which is `conversations.read`. A `read_only` member legitimately
+     * gets the second and must never get the first.
+     *
+     * Fails CLOSED on a role this build has not heard of, because
+     * `roleHasCapability` does — the enum can grow a value ahead of a deployed
+     * Worker, and the safe side of that window is a missed notification rather
+     * than a leaked number.
+     *
+     * The sibling audience builder (`auth/conversation-audience.ts`) got this
+     * fix; this one was missed. Two builders, one rule, and the one that
+     * disagreed was the gap.
+     */
+    const role = member.role as Parameters<typeof roleHasCapability>[0];
     const sip = sipByUser.get(userId);
-    if (sip) dialTargets.push({ userId, sipUsername: sip });
+    if (sip && roleHasCapability(role, "conversations.send")) {
+      dialTargets.push({ userId, sipUsername: sip });
+    }
     const pushEnabled = prefByUser.get(userId) ?? true;
-    if (pushEnabled && channelUsers.has(userId)) pushAudience.push(userId);
+    if (
+      pushEnabled &&
+      channelUsers.has(userId) &&
+      roleHasCapability(role, "conversations.read")
+    ) {
+      pushAudience.push(userId);
+    }
   }
   return { dialTargets, pushAudience };
 }

@@ -31,6 +31,7 @@ import {
   isDowngrade,
   SELF_DOWNGRADE_ACK,
   SELF_DOWNGRADE_REQUIRED_MESSAGE,
+  roleHasCapability,
   shouldShowOrientation,
   type MemberRole,
 } from "@loonext/shared";
@@ -281,6 +282,36 @@ teamRoutes.patch("/members/:id", requireCapability("team.manage"), async (c) => 
       .select(MEMBER_COLUMNS),
     "member role update",
   );
+  /**
+   * #581 — a role change that takes away the phone has to take the phone away.
+   *
+   * The softphone credential is minted once and lives at Telnyx; the token cut
+   * from it is good for up to 24 hours and neither is re-checked against the
+   * member's role. So demoting somebody to `read_only` or `bookkeeper` removed
+   * their inbox access immediately and left them able to place and answer calls
+   * as the business until that token expired — which is the whole of the next
+   * working day, and precisely the window a demotion exists to close.
+   *
+   * Only when the new role actually loses the capability, so an owner→admin
+   * change (both of which keep it) does not sign a working colleague out of
+   * their softphone mid-call for no reason.
+   *
+   * Best-effort by the same reasoning the deactivation path already uses: a
+   * Telnyx outage must not make a role change fail. The ring audience above now
+   * filters on the same capability, so even an orphaned credential stops being
+   * offered a call.
+   */
+  if (
+    roleHasCapability(target.role as MemberRole, "conversations.send") &&
+    !roleHasCapability(body.role as MemberRole, "conversations.send")
+  ) {
+    await revokeMemberTelephonyCredential(
+      getEnv(c.env),
+      companyId,
+      target.user_id as string,
+    );
+  }
+
   // #231: who can do what is the first thing anyone reconstructs after an
   // incident.
   await recordAuditFromRequest(db, c, {
