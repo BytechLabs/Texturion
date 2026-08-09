@@ -96,8 +96,21 @@ export function buildMailer(env: MailerEnv | null | undefined): Mailer | null {
   };
 }
 
+/**
+ * Cloudflare's rate-limit binding, as much of it as we use.
+ *
+ * Declared here rather than imported because the Workers types are not in this
+ * app's graph — apps/web is a Next application that happens to run on a Worker,
+ * and one method signature is cheaper than pulling the whole ambient set in.
+ */
+export interface RateLimiterBinding {
+  limit(input: { key: string }): Promise<{ success: boolean }>;
+}
+
 export interface WorkerBindings extends MailerEnv {
   STATUS_FEED?: unknown;
+  /** #575: per-caller gate on the unauthenticated subscribe endpoint. */
+  STATUS_SUBSCRIBE_RATE_LIMITER?: RateLimiterBinding;
 }
 
 /**

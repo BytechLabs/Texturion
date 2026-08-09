@@ -28,5 +28,27 @@
       "binding": "STATUS_FEED",
       "id": "df82ac76ecd343eabd834f3f48e24fb4"
     }
+  ],
+  // #575: the FIRST rate limiter on this Worker. POST /api/status/subscribe is
+  // unauthenticated, and its only obstacle was a honeypot a caller skips by
+  // omitting the field.
+  //
+  // The spend was already bounded — the subscriber list caps at 200 and
+  // confirmation emails at 50/day and 1000/month (lib/marketing/status-subscribe)
+  // — so this is not about a runaway bill. It is about WHO spends that allowance:
+  // without a per-caller limit one script can consume the whole day's 50 and
+  // point them at fifty addresses that never asked, and the reputational cost of
+  // that lands on the domain every customer notification also goes out from.
+  //
+  // Namespace ids are account-unique and the api Worker holds 1001-1010, so this
+  // starts a separate band rather than risking a collision with the next one added
+  // there.
+  "ratelimits": [
+    {
+      "name": "STATUS_SUBSCRIBE_RATE_LIMITER",
+      "type": "ratelimit",
+      "namespace_id": "2001",
+      "simple": { "limit": 3, "period": 60 }
+    }
   ]
 }

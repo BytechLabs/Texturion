@@ -55,6 +55,35 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const bindings = await readWorkerBindings();
+
+  // #575: a per-caller gate, because everything else here is shared.
+  //
+  // The spend was already bounded (200 subscribers, 50 confirmations a day, 1000
+  // emails a month — lib/marketing/status-subscribe), so this is not about a
+  // runaway bill. It is about who gets to spend that allowance. Without it one
+  // script consumes the whole day's fifty and points them at fifty addresses that
+  // never asked for anything, and the reputational cost of sending that mail lands
+  // on the domain every customer notification also leaves from.
+  //
+  // Placed AFTER the honeypot and the address check so a bot learns nothing new
+  // from being limited, and BEFORE the store and mailer are touched so a limited
+  // caller costs a KV read rather than an email.
+  //
+  // Absent binding (local dev, vitest, `next build`'s prerender) skips the gate,
+  // the same as every other limiter in this codebase.
+  const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  const limiter = bindings?.STATUS_SUBSCRIBE_RATE_LIMITER;
+  if (limiter) {
+    const { success } = await limiter.limit({ key: `status-subscribe:${ip}` });
+    if (!success) {
+      // The NEUTRAL sentence, not a 429 with an explanation. A form that says
+      // "too many attempts" tells a script its rate is being measured and what to
+      // slow down to; this tells it nothing it did not already have. Same reasoning
+      // as the honeypot two checks up.
+      return NextResponse.json({ message: NEUTRAL });
+    }
+  }
+
   const store = bindings?.STATUS_FEED as SubscriberStore | undefined;
   const mailer = buildMailer(bindings);
   // Unconfigured is not the visitor's problem to solve, and it should not
