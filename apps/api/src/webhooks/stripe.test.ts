@@ -1826,6 +1826,118 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
   });
 });
 
+describe("#584 a prepaid year survives a cancel-and-resubscribe", () => {
+  /**
+   * The case D107 names by name, end to end through the real mirror pass.
+   *
+   * A resubscribe produces a NEW subscription with a new licensed item and no
+   * discounts on it, while `prepayments` still says the customer is covered until
+   * next year. Before this, the months they paid for were simply gone — up to $790,
+   * with nothing on our side that would ever notice. D107 requirement 1 promised
+   * the discount would be "re-asserted on every mirror pass ... so a
+   * cancel-and-resubscribe self-heals", and that convergence was never built.
+   *
+   * Driven through `customer.subscription.created` rather than by calling the
+   * convergence directly, because "it runs on the mirror pass" is the half that was
+   * missing — a unit test of the function would have passed against a version
+   * nothing ever called.
+   */
+  const openYear = {
+    session_id: "cs_prepay_1",
+    plan: "starter",
+    amount_cents: 29_000,
+    currency: "usd",
+    months_granted: 12,
+    granted_at: "2025-01-15T15:06:40.000Z",
+    // Six invoices after the fixture's period end.
+    granted_through: "2026-01-15T15:06:40.000Z",
+    discount_id: "loonext_prepaid_year",
+  };
+
+  it("puts the discount back, sized to the six invoices that remain", async () => {
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => openYear),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      // Not provisioned yet, so the convergence mints it — the safety net must not
+      // depend on an operator having re-run `stripe-setup`.
+      endpoint("GET", /api\.stripe\.com\/v1\/coupons\//, () => {
+        throw new Error("No such coupon");
+      }),
+      endpoint("POST", /api\.stripe\.com\/v1\/coupons$/, () => ({
+        id: "loonext_prepaid_year_remainder_6",
+        object: "coupon",
+      })),
+      endpoint("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => [
+        {
+          id: COMPANY_ID,
+          name: "Acme Plumbing",
+          canceled_at: null,
+          company_modules: [],
+        },
+      ]),
+    ]);
+
+    await deliver(
+      eventOf("customer.subscription.created", subscriptionFixture()),
+      harness,
+    );
+
+    const writes = harness.callsTo("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/);
+    expect(writes).toHaveLength(1);
+    const form = writes[0].form();
+    expect(form.get("items[0][id]")).toBe("si_licensed");
+    // SIX, not twelve. Re-applying the full year is the defect the claim table was
+    // invented to prevent: it would cover the customer eighteen months for a
+    // twelve-month payment, at our expense, with nothing to detect it.
+    expect(form.get("items[0][discounts][0][coupon]")).toBe(
+      "loonext_prepaid_year_remainder_6",
+    );
+
+    const minted = harness.callsTo("POST", /api\.stripe\.com\/v1\/coupons$/);
+    expect(minted).toHaveLength(1);
+    expect(minted[0].form().get("duration_in_months")).toBe("6");
+    expect(minted[0].form().get("percent_off")).toBe("100");
+  });
+
+  it("leaves an ordinary subscription alone — nobody else pays for this", async () => {
+    // The ambient case, and the one that matters most for cost: this runs on every
+    // subscription webhook for every workspace, and almost none of them ever bought
+    // a year. One RPC that answers null, and nothing else.
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => [
+        {
+          id: COMPANY_ID,
+          name: "Acme Plumbing",
+          canceled_at: null,
+          company_modules: [],
+        },
+      ]),
+    ]);
+
+    await deliver(
+      eventOf("customer.subscription.updated", subscriptionFixture()),
+      harness,
+    );
+
+    // No coupon read, no coupon minted, no item write.
+    expect(harness.callsTo("GET", /api\.stripe\.com\/v1\/coupons/)).toHaveLength(0);
+    expect(harness.callsTo("POST", /api\.stripe\.com\/v1\/coupons/)).toHaveLength(0);
+    expect(
+      harness.callsTo("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/),
+    ).toHaveLength(0);
+  });
+});
+
 describe("missed-cancellation backstop (#21)", () => {
   const STRIPE_CANCELED_AT = 1_750_500_000;
   const STRIPE_CANCELED_ISO = new Date(STRIPE_CANCELED_AT * 1000).toISOString();

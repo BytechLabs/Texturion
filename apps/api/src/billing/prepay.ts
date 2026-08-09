@@ -13,6 +13,8 @@ import {
   prepayYearPrice,
   type PlanId,
 } from "./plans";
+import * as Sentry from "@sentry/cloudflare";
+
 import { getDb } from "../db";
 import { getStripe } from "./stripe";
 
@@ -346,6 +348,60 @@ export function itemHasDiscount(
   });
 }
 
+// ---------------------------------------------------------------------------
+// #584 — the prepaid coupon FAMILY
+// ---------------------------------------------------------------------------
+
+/**
+ * A twelve-month coupon cannot be trimmed, so re-asserting a partial remainder
+ * needs a coupon of the right length. There are exactly twelve possible lengths.
+ *
+ * The ids are DERIVED from the configured base rather than being new environment
+ * variables: `loonext_prepaid_year_remainder_9` is nine months of 100% off. One
+ * setting still configures the whole family, twelve objects is the ceiling however
+ * many customers there are, and `stripe-setup.ts` provisions them all — with a
+ * retrieve-or-create at the point of use as well, because the safety net in #584
+ * must not depend on somebody having re-run a script.
+ */
+export function prepaidRemainderCouponId(env: Env, months: number): string | null {
+  const base = env.STRIPE_PREPAID_YEAR_COUPON_ID;
+  if (!base) return null;
+  if (!Number.isInteger(months) || months < 1 || months > PREPAY_MONTHS) return null;
+  // Twelve months IS the base coupon. Minting a duplicate would leave two ids
+  // meaning the same thing, and every predicate below would have to know both.
+  return months === PREPAY_MONTHS ? base : `${base}_remainder_${months}`;
+}
+
+/** Every id a prepaid year can wear, base and remainders. */
+export function prepaidCouponIds(env: Env): string[] {
+  const base = env.STRIPE_PREPAID_YEAR_COUPON_ID;
+  if (!base) return [];
+  return Array.from(
+    { length: PREPAY_MONTHS },
+    (_unused, index) => prepaidRemainderCouponId(env, index + 1) as string,
+  );
+}
+
+/**
+ * Does this item carry a prepaid year in ANY of its lengths?
+ *
+ * THE REASON THIS EXISTS RATHER THAN A COMPARISON AGAINST THE BASE ID. Once a
+ * remainder coupon can appear on the licensed item, every question of the form
+ * "is a prepaid year on this subscription?" has thirteen right answers instead of
+ * one — and each place that kept asking about the base alone would answer NO for a
+ * re-asserted year. That would silently switch off the change-plan orphan backstop
+ * and the pause gate for exactly the customers the convergence just repaired.
+ *
+ * So there is one predicate, and the roster is derived. `prepay.test.ts` asserts
+ * that every length is recognised, in both directions.
+ */
+export function itemHasPrepaidCoupon(
+  env: Env,
+  item: Stripe.SubscriptionItem,
+): boolean {
+  return prepaidCouponIds(env).some((id) => itemHasDiscount(item, id));
+}
+
 /**
  * Is a #399 referral free month still sitting unspent on the licensed item?
  *
@@ -397,10 +453,12 @@ export function prepaidCouponPending(
   env: Env,
   subscription: Stripe.Subscription | null | undefined,
 ): boolean {
-  const coupon = env.STRIPE_PREPAID_YEAR_COUPON_ID;
-  if (!coupon || !subscription) return false;
+  if (!subscription) return false;
   const licensed = licensedItemOf(env, subscription);
-  return licensed ? itemHasDiscount(licensed, coupon) : false;
+  // #584: ANY length, not just twelve. A year the convergence re-asserted wears a
+  // remainder coupon, and a detector that only knew the base id would report "no
+  // prepaid year here" for precisely the workspaces it had just repaired.
+  return licensed ? itemHasPrepaidCoupon(env, licensed) : false;
 }
 
 export type GrantOutcome = "granted" | "already" | "revoked";
@@ -874,6 +932,159 @@ export async function convertPrepaidYear(
     throw new Error(`stamp_prepayment_credit failed: ${stampError.message}`);
   }
   return { ...result, credited: true };
+}
+
+/**
+ * How many invoices remain inside a prepaid window. #584.
+ *
+ * COUNTED IN INVOICES, NOT CALENDAR MONTHS, and that is what makes "never longer
+ * than what is left" exact rather than a rounding argument. A coupon discounts the
+ * next N invoices; the question is therefore how many invoices this subscription
+ * will issue before the window closes, which the subscription itself answers —
+ * `current_period_end` is the date of the next one, and they recur monthly from
+ * there.
+ *
+ * The CURRENT period is deliberately not counted. Its invoice has already been
+ * issued, at full price, because the discount was missing when it went out. Nothing
+ * here can undo that, and counting it would buy the customer a month they are not
+ * owed while pushing the coupon past `granted_through`.
+ *
+ * Capped at twelve so a corrupt `granted_through` far in the future cannot mint a
+ * coupon longer than a year ever was.
+ */
+export function remainingPrepaidInvoices(
+  periodEndSeconds: number | null | undefined,
+  grantedThrough: string,
+): number {
+  if (!periodEndSeconds) return 0;
+  const closes = Date.parse(grantedThrough);
+  if (Number.isNaN(closes)) return 0;
+  const at = new Date(periodEndSeconds * 1000);
+  let count = 0;
+  while (at.getTime() < closes && count < PREPAY_MONTHS) {
+    count += 1;
+    at.setUTCMonth(at.getUTCMonth() + 1);
+  }
+  return count;
+}
+
+/**
+ * Put back a prepaid discount that went missing, sized to what is left. #584.
+ *
+ * D107 requirement 1 promised this and it was never built: "the discount becomes a
+ * derived projection of the row, re-asserted on every mirror pass ... so a
+ * cancel-and-resubscribe, or any rewrite that drops it, self-heals instead of
+ * silently destroying months somebody paid for." Destroying paid months takes one
+ * careless item write; restoring them took a human reading Stripe.
+ *
+ * # The row decides, never the item
+ *
+ * `openPrepayment` is the gate, and the ordering matters: it filters
+ * `revoked_at is null`, which now has THREE causes — a refund, a won chargeback,
+ * and (#583) a customer ending the year early on a plan change. All three
+ * deliberately removed the coupon seconds ago. A convergence keyed on "the licensed
+ * item has no prepaid discount" would put every one of them straight back, turning
+ * the repair into the most reliable way to give away a year we had just reclaimed.
+ * Asking the row first makes that unreachable rather than merely unlikely.
+ *
+ * # Everything else is the shape `ensureVoiceMeteredItem` already established
+ *
+ * Skips non-live subscriptions (Stripe rejects item writes), skips schedule-managed
+ * ones (the phases own the items; `change-plan` writes discounts into them
+ * explicitly), and NEVER throws — a convergence miss retries on the next mirror
+ * pass and must not fail the webhook that carried it.
+ *
+ * An unspent referral month on the same item is carried through rather than
+ * replaced, because the discounts array is a REPLACE and destroying a month
+ * somebody earned would be this function causing the class of harm it exists to
+ * repair.
+ */
+export async function ensurePrepaidDiscount(
+  env: Env,
+  db: SupabaseClient,
+  companyId: string,
+  subscription: Stripe.Subscription,
+): Promise<void> {
+  try {
+    if (!["active", "past_due", "unpaid", "trialing"].includes(subscription.status)) {
+      return;
+    }
+    if (subscription.schedule) return; // phases own the items (#18)
+
+    const open = await openPrepayment(db, companyId);
+    if (!open) return; // no window, or refunded / charged back / converted
+
+    const licensed = licensedItemOf(env, subscription);
+    if (!licensed) return; // paused, or a subscription with no plan line
+    // Already covered, at whatever length. Running twice must not extend anything,
+    // and this is the line that makes the pass idempotent.
+    if (itemHasPrepaidCoupon(env, licensed)) return;
+
+    const months = remainingPrepaidInvoices(
+      licensed.current_period_end,
+      open.granted_through,
+    );
+    if (months < 1) return; // the window closes before the next invoice
+
+    const couponId = prepaidRemainderCouponId(env, months);
+    if (!couponId) return; // unprovisioned — unbilled, never mis-billed
+
+    const stripe = getStripe(env);
+    // Retrieve-or-create, so the net does not depend on `stripe-setup.ts` having
+    // been re-run. The id is deterministic, so this is idempotent by construction
+    // and there are at most twelve of these objects however often it runs.
+    try {
+      await stripe.coupons.retrieve(couponId);
+    } catch {
+      await stripe.coupons.create({
+        id: couponId,
+        percent_off: 100,
+        duration: "repeating",
+        duration_in_months: months,
+        name: `Prepaid year — ${months} month${months === 1 ? "" : "s"} remaining`,
+      });
+    }
+
+    const referralCoupon = env.STRIPE_REFERRAL_MONTH_COUPON_ID;
+    const carriedReferral =
+      referralCoupon && itemHasDiscount(licensed, referralCoupon)
+        ? [{ coupon: referralCoupon }]
+        : [];
+
+    await stripe.subscriptions.update(
+      subscription.id,
+      {
+        items: [
+          {
+            id: licensed.id,
+            discounts: [...carriedReferral, { coupon: couponId }],
+          } as Stripe.SubscriptionUpdateParams.Item,
+        ],
+      },
+      {
+        // Scoped to the session AND the length, so two mirror passes in the same
+        // moment collapse to one write, while a genuine re-assertion next month at
+        // a shorter length is not mistaken for a replay of this one.
+        idempotencyKey: `prepay_reassert:${open.session_id}:${months}`,
+      },
+    );
+
+    // #584 asks for this by name: "a discount reappearing on a customer's account
+    // with no record is its own problem". It also says the repair happened, which
+    // means something dropped it — worth someone's attention even though the
+    // customer is now whole.
+    Sentry.captureMessage(
+      `prepaid discount re-asserted on subscription ${subscription.id} ` +
+        `(company ${companyId}, session ${open.session_id}) for ${months} month` +
+        `${months === 1 ? "" : "s"} — #584 convergence`,
+      "warning",
+    );
+  } catch (cause) {
+    console.error(
+      `[prepay] convergence failed for company ${companyId}: ` +
+        `${(cause as Error).message}`,
+    );
+  }
 }
 
 /**

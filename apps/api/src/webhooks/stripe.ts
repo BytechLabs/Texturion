@@ -42,7 +42,11 @@ import {
   type HeldNumber,
 } from "../billing/number-allowance";
 import { pushConsequentialNotice } from "../billing/consequential-push";
-import { grantPrepaidYear, isPrepayCheckout } from "../billing/prepay";
+import {
+  ensurePrepaidDiscount,
+  grantPrepaidYear,
+  isPrepayCheckout,
+} from "../billing/prepay";
 import { billingRecipients } from "../billing/recipients";
 import { getStripe, stripeCryptoProvider, type Stripe } from "../billing/stripe";
 import type { AppEnv } from "../context";
@@ -305,6 +309,14 @@ async function reconcileModulesFromSubscription(
     planModuleReconcile(rows, paid, billable),
   );
   await ensureVoiceMeteredItem(env, companyId, subscription);
+  // #584: and put back a prepaid discount that went missing. D107 requirement 1
+  // promised this convergence and it was never built, so destroying paid months
+  // took one careless item write while restoring them took a human reading
+  // Stripe. Here rather than on a cron of its own, for the reason D107 gave: a
+  // cancel-and-resubscribe fires a subscription webhook, so the repair lands in
+  // seconds, and the daily reconcile is the backstop that makes "self-heals"
+  // true for whatever never produced an event.
+  await ensurePrepaidDiscount(env, db, companyId, subscription);
 
   // #133/#134: every live workspace's numbers must be CALLABLE — calling is
   // included on every plan (D42), so voice binds on every mirror pass of a

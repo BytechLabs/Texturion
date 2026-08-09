@@ -27,7 +27,13 @@ import {
   grantPrepaidYear,
   isPrepayCheckout,
   itemHasDiscount,
+  ensurePrepaidDiscount,
+  itemHasPrepaidCoupon,
+  prepaidCouponIds,
+  prepaidCouponPending,
+  prepaidRemainderCouponId,
   prepayEligibility,
+  remainingPrepaidInvoices,
   revokePrepaidYear,
   sweepUncreditedConversions,
 } from "./prepay";
@@ -840,5 +846,341 @@ describe("#583 the sweep that finishes an interrupted credit", () => {
     expect(result).toEqual({ credited: 0, failed: 0 });
     expect(stripe.credits).toHaveLength(0);
     expect(db.calls).toHaveLength(1);
+  });
+});
+
+describe("#584 the prepaid coupon family", () => {
+  /**
+   * Once a re-asserted year can wear a SHORTER coupon, every question of the form
+   * "is a prepaid year on this subscription?" has twelve right answers instead of
+   * one. Each place still asking about the base id alone would answer NO for a
+   * repaired year — switching off the change-plan orphan backstop and the pause
+   * gate for exactly the customers the convergence had just made whole.
+   */
+  it("derives twelve ids from one setting, and twelve months IS the base", () => {
+    // Not a thirteenth id for the full year: two ids meaning the same thing is two
+    // things every predicate has to know, and one of them will get forgotten.
+    expect(prepaidRemainderCouponId(env, 12)).toBe(COUPON);
+    expect(prepaidRemainderCouponId(env, 9)).toBe(`${COUPON}_remainder_9`);
+    expect(prepaidRemainderCouponId(env, 1)).toBe(`${COUPON}_remainder_1`);
+    expect(prepaidCouponIds(env)).toHaveLength(12);
+    expect(new Set(prepaidCouponIds(env)).size).toBe(12);
+  });
+
+  it("mints nothing outside 1..12, and nothing at all when unconfigured", () => {
+    expect(prepaidRemainderCouponId(env, 0)).toBeNull();
+    expect(prepaidRemainderCouponId(env, 13)).toBeNull();
+    expect(prepaidRemainderCouponId(env, 1.5)).toBeNull();
+    expect(
+      prepaidRemainderCouponId({ ...env, STRIPE_PREPAID_YEAR_COUPON_ID: undefined }, 9),
+    ).toBeNull();
+    expect(
+      prepaidCouponIds({ ...env, STRIPE_PREPAID_YEAR_COUPON_ID: undefined }),
+    ).toEqual([]);
+  });
+
+  it("recognises EVERY length on the item, not just the full year", () => {
+    // Derived from the roster rather than a spot check, so a thirteenth length
+    // added later cannot be recognised in one place and missed in another.
+    for (const id of prepaidCouponIds(env)) {
+      const item = {
+        id: "si_licensed",
+        price: { id: env.STRIPE_STARTER_PRICE_ID },
+        discounts: [{ coupon: { id } }],
+      } as unknown as Parameters<typeof itemHasPrepaidCoupon>[1];
+      expect(itemHasPrepaidCoupon(env, item)).toBe(true);
+    }
+  });
+
+  it("does not mistake the referral month for a prepaid year", () => {
+    // Both are 100%-off coupons on the same licensed item. Confusing them would
+    // make `prepaidCouponPending` refuse a pause for a workspace that simply
+    // earned a referral, and would let a real prepaid year through as a referral.
+    const item = {
+      id: "si_licensed",
+      price: { id: env.STRIPE_STARTER_PRICE_ID },
+      discounts: [{ coupon: { id: env.STRIPE_REFERRAL_MONTH_COUPON_ID } }],
+    } as unknown as Parameters<typeof itemHasPrepaidCoupon>[1];
+    expect(itemHasPrepaidCoupon(env, item)).toBe(false);
+  });
+
+  it("the orphan detector sees a re-asserted year", () => {
+    // The regression this whole family exists to prevent. `prepaidCouponPending`
+    // is the backstop `change-plan` and `pause` use when the claim row is missing;
+    // a repaired year wearing a remainder coupon must not be invisible to it.
+    const withRemainder = subscriptionWith([
+      { coupon: { id: `${COUPON}_remainder_7` } },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ]) as any;
+    expect(prepaidCouponPending(env, withRemainder)).toBe(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(prepaidCouponPending(env, subscriptionWith() as any)).toBe(false);
+  });
+});
+
+describe("#584 counting what is left, in invoices", () => {
+  /**
+   * "Sized to the remaining months and never longer" is only exact if the unit is
+   * the thing the coupon actually consumes: invoices. The subscription states when
+   * the next one falls, and they recur monthly from there.
+   */
+  const at = (iso: string) => Math.floor(Date.parse(iso) / 1000);
+
+  it("counts the invoices that fall inside the window", () => {
+    // Next invoice 1 Sep; window closes 1 Mar. Sep, Oct, Nov, Dec, Jan, Feb — six.
+    // The 1 Mar invoice is NOT inside a window that closes on 1 Mar.
+    expect(
+      remainingPrepaidInvoices(at("2026-09-01T00:00:00Z"), "2027-03-01T00:00:00Z"),
+    ).toBe(6);
+  });
+
+  it("does not count the period already invoiced", () => {
+    // That invoice went out at full price because the discount was missing, and
+    // nothing here can undo it. Counting it would buy a month nobody is owed AND
+    // push the coupon past `granted_through` — the one thing #584 forbids.
+    expect(
+      remainingPrepaidInvoices(at("2027-02-25T00:00:00Z"), "2027-03-01T00:00:00Z"),
+    ).toBe(1);
+  });
+
+  it("is zero once the window closes before the next invoice", () => {
+    expect(
+      remainingPrepaidInvoices(at("2027-03-02T00:00:00Z"), "2027-03-01T00:00:00Z"),
+    ).toBe(0);
+  });
+
+  it("never exceeds twelve, whatever the row says", () => {
+    // A corrupt or hand-edited `granted_through` must not be able to mint a coupon
+    // longer than a year ever was.
+    expect(
+      remainingPrepaidInvoices(at("2026-09-01T00:00:00Z"), "2099-01-01T00:00:00Z"),
+    ).toBe(12);
+  });
+
+  it("answers zero rather than guessing when the subscription says nothing", () => {
+    expect(remainingPrepaidInvoices(null, "2027-03-01T00:00:00Z")).toBe(0);
+    expect(remainingPrepaidInvoices(at("2026-09-01T00:00:00Z"), "not a date")).toBe(0);
+  });
+});
+
+describe("#584 ensurePrepaidDiscount", () => {
+  /**
+   * D107 requirement 1 promised this and it was never built: destroying paid
+   * months takes one careless item write, and restoring them took a human reading
+   * Stripe. The blast radius is up to $790 per workspace and it is invisible from
+   * our side.
+   */
+  const PERIOD_END = Math.floor(Date.parse("2026-09-01T00:00:00Z") / 1000);
+
+  /** A live subscription whose licensed item carries `discounts`. */
+  function bare(discounts: unknown[] = [], overrides: Record<string, unknown> = {}) {
+    return {
+      id: "sub_1",
+      status: "active",
+      schedule: null,
+      items: {
+        data: [
+          {
+            id: "si_licensed",
+            price: { id: env.STRIPE_STARTER_PRICE_ID },
+            current_period_end: PERIOD_END,
+            discounts,
+          },
+        ],
+      },
+      ...overrides,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+  }
+
+  const openYear = (grantedThrough = "2027-03-01T00:00:00Z") => ({
+    session_id: "cs_prepay_1",
+    plan: "starter",
+    amount_cents: 29_000,
+    currency: "usd",
+    months_granted: 12,
+    granted_at: "2026-03-01T00:00:00Z",
+    granted_through: grantedThrough,
+    discount_id: COUPON,
+  });
+
+  function convergeStripe(existingCoupons: string[] = []) {
+    const updates: { id: string; params: Record<string, unknown>; options: unknown }[] =
+      [];
+    const created: Record<string, unknown>[] = [];
+    return {
+      updates,
+      created,
+      api: {
+        coupons: {
+          retrieve: vi.fn(async (id: string) => {
+            if (!existingCoupons.includes(id)) throw new Error("No such coupon");
+            return { id };
+          }),
+          create: vi.fn(async (params: Record<string, unknown>) => {
+            created.push(params);
+            return params;
+          }),
+        },
+        subscriptions: {
+          update: vi.fn(
+            async (id: string, params: Record<string, unknown>, options: unknown) => {
+              updates.push({ id, params, options });
+              return bare();
+            },
+          ),
+        },
+      },
+    };
+  }
+
+  const dbWith = (open: unknown) => fakeDb({ open });
+
+  it("puts back a coupon sized to what remains, not a fresh year", async () => {
+    // THE DEFECT THE CLAIM TABLE WAS INVENTED TO PREVENT. A plain re-apply restarts
+    // twelve months, so a customer four months into a year they bought would end up
+    // covered for sixteen — at our expense, silently.
+    const stripe = convergeStripe();
+    const db = dbWith(openYear());
+
+    await withStripe(stripe as never, () =>
+      ensurePrepaidDiscount(env, db, COMPANY_ID, bare()),
+    );
+
+    expect(stripe.updates).toHaveLength(1);
+    const items = stripe.updates[0].params.items as { discounts: unknown }[];
+    expect(items[0].discounts).toEqual([{ coupon: `${COUPON}_remainder_6` }]);
+    // And it minted the coupon it needed, because the net must not depend on
+    // somebody having re-run stripe-setup.
+    expect(stripe.created).toEqual([
+      expect.objectContaining({
+        id: `${COUPON}_remainder_6`,
+        percent_off: 100,
+        duration: "repeating",
+        duration_in_months: 6,
+      }),
+    ]);
+  });
+
+  it("reuses a remainder coupon that already exists", async () => {
+    const stripe = convergeStripe([`${COUPON}_remainder_6`]);
+    const db = dbWith(openYear());
+
+    await withStripe(stripe as never, () =>
+      ensurePrepaidDiscount(env, db, COMPANY_ID, bare()),
+    );
+
+    expect(stripe.created).toEqual([]);
+    expect(stripe.updates).toHaveLength(1);
+  });
+
+  it("running the pass twice does not extend anything", async () => {
+    // The acceptance criterion, tested the way it is written: run it twice. The
+    // second pass sees the coupon it just applied and stops.
+    const stripe = convergeStripe();
+    const db = dbWith(openYear());
+
+    await withStripe(stripe as never, () =>
+      ensurePrepaidDiscount(env, db, COMPANY_ID, bare()),
+    );
+    const applied = (stripe.updates[0].params.items as { discounts: unknown }[])[0]
+      .discounts as { coupon: string }[];
+
+    await withStripe(stripe as never, () =>
+      ensurePrepaidDiscount(env, db, COMPANY_ID, bare([{ coupon: { id: applied[0].coupon } }])),
+    );
+
+    expect(stripe.updates).toHaveLength(1);
+  });
+
+  it("leaves a year that is already covered alone, at ANY length", async () => {
+    const stripe = convergeStripe();
+    const db = dbWith(openYear());
+    for (const id of prepaidCouponIds(env)) {
+      await withStripe(stripe as never, () =>
+        ensurePrepaidDiscount(env, db, COMPANY_ID, bare([{ coupon: { id } }])),
+      );
+    }
+    expect(stripe.updates).toHaveLength(0);
+  });
+
+  it("NEVER re-asserts a revoked year — refund, chargeback or conversion", async () => {
+    // The most likely way to get this wrong, and the reason the gate reads the ROW.
+    // All three of those paths deliberately removed the coupon seconds ago;
+    // `open_prepayment` filters `revoked_at is null`, so it answers null and there
+    // is nothing here to put back. A convergence keyed on "the item has no prepaid
+    // discount" would hand the year straight back to a customer we just refunded.
+    const stripe = convergeStripe();
+    const db = dbWith(null);
+
+    await withStripe(stripe as never, () =>
+      ensurePrepaidDiscount(env, db, COMPANY_ID, bare()),
+    );
+
+    expect(stripe.updates).toHaveLength(0);
+    expect(stripe.created).toHaveLength(0);
+  });
+
+  it("leaves a window that has already run out alone", async () => {
+    const stripe = convergeStripe();
+    // Closes before the next invoice: nothing left to cover.
+    const db = dbWith(openYear("2026-08-15T00:00:00Z"));
+
+    await withStripe(stripe as never, () =>
+      ensurePrepaidDiscount(env, db, COMPANY_ID, bare()),
+    );
+
+    expect(stripe.updates).toHaveLength(0);
+  });
+
+  it("carries an unspent referral month through rather than deleting it", async () => {
+    // The discounts array is a REPLACE. Destroying a month somebody earned would be
+    // this function committing the exact class of harm it exists to repair.
+    const referral = env.STRIPE_REFERRAL_MONTH_COUPON_ID as string;
+    const stripe = convergeStripe();
+    const db = dbWith(openYear());
+
+    await withStripe(stripe as never, () =>
+      ensurePrepaidDiscount(env, db, COMPANY_ID, bare([{ coupon: { id: referral } }])),
+    );
+
+    const items = stripe.updates[0].params.items as { discounts: unknown }[];
+    expect(items[0].discounts).toEqual([
+      { coupon: referral },
+      { coupon: `${COUPON}_remainder_6` },
+    ]);
+  });
+
+  it("stays away from a schedule-managed or non-live subscription", async () => {
+    // The phases own the items while a schedule exists, and Stripe rejects item
+    // writes on a dead subscription. `change-plan` already carries discounts into
+    // the phases it writes.
+    const stripe = convergeStripe();
+    const db = dbWith(openYear());
+
+    await withStripe(stripe as never, () =>
+      ensurePrepaidDiscount(env, db, COMPANY_ID, bare([], { schedule: "sub_sched_1" })),
+    );
+    await withStripe(stripe as never, () =>
+      ensurePrepaidDiscount(env, db, COMPANY_ID, bare([], { status: "canceled" })),
+    );
+
+    expect(stripe.updates).toHaveLength(0);
+  });
+
+  it("never throws, because it rides a webhook", async () => {
+    // A convergence miss retries on the next mirror pass. Throwing would fail the
+    // event that carried it and retry work that is already correct.
+    const stripe = convergeStripe();
+    stripe.api.subscriptions.update = vi.fn(async () => {
+      throw new Error("Stripe is down");
+    });
+    const db = dbWith(openYear());
+
+    await expect(
+      withStripe(stripe as never, () =>
+        ensurePrepaidDiscount(env, db, COMPANY_ID, bare()),
+      ),
+    ).resolves.toBeUndefined();
   });
 });

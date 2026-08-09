@@ -406,6 +406,34 @@ try {
     console.log(`coupon ${PREPAID_COUPON_ID}: created`);
   }
 
+  // #584: eleven shorter versions of the same coupon, one per remaining month.
+  //
+  // A twelve-month coupon cannot be trimmed, and the convergence that puts a lost
+  // prepaid discount back has to size it to what is LEFT — re-applying twelve
+  // would restart the year, which is the defect the claim table was invented to
+  // prevent. Twelve months is the base coupon above, so only 1..11 are minted here.
+  //
+  // Deterministic ids derived from the base, so this is a ceiling of eleven
+  // objects however many customers there are, and re-running is a no-op. The
+  // convergence ALSO retrieves-or-creates at the point of use: the safety net must
+  // not depend on an operator having re-run this script.
+  for (let months = 1; months < 12; months += 1) {
+    const id = `${PREPAID_COUPON_ID}_remainder_${months}`;
+    try {
+      await stripe.coupons.retrieve(id);
+      console.log(`coupon ${id}: already exists`);
+    } catch {
+      await stripe.coupons.create({
+        id,
+        percent_off: 100,
+        duration: "repeating",
+        duration_in_months: months,
+        name: `Prepaid year — ${months} month${months === 1 ? "" : "s"} remaining`,
+      });
+      console.log(`coupon ${id}: created`);
+    }
+  }
+
   // #399: the free month a referral earns each side. `duration: once` — one
   // month off the licensed line, not a recurring discount.
   const REFERRAL_COUPON_ID = "loonext_referral_month";
