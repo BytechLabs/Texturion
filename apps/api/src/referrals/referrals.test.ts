@@ -342,9 +342,10 @@ describe("#399 rewardQualifiedReferral", () => {
 
   it("HOLDS the month while a prepaid year rides the same item, and leaves it unstamped", async () => {
     /**
-     * The write is `discounts: [{ coupon }]`, and an array write REPLACES — the
-     * same semantics `revokePrepaidYear` depends on when it clears with
-     * `discounts: []`. A prepaid year is a 100%-off/12-month coupon on this exact
+     * The write is `discounts: [{ coupon }]`, and a POPULATED array REPLACES.
+     * (An EMPTY one does not clear — it is ignored — which is why
+     * `clearItemDiscounts` sends the empty string.) A prepaid year is a
+     * 100%-off/12-month coupon on this exact
      * item, so paying the reward here DELETES it: the customer keeps being billed
      * the full plan price for months they already paid for, up to $790, while
      * `prepayments.granted_through` still records them as covered.

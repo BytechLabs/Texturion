@@ -46,6 +46,15 @@ final class ParityVectorsTests: XCTestCase {
         let initials: String
     }
 
+    private struct PrepaidCopyVector: Decodable {
+        let from_plan: String
+        let to_plan: String
+        let credit: String?
+        let heading: String
+        let explanation: String
+        let acknowledgement: String
+    }
+
     /// Walk UP to the repo root from this source file rather than counting
     /// directories. The test bundle's own resources would be a COPY of the
     /// vectors, which is a fourth place the cases live — the exact problem this
@@ -169,6 +178,30 @@ final class ParityVectorsTests: XCTestCase {
             XCTAssertEqual(
                 initialsOf(one.name), one.initials,
                 "initials for '\(one.name)'"
+            )
+        }
+    }
+
+    func testPrepaidYearPromiseAgreesWithTheTypeScript() throws {
+        // #583/D131: these sentences tell a customer their money is coming back, and
+        // they are asked to agree to the amount in them. Three clients say it. A word
+        // of drift here is a different promise on a different phone.
+        //
+        // The pair that matters most is the last: no figure from the server means
+        // promise no number. A client that interpolated a nil anyway would say "puts
+        // back on your account" — broken, and a promise about an amount nobody named.
+        let cases = try vectors("prepaid-conversion-copy.json", as: [PrepaidCopyVector].self)
+        XCTAssertFalse(cases.isEmpty, "no prepaid-conversion-copy vectors")
+        for one in cases {
+            let actual = prepaidConversionCopy(
+                from: one.from_plan, to: one.to_plan, credit: one.credit
+            )
+            let label = "\(one.from_plan)->\(one.to_plan) credit=\(one.credit ?? "nil")"
+            XCTAssertEqual(actual.heading, one.heading, "heading for \(label)")
+            XCTAssertEqual(actual.explanation, one.explanation, "explanation for \(label)")
+            XCTAssertEqual(
+                actual.acknowledgement, one.acknowledgement,
+                "acknowledgement for \(label)"
             )
         }
     }

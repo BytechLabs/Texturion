@@ -77,6 +77,17 @@ export interface PrepayOffer {
      */
     currency: BillingCurrency;
     granted_through: string;
+    /**
+     * #583 — what ending this year early would put back on the account.
+     *
+     * Both figures are in `currency` above (what was COLLECTED), which is not
+     * necessarily what this workspace bills in today. Null on a row written
+     * before this shipped.
+     */
+    conversion: {
+      consumed_months: number;
+      credit_cents: number;
+    } | null;
   } | null;
 }
 
@@ -607,11 +618,22 @@ export function useChangePlan() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (plan: PlanId) =>
+    /**
+     * #583: a plain plan id still works, and means "no prepaid year involved".
+     *
+     * The object form carries the acknowledgement. It is a separate flag rather
+     * than an inferred one because the server refuses without it BY DESIGN — a
+     * prepaid year is only ever ended by somebody who read the amount coming
+     * back, and a client that could opt in implicitly would defeat that.
+     */
+    mutationFn: (input: PlanId | { plan: PlanId; convertPrepaid: boolean }) =>
       apiFetch<ChangePlanResult>("/v1/billing/change-plan", {
         method: "POST",
         companyId,
-        body: { plan },
+        body:
+          typeof input === "string"
+            ? { plan: input }
+            : { plan: input.plan, convert_prepaid: input.convertPrepaid },
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({

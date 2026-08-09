@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,6 +17,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -33,6 +35,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +45,7 @@ import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.model.BillingModule
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.NumberStatus
+import com.loonext.android.core.model.OpenPrepaidYear
 import com.loonext.android.core.model.SubscriptionStatus
 import com.loonext.android.features.contacts.ContactMutations
 import com.loonext.android.ui.common.LoadState
@@ -1594,6 +1598,25 @@ private fun ChangePlanDialog(
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
 
+    /**
+     * #583 — a prepaid year running underneath this switch.
+     *
+     * Read here rather than with the screen: it costs a Stripe round trip on the
+     * server, and it only changes a decision at the moment somebody is about to make
+     * one. A failure leaves it null, which shows no panel and sends no consent — the
+     * server then refuses with the arithmetic in the message, which is the same
+     * answer this dialog would have given, arriving one tap later.
+     */
+    var prepaid by remember { mutableStateOf<OpenPrepaidYear?>(null) }
+    var endPrepaid by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        prepaid = try {
+            scope.repo.prepayOffer(scope.companyId).open
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     // Downgrade requirements from LIVE counts: numbers from the company view,
     // active members fetched fresh.
     var activeMembers by remember { mutableStateOf<Int?>(null) }
@@ -1628,7 +1651,8 @@ private fun ChangePlanDialog(
             "Starter is smaller, so your workspace has to fit it first."
         },
         confirmLabel = if (upgrading) "Upgrade now" else "Schedule the switch",
-        confirmEnabled = !downgradeBlocked,
+        // #583: and never while a prepaid year is running and unacknowledged.
+        confirmEnabled = !downgradeBlocked && (prepaid == null || endPrepaid),
         pending = pending,
         error = error,
         onDismiss = onDismiss,
@@ -1637,7 +1661,11 @@ private fun ChangePlanDialog(
             error = null
             coroutines.launch {
                 try {
-                    val result = scope.repo.changePlan(scope.companyId, targetPlan)
+                    val result = scope.repo.changePlan(
+                        scope.companyId,
+                        targetPlan,
+                        convertPrepaid = prepaid != null && endPrepaid,
+                    )
                     // #523: an upgrade is one of the two routes out of a hold,
                     // so the sentence names what the bigger allowance brought
                     // back rather than leaving the owner to go and look.
@@ -1650,10 +1678,16 @@ private fun ChangePlanDialog(
                 }
             }
         },
-        extraContent = if (upgrading) {
-            null
-        } else {
-            {
+        extraContent = {
+            // #583 first, because it is the thing that changes what the money does.
+            // Orthogonal to the direction of the switch, so it renders on both.
+            PrepaidYearPanel(
+                open = prepaid,
+                targetPlan = targetPlan,
+                acknowledged = endPrepaid,
+                onAcknowledgedChange = { endPrepaid = it },
+            )
+            if (!upgrading) {
                 val numbersLabel =
                     "$STARTER_NUMBERS phone number" + if (STARTER_NUMBERS == 1) "" else "s"
                 Spacer(Modifier.height(10.dp))
@@ -1686,6 +1720,86 @@ private fun ChangePlanDialog(
             }
         },
     )
+}
+
+/**
+ * #583 — what a plan switch does to a prepaid year, before it happens.
+ *
+ * The reader's actual question is one sentence: "I paid for a year, do I lose it?"
+ * Until this shipped the answer arrived as a refusal AFTER the tap, which is the
+ * worst possible order — a refusal reads as "you cannot", to the one customer who
+ * both can and wants to pay us more.
+ *
+ * Three facts and no more: what the year cost, how much is used, what comes back.
+ * Three is inside what somebody holds at once on a phone; a fourth would be
+ * arithmetic they did not ask for.
+ *
+ * IT SAYS CREDIT AND AN AMOUNT, NEVER MONTHS. Stripe spends a credit balance on the
+ * whole invoice, so a heavy month can consume it instead of the plan fee — "two
+ * months of Pro free" is a promise the mechanism cannot keep. D131 records why the
+ * design settles in money rather than months, and that is only honest if the words
+ * match on every client.
+ *
+ * The tick is deliberately not pre-set. Everywhere else this app fills a form in
+ * advance to save somebody work; here the tick IS the consent, and a consent already
+ * given is not one.
+ *
+ * Renders nothing for the workspaces with no prepaid year, which is almost all of
+ * them — a panel for a rare state must not become furniture on the common one.
+ */
+@Composable
+private fun ColumnScope.PrepaidYearPanel(
+    open: OpenPrepaidYear?,
+    targetPlan: String,
+    acknowledged: Boolean,
+    onAcknowledgedChange: (Boolean) -> Unit,
+) {
+    if (open == null) return
+    // The currency the year was COLLECTED in. Its own money, so no prefix — which is
+    // what `formatMoney` does when currency and audience agree. An unrecognised or
+    // absent value reads as USD, matching `billingCurrencyOf` on the server: a
+    // missing field must not stop the panel naming the amount.
+    val paid = billingCurrencyOrNull(open.currency) ?: BillingCurrency.USD
+    val credit = open.conversion?.let { formatMoney(it.credit_cents, paid) }
+    // The sentences are the promise, so they come from the shared rule rather than
+    // being typed out here — see `prepaidConversionCopy`.
+    val copy = prepaidConversionCopy(open.plan, targetPlan, credit)
+
+    Spacer(Modifier.height(10.dp))
+    Text(
+        copy.heading,
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.Medium,
+    )
+    Spacer(Modifier.height(4.dp))
+    Text(
+        "Paid up front: ${formatMoney(open.amount_cents, paid)}",
+        style = MaterialTheme.typography.bodySmall,
+    )
+    open.conversion?.let {
+        Text(
+            "Months used: ${it.consumed_months} of 12",
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+    if (credit != null) {
+        Text(
+            "Back on your account: $credit",
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+    Spacer(Modifier.height(6.dp))
+    Text(
+        copy.explanation,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Spacer(Modifier.height(6.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked = acknowledged, onCheckedChange = onAcknowledgedChange)
+        Text(copy.acknowledgement, style = MaterialTheme.typography.bodySmall)
+    }
 }
 
 @Composable

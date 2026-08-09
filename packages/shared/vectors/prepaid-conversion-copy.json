@@ -1,0 +1,66 @@
+[
+  {
+    "from_plan": "starter",
+    "to_plan": "pro",
+    "credit": "$217.50",
+    "heading": "You have a prepaid Starter year running.",
+    "explanation": "Switching ends the prepaid year and puts $217.50 back on your account as credit, which comes off your next invoices. You then pay the normal Pro monthly price.",
+    "acknowledgement": "End my prepaid year and credit me $217.50"
+  },
+  {
+    "from_plan": "pro",
+    "to_plan": "starter",
+    "credit": "$592.50",
+    "heading": "You have a prepaid Pro year running.",
+    "explanation": "Switching ends the prepaid year and puts $592.50 back on your account as credit, which comes off your next invoices. You then pay the normal Starter monthly price.",
+    "acknowledgement": "End my prepaid year and credit me $592.50"
+  },
+  {
+    "from_plan": "starter",
+    "to_plan": "pro",
+    "credit": "CA$298",
+    "heading": "You have a prepaid Starter year running.",
+    "explanation": "Switching ends the prepaid year and puts CA$298 back on your account as credit, which comes off your next invoices. You then pay the normal Pro monthly price.",
+    "acknowledgement": "End my prepaid year and credit me CA$298"
+  },
+  {
+    "from_plan": "pro",
+    "to_plan": "starter",
+    "credit": "US$1,090",
+    "heading": "You have a prepaid Pro year running.",
+    "explanation": "Switching ends the prepaid year and puts US$1,090 back on your account as credit, which comes off your next invoices. You then pay the normal Starter monthly price.",
+    "acknowledgement": "End my prepaid year and credit me US$1,090"
+  },
+  {
+    "from_plan": "starter",
+    "to_plan": "starter",
+    "credit": "$29",
+    "heading": "You have a prepaid Starter year running.",
+    "explanation": "Switching ends the prepaid year and puts $29 back on your account as credit, which comes off your next invoices. You then pay the normal Starter monthly price.",
+    "acknowledgement": "End my prepaid year and credit me $29"
+  },
+  {
+    "from_plan": "pro",
+    "to_plan": "pro",
+    "credit": "$79",
+    "heading": "You have a prepaid Pro year running.",
+    "explanation": "Switching ends the prepaid year and puts $79 back on your account as credit, which comes off your next invoices. You then pay the normal Pro monthly price.",
+    "acknowledgement": "End my prepaid year and credit me $79"
+  },
+  {
+    "from_plan": "starter",
+    "to_plan": "pro",
+    "credit": null,
+    "heading": "You have a prepaid Starter year running.",
+    "explanation": "Switching ends the prepaid year. You then pay the normal Pro monthly price.",
+    "acknowledgement": "End my prepaid year"
+  },
+  {
+    "from_plan": "pro",
+    "to_plan": "starter",
+    "credit": null,
+    "heading": "You have a prepaid Pro year running.",
+    "explanation": "Switching ends the prepaid year. You then pay the normal Starter monthly price.",
+    "acknowledgement": "End my prepaid year"
+  }
+]

@@ -28,6 +28,7 @@ import {
   isPrepayCheckout,
   itemHasDiscount,
   prepayEligibility,
+  revokePrepaidYear,
 } from "./prepay";
 
 const env = completeEnv();
@@ -572,5 +573,97 @@ describe("#400 amortisedMonthlyUsdCents", () => {
     expect(amortisedMonthlyUsdCents(cad, 2_900)).toBeLessThan(
       Math.round(cad.amount_cents / cad.months_granted),
     );
+  });
+});
+
+describe("#400 revokePrepaidYear — taking the coupon off actually takes it off", () => {
+  /**
+   * THE CLEAR VALUE IS THE EMPTY STRING, AND AN EMPTY ARRAY IS A NO-OP.
+   *
+   * This shipped as `discounts: []` and did nothing at all. Stripe's own words for
+   * the parameter: "If not specified **or empty array, it leaves the discounts
+   * unchanged**. If empty string, it clears them." The Node SDK's form encoder
+   * drops an empty array from the request body entirely, so `items[0][discounts]`
+   * never reached the wire — the call succeeded, returned a normal subscription,
+   * and changed nothing.
+   *
+   * What it cost: a refund or a won chargeback revoked the claim row and left the
+   * 100%-off coupon running, so the customer got up to eleven more free months ON
+   * TOP of the money we had just given back. D107 names that as the largest single
+   * loss any of these paths can produce, and it had been shipped in the one shape
+   * that looks exactly like the fix.
+   *
+   * Nothing here could have caught it, which is the other half of the lesson: the
+   * only assertion was on the params OBJECT, where `[]` reads as correct. The
+   * wire-level twin lives in routes/billing.test.ts, which decodes the real
+   * encoded body and asserts `items[0][discounts]` is present and empty.
+   */
+  function revokeDb() {
+    const calls: RpcCall[] = [];
+    return {
+      calls,
+      rpc: vi.fn(async (fn: string, args: Record<string, unknown>) => {
+        calls.push({ fn, args });
+        if (fn === "revoke_prepayment") {
+          return {
+            data: { outcome: "revoked", company_id: COMPANY_ID },
+            error: null,
+          };
+        }
+        return { data: null, error: null };
+      }),
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            limit: async () => ({
+              data: [{ stripe_subscription_id: "sub_1" }],
+              error: null,
+            }),
+          }),
+        }),
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+  }
+
+  it("clears with the empty STRING, which is the only value Stripe acts on", async () => {
+    const stub = stripeStub();
+    const db = revokeDb();
+
+    const result = await withStripe(stub, () =>
+      revokePrepaidYear(env, db, "cs_prepay_1", "refunded"),
+    );
+
+    expect(result.outcome).toBe("revoked");
+    expect(stub.updates).toHaveLength(1);
+    const items = stub.updates[0].params.items as {
+      id: string;
+      discounts: unknown;
+    }[];
+    expect(items).toHaveLength(1);
+    // The licensed line only. A subscription-level clear would also remove a
+    // referral month somebody earned.
+    expect(items[0].id).toBe("si_licensed");
+    expect(items[0].discounts).toBe("");
+    // Said explicitly, because `[]` is the mistake and it is not a distant one:
+    // it typechecks, it reads as "no discounts", and it is what was shipped.
+    expect(items[0].discounts).not.toEqual([]);
+  });
+
+  it("does nothing at Stripe when there was no year to revoke", async () => {
+    const stub = stripeStub();
+    const db = {
+      rpc: vi.fn(async () => ({ data: { outcome: "noop" }, error: null })),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    const result = await withStripe(stub, () =>
+      revokePrepaidYear(env, db, "cs_never_existed", "refunded"),
+    );
+
+    expect(result.outcome).toBe("noop");
+    // An ordinary refund on an ordinary subscription must not touch its discounts.
+    // Most refunds are exactly that, and a referral month lives on the same item.
+    expect(stub.updates).toHaveLength(0);
   });
 });

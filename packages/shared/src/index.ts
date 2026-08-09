@@ -905,6 +905,14 @@ export {
 // #582 — the two letters in an avatar, decided ONCE. They were computed five
 // separate times and the five disagreed, two of them on the same screen.
 export { avatarInitials } from "./avatar-initials";
+// #583/D131: the two sentences that promise a customer their money back. Ported
+// to Kotlin and Swift and held to the TypeScript by generated parity vectors,
+// because a promise typed out three times is a promise that drifts.
+export {
+  prepaidConversionCopy,
+  type PrepaidConversionCopy,
+  type PrepaidPlan,
+} from "./prepaid-conversion-copy";
 
 export {
   HANDOVER_CODE_DESTINATION,

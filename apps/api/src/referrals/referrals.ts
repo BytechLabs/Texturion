@@ -278,9 +278,10 @@ async function rewardSide(
   /**
    * A prepaid year is running, so the month is HELD rather than paid.
    *
-   * The write below sends `discounts: [{ coupon }]`, and that REPLACES the item's
-   * discount array — the same semantics `revokePrepaidYear` depends on when it
-   * clears with `discounts: []`. A prepaid year is a 100%-off/12-month coupon on
+   * The write below sends `discounts: [{ coupon }]`, and a POPULATED array REPLACES
+   * the item's discount array. (Not the same call `revokePrepaidYear` makes: an
+   * EMPTY array leaves discounts unchanged, so clearing takes the empty string —
+   * see `clearItemDiscounts`.) A prepaid year is a 100%-off/12-month coupon on
    * this exact item, so paying the reward here would delete it: the customer
    * keeps being billed the full plan price for months they already paid for,
    * while `prepayments.granted_through` still records them as covered. Up to

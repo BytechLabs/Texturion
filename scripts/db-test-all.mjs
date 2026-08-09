@@ -119,6 +119,7 @@ const SUITES = [
   "usage_events_channel",
   "signup_attribution",
   "billing_currency",
+  "prepayment_conversion",
   "retention_enforce",
   "storage_fleet",
   "aup_signals",

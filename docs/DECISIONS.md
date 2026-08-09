@@ -7756,3 +7756,102 @@ that can still ring.
 sweep, so no caller can revoke a session and forget; the HTTP delete lives in the
 route because SQL cannot make it. Member deactivation and workspace close reach the
 same RPC.
+
+## D131 — a prepaid year that ends early settles in money, not in months (#583, 2026-08-09)
+
+D107 chose a 100%-off coupon over customer credit to *deliver* a prepaid year, and
+the reason is exact: a credit is fungible dollars, so $290 of it funds ten $29
+invoices and month eleven charges the card. The promise being sold is "twelve
+months for the price of ten", and dollars cannot express a month.
+
+That reasoning is about the sell. It does not survive being carried into the case
+where a customer leaves the window early, and reading it as though it did is what
+left `change-plan` refusing an upgrade for up to eleven months.
+
+**The decision: a plan change inside a prepaid window revokes the coupon, credits
+the unconsumed value to the customer's Stripe balance in the currency we collected,
+and puts them on the ordinary price of the plan they asked for.**
+
+At conversion time there is no longer a term to promise. What is owed is the value
+of the months they paid for and will not take, and value is precisely what fungible
+dollars express — the property that disqualified credit for the sell is the one that
+qualifies it here.
+
+### What the four candidates in #583 each cost
+
+The issue framed the question as what to do with the remainder, because a prepaid
+Starter year converted to Pro in month three leaves $217.50, and Pro at $79 buys two
+whole months with $59.50 over.
+
+| Option | Why not |
+|---|---|
+| Round down, keep the difference | Takes $59.50 from somebody who prepaid, on a product whose pause and refund posture is otherwise generous |
+| Round down, invoice the balance of the month | Two Stripe writes where one can fail, and a proration line nobody asked for |
+| Two months at 100% plus one at 75.3% | Needs a *second* coupon swapped in at the right month — a scheduled write that can fail silently and destroy paid value, which is the exact hazard D107 requirement 2 exists for |
+| Refuse, and sell a fresh Pro year crediting the Starter remainder | Asks a customer who wanted to pay $79 more per month for $572.50 today |
+
+The remainder is not a rounding problem to be allocated. It is the wrong unit. In
+dollars there is no remainder: $217.50 of credit is $217.50 of service, to the cent,
+with no rounding, no schedule and no leftover.
+
+**Consequently the fourth option is also the answer to "what about a downgrade".**
+Options one through four each need a different rule per direction — #583 itself
+proposes one for upgrades and another for downgrades. Credit is symmetric: unconsumed
+value comes back, and what they do next is their choice.
+
+### The promise this makes, and the one it must not make
+
+The customer-facing sentence is **"$217.50 of your prepaid year is now credit on your
+account, and it comes off your next invoices"**. It is not "your next two months of
+Pro are free", and the difference is the whole of D107's objection surviving at a
+smaller scale: Stripe applies a credit balance to the *whole* invoice, so a heavy
+overage month can consume it instead of the plan fee.
+
+That is their money paying their bill, and it is fine — as long as nothing anywhere
+promises months. Every string on all three clients says credit and an amount.
+
+### Valuing the consumed months
+
+Consumed months are valued at the **amortised** rate — amount collected ÷ months
+granted — not at list price.
+
+The alternative is to claw the discount back for a commitment abandoned early: three
+months of Starter at $29 rather than at $24.17, leaving $203 instead of $217.50.
+Rejected twice over. It is a $14.50 punishment aimed at a customer who is trying to
+pay us more, which is the single most quotable thing a review could carry. And D107
+requirement 5 already amortises this row for revenue reporting, so a second, stricter
+amortisation would make one row mean two things.
+
+Rounding goes to the customer: the consumed value is floored, so any fraction of a
+cent stays in the credit.
+
+### Consent is a refusal that carries the arithmetic
+
+Converting changes what somebody is charged, so it never happens inside an ordinary
+plan-switch click. A change-plan request during a prepaid window is **refused**, and
+the refusal carries the numbers — consumed months, credit amount, currency, the new
+monthly price. The client renders those and the customer re-submits with an explicit
+acknowledgement. One endpoint, no stored intent, and no path that converts without a
+person having read the figure.
+
+That is also why the refusal D107 requirement 4 asked for does not go away. It
+becomes the first half of a two-step, rather than the end of the road.
+
+### Ordering, and which failure we choose
+
+The claim row is written first, in one transaction, closing the entitlement and
+recording the credit that is owed. Then the coupon comes off. Then the credit is
+issued and stamped.
+
+Every ordering has a bad transient state and this one picks the recoverable one. A
+failure after the row leaves a customer at full price who is owed a recorded amount —
+detectable, repairable, and swept. The reverse ordering would leave a live 100%-off
+coupon with the entitlement already closed, which is free service that nothing is
+looking for. Over-charging by an amount we have written down beats giving away
+service we have not.
+
+### What would change this
+
+Stripe shipping a partial-duration coupon, or a way to express "N months and a
+fraction" as one object. The remainder problem is an artefact of coupons being whole
+months.

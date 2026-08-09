@@ -771,6 +771,15 @@ private struct ChangePlanSheet: View {
     // active members fetched fresh.
     @State private var activeMembers: Int?
     @State private var membersFailed = false
+    /// #583 — a prepaid year running underneath this switch.
+    ///
+    /// Read here rather than with the screen: it costs a Stripe round trip on the
+    /// server, and it only changes a decision at the moment somebody is about to
+    /// make one. A failure leaves it nil, which shows no panel and sends no consent
+    /// — the server then refuses with the arithmetic in the message, the same answer
+    /// this sheet would have given, one tap later.
+    @State private var prepaid: OpenPrepaidYear?
+    @State private var endPrepaid = false
 
     private var upgrading: Bool { company.plan != "pro" }
     private var targetPlan: String { upgrading ? "pro" : "starter" }
@@ -802,10 +811,12 @@ private struct ChangePlanSheet: View {
             confirmLabel: upgrading ? "Upgrade now" : "Schedule the switch",
             pending: pending,
             error: error,
-            confirmEnabled: !downgradeBlocked,
+            // #583: and never while a prepaid year is running and unacknowledged.
+            confirmEnabled: !downgradeBlocked && (prepaid == nil || endPrepaid),
             onConfirm: { change() },
             onDismiss: { onDismiss() }
         ) {
+            prepaidYearPanel
             if !upgrading {
                 VStack(alignment: .leading, spacing: 6) {
                     Spacer().frame(height: 10)
@@ -837,6 +848,61 @@ private struct ChangePlanSheet: View {
                 }
             }
         }
+        .task {
+            prepaid = try? await scope.repo.prepayOffer(scope.companyId).open
+        }
+    }
+
+    /// #583 — what this switch does to a prepaid year, before it happens.
+    ///
+    /// The reader's actual question is one sentence: "I paid for a year, do I lose
+    /// it?" Until this shipped the answer arrived as a refusal AFTER the tap, which
+    /// is the worst possible order — a refusal reads as "you cannot", to the one
+    /// customer who both can and wants to pay us more.
+    ///
+    /// Three facts and no more: what the year cost, how much is used, what comes
+    /// back. Three is what somebody holds at once on a phone; a fourth would be
+    /// arithmetic they did not ask for. The sentences come from the shared rule, so
+    /// the promise is the same one web and Android make.
+    ///
+    /// The toggle is deliberately off. Everywhere else this app fills a form in
+    /// advance to save work; here the tick IS the consent, and a consent already
+    /// given is not one.
+    ///
+    /// Renders nothing for the workspaces with no prepaid year, which is almost all
+    /// of them — a panel for a rare state must not become furniture on the common
+    /// one.
+    @ViewBuilder
+    private var prepaidYearPanel: some View {
+        if let prepaid {
+            // The currency the year was COLLECTED in, printed as its own money.
+            let paid = BillingCurrency(rawValue: prepaid.currency) ?? .usd
+            let credit = prepaid.conversion.map {
+                formatMoneyIn($0.credit_cents, paid, audience: paid)
+            }
+            let copy = prepaidConversionCopy(
+                from: prepaid.plan, to: targetPlan, credit: credit
+            )
+            VStack(alignment: .leading, spacing: 6) {
+                Spacer().frame(height: 10)
+                Text(copy.heading).font(.subheadline.weight(.medium))
+                Text("Paid up front: \(formatMoneyIn(prepaid.amount_cents, paid, audience: paid))")
+                    .font(.footnote)
+                if let conversion = prepaid.conversion {
+                    Text("Months used: \(conversion.consumed_months) of 12")
+                        .font(.footnote)
+                    if let credit {
+                        Text("Back on your account: \(credit)")
+                            .font(.footnote.weight(.medium))
+                    }
+                }
+                Text(copy.explanation)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Toggle(copy.acknowledgement, isOn: $endPrepaid)
+                    .font(.footnote)
+            }
+        }
     }
 
     private var checklistMembersLine: String {
@@ -852,7 +918,11 @@ private struct ChangePlanSheet: View {
         error = nil
         Task {
             do {
-                let result = try await scope.repo.changePlan(scope.companyId, plan: targetPlan)
+                let result = try await scope.repo.changePlan(
+                    scope.companyId,
+                    plan: targetPlan,
+                    convertPrepaid: prepaid != nil && endPrepaid
+                )
                 // #523: through the shared copy, because an upgrade now has a
                 // second effect — the bigger allowance can bring held numbers
                 // back — and the sentence has to read it off the RESPONSE

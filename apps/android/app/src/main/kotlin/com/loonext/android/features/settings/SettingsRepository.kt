@@ -8,6 +8,7 @@ import com.loonext.android.core.model.ChangePlanResult
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.HeldNumbers
 import com.loonext.android.core.model.HostedUrl
+import com.loonext.android.core.model.PrepayOffer
 import com.loonext.android.core.model.Invite
 import com.loonext.android.core.model.ReinstateResult
 import com.loonext.android.core.model.Member
@@ -706,10 +707,35 @@ class SettingsRepository(
             companyId = companyId,
         )
 
-    suspend fun changePlan(companyId: String, plan: String): ChangePlanResult =
+    /**
+     * #583 — is a prepaid year running, and what would ending it pay back?
+     *
+     * Read only where it changes a decision: the change-plan confirmation. It costs
+     * a Stripe round trip server-side, so it is never part of loading the settings
+     * screen.
+     */
+    suspend fun prepayOffer(companyId: String): PrepayOffer =
+        api.get("/v1/billing/prepay", companyId = companyId)
+
+    /**
+     * @param convertPrepaid #583: "yes, end my prepaid year and credit me the rest".
+     *
+     * Sent only when a year is actually running AND somebody ticked the box. The
+     * server refuses the switch without it by design — a prepaid year is only ever
+     * ended by a person who read the amount coming back — so a client that set this
+     * unconditionally would be asserting consent nobody was asked for.
+     */
+    suspend fun changePlan(
+        companyId: String,
+        plan: String,
+        convertPrepaid: Boolean = false,
+    ): ChangePlanResult =
         api.post(
             "/v1/billing/change-plan",
-            buildJsonObject { put("plan", plan) },
+            buildJsonObject {
+                put("plan", plan)
+                if (convertPrepaid) put("convert_prepaid", true)
+            },
             companyId = companyId,
         )
 

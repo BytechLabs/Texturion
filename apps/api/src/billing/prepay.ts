@@ -624,6 +624,46 @@ async function subscriptionIdFor(
 }
 
 /**
+ * The item write that takes an item-level discount OFF.
+ *
+ * # An empty array does not clear a discount. It is ignored.
+ *
+ * Both call sites used `discounts: []` and both were silently doing nothing.
+ * Stripe's own words for this parameter: "A populated array overwrites the
+ * existing discounts. If not specified **or empty array, it leaves the discounts
+ * unchanged**. If empty string, it clears them."
+ *
+ * The Node SDK's form encoder makes it invisible. An empty array is dropped from
+ * the request body entirely — `items[0][discounts]` never appears on the wire, so
+ * the call succeeds, returns a normal subscription, and changes nothing. The empty
+ * STRING encodes as `items[0][discounts]=`, which is the clear.
+ *
+ * What that cost, before this: a refund or a won chargeback revoked the claim row
+ * and left the 100%-off coupon running, delivering up to eleven more free months
+ * ON TOP of money we had just given back. D107 names that as the largest single
+ * loss any of these paths can produce, and it had been shipped in the one shape
+ * that looks exactly like the fix.
+ *
+ * So there is one function rather than an idiom, and it is the only place in this
+ * codebase that spells the clear value.
+ */
+function clearItemDiscounts(
+  stripe: Stripe,
+  subscriptionId: string,
+  itemId: string,
+): Promise<Stripe.Subscription> {
+  return stripe.subscriptions.update(subscriptionId, {
+    items: [
+      {
+        id: itemId,
+        // "" is the clear. [] is a no-op. See above — this is not a style choice.
+        discounts: "",
+      } as Stripe.SubscriptionUpdateParams.Item,
+    ],
+  });
+}
+
+/**
  * Take the year back when the money goes back.
  *
  * A refund or a won chargeback that left the discount running would deliver ten
@@ -651,13 +691,188 @@ export async function revokePrepaidYear(
   const licensed = licensedItemOf(env, subscription);
   if (!licensed) return { outcome: "revoked" };
 
-  // An empty discounts array clears item-level discounts.
-  await stripe.subscriptions.update(subscriptionId, {
-    items: [
-      { id: licensed.id, discounts: [] } as Stripe.SubscriptionUpdateParams.Item,
-    ],
-  });
+  await clearItemDiscounts(stripe, subscriptionId, licensed.id);
   return { outcome: "revoked" };
+}
+
+/** What a conversion would pay back. Every figure is in `currency`. */
+export interface ConversionPreview {
+  session_id: string;
+  plan: PlanId;
+  currency: string;
+  amount_cents: number;
+  months_granted: number;
+  granted_through: string;
+  consumed_months: number;
+  credit_cents: number;
+}
+
+export interface ConversionResult {
+  outcome: "converted" | "noop";
+  /** In `currency`. Zero when the year was fully consumed. */
+  credit_cents: number;
+  currency: string;
+  consumed_months: number;
+  months_granted: number;
+  plan: PlanId | null;
+  /** False when the credit was recorded but Stripe did not take it (see below). */
+  credited: boolean;
+}
+
+/**
+ * What a conversion would pay back, without doing it. Null when there is nothing
+ * open to convert.
+ *
+ * #583/D131. The consent step is a refusal that quotes a figure, and the customer
+ * agrees to THAT figure — so this reads the same amortisation the conversion writes,
+ * from the same place. Two expressions of one rule is how they drift, and here the
+ * drift is money.
+ */
+export async function conversionPreview(
+  db: SupabaseClient,
+  companyId: string,
+): Promise<ConversionPreview | null> {
+  const { data, error } = await db.rpc("prepayment_conversion_preview", {
+    p_company_id: companyId,
+  });
+  if (error) {
+    throw new Error(`prepayment_conversion_preview failed: ${error.message}`);
+  }
+  return (data as ConversionPreview | null) ?? null;
+}
+
+/**
+ * End a prepaid year early, and pay the rest back. #583/D131.
+ *
+ * `change-plan` refused outright until now, which closed a real money hole and left
+ * a crew that outgrows Starter in month three unable to buy Pro for nine months.
+ * This is the other half: revoke the coupon, credit the unconsumed value to the
+ * customer's Stripe balance, and let the caller reprice the item normally.
+ *
+ * # Why credit, when D107 rejected credit
+ *
+ * D107 rejected it for DELIVERING a year: $290 of credit funds ten $29 invoices, so
+ * month eleven charges the card and the two free months never exist. Dollars cannot
+ * promise a term. At conversion there is no term left to promise — what is owed is
+ * the value of months the customer will not take, and value is exactly what dollars
+ * are. Re-granting a smaller coupon instead leaves a remainder ($217.50 of Starter
+ * buys two whole months of Pro and $59.50 over) and every way of placing that
+ * remainder is worse than not having one. D131 has the full comparison.
+ *
+ * # The order, and which failure it chooses
+ *
+ *   1. the row, in one transaction: the window closes and the amount owed is
+ *      recorded together, so they cannot disagree;
+ *   2. the coupon comes off;
+ *   3. the credit moves, and is stamped.
+ *
+ * A failure after (1) leaves a customer at full price who is owed a written-down
+ * amount — recoverable, and `prepayments_awaiting_credit` finds it. The reverse
+ * ordering would leave a live 100%-off coupon with the entitlement already closed,
+ * which is free service nothing is looking for. Over-charging by an amount we
+ * recorded beats giving away service we did not.
+ *
+ * Both Stripe calls carry idempotency keys derived from the prepayment id, so a
+ * retried request cannot credit twice even before the `credited_at` guard is
+ * reached.
+ */
+export async function convertPrepaidYear(
+  env: Env,
+  db: SupabaseClient,
+  company: { id: string; stripe_customer_id: string | null },
+  toPlan: PlanId,
+): Promise<ConversionResult> {
+  const { data, error } = await db.rpc("convert_prepayment", {
+    p_company_id: company.id,
+    p_to_plan: toPlan,
+  });
+  if (error) throw new Error(`convert_prepayment failed: ${error.message}`);
+
+  const row = data as {
+    outcome?: string;
+    prepayment_id?: string;
+    plan?: PlanId;
+    currency?: string;
+    credit_cents?: number;
+    consumed_months?: number;
+    months_granted?: number;
+  } | null;
+
+  if (row?.outcome !== "converted" || !row.prepayment_id) {
+    return {
+      outcome: "noop",
+      credit_cents: 0,
+      currency: "usd",
+      consumed_months: 0,
+      months_granted: 0,
+      plan: null,
+      credited: false,
+    };
+  }
+
+  const creditCents = row.credit_cents ?? 0;
+  const currency = row.currency ?? "usd";
+  const result: ConversionResult = {
+    outcome: "converted",
+    credit_cents: creditCents,
+    currency,
+    consumed_months: row.consumed_months ?? 0,
+    months_granted: row.months_granted ?? 0,
+    plan: row.plan ?? null,
+    credited: false,
+  };
+
+  // (2) The coupon comes off. Same call shape as `revokePrepaidYear` — an empty
+  // discounts array is what clears an item-level discount — and it must happen
+  // before the caller repoints the price, or the 100%-off would land on the new plan.
+  const subscriptionId = await subscriptionIdFor(db, company.id);
+  if (subscriptionId) {
+    const stripe = getStripe(env);
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const licensed = licensedItemOf(env, subscription);
+    if (licensed) {
+      await clearItemDiscounts(stripe, subscriptionId, licensed.id);
+    }
+  }
+
+  // (3) The money. Zero is not an error and is not worth a Stripe call: a year
+  // consumed to the last month owes nothing, and asking Stripe to move $0 would
+  // either fail or leave a meaningless transaction on the customer's statement.
+  if (creditCents <= 0) return result;
+  if (!company.stripe_customer_id) {
+    // Nothing to credit against. Left for the sweep rather than thrown: the
+    // entitlement is already closed, and throwing here would 500 a plan change
+    // that has otherwise succeeded.
+    console.error(
+      `[prepay] converted prepayment ${row.prepayment_id} owes ${creditCents} ` +
+        `${currency} but company ${company.id} has no Stripe customer.`,
+    );
+    return result;
+  }
+
+  const stripe = getStripe(env);
+  // NEGATIVE is a credit. Stripe's own words: "A negative value is a credit for the
+  // customer's balance, and a positive value is a debit." Getting this backwards
+  // would BILL the customer the value of their own prepaid year.
+  const txn = await stripe.customers.createBalanceTransaction(
+    company.stripe_customer_id,
+    {
+      amount: -creditCents,
+      currency,
+      description: `Unused portion of a prepaid ${row.plan} year, credited on switching to ${toPlan}.`,
+      metadata: { loonext_prepayment_id: row.prepayment_id },
+    },
+    { idempotencyKey: `prepay-credit:${row.prepayment_id}` },
+  );
+
+  const { error: stampError } = await db.rpc("stamp_prepayment_credit", {
+    p_prepayment_id: row.prepayment_id,
+    p_txn: txn.id,
+  });
+  if (stampError) {
+    throw new Error(`stamp_prepayment_credit failed: ${stampError.message}`);
+  }
+  return { ...result, credited: true };
 }
 
 /**

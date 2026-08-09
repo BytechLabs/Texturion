@@ -3,6 +3,7 @@ package com.loonext.android.core.model
 import com.loonext.android.features.compose.Nanp
 import com.loonext.android.features.compose.SmsEncoding
 import com.loonext.android.features.compose.estimateSegments
+import com.loonext.android.features.settings.prepaidConversionCopy
 import com.loonext.android.ui.common.initialsOf
 import java.io.File
 import kotlinx.serialization.Serializable
@@ -182,6 +183,44 @@ class ParityVectorsTest {
             // The label names the INPUT, so a failure says which name diverged rather
             // than which line of a JSON file.
             assertEquals("initials for '${case.name}'", case.initials, initialsOf(case.name))
+        }
+    }
+
+    @Serializable
+    private data class PrepaidCopyVector(
+        val from_plan: String,
+        val to_plan: String,
+        val credit: String? = null,
+        val heading: String,
+        val explanation: String,
+        val acknowledgement: String,
+    )
+
+    @Test
+    fun `the prepaid-year promise agrees with the TypeScript`() {
+        // #583/D131: these sentences tell a customer their money is coming back, and
+        // they are asked to tick a box agreeing to the amount in them. Three clients
+        // say it. A word of drift here is a different promise on a different phone.
+        //
+        // The one that would matter most is the LAST case pair: no figure from the
+        // server means promise no number. A client that interpolated a null anyway
+        // would say "puts  back on your account", which is both broken and a
+        // promise about an amount nobody named.
+        val cases =
+            json.decodeFromString<List<PrepaidCopyVector>>(
+                vectors("prepaid-conversion-copy.json"),
+            )
+        assertTrue("no prepaid-conversion-copy vectors", cases.isNotEmpty())
+        for (case in cases) {
+            val actual = prepaidConversionCopy(case.from_plan, case.to_plan, case.credit)
+            val label = "${case.from_plan}->${case.to_plan} credit=${case.credit}"
+            assertEquals("heading for $label", case.heading, actual.heading)
+            assertEquals("explanation for $label", case.explanation, actual.explanation)
+            assertEquals(
+                "acknowledgement for $label",
+                case.acknowledgement,
+                actual.acknowledgement,
+            )
         }
     }
 }

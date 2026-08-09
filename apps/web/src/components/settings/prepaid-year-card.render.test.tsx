@@ -106,6 +106,10 @@ describe("#522 PrepaidYearCard figures", () => {
         amount_cents: 28_900,
         currency: "usd",
         granted_through: "2027-03-04T00:00:00.000Z",
+        // #583: this card states the date and no amount, so the conversion
+        // figures are irrelevant to it — present because the shape requires it,
+        // and null because a row written before #583 has none.
+        conversion: null,
       },
     });
     expect(html).toContain("covered until");

@@ -405,3 +405,35 @@ struct UsageDelivery: Codable, Sendable {
 enum DefaultOtherCountry: DefaultCodableProvider {
     static var defaultValue: String { "other" }
 }
+
+/// #583 — a prepaid year, as far as this client needs it.
+///
+/// The phones do not SELL a year (that lives on web, where an up-front payment
+/// belongs), so this is deliberately not the whole `GET /v1/billing/prepay` shape.
+/// What a phone needs is the half that changes what a plan switch does: a year is
+/// running, and this much of it comes back if you end it.
+///
+/// EVERY FIGURE IS IN `currency`, which is what was COLLECTED — a year bought
+/// before the CAD option was filed is genuinely USD even on a workspace billed in
+/// CAD today, and printing it in the current currency would relabel somebody's
+/// payment.
+///
+/// Optional everywhere, because this decodes a response written by a newer or older
+/// server than the app: an absent `conversion` means the panel says the year ends
+/// and quotes no amount, rather than failing to decode at all.
+struct PrepaidConversion: Decodable, Sendable, Equatable {
+    var consumed_months: Int = 0
+    var credit_cents: Int = 0
+}
+
+struct OpenPrepaidYear: Decodable, Sendable, Equatable {
+    var plan: String = "starter"
+    var amount_cents: Int = 0
+    var currency: String = "usd"
+    var granted_through: String?
+    var conversion: PrepaidConversion?
+}
+
+struct PrepayOffer: Decodable, Sendable, Equatable {
+    var open: OpenPrepaidYear?
+}

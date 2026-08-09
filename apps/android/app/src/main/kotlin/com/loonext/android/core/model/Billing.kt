@@ -6,6 +6,43 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class HostedUrl(val url: String)
 
+/**
+ * #583 — a prepaid year, as far as this client needs it.
+ *
+ * The phones do not SELL a year (that lives on web, where the up-front payment
+ * belongs), so this is deliberately not the whole `GET /v1/billing/prepay` shape.
+ * What a phone needs is the half that changes what a plan switch does: a year is
+ * running, and this much of it comes back if you end it.
+ *
+ * EVERY FIGURE IS IN `currency`, which is what was COLLECTED — a year bought before
+ * the CAD option was filed is genuinely USD even on a workspace billed in CAD today.
+ * Printing it in the workspace's current currency would relabel somebody's payment.
+ *
+ * Defaults everywhere, because this decodes a response written by a newer or older
+ * server than the app: an absent `conversion` reads as "no figure to show" and the
+ * panel says the year ends without quoting an amount, rather than crashing.
+ */
+@Serializable
+data class PrepaidConversion(
+    val consumed_months: Int = 0,
+    val credit_cents: Int = 0,
+)
+
+@Serializable
+data class OpenPrepaidYear(
+    val plan: String = "starter",
+    val amount_cents: Int = 0,
+    val currency: String = "usd",
+    val granted_through: String? = null,
+    val conversion: PrepaidConversion? = null,
+)
+
+@Serializable
+data class PrepayOffer(
+    val open: OpenPrepaidYear? = null,
+)
+
+
 @Serializable
 data class UsageMonth(val month: String, val segments: Long)
 

@@ -839,6 +839,63 @@ fun formatMoney(
 }
 
 // ---------------------------------------------------------------------------
+// #583 / D131 — the two sentences that promise a customer their money back
+// ---------------------------------------------------------------------------
+
+/**
+ * Hand-port of `prepaidConversionCopy` in
+ * packages/shared/src/prepaid-conversion-copy.ts, held to it by
+ * `ParityVectorsTest`.
+ *
+ * A plan change inside a prepaid window ends the year and credits the unconsumed
+ * value back, and three clients ask for that consent. What they say is not
+ * decoration — it is the promise — so it is composed once in the shared package and
+ * the ports are checked against generated cases.
+ *
+ * IT SAYS CREDIT AND AN AMOUNT, NEVER MONTHS OF FREE SERVICE. Stripe spends a
+ * credit balance on the whole invoice, so a heavy month can consume it and leave
+ * the plan fee on the card anyway; "two months of Pro free" is a promise the
+ * mechanism cannot keep. That is the same promise D107 rejected customer credit for
+ * making at the other end of this feature.
+ *
+ * @param credit already formatted for this reader by [formatMoney], or null when the
+ *   server sent no figure. Null promises no number, which is the only honest thing
+ *   to say without one.
+ */
+data class PrepaidConversionCopy(
+    val heading: String,
+    val explanation: String,
+    val acknowledgement: String,
+)
+
+fun prepaidConversionCopy(
+    fromPlan: String,
+    toPlan: String,
+    credit: String?,
+): PrepaidConversionCopy {
+    val heading = "You have a prepaid ${prepaidPlanLabel(fromPlan)} year running."
+    val target = prepaidPlanLabel(toPlan)
+    if (credit == null) {
+        return PrepaidConversionCopy(
+            heading = heading,
+            explanation = "Switching ends the prepaid year. You then pay the normal " +
+                "$target monthly price.",
+            acknowledgement = "End my prepaid year",
+        )
+    }
+    return PrepaidConversionCopy(
+        heading = heading,
+        explanation = "Switching ends the prepaid year and puts $credit back on your " +
+            "account as credit, which comes off your next invoices. You then pay the " +
+            "normal $target monthly price.",
+        acknowledgement = "End my prepaid year and credit me $credit",
+    )
+}
+
+private fun prepaidPlanLabel(plan: String): String =
+    if (plan == "pro") "Pro" else "Starter"
+
+// ---------------------------------------------------------------------------
 // #523 — the extra-number price book
 // ---------------------------------------------------------------------------
 

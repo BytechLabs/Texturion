@@ -1258,14 +1258,22 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
   });
 
   /**
-   * D107 requirement 4 — a plan change during a prepaid year is a branch that
-   * refuses, not a default that shrugs.
+   * D107 requirement 4 — a plan change during a prepaid year is a branch, never a
+   * default. #583/D131 gave that branch its second half: it CONVERTS.
    *
-   * The prepaid year is a 100%-off/12-month coupon on the LICENSED item, and
-   * both plan branches rewrite that item's price. Stripe carries an item's
-   * discounts across a price-only update, so the swap re-points a live 100%-off
-   * coupon at whatever price it lands on. Each of these asserts Stripe was never
-   * WRITTEN, because a half-done swap is the thing there is no way to unwind.
+   * The prepaid year is a 100%-off/12-month coupon on the LICENSED item, and both
+   * plan branches rewrite that item's price. Stripe carries an item's discounts
+   * across a price-only update, so an unguarded swap re-points a live 100%-off
+   * coupon at whatever price it lands on — a free Pro year for a Starter price.
+   *
+   * So there are now two things to hold, and they pull in opposite directions:
+   *
+   *   - WITHOUT `convert_prepaid`, nothing may be written. The refusal is a
+   *     consent step, and a consent step that has already moved the money is not
+   *     one. These tests assert Stripe was never called at all.
+   *   - WITH it, the coupon must come OFF BEFORE the price is repointed, the
+   *     unconsumed value must reach the customer's balance as a NEGATIVE amount,
+   *     and it must be stamped so a retry cannot pay it twice.
    */
   const prepaidYear = (plan: "starter" | "pro" = "starter") => ({
     session_id: "cs_prepay_1",
@@ -1278,14 +1286,67 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     discount_id: "di_prepaid",
   });
 
-  it("UPGRADE is refused while a prepaid year is running — the free-Pro-year path", async () => {
-    // The money: $290 of prepaid Starter becomes twelve months of Pro worth
-    // $948, from two ordinary API calls, repeatable per workspace. Nothing
-    // detects it afterwards either — the cost model reads the claim row, so the
-    // tenant keeps reporting $24/mo of revenue it is not collecting.
+  /**
+   * What the conversion would pay back. The figures are the worked example from
+   * #583 — $290 of Starter, three months in — so the credit below is readable
+   * against the issue rather than being an arbitrary number.
+   */
+  const conversionPreviewRow = (overrides: Record<string, unknown> = {}) => ({
+    session_id: "cs_prepay_1",
+    plan: "starter",
+    currency: "usd",
+    amount_cents: 29000,
+    months_granted: 12,
+    granted_through: "2027-03-01T00:00:00.000Z",
+    consumed_months: 3,
+    credit_cents: 21750,
+    ...overrides,
+  });
+
+  const previewEndpoint = (row: unknown = conversionPreviewRow()) =>
+    endpoint("POST", /\/rest\/v1\/rpc\/prepayment_conversion_preview/, () => row);
+
+  /** `convert_prepayment` answering that it closed the window. */
+  const convertEndpoint = (overrides: Record<string, unknown> = {}) =>
+    endpoint("POST", /\/rest\/v1\/rpc\/convert_prepayment/, () => ({
+      outcome: "converted",
+      prepayment_id: "11111111-1111-4111-8111-111111111111",
+      session_id: "cs_prepay_1",
+      plan: "starter",
+      currency: "usd",
+      amount_cents: 29000,
+      months_granted: 12,
+      consumed_months: 3,
+      credit_cents: 21750,
+      credited_at: null,
+      discount_id: "di_prepaid",
+      ...overrides,
+    }));
+
+  const stampEndpoint = () =>
+    endpoint("POST", /\/rest\/v1\/rpc\/stamp_prepayment_credit/, () => null);
+
+  const balanceEndpoint = () =>
+    endpoint("POST", /customers\/cus_1\/balance_transactions/, () => ({
+      id: "cbtxn_1",
+      object: "customer_balance_transaction",
+      amount: -21750,
+      currency: "usd",
+    }));
+
+  it("UPGRADE without consent is refused, and the refusal quotes the credit", async () => {
+    // The money this guards: $290 of prepaid Starter becoming twelve months of
+    // Pro worth $948, from two ordinary API calls, repeatable per workspace.
+    // Nothing detects it afterwards either — the cost model reads the claim row,
+    // so the tenant keeps reporting $24/mo of revenue it is not collecting.
+    //
+    // #583: the refusal is now an OFFER. It has to name the figure, because the
+    // customer is being asked to accept that figure and re-submit; a 409 saying
+    // only "get in touch" is what left an upgrade waiting up to eleven months.
     const harness = makeHarness([
       companyEndpoint(activeStarter()),
       endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => prepaidYear()),
+      previewEndpoint(),
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
         subscriptionFixture(),
       ),
@@ -1294,9 +1355,15 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     expect(response.status).toBe(409);
     const body = (await response.json()) as { error: { code: string; message: string } };
     expect(body.error.code).toBe("conflict");
-    // Names the date, so "wait" is an instruction rather than a shrug.
+    // Names the date, so "wait" is an instruction rather than a shrug...
     expect(body.error.message).toMatch(/2027-03-01/);
+    // ...and names the money, so confirming is an informed act.
+    expect(body.error.message).toMatch(/\$217\.50/);
+    expect(body.error.message).toMatch(/credit/i);
+    // NOTHING was written. A consent step that already moved the money is not one.
     expect(harness.callsTo("POST", /subscriptions\/sub_1/)).toHaveLength(0);
+    expect(harness.callsTo("POST", /balance_transactions/)).toHaveLength(0);
+    expect(harness.callsTo("POST", /rpc\/convert_prepayment/)).toHaveLength(0);
   });
 
   it("DOWNGRADE is refused too — the same defect pointed at the customer", async () => {
@@ -1307,6 +1374,9 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     const harness = makeHarness([
       companyEndpoint(activePro()),
       endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => prepaidYear("pro")),
+      previewEndpoint(
+        conversionPreviewRow({ plan: "pro", amount_cents: 79000, credit_cents: 59250 }),
+      ),
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
         proSubscription(),
       ),
@@ -1319,6 +1389,7 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     expect(response.status).toBe(409);
     expect(harness.callsTo("POST", /subscription_schedules/)).toHaveLength(0);
     expect(harness.callsTo("POST", /subscriptions\/sub_1/)).toHaveLength(0);
+    expect(harness.callsTo("POST", /balance_transactions/)).toHaveLength(0);
   });
 
   it("refused on the ORPHANED coupon too, where there is no row to find", async () => {
@@ -1340,6 +1411,204 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     expect(((await response.json()) as { error: { message: string } }).error.message)
       .toMatch(/prepaid year/i);
     expect(harness.callsTo("POST", /subscriptions\/sub_1/)).toHaveLength(0);
+  });
+
+  it("UPGRADE with consent converts: coupon off, $217.50 credited, then the swap", async () => {
+    // #583/D131, the whole feature in one path. A crew prepaid a Starter year and
+    // outgrew Starter in month three; they are owed the nine months they will not
+    // take, and they want to pay us more today.
+    const harness = makeHarness([
+      companyEndpoint(activeStarter()),
+      endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => prepaidYear()),
+      previewEndpoint(),
+      convertEndpoint(),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      balanceEndpoint(),
+      stampEndpoint(),
+      endpoint("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        proSubscription(),
+      ),
+      allowanceRpc(),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+    ]);
+
+    const response = await post(
+      "/v1/billing/change-plan",
+      { plan: "pro", convert_prepaid: true },
+      harness,
+    );
+    expect(response.status).toBe(200);
+
+    // The credit. NEGATIVE is the direction that gives money to the customer —
+    // Stripe's own words are "a negative value is a credit for the customer's
+    // balance, and a positive value is a debit". Positive here would BILL them the
+    // value of the year they already paid for, which is the worst single defect
+    // this path could ship.
+    const credits = harness.callsTo("POST", /customers\/cus_1\/balance_transactions/);
+    expect(credits).toHaveLength(1);
+    expect(credits[0].form().get("amount")).toBe("-21750");
+    expect(credits[0].form().get("currency")).toBe("usd");
+
+    // The coupon came off, and it came off BEFORE the price moved. Stripe carries
+    // discounts across a price-only update, so the reverse order lands a live
+    // 100%-off coupon on the Pro price — the exact defect the refusal existed for.
+    const writes = harness.callsTo("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/);
+    expect(writes.length).toBeGreaterThanOrEqual(2);
+    expect(writes[0].form().get("items[0][discounts]")).toBe("");
+    expect(writes[writes.length - 1].form().get("items[0][price]")).toBe(
+      env.STRIPE_PRO_PRICE_ID,
+    );
+
+    // And it is recorded as paid, so the sweep does not pay it again.
+    expect(harness.callsTo("POST", /rpc\/stamp_prepayment_credit/)).toHaveLength(1);
+  });
+
+  it("DOWNGRADE with consent converts the same way", async () => {
+    // Symmetry is the point of settling in money rather than months (D131): a Pro
+    // year abandoned in month three leaves $592.50, which is more months of Starter
+    // than they originally bought. That is their money paying their bill, and it
+    // needs no second rule.
+    const harness = makeHarness([
+      companyEndpoint(activePro()),
+      endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => prepaidYear("pro")),
+      previewEndpoint(
+        conversionPreviewRow({ plan: "pro", amount_cents: 79000, credit_cents: 59250 }),
+      ),
+      convertEndpoint({ plan: "pro", amount_cents: 79000, credit_cents: 59250 }),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        proSubscription(),
+      ),
+      endpoint("POST", /customers\/cus_1\/balance_transactions/, () => ({
+        id: "cbtxn_2",
+        amount: -59250,
+        currency: "usd",
+      })),
+      stampEndpoint(),
+      // The conversion clears the coupon with an item write, which a downgrade on
+      // its own never makes — the schedule owns the items from here.
+      endpoint("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        proSubscription(),
+      ),
+      endpoint("HEAD", /\/rest\/v1\/phone_numbers/, () => countResponse(1)),
+      endpoint("HEAD", /\/rest\/v1\/company_members/, () => countResponse(3)),
+      endpoint("POST", /api\.stripe\.com\/v1\/subscription_schedules$/, () => ({
+        id: "sub_sched_1",
+        object: "subscription_schedule",
+        current_phase: { start_date: PERIOD_START, end_date: PERIOD_END },
+        phases: [{ start_date: PERIOD_START, end_date: PERIOD_END }],
+      })),
+      endpoint(
+        "POST",
+        /api\.stripe\.com\/v1\/subscription_schedules\/sub_sched_1/,
+        () => ({ id: "sub_sched_1", object: "subscription_schedule" }),
+      ),
+    ]);
+
+    const response = await post(
+      "/v1/billing/change-plan",
+      { plan: "starter", convert_prepaid: true },
+      harness,
+    );
+    expect(response.status).toBe(200);
+    const credits = harness.callsTo("POST", /customers\/cus_1\/balance_transactions/);
+    expect(credits).toHaveLength(1);
+    expect(credits[0].form().get("amount")).toBe("-59250");
+  });
+
+  it("credits nothing when the year is fully consumed, rather than moving $0", async () => {
+    // The last month of a window. Asking Stripe to move zero either fails or leaves
+    // a meaningless line on the customer's statement, and neither is worth a call.
+    const harness = makeHarness([
+      companyEndpoint(activeStarter()),
+      endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => prepaidYear()),
+      previewEndpoint(conversionPreviewRow({ consumed_months: 12, credit_cents: 0 })),
+      convertEndpoint({ consumed_months: 12, credit_cents: 0 }),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        proSubscription(),
+      ),
+      allowanceRpc(),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+    ]);
+
+    const response = await post(
+      "/v1/billing/change-plan",
+      { plan: "pro", convert_prepaid: true },
+      harness,
+    );
+    expect(response.status).toBe(200);
+    expect(harness.callsTo("POST", /balance_transactions/)).toHaveLength(0);
+    // The coupon still comes off — a spent coupon left on an upgraded item is the
+    // same free-Pro-year defect, worth $0 of credit or not.
+    expect(
+      harness
+        .callsTo("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/)[0]
+        .form()
+        .get("items[0][discounts]"),
+    ).toBe("");
+  });
+
+  it("refuses when the prepaid currency is not the one this workspace bills in", async () => {
+    // Stripe holds a credit balance PER CURRENCY, so a CAD credit on a workspace
+    // now billed in USD would sit on the account unspendable. The customer would be
+    // switched, charged in full, and told they had credit they cannot use. Only a
+    // person can settle that, so it says so and keeps the year intact.
+    const harness = makeHarness([
+      companyEndpoint(activeStarter()),
+      endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => prepaidYear()),
+      previewEndpoint(conversionPreviewRow({ currency: "cad" })),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+    ]);
+
+    const response = await post(
+      "/v1/billing/change-plan",
+      { plan: "pro", convert_prepaid: true },
+      harness,
+    );
+    expect(response.status).toBe(409);
+    const message = ((await response.json()) as { error: { message: string } }).error
+      .message;
+    expect(message).toMatch(/CAD/);
+    expect(message).toMatch(/won't lose it/i);
+    // The year is untouched: nothing converted, nothing credited, no price moved.
+    expect(harness.callsTo("POST", /rpc\/convert_prepayment/)).toHaveLength(0);
+    expect(harness.callsTo("POST", /balance_transactions/)).toHaveLength(0);
+    expect(harness.callsTo("POST", /subscriptions\/sub_1/)).toHaveLength(0);
+  });
+
+  it("a replay after the window closed credits nothing a second time", async () => {
+    // The state the second identical request meets: the window is closed, so
+    // `open_prepayment` answers null and the conversion branch never runs. The
+    // row-level half of this — that `convert_prepayment` itself cannot convert a
+    // converted row, nor recompute the amount against a later now() — is pinned in
+    // supabase/tests/prepayment_conversion.test.sql (PC-5).
+    const harness = makeHarness([
+      companyEndpoint(activeStarter()),
+      endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => null),
+      endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        subscriptionFixture(),
+      ),
+      endpoint("POST", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
+        proSubscription(),
+      ),
+      allowanceRpc(),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+    ]);
+
+    const response = await post(
+      "/v1/billing/change-plan",
+      { plan: "pro", convert_prepaid: true },
+      harness,
+    );
+    expect(response.status).toBe(200);
+    expect(harness.callsTo("POST", /rpc\/convert_prepayment/)).toHaveLength(0);
+    expect(harness.callsTo("POST", /balance_transactions/)).toHaveLength(0);
   });
 
   it("downgrade is blocked (409) while members exceed the Starter seats", async () => {

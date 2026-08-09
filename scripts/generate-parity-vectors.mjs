@@ -83,6 +83,7 @@ import { estimateSegments } from "../packages/shared/src/segments.ts";
 import { isUsCaDestination, lookupAreaCode } from "../packages/shared/src/nanp.ts";
 import { explainRejection } from "../packages/shared/src/rejection-guidance.ts";
 import { avatarInitials } from "../packages/shared/src/avatar-initials.ts";
+import { prepaidConversionCopy } from "../packages/shared/src/prepaid-conversion-copy.ts";
 
 const OUT_DIR = join("packages", "shared", "vectors");
 
@@ -272,6 +273,39 @@ const AVATAR_INITIALS_INPUTS = [
   "ana rojas",
 ];
 
+/**
+ * #583/D131 — every plan pairing, with and without a figure.
+ *
+ * The pairings are the whole space (two plans, either direction, plus the
+ * same-plan cases the route refuses but the copy must still compose), and the
+ * amount is passed pre-formatted so a client's own money formatting is not
+ * retested here — it has its own vectors.
+ *
+ * The null case is the one worth having: a row written before the conversion
+ * columns existed sends no figure, and the sentences must then promise no number
+ * rather than an empty one. "puts  back on your account" shipped once in a
+ * neighbouring feature for exactly this reason.
+ */
+const PREPAID_COPY_INPUTS = [
+  ["starter", "pro", "$217.50"],
+  ["pro", "starter", "$592.50"],
+  ["starter", "pro", "CA$298"],
+  ["pro", "starter", "US$1,090"],
+  ["starter", "starter", "$29"],
+  ["pro", "pro", "$79"],
+  ["starter", "pro", null],
+  ["pro", "starter", null],
+];
+
+function prepaidConversionCopyVectors() {
+  return PREPAID_COPY_INPUTS.map(([fromPlan, toPlan, credit]) => ({
+    from_plan: fromPlan,
+    to_plan: toPlan,
+    credit,
+    ...prepaidConversionCopy(fromPlan, toPlan, credit),
+  }));
+}
+
 function avatarInitialsVectors() {
   return AVATAR_INITIALS_INPUTS.map((name) => ({
     name,
@@ -284,6 +318,7 @@ const FILES = {
   "nanp.json": nanpVectors,
   "rejections.json": rejectionVectors,
   "avatar-initials.json": avatarInitialsVectors,
+  "prepaid-conversion-copy.json": prepaidConversionCopyVectors,
 };
 
 const check = process.argv.includes("--check");

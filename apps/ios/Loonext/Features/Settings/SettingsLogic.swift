@@ -2750,3 +2750,55 @@ func releaseNumberMessage(heldOverAllowance: Bool) -> String {
         + "or what you pay — a number is included, so you can set up a new one here "
         + "afterward. Type the number to confirm."
 }
+
+// MARK: - #583 / D131 — the two sentences that promise a customer their money back
+
+/// Hand-port of `prepaidConversionCopy` in
+/// packages/shared/src/prepaid-conversion-copy.ts, held to it by `ParityVectorsTests`.
+///
+/// A plan change inside a prepaid window ends the year and credits the unconsumed
+/// value back, and three clients ask for that consent. What they say is not
+/// decoration — it is the promise — so it is composed once in the shared package and
+/// the ports are checked against generated cases.
+///
+/// IT SAYS CREDIT AND AN AMOUNT, NEVER MONTHS OF FREE SERVICE. Stripe spends a credit
+/// balance on the whole invoice, so a heavy month can consume it and leave the plan
+/// fee on the card anyway; "two months of Pro free" is a promise the mechanism cannot
+/// keep, and it is the same promise D107 rejected customer credit for making at the
+/// other end of this feature.
+struct PrepaidConversionCopy: Equatable, Sendable {
+    let heading: String
+    let explanation: String
+    let acknowledgement: String
+}
+
+private func prepaidPlanLabel(_ plan: String) -> String {
+    plan == "pro" ? "Pro" : "Starter"
+}
+
+/// - Parameter credit: already formatted for this reader by `formatMoneyIn`, or nil
+///   when the server sent no figure. Nil promises no number, which is the only
+///   honest thing to say without one.
+func prepaidConversionCopy(
+    from fromPlan: String,
+    to toPlan: String,
+    credit: String?
+) -> PrepaidConversionCopy {
+    let heading = "You have a prepaid \(prepaidPlanLabel(fromPlan)) year running."
+    let target = prepaidPlanLabel(toPlan)
+    guard let credit else {
+        return PrepaidConversionCopy(
+            heading: heading,
+            explanation: "Switching ends the prepaid year. You then pay the normal "
+                + "\(target) monthly price.",
+            acknowledgement: "End my prepaid year"
+        )
+    }
+    return PrepaidConversionCopy(
+        heading: heading,
+        explanation: "Switching ends the prepaid year and puts \(credit) back on your "
+            + "account as credit, which comes off your next invoices. You then pay the "
+            + "normal \(target) monthly price.",
+        acknowledgement: "End my prepaid year and credit me \(credit)"
+    )
+}

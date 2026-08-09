@@ -793,10 +793,29 @@ struct SettingsRepository: Sendable {
         )
     }
 
-    func changePlan(_ companyId: String, plan: String) async throws -> ChangePlanResult {
-        try await api.post(
+    /// #583 — is a prepaid year running, and what would ending it pay back?
+    ///
+    /// Read only where it changes a decision: the change-plan confirmation. It costs
+    /// a Stripe round trip server-side, so it is never part of loading Settings.
+    func prepayOffer(_ companyId: String) async throws -> PrepayOffer {
+        try await api.get("/v1/billing/prepay", companyId: companyId)
+    }
+
+    /// - Parameter convertPrepaid: #583 — "yes, end my prepaid year and credit me
+    ///   the rest". Sent only when a year is running AND somebody ticked the box.
+    ///   The server refuses the switch without it by design, because a prepaid year
+    ///   is only ever ended by a person who read the amount coming back; a client
+    ///   that set this unconditionally would assert consent nobody was asked for.
+    func changePlan(
+        _ companyId: String,
+        plan: String,
+        convertPrepaid: Bool = false
+    ) async throws -> ChangePlanResult {
+        var body: [String: JSONValue] = ["plan": .string(plan)]
+        if convertPrepaid { body["convert_prepaid"] = .bool(true) }
+        return try await api.post(
             "/v1/billing/change-plan",
-            body: JSONValue.object(["plan": .string(plan)]),
+            body: JSONValue.object(body),
             companyId: companyId
         )
     }

@@ -1,5 +1,5 @@
 import { checkoutCurrency } from "../billing/checkout-currency";
-import { billingCurrencyOf, PLAN_PRICE_CENTS } from "@loonext/shared";
+import { billingCurrencyOf, formatMoney, PLAN_PRICE_CENTS } from "@loonext/shared";
 import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
@@ -43,6 +43,8 @@ import {
 } from "../billing/number-allowance";
 import { cartSignature, idempotencyKey } from "../billing/idempotency";
 import {
+  conversionPreview,
+  convertPrepaidYear,
   openPrepayment,
   PREPAY_METADATA_FIELD,
   PREPAY_METADATA_KIND,
@@ -93,6 +95,15 @@ const planBodySchema = z.object({
   // ≤64-char strings is generous and rejects an abusive payload with a clean 422
   // (the handler materializes this into a Set + two filter passes).
   modules: z.array(z.string().max(64)).max(20).optional(),
+  /**
+   * #583/D131 — "yes, end my prepaid year and credit me the rest".
+   *
+   * Only `change-plan` reads it, and only when a prepaid window is open. Absent is
+   * the safe value: the request is refused with the arithmetic, the client shows it,
+   * and the customer comes back with this set. Nobody's prepaid year is converted by
+   * a click that did not say so.
+   */
+  convert_prepaid: z.boolean().optional(),
 });
 
 const moduleBodySchema = z.object({
@@ -873,9 +884,10 @@ billingRoutes.post("/change-plan", async (c) => {
    *
    * A prepaid year is a 100%-off/12-month coupon riding the LICENSED item, and
    * both plan branches below rewrite that item's price. Stripe carries an item's
-   * discounts across a price-only update untouched — the same semantics
-   * `prepaidCouponPending` is built on and that `revokePrepaidYear` relies on
-   * when it clears with `discounts: []`. So without this gate:
+   * discounts across a price-only update untouched — the semantics
+   * `prepaidCouponPending` is built on. (Removing one is a separate write with a
+   * separate value: an empty array is a no-op, so the clear is the empty string —
+   * see `clearItemDiscounts`.) So without this gate:
    *
    *   - UPGRADING re-points a live 100%-off coupon at the Pro price. Two clicks
    *     turn $290 of prepaid Starter into a year of Pro worth $948, repeatable
@@ -886,13 +898,19 @@ billingRoutes.post("/change-plan", async (c) => {
    *     outcome equally unacceptable, which is why the gate sits above the
    *     branch rather than inside the upgrade arm.
    *
-   * Refused rather than converted, and the refusal is the honest half of the
-   * "converts or refuses" D107 offers. Converting means revoking the coupon,
-   * valuing the unused months from the claim row and re-granting sized to what
-   * remains at the new price — real money arithmetic that changes what the
-   * customer is charged, so it needs their consent and its own review, not a
-   * silent recalculation inside a plan-switch click. Same reasoning as the
-   * paused-workspace refusal above: where only the customer can settle it, ask.
+   * #583/D131 — IT NOW CONVERTS, and the refusal became the first half of a
+   * two-step rather than the end of the road. Converting revokes the coupon,
+   * credits the unconsumed value to the customer's Stripe balance in the currency
+   * we collected, and lets the branches below reprice normally. Settling in money
+   * rather than in months is what makes the remainder problem disappear: $217.50 of
+   * remaining Starter buys two whole months of Pro and $59.50 over, and every way of
+   * placing that leftover is worse than not having one.
+   *
+   * It still never happens on an unqualified click. A request with no
+   * `convert_prepaid` is refused WITH THE ARITHMETIC — consumed months, the credit,
+   * the currency — the client renders it, and the customer comes back having read
+   * the figure. Same reasoning as the paused-workspace refusal above: where only the
+   * customer can settle it, ask.
    *
    * Ordered exactly as `pauseEligibility` orders it — the row first because the
    * row is the record, then the coupon as the backstop for the one case where
@@ -900,14 +918,42 @@ billingRoutes.post("/change-plan", async (c) => {
    */
   const openPrepaid = await openPrepayment(db, company.id);
   if (openPrepaid) {
-    return errorResponse(
-      c,
-      "conflict",
-      `You have already paid for a year of ${openPrepaid.plan}, and it runs until ` +
-        `${openPrepaid.granted_through.slice(0, 10)}. Switching plans now would ` +
-        `move those paid months onto a different price. Get in touch and we'll ` +
-        `work out the difference with you.`,
-    );
+    const preview = await conversionPreview(db, company.id);
+    if (!parsed.data.convert_prepaid) {
+      // The refusal carries the numbers the customer is being asked to accept. It
+      // reads as an offer rather than a wall, which is the point — the previous
+      // version of this sentence sent them to support for up to eleven months.
+      const credit = preview
+        ? formatMoney(preview.credit_cents, billingCurrencyOf(preview.currency))
+        : null;
+      return errorResponse(
+        c,
+        "conflict",
+        `You have already paid for a year of ${openPrepaid.plan}, and it runs until ` +
+          `${openPrepaid.granted_through.slice(0, 10)}. Switching to ${target} ends ` +
+          (credit
+            ? `that year and puts ${credit} of it back on your account as credit, ` +
+              `which comes off your next invoices. Confirm and we'll switch you over.`
+            : `that year. Confirm and we'll switch you over.`),
+      );
+    }
+    // A credit is held per currency in Stripe, so one issued in a currency this
+    // subscription does not bill in would sit on the account unusable — the
+    // customer would be switched, charged in full, and told they had credit they
+    // could not spend. Refused instead, because only a human can settle it.
+    const collected = preview ? billingCurrencyOf(preview.currency) : null;
+    const billed = billingCurrencyOf(company.billing_currency);
+    if (preview && preview.credit_cents > 0 && collected !== billed) {
+      return errorResponse(
+        c,
+        "conflict",
+        `Your prepaid year was paid in ${(collected ?? "usd").toUpperCase()} and ` +
+          `this workspace is now billed in ${billed.toUpperCase()}, so we can't put ` +
+          `the unused part back as credit automatically. Get in touch and we'll ` +
+          `sort it out with you — you won't lose it.`,
+      );
+    }
+    await convertPrepaidYear(env, db, company, target);
   }
   if (prepaidCouponPending(env, subscription)) {
     return errorResponse(
@@ -1172,6 +1218,18 @@ billingRoutes.get("/prepay", async (c) => {
     );
   }
   const eligibility = await prepayEligibility(env, db, company, subscription);
+  /**
+   * #583/D131 — what ending this year early would pay back.
+   *
+   * Published on the OPEN WINDOW rather than as its own endpoint, because it is a
+   * fact about that window and it has to be printed in the currency stated beside
+   * it. The change-plan dialog reads it to show the figure BEFORE the customer
+   * clicks; `change-plan` recomputes it from the same function when they confirm,
+   * so nothing here can become the number that was actually paid.
+   */
+  const conversion = eligibility.open
+    ? await conversionPreview(db, company.id)
+    : null;
 
   return c.json({
     eligible: eligibility.eligible,
@@ -1201,6 +1259,15 @@ billingRoutes.get("/prepay", async (c) => {
           // currency here would relabel somebody's past payment.
           currency: billingCurrencyOf(eligibility.open.currency),
           granted_through: eligibility.open.granted_through,
+          // #583: both figures are in `currency` above — what was COLLECTED, not
+          // what this workspace bills in today. Null when the row predates the
+          // conversion columns or the window closed between the two reads.
+          conversion: conversion
+            ? {
+                consumed_months: conversion.consumed_months,
+                credit_cents: conversion.credit_cents,
+              }
+            : null,
         }
       : null,
   });

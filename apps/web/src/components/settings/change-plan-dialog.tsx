@@ -4,6 +4,7 @@ import {
   billingCurrencyOf,
   formatMoney,
   PLAN_PRICE_CENTS,
+  prepaidConversionCopy,
 } from "@loonext/shared";
 import { Check, X } from "lucide-react";
 import Link from "next/link";
@@ -21,10 +22,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useChangePlan } from "@/lib/api/billing";
+import { useChangePlan, usePrepayOffer, type PrepayOffer } from "@/lib/api/billing";
 import { ApiError } from "@/lib/api/error";
 import { useMembers } from "@/lib/api/team";
-import { PLAN_PRICING, type CompanyView } from "@/lib/api/types";
+import { PLAN_PRICING, type CompanyView, type PlanId } from "@/lib/api/types";
 import { formatPhone } from "@/lib/format/phone";
 
 /** SPEC §2 Starter limits — what a downgrade must fit into. Derived from the
@@ -178,6 +179,92 @@ export function upgradeToast(
   return `You're on Pro, and ${reinstated.length} numbers are back.`;
 }
 
+
+/**
+ * #583 — what happens to a prepaid year when the plan changes underneath it.
+ *
+ * The reader's actual fear is one sentence: "I paid for a year, do I lose it?"
+ * Until now the answer arrived as a 409 after they pressed the button, which is
+ * the worst possible order — a refusal reads as "you cannot", and this customer
+ * both can and wants to pay us more.
+ *
+ * So the money is stated BEFORE the act, in three facts and no more: what the year
+ * cost, how much of it is used, and what comes back. Three items is inside what a
+ * reader holds at once; a fourth would be arithmetic they did not ask for.
+ *
+ * IT SAYS CREDIT, AND NEVER MONTHS. Stripe applies a credit balance to the whole
+ * invoice, so a heavy overage month can consume it instead of the plan fee. "Two
+ * months of Pro free" would be a promise we cannot keep; "$217.50 of credit, and it
+ * comes off your next invoices" is exactly true. D131 records why the whole design
+ * settles in money rather than months.
+ *
+ * The acknowledgement is deliberately NOT pre-ticked. Everywhere else in this
+ * product a form arrives pre-filled to save the reader work — here the tick IS the
+ * consent, and a consent that was already given is not one.
+ *
+ * Renders for nobody who has not prepaid, which is almost everybody. Same rule this
+ * file already applies to reinstated numbers in `upgradeToast`: a panel for a rare
+ * state must not become furniture on the common one.
+ */
+function PrepaidYearNotice({
+  open,
+  target,
+  acknowledged,
+  onAcknowledgedChange,
+}: {
+  open: NonNullable<PrepayOffer["open"]>;
+  target: PlanId;
+  acknowledged: boolean;
+  onAcknowledgedChange: (next: boolean) => void;
+}) {
+  // The currency the year was COLLECTED in, which is what any figure drawn from
+  // this row must be printed in — a year bought before the CAD option was filed is
+  // genuinely USD even on a workspace that bills CAD today.
+  const paid = billingCurrencyOf(open.currency);
+  const credit = open.conversion
+    ? formatMoney(open.conversion.credit_cents, paid)
+    : null;
+  const used = open.conversion?.consumed_months ?? null;
+  // The sentences are the promise, so they come from the shared rule rather than
+  // being typed out here — Kotlin and Swift read the same one, held to it by
+  // generated parity vectors.
+  const copy = prepaidConversionCopy(open.plan, target, credit);
+
+  return (
+    <div className="space-y-3 rounded-lg border border-warning/40 bg-warning/5 p-4">
+      <p className="text-sm font-medium">{copy.heading}</p>
+      <dl className="space-y-1.5 text-sm">
+        <div className="flex justify-between gap-4">
+          <dt className="text-muted-foreground">Paid up front</dt>
+          <dd className="tabular-nums">{formatMoney(open.amount_cents, paid)}</dd>
+        </div>
+        {used !== null && (
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted-foreground">Months used</dt>
+            <dd className="tabular-nums">{used} of 12</dd>
+          </div>
+        )}
+        {credit && (
+          <div className="flex justify-between gap-4 font-medium">
+            <dt>Back on your account</dt>
+            <dd className="tabular-nums">{credit}</dd>
+          </div>
+        )}
+      </dl>
+      <p className="text-sm text-muted-foreground">{copy.explanation}</p>
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={acknowledged}
+          onChange={(event) => onAcknowledgedChange(event.target.checked)}
+          className="mt-0.5 size-4 shrink-0 rounded border-input accent-primary"
+        />
+        <span>{copy.acknowledgement}</span>
+      </label>
+    </div>
+  );
+}
+
 /**
  * Change-plan dialog (G8 Billing, SPEC §9): upgrade is immediate with a
  * proration note; downgrade lists exactly what must be released and blocks
@@ -190,6 +277,15 @@ export function ChangePlanDialog({ company }: { company: CompanyView }) {
   // Downgrades stay blocked until the seat/number check confirms they fit.
   const [blocked, setBlocked] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // #583: ticked only by the reader, and only when a prepaid year is running.
+  const [endPrepaid, setEndPrepaid] = useState(false);
+  /**
+   * Fetched only while the dialog is open, which is the boundary this hook's own
+   * docblock asks for — answering it costs a Stripe round trip server-side, and
+   * the billing page already polls enough.
+   */
+  const prepay = usePrepayOffer(open);
+  const prepaidYear = prepay.data?.open ?? null;
 
   const target = company.plan === "pro" ? "starter" : "pro";
   const upgrading = target === "pro";
@@ -202,7 +298,12 @@ export function ChangePlanDialog({ company }: { company: CompanyView }) {
   const targetPrice = formatMoney(PLAN_PRICE_CENTS[currency][target], currency);
 
   function reset(next: boolean) {
-    if (!next) setError(null);
+    if (!next) {
+      setError(null);
+      // Closing the dialog withdraws the consent. Re-opening it must ask again
+      // rather than remembering a tick from a conversation the reader abandoned.
+      setEndPrepaid(false);
+    }
     setOpen(next);
   }
 
@@ -238,6 +339,15 @@ export function ChangePlanDialog({ company }: { company: CompanyView }) {
           <DowngradeBody company={company} onBlockedChange={setBlocked} />
         )}
 
+        {prepaidYear && (
+          <PrepaidYearNotice
+            open={prepaidYear}
+            target={target}
+            acknowledged={endPrepaid}
+            onAcknowledgedChange={setEndPrepaid}
+          />
+        )}
+
         {error && (
           <p role="alert" className="text-sm text-destructive">
             {error}
@@ -249,10 +359,17 @@ export function ChangePlanDialog({ company }: { company: CompanyView }) {
             Never mind
           </Button>
           <Button
-            disabled={changePlan.isPending || (!upgrading && blocked)}
+            disabled={
+              changePlan.isPending ||
+              (!upgrading && blocked) ||
+              // #583: a prepaid year is never ended by a click that did not say
+              // so. The server refuses without the flag anyway; disabling here is
+              // what makes the refusal unreachable rather than a surprise.
+              (prepaidYear !== null && !endPrepaid)
+            }
             onClick={() => {
               setError(null);
-              changePlan.mutate(target, {
+              changePlan.mutate({ plan: target, convertPrepaid: endPrepaid }, {
                 onSuccess: (result) => {
                   reset(false);
                   toast.success(
