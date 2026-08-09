@@ -60,20 +60,23 @@ final class HandoverFunnelRunTests: XCTestCase {
             self.route = route
         }
 
-        var seen: [Seen] {
-            lock.lock()
-            defer { lock.unlock() }
-            return recorded
-        }
+        /// `withLock` at both sites, not `lock()`/`unlock()`.
+        ///
+        /// Those two are `@available(*, noasync)` — holding a lock across a suspension
+        /// point is a deadlock waiting to happen, so Swift refuses them in an async
+        /// function outright. `data(for:)` is async, and CI said so: "instance method
+        /// 'lock' is unavailable from asynchronous contexts". The scoped form cannot span
+        /// an `await` by construction, which is why it is allowed and why it is right.
+        var seen: [Seen] { lock.withLock { recorded } }
 
         func data(for request: URLRequest) async throws -> (Data, URLResponse) {
             let path = request.url?.path ?? ""
             let bytes = request.httpBody ?? Data()
             let body = String(data: bytes, encoding: .utf8) ?? ""
             let bearer = request.value(forHTTPHeaderField: "Authorization") ?? ""
-            lock.lock()
-            recorded.append(Seen(path: path, body: body, bearer: bearer))
-            lock.unlock()
+            lock.withLock {
+                recorded.append(Seen(path: path, body: body, bearer: bearer))
+            }
             let (status, payload) = route(path, bearer)
             let response = HTTPURLResponse(
                 url: request.url ?? URL(string: "https://example.invalid")!,
