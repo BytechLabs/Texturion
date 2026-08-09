@@ -87,6 +87,28 @@ function parseFilename(disposition: string | null): string {
 }
 
 /** Trigger a browser download of a Blob (no-op outside the browser). */
+/**
+ * A CSV the browser will hand to a spreadsheet, with the byte-order mark. #587.
+ *
+ * Excel on Windows opens a BOM-less CSV in the system ANSI codepage rather than
+ * UTF-8, so `Zoë Fournier` arrives as `ZoÃ« Fournier`. The API decides this once
+ * in `routes/core/csv.ts`; this is the same decision for the CSVs the browser
+ * builds itself, which the server never sees.
+ *
+ * ONLY FOR DOWNLOADS. A CSV assembled to be POSTed back to our own import
+ * endpoint — the phone-picker door — deliberately does not come through here:
+ * our parser strips the mark anyway, and adding one to a payload no human opens
+ * would be cargo cult.
+ */
+export function csvDownloadBlob(csv: string): Blob {
+  // The mark as a character, not bytes: `Blob` encodes its string parts as
+  // UTF-8 and does not strip a leading U+FEFF (measured, same as the Worker's
+  // Response). Stripping first keeps it idempotent if a caller ever hands over
+  // text that already carries one.
+  const body = csv.startsWith("﻿") ? csv.slice(1) : csv;
+  return new Blob(["﻿", body], { type: "text/csv;charset=utf-8" });
+}
+
 export function triggerBlobDownload(blob: Blob, filename: string): void {
   if (typeof document === "undefined") return;
   const objectUrl = URL.createObjectURL(blob);

@@ -32,14 +32,6 @@ private struct ImportRefusal: Identifiable {
 
 /// The exported CSV bytes. The server emits a UTF-8 BOM so Excel round-trips
 /// accents; re-attach it defensively in case a transport layer stripped it.
-private func contactsCsvExportData(_ text: String) -> Data {
-    var data = Data([0xEF, 0xBB, 0xBF])
-    var body = text
-    if body.hasPrefix("\u{FEFF}") { body.removeFirst() }
-    data.append(Data(body.utf8))
-    return data
-}
-
 /// Stage the CSV as `contacts.csv` in a unique temp folder so the share sheet
 /// offers a well-named file (AirDrop, Messages, Mail, Save to Files).
 private func stageCsvForSharing(_ text: String) throws -> URL {
@@ -47,7 +39,7 @@ private func stageCsvForSharing(_ text: String) throws -> URL {
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     let url = folder.appendingPathComponent("contacts.csv")
-    try contactsCsvExportData(text).write(to: url)
+    try csvExportData(text).write(to: url)
     return url
 }
 

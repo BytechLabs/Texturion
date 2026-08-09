@@ -164,7 +164,18 @@ for (const file of sources(ROOT)) {
   if (!MENTIONS_CSV.test(source)) continue;
 
   const imported = sharedImports(source);
-  const serializes = imported.has("serializeCsv") && /\bserializeCsv\(/.test(source);
+  /**
+   * #587 widened this from `serializeCsv` to the three doors into the shared
+   * module. Producers now call `csvBytes` (a stored file) or `csvResponse` (a
+   * download); both call `serializeCsv` internally and add the byte-order mark,
+   * and rule 4 below is what stops anything reaching past them to the text one.
+   *
+   * Both halves still matter — imported AND called. A file that imports the name
+   * and hand-rolls its rows anyway is the shape rule 3 exists for.
+   */
+  const serializes = ["csvResponse", "csvBytes", "serializeCsv"].some(
+    (door) => imported.has(door) && new RegExp(`\\b${door}\\(`).test(source),
+  );
   const emits = EMITS_CSV.some((pattern) => pattern.test(source));
 
   const excused = NOT_A_PRODUCER.get(file);
@@ -180,8 +191,9 @@ for (const file of sources(ROOT)) {
 
   if (!serializes) {
     problems.push(
-      `${file} emits CSV bytes without ${imported.has("serializeCsv") ? "calling" : "importing"} ` +
-        `serializeCsv from routes/core/csv. That is #580 exactly: the audit-log ` +
+      `${file} emits CSV bytes without going through routes/core/csv — no ` +
+        `call to csvResponse, csvBytes or serializeCsv. That is #580 exactly: ` +
+        `the audit-log ` +
         `export had a private cell writer, so it also had a private idea of what ` +
         `needed escaping.`,
     );
@@ -235,6 +247,66 @@ for (const file of sources(ROOT)) {
         `matters: guard first, quote second, so the apostrophe ends up INSIDE ` +
         `whatever quoting the field needs. Quoting first would put it outside the ` +
         `quotes, where it is a stray character rather than a guard.`,
+    );
+  }
+}
+
+/**
+ * [#587] Rule 4 — the byte-order mark, which is a fourth way to be the odd one out.
+ *
+ * `GET /v1/contacts/export` prefixed EF BB BF and the other four exports did not,
+ * because the mark was a thing each producer had to remember rather than a
+ * property of producing a CSV. Excel on Windows opens a BOM-less CSV in the system
+ * ANSI codepage, so an actor named `Zoë Fournier` arrived mangled in the one file
+ * an owner hands to an insurer.
+ *
+ * The rule is expressed as a COUNT rather than as a per-producer pattern, and that
+ * is the point: `serializeCsv` returns text with no mark, `csvBytes` adds it, so
+ * "every producer agrees" is exactly "nothing calls the text one directly". One
+ * caller, and it is inside the shared module. A producer that reached past
+ * `csvBytes` would show up here as a second caller, whatever it then did with the
+ * string.
+ *
+ * Comments are stripped before counting. This guard's own prose names
+ * `serializeCsv` repeatedly, and so does the audit log's — a rule that counted
+ * mentions rather than calls would fire on documentation.
+ */
+{
+  const callers = [];
+  for (const file of sources(ROOT)) {
+    if (file === SHARED_CSV_MODULE) continue;
+    const code = readFileSync(file, "utf8")
+      .replace(/\r\n/g, "\n")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^[ \t]*\/\/.*$/gm, "");
+    if (/\bserializeCsv\s*\(/.test(code)) callers.push(file);
+  }
+  if (callers.length > 0) {
+    problems.push(
+      `${callers.join(", ")} call(s) serializeCsv directly (#587). That returns ` +
+        `TEXT WITH NO BYTE-ORDER MARK, so whatever it produces opens in Excel's ` +
+        `ANSI codepage and any non-ASCII name arrives as mojibake. Use csvBytes ` +
+        `for a stored file or csvResponse for a download — both are in ` +
+        `routes/core/csv.ts and both add the mark, which is the whole reason they ` +
+        `exist. The four exports that lacked it lacked it because each one had to ` +
+        `remember.`,
+    );
+  }
+
+  const shared = readFileSync(SHARED_CSV_MODULE, "utf8").replace(/\r\n/g, "\n");
+  if (!/0xef,\s*0xbb,\s*0xbf/i.test(shared)) {
+    problems.push(
+      `${SHARED_CSV_MODULE} no longer writes the UTF-8 byte-order mark (#587). ` +
+        `Every producer now depends on it doing so — that is why none of them ` +
+        `carries the bytes any more — so losing it here loses the mark from all ` +
+        `five at once, with nothing in the producers to notice.`,
+    );
+  }
+  if (!/export function csvResponse/.test(shared)) {
+    problems.push(
+      `csvResponse is gone from ${SHARED_CSV_MODULE} (#587), so the download ` +
+        `headers and the mark have stopped travelling together and each route is ` +
+        `back to remembering four things.`,
     );
   }
 }

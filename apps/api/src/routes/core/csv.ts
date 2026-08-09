@@ -203,8 +203,11 @@ export function csvUnguardText(value: string | null): string | null {
 
 /**
  * Serialize rows (a header row + data rows, each a string array) into an
- * RFC-4180 CSV string with CRLF line endings. Used by `GET /v1/contacts/export`
- * (D20 §3.1). The caller prepends a UTF-8 BOM for Excel.
+ * RFC-4180 CSV string with CRLF line endings.
+ *
+ * #587: this returns TEXT, and no producer should hand it to a customer
+ * directly — use {@link csvBytes} or {@link csvResponse}, which add the
+ * byte-order mark Excel needs. `check-csv-escaping.mjs` enforces that.
  *
  * Every cell goes through {@link csvSafeText} before {@link csvField}, in that
  * order — guard first so the apostrophe is inside whatever quoting the field
@@ -221,4 +224,69 @@ export function serializeCsv(rows: (string | null | undefined)[][]): string {
   return rows
     .map((row) => row.map((cell) => csvField(csvSafeText(cell))).join(","))
     .join("\r\n");
+}
+
+// ---------------------------------------------------------------------------
+// #587 — the byte-order mark, decided once
+// ---------------------------------------------------------------------------
+
+/**
+ * UTF-8 byte-order mark. Excel on Windows opens a BOM-less CSV in the system
+ * ANSI codepage rather than UTF-8, so `Zoë Fournier` arrives as `ZoÃ«
+ * Fournier` — in a file whose entire purpose is to be handed to somebody else
+ * as a record.
+ */
+const UTF8_BOM = [0xef, 0xbb, 0xbf] as const;
+
+/**
+ * Serialize rows and prefix the byte-order mark. THE ONE PLACE THAT DECIDES.
+ *
+ * #587 found the mark on `GET /v1/contacts/export` and on nothing else, because
+ * it was a thing each producer had to remember rather than a property of
+ * producing a CSV at all. Four exports had forgotten it, and the next one would
+ * have too. Every producer now goes through here, and
+ * `check-csv-escaping.mjs` fails the build on a `text/csv` response assembled
+ * anywhere else.
+ *
+ * # Bytes, not a string with a leading U+FEFF
+ *
+ * Measured rather than assumed, because the comment this replaces asserted the
+ * opposite: in the Node/undici runtime the tests run under, `new Response(str)`,
+ * `new Blob([str])` and `new Response(bytes)` all emit EF BB BF for a leading
+ * U+FEFF — so the previous justification ("`new Response(string)` would strip
+ * it") is not true there.
+ *
+ * The byte form is kept anyway, and the honest reason is a different one:
+ * nothing in this repository runs workerd — the unit projects and the e2e
+ * project are both `environment: "node"` — so how the production runtime treats
+ * a leading U+FEFF in a string body is a question this codebase cannot answer.
+ * Emitting the three bytes does not depend on the answer.
+ */
+export function csvBytes(rows: (string | null | undefined)[][]): Uint8Array {
+  const text = new TextEncoder().encode(serializeCsv(rows));
+  const out = new Uint8Array(UTF8_BOM.length + text.length);
+  out.set(UTF8_BOM, 0);
+  out.set(text, UTF8_BOM.length);
+  return out;
+}
+
+/**
+ * A complete CSV download: body, mark, content type and filename.
+ *
+ * The headers travel with the bytes for the same reason the mark does — a
+ * producer that got the encoding right and the `Content-Disposition` wrong
+ * would still open in the browser instead of downloading, and "remember four
+ * things per route" is the shape that lost the mark in the first place.
+ */
+export function csvResponse(
+  rows: (string | null | undefined)[][],
+  filename: string,
+): Response {
+  return new Response(csvBytes(rows), {
+    status: 200,
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    },
+  });
 }

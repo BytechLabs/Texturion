@@ -29,7 +29,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MemberRole } from "@loonext/shared";
 
 import { resolveNumberAccess } from "../auth/number-access";
-import { csvSafeText, serializeCsv } from "../routes/core/csv";
+import { csvBytes, csvSafeText } from "../routes/core/csv";
 
 /** Sanity bound, matching the history export's posture. */
 export const TASK_EXPORT_CAP = 10_000;
@@ -87,7 +87,12 @@ export async function buildTaskExport(
     prefix: string;
     now: Date;
   },
-  put: (path: string, body: string, contentType: string) => Promise<void>,
+  put: (
+    path: string,
+    // #587: bytes, so the CSV part can carry its byte-order mark.
+    body: string | Uint8Array,
+    contentType: string,
+  ) => Promise<void>,
 ): Promise<TaskExportResult> {
   // The requester's role NOW, for the same reason the history export reads it:
   // an export produced today is read today, and access is a question about
@@ -166,7 +171,7 @@ export async function buildTaskExport(
 
   await put(
     `${args.prefix}/tasks.csv`,
-    serializeCsv([
+    csvBytes([
       ["raised", "customer", "task", "detail", "due", "assigned to", "state"],
       ...entries.map((entry) => [
         entry.raised,

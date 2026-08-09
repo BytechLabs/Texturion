@@ -22,7 +22,7 @@ import {
   usageLines,
 } from "./usage-export";
 import { endpoint, makeHarness } from "../test/billing-support";
-import { completeEnv, stubFetch } from "../test/support";
+import { completeEnv, exportPartText, stubFetch } from "../test/support";
 import { getDb } from "../db";
 
 const COMPANY_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
@@ -54,14 +54,17 @@ async function build(filters: { from?: string; to?: string }, window = WINDOW_RO
   const h = harness(window);
   stubFetch(h.route);
   const written = new Map<string, string>();
+  // #587: the same bytes, undecoded, so the byte-order mark can be asserted.
+  const writtenRaw = new Map<string, string | Uint8Array>();
   const result = await buildUsageExport(
     getDb(completeEnv()),
     { exportId: "e1", companyId: COMPANY_ID, filters, prefix: "c/e1", now: NOW },
     async (path, body) => {
-      written.set(path, body);
+      written.set(path, exportPartText(body));
+      writtenRaw.set(path, body);
     },
   );
-  return { result, written, harness: h };
+  return { result, written, writtenRaw, harness: h };
 }
 
 describe("#304 the usage export", () => {

@@ -153,3 +153,20 @@ private func monthDayString(_ date: Date, calendar: Calendar, withYear: Bool) ->
     formatter.dateFormat = withYear ? "MMM d yyyy" : "MMM d"
     return formatter.string(from: date)
 }
+
+/// A CSV export as the bytes to write to a file. #587.
+///
+/// The server emits a UTF-8 byte-order mark so Excel round-trips accents, but the
+/// response arrives here as a decoded `String`, so it is re-attached on the way to
+/// disk. Stripping first keeps it idempotent if a transport ever stops eating it.
+///
+/// ONE COPY. This was written out twice — the contacts screen and the billing
+/// screen's export door — and two copies of three magic bytes is how one of them
+/// quietly loses them.
+func csvExportData(_ text: String) -> Data {
+    var data = Data([0xEF, 0xBB, 0xBF])
+    var body = text
+    if body.hasPrefix("\u{FEFF}") { body.removeFirst() }
+    data.append(Data(body.utf8))
+    return data
+}

@@ -2055,10 +2055,7 @@ private struct StagedContactsCsv: Identifiable {
 /// defensively here in case a transport layer stripped it, which is the same
 /// thing the contacts screen does with the same bytes.
 private func stageContactsCsv(_ text: String) throws -> URL {
-    var data = Data([0xEF, 0xBB, 0xBF])
-    var body = text
-    if body.hasPrefix("\u{FEFF}") { body.removeFirst() }
-    data.append(Data(body.utf8))
+    let data = csvExportData(text)
 
     let folder = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString, isDirectory: true)

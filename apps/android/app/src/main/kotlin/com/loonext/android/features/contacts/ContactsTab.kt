@@ -1,6 +1,7 @@
 package com.loonext.android.features.contacts
 
 import com.loonext.android.ui.common.InitialsAvatar
+import com.loonext.android.ui.common.csvExportBytes
 import com.loonext.android.ui.common.RefreshBox
 import android.Manifest
 import android.content.Context
@@ -448,10 +449,7 @@ private fun ContactListScreen(
                 val csv = mutations.exportCsv(companyId, debouncedQ.ifEmpty { null })
                 withContext(Dispatchers.IO) {
                     context.contentResolver.openOutputStream(uri, "wt")?.use { stream ->
-                        // Re-attach the UTF-8 BOM the exporter emits (OkHttp
-                        // strips it) so Excel round-trips accents correctly.
-                        stream.write(byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()))
-                        stream.write(csv.removePrefix("\uFEFF").toByteArray(Charsets.UTF_8))
+                        stream.write(csvExportBytes(csv))
                     } ?: throw IllegalStateException("no stream")
                 }
                 snackbar.showSnackbar("Contacts exported.")

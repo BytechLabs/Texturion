@@ -442,7 +442,13 @@ async function buildTasksExport(
 async function putObject(
   db: SupabaseClient,
   path: string,
-  body: string,
+  /**
+   * #587: `Uint8Array` as well as `string`, because a CSV part now carries a
+   * byte-order mark and the mark is bytes. These files are downloaded by the
+   * customer and opened in Excel — the same reader the HTTP exports have, so
+   * the same rule applies. The HTML and JSON parts stay strings.
+   */
+  body: string | Uint8Array,
   contentType: string,
 ): Promise<void> {
   const { error } = await db.storage

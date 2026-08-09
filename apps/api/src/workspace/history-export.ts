@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { resolveNumberAccess } from "../auth/number-access";
 import type { MemberRole } from "@loonext/shared";
-import { csvSafeText, serializeCsv } from "../routes/core/csv";
+import { csvBytes, csvSafeText } from "../routes/core/csv";
 
 /**
  * #304 — one customer's message history, as something you can hand to somebody.
@@ -108,7 +108,12 @@ export async function buildConversationHistory(
     prefix: string;
     now: Date;
   },
-  putObject: (path: string, body: string, contentType: string) => Promise<void>,
+  putObject: (
+    path: string,
+    // #587: bytes, so the CSV part can carry its byte-order mark.
+    body: string | Uint8Array,
+    contentType: string,
+  ) => Promise<void>,
 ): Promise<HistoryResult> {
   const contactId = args.filters.contact_id;
   if (!contactId) throw new Error("conversation_history export has no contact_id");
@@ -277,7 +282,7 @@ export async function buildConversationHistory(
 
   await putObject(
     `${args.prefix}/history.csv`,
-    serializeCsv([
+    csvBytes([
       ["at", "kind", "who", "what"],
       ...included.map((row) => [
         row.at,

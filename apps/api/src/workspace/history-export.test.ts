@@ -9,6 +9,7 @@
  */
 import { describe, expect, it } from "vitest";
 
+import { exportPartText } from "../test/support";
 import {
   HISTORY_MESSAGE_CAP,
   buildConversationHistory,
@@ -101,7 +102,14 @@ const BASE = {
 };
 
 async function run(tables: Parameters<typeof dbDouble>[0]) {
-  const written: { path: string; body: string; type: string }[] = [];
+  // #587: `body` stays decoded text so every content assertion below reads as
+  // it did; `raw` is what the mark is visible in.
+  const written: {
+    path: string;
+    body: string;
+    type: string;
+    raw: string | Uint8Array;
+  }[] = [];
   const result = await buildConversationHistory(
     dbDouble(tables),
     {
@@ -113,7 +121,7 @@ async function run(tables: Parameters<typeof dbDouble>[0]) {
       now: new Date("2026-08-03T12:00:00Z"),
     },
     async (path, body, type) => {
-      written.push({ path, body, type });
+      written.push({ path, body: exportPartText(body), type, raw: body });
     },
   );
   return { result, written };

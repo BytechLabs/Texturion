@@ -3,7 +3,7 @@
 import { ShieldAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { triggerBlobDownload } from "@/lib/api/contacts-export";
+import { csvDownloadBlob, triggerBlobDownload } from "@/lib/api/contacts-export";
 import type { ImportResult } from "@/lib/api/types";
 import {
   CONSENT_REFUSALS_FILENAME,
@@ -108,11 +108,9 @@ export function ImportConsentRefused({ result }: { result: ImportResult }) {
                   // Every refusal, not `visible` — the cap is a reading aid, and
                   // a download that stopped at fifty would be a quieter version
                   // of the silence this block exists to end.
-                  new Blob(
-                    [consentRefusalsCsv(result.consent_refusals ?? [])],
-                    {
-                      type: "text/csv;charset=utf-8",
-                    },
+                  // #587: `csvDownloadBlob` adds the byte-order mark.
+                  csvDownloadBlob(
+                    consentRefusalsCsv(result.consent_refusals ?? []),
                   ),
                   CONSENT_REFUSALS_FILENAME,
                 )

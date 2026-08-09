@@ -63,7 +63,14 @@ vi.mock("@/lib/api/contacts-vcard", () => ({
 }));
 // happy-dom has no object-URL plumbing, and the assertion worth making is about
 // the BYTES handed to the browser rather than the anchor click that follows.
-vi.mock("@/lib/api/contacts-export", () => ({ triggerBlobDownload: download }));
+// #587: only `triggerBlobDownload` is replaced. `csvDownloadBlob` is the REAL
+// one, so the byte-order-mark assertion below is about the shipped code — a
+// stub would have quietly removed the thing this issue added. The module's
+// only import is `./error`, so pulling the original is free.
+vi.mock("@/lib/api/contacts-export", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/contacts-export")>()),
+  triggerBlobDownload: download,
+}));
 // The wizard lazy-loads papaparse inside handleFile; parsing a real File in a
 // test environment is not what is under test here, so the parse resolves
 // synchronously with a fixed two-row sheet.
@@ -472,6 +479,13 @@ describe("#248 every door reports what the attestation could not cover", () => {
     expect(download).toHaveBeenCalledTimes(1);
     const [blob, filename] = download.mock.calls[0] as [Blob, string];
     expect(filename).toBe(CONSENT_REFUSALS_FILENAME);
+    // #587: the byte-order mark, asserted on the BYTES. `blob.text()` decodes as
+    // UTF-8 and consumes the mark, so no text assertion below can see whether it
+    // is there — and its absence is exactly what makes an accented reason arrive
+    // as mojibake in the spreadsheet somebody opens this in.
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+
     const csv = await blob.text();
     expect(csv.split("\r\n")).toHaveLength(61); // header + every refusal
     expect(csv).toContain(many[59].reason);

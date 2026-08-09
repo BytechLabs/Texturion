@@ -57,10 +57,10 @@ import { ApiError, errorResponse } from "../http/errors";
 import { buildPage, encodeCursor } from "../http/pagination";
 import {
   CsvUnterminatedQuoteError,
+  csvResponse,
   csvSafeText,
   csvUnguardText,
   parseCsvRows,
-  serializeCsv,
   type CsvRow,
 } from "./core/csv";
 import {
@@ -1463,9 +1463,10 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
       row.created_at,
     ]),
   ];
-  // UTF-8 BOM (D20 §3.1) so Excel reads the encoding correctly. Emit the body
-  // as bytes with a literal EF BB BF prefix: `new Response(string)` would strip
-  // a leading U+FEFF, so the BOM must be raw bytes, not a string char.
+  // #587: the byte-order mark and the download headers now come from
+  // `csvResponse`, which is the only place that decides either. This route had
+  // the mark and the other four exports did not, because it was a thing to
+  // remember rather than a property of producing a CSV.
   // #345/#231: "a contact export is the departing-employee signature." The
   // audit row is the record; the alarm below is the only proactive thing in the
   // audit system, because nobody reads a history screen on an ordinary Tuesday.
@@ -1486,17 +1487,7 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
     event: "exported",
     count: exportedCount,
   });
-  const csvBytes = new TextEncoder().encode(serializeCsv(table));
-  const body = new Uint8Array(csvBytes.length + 3);
-  body.set([0xef, 0xbb, 0xbf], 0);
-  body.set(csvBytes, 3);
-  return new Response(body, {
-    status: 200,
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="contacts.csv"',
-    },
-  });
+  return csvResponse(table, "contacts.csv");
 });
 
 contactsRoutes.post("/contacts", requireCapability("conversations.note"), async (c) => {

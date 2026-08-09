@@ -49,6 +49,7 @@ import com.loonext.android.core.model.OpenPrepaidYear
 import com.loonext.android.core.model.SubscriptionStatus
 import com.loonext.android.features.contacts.ContactMutations
 import com.loonext.android.ui.common.LoadState
+import com.loonext.android.ui.common.csvExportBytes
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
@@ -407,10 +408,7 @@ private fun CancelCard(
                     val csv = contacts.exportCsv(scope.companyId, null)
                     withContext(Dispatchers.IO) {
                         context.contentResolver.openOutputStream(uri, "wt")?.use { stream ->
-                            // Re-attach the UTF-8 BOM the exporter emits (OkHttp
-                            // strips it) so Excel round-trips accents correctly.
-                            stream.write(byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()))
-                            stream.write(csv.removePrefix("\uFEFF").toByteArray(Charsets.UTF_8))
+                            stream.write(csvExportBytes(csv))
                         } ?: throw IllegalStateException("no stream")
                     }
                     scope.showMessage("Contacts exported.")

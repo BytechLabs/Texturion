@@ -342,3 +342,16 @@ export function companyMembersRoute(
 export function clearedFor(destinationE164: string): SendClearance {
   return { destinationE164 } as SendClearance;
 }
+
+/**
+ * An export part as text, whatever shape it was written in. #587.
+ *
+ * Since the byte-order mark shipped, a CSV part is a `Uint8Array` while the
+ * HTML and JSON parts are still strings. Every existing assertion in the export
+ * suites is about CONTENT, so they go through here and read the same as before;
+ * the mark itself is asserted on the raw bytes, which is the only place it is
+ * visible at all.
+ */
+export function exportPartText(body: string | Uint8Array): string {
+  return typeof body === "string" ? body : new TextDecoder().decode(body);
+}

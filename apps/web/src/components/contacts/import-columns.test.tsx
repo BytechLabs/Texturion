@@ -52,7 +52,11 @@ vi.mock("@/lib/api/contacts", () => ({
     reset: vi.fn(),
   }),
 }));
-vi.mock("@/lib/api/contacts-export", () => ({ triggerBlobDownload: vi.fn() }));
+// #587: the real `csvDownloadBlob`; only the DOM side is replaced.
+vi.mock("@/lib/api/contacts-export", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/contacts-export")>()),
+  triggerBlobDownload: vi.fn(),
+}));
 // The wizard lazy-loads papaparse inside handleFile. Parsing a real File is not
 // what is under test, so the parse resolves synchronously with whatever sheet
 // the current test set up.

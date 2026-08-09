@@ -22,7 +22,7 @@ import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
-import { csvSafeText, serializeCsv } from "./core/csv";
+import { csvResponse, csvSafeText } from "./core/csv";
 import { parseWith } from "./core/http";
 
 export const auditLogRoutes = new Hono<AppEnv>();
@@ -159,12 +159,11 @@ auditLogRoutes.get("/audit-log", requireCapability("history.read"), async (c) =>
         ].map(csvCell),
       ),
     ];
-    return new Response(serializeCsv(table), {
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="audit-log.csv"',
-      },
-    });
+    // #587: through `csvResponse` for the byte-order mark. Without it Excel on
+    // Windows opens this in the system codepage, so an actor named `Zoë
+    // Fournier` arrives mangled — in the one file an owner hands to an insurer
+    // or attaches to a security questionnaire.
+    return csvResponse(table, "audit-log.csv");
   }
 
   const page = rows.slice(0, limit);

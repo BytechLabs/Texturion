@@ -40,7 +40,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { readUsageWindow } from "../billing/usage-window";
 import { storedBytes, type StorageUsageRow } from "../billing/stored-bytes";
-import { csvSafeText, serializeCsv } from "../routes/core/csv";
+import { csvBytes, csvSafeText } from "../routes/core/csv";
 
 export interface UsageExportFilters {
   /** Inclusive start of the window, ISO. */
@@ -144,7 +144,12 @@ export const NOT_ON_THIS_DOCUMENT = [
 export async function buildUsageExport(
   db: SupabaseClient,
   args: UsageExportArgs,
-  put: (path: string, body: string, contentType: string) => Promise<void>,
+  put: (
+    path: string,
+    // #587: bytes, so the CSV part can carry its byte-order mark.
+    body: string | Uint8Array,
+    contentType: string,
+  ) => Promise<void>,
 ): Promise<{ segments: number; partial: boolean }> {
   // The window's start is required by the caller; an absent one would mean
   // "since the beginning of time", which is a different document and not one
@@ -179,7 +184,7 @@ export async function buildUsageExport(
   );
   await put(
     `${args.prefix}/usage.csv`,
-    serializeCsv([
+    csvBytes([
       ["measure", "value", "what it does not mean"],
       ...lines.map((line) => [
         csvSafeText(line.label),

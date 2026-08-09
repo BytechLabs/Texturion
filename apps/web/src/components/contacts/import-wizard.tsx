@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useImportContacts } from "@/lib/api/contacts";
+import { csvDownloadBlob } from "@/lib/api/contacts-export";
 import { ApiError } from "@/lib/api/error";
 import {
   answerColumn,
@@ -124,7 +125,10 @@ function columnLabel(column: { header: string; index: number }): string {
 type Step = "upload" | "map" | "preview" | "done";
 
 function downloadCsv(filename: string, csv: string) {
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  // #587: through `csvDownloadBlob` for the byte-order mark. These are the rows
+  // somebody is about to open, fix and re-upload — mojibake in the file whose
+  // purpose is repair is the worst place for it.
+  const blob = csvDownloadBlob(csv);
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
