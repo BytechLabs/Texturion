@@ -37,10 +37,20 @@ import { WORK_PHASE_LABELS, type WorkPhase } from "@loonext/shared";
 export function JobPhotoPage({
   businessName,
   photos = [],
+  truncated = false,
   notAvailable = false,
 }: {
   businessName?: string;
   photos?: { id: string; work_phase: WorkPhase | null; url: string }[];
+  /**
+   * #581/9: the job had more photos than one page carries.
+   *
+   * Said out loud rather than quietly shortened. The page's whole promise is "here
+   * is everything we did", and a silent cap turns that into a claim we are not
+   * keeping — the customer would have no way to know the set was incomplete, and
+   * neither would the crew who sent it.
+   */
+  truncated?: boolean;
   notAvailable?: boolean;
 }) {
   if (notAvailable) {
@@ -71,6 +81,15 @@ export function JobPhotoPage({
             ? "There are no photos on this job yet."
             : "The work on your job, as it was photographed."}
         </p>
+        {/* One plain sentence in the header rather than a banner: it qualifies what
+            the line above just promised, and it is not a problem the reader has to
+            do anything about. Whoever sent the link is the one who can send more. */}
+        {truncated && (
+          <p className="text-[14px] text-muted-foreground">
+            This job has more photos than fit on one page — these are the first{" "}
+            {photos.length}. Ask {businessName} if you need the rest.
+          </p>
+        )}
       </header>
 
       {/* Before and after are what somebody opened this to compare, so they are

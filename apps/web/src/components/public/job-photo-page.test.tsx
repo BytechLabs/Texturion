@@ -66,6 +66,28 @@ describe("the shared job photos (#294)", () => {
     }
   });
 
+  it("#581/9: says so when the job had more photos than fit", () => {
+    // A silent cap would turn "here is everything we did" into a claim we are not
+    // keeping, and neither the customer nor the crew who sent the link would know.
+    const html = renderToStaticMarkup(
+      <JobPhotoPage
+        businessName="Acme"
+        photos={[photo("a", "after"), photo("b", "before")]}
+        truncated
+      />,
+    );
+    expect(html).toContain("more photos than fit");
+    expect(html).toContain("the first 2");
+    expect(html).toContain("Ask Acme");
+  });
+
+  it("#581/9: and says nothing of the sort for an ordinary job", () => {
+    const html = renderToStaticMarkup(
+      <JobPhotoPage businessName="Acme" photos={[photo("a", "after")]} />,
+    );
+    expect(html).not.toContain("more photos than fit");
+  });
+
   it("carries no alt text it made up about somebody's work", () => {
     // A generated description of a photograph nobody has read would be a claim
     // about the job. Empty alt is the honest answer for a decorative-position

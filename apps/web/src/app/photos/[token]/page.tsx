@@ -42,6 +42,16 @@ export default async function Page({
   const data = (await response.json()) as {
     business_name: string;
     photos: { id: string; work_phase: "before" | "after" | null; url: string }[];
+    truncated?: boolean;
   };
-  return <JobPhotoPage businessName={data.business_name} photos={data.photos} />;
+  return (
+    <JobPhotoPage
+      businessName={data.business_name}
+      photos={data.photos}
+      // #581/9: the API bounds a very long job. Optional here so a Worker running
+      // ahead of this deploy simply reads as "not truncated", which is what every
+      // job under the bound is anyway.
+      truncated={data.truncated ?? false}
+    />
+  );
 }

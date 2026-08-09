@@ -38,13 +38,14 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
+import { assertEgressWithinAllowance } from "../attachments/egress";
 import { recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { dispositionOptions } from "../storage/disposition";
-import { errorResponse } from "../http/errors";
+import { ApiError, errorResponse } from "../http/errors";
 import {
   callerCountry,
   publicLinkGuard,
@@ -208,6 +209,31 @@ interface SharedPhoto {
 }
 
 /**
+ * How many photos one page may carry, and why there is a number at all.
+ *
+ * There was none. Every note on the job was read, every image on every note was
+ * signed, and each signature was its own round trip in a sequential loop — so a
+ * long remodel with a few hundred progress photos meant a few hundred round trips
+ * inside one request on a Worker, and a few hundred full-size objects becoming
+ * downloadable at once.
+ *
+ * 200 is above any job we have seen and still a bound. Hitting it does not silently
+ * shorten the record: the page is told, and says so, because a customer looking at
+ * "everything we did" needs to know when it is not everything.
+ */
+const MAX_SHARED_PHOTOS = 200;
+
+/**
+ * How many notes to read looking for those photos.
+ *
+ * Notes outnumber photos — most carry none — so this is the wider bound of the two.
+ */
+const MAX_SHARED_NOTES = 500;
+
+/** How long a customer's browser may keep using a URL from this page. */
+const SHARED_PHOTO_TTL_SECONDS = 60 * 60;
+
+/**
  * GET /photos/:token — what the customer's browser asks for.
  *
  * Outside /v1 and therefore outside every gate that protects it, which is why the
@@ -234,13 +260,48 @@ publicJobPhotoRoutes.get("/photos/:token", publicLinkGuard(), async (c) => {
     .maybeSingle();
   if (companyError) throw new Error(`company lookup failed: ${companyError.message}`);
 
-  const photos = await loadSharedPhotos(db, resolved.company_id, resolved.subject_id);
+  let loaded: { photos: SharedPhoto[]; truncated: boolean };
+  try {
+    loaded = await loadSharedPhotos(db, resolved.company_id, resolved.subject_id);
+  } catch (cause) {
+    /**
+     * THE EGRESS DECISION, and it is a decision rather than an oversight.
+     *
+     * The bytes have to be metered. A public token is the least protected thing we
+     * hand out — no account behind it, and whoever holds it can loop — so leaving
+     * this page off the meter would make it the free side door around the download
+     * cap that every authenticated mint path is careful not to be.
+     *
+     * But the refusal must never reach the homeowner AS A REFUSAL. Its copy names
+     * the business's plan allowance and says it is used up, which is the business's
+     * private billing state being read by a customer; and a second, distinguishable
+     * answer is precisely the oracle D75 forbids — "this link is real and that
+     * company is over its cap" is a fact a stranger with a guessed token should
+     * never be able to learn.
+     *
+     * So the claim happens, the cap bites, and the answer is the one answer this
+     * page has for everything. Downloads have genuinely stopped for that workspace;
+     * this is one more place they have stopped. The crew see the honest 402 on
+     * their own screens, where it names a plan they can do something about.
+     *
+     * Only the cap is caught. A real accounting failure still throws, because
+     * nothing may be signed when the ledger cannot be trusted — and unlike the cap,
+     * it is not correlated with anything a prober could farm.
+     */
+    if (cause instanceof ApiError && cause.code === "usage_cap_reached") {
+      return publicLinkNotAvailable(c);
+    }
+    throw cause;
+  }
 
   return c.json({
     // The page appears under the BUSINESS's name, not ours. It is the only thing
     // many homeowners will ever see of this product.
     business_name: (company as { name?: string } | null)?.name ?? "Your contractor",
-    photos,
+    photos: loaded.photos,
+    // Said out loud rather than quietly dropping the rest. Somebody looking at
+    // "everything we did" has to know when it is not everything.
+    truncated: loaded.truncated,
   });
 });
 
@@ -259,42 +320,106 @@ async function loadSharedPhotos(
   db: ReturnType<typeof getDb>,
   companyId: string,
   taskId: string,
-): Promise<SharedPhoto[]> {
+): Promise<{ photos: SharedPhoto[]; truncated: boolean }> {
   const { data: noteRows, error: noteError } = await db
     .from("messages")
     .select("id,work_phase,created_at")
     .eq("company_id", companyId)
     .eq("direction", "note")
-    .eq("task_id", taskId);
+    .eq("task_id", taskId)
+    // Oldest first, so the bound below keeps the job in the order it happened
+    // rather than an arbitrary slice of it.
+    .order("created_at", { ascending: true })
+    .limit(MAX_SHARED_NOTES);
   if (noteError) throw new Error(`note lookup failed: ${noteError.message}`);
   const notes = (noteRows ?? []) as {
     id: string;
     work_phase: "before" | "after" | null;
     created_at: string;
   }[];
-  if (notes.length === 0) return [];
+  if (notes.length === 0) return { photos: [], truncated: false };
 
   const byNote = new Map(notes.map((note) => [note.id, note]));
   const { data: fileRows, error: fileError } = await db
     .from("attachments")
-    .select("id,owner_id,content_type,storage_path,created_at")
+    .select(
+      "id,owner_id,content_type,storage_path,preview_path,preview_bytes,size_bytes,created_at",
+    )
     .eq("company_id", companyId)
     .eq("owner_type", "note")
     .in("owner_id", [...byNote.keys()])
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    // NOT QUARANTINED. A file the scanner pulled stops being downloadable for the
+    // crew at the mint (#317), and this page mints too — it was simply never told.
+    // Of everywhere in the product to hand somebody a file we have decided is
+    // dangerous, a link texted to a member of the public is the worst, and they have
+    // no relationship with us to explain it afterwards. Filtered in the query rather
+    // than skipped in the loop so the row cannot reach the signing code at all.
+    .is("quarantined_at", null)
+    .order("created_at", { ascending: true })
+    // One more than the page will show, purely to learn whether there were more.
+    .limit(MAX_SHARED_PHOTOS + 1);
   if (fileError) throw new Error(`attachment lookup failed: ${fileError.message}`);
 
-  const photos: SharedPhoto[] = [];
-  for (const row of (fileRows ?? []) as {
+  interface FileRow {
     id: string;
     owner_id: string;
     content_type: string | null;
     storage_path: string;
+    preview_path: string | null;
+    preview_bytes: number | null;
+    size_bytes: number | null;
     created_at: string;
-  }[]) {
-    if (!(row.content_type ?? "").toLowerCase().startsWith("image/")) continue;
-    const note = byNote.get(row.owner_id);
-    if (!note) continue;
+  }
+  const images = ((fileRows ?? []) as FileRow[]).filter(
+    (row) =>
+      (row.content_type ?? "").toLowerCase().startsWith("image/") &&
+      byNote.has(row.owner_id),
+  );
+  const truncated = images.length > MAX_SHARED_PHOTOS;
+  const page = images.slice(0, MAX_SHARED_PHOTOS);
+  if (page.length === 0) return { photos: [], truncated: false };
+
+  /**
+   * The PREVIEW where there is one (#240), for two reasons that point the same way.
+   *
+   * A note carries up to 25 MB an image, because the whole premise of #294 is that
+   * the photos worth keeping are the ones too big to text. This page is opened on a
+   * phone, over mobile data, by somebody who wants to look at them — serving the
+   * originals meant a homeowner downloading a couple of hundred megabytes to see
+   * their kitchen, and it meant the same couple of hundred megabytes coming out of
+   * the business's download allowance every time the link was opened.
+   *
+   * A row with no preview still serves its original, exactly as before: nothing
+   * uploaded before derivatives existed stops working.
+   */
+  const served = page.map((row) => {
+    const usePreview = row.preview_path !== null && row.preview_path !== undefined;
+    return {
+      row,
+      path: usePreview ? (row.preview_path as string) : row.storage_path,
+      // Charge what actually leaves. Claiming the original's size for a 200 KB
+      // preview spends an allowance on bytes nobody downloaded.
+      bytes: usePreview ? row.preview_bytes : row.size_bytes,
+    };
+  });
+
+  // ONE claim for the page, before anything is signed — the gallery's shape, and
+  // the reason it exists there applies twice over here. Over the allowance this
+  // throws, and the route turns that into the same answer it gives a bad token.
+  await assertEgressWithinAllowance(
+    db,
+    companyId,
+    served.map((entry) => ({
+      bucket: "attachments",
+      path: entry.path,
+      sizeBytes: entry.bytes,
+    })),
+    SHARED_PHOTO_TTL_SECONDS,
+  );
+
+  const photos: SharedPhoto[] = [];
+  for (const { row, path } of served) {
     // #317: the disposition travels with the mint rather than being a boolean
     // somebody has to remember to invert. Every one of these is an image by the
     // filter above, so it resolves to inline — which is the point, since the page
@@ -302,11 +427,13 @@ async function loadSharedPhotos(
     const { data: signed } = await db.storage
       .from("attachments")
       .createSignedUrl(
-        row.storage_path,
-        60 * 60,
+        path,
+        SHARED_PHOTO_TTL_SECONDS,
         dispositionOptions(row.content_type),
       );
     if (!signed?.signedUrl) continue;
+    const note = byNote.get(row.owner_id);
+    if (!note) continue;
     photos.push({
       id: row.id,
       work_phase: note.work_phase,
@@ -323,5 +450,5 @@ async function loadSharedPhotos(
       ? left.id.localeCompare(right.id)
       : left.taken_at.localeCompare(right.taken_at),
   );
-  return photos;
+  return { photos, truncated };
 }

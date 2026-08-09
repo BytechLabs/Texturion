@@ -66,6 +66,8 @@ function visitor(options: {
   resolved?: Record<string, unknown>;
   notes?: Record<string, unknown>[];
   files?: Record<string, unknown>[];
+  /** #581/9: bytes already spent this period, to drive the download cap. */
+  egressUsedBytes?: number;
 } = {}): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on("POST", "/rest/v1/rpc/api_resolve_public_link", () =>
@@ -78,23 +80,53 @@ function visitor(options: {
       subject_id: TASK_ID,
     },
   );
-  sb.on("GET", "/rest/v1/companies", () => [{ name: "Acme Plumbing" }]);
+  // One row serves both readers of this table: the page's business name, and the
+  // billing period `assertEgressWithinAllowance` resolves the allowance window from.
+  sb.on("GET", "/rest/v1/companies", () => [
+    {
+      name: "Acme Plumbing",
+      plan: "starter",
+      current_period_start: "2026-08-01T00:00:00Z",
+    },
+  ]);
   sb.on("GET", "/rest/v1/messages", () =>
     options.notes ?? [
       { id: NOTE_ID, work_phase: "after", created_at: "2026-08-08T15:00:00Z" },
     ],
   );
-  sb.on("GET", "/rest/v1/attachments", () =>
-    options.files ?? [
+  // #581/9: the query now asks for `quarantined_at=is.null`, so the stub answers the
+  // way PostgREST would rather than handing back every row regardless. A stub that
+  // ignored the filter would report the page as safe whether or not it applied it.
+  sb.on("GET", "/rest/v1/attachments", (call) => {
+    const rows = options.files ?? [
       {
         id: "att-1",
         owner_id: NOTE_ID,
         content_type: "image/jpeg",
         storage_path: "c/note/att-1.jpg",
+        size_bytes: 25_000_000,
+        preview_path: null,
+        preview_bytes: null,
+        quarantined_at: null,
         created_at: "2026-08-08T15:00:05Z",
       },
-    ],
-  );
+    ];
+    return call.url.searchParams.get("quarantined_at") === "is.null"
+      ? rows.filter((row) => !row.quarantined_at)
+      : rows;
+  });
+  // #581/9: the page claims its download egress like every other mint path.
+  sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress_objects", (call) => {
+    const body = call.body as {
+      p_objects: { bytes: number }[];
+      p_limit_bytes: number;
+    };
+    const claimed = body.p_objects.reduce((sum, object) => sum + object.bytes, 0);
+    const used = options.egressUsedBytes ?? 0;
+    return used + claimed > body.p_limit_bytes
+      ? { allowed: false, used_bytes: used, claimed_bytes: 0 }
+      : { allowed: true, used_bytes: used + claimed, claimed_bytes: claimed };
+  });
   sb.on(
     "POST",
     /\/storage\/v1\/object\/sign\//,
@@ -263,6 +295,169 @@ describe("what the customer's page contains (#294)", () => {
     expect(body.photos).toHaveLength(1);
     expect(body.photos[0].work_phase).toBe("after");
     expect(body.photos[0].url).toContain("token=");
+  });
+
+  it("#581/9: never a file the scanner pulled", async () => {
+    // A quarantined file stops being downloadable for the CREW at the mint (#317),
+    // and this page mints too — it was simply never told. Of everywhere to hand
+    // somebody a file we have decided is dangerous, a link texted to a member of the
+    // public is the worst: they have no relationship with us to explain it after.
+    const sb = visitor({
+      files: [
+        {
+          id: "att-clean",
+          owner_id: NOTE_ID,
+          content_type: "image/jpeg",
+          storage_path: "c/note/clean.jpg",
+          size_bytes: 900_000,
+          preview_path: null,
+          preview_bytes: null,
+          quarantined_at: null,
+          created_at: "2026-08-08T15:00:05Z",
+        },
+        {
+          id: "att-bad",
+          owner_id: NOTE_ID,
+          content_type: "image/jpeg",
+          storage_path: "c/note/bad.jpg",
+          size_bytes: 900_000,
+          preview_path: null,
+          preview_bytes: null,
+          quarantined_at: "2026-08-08T16:00:00Z",
+          created_at: "2026-08-08T15:00:06Z",
+        },
+      ],
+    });
+    stubFetch(sb.route);
+
+    const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { photos: { id: string }[] };
+    expect(body.photos.map((photo) => photo.id)).toEqual(["att-clean"]);
+  });
+
+  it("#581/9: serves the small copy, and charges for the small copy", async () => {
+    /**
+     * A note carries up to 25 MB an image — that is the whole premise of #294, that
+     * the photos worth keeping are the ones too big to text. This page is opened on a
+     * phone, over mobile data. It was serving the originals, so a homeowner
+     * downloaded the full set to look at their kitchen, and the same bytes came out
+     * of the business's download allowance every time the link was opened.
+     */
+    const sb = visitor({
+      files: [
+        {
+          id: "att-big",
+          owner_id: NOTE_ID,
+          content_type: "image/jpeg",
+          storage_path: "c/note/original.jpg",
+          size_bytes: 25_000_000,
+          preview_path: "c/note/preview.jpg",
+          preview_bytes: 180_000,
+          quarantined_at: null,
+          created_at: "2026-08-08T15:00:05Z",
+        },
+      ],
+    });
+    stubFetch(sb.route);
+
+    const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
+    expect(res.status).toBe(200);
+
+    // Signed the preview, not the original.
+    const signs = sb.find("POST", /\/storage\/v1\/object\/sign\//);
+    expect(signs).toHaveLength(1);
+    expect(signs[0].url.pathname).toContain("preview.jpg");
+
+    // And claimed what actually leaves. Charging 25 MB for a 180 KB file would spend
+    // an allowance on bytes nobody downloaded.
+    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")[0]
+      .body as { p_objects: { bytes: number }[] };
+    expect(claim.p_objects.map((object) => object.bytes)).toEqual([180_000]);
+  });
+
+  it("#581/9: over the download cap it says exactly what a bad token says", async () => {
+    /**
+     * THE EGRESS DECISION. The bytes have to be metered — a public token is the least
+     * protected thing we hand out, so an unmetered page is the free side door round
+     * the cap that every authenticated mint path is careful not to be.
+     *
+     * But the refusal must not reach the homeowner as a refusal. Its copy names the
+     * business's plan allowance and says it is used up, which is the business's
+     * private billing state read by a customer — and a second, distinguishable answer
+     * is the oracle D75 forbids. "This link is real and that company is over its cap"
+     * is not a thing a stranger with a guessed token may learn.
+     */
+    const sb = visitor({ egressUsedBytes: 200 * 1024 * 1024 * 1024 });
+    stubFetch(sb.route);
+
+    const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
+
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { error: { code: string; message: string } };
+    expect(body.error.code).toBe("not_found");
+    // Not one word about a plan, an allowance, or a period.
+    for (const leak of ["plan", "allowance", "billing", "GB", "period"]) {
+      expect(body.error.message, leak).not.toContain(leak);
+    }
+    // And nothing was signed on the way to saying it.
+    expect(sb.find("POST", /\/storage\/v1\/object\/sign\//)).toHaveLength(0);
+  });
+
+  it("#581/9: a very long job is bounded, and the page is told", async () => {
+    // There was no limit at all: every note read, every image signed, one round trip
+    // each in a sequential loop. Truncating silently would be worse than the bound —
+    // somebody looking at "everything we did" has to know when it is not everything.
+    const files = Array.from({ length: 205 }, (_, index) => ({
+      id: `att-${String(index).padStart(3, "0")}`,
+      owner_id: NOTE_ID,
+      content_type: "image/jpeg",
+      storage_path: `c/note/${index}.jpg`,
+      size_bytes: 500_000,
+      preview_path: `c/note/${index}-preview.jpg`,
+      preview_bytes: 100_000,
+      quarantined_at: null,
+      created_at: `2026-08-08T15:00:00Z`,
+    }));
+    const sb = visitor({ files });
+    stubFetch(sb.route);
+
+    const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      photos: unknown[];
+      truncated: boolean;
+    };
+    expect(body.photos).toHaveLength(200);
+    expect(body.truncated).toBe(true);
+
+    /**
+     * And the BOUND IS ON THE QUERY, which is the half that matters and the half a
+     * count of the response cannot see. Trimming the array afterwards still means
+     * every row of a thousand-photo job was read into a Worker and every note that
+     * carried one was fetched first. Asserted on the request because that is where
+     * the property lives.
+     */
+    const attachments = sb.find("GET", "/rest/v1/attachments")[0].url.searchParams;
+    const limit = Number(attachments.get("limit"));
+    expect(limit, "the attachment read is unbounded").toBeGreaterThan(0);
+    expect(limit).toBeLessThanOrEqual(201);
+
+    const notes = sb.find("GET", "/rest/v1/messages")[0].url.searchParams;
+    const noteLimit = Number(notes.get("limit"));
+    expect(noteLimit, "the note read is unbounded").toBeGreaterThan(0);
+    expect(noteLimit).toBeLessThanOrEqual(500);
+  });
+
+  it("#581/9: an ordinary job is not marked truncated", async () => {
+    const sb = visitor();
+    stubFetch(sb.route);
+
+    const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
+
+    expect(await res.json()).toMatchObject({ truncated: false });
   });
 
   it("carries the no-index headers on the way out", async () => {
