@@ -1769,18 +1769,11 @@ private struct ConversationRow: View {
                         // "handled", so nothing here invents a second notion
                         // of resolved or lets a timer decide an emergency
                         // stopped mattering.
-                        if row.emergency_at != nil, row.closed_at == nil {
-                            HStack(spacing: 3) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .font(.scaled(8.5, weight: .bold))
-                                Text("URGENT")
-                                    .font(.golos(9.5, weight: .bold))
-                            }
-                            .foregroundStyle(BrandColor.destructive)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(BrandColor.destructiveContainer, in: Capsule())
-                            .accessibilityLabel("Urgent")
+                        if isConversationFlaggedUrgent(
+                            emergencyAt: row.emergency_at,
+                            closedAt: row.closed_at
+                        ) {
+                            UrgentBadge()
                         }
                     }
                     if !snippet.isEmpty {

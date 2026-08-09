@@ -12,6 +12,7 @@ import {
   MoreHorizontal,
   OctagonAlert,
   Pin,
+  TriangleAlert,
   Undo2,
   UserRound,
 } from "lucide-react";
@@ -19,7 +20,12 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { contactRepeatBadge, type DeferralKind } from "@loonext/shared";
+import {
+  contactRepeatBadge,
+  isFlaggedUrgent,
+  URGENT_BADGE_LABEL,
+  type DeferralKind,
+} from "@loonext/shared";
 
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 
@@ -159,6 +165,10 @@ export function ThreadHeader({
   // is undefined until the detail query lands, and an absent badge is the
   // honest reading of "we do not know yet".
   const repeatBadge = contactRepeatBadge(contact?.conversation_count);
+  // #565: the thread an urgent notification opens has to say it is one. Same
+  // rule as the inbox row, from the shared module rather than a fourth copy of
+  // it, so the crew reads one mark in both places and it clears in both at once.
+  const urgent = isFlaggedUrgent(conversation);
 
   const copyPhone = async () => {
     try {
@@ -374,7 +384,7 @@ export function ThreadHeader({
             The no-badge branch renders `nameButton` bare, so a first-time
             caller's header is unchanged down to the DOM — which is the point:
             a header that decorates everybody distinguishes nobody. */}
-        {repeatBadge === null ? (
+        {repeatBadge === null && !urgent ? (
           nameButton
         ) : (
           // `min-w-0` so this wrapper can be narrower than its content:
@@ -383,12 +393,41 @@ export function ThreadHeader({
           // controls instead of letting the name truncate.
           <div className="flex min-w-0 items-center gap-1.5">
             {nameButton}
-            <Badge
-              variant="secondary"
-              className="hidden shrink-0 font-normal sm:inline-flex"
-            >
-              {repeatBadge}
-            </Badge>
+            {/* #565: FIRST, and at every width — unlike the repeat badge beside
+                it, which hides below sm because a five-time customer is a fact
+                and a label loses to a control. This is an alert, and the phone
+                is exactly where somebody arrives from the notification that
+                sent them. Same clay mark as the inbox row (§ conversation-row),
+                because a crew should not have to learn two marks for one fact.
+
+                The WORD hides below sm, the triangle does not. Measured, not
+                guessed: at 390px the back button, call circle, status pill,
+                assignee avatar and overflow dots already spend ~230px, and the
+                full pill took the name from "Priya Natar…" down to "M..". Two
+                facts that annihilate each other are worse than either alone, and
+                a clay warning triangle beside a name is not ambiguous —
+                especially to somebody who arrived here from the notification
+                that drew it. `aria-label` carries the word regardless, so the
+                narrow layout costs a screen-reader user nothing. */}
+            {urgent && (
+              <span
+                aria-label={URGENT_BADGE_LABEL}
+                className="flex shrink-0 items-center gap-1 rounded-full bg-app-clay/12 px-1.5 py-0.5 text-[10.5px] font-semibold tracking-wide text-app-clay uppercase"
+              >
+                <TriangleAlert className="size-3" strokeWidth={2.25} />
+                <span aria-hidden className="hidden sm:inline">
+                  {URGENT_BADGE_LABEL}
+                </span>
+              </span>
+            )}
+            {repeatBadge !== null && (
+              <Badge
+                variant="secondary"
+                className="hidden shrink-0 font-normal sm:inline-flex"
+              >
+                {repeatBadge}
+              </Badge>
+            )}
           </div>
         )}
         {/* #76: on a phone the number+copy is a duplicate second header line

@@ -285,6 +285,16 @@ data class ConversationDetail(
     val last_message_at: String,
     val closed_at: String? = null,
     /**
+     * #414 / #565: when a customer's reply here last read as urgent.
+     *
+     * The server has always sent this and this model never asked for it, so
+     * `ignoreUnknownKeys` dropped it and the thread you land on FROM an urgent
+     * notification was the one screen that could not say why you were there.
+     * Read through `isFlaggedUrgent`, never directly — a thread that was urgent
+     * and has been closed is history, not a live mark.
+     */
+    val emergency_at: String? = null,
+    /**
      * #396: when an inbound message here last READ as a plain-English opt-out.
      * A warning for whoever replies next, never an opt-out — only the contact
      * can opt out, and only they can lift it.

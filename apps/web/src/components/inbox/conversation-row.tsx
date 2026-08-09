@@ -5,7 +5,12 @@ import { skipToken, useQuery } from "@tanstack/react-query";
 import { AlarmClock, Lock, Paperclip, Pin, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 
-import { mmsMediaKind, type MmsMediaKind } from "@loonext/shared";
+import {
+  isFlaggedUrgent,
+  mmsMediaKind,
+  URGENT_BADGE_LABEL,
+  type MmsMediaKind,
+} from "@loonext/shared";
 import { attachmentLabel, sharedMediaKind } from "@/lib/attachments/media-label";
 import type { ThreadData } from "@/lib/api/cache";
 import { keys } from "@/lib/api/keys";
@@ -147,12 +152,10 @@ export const ConversationRow = memo(function ConversationRow({
   const snippet = useSnippet(conversation);
   const unread = conversation.unread;
   const pinned = conversation.pinned_at !== null;
-  // #414: flagged until the crew closes the thread. A badge that never clears
-  // is decoration; closing is the product's existing word for "handled", so
-  // it is the honest thing to clear on — no second notion of resolved, and no
-  // timer quietly deciding an emergency stopped mattering.
-  const emergency =
-    conversation.emergency_at !== null && conversation.closed_at === null;
+  // #414: flagged until the crew closes the thread. The rule and the reasoning
+  // moved to packages/shared/src/emergency-flag.ts (#565) when the thread header
+  // became the sixth place asking it.
+  const emergency = isFlaggedUrgent(conversation);
   const assigneeName = conversation.assigned_user_id
     ? memberNames.get(conversation.assigned_user_id)
     : undefined;
@@ -239,7 +242,7 @@ export const ConversationRow = memo(function ConversationRow({
             {emergency && (
               <span className="flex items-center gap-1 rounded-full bg-app-clay/12 px-1.5 py-0.5 text-[10.5px] font-semibold tracking-wide text-app-clay uppercase">
                 <TriangleAlert className="size-3" strokeWidth={2.25} />
-                Urgent
+                {URGENT_BADGE_LABEL}
               </span>
             )}
             {pinned && (

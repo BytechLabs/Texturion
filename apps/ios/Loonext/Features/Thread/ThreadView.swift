@@ -1295,6 +1295,20 @@ private struct ThreadHeader: View {
             .buttonStyle(.plain)
             .accessibilityLabel(identityLabel)
 
+            // #565: the thread an urgent notification opens has to say it is
+            // one. OUTSIDE the identity button, for two reasons: that button's
+            // `accessibilityLabel` REPLACES its children, so a mark inside it
+            // would not exist for a screen reader at all — the very complaint
+            // #505 opened with — and out here it cannot be clipped by a long
+            // name. Android places it in the same spot. It clears when the
+            // thread is closed, same as the inbox row, from the same rule.
+            if isConversationFlaggedUrgent(
+                emergencyAt: detail.emergency_at,
+                closedAt: detail.closed_at
+            ) {
+                UrgentBadge()
+            }
+
             // Call — enabled even for opted-out contacts (voice ≠ SMS
             // consent); #106: outreach like texting, so note-level viewers
             // get no dead control (the API would 403).

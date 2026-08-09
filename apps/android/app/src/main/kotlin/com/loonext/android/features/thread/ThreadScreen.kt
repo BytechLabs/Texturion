@@ -120,6 +120,7 @@ import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.shouldOfferThreadSummaryFor
 import com.loonext.android.core.model.isCarrierEnforcedOptOut
+import com.loonext.android.core.model.isConversationFlaggedUrgent
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.features.attachments.openOriginal
 import com.loonext.android.features.compose.bannerKind
@@ -155,6 +156,7 @@ import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.SkeletonBlock
+import com.loonext.android.ui.common.UrgentBadge
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.pressScale
@@ -1533,6 +1535,19 @@ private fun ThreadHeader(
                         )
                     }
                 }
+            }
+
+            // #565: the thread an urgent notification opens has to say it is
+            // one. OUTSIDE the weighted identity column, deliberately, and the
+            // #505 warning about unweighted chips squeezing the name does not
+            // apply: that badge is a variable-length count on EVERY thread,
+            // this is a fixed word on a rare one, and when a thread is urgent
+            // the mark outranks reading the customer's surname in full. It
+            // clears when the thread is closed, same as the inbox row, from the
+            // same shared rule.
+            if (isConversationFlaggedUrgent(detail.emergency_at, detail.closed_at)) {
+                Spacer(Modifier.width(6.dp))
+                UrgentBadge()
             }
             Spacer(Modifier.width(8.dp))
 

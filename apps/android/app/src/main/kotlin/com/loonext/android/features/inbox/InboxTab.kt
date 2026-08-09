@@ -101,6 +101,7 @@ import com.loonext.android.core.snooze.snoozeReturnLabel
 import com.loonext.android.core.model.ContactSummary
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.ConversationStatus
+import com.loonext.android.core.model.isConversationFlaggedUrgent
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.SearchResult
@@ -123,6 +124,7 @@ import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
+import com.loonext.android.ui.common.UrgentBadge
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.SkeletonList
@@ -1782,45 +1784,6 @@ private fun SwipeableConversationRow(
     ) { ConversationRow(row, assigneeName) }
 }
 
-/**
- * #414: the one row state worth breaking the row's own visual rhythm for.
- *
- * A fourth quiet icon beside the attachment clip and the unread dot would
- * blend into that rhythm, which is the opposite of what this state needs — the
- * whole point is to be found at a glance, at 11pm, by someone a push
- * notification just woke.
- */
-@Composable
-private fun UrgentBadge() {
-    Row(
-        Modifier
-            .background(
-                MaterialTheme.colorScheme.errorContainer,
-                RoundedCornerShape(999.dp),
-            )
-            .padding(horizontal = 6.dp, vertical = 2.dp)
-            .semantics { contentDescription = "Urgent" },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            Icons.Outlined.WarningAmber,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onErrorContainer,
-            modifier = Modifier.size(11.dp),
-        )
-        Spacer(Modifier.width(3.dp))
-        Text(
-            "URGENT",
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 9.5.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.4.sp,
-            ),
-            color = MaterialTheme.colorScheme.onErrorContainer,
-        )
-    }
-}
-
 @Composable
 private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
     val name = row.contact.name ?: formatPhone(row.contact.phone_e164)
@@ -1883,7 +1846,7 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
                 // existing word for "handled", so nothing here invents a
                 // second notion of resolved or lets a timer quietly decide an
                 // emergency stopped mattering.
-                if (row.emergency_at != null && row.closed_at == null) {
+                if (isConversationFlaggedUrgent(row.emergency_at, row.closed_at)) {
                     Spacer(Modifier.width(6.dp))
                     UrgentBadge()
                 }

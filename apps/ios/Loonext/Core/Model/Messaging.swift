@@ -269,6 +269,15 @@ struct ConversationDetail: Codable, Sendable {
     let pinned_by_user_id: String?
     let last_message_at: String
     let closed_at: String?
+    /// #414 / #565: when a customer's reply here last read as urgent.
+    ///
+    /// The server has always sent this and this model never asked for it, so the
+    /// decoder dropped it and the thread you land on FROM an urgent notification
+    /// was the one screen that could not say why you were there. Read through
+    /// `isFlaggedUrgent`, never directly — a thread that was urgent and has been
+    /// closed is history, not a live mark. `var … = nil` so it does not become a
+    /// required memberwise-init parameter at every construction site.
+    var emergency_at: String? = nil
     /// #396: when an inbound message here last READ as a plain-English
     /// opt-out. A warning for whoever replies next, never an opt-out — only
     /// the contact can opt out, and only they can lift it. `var … = nil` so it

@@ -227,6 +227,15 @@ jobs:
       - name: Guard inbox filters against a roster race
         run: node scripts/check-inbox-filter-ids.mjs
 
+      # #565: the READABLE half of the pairing company-view.writable.test.ts
+      # guards for the company view. `emergency_at` was in the server's select
+      # list since #414 and in neither phone's model, so both decoders dropped
+      # it in silence and the thread an urgent notification opens could not say
+      # why. A select list and a model are two lists of field names describing
+      # one object; until something compares them, silence looks like agreement.
+      - name: Guard conversation detail against a silently dropped field
+        run: node scripts/check-conversation-detail-parity.mjs
+
       # #377: there is ONE deployed environment, so a variable that reaches
       # code without reaching the deploy reference is discovered in production
       # or on an invoice. The two env docs that used to disagree each shipped a

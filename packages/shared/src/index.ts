@@ -507,6 +507,9 @@ export type {
   InboxFilterState,
 } from "./inbox-filters";
 
+export { URGENT_BADGE_LABEL, isFlaggedUrgent } from "./emergency-flag";
+export type { EmergencyFlagFields } from "./emergency-flag";
+
 export {
   MIN_DEVICE_QUERY,
   deviceContactMatches,
