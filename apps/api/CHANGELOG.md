@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.15.3](https://github.com/BytechLabs/Texturion/compare/api-v0.15.2...api-v0.15.3) (2026-08-09)
+
+
+### Bug Fixes
+
+* **api:** a customer's data is no longer something a cache may keep ([7095dbe](https://github.com/BytechLabs/Texturion/commit/7095dbea9f359e21bfe129578ca436a1d75db78f))
+* **api:** declining a call before your turn now actually stops your phone ringing ([b224328](https://github.com/BytechLabs/Texturion/commit/b2243286164d23198f9aac2895dae6a29c1d79b6))
+* **api:** five holes in call handling and data retention ([3ab1ec9](https://github.com/BytechLabs/Texturion/commit/3ab1ec98c0fded71bccc4fb364939676c47c5138))
+* **api:** losing access now switches the softphone off at the phone company too ([50df246](https://github.com/BytechLabs/Texturion/commit/50df24659606736c501c0588105acd97ea3274cd))
+* **api:** one carrier approval can no longer buy two texting campaigns ([7e005ca](https://github.com/BytechLabs/Texturion/commit/7e005ca6914581f84b0ada106d5f0cfeba91b735))
+* **api:** put the checkout burst limit where it can be read ([bf70d0b](https://github.com/BytechLabs/Texturion/commit/bf70d0bf84752f4cdf6b18e36de1323aff77c1ff))
+* **api:** the photos page a homeowner opens now behaves like every other download ([e38801c](https://github.com/BytechLabs/Texturion/commit/e38801ce5e1b32936209cb35a8b0ef2cfc58ef7f))
+* **api:** the small copy of a photo now has the location taken out of it too ([c4f7aa0](https://github.com/BytechLabs/Texturion/commit/c4f7aa03357176e684a97881e1eac6e804e47821))
+* **api:** three ways an export or a recording outlived the rule that governs it ([2f9d873](https://github.com/BytechLabs/Texturion/commit/2f9d8730281f6d4bcd9ebd4b0748290c2d4d972d))
+* **api:** we now notice when card or email notifications stop reaching us ([6951675](https://github.com/BytechLabs/Texturion/commit/6951675a454054c675d4f4e9bde9dafa6fbaaf78))
+* **clients:** confirming a handover asks for something, and takes the answer ([14978dd](https://github.com/BytechLabs/Texturion/commit/14978dd8d6ade91afff09ceba30dfe62253f5a78))
+
+
+### Performance
+
+* **api:** declining a call that already ended stops asking the database anything ([11cbda1](https://github.com/BytechLabs/Texturion/commit/11cbda10615fbf3b6724767cf20c86629e572fda))
+
 ## [0.15.2](https://github.com/BytechLabs/Texturion/compare/api-v0.15.1...api-v0.15.2) (2026-08-09)
 
 

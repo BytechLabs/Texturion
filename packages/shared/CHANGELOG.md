@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.3](https://github.com/BytechLabs/Texturion/compare/shared-v0.11.2...shared-v0.11.3) (2026-08-09)
+
+
+### Bug Fixes
+
+* **clients:** a contact shows the same initials everywhere in the product ([93df0c2](https://github.com/BytechLabs/Texturion/commit/93df0c2b4d436cd31f1e43426dcb5a95969b9d53))
+* **clients:** confirming a handover asks for something, and takes the answer ([14978dd](https://github.com/BytechLabs/Texturion/commit/14978dd8d6ade91afff09ceba30dfe62253f5a78))
+
 ## [0.11.2](https://github.com/BytechLabs/Texturion/compare/shared-v0.11.1...shared-v0.11.2) (2026-08-09)
 
 
