@@ -817,14 +817,18 @@ struct ContactSquareAvatar: View {
     var tint: Color = BrandColor.avatarTint
 
     var body: some View {
-        Text(initialsOf(name))
-            .font(.golos(fontSize, weight: .semibold))
-            .foregroundStyle(BrandColor.muted900)
-            .frame(width: size, height: size)
-            .background(
-                tint,
-                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            )
+        // Kept as a named tile so both call sites read the same, but the badge itself
+        // is the shared component now. Taking `fontSize` as a parameter is what hid
+        // this copy from the #569 sweep: the frame size and the glyph literal never
+        // appeared in the same file, so nothing here looked like the bug.
+        InitialsAvatar(
+            name: name,
+            size: size,
+            glyph: fontSize,
+            typeface: .golos,
+            shape: AnyShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)),
+            tint: tint
+        )
     }
 }
 

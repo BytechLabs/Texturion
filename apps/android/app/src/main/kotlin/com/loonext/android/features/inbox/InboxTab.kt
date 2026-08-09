@@ -132,7 +132,6 @@ import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.SwipeAction
 import com.loonext.android.ui.common.SwipeActionRow
 import com.loonext.android.ui.common.formatPhone
-import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberHaptics
@@ -2104,24 +2103,11 @@ private fun FiltersSheet(
                                 selected = controller.assigneeUserId == member.user_id,
                                 onClick = { controller.setAssigneeFilter(member) },
                                 leading = {
-                                    Box(
-                                        Modifier
-                                            .size(24.dp)
-                                            .background(
-                                                MaterialTheme.colorScheme.secondaryContainer,
-                                                CircleShape,
-                                            ),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Text(
-                                            initialsOf(member.display_name.ifBlank { null }),
-                                            style = MaterialTheme.typography.labelSmall.copy(
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                            ),
-                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        )
-                                    }
+                                    InitialsAvatar(
+                                        member.display_name.ifBlank { null },
+                                        24.dp,
+                                        glyph = 9.sp,
+                                    )
                                 },
                             )
                         }
@@ -2745,24 +2731,14 @@ private fun SearchResultsPane(
 /** 38–40dp squircle initials avatar on the inset tint (spec 00). */
 @Composable
 private fun SearchAvatar(name: String, size: androidx.compose.ui.unit.Dp) {
-    Box(
-        Modifier
-            .size(size)
-            .background(
-                MaterialTheme.colorScheme.surfaceContainerHigh,
-                RoundedCornerShape(14.dp),
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            initialsOf(name),
-            style = MaterialTheme.typography.labelLarge.copy(
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-            ),
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-    }
+    InitialsAvatar(
+        name,
+        size,
+        shape = RoundedCornerShape(14.dp),
+        glyph = 12.sp,
+        container = MaterialTheme.colorScheme.surfaceContainerHigh,
+        content = MaterialTheme.colorScheme.onSurface,
+    )
 }
 
 /** 22dp outline ring; done = lime fill + check (spec 00 task rows). */

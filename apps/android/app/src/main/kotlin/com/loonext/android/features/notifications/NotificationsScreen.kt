@@ -1,5 +1,6 @@
 package com.loonext.android.features.notifications
 
+import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.RefreshBox
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
@@ -68,7 +69,6 @@ import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.formatPhone
-import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
@@ -570,22 +570,24 @@ private fun KindBadge(row: NotificationItem) {
     }
     val contactName = row.contact?.name
     Box {
-        Box(
-            Modifier
-                .size(38.dp)
-                .background(tint, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (row.type == NotificationType.INBOUND_MESSAGE && contactName != null) {
-                Text(
-                    initialsOf(contactName),
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    ),
-                    color = content,
-                )
-            } else {
+        // The initials branch and the icon branch are separate badges rather than one
+        // box with two children: an icon is fixed `dp` and correct as it is, while
+        // initials are `sp` and need the #569 bound that InitialsAvatar carries.
+        if (row.type == NotificationType.INBOUND_MESSAGE && contactName != null) {
+            InitialsAvatar(
+                contactName,
+                38.dp,
+                glyph = 12.sp,
+                container = tint,
+                content = content,
+            )
+        } else {
+            Box(
+                Modifier
+                    .size(38.dp)
+                    .background(tint, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
                 Icon(
                     iconFor(row.type),
                     contentDescription = null,

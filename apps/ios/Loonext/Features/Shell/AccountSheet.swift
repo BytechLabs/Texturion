@@ -86,14 +86,15 @@ struct AccountSheet: View {
     /// Ink identity header: workspace avatar tile, name, "you · role" line.
     private var identityCard: some View {
         HStack(spacing: 12) {
-            Text(initialsOf(membership?.name ?? displayName))
-                .font(.golos(13, weight: .semibold))
-                .foregroundStyle(BrandColor.paper)
-                .frame(width: 44, height: 44)
-                .background(
-                    BrandColor.paper.opacity(0.14),
-                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                )
+            InitialsAvatar(
+                name: membership?.name ?? displayName,
+                size: 44,
+                glyph: 13,
+                typeface: .golos,
+                shape: AnyShape(RoundedRectangle(cornerRadius: 14, style: .continuous)),
+                tint: BrandColor.paper.opacity(0.14),
+                content: BrandColor.paper
+            )
             VStack(alignment: .leading, spacing: 2) {
                 Text(membership?.name ?? displayName)
                     .font(.golos(14, weight: .semibold))

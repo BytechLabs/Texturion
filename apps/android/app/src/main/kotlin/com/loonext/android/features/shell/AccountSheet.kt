@@ -38,6 +38,7 @@ import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -69,13 +70,13 @@ import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.AttentionDot
 import com.loonext.android.ui.common.DsChip
+import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.PreviewHarness
 import com.loonext.android.ui.common.ResponsivePreviews
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.formatPhone
-import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.isCompactHeight
 import com.loonext.android.ui.common.loonextWordmark
 import com.loonext.android.ui.common.previewMe
@@ -182,23 +183,16 @@ internal fun AccountSheetContent(
                     ),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier
-                                .size(44.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f),
-                                    RoundedCornerShape(14.dp),
-                                ),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                initialsOf(workspaceName ?: me.display_name),
-                                style = MaterialTheme.typography.labelLarge.copy(
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                ),
-                            )
-                        }
+                        InitialsAvatar(
+                            workspaceName ?: me.display_name,
+                            44.dp,
+                            shape = RoundedCornerShape(14.dp),
+                            glyph = 13.sp,
+                            container = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f),
+                            // This header sits on `primary`, so the initials took the
+                            // inherited content colour rather than naming one.
+                            content = LocalContentColor.current,
+                        )
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
@@ -412,24 +406,7 @@ internal fun AccountSheetContent(
                                     }
                                     .padding(horizontal = 15.dp, vertical = 12.dp),
                             ) {
-                                Box(
-                                    Modifier
-                                        .size(30.dp)
-                                        .background(
-                                            MaterialTheme.colorScheme.secondaryContainer,
-                                            CircleShape,
-                                        ),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text(
-                                        initialsOf(m.name),
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    )
-                                }
+                                InitialsAvatar(m.name, 30.dp, glyph = 11.sp)
                                 Spacer(Modifier.width(10.dp))
                                 Text(
                                     m.name,

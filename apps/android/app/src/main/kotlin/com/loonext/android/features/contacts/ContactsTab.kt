@@ -1,5 +1,6 @@
 package com.loonext.android.features.contacts
 
+import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.RefreshBox
 import android.Manifest
 import android.content.Context
@@ -107,7 +108,6 @@ import com.loonext.android.features.contacts.device.DeviceContactListRow
 import com.loonext.android.features.contacts.device.deviceContactRows
 import com.loonext.android.features.contacts.device.filterDeviceContacts
 import com.loonext.android.ui.common.formatPhone
-import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberCacheFirst
@@ -1227,24 +1227,7 @@ private fun ContactRow(contact: Contact, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(11.dp),
     ) {
-        Box(
-            Modifier
-                .size(40.dp)
-                .background(
-                    MaterialTheme.colorScheme.secondaryContainer,
-                    RoundedCornerShape(14.dp),
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                initialsOf(name),
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontSize = 12.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                ),
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-            )
-        }
+        InitialsAvatar(name, 40.dp, shape = RoundedCornerShape(14.dp), glyph = 12.5.sp)
         Column(Modifier.weight(1f)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,

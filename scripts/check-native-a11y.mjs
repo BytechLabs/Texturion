@@ -84,6 +84,34 @@ const failures = [];
 const IOS_RAW_SYSTEM = /\.system\(size:/;
 const IOS_CUSTOM = /\.custom\([^)]*\bsize:/;
 
+// The scaling factories have to construct a non-scaling font — that is what they are
+// for — so the file that holds them is skipped below. That skip used to be
+// unconditional, which made it the one place in the app where a font could quietly stop
+// scaling. It is now a CHECKED exemption: every non-scaling font built in that file must
+// take a size that has been through the reader's setting, either `scaledValue` (the
+// scaling factory itself) or `boundedGlyph` (#569, which scales and then caps to a fixed
+// badge). A bare literal there is the same offence as anywhere else.
+{
+  const source = readFileSync(IOS_SCALING_IMPL, "utf8").split(/\r?\n/);
+  source.forEach((line, index) => {
+    if (isComment(line, "//")) return;
+    if (!IOS_RAW_SYSTEM.test(line) && !IOS_CUSTOM.test(line)) return;
+    // `relativeTo:` IS the scaling overload — the display and body factories are built
+    // from it and are the correct thing, not an exemption. Leaving this out flagged
+    // both of them on the first run.
+    if (line.includes("relativeTo:")) return;
+    if (/\b(scaledValue|boundedGlyph)\b/.test(line)) return;
+    // A factory taking an already-scaled value as a parameter is the same thing one
+    // step removed; the parameter name is the contract.
+    if (/\bsize:\s*points\b|fixedSize:\s*points\b/.test(line)) return;
+    failures.push(
+      `${IOS_SCALING_IMPL}:${index + 1}  builds a non-scaling font from a size that ` +
+        `never saw the reader's setting - it must come from TypeScale.scaledValue or ` +
+        `TypeScale.boundedGlyph`,
+    );
+  });
+}
+
 for (const file of sourceFiles(IOS_ROOT, ".swift")) {
   if (file === IOS_SCALING_IMPL) continue;
   readFileSync(file, "utf8")

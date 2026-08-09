@@ -70,6 +70,38 @@ enum TypeScale {
     static func scaledValue(for size: CGFloat) -> CGFloat {
         UIFontMetrics(forTextStyle: anchor(for: size).uiKit).scaledValue(for: size)
     }
+
+    /// #569: how much of a fixed badge two wide initials may fill.
+    ///
+    /// Kept as a named constant because Android holds the same number, and
+    /// `scripts/check-avatar-glyph-bounds.mjs` compares the two files and fails when
+    /// they drift — a rule written once per platform is a rule that disagrees with
+    /// itself eventually.
+    static let avatarGlyphDivisor: CGFloat = 2.1
+
+    /// The reader's size for `wanted`, capped so the initials stay inside `box`.
+    ///
+    /// An initials badge is a fixed number of points wide and its glyph is not: the
+    /// point size carries the reader's Dynamic Type setting and the frame does not.
+    /// Measured on the shipped faces, two initials run about 1.6x the point size wide
+    /// and a wide pair like "WM" about 1.86x, so the app's 40pt circle at `size * 0.38`
+    /// held about 28pt of ink at Large and more than the full 40 by the top of the
+    /// accessibility range — and a SwiftUI `.frame` does not clip, so the letters spill
+    /// out over the name beside them.
+    ///
+    /// The glyph follows the reader until a wide pair would touch the rim, then holds.
+    /// Nothing moves at Large. Growing the badge instead was considered and measured
+    /// against on Android (#569) for three reasons that apply here identically: the
+    /// overflow is horizontal, the crowded rows have no width to give, and the name
+    /// beside the badge already scales in full — which is what a reader who asked for
+    /// large text actually needs from a two-letter recognition mark.
+    ///
+    /// Because the returned value is already scaled, apply it with a fixed-size font
+    /// (`Font.custom(_:fixedSize:)` or `.system(size:)`), never with a `relativeTo:`
+    /// variant — that would scale it a second time.
+    static func boundedGlyph(box: CGFloat, wanted: CGFloat) -> CGFloat {
+        min(scaledValue(for: wanted), box / avatarGlyphDivisor)
+    }
 }
 
 extension Font {
@@ -94,6 +126,39 @@ extension Font {
     static func scaled(_ size: CGFloat, weight: Font.Weight = .regular, design: Font.Design = .default) -> Font {
         .system(size: TypeScale.scaledValue(for: size), weight: weight, design: design)
     }
+
+    /// A point size that has ALREADY been through the reader's setting.
+    ///
+    /// The only caller is the initials badge, whose glyph is scaled and then capped to
+    /// its frame by `TypeScale.boundedGlyph` (#569). Applying that result through
+    /// `.scaled` or a `relativeTo:` font would scale it a second time and undo the cap,
+    /// so it has to be applied fixed — which is why this lives here, in the one file
+    /// `check-native-a11y` trusts to construct a non-scaling font, next to the reason.
+    ///
+    /// `check-avatar-glyph-bounds` is what keeps that trust honest from the other side:
+    /// it proves the value handed in came from `boundedGlyph`, so "fixed" here can only
+    /// ever mean "already scaled", never "ignores the reader".
+    static func boundedGlyph(
+        _ points: CGFloat,
+        face: AvatarTypeface,
+        weight: Font.Weight = .regular
+    ) -> Font {
+        switch face {
+        case .system: .system(size: points, weight: weight)
+        case .golos: .custom("Golos Text", fixedSize: points).weight(weight)
+        }
+    }
+}
+
+/// The typeface an initials badge draws in.
+///
+/// Two cases because the app currently uses both, and that is worth being able to see:
+/// the shared badge draws in the system face while the three hand-rolled copies it
+/// replaced drew in Golos, which is what Android and web use. Unifying them changes 20
+/// surfaces and belongs to its own issue rather than to the #569 bound.
+enum AvatarTypeface {
+    case system
+    case golos
 }
 
 /// Rounded-22 paper card that rows live inside.

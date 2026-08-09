@@ -46,6 +46,7 @@ import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.SupportAgent
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -82,6 +83,7 @@ import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.Usage
 import com.loonext.android.core.model.UsageStatus
 import com.loonext.android.ui.common.CenteredError
+import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.PreviewHarness
@@ -96,7 +98,6 @@ import com.loonext.android.ui.common.previewUsage
 import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.formatPhone
-import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.loonextWordmark
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberCacheFirst
@@ -640,23 +641,15 @@ private fun IdentityCard(
             Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                Modifier
-                    .size(46.dp)
-                    .background(
-                        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f),
-                        CircleShape,
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    initialsOf(me.display_name.ifBlank { company.name }),
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    ),
-                )
-            }
+            InitialsAvatar(
+                me.display_name.ifBlank { company.name },
+                46.dp,
+                glyph = 14.sp,
+                container = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f),
+                // This card sits on `primary`, so the initials took the Surface's
+                // content colour rather than naming one. Passing it keeps that.
+                content = LocalContentColor.current,
+            )
             Spacer(Modifier.width(13.dp))
             Column(Modifier.weight(1f)) {
                 Text(

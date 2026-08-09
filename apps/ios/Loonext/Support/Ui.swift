@@ -120,15 +120,30 @@ struct CenteredError: View {
 }
 
 /// Flat single-tone avatar: avatar-tint fill, muted-ink initials (Paper & Olive).
+///
+/// The one initials badge in the app. Its glyph is bounded to its frame
+/// (`TypeScale.boundedGlyph`) — see #569, where nine hand-rolled copies of this on
+/// Android and three more here all clipped or spilled their letters at large text.
 struct InitialsAvatar: View {
     let name: String?
     var size: CGFloat = 40
+    /// The point size the initials WANT, before the reader's setting and the cap.
+    /// Defaults to the historic `size * 0.38`, so every existing call is unchanged.
+    var glyph: CGFloat?
+    var typeface: AvatarTypeface = .system
+    var shape: AnyShape = AnyShape(Circle())
+    var tint: Color = BrandColor.avatarTint
+    var content: Color = BrandColor.muted900
 
     var body: some View {
+        // Already carries the reader's setting, so it is applied at a FIXED size —
+        // a `relativeTo:` font here would scale it a second time and undo the cap.
+        let rendered = TypeScale.boundedGlyph(box: size, wanted: glyph ?? size * 0.38)
         Text(initialsOf(name))
-            .font(.scaled(size * 0.38, weight: .semibold))
-            .foregroundStyle(BrandColor.muted900)
+            .font(.boundedGlyph(rendered, face: typeface, weight: .semibold))
+            .lineLimit(1)
+            .foregroundStyle(content)
             .frame(width: size, height: size)
-            .background(BrandColor.avatarTint, in: Circle())
+            .background(tint, in: shape)
     }
 }

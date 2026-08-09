@@ -1,5 +1,6 @@
 package com.loonext.android.features.foryou
 
+import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.RefreshBox
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.LocalIndication
@@ -89,7 +90,6 @@ import com.loonext.android.ui.common.SectionHeader
 import com.loonext.android.ui.common.SkeletonBlock
 import com.loonext.android.ui.common.SkeletonList
 import com.loonext.android.ui.common.formatPhone
-import com.loonext.android.ui.common.initialsOf
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.relativeTime
 import com.loonext.android.ui.common.rememberHaptics
@@ -1185,24 +1185,17 @@ private fun CircleIconButton(
     }
 }
 
-/** Tinted identity circle (secondaryContainer + SemiBold initials). */
+/**
+ * Tinted identity circle (secondaryContainer + SemiBold initials).
+ *
+ * Kept as a named local so the three call sites read the same as before, but the badge
+ * itself is now the shared component — a wrapper that takes `fontSize` as a parameter
+ * hid this from the #569 sweep, because the literal lived at the call site and the box
+ * size lived here, so neither file showed a fixed box beside a literal glyph.
+ */
 @Composable
 private fun AvatarCircle(name: String?, size: Dp, fontSize: TextUnit) {
-    Box(
-        Modifier
-            .size(size)
-            .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            initialsOf(name),
-            style = MaterialTheme.typography.labelMedium.copy(
-                fontSize = fontSize,
-                fontWeight = FontWeight.SemiBold,
-            ),
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-        )
-    }
+    InitialsAvatar(name, size, glyph = fontSize)
 }
 
 /** The muted 15dp trailing arrow on tappable queue rows. */

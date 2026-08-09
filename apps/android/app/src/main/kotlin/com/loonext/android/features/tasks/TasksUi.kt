@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.loonext.android.ui.common.initialsOf
+import com.loonext.android.ui.common.InitialsAvatar
 
 /**
  * Tasks-local pieces of the "paper & olive" grammar (screens 22–24, 31):
@@ -111,7 +111,17 @@ internal fun DoneCircle(
     }
 }
 
-/** Small initials avatar on the avatar tint (row assignees, note authors). */
+/**
+ * Small initials avatar on the avatar tint (row assignees, note authors).
+ *
+ * Kept as a named local because four call sites read better with it, but the badge is
+ * the shared component. Like `AvatarCircle` on For You, taking `fontSize` as a
+ * parameter is what hid this one from the #569 sweep: the box size and the glyph
+ * literal never appeared in the same file, so nothing looked like the bug.
+ *
+ * The smallest caller is 18dp, where the bound starts working at about 1.1x — a note
+ * author's initials are the tightest badge in the app.
+ */
 @Composable
 internal fun TaskAvatar(
     name: String?,
@@ -119,20 +129,7 @@ internal fun TaskAvatar(
     fontSize: TextUnit = 9.5.sp,
     modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier
-            .size(size)
-            .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            initialsOf(name),
-            fontSize = fontSize,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-            maxLines = 1,
-        )
-    }
+    InitialsAvatar(name, size, modifier = modifier, glyph = fontSize)
 }
 
 /** View-switcher pill: ink when active, paper when idle (spec 24). */

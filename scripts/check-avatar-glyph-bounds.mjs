@@ -10,89 +10,83 @@
  *
  * ## Why a guard and not just a fix
  *
- * `InitialsAvatar` was supposed to be the one implementation. A survey of the tree
- * found **nine** hand-rolled copies of it, including on the inbox list and the
- * thread header — the two surfaces named in the issue. Fixing the shared component
- * alone would have closed #569 with both of them still broken.
+ * `InitialsAvatar` was supposed to be the one implementation. A sweep of the tree
+ * found **ten** hand-rolled copies of it, including on the inbox list and the thread
+ * header — the two surfaces named in the issue. Fixing the shared component alone
+ * would have closed #569 with both of them still broken.
  *
- * They existed because nothing connected the two numbers: the box was a literal
- * `dp`, the glyph an unrelated literal `sp`, so there was no ratio to inherit and
- * copying was easier than parameterising. That is a shape that regrows. This fails
- * the build when it does.
+ * They existed because nothing connected the two numbers: the box was a literal `dp`,
+ * the glyph an unrelated literal `sp`, so there was no ratio to inherit and copying
+ * was easier than parameterising. That is a shape that regrows.
  *
- * ## What this checks, precisely
+ * ## What this checks, and why it is not what it first checked
  *
- * A composable that sets a FIXED `Modifier.size(<n>.dp)` and, inside the same
- * function, sets `fontSize = <n>.sp` on a literal — with no bound between them. The
- * fix is to call `InitialsAvatar`, which caps the rendered glyph, or to bound the
- * glyph the same way and say why.
+ * The rule is now one sentence: **anything that renders initials must size them
+ * through the bound.** Concretely, a function calling `initialsOf(` must set the
+ * glyph's `fontSize` from `boundedGlyph(` — which is what `InitialsAvatar` does, so
+ * calling the component satisfies it for free.
  *
- * `check-native-a11y` cannot catch this and says so in its own header: it checks
- * that text is sized in `sp` rather than `dp` — which every one of these copies did,
+ * The first version of this guard instead looked for the SHAPE of the bug: a fixed
+ * `.size(N.dp)` within a few lines of a literal `fontSize = M.sp`. That found seven
+ * copies and missed three, all of the same kind — a small wrapper taking `size: Dp`
+ * and `fontSize: TextUnit` as parameters (`AvatarCircle` on For You, `TaskAvatar` on
+ * Tasks, `SearchAvatar` in inbox search). In those, the box size and the glyph literal
+ * never appeared in the same file: the wrapper had `.size(size)` and the callers had
+ * `fontSize = 12.sp`. Each was as broken as the seven the pattern caught, and a
+ * pattern-matcher could not see any of them — including the one wrapper the ORIGINAL
+ * bug report was filed about.
+ *
+ * That is the general lesson and it is worth stating plainly: a guard written against
+ * the shape of a known instance passes anything that launders the same defect through
+ * one indirection. A guard written against the invariant does not care how many
+ * indirections there are.
+ *
+ * `check-native-a11y` cannot catch this and says so in its own header: it checks that
+ * text is sized in `sp` rather than `dp` — which every one of these copies did,
  * correctly — and explicitly not whether a layout survives 200%.
  *
  * ## What it deliberately does NOT flag
  *
  * A fixed box around an ICON. An icon is not text and does not scale with the font
  * setting, so a `34.dp` box holding a `15.dp` icon is correct. The issue as filed
- * claimed the call log's dial-back control had this bug; it does not, and reading
- * the code is what settled it.
+ * claimed the call log's dial-back control had this bug; it does not, and reading the
+ * code is what settled it.
  */
-import { readFileSync } from "node:fs";
-import { readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = "apps/android/app/src/main/kotlin";
+const COMPONENT = join(ROOT, "com/loonext/android/ui/common/Ui.kt");
+
+const IOS_ROOT = "apps/ios/Loonext";
+const IOS_COMPONENT = join(IOS_ROOT, "Support/Ui.swift");
+const IOS_SCALE = join(IOS_ROOT, "Theme/DesignSystem.swift");
 
 /**
- * Functions allowed to pair a fixed box with a literal glyph.
+ * How far after an `initialsOf(` call the glyph's own `fontSize` can be.
  *
- * `InitialsAvatar` is the implementation of the bound, so it is the one place the
- * pairing is correct. Everything else should call it.
+ * This is deliberately narrow. It is the distance from the text argument of a `Text`
+ * to that same `Text`'s `fontSize`, allowing for a comment between them — not a
+ * search of the enclosing function, which is how the first version of this guard
+ * paired two unrelated widgets hundreds of lines apart and reported a 24dp box holding
+ * a 21sp glyph. One false finding is roughly the point at which people stop reading a
+ * guard's output.
  */
-const ALLOWED = new Set(["InitialsAvatar"]);
+const WINDOW = 14;
 
-/**
- * Copies not yet converted, each with the size pair it still carries.
- *
- * These are real instances of the same bug on quieter surfaces, and they are listed
- * rather than silently skipped so the guard can go in NOW and hold the line while
- * they are worked through. **#569 stays open until this map is empty** — an
- * allowlist with nothing driving it to zero is how a known bug becomes a permanent
- * one.
- *
- * Names come from this guard's own output rather than from reading, because the
- * enclosing composable is often not the one you would guess: two of these are both
- * inside `AccountSheetContent`, and the assignee filter pill lives inside
- * `FiltersSheet`. An earlier version of this list guessed the names and half of them
- * matched nothing, which would have silenced the guard for entries that did not
- * exist while leaving the real ones failing.
- */
-const KNOWN_UNCONVERTED = new Map([
-  ["ContactDetailBody", "#569 — contact detail hero, 78dp box / 24.sp glyph"],
-  ["FiltersSheet", "#569 — assignee filter pill, 24dp box / 9.sp glyph"],
-  ["KindBadge", "#569 — notifications row, 38dp box / 12.sp glyph"],
-  ["IdentityCard", "#569 — settings identity card, 46dp box / 14.sp glyph"],
-  ["AccountSheetContent", "#569 — account sheet, 44dp and 30dp boxes / 13.sp and 11.sp"],
-  ["ContactRow", "#569 — contacts list, 40dp box / 12.5.sp glyph"],
-  ["AssigneeChip", "#569 — task-from-message sheet, 26dp box / 10.sp glyph"],
-]);
-
-function kotlinFiles(dir) {
+function sourceFiles(dir, extension) {
   const out = [];
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
-    if (statSync(full).isDirectory()) out.push(...kotlinFiles(full));
-    else if (entry.endsWith(".kt")) out.push(full);
+    if (statSync(full).isDirectory()) out.push(...sourceFiles(full, extension));
+    else if (entry.endsWith(extension)) out.push(full);
   }
   return out;
 }
 
 /** Strip comments so prose about a bug is not read as the bug. */
 function stripComments(source) {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^[ \t]*\/\/.*$/gm, "");
+  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
 }
 
 /** The enclosing `fun` name for a line, so a finding can name the composable. */
@@ -104,114 +98,185 @@ function enclosingFunction(lines, index) {
   return "(top level)";
 }
 
-/**
- * A fixed box and a literal glyph WITHIN A FEW LINES OF EACH OTHER.
- *
- * The proximity window is the whole precision of this guard, and the first version
- * did not have one: it split files by `fun` and matched any box against any glyph in
- * the same function, which in a long composable pairs two unrelated widgets. That
- * reported `FiltersSheet` as a 24dp box holding a 21sp glyph — two things hundreds of
- * lines apart, neither of them an avatar. One false finding in six is the rate at
- * which people stop reading a guard's output, so the window is not a refinement, it
- * is the difference between a check and a nuisance.
- *
- * Fifteen lines is what a real `Box { Text }` badge spans, allowing for a background,
- * an alignment and a style block.
- */
-const WINDOW = 15;
-
-function pairs(source) {
-  const lines = source.split("\n");
-  const found = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    const box = /\.size\((\d+(?:\.\d+)?)\.dp\)/.exec(lines[i]);
-    if (!box) continue;
-    const slice = lines.slice(i, i + WINDOW).join("\n");
-    const glyph = /fontSize\s*=\s*(\d+(?:\.\d+)?)\.sp/.exec(slice);
-    if (!glyph) continue;
-    // Only a text badge is at risk — an icon in a fixed box is correct, which is
-    // why the dial-back control the issue accused is not a finding.
-    if (!/initialsOf\(/.test(slice)) continue;
-    found.push({
-      line: i + 1,
-      box: box[1],
-      glyph: glyph[1],
-      name: enclosingFunction(lines, i),
-    });
-  }
-  return found;
-}
-
 const problems = [];
 let scanned = 0;
-let pairsFound = 0;
+let sites = 0;
 
-for (const file of kotlinFiles(ROOT)) {
+for (const file of sourceFiles(ROOT, ".kt")) {
   const source = stripComments(readFileSync(file, "utf8").replace(/\r\n/g, "\n"));
   scanned += 1;
-  for (const pair of pairs(source)) {
-    pairsFound += 1;
-    if (ALLOWED.has(pair.name)) continue;
-    if (KNOWN_UNCONVERTED.has(pair.name)) continue;
+  const lines = source.split("\n");
 
-    problems.push(
-      `${file}:${pair.line} — \`${pair.name}\` pairs a fixed ${pair.box}.dp box ` +
-        `with a literal ${pair.glyph}.sp glyph and no bound between them, so the ` +
-        `initials outgrow the box at large OS text (#569). Call InitialsAvatar — it ` +
-        `takes a \`shape\` and a \`glyph\`, so passing the literal keeps it ` +
-        `pixel-identical at the default setting — or add it to KNOWN_UNCONVERTED ` +
-        `with an issue behind it.`,
-    );
+  // Names bound to the bound, e.g. `val rendered = boundedGlyph(size, glyph)`, so a
+  // component can compute it once and use it for both fontSize and lineHeight.
+  const bound = new Set();
+  for (const line of lines) {
+    const assigned = /\bval\s+(\w+)\s*=\s*boundedGlyph\(/.exec(line);
+    if (assigned) bound.add(assigned[1]);
+  }
+
+  for (let i = 0; i < lines.length; i += 1) {
+    // The declaration of the helper itself is not a use of it.
+    if (/fun initialsOf\(/.test(lines[i])) continue;
+    if (!/\binitialsOf\(/.test(lines[i])) continue;
+    sites += 1;
+
+    const slice = lines.slice(i, i + WINDOW).join("\n");
+    const glyph = /fontSize\s*=\s*([^,\n]+)/.exec(slice);
+    const name = enclosingFunction(lines, i);
+
+    if (glyph === null) {
+      problems.push(
+        `${file}:${i + 1} — \`${name}\` renders initials but sets no \`fontSize\` ` +
+          `within ${WINDOW} lines, so this guard cannot tell whether the glyph is ` +
+          `bounded (#569). Render initials through InitialsAvatar.`,
+      );
+      continue;
+    }
+
+    const expression = glyph[1].trim();
+    const isBounded =
+      expression.startsWith("boundedGlyph(") ||
+      bound.has(expression.replace(/\s*\*.*$/, "").trim());
+
+    if (!isBounded) {
+      problems.push(
+        `${file}:${i + 1} — \`${name}\` renders initials at \`fontSize = ` +
+          `${expression}\`, which is not bounded to the badge's box, so the letters ` +
+          `outgrow it at large OS text (#569). Call InitialsAvatar — it takes a ` +
+          `\`shape\`, a \`glyph\` and a colour pair, so passing the literals you have ` +
+          `keeps it pixel-identical at the default setting. If the badge truly cannot ` +
+          `be that component (only CallerAvatar, which paints a ring behind its own ` +
+          `Box), size the glyph with \`boundedGlyph(size, wanted)\`.`,
+      );
+    }
   }
 }
 
-// The component's OWN bound, which the allowlist above would otherwise excuse.
-//
-// Found by breaking it: removing the cap from InitialsAvatar left this guard green,
-// because `ALLOWED` skips the one function whose job is to implement the bound. An
-// allowlist that exempts the implementation exempts the thing being guarded.
+// The bound itself, and the component's use of it. `InitialsAvatar` satisfies the rule
+// above by construction, so without this the whole check could be defeated by gutting
+// the one function every caller now trusts — which is exactly what happened when an
+// earlier version simply exempted it by name.
 {
-  const component = readFileSync(join(ROOT, "com/loonext/android/ui/common/Ui.kt"), "utf8");
-  const body = /fun InitialsAvatar\(([\s\S]*?)\n}/.exec(component);
-  if (body === null) {
+  const component = readFileSync(COMPONENT, "utf8").replace(/\r\n/g, "\n");
+
+  const helper = /fun boundedGlyph\(([\s\S]*?)\n}/.exec(component);
+  if (helper === null) {
+    problems.push(
+      "cannot find boundedGlyph in ui/common/Ui.kt — this guard has lost the rule it " +
+        "exists to enforce, and every check above would pass vacuously.",
+    );
+  } else if (!/minOf\(/.test(helper[1])) {
+    problems.push(
+      "boundedGlyph no longer takes the SMALLER of what the caller wanted and what " +
+        "the box can hold (#569). Without a `minOf` it is not a bound, and every " +
+        "caller inherits the original bug while reading as if it were fixed.",
+    );
+  }
+
+  const avatar = /fun InitialsAvatar\(([\s\S]*?)\n}/.exec(component);
+  if (avatar === null) {
     problems.push(
       "cannot find InitialsAvatar in ui/common/Ui.kt — this guard has lost the " +
         "component it exists to protect.",
     );
   } else {
-    // The cap: a rendered size derived by taking the SMALLER of what the caller
-    // wanted and what the box can hold.
-    if (!/minOf\(/.test(body[1]) || !/fontSize\s*=\s*rendered/.test(body[1])) {
+    if (!/boundedGlyph\(/.test(avatar[1])) {
       problems.push(
-        "InitialsAvatar no longer bounds its glyph to its box (#569). The whole " +
-          "point of the component is that `fontSize` is a `rendered` value capped " +
-          "by `minOf(wanted, ceiling)`; without it every caller inherits the bug " +
-          "again and the allowlist above silently excuses all of them.",
+        "InitialsAvatar no longer bounds its glyph (#569). It is the badge every " +
+          "surface in the app now renders through, so an unbounded glyph here is the " +
+          "bug back in all ten places at once.",
       );
     }
-    if (!/lineHeight\s*=\s*rendered/.test(body[1])) {
+    if (!/lineHeight\s*=\s*rendered/.test(avatar[1])) {
       problems.push(
-        "InitialsAvatar no longer bounds its lineHeight (#569). The inherited " +
-          "20.sp is 34dp at the top of the system slider, which spills out of the " +
-          "28-32dp avatars even when the glyph itself fits.",
+        "InitialsAvatar no longer bounds its lineHeight (#569). The inherited 20.sp " +
+          "is 34dp at the top of the system slider, which spills out of the 24-32dp " +
+          "avatars even when the glyph itself fits.",
       );
     }
-    if (!/softWrap\s*=\s*false/.test(body[1])) {
+    if (!/softWrap\s*=\s*false/.test(avatar[1])) {
       problems.push(
-        "InitialsAvatar no longer refuses to wrap (#569). Two initials are one " +
-          "word; with wrapping on, Compose breaks the pair mid-word once it stops " +
-          "fitting and clips the second letter — which is how the inbox row failed.",
+        "InitialsAvatar no longer refuses to wrap (#569). Two initials are one word; " +
+          "with wrapping on, Compose breaks the pair mid-word once it stops fitting " +
+          "and clips the second letter — which is how the inbox row failed.",
       );
     }
   }
 }
 
-if (scanned === 0 || pairsFound === 0) {
-  // Loud rather than vacuous: a walk that matched nothing would pass by default and
-  // read exactly like a clean bill of health. `InitialsAvatar` itself is one pair,
-  // so zero means the patterns have stopped matching reality.
+// --- iOS -------------------------------------------------------------------------
+//
+// The same defect existed here and was worse: SwiftUI's `.frame` does not clip, so the
+// letters spilled OUT of the badge over the name beside them, and iOS sized its glyph
+// at `size * 0.38` (bigger than Android's `size / 3`) so it ran out of room sooner.
+// iOS had the discipline Android did not — one `InitialsAvatar` behind 20 surfaces —
+// but three hand-rolled copies had still appeared, one of them the same
+// parameterised-wrapper shape that hid three on Android.
+let iosSites = 0;
+for (const file of sourceFiles(IOS_ROOT, ".swift")) {
+  const source = stripComments(readFileSync(file, "utf8").replace(/\r\n/g, "\n"));
+  const lines = source.split("\n");
+  for (let i = 0; i < lines.length; i += 1) {
+    // A BADGE, not the string helper. `initialsOf` on its own is a pure function and
+    // the tests are entitled to call it; only initials being DRAWN need the bound.
+    if (!/Text\(\s*initialsOf\(/.test(lines[i])) continue;
+    iosSites += 1;
+    // Looks BACKWARD as well as forward, unlike the Kotlin half. In Compose the glyph
+    // size is an argument of the `Text` itself; in SwiftUI it is a `let` computed just
+    // above the view, because a `.font()` modifier cannot declare one.
+    const slice = lines.slice(Math.max(0, i - 4), i + WINDOW).join("\n");
+    if (!/boundedGlyph\(/.test(slice)) {
+      problems.push(
+        `${file}:${i + 1} — initials are drawn here without \`TypeScale.boundedGlyph\`, ` +
+          `so at large Dynamic Type they grow past the fixed \`.frame\` and, because ` +
+          `SwiftUI does not clip, spill over whatever sits beside them (#569). Render ` +
+          `them with \`InitialsAvatar\`, which takes a \`glyph\`, a \`shape\`, a ` +
+          `\`typeface\` and a colour pair — passing the values you have keeps it ` +
+          `identical at the default text size.`,
+      );
+    }
+  }
+}
+
+if (iosSites === 0) {
   problems.push(
-    `scanned ${scanned} Kotlin files and found ${pairsFound} box/glyph pairs — ` +
+    "found no initials badge in the iOS sources — InitialsAvatar draws one, so zero " +
+      "means this half of the guard has stopped matching the tree.",
+  );
+}
+
+// The ceiling is ONE rule and it is written in two languages. Nothing but this
+// comparison stops them drifting, and a divisor that disagrees by platform is how
+// "the same badge" ends up clipping on one phone and not the other.
+{
+  const kotlin = readFileSync(COMPONENT, "utf8");
+  const swift = readFileSync(IOS_SCALE, "utf8");
+  const kotlinCeiling = /val ceiling = size\.value \/ (\d+(?:\.\d+)?)f/.exec(kotlin);
+  const swiftCeiling = /avatarGlyphDivisor: CGFloat = (\d+(?:\.\d+)?)/.exec(swift);
+
+  if (kotlinCeiling === null || swiftCeiling === null) {
+    problems.push(
+      `cannot read the glyph ceiling from both platforms (Kotlin: ` +
+        `${kotlinCeiling?.[1] ?? "not found"}, Swift: ${swiftCeiling?.[1] ?? "not found"}) ` +
+        `— without both this guard cannot tell whether they still agree.`,
+    );
+  } else if (kotlinCeiling[1] !== swiftCeiling[1]) {
+    problems.push(
+      `the glyph ceiling has drifted: Kotlin caps at size/${kotlinCeiling[1]} and Swift ` +
+        `at size/${swiftCeiling[1]} (#569). It is one measurement — two initials run ` +
+        `about 1.86x the point size wide — so the two platforms clipping at different ` +
+        `text settings is a bug in whichever one moved.`,
+    );
+  }
+}
+
+if (scanned === 0 || sites === 0) {
+  // Loud rather than vacuous: a walk that matched nothing would pass by default and
+  // read exactly like a clean bill of health. `InitialsAvatar` itself is one site, so
+  // zero means the patterns have stopped matching reality.
+  problems.push(
+    `scanned ${scanned} Kotlin files and found ${sites} initials call site(s) — ` +
       `expected at least one (InitialsAvatar itself). The patterns no longer match ` +
       `the tree, so this guard is not checking anything.`,
   );
@@ -224,6 +289,7 @@ if (problems.length > 0) {
 }
 
 console.log(
-  `Avatar glyphs: ${pairsFound} fixed-box/literal-glyph pair(s) across ${scanned} ` +
-    `Kotlin files, each either the bounded component or a filed exception.`,
+  `Avatar glyphs: ${sites} initials call site(s) across ${scanned} Kotlin files and ` +
+    `${iosSites} on iOS, every one sized through the #569 bound, and both platforms ` +
+    `capping at the same fraction of the box.`,
 );

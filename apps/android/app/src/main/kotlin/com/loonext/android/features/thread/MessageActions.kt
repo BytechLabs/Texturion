@@ -79,7 +79,7 @@ import com.loonext.android.ui.common.AiOrb
 import com.loonext.android.ui.common.AiOrbState
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.CountryField
-import com.loonext.android.ui.common.initialsOf
+import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberHaptics
 import java.time.Instant
@@ -754,21 +754,7 @@ private fun AssigneeChip(name: String, selected: Boolean, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        Box(
-            Modifier
-                .size(26.dp)
-                .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                initialsOf(name),
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold,
-                ),
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-            )
-        }
+        InitialsAvatar(name, 26.dp, glyph = 10.sp)
         Text(
             name,
             style = MaterialTheme.typography.labelMedium.copy(

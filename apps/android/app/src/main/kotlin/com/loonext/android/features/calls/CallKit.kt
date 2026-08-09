@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.loonext.android.ui.common.boundedGlyph
 import com.loonext.android.ui.common.initialsOf
 
 /**
@@ -130,7 +131,13 @@ fun CallerAvatar(
         ) {
             Text(
                 initialsOf(name.ifBlank { null }),
-                fontSize = (size.value * 0.285f).sp,
+                // The one avatar that cannot BE InitialsAvatar — it owns its Box to
+                // paint the breathing ring behind the initials — so it borrows the
+                // #569 bound instead. The ratio here already tracked the box, but a
+                // ratio is not a bound: 0.285 of the box in `sp` is 0.57 of it at the
+                // top of the reader's font slider, and two wide initials at 1.86x
+                // that is wider than the circle.
+                fontSize = boundedGlyph(size, (size.value * 0.285f).sp),
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = (-0.02).em,
                 color = MaterialTheme.colorScheme.onSurface,

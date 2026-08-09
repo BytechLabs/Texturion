@@ -389,11 +389,14 @@ struct SettingsHome: View {
     /// number one tap from the clipboard.
     private func identityCard(_ company: CompanyView) -> some View {
         HStack(spacing: 13) {
-            Text(initialsOf(me.display_name.isBlank ? company.name : me.display_name))
-                .font(.golos(13, weight: .semibold))
-                .foregroundStyle(BrandColor.paper)
-                .frame(width: 46, height: 46)
-                .background(BrandColor.paper.opacity(0.14), in: Circle())
+            InitialsAvatar(
+                name: me.display_name.isBlank ? company.name : me.display_name,
+                size: 46,
+                glyph: 13,
+                typeface: .golos,
+                tint: BrandColor.paper.opacity(0.14),
+                content: BrandColor.paper
+            )
             VStack(alignment: .leading, spacing: 2) {
                 Text(me.display_name.isBlank ? company.name : me.display_name)
                     .font(.golos(15, weight: .semibold))

@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.TextUnit
@@ -146,6 +147,12 @@ fun CenteredError(message: String, onRetry: () -> Unit, modifier: Modifier = Mod
  * @param glyph the size the initials WANT, before the cap. Defaults to the historic
  *   `size / 3` so every existing call renders identically; the converted copies pass
  *   the literal they had, so nothing shifts by a pixel at the default font setting.
+ * @param container the badge fill, and [content] the initials on top of it. They are
+ *   a pair — pass both or neither. Most surfaces want the avatar tint, but the
+ *   notification row tints by event type, the contact hero sits on a raised surface,
+ *   and the two account headers sit on `primary` and inherit their content colour.
+ *   Those differences are why nine copies existed; a colour is not a reason to
+ *   rewrite the geometry.
  */
 @Composable
 fun InitialsAvatar(
@@ -154,22 +161,18 @@ fun InitialsAvatar(
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(percent = 50),
     glyph: TextUnit = (size.value / 3).sp,
+    container: Color = MaterialTheme.colorScheme.secondaryContainer,
+    content: Color = MaterialTheme.colorScheme.onSecondaryContainer,
 ) {
-    val initials = initialsOf(name)
-    val density = LocalDensity.current
-    // The largest glyph two wide initials can use and still clear the rim: 1.86x the
-    // font size for the widest pair, inside about 92% of the box.
-    val ceiling = size.value / 2.1f
-    val wanted = with(density) { glyph.toDp().value }
-    val rendered = with(density) { minOf(wanted, ceiling).dp.toSp() }
     Box(
         modifier = modifier
             .size(size)
-            .background(MaterialTheme.colorScheme.secondaryContainer, shape),
+            .background(container, shape),
         contentAlignment = Alignment.Center,
     ) {
+        val rendered = boundedGlyph(size, glyph)
         Text(
-            initials,
+            initialsOf(name),
             style = MaterialTheme.typography.labelLarge.copy(
                 fontSize = rendered,
                 // Bounded with the glyph. The inherited 20.sp was the one thing that
@@ -183,9 +186,32 @@ fun InitialsAvatar(
             // the inbox row failed rather than by overflowing.
             maxLines = 1,
             softWrap = false,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            color = content,
         )
     }
+}
+
+/**
+ * The #569 bound on its own, for the one avatar that cannot be [InitialsAvatar].
+ *
+ * `CallerAvatar` paints a pulsing, rotating ring behind its initials with a
+ * `drawBehind`, so it owns its own `Box` and cannot delegate to the component. It can
+ * still delegate the RULE, which is the part that was wrong in nine places. Anything
+ * drawing initials must either call [InitialsAvatar] or size its glyph through here —
+ * `scripts/check-avatar-glyph-bounds.mjs` enforces exactly that and nothing else.
+ *
+ * Returns the smaller of what the caller asked for and what two wide initials can use
+ * without touching the rim (1.86x the font size for the widest pair, inside about 92%
+ * of the box). `sp` carries the reader's OS font setting and `dp` does not, so the
+ * comparison has to happen in `dp` at the current density — which is why this is a
+ * `@Composable` and not a pure function.
+ */
+@Composable
+fun boundedGlyph(size: Dp, glyph: TextUnit): TextUnit {
+    val density = LocalDensity.current
+    val ceiling = size.value / 2.1f
+    val wanted = with(density) { glyph.toDp().value }
+    return with(density) { minOf(wanted, ceiling).dp.toSp() }
 }
 
 fun initialsOf(name: String?): String {
