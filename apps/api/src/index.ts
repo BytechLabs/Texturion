@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/cloudflare";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
+import { securityHeaders } from "./http/security-headers";
 import { sweepDeletedAttachments } from "./attachments/sweep";
 import { runDeliveryByCountryJob } from "./messaging/delivery-by-country";
 import { companyContext } from "./auth/company";
@@ -138,6 +139,20 @@ import { stripeWebhookRoute } from "./webhooks/stripe";
 import { telnyxWebhookRoute } from "./webhooks/telnyx";
 
 export const app = new Hono<AppEnv>();
+
+/**
+ * #586 — security headers on EVERY response, before anything else is mounted.
+ *
+ * `"*"` rather than `/v1/*` deliberately: the measurement that opened this found a
+ * bare `/health` as well as a bare `/v1`, and the webhook routes are mounted outside
+ * the /v1 chain entirely. A header set that covers most of a Worker is a header set
+ * somebody has to reason about per route.
+ *
+ * Registered FIRST so it wraps every later handler, and it only fills in headers a
+ * route has not set for itself — the two that deliberately differ are named in the
+ * module.
+ */
+app.use("*", securityHeaders());
 
 /**
  * /v1 middleware chain (SPEC §7, §10), in exactly this order:
