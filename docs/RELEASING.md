@@ -63,6 +63,24 @@ of work reaches production at once, so a bad release has a wider blast radius
 than a bad commit did — `wrangler rollback` is still seconds, `supabase db push`
 still is not.
 
+**One thing worth running afterwards (#586):**
+
+```bash
+node scripts/ops/verify-api-headers.mjs
+```
+
+It asks production whether the API's security response headers are actually on
+the wire, reading what to expect out of `apps/api/src/http/security-headers.ts`
+rather than a second copy of the list. Read-only, no credentials, two requests.
+
+It is not in CI on purpose. Between a merge and a release it would be red for a
+reason nobody needs telling — the fix is merged, production is a version behind —
+and a check that is red for a known reason is one people learn to scroll past.
+This is the only property in §10 of `SPEC.md` that a unit test cannot reach: the
+middleware being present in the source proves nothing about the deployed build,
+about something stripping a header in front, or about a route that quietly stopped
+honouring the default. #586 existed because that gap was never measured.
+
 ## Reading the Actions tab (#493)
 
 Three checks run on every push to `main`, and only the last one reaches
