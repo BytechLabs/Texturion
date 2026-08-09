@@ -1422,7 +1422,13 @@ describe("DELETE /v1/numbers/:id", () => {
 
       expect(res.status).toBe(403);
       expect(await res.json()).toMatchObject({
-        error: { code: "mfa_challenge_required" },
+      // #581/#7: the code changed, the property did not. `mfa_challenge_required`
+      // is the wall in front of the whole workspace; `mfa_reprove_required` is
+      // "tap your authenticator for THIS act". The old assertion also passed for
+      // the wrong reason — the gate returned early on aal2, which
+      // `companyContext` has already forced for anybody enrolled, so the real
+      // caller was never asked for anything.
+        error: { code: "mfa_reprove_required" },
       });
       expect(harness.telnyx.callsTo("DELETE", /phone_numbers/)).toHaveLength(0);
     });

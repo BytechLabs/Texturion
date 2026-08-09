@@ -35,6 +35,17 @@ export interface AppVariables {
    * read as `aal1`, which is the conservative direction.
    */
   aal: AssuranceLevel;
+  /**
+   * #581/#7 — WHEN a second factor was last proved on this token, in seconds
+   * since the epoch, or null when it cannot be established (no `amr` claim, the
+   * string form of it, or no second-factor entry).
+   *
+   * `aal` answers "was a factor verified for this session"; `companyContext` has
+   * already forced that to `aal2` for anybody enrolled, which is why gating a
+   * destructive act on `aal` asks such a caller for nothing. This answers "how
+   * long ago", which is the question a confirmation is actually asking.
+   */
+  factorProvedAt: number | null;
 }
 
 /** SPEC §10 / GoTrue: `aal1` = password or OAuth alone, `aal2` = with MFA. */

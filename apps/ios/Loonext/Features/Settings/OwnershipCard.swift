@@ -287,8 +287,27 @@ struct OwnershipCard: View {
                 }
 
             case let .failed(message):
+                // The proof sheet renders `rejected` and nothing else, so a refusal for
+                // some OTHER reason — "a transfer is already in flight" — used to sit
+                // behind it saying absolutely nothing. Drop the sheet first, then report
+                // where it can actually be read.
+                //
+                // This became reachable with #581/#7: before, a stale-factor retry was
+                // refused before the route ran, so the only answer it could ever get was
+                // another demand for proof. Now the retry carries a fresh proof and
+                // reaches the route, where the ordinary refusals live.
+                proof = nil
+                codeRejected = false
                 actionError = message
-                if confirming == nil, proof == nil { scope.showMessage(message) }
+                // And the placeholder goes with it. A sheet raised only to hold the
+                // proof face has no second face of its own to fall back to, and the one
+                // it WOULD fall back to reads "Ask to take over this workspace?" with a
+                // button that files a claim — emailing the owner, telling the whole
+                // team, and starting a seven-day takeover clock. Somebody who pressed
+                // "Accept ownership" must never be shown that, least of all as the
+                // consequence of an unrelated refusal.
+                if confirming?.hasOwnFace == false { confirming = nil }
+                if confirming == nil { scope.showMessage(message) }
             }
             busy = false
         }
@@ -332,7 +351,8 @@ struct OwnershipCard: View {
     private func confirm(_ current: HandoverConfirm) {
         let companyId = scope.companyId
         let repo = scope.repo
-        if current.kind == HandoverKind.offer {
+        switch current.kind {
+        case HandoverKind.offer:
             guard let target = offerTo else { return }
             let memberId = target.id
             attempt(
@@ -344,7 +364,8 @@ struct OwnershipCard: View {
                 },
                 code: nil
             )
-        } else {
+
+        case HandoverKind.claim:
             attempt(
                 HandoverProof(
                     action: "claim",
@@ -354,6 +375,14 @@ struct OwnershipCard: View {
                 },
                 code: nil
             )
+
+        default:
+            // Named rather than left to an `else`, because an `else` here filed a CLAIM
+            // for the "accept" placeholder — a workspace takeover request, with the
+            // owner emailed and the whole team told, dispatched from a button somebody
+            // pressed expecting to accept an offer. There is no third action to take
+            // from this sheet, so nothing is the right answer.
+            return
         }
     }
 }
@@ -364,6 +393,18 @@ private struct HandoverConfirm: Identifiable {
     let kind: String
     let who: String
     var id: String { kind }
+
+    /// Does the consequences face of the sheet actually have copy for this kind?
+    ///
+    /// Only two of them do. ACCEPTING has no consequences sheet of its own — by the
+    /// time somebody accepts, the owner has already been told and has already had their
+    /// week, so a second dialog would be ceremony — so `attempt` fabricates one of these
+    /// with `kind: "accept"` purely to hold the screen while the proof face is up. That
+    /// placeholder must never be left showing on its own: the face it would fall back to
+    /// asks whether you want to take the workspace over.
+    var hasOwnFace: Bool {
+        kind == HandoverKind.offer || kind == HandoverKind.claim
+    }
 }
 
 /// The one thing on this screen that everybody sees, whether or not they can

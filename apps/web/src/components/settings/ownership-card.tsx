@@ -4,6 +4,7 @@ import { ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { HandoverConfirmDialog } from "@/components/ownership/handover-confirm-dialog";
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,9 +24,14 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/error";
-import { useOwnership, useOwnershipAction } from "@/lib/api/ownership";
+import {
+  isGatedOwnershipAction,
+  useOwnership,
+  useOwnershipAction,
+} from "@/lib/api/ownership";
 import type { Member } from "@/lib/api/types";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
+import { useActionConfirmation } from "@/lib/hooks/use-action-confirmation";
 
 /**
  * #332 — Ownership, on the Team page because that is where somebody already
@@ -46,6 +52,11 @@ import { formatAbsoluteDateTime } from "@/lib/format/time";
 export function OwnershipCard({ members }: { members: Member[] }) {
   const ownership = useOwnership();
   const act = useOwnershipAction();
+  // #581/#7: handing a business over is refused until the server knows who is
+  // asking. Before this, the refusal arrived here as a toast about a code with
+  // nowhere on the screen to type one — the action was simply impossible from the
+  // Team page, which is the only place an owner can start one.
+  const gate = useActionConfirmation();
   const [offerTo, setOfferTo] = useState<string>("");
   const [confirming, setConfirming] = useState<"offer" | "claim" | null>(null);
 
@@ -67,14 +78,42 @@ export function OwnershipCard({ members }: { members: Member[] }) {
     act.mutate(input, {
       onSuccess: () => {
         setConfirming(null);
+        // The gate cannot see a mutation succeed, so it is told. Without this a
+        // confirmed handover is left sitting behind its own code prompt.
+        gate.dismiss();
         toast.success(done);
       },
-      onError: (error) =>
+      onError: (error) => {
+        /**
+         * The three the server can ask about — and only those three.
+         *
+         * `backup` and `cancel` are never gated: `useOwnershipAction` strips a code
+         * off both, so collecting digits for them would collect digits it throws
+         * away. Cancel especially, because vetoing a handover is the safe direction
+         * and an owner who has lost their authenticator still has to be able to
+         * stop one.
+         *
+         * Held as the whole INPUT rather than the action name, so the retry goes to
+         * the person who was named when this started — rebuilding it from `offerTo`
+         * would be a chance to hand the business to whoever the dropdown says by
+         * then.
+         */
+        const gated = isGatedOwnershipAction(input) ? input : null;
+        if (
+          gated !== null &&
+          gate.demanded(error, gated.action, (code) =>
+            run({ ...gated, code }, done),
+          )
+        ) {
+          return;
+        }
+        gate.dismiss();
         toast.error(
           error instanceof ApiError
             ? error.message
             : "That didn't go through. Try again.",
-        ),
+        );
+      },
     });
   }
 
@@ -330,6 +369,19 @@ export function OwnershipCard({ members }: { members: Member[] }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* #581/#7: the proof the server asks for before the business moves. A
+          sibling of the dialog above so it stacks over it — the consequences the
+          person just read stay where they were, and cancelling here puts them back
+          in front of them rather than throwing the whole decision away. */}
+      <HandoverConfirmDialog
+        kind={gate.kind}
+        pending={act.isPending || gate.requesting}
+        rejected={gate.rejected}
+        onConfirm={gate.confirm}
+        onResend={gate.resend}
+        onCancel={gate.dismiss}
+      />
     </SettingsCard>
   );
 }

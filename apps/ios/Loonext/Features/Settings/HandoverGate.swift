@@ -2,11 +2,17 @@ import SwiftUI
 
 /// #537 — the code the server wants before a business changes hands.
 ///
-/// TWO screens run these actions on this phone: the ownership card on Team, and the
-/// #515 prompt on the settings index — which is the ONLY one the named backup can
-/// reach, since they routinely have no `team.manage`. So the rule lives here rather
-/// than in either of them: a gate the recovery valve did not have is a recovery valve
-/// that does not work.
+/// THREE screens run these actions on this phone: the ownership card on Team, the #515
+/// prompt on the settings index — which is the ONLY one the named backup can reach,
+/// since they routinely have no `team.manage` — and releasing a number from Numbers. So
+/// the rule lives here rather than in any of them: a gate the recovery valve did not
+/// have is a recovery valve that does not work.
+///
+/// The count matters, and this sentence said TWO for as long as there were three. That
+/// is how the third one was overlooked when the funnel started reading the kind off the
+/// proof it is handed (#581/#7): `NumbersSection` rebuilds its proof on every press
+/// rather than handing back the held one, so it had to be taught to carry the kind
+/// forward, and nothing in this header pointed at it.
 
 /// A handover the server refused until it has seen proof.
 ///
@@ -46,14 +52,20 @@ enum HandoverOutcome {
 
 /// Run one attempt and say what to do next.
 ///
-/// Only the two refusals that NAME a proof divert to the dialog. Every other refusal
-/// comes back as `.failed` — so "a transfer is already in flight" is never dressed up
-/// as a code that could not have helped.
+/// Only the refusals that NAME a proof divert to the dialog — there are three of them
+/// now. Every other refusal comes back as `.failed` — so "a transfer is already in
+/// flight" is never dressed up as a code that could not have helped.
 ///
 /// The email is requested here, on the way to opening the dialog, rather than left to
 /// a button: a dialog whose only working control is "send it again" has wasted
 /// somebody's time. `alreadyOpen` keeps a rejected code from quietly minting a new one
 /// behind the person still looking at the old one.
+///
+/// Not every code is ours to check, which is the #581/#7 part. One of the demands wants
+/// a factor proved in the last five minutes, and it asks for it in word-for-word the
+/// same sentence as the workspace-wide wall — so nothing the person reads distinguishes
+/// them, and neither can this function by looking at the copy. It asks the shared rule
+/// instead, the same one web and Android ask.
 @MainActor
 func attemptHandover(
     scope: SettingsScope,
@@ -61,8 +73,25 @@ func attemptHandover(
     code: String?,
     alreadyOpen: Bool
 ) async -> HandoverOutcome {
+    var codeForRetry = code
+    if let code, !HandoverConfirmation.codeGoesToOurApi(proof.kind) {
+        do {
+            try await handoverReproveFactor(scope: scope, code: code)
+        } catch {
+            // The same answer as a code our own server refused: the sheet stays up and
+            // says so once. Telling a wrong code apart from an expired one helps
+            // whoever is guessing more than it helps the owner.
+            return .needsCode(kind: proof.kind, refused: true)
+        }
+        // Proved, and the fresh session is stored, so this session last proved a factor
+        // seconds ago. The retry carries NO code: the server reads that timestamp on
+        // this path and never reads a code, so digits sent at it would come back with
+        // the identical refusal every time — to every CORRECT code, forever.
+        codeForRetry = nil
+    }
+
     do {
-        try await proof.attempt(code)
+        try await proof.attempt(codeForRetry)
         return .done
     } catch {
         guard let kind = HandoverConfirmation.kind(of: (error as? ApiError)?.code) else {
@@ -77,12 +106,50 @@ func attemptHandover(
     }
 }
 
+/// Prove this person's authenticator factor against Supabase, here on the phone.
+///
+/// The same three calls in the same order as `Features/Auth/MfaGate.swift` makes to get
+/// past the workspace wall, and for the same reason at the end: verifying hands back a
+/// FRESH session, and STORING it is what stamps the new proof time into the token the
+/// next request presents. Without the save the app hands over the old token and the
+/// server answers with the identical refusal.
+///
+/// Throws when the code is wrong, when Supabase cannot be reached, or when this account
+/// has no factor to challenge. The caller says the one thing worth saying about any of
+/// them and leaves the sheet up.
+@MainActor
+private func handoverReproveFactor(scope: SettingsScope, code: String) async throws {
+    let token = try await scope.repo.freshAccessToken()
+    // GET /v1/mfa lists VERIFIED factors only, so the first one is a real one. Nothing
+    // typed into the sheet can satisfy a demand for a factor this account does not
+    // have, which is why finding none throws rather than asking again.
+    guard let factorId = try await scope.repo.mfa().allFactors.first?.id else {
+        throw ApiError(
+            code: ApiErrorCode.unauthorized,
+            message: "We couldn't find an authenticator on this account.",
+            httpStatus: 401
+        )
+    }
+    let client = SettingsAuthClient()
+    let challengeId = try await client.challengeFactor(accessToken: token, factorId: factorId)
+    let session = try await client.verifyFactor(
+        accessToken: token,
+        factorId: factorId,
+        challengeId: challengeId,
+        // The field is a number pad, but a code arriving from a paste or off the
+        // notification banner brings its spacing with it.
+        code: code.filter(\.isNumber)
+    )
+    scope.graph.sessionStore.save(session.session)
+}
+
 /// The confirmation in front of a handover.
 ///
 /// ## Evaluation
 ///
 /// The server will not move a business without proof it is really the owner asking.
-/// Two mechanisms answer that — an authenticator, or a code emailed to the account —
+/// Three demands answer that — an authenticator, that same authenticator again because
+/// the last time was too long ago, or a code emailed to the account —
 /// and without this the refusal was a dead end on a phone: the action failed with a
 /// message about a code there was nowhere to type.
 ///
@@ -150,5 +217,11 @@ struct HandoverProofSheet: View {
         // A second demand starts empty. Digits left over from a refused attempt read
         // as though the app were retrying by itself.
         .onChange(of: kind) { _, _ in code = "" }
+        // ...and so does a second attempt, which is the case that sentence was written
+        // for and this did not cover: a refusal does not change the KIND, so nothing
+        // fired and the rejected digits stayed put with Confirm still enabled. An
+        // authenticator code has rotated by then, so pressing it again was certain to
+        // fail — and on the emailed path it spent another of the five attempts doing so.
+        .onChange(of: rejected) { _, nowRejected in if nowRejected { code = "" } }
     }
 }

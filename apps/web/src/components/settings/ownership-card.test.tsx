@@ -1,10 +1,6 @@
-import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
-
-import type { Ownership } from "@/lib/api/ownership";
-import type { Member } from "@/lib/api/types";
-
 /**
+ * @vitest-environment happy-dom
+ *
  * #332 — the ownership card.
  *
  * These pin the parts that are about SAFETY rather than layout: a handover in
@@ -12,7 +8,26 @@ import type { Member } from "@/lib/api/types";
  * side of it), a workspace with no backup named says so where the owner will
  * see it, and no button that hands a business to somebody appears for a caller
  * the server did not authorise.
+ *
+ * #581/#7 added the second half, at the bottom: the card is where an owner hands
+ * the business over, and the server now refuses to do it without proof of who is
+ * asking. Those tests run in a real DOM because the thing that was broken is not
+ * on screen at all — it is WHERE the six digits get sent.
  */
+// `render` is already the name of this file's static-markup helper, so the DOM
+// one comes in as `mount`.
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render as mount,
+  screen,
+} from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { Ownership } from "@/lib/api/ownership";
+import type { Member } from "@/lib/api/types";
 
 const members: Member[] = [
   {
@@ -44,19 +59,56 @@ let state: Ownership = {
   can_cancel: false,
 };
 
-vi.mock("@/lib/api/ownership", () => ({
+/** Every action the card fires. Driven per test, including its callbacks. */
+const mutate = vi.fn();
+/** "Email me a code" — the only thing the gate asks our API for up front. */
+const requestCode = vi.fn();
+
+// The hooks are replaced; `isGatedOwnershipAction` is NOT. Which actions the server
+// demands proof for is the rule under test here, and a stub of it would be a second
+// copy of the very thing that must exist once.
+vi.mock("@/lib/api/ownership", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   useOwnership: () => ({
     isPending: false,
     isError: false,
     data: state,
   }),
-  useOwnershipAction: () => ({ isPending: false, mutate: vi.fn() }),
+  useOwnershipAction: () => ({ isPending: false, mutate }),
+  useRequestHandoverCode: () => ({ isPending: false, mutate: requestCode }),
+}));
+
+/**
+ * The browser Supabase client, narrowed to the two MFA calls the `reprove` path
+ * makes. Both verified against `@supabase/auth-js`: `listFactors()` resolves
+ * `{ data: { totp, … }, error }` with only VERIFIED factors in `totp`, and
+ * `challengeAndVerify({ factorId, code })` resolves `{ data, error }` after it has
+ * already saved the refreshed session.
+ */
+const listFactors = vi.fn();
+const challengeAndVerify = vi.fn();
+vi.mock("@/lib/supabase/browser", () => ({
+  getSupabaseBrowser: () => ({
+    auth: { mfa: { listFactors, challengeAndVerify } },
+  }),
+  // Needed because the real `@/lib/api/ownership` is loaded for its predicate, and
+  // its fetch client reads the token from here. No request is made in this suite.
+  getAccessToken: async () => "token",
+}));
+
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
 }));
 
 vi.mock("@/lib/company/provider", () => ({
   useCompanyId: () => "c-1",
   useActiveCompany: () => ({ companyId: "c-1", role: "owner" }),
 }));
+
+import { HANDOVER_CONFIRM_FIELD, HANDOVER_CONFIRM_REJECTED } from "@loonext/shared";
+
+import { ApiError } from "@/lib/api/error";
+import { toast } from "sonner";
 
 import { OwnershipCard } from "./ownership-card";
 
@@ -159,5 +211,242 @@ describe("OwnershipCard", () => {
       },
     };
     expect(render()).toContain("Accept ownership");
+  });
+});
+
+/**
+ * #581/#7 — the card can now be asked to prove who is asking, and these pin WHERE
+ * the six digits end up.
+ *
+ * Two things were wrong here and only one of them was visible. The card had no code
+ * field at all, so an enrolled owner read a toast about a code with nowhere to type
+ * one and could not hand their business over from the only screen that offers it.
+ * The invisible half is the one that matters more: `mfa_reprove_required` does not
+ * want its digits posted to our API. The server is not checking a code on that path,
+ * it is checking how long ago this session last proved a factor — so the digits are
+ * proved against SUPABASE in this browser, which refreshes the session, and the
+ * action is retried carrying nothing. Post them to us instead and the identical
+ * refusal comes back to every correct code, forever.
+ *
+ * Nothing on screen tells the two apart: `HANDOVER_CONFIRM_WHERE.reprove` is word
+ * for word the authenticator sentence, because the person really is opening the same
+ * app. So every assertion below is about the destination, never the wording — a test
+ * that pinned the copy here would have passed throughout the lockout.
+ */
+const FACTOR = "totp-factor-id";
+
+/** An offer sitting in front of the person reading the card. */
+const OFFER_TO_ME: Ownership = {
+  owner_member_id: "m-owner",
+  backup_member_id: null,
+  i_am_backup: false,
+  i_am_owner: false,
+  pending: {
+    kind: "offer",
+    to_member_id: "m-partner",
+    ripens_at: "2026-07-29T12:00:00Z",
+    expires_at: "2026-08-05T12:00:00Z",
+    created_at: "2026-07-29T12:00:00Z",
+    mine: true,
+    ready: true,
+  },
+  can_offer: false,
+  can_claim: false,
+  can_cancel: false,
+};
+
+/**
+ * Refuse the first attempt the way the server does, then let the retry through.
+ *
+ * The retry is the interesting call: what it carries is the difference between a
+ * handover that completes and a dialog that can never be satisfied.
+ */
+function refuseOnce(errorCode: string) {
+  let refused = false;
+  mutate.mockImplementation((_input: unknown, handlers?: {
+    onSuccess?: (data: unknown) => void;
+    onError?: (error: unknown) => void;
+  }) => {
+    if (!refused) {
+      refused = true;
+      handlers?.onError?.(new ApiError(errorCode as never, "nope", 403));
+      return;
+    }
+    handlers?.onSuccess?.(state);
+  });
+}
+
+/** Type six digits into the confirmation dialog and press Confirm. */
+async function answer(digits: string) {
+  fireEvent.change(screen.getByLabelText(HANDOVER_CONFIRM_FIELD), {
+    target: { value: digits },
+  });
+  // Awaited: the `reprove` path talks to Supabase before it retries, and the
+  // assertions are all about what happens after that answer comes back.
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+  });
+}
+
+/** The input the action was retried with, or undefined if it never was. */
+function retriedWith(): { action?: string; code?: string; memberId?: string } {
+  return mutate.mock.calls[1]?.[0] ?? {};
+}
+
+describe("…and when the server asks who is doing this", () => {
+  afterEach(cleanup);
+  beforeEach(() => {
+    state = OFFER_TO_ME;
+    mutate.mockReset();
+    requestCode.mockReset();
+    listFactors
+      .mockReset()
+      .mockResolvedValue({ data: { totp: [{ id: FACTOR }] }, error: null });
+    challengeAndVerify.mockReset().mockResolvedValue({ data: {}, error: null });
+  });
+
+  it("gives the digits somewhere to be typed", () => {
+    // The visible half of the defect. Before this the refusal was a toast about a
+    // code and the card had no field anywhere in it.
+    refuseOnce("mfa_reprove_required");
+    mount(<OwnershipCard members={members} />);
+    fireEvent.click(screen.getByRole("button", { name: "Accept ownership" }));
+    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).not.toBeNull();
+  });
+
+  it("spends a stale-proof code on Supabase and retries with NO code", async () => {
+    // THE ASSERTION THIS BLOCK EXISTS FOR.
+    refuseOnce("mfa_reprove_required");
+    mount(<OwnershipCard members={members} />);
+    fireEvent.click(screen.getByRole("button", { name: "Accept ownership" }));
+
+    await answer("123456");
+
+    // Challenged and verified against the account's own factor, in this browser.
+    // That is what stamps a new proof time on the session.
+    expect(challengeAndVerify).toHaveBeenCalledWith({
+      factorId: FACTOR,
+      code: "123456",
+    });
+    // And the retry carries nothing. `code: "123456"` here is the infinite loop.
+    expect(retriedWith().action).toBe("accept");
+    expect(retriedWith().code).toBeUndefined();
+    // Nothing was emailed either: their app makes the codes.
+    expect(requestCode).not.toHaveBeenCalled();
+  });
+
+  it("proves the enrolment wall at Supabase as well, and retries with no code", async () => {
+    // `mfa_challenge_required` says this session never presented a factor — a property
+    // of the SESSION, which a code in a request body cannot change, and the route it
+    // would be posted to does not read one. So these digits go where the stale-factor
+    // digits go. These stay two kinds because they are two refusals raised by different
+    // code, one of which also wants the retry inside five minutes.
+    refuseOnce("mfa_challenge_required");
+    mount(<OwnershipCard members={members} />);
+    fireEvent.click(screen.getByRole("button", { name: "Accept ownership" }));
+
+    await answer("123456");
+
+    expect(challengeAndVerify).toHaveBeenCalledWith({
+      factorId: FACTOR,
+      code: "123456",
+    });
+    expect(retriedWith().code).toBeUndefined();
+  });
+
+  it("posts an emailed code to OUR API, and asks for one on open", async () => {
+    refuseOnce("confirmation_code_required");
+    mount(<OwnershipCard members={members} />);
+    fireEvent.click(screen.getByRole("button", { name: "Accept ownership" }));
+
+    // A dialog whose only working control is "Send it again" has wasted a trip.
+    expect(requestCode).toHaveBeenCalledWith("accept");
+    await answer("123456");
+
+    expect(retriedWith().code).toBe("123456");
+    expect(challengeAndVerify).not.toHaveBeenCalled();
+  });
+
+  it("does not tell somebody their correct code was wrong", async () => {
+    // What the lockout looked like from the outside: the right six digits, refused,
+    // every time. Asserted on the `reprove` path because that is the one where the
+    // digits never reach our API at all.
+    refuseOnce("mfa_reprove_required");
+    mount(<OwnershipCard members={members} />);
+    fireEvent.click(screen.getByRole("button", { name: "Accept ownership" }));
+
+    await answer("123456");
+
+    expect(screen.queryByText(HANDOVER_CONFIRM_REJECTED)).toBeNull();
+    // The prompt is gone too, rather than left standing over a handover that has
+    // already happened.
+    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).toBeNull();
+  });
+
+  it("still reports a refusal no code could fix", async () => {
+    // A handover already in flight, or a caller who is not the owner. A code prompt
+    // in front of either hides the real reason behind digits that cannot help.
+    mutate.mockImplementation((_input: unknown, handlers?: {
+      onError?: (error: unknown) => void;
+    }) => {
+      handlers?.onError?.(new ApiError("conflict" as never, "Already in flight", 409));
+    });
+    mount(<OwnershipCard members={members} />);
+    fireEvent.click(screen.getByRole("button", { name: "Accept ownership" }));
+
+    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).toBeNull();
+    expect(toast.error).toHaveBeenCalledWith("Already in flight");
+  });
+
+  it("retries an offer at the teammate who was named, carrying no code", async () => {
+    // `offer` is the card's whole reason to exist and the only place on the web an
+    // owner can start one. Two things are pinned: the retry still goes to Riley
+    // rather than to whoever the dropdown might say by then, and it goes with the
+    // digits spent on Supabase rather than posted to us.
+    state = {
+      owner_member_id: "m-owner",
+      backup_member_id: null,
+      i_am_backup: false,
+      i_am_owner: true,
+      pending: null,
+      can_offer: true,
+      can_claim: false,
+      can_cancel: false,
+    };
+    refuseOnce("mfa_reprove_required");
+    mount(<OwnershipCard members={members} />);
+
+    // Name the teammate, then read the consequences, then press it — the card's
+    // deliberate three steps.
+    fireEvent.keyDown(screen.getByText("Choose a teammate").closest("button")!, {
+      key: "ArrowDown",
+    });
+    fireEvent.click(screen.getByRole("option", { name: "Riley Partner" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hand it over" }));
+    fireEvent.click(screen.getByRole("button", { name: "Offer it" }));
+
+    await answer("123456");
+
+    expect(challengeAndVerify).toHaveBeenCalledWith({
+      factorId: FACTOR,
+      code: "123456",
+    });
+    expect(retriedWith().action).toBe("offer");
+    expect(retriedWith().memberId).toBe("m-partner");
+    expect(retriedWith().code).toBeUndefined();
+  });
+
+  it("never asks for a code to STOP a handover", async () => {
+    // `cancel` is deliberately ungated end to end: `useOwnershipAction` strips a
+    // code off it, and an owner who has lost their authenticator has to be able to
+    // stop a takeover of their own business. So even if the server demanded proof
+    // for one, this must not collect digits it would then throw away.
+    state = { ...OFFER_TO_ME, can_cancel: true };
+    refuseOnce("mfa_reprove_required");
+    mount(<OwnershipCard members={members} />);
+    fireEvent.click(screen.getByRole("button", { name: "Decline" }));
+
+    expect(screen.queryByLabelText(HANDOVER_CONFIRM_FIELD)).toBeNull();
+    expect(toast.error).toHaveBeenCalled();
   });
 });

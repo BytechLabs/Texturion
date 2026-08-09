@@ -92,6 +92,20 @@ export interface TokenOptions {
    * default a step-up test has to be able to express.
    */
   aal?: "aal1" | "aal2";
+  /**
+   * #581/#7: how many seconds ago a second factor was proved, written into the
+   * `amr` claim GoTrue emits.
+   *
+   * `aal` says a factor was verified for this session at SOME point;
+   * `companyContext` has already forced that to `aal2` for anybody enrolled by
+   * the time a route runs, which is why gating a destructive act on it asked such
+   * a caller for nothing. This is the claim that answers "how long ago", and a
+   * test cannot express the confirmable-action gate without it.
+   *
+   * Omitted mints no `amr` at all — freshness cannot be established, which is the
+   * conservative reading and the shape of a token from before this mattered.
+   */
+  factorProvedSecondsAgo?: number;
 }
 
 export interface TestAuth {
@@ -142,6 +156,16 @@ export async function createTestAuth(
       const claims: Record<string, unknown> =
         session === null ? {} : { session_id: session };
       if (options.aal) claims.aal = options.aal;
+      if (options.factorProvedSecondsAgo !== undefined) {
+        // The real claim shape, verified against @supabase/auth-js: an array of
+        // { method, timestamp }, the timestamp in SECONDS. `password` is included
+        // because a real token carries the first factor too, and the parser has
+        // to pick the second-factor entry out rather than taking the first.
+        claims.amr = [
+          { method: "password", timestamp: now - 3600 },
+          { method: "totp", timestamp: now - options.factorProvedSecondsAgo },
+        ];
+      }
       return new SignJWT(claims)
         .setProtectedHeader({ alg: "ES256", kid: options.kid ?? kid })
         .setIssuer(options.issuer ?? issuer)

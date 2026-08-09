@@ -290,6 +290,20 @@ jobs:
       - name: Guard the sign-out path
         run: node scripts/check-sign-out-path.mjs
 
+      # #581/#7: a shared module exported a rule and the barrel forgot to forward it,
+      # so the clients written to read that rule could not reach it — and the one that
+      # tried imported `undefined` and threw on every confirmation. Nothing caught it:
+      # `packages/shared` has a single entry point, the module's own tests import it by
+      # relative path, tsc had nothing to complain about because no consumer existed
+      # yet, and no other guard looks. It surfaced only when somebody tried to use it.
+      #
+      # `src/index.ts` is 81 named lists typed out by hand, which is this repo's most
+      # familiar shape: a hand-maintained list, in code, with nothing comparing it to
+      # reality. So this derives both sides and compares them, with no allow-list —
+      # one exception is how a guard starts becoming another stale list.
+      - name: Guard the shared barrel
+        run: node scripts/check-shared-barrel.mjs
+
       # #554: a customer replied "1" to "how did it go?" and nobody was told.
       # `job_rated` was inserted by shipped code and had never been added to
       # `conversation_event_type`, so the insert raised at runtime, the caller

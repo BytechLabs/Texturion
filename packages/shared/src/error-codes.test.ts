@@ -37,6 +37,9 @@ describe("error codes (SPEC §7)", () => {
       // treat both as "not yet — confirm first" and differ only in which screen
       // it opens.
       confirmation_code_required: 403,
+      // #581/#7: "tap your authenticator for THIS act". 403 like its two
+      // siblings, so the three forks look alike on the wire.
+      mfa_reprove_required: 403,
       rate_limited: 429,
       // #283: a subsystem switched off at the runtime kill switch. 503 rather
       // than 403 because it is temporary and nobody's fault — the client says

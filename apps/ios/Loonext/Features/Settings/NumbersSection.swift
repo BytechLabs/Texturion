@@ -494,7 +494,17 @@ private struct ReleaseNumberSheet: View {
         let numberId = number.id
         let done = "\(display) released."
         Task {
-            let request = HandoverProof(action: "release_number", label: done) { digits in
+            // The kind is carried FORWARD from the demand we are answering, not left at
+            // the default. This screen rebuilds its proof on every press — the other two
+            // hand the held one back — and the funnel now reads the kind to decide who
+            // checks the six digits. Rebuilt as `.email`, a stale-factor code goes to us
+            // where nothing reads it: the sheet says "that code didn't work" to a correct
+            // code, and only the NEXT press works, because by then the refusal has stored
+            // the real kind. One wrong answer and one wasted round trip that puts a live
+            // single-use code in one of our own request bodies.
+            let request = HandoverProof(
+                action: "release_number", label: done, kind: proof?.kind ?? .email
+            ) { digits in
                 _ = try await repo.releaseNumber(companyId, numberId: numberId, code: digits)
             }
             let outcome = await attemptHandover(

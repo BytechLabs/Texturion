@@ -369,15 +369,47 @@ export function membershipResponder(
   options: {
     revoked?: boolean;
     newSession?: boolean;
-    /** #314: the workspace MFA posture. Omitted = no policy. */
-    mfa?: { required: boolean; grace_until: string | null; enforcing: boolean };
+    /**
+     * #314: the workspace MFA posture, and #496's `enrolled` — whether THIS user
+     * holds a verified factor.
+     *
+     * #581/#7: `enrolled` was missing from this type entirely, and the posture was
+     * omitted from the response unless a suite asked for it. Production cannot
+     * produce either state — `api_authorize_request` always returns the object,
+     * always with `enrolled` — so the middleware's MFA gate was silently inert in
+     * every route test in the repo, and a step-up appeared to refuse an aal1
+     * caller that production would have waved straight through.
+     *
+     * That is what made the confirmable actions' no-op invisible to CI: the one
+     * fixture that could have caught it described a workspace that cannot exist.
+     * A fixture that cannot produce the failing state is not a weaker test, it is
+     * a witness for the defect.
+     */
+    mfa?: {
+      required: boolean;
+      grace_until: string | null;
+      enforcing: boolean;
+      enrolled?: boolean;
+    };
   } = {},
 ): SbResponder {
   return () => ({
     session_revoked: options.revoked ?? false,
     session_new: options.newSession ?? false,
     member: role === null ? null : { id: memberId, role },
-    ...(options.mfa ? { mfa: options.mfa } : {}),
+    /**
+     * Always present, which is what production does. The default describes a real
+     * workspace — no policy, and this user holds no factor — so every gate reads
+     * exactly as it did when the object was omitted, and nothing about any
+     * existing suite changes. The difference is that a suite can now express
+     * "enrolled", which is the state the product's own MFA rules turn on.
+     */
+    mfa: {
+      required: options.mfa?.required ?? false,
+      grace_until: options.mfa?.grace_until ?? null,
+      enforcing: options.mfa?.enforcing ?? false,
+      enrolled: options.mfa?.enrolled ?? false,
+    },
   });
 }
 

@@ -30,9 +30,17 @@ import { Label } from "@/components/ui/label";
  * ## Evaluation
  *
  * The server now refuses to move a business without proof it is really the owner
- * asking. Two mechanisms answer that — an authenticator, or a code emailed to the
- * account — and without this dialog the refusal was a dead end: the action failed
- * with a message about a code nobody could enter.
+ * asking. Three demands answer that — use your authenticator, prove your factor
+ * again because the last time was too long ago (#581/#7), or enter the code emailed
+ * to the account — and without this dialog the refusal was a dead end: the action
+ * failed with a message about a code nobody could enter.
+ *
+ * All three collect the same thing here, and there is deliberately no branch for the
+ * third: the person opens the same app and reads the same six digits, so a second
+ * phrasing for the identical physical act would read as a different demand. What
+ * differs is where the digits GO, which is `useActionConfirmation`'s business — for
+ * `reprove` they are proved against Supabase in the browser and the action is
+ * retried with none. This component never needs to know which.
  *
  * ## What binds it
  *
@@ -51,7 +59,8 @@ import { Label } from "@/components/ui/label";
  *
  * Resend appears only on the email path. There is nothing to resend to somebody
  * using an authenticator — the app generates the codes — and offering it would
- * imply we could send them one.
+ * imply we could send them one. Same for `reprove`, which is why the test is
+ * `kind === "email"` rather than a list of the kinds that do not get it.
  */
 export function HandoverConfirmDialog({
   kind,
@@ -78,6 +87,15 @@ export function HandoverConfirmDialog({
   useEffect(() => {
     if (kind !== null) setCode("");
   }, [kind]);
+
+  // And cleared when a code comes back refused, which is the case the sentence above
+  // was actually written for and did not cover: a refusal does not change the KIND, so
+  // nothing re-ran and the rejected digits sat there with Confirm still lit. An
+  // authenticator code has rotated by then, so pressing it again was guaranteed to fail
+  // — and on the emailed path it spent another of the five attempts doing so.
+  useEffect(() => {
+    if (rejected) setCode("");
+  }, [rejected]);
 
   const valid = isHandoverCode(code);
 

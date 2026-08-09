@@ -211,8 +211,19 @@ struct OwnershipPrompt: View {
                 proof = pending.with(kind: kind)
 
             case let .failed(message):
+                // The proof sheet renders `rejected` and nothing else, so a refusal for
+                // some OTHER reason — "a transfer is already in flight" — used to sit
+                // behind it saying absolutely nothing. Drop the sheet first, then report
+                // where it can actually be read.
+                //
+                // This became reachable with #581/#7: before, a stale-factor retry was
+                // refused before the route ran, so the only answer it could ever get was
+                // another demand for proof. Now the retry carries a fresh proof and
+                // reaches the route, where the ordinary refusals live.
+                proof = nil
+                codeRejected = false
                 actionError = message
-                if !confirmingClaim, proof == nil { scope.showMessage(message) }
+                if !confirmingClaim { scope.showMessage(message) }
             }
             busy = false
             reloadKey += 1

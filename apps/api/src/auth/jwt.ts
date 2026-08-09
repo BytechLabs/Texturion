@@ -42,10 +42,56 @@ export function expectedIssuer(supabaseUrl: string): string {
  * ES256 only, `iss` = SUPABASE_URL + '/auth/v1', `aud` = 'authenticated',
  * `exp` enforced by jose. Throws on any failure.
  */
+/**
+ * WHEN a second factor was last proved on this token, in seconds since the epoch,
+ * or null when that cannot be established.
+ *
+ * `aal2` says a factor was verified for this session *at some point*. `amr` says
+ * when — and that difference is the whole of #581/#7: every confirmable act was
+ * gated on `aal`, which `companyContext` has already forced by the time the route
+ * runs, so the act asked an enrolled owner for nothing at all.
+ *
+ * Shape verified against the installed library rather than assumed:
+ * `@supabase/auth-js` types the claim as `AMREntry[] | string[]`, where an entry
+ * is `{ method, timestamp }` and the timestamp is SECONDS, not milliseconds. The
+ * string form carries no timestamp, so it can never prove freshness — it returns
+ * null, which callers must treat as "not recent".
+ *
+ * The second-factor methods in GoTrue's vocabulary are `totp` and the `mfa/*`
+ * family (`mfa/totp`, `mfa/phone`, `mfa/webauthn`). `password`, `oauth`,
+ * `magiclink` and friends are first factors and deliberately do not count: this
+ * question is "did they reach for the second thing", not "did they log in".
+ *
+ * The LATEST qualifying entry wins. Re-verifying appends rather than replaces, so
+ * an old entry beside a fresh one means the factor was proved again just now.
+ */
+function factorProvedAt(amr: unknown): number | null {
+  if (!Array.isArray(amr)) return null;
+  let latest: number | null = null;
+  for (const raw of amr) {
+    if (typeof raw !== "object" || raw === null) continue;
+    const entry = raw as { method?: unknown; timestamp?: unknown };
+    if (typeof entry.method !== "string") continue;
+    const isSecondFactor =
+      entry.method === "totp" || entry.method.startsWith("mfa/");
+    if (!isSecondFactor) continue;
+    if (typeof entry.timestamp !== "number" || !Number.isFinite(entry.timestamp)) {
+      continue;
+    }
+    if (latest === null || entry.timestamp > latest) latest = entry.timestamp;
+  }
+  return latest;
+}
+
 export async function verifyAccessToken(
   token: string,
   env: Env,
-): Promise<{ userId: string; sessionId: string | null; aal: AssuranceLevel }> {
+): Promise<{
+  userId: string;
+  sessionId: string | null;
+  aal: AssuranceLevel;
+  factorProvedAt: number | null;
+}> {
   const { payload } = await jwtVerify(token, remoteJwks(env.SUPABASE_JWKS_URL), {
     algorithms: ["ES256"],
     issuer: expectedIssuer(env.SUPABASE_URL),
@@ -69,7 +115,12 @@ export async function verifyAccessToken(
   // as aal1 — the conservative direction, since the only thing that turns on
   // it is whether we demand a factor.
   const aal = payload.aal === "aal2" ? "aal2" : "aal1";
-  return { userId: payload.sub, sessionId, aal };
+  return {
+    userId: payload.sub,
+    sessionId,
+    aal,
+    factorProvedAt: factorProvedAt(payload.amr),
+  };
 }
 
 const SESSION_ID_RE =
@@ -89,9 +140,11 @@ export function jwtAuth() {
       return errorResponse(c, "unauthorized", "Missing or invalid access token.");
     }
     try {
-      const { userId, sessionId, aal } = await verifyAccessToken(token, env);
+      const { userId, sessionId, aal, factorProvedAt } =
+        await verifyAccessToken(token, env);
       c.set("userId", userId);
       c.set("aal", aal);
+      c.set("factorProvedAt", factorProvedAt);
       if (sessionId) c.set("sessionId", sessionId);
     } catch {
       // Never leak why verification failed (SPEC §7: 401 `unauthorized`).

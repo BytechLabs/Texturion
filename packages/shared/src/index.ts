@@ -894,16 +894,23 @@ export {
   onCallSilenceWarning,
 } from "./on-call-notifications";
 
-// #537: the words in front of a handover. Two mechanisms, one dialog — and the
-// difference lives entirely in the copy, because sending somebody to open an app
-// they never installed is a dead end.
+// #537: the words in front of a handover. Three mechanisms, one dialog — sending
+// somebody to open an app they never installed is a dead end, so the copy differs.
+//
+// #581/#7: but NOT only the copy. `HANDOVER_CODE_DESTINATION` is the part that is not
+// wording at all — who checks the six digits — and it has to be exported alongside the
+// sentences, because a client that can read the words but not the destination is
+// exactly the client that posts the digits at the wrong end. Two of these kinds share
+// their sentence word for word and do not share a destination.
 export {
+  HANDOVER_CODE_DESTINATION,
   HANDOVER_CONFIRM_FIELD,
   HANDOVER_CONFIRM_REJECTED,
   HANDOVER_CONFIRM_RESEND,
   HANDOVER_CONFIRM_SUBMIT,
   HANDOVER_CONFIRM_TITLE,
   HANDOVER_CONFIRM_WHERE,
+  type HandoverCodeDestination,
   handoverConfirmationKind,
   type HandoverConfirmationKind,
   isHandoverCode,

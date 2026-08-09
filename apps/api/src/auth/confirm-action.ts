@@ -34,7 +34,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
-import { hasVerifiedFactor, requireStepUpForEnrolled } from "./step-up";
+import { hasVerifiedFactor } from "./step-up";
 
 /**
  * The actions a code can be minted for, and which it is then locked to.
@@ -55,6 +55,18 @@ export const CONFIRMABLE_ACTIONS = [
 export type ConfirmableAction = (typeof CONFIRMABLE_ACTIONS)[number];
 
 /**
+ * How recently a second factor must have been proved to stand in for an emailed
+ * code, in seconds.
+ *
+ * Five minutes is the trade: long enough that clearing the MFA wall on sign-in
+ * and then immediately transferring ownership is one challenge rather than two,
+ * short enough that a session stolen hours ago is no longer holding a valid
+ * proof. Not configurable — a per-workspace window would be a setting whose only
+ * effect is to make this weaker.
+ */
+const REPROVE_WINDOW_SECONDS = 5 * 60;
+
+/**
  * Ask for proof, or return null when there is nothing left to ask.
  *
  * `before` completes the sentence "…before {before}", so it reads as the thing the
@@ -69,10 +81,63 @@ export async function requireActionConfirmation(
   code: string | undefined,
 ): Promise<Response | null> {
   if (await hasVerifiedFactor(c)) {
-    // The session check. `requireStepUpForEnrolled` re-reads the factor, which is one
-    // extra round trip on a rare, deliberate act and keeps that helper usable on its
-    // own from `DELETE /v1/account`.
-    return requireStepUpForEnrolled(c, before);
+    /**
+     * #581/#7 — this used to hand off to `requireStepUpForEnrolled`, and that was
+     * a PROVABLE NO-OP for exactly the callers it was meant to challenge.
+     *
+     * That helper's first statement is `if (c.get("aal") === "aal2") return null`,
+     * and `companyContext` has already forced aal2 for anybody enrolled by the
+     * time a company-scoped route runs — the enrolment check and the aal demand
+     * are computed by the same function. So every act below asked an enrolled
+     * owner for NOTHING, while an owner with no factor had to go and fetch an
+     * emailed code. The control inverted: the better-protected account was asked
+     * for less. D127 says "prove it at the moment of the act", and nothing was
+     * being proved at the moment of anything.
+     *
+     * What is asked now is FRESHNESS, which is the question a confirmation was
+     * always trying to put. `aal2` says a factor was verified for this session at
+     * some point, possibly on Monday. `factorProvedAt` — the `amr` claim, read
+     * nowhere in this codebase before this — says when.
+     *
+     * Five minutes. Long enough that somebody who has just cleared the MFA wall
+     * on sign-in is not asked twice in a row for the same thing; short enough
+     * that a session stolen this morning cannot hand the business away this
+     * afternoon.
+     */
+    const provedAt = c.get("factorProvedAt");
+    const freshEnough =
+      provedAt !== null &&
+      Date.now() / 1000 - provedAt <= REPROVE_WINDOW_SECONDS;
+    if (freshEnough) return null;
+
+    /**
+     * A stale factor REFUSES, and does not fall back to the emailed code.
+     *
+     * I built the fallback first, reasoning that refusing an ownership transfer is
+     * worse than not challenging one, and `ownership.test.ts` rejected it by
+     * name — "never lets a code stand in for an authenticator somebody HAS". Its
+     * comment states the property better than I can: if a factor-holder can fall
+     * back to email, the weaker mechanism quietly becomes the effective one for
+     * everybody, and an attacker holding the password plus a mailbox is past a
+     * second factor that was never asked for.
+     *
+     * That is a decision this codebase already made, with a test behind it, and
+     * it is right. The emailed code exists for people who have no authenticator
+     * to be challenged on; it is not a second way past one.
+     *
+     * KNOWN LIMITATION, recorded rather than papered over: if a token ever
+     * carried no usable `amr` — the string form of the claim, or the claim
+     * missing — freshness cannot be established and this refuses every time,
+     * because re-verifying would not produce a timestamp either. That would need
+     * support to unpick, and it is the right side to err on: the alternative is
+     * an escape hatch that weakens the property above for everybody, all the
+     * time, to cover a platform state that GoTrue does not currently produce.
+     */
+    return errorResponse(
+      c,
+      "mfa_reprove_required",
+      `Confirm with your authenticator app before ${before}.`,
+    );
   }
 
   if (!code) {

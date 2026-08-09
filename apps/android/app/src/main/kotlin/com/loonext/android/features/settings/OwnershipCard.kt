@@ -127,10 +127,19 @@ fun OwnershipCard(
                 }
 
                 is HandoverOutcome.Failed -> {
+                    // The proof dialog renders `rejected` and nothing else, so a refusal
+                    // for some OTHER reason — "a transfer is already in flight" — used to
+                    // sit behind it saying absolutely nothing. Drop the dialog first,
+                    // then report where it can actually be read.
+                    //
+                    // This became reachable with #581/#7: before, a stale-factor retry
+                    // was refused before the route ran, so the only answer it could get
+                    // was another demand for proof. Now the retry carries a fresh proof
+                    // and reaches the route, where the ordinary refusals live.
+                    proof = null
+                    codeRejected = false
                     actionError = outcome.message
-                    if (confirming == null && proof == null) {
-                        scope.showMessage(outcome.message)
-                    }
+                    if (confirming == null) scope.showMessage(outcome.message)
                 }
             }
             busy = false

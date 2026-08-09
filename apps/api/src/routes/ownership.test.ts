@@ -525,8 +525,17 @@ describe("#537 — proving it is you before the business moves", () => {
       // The CODE, not just the status. `workspace.own` also answers 403, so a
       // status-only assertion would pass just as happily if the step-up were
       // deleted and the capability gate happened to refuse instead.
+      //
+      // #581/#7: this used to expect `mfa_challenge_required`, and it passed for
+      // the wrong reason. The old gate returned early on `aal === "aal2"`, and the
+      // token here is aal1 — but PRODUCTION cannot present an aal1 token to this
+      // route, because `companyContext` forces aal2 for anybody enrolled before
+      // the route runs. So the assertion described a request that cannot happen,
+      // and the real caller was waved straight through. Now the gate asks about
+      // FRESHNESS instead of assurance, which is a question aal2 does not answer,
+      // and the token above carries no `amr` at all.
       const refusal = (await res.json()) as { error: { code: string } };
-      expect(refusal.error.code).toBe("mfa_challenge_required");
+      expect(refusal.error.code).toBe("mfa_reprove_required");
       // And nothing happened. A refusal that still moved the business would be
       // the worst of both.
       expect(
@@ -544,7 +553,11 @@ describe("#537 — proving it is you before the business moves", () => {
       const passed = await apiRequest(
         app,
         env,
-        await auth.token({ aal: "aal2" }),
+        // #581/#7: a factor proved a minute ago. `aal: "aal2"` alone no longer
+        // opens this — it is the claim `companyContext` has already forced, so
+        // accepting it was the same as accepting everybody. What passes now is
+        // recency, which is what "prove it at the moment of the act" means.
+        await auth.token({ aal: "aal2", factorProvedSecondsAgo: 60 }),
         `/v1/company/ownership/${move.path}`,
         { method: "POST", companyId: COMPANY_ID, body: move.body ?? {} },
       );
@@ -552,6 +565,7 @@ describe("#537 — proving it is you before the business moves", () => {
       // outcome beyond it is that route's own business. Asserted on the CODE
       // rather than the status, because the stubbed outcome is itself a 403.
       const body = (await passed.json()) as { error?: { code: string } };
+      expect(body.error?.code).not.toBe("mfa_reprove_required");
       expect(body.error?.code).not.toBe("mfa_challenge_required");
       expect(body.error?.code).not.toBe("confirmation_code_required");
       expect(
@@ -637,6 +651,76 @@ describe("#537 — proving it is you before the business moves", () => {
     expect(sb.find("POST", "/rest/v1/rpc/api_offer_ownership")).toHaveLength(0);
   });
 
+  it("#581/#7: an aal2 session whose factor is STALE is still asked to re-prove", async () => {
+    /**
+     * THE DEFECT ITSELF, which nothing in this repo asserted before.
+     *
+     * This is the request production actually makes and the test suite could not
+     * express: an enrolled owner, `aal2` — because `companyContext` forces it for
+     * anybody enrolled — whose factor was proved hours ago. The old gate returned
+     * early on that aal2 and asked for NOTHING, so handing the business over
+     * needed no more than a live session.
+     *
+     * Six hours is chosen to sit far outside the five-minute window without
+     * being absurd; it is an ordinary working day.
+     */
+    const sb = stub({ enrolled: true });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token({ aal: "aal2", factorProvedSecondsAgo: 6 * 60 * 60 }),
+      "/v1/company/ownership/offer",
+      {
+        method: "POST",
+        companyId: COMPANY_ID,
+        body: { member_id: PARTNER_MEMBER_ID },
+      },
+    );
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { error: { code: string } }).error.code).toBe(
+      "mfa_reprove_required",
+    );
+    // And the business did not move, which is the half that matters.
+    expect(sb.find("POST", "/rest/v1/rpc/api_offer_ownership")).toHaveLength(0);
+  });
+
+  it("#581/#7: five minutes is the window — just inside passes, just outside does not", async () => {
+    // Pins the boundary in both directions. A window asserted on one side only is
+    // satisfied by a gate that always refuses, or one that never does.
+    for (const [secondsAgo, shouldPass] of [
+      [4 * 60, true],
+      [6 * 60, false],
+    ] as const) {
+      const sb = stub({ enrolled: true });
+      sb.on("POST", "/rest/v1/rpc/api_offer_ownership", () => ({
+        outcome: "forbidden",
+      }));
+      stubFetch(jwksRoute(auth), sb.route);
+
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token({ aal: "aal2", factorProvedSecondsAgo: secondsAgo }),
+        "/v1/company/ownership/offer",
+        {
+          method: "POST",
+          companyId: COMPANY_ID,
+          body: { member_id: PARTNER_MEMBER_ID },
+        },
+      );
+      const body = (await res.json()) as { error?: { code: string } };
+      if (shouldPass) {
+        expect(body.error?.code).not.toBe("mfa_reprove_required");
+        expect(sb.find("POST", "/rest/v1/rpc/api_offer_ownership")).toHaveLength(1);
+      } else {
+        expect(body.error?.code).toBe("mfa_reprove_required");
+        expect(sb.find("POST", "/rest/v1/rpc/api_offer_ownership")).toHaveLength(0);
+      }
+    }
+  });
+
   it("never lets a code stand in for an authenticator somebody HAS", async () => {
     // THE SECURITY PROPERTY. If a factor-holder could fall back to email, the
     // weaker mechanism would quietly become the effective one for everybody —
@@ -661,7 +745,15 @@ describe("#537 — proving it is you before the business moves", () => {
     );
     expect(res.status).toBe(403);
     const refusal = (await res.json()) as { error: { code: string } };
-    expect(refusal.error.code).toBe("mfa_challenge_required");
+    // #581/#7: the PROPERTY is unchanged and is the point — a factor-holder's
+    // emailed code is refused. Only the code names the remedy more precisely now:
+    // `mfa_challenge_required` is the wall in front of the whole workspace,
+    // `mfa_reprove_required` is "tap your authenticator for THIS act".
+    //
+    // I tried to build a fallback here — stale factor drops to the emailed code —
+    // so that no state could lock an owner out of a transfer. This test refused
+    // it, and it was right: the comment above states the reason better than I did.
+    expect(refusal.error.code).toBe("mfa_reprove_required");
     // And the code was never even looked at.
     expect(sb.find("POST", "/rest/v1/rpc/api_use_ownership_code")).toHaveLength(0);
     expect(sb.find("POST", "/rest/v1/rpc/api_offer_ownership")).toHaveLength(0);

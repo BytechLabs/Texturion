@@ -56,6 +56,16 @@ export const ERROR_CODES = [
   // conflated them would send somebody hunting for an app they never installed.
   // Shares the 403 status with its sibling so the two forks look alike.
   "confirmation_code_required",
+  // #581/#7: the same act, asked of somebody who DOES hold an authenticator, and
+  // whose last proof of it has gone stale. Its own code rather than reusing
+  // either sibling, because the remedy differs from both: `mfa_challenge_required`
+  // is a wall in front of the whole workspace, `confirmation_code_required` sends
+  // you to your email, and this one says "tap your authenticator again for this
+  // one act" — with the emailed code still available as the way round it, which
+  // is why the act is never actually refused.
+  //
+  // 403 like its two siblings, so the three forks look alike on the wire.
+  "mfa_reprove_required",
   "rate_limited",
   // #283: a subsystem is switched off at the runtime kill switch — an
   // operator's deliberate act during an incident, not the customer's fault and
@@ -85,6 +95,7 @@ export const ERROR_CODE_STATUS = {
   mfa_required: 403,
   mfa_challenge_required: 403,
   confirmation_code_required: 403,
+  mfa_reprove_required: 403,
   rate_limited: 429,
   service_unavailable: 503,
 } as const satisfies Record<ErrorCode, number>;

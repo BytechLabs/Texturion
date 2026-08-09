@@ -54,6 +54,7 @@ import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.NumberHealth
 import com.loonext.android.core.model.NumberStatus
+import com.loonext.android.core.ownership.HandoverConfirmation
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
@@ -590,9 +591,17 @@ private fun ReleaseNumberDialog(
         pending = true
         error = null
         coroutines.launch {
+            // The kind is carried FORWARD from the demand we are answering, not left at
+            // the default. This screen rebuilds its proof on every press — the other two
+            // hand the held one back — and the funnel now reads the kind to decide who
+            // checks the six digits. Rebuilding it as `EMAIL` sends a stale-factor code
+            // to us, where nothing reads it; the funnel recovers from that on the way
+            // back, but only after a wasted round trip that puts a live single-use code
+            // in one of our own request bodies.
             val request = HandoverProof(
                 action = "release_number",
                 label = "$display released.",
+                kind = proof?.kind ?: HandoverConfirmation.Kind.EMAIL,
             ) { digits -> scope.repo.releaseNumber(scope.companyId, number.id, digits) }
             when (val outcome = attemptHandover(scope, request, code, proof != null)) {
                 is HandoverOutcome.Done -> {
