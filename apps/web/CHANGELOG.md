@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.15.1](https://github.com/BytechLabs/Texturion/compare/web-v0.15.0...web-v0.15.1) (2026-08-09)
+
+
+### Bug Fixes
+
+* **billing:** stop a plan switch giving away a year somebody already paid for ([5c80385](https://github.com/BytechLabs/Texturion/commit/5c80385b0c48887e5265e0828190418f3b8da445))
+* **clients:** a call row keeps its shape, and a transcript can be copied ([2ea3ccf](https://github.com/BytechLabs/Texturion/commit/2ea3ccf204a59380d99e98bdea420268cbdb1265)), closes [#566](https://github.com/BytechLabs/Texturion/issues/566)
+* **clients:** a long call reads in hours instead of a growing minute count ([5937d04](https://github.com/BytechLabs/Texturion/commit/5937d04ec387305f725a030ee0f9ee135dd07aa3)), closes [#570](https://github.com/BytechLabs/Texturion/issues/570)
+* **clients:** make signing out actually sign the device out ([8f04f99](https://github.com/BytechLabs/Texturion/commit/8f04f999e2d24969636ca556b1563b79969712b8))
+* **clients:** repair what the last change broke, and finish what it claimed ([140a5c7](https://github.com/BytechLabs/Texturion/commit/140a5c7ca2de51e35ec4efdda1355cfa06f262c3)), closes [#566](https://github.com/BytechLabs/Texturion/issues/566)
+* **clients:** the thread an urgent text opens now says it is urgent ([474aef6](https://github.com/BytechLabs/Texturion/commit/474aef6253820a1d06ea8da491efcf17b6b876a9)), closes [#565](https://github.com/BytechLabs/Texturion/issues/565)
+* **web:** make the HTTPS pin outlive the cookie it protects ([7a9099f](https://github.com/BytechLabs/Texturion/commit/7a9099f49c1acc3255531c03100c71ca78ed03c5))
+* **web:** one caller can no longer use up the whole status-page mailing list ([e56d827](https://github.com/BytechLabs/Texturion/commit/e56d8276a589ceabe87f1cec40753339c58aebdd)), closes [#575](https://github.com/BytechLabs/Texturion/issues/575)
+
 ## [0.15.0](https://github.com/BytechLabs/Texturion/compare/web-v0.14.0...web-v0.15.0) (2026-08-08)
 
 

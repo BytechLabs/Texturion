@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.13.1](https://github.com/BytechLabs/Texturion/compare/android-v0.13.0...android-v0.13.1) (2026-08-09)
+
+
+### Bug Fixes
+
+* **android:** initials stop growing before they leave their circle ([69c04c1](https://github.com/BytechLabs/Texturion/commit/69c04c110644683469c3720174463de81bc197bd)), closes [#569](https://github.com/BytechLabs/Texturion/issues/569)
+* **clients:** a call row keeps its shape, and a transcript can be copied ([2ea3ccf](https://github.com/BytechLabs/Texturion/commit/2ea3ccf204a59380d99e98bdea420268cbdb1265)), closes [#566](https://github.com/BytechLabs/Texturion/issues/566)
+* **clients:** a long call reads in hours instead of a growing minute count ([5937d04](https://github.com/BytechLabs/Texturion/commit/5937d04ec387305f725a030ee0f9ee135dd07aa3)), closes [#570](https://github.com/BytechLabs/Texturion/issues/570)
+* **clients:** an urgent text now arrives louder than an ordinary one ([54a584b](https://github.com/BytechLabs/Texturion/commit/54a584bd7cb64405fb309b38bd2010b686238dc9)), closes [#564](https://github.com/BytechLabs/Texturion/issues/564)
+* **clients:** keep initials inside their circle at any text size ([8e8e0d0](https://github.com/BytechLabs/Texturion/commit/8e8e0d04de083a9fe574c399f1a62a7a7783e4ee)), closes [#569](https://github.com/BytechLabs/Texturion/issues/569)
+* **clients:** make signing out actually sign the device out ([8f04f99](https://github.com/BytechLabs/Texturion/commit/8f04f999e2d24969636ca556b1563b79969712b8))
+* **clients:** repair what the last change broke, and finish what it claimed ([140a5c7](https://github.com/BytechLabs/Texturion/commit/140a5c7ca2de51e35ec4efdda1355cfa06f262c3)), closes [#566](https://github.com/BytechLabs/Texturion/issues/566)
+* **clients:** the thread an urgent text opens now says it is urgent ([474aef6](https://github.com/BytechLabs/Texturion/commit/474aef6253820a1d06ea8da491efcf17b6b876a9)), closes [#565](https://github.com/BytechLabs/Texturion/issues/565)
+
 ## [0.13.0](https://github.com/BytechLabs/Texturion/compare/android-v0.12.2...android-v0.13.0) (2026-08-08)
 
 

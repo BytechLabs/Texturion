@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.15.1](https://github.com/BytechLabs/Texturion/compare/api-v0.15.0...api-v0.15.1) (2026-08-09)
+
+
+### Bug Fixes
+
+* **api:** a bulk action cannot borrow another workspace's tag or teammate ([9f97362](https://github.com/BytechLabs/Texturion/commit/9f97362c9fc1d52f2eb4c744116ee5ef855bf05c)), closes [#572](https://github.com/BytechLabs/Texturion/issues/572)
+* **api:** a stolen password can no longer switch off two-factor ([8399a33](https://github.com/BytechLabs/Texturion/commit/8399a3370ff13755665a1a7580a6bef661c798c7)), closes [#545](https://github.com/BytechLabs/Texturion/issues/545)
+* **api:** asking for a new handover code no longer buys more guesses ([caea299](https://github.com/BytechLabs/Texturion/commit/caea299cbea75124c175e62ac996b2dedf3c6c3c)), closes [#574](https://github.com/BytechLabs/Texturion/issues/574)
+* **api:** only the workspace that made a photo link can withdraw it ([af6ab1d](https://github.com/BytechLabs/Texturion/commit/af6ab1d888ecf734061b8b5c0be690a379e8f7be)), closes [#571](https://github.com/BytechLabs/Texturion/issues/571)
+* **api:** signing a device out now stops it answering calls ([2900839](https://github.com/BytechLabs/Texturion/commit/29008398f32b51b43443a031c1f7baaae0529fae)), closes [#573](https://github.com/BytechLabs/Texturion/issues/573)
+* **billing:** stop a plan switch giving away a year somebody already paid for ([5c80385](https://github.com/BytechLabs/Texturion/commit/5c80385b0c48887e5265e0828190418f3b8da445))
+* **clients:** an urgent text now arrives louder than an ordinary one ([54a584b](https://github.com/BytechLabs/Texturion/commit/54a584bd7cb64405fb309b38bd2010b686238dc9)), closes [#564](https://github.com/BytechLabs/Texturion/issues/564)
+* **clients:** make signing out actually sign the device out ([8f04f99](https://github.com/BytechLabs/Texturion/commit/8f04f999e2d24969636ca556b1563b79969712b8))
+
 ## [0.15.0](https://github.com/BytechLabs/Texturion/compare/api-v0.14.2...api-v0.15.0) (2026-08-08)
 
 
