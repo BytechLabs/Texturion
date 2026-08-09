@@ -774,6 +774,114 @@ describe("#171 — decline (first-class avenue removal)", () => {
     expect(settle.machine?.pushCapableUserIds).toEqual([]);
     expect(settle.machine?.state).toBe("voicemail_greeting");
   });
+
+  /**
+   * #278's queue is the THIRD avenue source, and the property above did not reach it.
+   *
+   * Under `in_turn` a member's phone is dialed when its turn comes round, but the push
+   * goes to everybody at once — so declining from the notification BEFORE your turn is
+   * the ordinary case, not a corner. The decline was recorded, the queue was not
+   * touched, and the cascade dialed them anyway.
+   */
+  it("PROPERTY: declining before your turn takes you out of the queue, so the cascade never dials you", () => {
+    const machine = ringingMachine({
+      dialTargets: [
+        { userId: "u1", sipUsername: "sip1" },
+        { userId: "u2", sipUsername: "sip2" },
+      ],
+      pushAudience: ["u1", "u2"],
+      ringStrategy: "in_turn",
+    });
+    // u2's phone has not been dialed — it is waiting its turn.
+    expect(machine.queuedTargets.map((t) => t.userId)).toEqual(["u2"]);
+
+    const declined = reduce(machine, { type: "decline", userId: "u2" }, 2_000, KEY)
+      .machine as SessionMachine;
+    expect(declined.declinedUserIds).toEqual(["u2"]);
+    // The queue is the assertion. Left in it, u2's phone rings after they said no.
+    expect(declined.queuedTargets).toEqual([]);
+    // u1 is still ringing, so the caller is not sent to voicemail by u2's decline.
+    expect(declined.state).toBe("ringing");
+
+    // And when the step alarm fires, nothing is dialed.
+    const stepped = reduce(declined, { type: "alarm-ring-step" }, 2_100, KEY);
+    expect(has(stepped.effects, "telnyx-dial")).toBe(false);
+  });
+
+  it("the cascade's own dial site refuses a decliner it somehow still holds", () => {
+    // The read site, checked on its own. The decline above is what keeps the queue
+    // clean; this is the line that would actually put the call on their phone, and
+    // "never re-ring a decliner" was asserted for ring-me and the push settle while
+    // being absent here. Seeded directly, because with the decline fixed no ordinary
+    // sequence can produce this state — which is exactly why the guard is worth having.
+    const machine = ringingMachine({
+      dialTargets: [
+        { userId: "u1", sipUsername: "sip1" },
+        { userId: "u2", sipUsername: "sip2" },
+      ],
+      pushAudience: ["u1"],
+      ringStrategy: "in_turn",
+    });
+    const seeded: SessionMachine = {
+      ...machine,
+      declinedUserIds: ["u2"],
+    };
+    expect(seeded.queuedTargets.map((t) => t.userId)).toEqual(["u2"]);
+
+    const r = reduce(seeded, { type: "alarm-ring-step" }, 2_100, KEY);
+    expect(has(r.effects, "telnyx-dial")).toBe(false);
+    expect(r.machine?.queuedTargets).toEqual([]);
+    // u1's leg is live, so dropping the queue must NOT send the caller to voicemail.
+    expect(r.machine?.state).toBe("ringing");
+  });
+
+  it("a queue of nothing but decliners sends the caller to voicemail instead of ringback", () => {
+    // Rung (1b) of the ladder counts a waiting phone as a live avenue — that is what
+    // it is for, since a leg dying between steps is normal. But a queue holding only
+    // people who have refused is not an avenue, and treating it as one leaves the
+    // customer listening to ringback until the deadline for phones that will never
+    // ring. Nobody holds a push here, and u1's leg is killed, so u2's waiting phone
+    // is the only avenue left.
+    const machine = ringingMachine({
+      dialTargets: [
+        { userId: "u1", sipUsername: "sip1" },
+        { userId: "u2", sipUsername: "sip2" },
+      ],
+      pushAudience: [],
+      ringStrategy: "in_turn",
+    });
+    expect(machine.queuedTargets.map((t) => t.userId)).toEqual(["u2"]);
+
+    const u1Dead = reduce(
+      machine,
+      { type: "member-leg-hangup", ccid: "leg-u1", userId: "u1", destination: null },
+      2_000,
+      KEY,
+    ).machine as SessionMachine;
+    // Rung (1b) doing its job: no live leg, but a phone is seconds from ringing.
+    expect(u1Dead.state).toBe("ringing");
+
+    const seeded: SessionMachine = { ...u1Dead, declinedUserIds: ["u2"] };
+    const r = reduce(seeded, { type: "alarm-ring-step" }, 2_100, KEY);
+    expect(has(r.effects, "telnyx-dial")).toBe(false);
+    expect(r.machine?.state).toBe("voicemail_greeting");
+  });
+
+  it("an exhausted queue is still an ordinary no-op, and does not force voicemail", () => {
+    // The other side of the same branch: when the cascade has simply run out of
+    // phones, the ring deadline owns what happens next. Only a queue this step
+    // EMPTIED of decliners re-runs the ladder.
+    const machine = ringingMachine({
+      dialTargets: [{ userId: "u1", sipUsername: "sip1" }],
+      pushAudience: [],
+      ringStrategy: "in_turn",
+    });
+    expect(machine.queuedTargets).toEqual([]);
+
+    const r = reduce(machine, { type: "alarm-ring-step" }, 2_100, KEY);
+    expect(has(r.effects, "telnyx-dial")).toBe(false);
+    expect(r.machine?.state).toBe("ringing");
+  });
 });
 
 // ---- T7 owner death + intent ----------------------------------------------

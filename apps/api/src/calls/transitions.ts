@@ -981,10 +981,29 @@ export function reduce(
     // somebody about a customer who has already hung up.
     case "alarm-ring-step": {
       if (next.state !== "ringing") return { machine: next, effects };
+      // Nobody who has said no. The decline itself now drops them from the queue,
+      // so this is the read site enforcing what the write site maintains — and it
+      // is the site that matters, because this is the one line in the machine that
+      // can put a call on a decliner's phone. "Never re-ring a decliner" was a
+      // property asserted for ring-me and the push settle and simply absent here.
       const queue = next.queuedTargets ?? [];
-      const target = queue[0];
-      if (!target) return { machine: next, effects };
-      next.queuedTargets = queue.slice(1);
+      const waiting = queue.filter(
+        (candidate) => !next.declinedUserIds.includes(candidate.userId),
+      );
+      const droppedDecliners = waiting.length < queue.length;
+      if (droppedDecliners) next.queuedTargets = waiting;
+      const target = waiting[0];
+      if (!target) {
+        // An already-exhausted queue is the ordinary end of the cascade and stays a
+        // no-op — the ring deadline owns what happens next. But if THIS step is what
+        // emptied it, an avenue has just disappeared and the ladder has to hear about
+        // it: rung (1b) counts a waiting phone as live, so a queue of nothing but
+        // decliners would otherwise hold the caller on ringback until the deadline,
+        // listening to phones that were never going to ring.
+        if (droppedDecliners) runAvenueLadder(next, effects);
+        return { machine: next, effects };
+      }
+      next.queuedTargets = waiting.slice(1);
       // The same cap ring-start respects. A cascade cannot be the way past it.
       if (next.legs.length >= MAX_LEGS_PER_SESSION) {
         return { machine: next, effects };
@@ -2198,12 +2217,20 @@ function wasRingTarget(machine: SessionMachine, userId: string): boolean {
  *
  * A member who declines is STILL push-capable, so leaving them in the avenue
  * set would hold ringback to the 45s window even though they've said no. This
- * transition removes them from BOTH avenue sources — cancels their ring legs
- * AND drops them from `pushCapableUserIds` — records the rejection so no re-dial
- * or wake ever re-rings them (`declinedUserIds`, read by ring-me and the
- * §5.5 settle), then re-runs the T3 exhaustion ladder over the REMAINING
- * avenues: single-member decline (no one else) → VM-ENTRY now; multi-member →
- * the caller keeps ringing the others (no state change beyond the removal).
+ * transition removes them from ALL THREE avenue sources — cancels their ring legs,
+ * drops them from `pushCapableUserIds`, and takes them out of the #278 queue of
+ * phones waiting their turn — records the rejection so no re-dial or wake ever
+ * re-rings them (`declinedUserIds`, read by ring-me, the §5.5 settle and the
+ * cascade's own dial site), then re-runs the T3 exhaustion ladder over the
+ * REMAINING avenues: single-member decline (no one else) → VM-ENTRY now;
+ * multi-member → the caller keeps ringing the others (no state change beyond the
+ * removal).
+ *
+ * It said BOTH sources for as long as there were three. The cascade added the queue
+ * and nothing here was taught about it, so a member who declined from the push
+ * before their turn stayed queued and `alarm-ring-step` dialed them — their phone
+ * ringing after they had said no, which is the one thing this transition exists to
+ * prevent.
  *
  * Licensed (§15.1 totality) in every state: non-`ringing` is an idempotent
  * `declined:false` no-op (never a 409 for state) — the session already
@@ -2270,6 +2297,24 @@ function reduceDecline(
   next.pushCapableUserIds = next.pushCapableUserIds.filter(
     (userId) => userId !== event.userId,
   );
+
+  // ...and from the queue of phones waiting their turn (#278 `in_turn`), which is
+  // the THIRD avenue source. There were two when this transition was written, and
+  // the cascade added a third without teaching the decline about it — so a member
+  // who declined from the push notification before their turn came round stayed in
+  // the queue, and `alarm-ring-step` dialed them anyway. Their phone rang after
+  // they had said no, which is the whole thing #171 exists to stop.
+  //
+  // It also fed the ladder a lie. Rung (1b) treats a waiting phone as a live
+  // avenue, so a queue holding nothing but decliners kept the session `ringing`
+  // and the customer listening to ringback for phones that would only ever ring
+  // somebody who had already refused. Removing them here is what lets the ladder
+  // below reach voicemail at the right moment.
+  if (next.queuedTargets !== undefined) {
+    next.queuedTargets = next.queuedTargets.filter(
+      (target) => target.userId !== event.userId,
+    );
+  }
 
   // Re-run the T3 exhaustion ladder over the avenues that survive the decline:
   // (live legs of non-decliners) ∪ (push-capable non-decliners). No avenue →
