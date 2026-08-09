@@ -1,5 +1,6 @@
 package com.loonext.android.features.inbox
 
+import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.RefreshBox
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -1799,24 +1800,17 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
     ) {
         // 42dp squircle avatar; unread = coral dot ringed in paper (spec 20).
         Box {
-            Box(
-                Modifier
-                    .size(42.dp)
-                    .background(
-                        MaterialTheme.colorScheme.secondaryContainer,
-                        RoundedCornerShape(15.dp),
-                    ),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    initialsOf(name),
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    ),
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
-            }
+            // #569: was a hand-rolled 42dp box with the glyph pinned at a literal
+            // 12.5.sp. Two wide initials stopped fitting at large OS text and, with
+            // wrapping still on, Compose broke the pair mid-word and clipped the
+            // second letter. The shared component bounds the glyph and refuses to
+            // wrap; the literal keeps this pixel-identical at the default setting.
+            InitialsAvatar(
+                name = name,
+                size = 42.dp,
+                shape = RoundedCornerShape(15.dp),
+                glyph = 12.5.sp,
+            )
             if (row.unread) {
                 Box(
                     Modifier

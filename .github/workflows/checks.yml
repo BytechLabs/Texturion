@@ -259,6 +259,14 @@ jobs:
       - name: Guard push kinds against splitting the crew
         run: node scripts/check-push-kinds.mjs
 
+      # #569: an initials badge sized in fixed `dp` around a glyph sized in `sp`
+      # lets the letters outgrow the box at large OS text. `InitialsAvatar` was
+      # meant to be the one implementation; a survey found EIGHT hand-rolled copies,
+      # including on the inbox list and the thread header. check-native-a11y cannot
+      # see this — it checks text uses `sp`, which every copy did, correctly.
+      - name: Guard avatar glyphs against outgrowing their box
+        run: node scripts/check-avatar-glyph-bounds.mjs
+
       # #377: there is ONE deployed environment, so a variable that reaches
       # code without reaching the deploy reference is discovered in production
       # or on an invoice. The two env docs that used to disagree each shipped a

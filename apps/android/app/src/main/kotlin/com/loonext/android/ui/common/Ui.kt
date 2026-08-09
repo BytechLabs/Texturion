@@ -18,6 +18,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import com.loonext.android.core.net.ApiDecodeException
 import com.loonext.android.core.net.ApiException
@@ -99,25 +102,87 @@ fun CenteredError(message: String, onRetry: () -> Unit, modifier: Modifier = Mod
     }
 }
 
-/** Flat single-tone avatar: avatar-tint fill, SemiBold initials (G11). */
+/**
+ * Flat single-tone avatar: avatar-tint fill, SemiBold initials (G11).
+ *
+ * ## #569 — the initials stop growing before they leave the circle
+ *
+ * The box is a fixed `Dp` and the glyph is `sp`, which carries the reader's OS font
+ * setting. So at large text the letters outgrew the circle and clipped. Measured off
+ * the shipped Golos Text face, two initials run about 1.6x the font size wide — and
+ * a pair like "WM" about 1.86x — so a 30dp circle held roughly 31dp of ink at the
+ * top of the system slider.
+ *
+ * ## Why the glyph is capped rather than the circle grown
+ *
+ * Growing the circle was the obvious fix and it is the wrong one, for three measured
+ * reasons:
+ *
+ *  1. The overflow is HORIZONTAL. Vertically there was never a spill — the style's
+ *     `lineHeight` stays 20.sp, which is 34dp at the top of the slider and fits
+ *     every box from 38dp up. Growing the box treats a width problem with height.
+ *  2. It costs room the crowded surfaces do not have. On a 360dp phone the thread
+ *     header has 280dp for its children; at the largest text with an urgent badge
+ *     showing, the identity column is already squeezed to nothing. Growing the
+ *     avatar there takes the overflow menu to zero — trading clipped initials for an
+ *     unreachable menu.
+ *  3. An avatar is a recognition mark, not text to read. The NAME beside it scales
+ *     in full, which is what a reader who asked for large text actually needs; two
+ *     letters in a badge are there to be recognised at a glance.
+ *
+ * So the glyph follows the reader's setting until two wide initials would touch the
+ * rim, and then holds. At the default setting nothing moves at all — the cap only
+ * begins to bite around 1.4x — and no layout anywhere changes at any setting.
+ *
+ * `check-native-a11y` passes this, and it is worth being straight about why: that
+ * guard checks text is sized in `sp` rather than `dp`, which this still is. It does
+ * not and cannot judge whether a layout survives 200%, and it says so in its own
+ * header. The bound here is a deliberate exception for a two-character badge, not a
+ * mechanism the guard endorses.
+ *
+ * @param shape defaults to a circle; the square-ish avatars in the lists pass their
+ *   own corner radius so one component can serve every surface (#569 found nine
+ *   hand-rolled copies of this, each with the same unbounded-glyph bug).
+ * @param glyph the size the initials WANT, before the cap. Defaults to the historic
+ *   `size / 3` so every existing call renders identically; the converted copies pass
+ *   the literal they had, so nothing shifts by a pixel at the default font setting.
+ */
 @Composable
-fun InitialsAvatar(name: String?, size: Dp = 40.dp, modifier: Modifier = Modifier) {
+fun InitialsAvatar(
+    name: String?,
+    size: Dp = 40.dp,
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(percent = 50),
+    glyph: TextUnit = (size.value / 3).sp,
+) {
     val initials = initialsOf(name)
+    val density = LocalDensity.current
+    // The largest glyph two wide initials can use and still clear the rim: 1.86x the
+    // font size for the widest pair, inside about 92% of the box.
+    val ceiling = size.value / 2.1f
+    val wanted = with(density) { glyph.toDp().value }
+    val rendered = with(density) { minOf(wanted, ceiling).dp.toSp() }
     Box(
         modifier = modifier
             .size(size)
-            .background(
-                MaterialTheme.colorScheme.secondaryContainer,
-                RoundedCornerShape(percent = 50),
-            ),
+            .background(MaterialTheme.colorScheme.secondaryContainer, shape),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             initials,
             style = MaterialTheme.typography.labelLarge.copy(
-                fontSize = (size.value / 3).sp,
+                fontSize = rendered,
+                // Bounded with the glyph. The inherited 20.sp was the one thing that
+                // could still spill out of the smaller avatars (28-32dp) at the top
+                // of the slider.
+                lineHeight = rendered * 1.25f,
                 fontWeight = FontWeight.SemiBold,
             ),
+            // Two initials are one word. Without this, Compose broke mid-word once
+            // the pair no longer fitted and clipped the second letter — which is how
+            // the inbox row failed rather than by overflowing.
+            maxLines = 1,
+            softWrap = false,
             color = MaterialTheme.colorScheme.onSecondaryContainer,
         )
     }

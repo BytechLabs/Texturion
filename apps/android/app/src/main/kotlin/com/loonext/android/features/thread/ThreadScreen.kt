@@ -1384,21 +1384,16 @@ private fun ThreadTagsRow(
 /** 38dp identity circle on the avatar tint (spec header grammar). */
 @Composable
 private fun HeaderAvatar(name: String?) {
-    Box(
-        Modifier
-            .size(38.dp)
-            .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            initialsOf(name),
-            style = MaterialTheme.typography.labelMedium.copy(
-                fontSize = 12.5.sp,
-                fontWeight = FontWeight.SemiBold,
-            ),
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-        )
-    }
+    // #569: was a hand-rolled 38dp box with the glyph pinned at a literal 12.5.sp,
+    // so the initials outgrew the circle at large OS text and clipped. The shared
+    // component bounds the glyph; passing the literal keeps this pixel-identical at
+    // the default font setting.
+    //
+    // It is worth naming why a clone existed at all: nothing connected the box size
+    // to the glyph size, so there was no ratio to inherit and copying was easier
+    // than parameterising. The component now takes both, which is what makes the
+    // copies collapsible.
+    InitialsAvatar(name = name, size = 38.dp, glyph = 12.5.sp)
 }
 
 @Composable
