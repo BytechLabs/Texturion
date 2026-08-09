@@ -48,6 +48,11 @@ declare
     'api_list_conversations',
     'api_notifications',
     'api_notifications_unread_count',
+    -- #581: the response-time report. It NAMES phone numbers, which is what
+    -- makes it worth more than a row count: a restricted member saw a denied
+    -- line's E.164 together with its lead and unanswered totals. Every sibling
+    -- read surface filtered and this one did not.
+    'api_response_time_stats',
     'api_search_v2',
     -- Not in #368's list. It takes the parameter and filters on it correctly;
     -- it was simply missing from the enumeration the issue was written from.

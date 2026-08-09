@@ -47,6 +47,7 @@ import { isAfterHours, type BusinessHours, type HoursException } from "@loonext/
 import { Hono } from "hono";
 
 import { requireCapability } from "../auth/company";
+import { resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -124,6 +125,15 @@ async function labelledByNumber(
   db: ReturnType<typeof getDb>,
   companyId: string,
   rows: StatsPayload["by_number"],
+  /**
+   * #581/#106 — the numbers this reader is denied, or null when there are no
+   * rules. Belt and braces: the RPC above already drops their leads, so nothing
+   * denied should reach here. Filtered again anyway, because this read is the
+   * one that turns an id into a REAL PHONE NUMBER, and the two halves failing
+   * together is the only way that number reaches a screen. Cheap, and it means
+   * neither half is the single point of failure.
+   */
+  hiddenNumberIds: string[] | null,
 ): Promise<LabelledNumberRow[]> {
   if (rows.length < 2) return [];
 
@@ -141,7 +151,9 @@ async function labelledByNumber(
       .map((row) => [row.id, row.number_e164]),
   );
 
+  const hidden = new Set(hiddenNumberIds ?? []);
   const labelled = rows.flatMap((row) => {
+    if (hidden.has(row.phone_number_id)) return [];
     const number = labels.get(row.phone_number_id);
     return number ? [{ ...row, number_e164: number }] : [];
   });
@@ -209,6 +221,14 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
   const env = getEnv(c.env);
   const db = getDb(env);
   const companyId = c.get("companyId");
+  // #581/#106: this report names phone numbers, so it has to know which ones
+  // this reader is denied. Null for owners, admins, and any workspace that has
+  // never written an access rule — which hides nothing and is the common path.
+  const access = await resolveNumberAccess(db, {
+    companyId,
+    userId: c.get("userId"),
+    role: c.get("role"),
+  });
 
   const requested = Number(c.req.query("days") ?? DEFAULT_DAYS);
   const days = (ALLOWED_DAYS as readonly number[]).includes(requested)
@@ -243,6 +263,10 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
       p_since: from.toISOString(),
       p_until: to.toISOString(),
       p_max_rows: MAX_ROWS,
+      // #581/#106: a denied number's leads leave the report entirely — not just
+      // its row in `by_number`, but its contribution to the medians too. Null
+      // when there are no access rules, which hides nothing.
+      p_hidden_number_ids: access.hiddenNumberIds,
     });
     if (error) {
       throw new Error(`api_response_time_stats failed: ${error.message}`);
@@ -327,7 +351,12 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
     // the headline exactly, so the answer is an EMPTY list from the server
     // rather than a condition each client remembers to write. A client cannot
     // get a rule wrong that it was never given.
-    by_number: await labelledByNumber(db, companyId, current.by_number),
+    by_number: await labelledByNumber(
+      db,
+      companyId,
+      current.by_number,
+      access.hiddenNumberIds,
+    ),
     // Null, not an empty list: "the owner has not opted in" and "nobody has
     // answered anything" are different facts and the clients say different
     // things about them.

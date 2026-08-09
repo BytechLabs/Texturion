@@ -255,6 +255,22 @@ async function stats(
     p_since: from.toISOString(),
     p_until: to.toISOString(),
     p_max_rows: 5000,
+    /**
+     * #581/#106 — null, and stated rather than omitted.
+     *
+     * This recap is addressed to the OWNER (see `recipient` below), and
+     * `resolveNumberAccess` short-circuits owners and admins to unrestricted, so
+     * resolving it here would compute null and cost a query to do it. Null is the
+     * right answer.
+     *
+     * Written out anyway because the roster in
+     * `auth/number-access-surfaces.test.ts` requires every call site of a
+     * filtered RPC to name this parameter — the omission and the decision look
+     * identical in a diff otherwise, and a defaulted parameter filters against
+     * null perfectly happily while hiding nothing. If this recap is ever
+     * addressed to anybody but the owner, this line is the one to change.
+     */
+    p_hidden_number_ids: null,
   });
   if (error) return null;
   return data as RecapStats;
