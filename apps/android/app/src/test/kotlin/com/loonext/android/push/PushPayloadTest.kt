@@ -137,6 +137,48 @@ class PushPayloadTest {
     }
 
     @Test
+    fun `an urgent text routes to its own channel, not Messages`() {
+        // #564: it used to land on Messages at ordinary importance — buzzing no
+        // louder than "on my way?" and silenced by the same switch — while the
+        // reply we send that customer says the crew has been alerted.
+        val content = parsePush(
+            mapOf(
+                "kind" to "emergency",
+                "title" to "EMERGENCY from Maria Alvarez",
+                "body" to "URGENT no heat",
+                "url" to "/inbox/conv-9",
+            ),
+        )
+
+        assertEquals(ChannelIds.EMERGENCY, content.channelId)
+        assertEquals(PushKind.EMERGENCY, content.kind)
+    }
+
+    @Test
+    fun `an ordinary text stays on Messages`() {
+        // The other half of the pairing. Everything on the loud channel is a
+        // channel everybody mutes, which tells nobody anything.
+        val content = parsePush(
+            mapOf(
+                "title" to "Maria Alvarez",
+                "body" to "on my way?",
+                "url" to "/inbox/conv-9",
+            ),
+        )
+
+        assertEquals(ChannelIds.MESSAGES, content.channelId)
+        assertNull(content.kind)
+    }
+
+    @Test
+    fun `the urgent channel is not the ringing channel`() {
+        // Borrowing INCOMING_CALLS would give a text a ringtone, and would mean
+        // somebody who silences ringing silences this too.
+        assertNotEquals(ChannelIds.EMERGENCY, ChannelIds.INCOMING_CALLS)
+        assertNotEquals(ChannelIds.EMERGENCY, ChannelIds.MESSAGES)
+    }
+
+    @Test
     fun `a hand-off keeps the server's collapse identity, not the url's`() {
         // The server keys a hand-off per THING (`assigned:conversation:<id>`)
         // so a re-assignment replaces its own earlier alert — and, critically,

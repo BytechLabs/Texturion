@@ -48,6 +48,14 @@ targets:
         # whenever another third-party sign-in (Google) is offered.
         com.apple.developer.applesignin:
           - Default
+        # #564: an URGENT text has to break through a Focus. Without this
+        # entitlement APNs silently DOWNGRADES an `interruption-level` of
+        # time-sensitive to active, so the alert we tell the customer we sent
+        # would arrive as quietly as any other text. Needs no request to Apple —
+        # unlike a critical alert, which does, and which this is deliberately not:
+        # critical overrides silent mode, and a customer typing URGENT is not
+        # an earthquake warning.
+        com.apple.developer.usernotifications.time-sensitive: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.loonext.ios

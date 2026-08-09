@@ -48,6 +48,13 @@ object PushKind {
     const val TASK_ASSIGNED = "task_assigned"
 
     /**
+     * #564: a customer replying URGENT. Sent on the NATIVE payload only
+     * (inbound.ts) — the service worker has no channels to pick from, so the
+     * discriminator would be a field nothing reads on web.
+     */
+    const val EMERGENCY = "emergency"
+
+    /**
      * Ring revocation on every exit from `ringing` (calls-v3 §9.2). Android
      * FCM sends are data-only with NO collapse key, so the ONLY dismissal
      * mechanism is this client's explicit cancel-by-tag (`call:<session>`).
@@ -109,6 +116,11 @@ fun parsePush(data: Map<String, String>): PushContent {
         url = url,
         tag = tag,
         channelId = when (kind) {
+            // #564: its own high-importance channel. On the Messages channel an
+            // urgent text buzzed exactly as loudly as "on my way?" and was
+            // silenced by the same switch — while the reply we send that
+            // customer says the crew has been alerted.
+            PushKind.EMERGENCY -> ChannelIds.EMERGENCY
             PushKind.MISSED_CALL -> ChannelIds.MISSED_CALLS
             PushKind.TASK_DUE -> ChannelIds.TASK_REMINDERS
             PushKind.CONVERSATION_ASSIGNED, PushKind.TASK_ASSIGNED ->

@@ -92,6 +92,43 @@ final class NotificationsPushPayloadTests: XCTestCase {
         XCTAssertEqual(task.category, PushCategory.assignments)
     }
 
+    func testAnUrgentTextGetsItsOwnCategoryNotMessages() {
+        // #564: it used to be indistinguishable from "on my way?" — same
+        // category, same presentation — while the reply we send that customer
+        // says the crew has been alerted. The loudness itself is server-side on
+        // this platform (an `interruption-level` of time-sensitive, so a Focus
+        // lets it through); this category is what the client branches on.
+        let content = parsePush([
+            "kind": "emergency",
+            "title": "EMERGENCY from Maria Alvarez",
+            "body": "URGENT no heat",
+            "url": "/inbox/conv-9",
+        ])
+
+        XCTAssertEqual(content.category, PushCategory.emergency)
+        XCTAssertEqual(content.kind, PushKind.emergency)
+    }
+
+    func testAnOrdinaryTextStaysInMessages() {
+        // The other half of the pairing. Everything in the loud category is a
+        // category everybody mutes, which tells nobody anything.
+        let content = parsePush([
+            "title": "Maria Alvarez",
+            "body": "on my way?",
+            "url": "/inbox/conv-9",
+        ])
+
+        XCTAssertEqual(content.category, PushCategory.messages)
+        XCTAssertNil(content.kind)
+    }
+
+    func testTheUrgentCategoryIsNotTheRingingOne() {
+        // Borrowing incomingCalls would present a text as a phone call, and
+        // would mean somebody who silences ringing silences this too.
+        XCTAssertNotEqual(PushCategory.emergency, PushCategory.incomingCalls)
+        XCTAssertNotEqual(PushCategory.emergency, PushCategory.messages)
+    }
+
     func testEmptyPayloadDegradesToACalmGenericNoticeNeverDropped() {
         let content = parsePush([:])
 

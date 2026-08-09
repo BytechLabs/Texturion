@@ -262,6 +262,22 @@ function buildMessage(
     // chars == bytes) — bound it rather than fail the whole send.
     apnsHeaders["apns-collapse-id"] = collapseId.slice(0, 64);
   }
+  // #564: an URGENT text has to break through a Focus. `apns-priority: 10`
+  // above only means "deliver now"; the INTERRUPTION LEVEL is what decides
+  // whether a Focus lets it through, and its default (`active`) does not.
+  //
+  // Read off the payload's own `kind` rather than taken as a parameter: the
+  // discriminator is already the thing every other client branches on, and a
+  // second switch saying the same thing is a second switch to keep in step.
+  //
+  // Deliberately time-sensitive and not `critical`: critical overrides silent
+  // mode and needs an entitlement Apple grants case by case. A customer typing
+  // URGENT is not an earthquake warning. Requires
+  // com.apple.developer.usernotifications.time-sensitive (apps/ios/project.yml)
+  // — without it APNs silently downgrades this to `active`.
+  const apsExtras: Record<string, unknown> =
+    data.kind === "emergency" ? { "interruption-level": "time-sensitive" } : {};
+
   return {
     token: target.token,
     notification: {
@@ -269,7 +285,10 @@ function buildMessage(
       body: data.body ?? "",
     },
     data,
-    apns: { headers: apnsHeaders },
+    apns:
+      Object.keys(apsExtras).length > 0
+        ? { headers: apnsHeaders, payload: { aps: apsExtras } }
+        : { headers: apnsHeaders },
   };
 }
 

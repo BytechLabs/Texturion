@@ -236,6 +236,14 @@ jobs:
       - name: Guard conversation detail against a silently dropped field
         run: node scripts/check-conversation-detail-parity.mjs
 
+      # #564: the two phones are documented as mirroring each other's push kinds
+      # and destinations 1:1, and nothing checked it — so an urgent text could get
+      # its own channel on Android and sit among ordinary texts on the iPhone,
+      # waking half a crew. On its first run this found that iOS declared
+      # `task_due` and routed it nowhere.
+      - name: Guard push kinds against splitting the crew
+        run: node scripts/check-push-kinds.mjs
+
       # #377: there is ONE deployed environment, so a variable that reaches
       # code without reaching the deploy reference is discovered in production
       # or on an invoice. The two env docs that used to disagree each shipped a

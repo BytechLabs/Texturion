@@ -282,6 +282,19 @@ export async function notifyInboundMessage(
       withheld: { body: "Sent you a message" },
     },
     web: { title: pushTitle, body: snippet, url: link },
+    // #564: the phones had nothing to route on, so an URGENT text posted to the
+    // ordinary Messages channel at ordinary importance — silenced by the same
+    // switch as "on my way?" — while the reply we send that customer says the
+    // crew has been alerted. The discriminator is what makes that sentence true:
+    // Android gives it its own high-importance channel, and iOS marks it
+    // time-sensitive so it breaks through a Focus.
+    //
+    // NATIVE only, deliberately. The service worker renders every push the same
+    // way and has no channels to pick from, so a `kind` there would be a field
+    // nothing reads — and `web` is the payload a browser can inspect.
+    native: input.emergency
+      ? { title: pushTitle, body: snippet, url: link, kind: "emergency" }
+      : undefined,
     collapseKey: input.emergency
       ? // #414: an emergency must NOT be coalesced away by the ordinary texts
         // that follow it in the same thread. Its own key keeps it on the lock

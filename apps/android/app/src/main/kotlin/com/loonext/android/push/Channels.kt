@@ -34,6 +34,18 @@ object ChannelIds {
      * mean if it is going to be kept switched on.
      */
     const val ASSIGNMENTS = "assignments"
+
+    /**
+     * #564: a customer replying URGENT. Its own channel at HIGH importance,
+     * because the reply we send that customer says the crew has been alerted and
+     * on the Messages channel that was not true — an urgent text buzzed exactly
+     * as loudly as "on my way?" and was silenced by the same switch.
+     *
+     * Separate from INCOMING_CALLS rather than borrowed: a ringtone for a text
+     * would be a phone call that isn't one, and somebody who mutes ringing
+     * should not thereby mute this.
+     */
+    const val EMERGENCY = "emergency"
 }
 
 /**
@@ -43,9 +55,9 @@ object ChannelIds {
  * it defensively before posting (a push can arrive before first launch UI).
  *
  * Importance mirrors the web push behavior: messages, missed calls and task
- * reminders are normal notifications; incoming calls are high-importance with
- * the device ringtone and a vibration pattern (the 30s push-to-wake ring,
- * #135).
+ * reminders are normal notifications; urgent texts (#564) are high-importance
+ * with a vibration; incoming calls are high-importance with the device ringtone
+ * and a vibration pattern (the 30s push-to-wake ring, #135).
  */
 fun ensureChannels(context: Context) {
     val manager = context.getSystemService(NotificationManager::class.java) ?: return
@@ -82,6 +94,19 @@ fun ensureChannels(context: Context) {
         description = "Conversations and jobs a teammate puts on your name."
     }
 
+    val emergency = NotificationChannel(
+        ChannelIds.EMERGENCY,
+        "Urgent texts",
+        NotificationManager.IMPORTANCE_HIGH,
+    ).apply {
+        description = "A customer said their job is urgent."
+        // HIGH alone heads-up and sounds; the vibration is what reaches a phone
+        // in a pocket on a job site. Shorter and plainer than the ring pattern —
+        // this is an alert to read, not a call to answer.
+        enableVibration(true)
+        vibrationPattern = longArrayOf(0, 350, 200, 350)
+    }
+
     val incomingCalls = NotificationChannel(
         ChannelIds.INCOMING_CALLS,
         "Incoming calls",
@@ -100,6 +125,13 @@ fun ensureChannels(context: Context) {
     }
 
     manager.createNotificationChannels(
-        listOf(messages, missedCalls, taskReminders, assignments, incomingCalls),
+        listOf(
+            messages,
+            missedCalls,
+            taskReminders,
+            assignments,
+            emergency,
+            incomingCalls,
+        ),
     )
 }

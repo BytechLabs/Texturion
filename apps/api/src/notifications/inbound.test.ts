@@ -493,6 +493,72 @@ describe("an emergency reply is escalated, not threaded (#414)", () => {
     expect(JSON.stringify(sent)).toContain("HIGH");
   });
 
+  it("sends the discriminator the phones route on (#564)", async () => {
+    // Without it the phones had nothing to branch on, so an URGENT text posted
+    // to the ordinary Messages channel at ordinary importance — silenced by the
+    // same switch as "on my way?" — while the reply we send that customer says
+    // the crew has been alerted. Every existing test here passed throughout,
+    // because nothing looked for the field.
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const world = buildWorld({ members: [OWNER] });
+    world.sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      { id: DEVICE_ROW_ID, user_id: OWNER, platform: "android", token: "tok-a" },
+    ]);
+    stubFetch(...world.routes, ...service.routes);
+
+    await notifyInboundMessage(fcmEnv(account), EMERGENCY);
+
+    const data = service.sends[0].message.data as Record<string, string>;
+    expect(data.kind).toBe("emergency");
+  });
+
+  it("marks it time-sensitive on an iPhone, so a Focus lets it through (#564)", async () => {
+    // apns-priority 10 only means "deliver now". The INTERRUPTION LEVEL is what
+    // a Focus reads, and its default (`active`) is exactly what a Focus holds
+    // back. Not `critical`: that overrides silent mode and needs an entitlement
+    // Apple grants case by case, and a customer typing URGENT is not an
+    // earthquake warning.
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const world = buildWorld({ members: [OWNER] });
+    world.sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      { id: DEVICE_ROW_ID, user_id: OWNER, platform: "ios", token: "tok-i" },
+    ]);
+    stubFetch(...world.routes, ...service.routes);
+
+    await notifyInboundMessage(fcmEnv(account), EMERGENCY);
+
+    const sent = service.sends[0].message as {
+      apns?: { payload?: { aps?: Record<string, unknown> } };
+    };
+    expect(sent.apns?.payload?.aps?.["interruption-level"]).toBe(
+      "time-sensitive",
+    );
+  });
+
+  it("leaves an ordinary text quiet — no discriminator, no interruption (#564)", async () => {
+    // The other half of the pairing. A discriminator on every inbound text
+    // would move every text onto the loud channel, which is the same failure
+    // with the sign flipped: a channel everybody mutes tells nobody anything.
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const world = buildWorld({ members: [OWNER] });
+    world.sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      { id: DEVICE_ROW_ID, user_id: OWNER, platform: "ios", token: "tok-i" },
+    ]);
+    stubFetch(...world.routes, ...service.routes);
+
+    await notifyInboundMessage(fcmEnv(account), INPUT);
+
+    const sent = service.sends[0].message as {
+      data: Record<string, string>;
+      apns?: { payload?: unknown };
+    };
+    expect(sent.data.kind).toBeUndefined();
+    expect(sent.apns?.payload).toBeUndefined();
+  });
+
   it("leaves an ordinary message exactly as it was", async () => {
     const world = buildWorld({ assignedUserId: MEMBER });
     stubFetch(...world.routes);
