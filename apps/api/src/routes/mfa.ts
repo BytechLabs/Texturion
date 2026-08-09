@@ -25,6 +25,7 @@ import { z } from "zod";
 import { recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
 import { requireActionConfirmation } from "../auth/confirm-action";
+import { requireStepUpForEnrolled } from "../auth/step-up";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { sendEmail } from "../email/resend";
@@ -124,6 +125,32 @@ mfaRoutes.post("/mfa/recovery-codes", async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const userId = c.get("userId");
+
+  // #545: MINTING requires the second factor. Burning a code (POST /mfa/recover
+  // below) must stay reachable at aal1 — that is the entire point of recovery —
+  // but issuing a fresh set is not a way back in, it is the creation of ten new
+  // ways in, and a password-only session was able to do it.
+  //
+  // The attack it closes, in two requests: sign in with a stolen password (GoTrue
+  // issues aal1 on a password login and leaves the second factor to us), POST
+  // here to mint ten codes, then POST /mfa/recover with one of them — which
+  // deletes every verified factor through the service-role admin API, bypassing
+  // GoTrue's own aal2 requirement for unenrolment. The control whose whole
+  // purpose is surviving a stolen password was defeated by a stolen password,
+  // and the victim's real printout was silently voided on the way through.
+  //
+  // This cannot lock anybody out, which is why it is safe where a blanket gate
+  // would not be: the handler below refuses unless a VERIFIED factor already
+  // exists, so anyone entitled to mint can by definition satisfy aal2. Somebody
+  // who has lost their authenticator uses a code they already hold, not a new
+  // one. All three clients already re-read a fresh aal2 session before calling
+  // this, and all three route on `mfa_challenge_required`.
+  //
+  // Note this route is company-EXEMPT by design (#314), so `companyContext`
+  // returns before both of its aal gates — that early return is correct for the
+  // locked-out member it exists for, and is why the check has to live here.
+  const stepUp = await requireStepUpForEnrolled(c, "issuing new recovery codes");
+  if (stepUp) return stepUp;
 
   // Only for somebody who has actually enrolled. Codes without a factor are
   // not recovery, they are a second password with a worse UI.
