@@ -350,4 +350,33 @@ begin
   raise notice 'PC-10 PASSED: only the unpaid conversion is waiting';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- PC-11. A converted year cannot be re-granted by a replayed checkout webhook.
+--
+-- #583 asks for this by name: "Re-granting must not restart twelve months...
+-- the conversion path needs the same protection, tested." `grantPrepaidYear`
+-- already refuses to re-apply a live coupon, because re-applying RESTARTS the
+-- twelve months and `confirm-checkout` lets a browser replay a completed session
+-- on demand. The conversion inherits that protection rather than reimplementing
+-- it — by setting `revoked_at`, which is the column `claim_prepayment` reads.
+--
+-- Asserted rather than assumed, because the inheritance is invisible: nothing in
+-- `convert_prepayment` mentions granting, and a future edit that recorded
+-- `converted_at` alone would look complete and quietly re-open the door.
+do $$
+declare
+  v_claim jsonb;
+begin
+  select public.claim_prepayment(
+           '5b000000-0000-4000-8000-0000000000c1'::uuid,
+           'cs_583_starter', 'starter', 29000, 'usd', 12, 'pi_583') into v_claim;
+
+  if v_claim ->> 'outcome' is distinct from 'revoked' then
+    raise exception 'PC-11 FAILED: replaying the checkout for a CONVERTED year '
+      'answered %, so the grant path would re-apply the coupon and restart '
+      'twelve months on a year we just paid back.', v_claim ->> 'outcome';
+  end if;
+  raise notice 'PC-11 PASSED: a converted year cannot be granted again';
+end $$;
+
 rollback;

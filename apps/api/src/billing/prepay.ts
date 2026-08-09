@@ -13,6 +13,7 @@ import {
   prepayYearPrice,
   type PlanId,
 } from "./plans";
+import { getDb } from "../db";
 import { getStripe } from "./stripe";
 
 /**
@@ -873,6 +874,99 @@ export async function convertPrepaidYear(
     throw new Error(`stamp_prepayment_credit failed: ${stampError.message}`);
   }
   return { ...result, credited: true };
+}
+
+/**
+ * Finish the conversions whose credit never reached Stripe. #583/D131.
+ *
+ * D131 chose this failure deliberately. The claim row is written first, in one
+ * transaction, so a crash after it leaves a customer at the full price who is owed a
+ * recorded amount — recoverable — rather than a live 100%-off coupon with the
+ * entitlement already closed, which is free service nothing is looking for.
+ *
+ * THAT CHOICE IS ONLY DEFENSIBLE BECAUSE SOMETHING LOOKS FOR THESE. This is it.
+ *
+ * It shares the inline path's idempotency key exactly (`prepay-credit:<row id>`), so
+ * a sweep racing a retry of the original request cannot pay twice: Stripe returns
+ * the first transaction to the second caller. The `credited_at is null` guard on the
+ * stamp is the second belt.
+ *
+ * One bad row must not stop the others — a company whose Stripe customer went away
+ * would otherwise block every conversion behind it forever — so each is caught and
+ * logged, and the row stays in the set for the next pass.
+ */
+export async function sweepUncreditedConversions(
+  env: Env,
+): Promise<{ credited: number; failed: number }> {
+  // `env` alone, like every neighbouring sweep, because the cron table's
+  // `ScheduledJob` is `(env, now)` — a second parameter here would be handed the
+  // trigger's Date. TypeScript refuses that outright, which is the good outcome:
+  // an injectable db defaulted for tests would have been a silent one in a
+  // language that allowed it.
+  const db = getDb(env);
+  const { data, error } = await db.rpc("prepayments_awaiting_credit", {
+    p_limit: 50,
+  });
+  if (error) {
+    throw new Error(`prepayments_awaiting_credit failed: ${error.message}`);
+  }
+  const rows = (data ?? []) as {
+    prepayment_id: string;
+    company_id: string;
+    currency: string;
+    credit_cents: number;
+    converted_to_plan: string | null;
+  }[];
+  if (rows.length === 0) return { credited: 0, failed: 0 };
+
+  const stripe = getStripe(env);
+  let credited = 0;
+  let failed = 0;
+  for (const row of rows) {
+    try {
+      const { data: company, error: companyError } = await db
+        .from("companies")
+        .select("stripe_customer_id")
+        .eq("id", row.company_id)
+        .limit(1);
+      if (companyError) throw new Error(companyError.message);
+      const customerId = (company ?? [])[0]?.stripe_customer_id as
+        | string
+        | null
+        | undefined;
+      if (!customerId) {
+        // Not retryable by us, and not silent: somebody has to move this by hand.
+        throw new Error(`company ${row.company_id} has no Stripe customer`);
+      }
+
+      const txn = await stripe.customers.createBalanceTransaction(
+        customerId,
+        {
+          amount: -row.credit_cents,
+          currency: row.currency,
+          description: `Unused portion of a prepaid year, credited on switching to ${row.converted_to_plan ?? "another plan"}.`,
+          metadata: { loonext_prepayment_id: row.prepayment_id },
+        },
+        // THE SAME KEY the inline path uses. This is what makes a sweep racing a
+        // retry safe rather than double-paying.
+        { idempotencyKey: `prepay-credit:${row.prepayment_id}` },
+      );
+
+      const { error: stampError } = await db.rpc("stamp_prepayment_credit", {
+        p_prepayment_id: row.prepayment_id,
+        p_txn: txn.id,
+      });
+      if (stampError) throw new Error(stampError.message);
+      credited += 1;
+    } catch (cause) {
+      failed += 1;
+      console.error(
+        `[prepay] could not credit conversion ${row.prepayment_id} ` +
+          `(${row.credit_cents} ${row.currency}): ${(cause as Error).message}`,
+      );
+    }
+  }
+  return { credited, failed };
 }
 
 /**

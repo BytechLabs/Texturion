@@ -40,6 +40,7 @@ import { runDeliveryByCountryJob } from "./messaging/delivery-by-country";
 import { runOverageWarningJob } from "./billing/overage-warning";
 import { runUsageAlertsJob } from "./billing/usage-alerts";
 import { sweepDeletedAttachments } from "./attachments/sweep";
+import { sweepUncreditedConversions } from "./billing/prepay";
 import { pruneAuditLog } from "./audit/retention";
 import { pruneUserSessions } from "./auth/session-retention";
 import {
@@ -519,6 +520,10 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       reconcileNumbers,
       retryCampaignAssignments,
       sweepDeletedAttachments,
+      // #583: finish a prepaid-year conversion whose credit never reached Stripe.
+      // Money we took and have not given back, so it rides the reconcile trigger
+      // rather than waiting for a daily one.
+      sweepUncreditedConversions,
       reconcileTextEnablement,
       reconcileVoiceEnablement,
     ]);

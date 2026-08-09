@@ -29,6 +29,7 @@ import {
   itemHasDiscount,
   prepayEligibility,
   revokePrepaidYear,
+  sweepUncreditedConversions,
 } from "./prepay";
 
 const env = completeEnv();
@@ -665,5 +666,179 @@ describe("#400 revokePrepaidYear — taking the coupon off actually takes it off
     // An ordinary refund on an ordinary subscription must not touch its discounts.
     // Most refunds are exactly that, and a referral month lives on the same item.
     expect(stub.updates).toHaveLength(0);
+  });
+});
+
+describe("#583 the sweep that finishes an interrupted credit", () => {
+  /**
+   * D131 chose this failure on purpose: the claim row is written first, so a crash
+   * afterwards leaves a customer at full price who is owed a RECORDED amount, rather
+   * than a live 100%-off coupon with the entitlement already closed. Over-charging by
+   * an amount we wrote down beats giving away service nobody is watching.
+   *
+   * That is only defensible because this runs. These are the properties that make it
+   * a repair rather than a second way to pay somebody twice.
+   */
+  interface SweepStripe {
+    credits: { customer: string; params: Record<string, unknown>; options: unknown }[];
+    api: unknown;
+  }
+
+  function sweepStripe(fail?: string): SweepStripe {
+    const credits: SweepStripe["credits"] = [];
+    return {
+      credits,
+      api: {
+        customers: {
+          createBalanceTransaction: vi.fn(
+            async (customer: string, params: Record<string, unknown>, options: unknown) => {
+              if (fail === customer) throw new Error("card_declined");
+              credits.push({ customer, params, options });
+              return { id: `cbtxn_${credits.length}` };
+            },
+          ),
+        },
+      },
+    };
+  }
+
+  function sweepDb(
+    rows: Record<string, unknown>[],
+    customers: Record<string, string | null>,
+  ) {
+    const calls: RpcCall[] = [];
+    return {
+      calls,
+      rpc: vi.fn(async (fn: string, args: Record<string, unknown>) => {
+        calls.push({ fn, args });
+        if (fn === "prepayments_awaiting_credit") return { data: rows, error: null };
+        return { data: null, error: null };
+      }),
+      from: () => ({
+        select: () => ({
+          eq: (_column: string, id: string) => ({
+            limit: async () => ({
+              data: [{ stripe_customer_id: customers[id] ?? null }],
+              error: null,
+            }),
+          }),
+        }),
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+  }
+
+  const owed = (overrides: Record<string, unknown> = {}) => ({
+    prepayment_id: "11111111-1111-4111-8111-111111111111",
+    company_id: COMPANY_ID,
+    currency: "usd",
+    credit_cents: 21_750,
+    converted_at: "2026-08-09T00:00:00Z",
+    converted_to_plan: "pro",
+    ...overrides,
+  });
+
+  async function withDbAndStripe<T>(
+    db: unknown,
+    stripe: SweepStripe,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    const stripeMod = await import("./stripe");
+    const dbMod = await import("../db");
+    const s = vi.spyOn(stripeMod, "getStripe").mockReturnValue(stripe.api as never);
+    const d = vi.spyOn(dbMod, "getDb").mockReturnValue(db as never);
+    try {
+      return await run();
+    } finally {
+      s.mockRestore();
+      d.mockRestore();
+    }
+  }
+
+  it("pays what the row says it owes, as a NEGATIVE amount", async () => {
+    const stripe = sweepStripe();
+    const db = sweepDb([owed()], { [COMPANY_ID]: "cus_1" });
+
+    const result = await withDbAndStripe(db, stripe, () =>
+      sweepUncreditedConversions(env),
+    );
+
+    expect(result).toEqual({ credited: 1, failed: 0 });
+    expect(stripe.credits).toHaveLength(1);
+    // Stripe: "a negative value is a credit for the customer's balance, and a
+    // positive value is a debit". Positive here would BILL somebody the value of
+    // the year they had already paid for — a repair job that charges the customer.
+    expect(stripe.credits[0].params.amount).toBe(-21_750);
+    expect(stripe.credits[0].params.currency).toBe("usd");
+    expect(stripe.credits[0].customer).toBe("cus_1");
+  });
+
+  it("uses the SAME idempotency key as the inline attempt", async () => {
+    // The whole safety of having two writers. A sweep racing a retry of the original
+    // request hands Stripe the same key, and Stripe returns the first transaction
+    // instead of creating a second. Without this the repair is a double payment.
+    const stripe = sweepStripe();
+    const db = sweepDb([owed()], { [COMPANY_ID]: "cus_1" });
+
+    await withDbAndStripe(db, stripe, () => sweepUncreditedConversions(env));
+
+    expect(stripe.credits[0].options).toEqual({
+      idempotencyKey: "prepay-credit:11111111-1111-4111-8111-111111111111",
+    });
+  });
+
+  it("records that it paid, so the next pass leaves it alone", async () => {
+    const stripe = sweepStripe();
+    const db = sweepDb([owed()], { [COMPANY_ID]: "cus_1" });
+
+    await withDbAndStripe(db, stripe, () => sweepUncreditedConversions(env));
+
+    const stamp = (db.calls as RpcCall[]).find(
+      (call) => call.fn === "stamp_prepayment_credit",
+    );
+    expect(stamp?.args).toEqual({
+      p_prepayment_id: "11111111-1111-4111-8111-111111111111",
+      p_txn: "cbtxn_1",
+    });
+  });
+
+  it("one bad row does not hold up the others", async () => {
+    // A company whose Stripe customer went away would otherwise block every
+    // conversion queued behind it, forever, and the queue is money we owe.
+    const stripe = sweepStripe();
+    const db = sweepDb(
+      [
+        owed({ prepayment_id: "aaaaaaaa-1111-4111-8111-111111111111", company_id: "co_a" }),
+        owed({ prepayment_id: "bbbbbbbb-1111-4111-8111-111111111111", company_id: "co_b" }),
+      ],
+      { co_a: null, co_b: "cus_b" },
+    );
+
+    const result = await withDbAndStripe(db, stripe, () =>
+      sweepUncreditedConversions(env),
+    );
+
+    expect(result).toEqual({ credited: 1, failed: 1 });
+    expect(stripe.credits).toHaveLength(1);
+    expect(stripe.credits[0].customer).toBe("cus_b");
+    // The failed one is NOT stamped, so it stays in the set for the next pass.
+    const stamps = (db.calls as RpcCall[]).filter(
+      (call) => call.fn === "stamp_prepayment_credit",
+    );
+    expect(stamps).toHaveLength(1);
+  });
+
+  it("costs one query on the overwhelming majority of ticks", async () => {
+    // It runs every fifteen minutes forever and the set is empty almost always.
+    const stripe = sweepStripe();
+    const db = sweepDb([], {});
+
+    const result = await withDbAndStripe(db, stripe, () =>
+      sweepUncreditedConversions(env),
+    );
+
+    expect(result).toEqual({ credited: 0, failed: 0 });
+    expect(stripe.credits).toHaveLength(0);
+    expect(db.calls).toHaveLength(1);
   });
 });

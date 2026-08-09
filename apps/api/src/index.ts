@@ -10,6 +10,7 @@ import { companyContext } from "./auth/company";
 import { CallSessionDO as CallSessionDOImpl } from "./calls/session-do";
 import { jwtAuth } from "./auth/jwt";
 import { runGraceJob } from "./billing/grace";
+import { sweepUncreditedConversions } from "./billing/prepay";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
 import {
   runOverageDigestJob,
@@ -449,6 +450,13 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     job("job:reconcile-numbers", reconcileNumbers),
     job("job:retry-campaign-assignments", retryCampaignAssignments),
     job("job:sweep-deleted-attachments", sweepDeletedAttachments),
+    // #583: finish a prepaid-year conversion whose credit never reached
+    // Stripe. D131 deliberately chose the failure where a customer is at
+    // full price and owed a recorded amount, over one where a 100%-off
+    // coupon runs on unwatched — and that choice is only defensible
+    // because this runs. Fifteen minutes is the coarsest cadence that
+    // still gets somebody their money back the same afternoon.
+    job("job:credit-converted-prepayments", sweepUncreditedConversions),
     // Keep-your-number hosted text-enablement: poll in-flight orders and flip
     // the number active once the carrier finishes (webhooks primary; fallback).
     job("job:reconcile-text-enablement", reconcileTextEnablement),

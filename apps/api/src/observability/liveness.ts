@@ -546,6 +546,22 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 15,
     graceMinutes: 45,
   },
+  "job:credit-converted-prepayments": {
+    what:
+      "A prepaid year was ended on a plan change and the money owed back has not " +
+      "reached the customer's account. They are paying full price and are owed a " +
+      "recorded amount.",
+    doThis:
+      "Workers Logs, search `cron job job:credit-converted-prepayments failed` " +
+      "and `[prepay] could not credit conversion` — the second names the row and " +
+      "the amount. Rank it ABOVE the storage sweeps: this is money we took and " +
+      "have not given back, on a customer who upgraded. Self-draining once the " +
+      "cause is fixed; the sweep re-reads every outstanding row each pass and the " +
+      "Stripe key is per-row, so a replay cannot pay twice. If a company has no " +
+      "Stripe customer the row will never drain by itself and needs a hand.",
+    everyMinutes: 15,
+    graceMinutes: 45,
+  },
   "job:sweep-deleted-attachments": {
     what: "Soft-deleted attachments are not being reclaimed, so storage bills grow for data nobody can reach.",
     doThis:
