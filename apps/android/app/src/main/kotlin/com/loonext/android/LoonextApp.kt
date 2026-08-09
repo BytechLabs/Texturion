@@ -34,7 +34,26 @@ import com.loonext.android.telephony.SoftphoneManager
  * Hand-rolled object graph — the app is one process with one composition
  * root; a DI framework would be ceremony without payoff at this size.
  */
-class AppGraph(private val app: Application) {
+class AppGraph(
+    private val app: Application,
+    /**
+     * #593 — the two base URLs, injectable, defaulting to the build's own.
+     *
+     * Production passes nothing and gets `BuildConfig`, so no shipped behaviour depends
+     * on this. It exists because the handover funnel decides where six typed digits are
+     * CHECKED — our API for a code we emailed, Supabase for either authenticator demand
+     * — and until now that property was pinned only by a lint reading the source text.
+     * A lint cannot assert the thing that matters, which is that no request our own
+     * server receives ever contains those digits. Asserting that needs the funnel
+     * pointed at two servers a test can read, and this is the smallest seam that allows
+     * it.
+     *
+     * Getting the destination wrong is a hard lockout: an owner reads a correct code off
+     * their authenticator and is told it did not work, every time.
+     */
+    private val supabaseUrl: String = BuildConfig.SUPABASE_URL,
+    private val apiUrl: String = BuildConfig.API_URL,
+) {
     /** Crash capture + call-in-flight marker (#168A/D) — see [LoonextApp]. */
     val diagnostics: CrashDiagnostics = CrashDiagnostics.get(app)
 
@@ -65,12 +84,12 @@ class AppGraph(private val app: Application) {
     val prefs = AppPrefs(app)
     val supabaseAuth = SupabaseAuth(
         client = http,
-        supabaseUrl = BuildConfig.SUPABASE_URL,
+        supabaseUrl = supabaseUrl,
         publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY,
     )
     val api = ApiClient(
         http = http,
-        baseUrl = BuildConfig.API_URL,
+        baseUrl = apiUrl,
         sessionStore = sessionStore,
         supabaseAuth = supabaseAuth,
     )
@@ -78,7 +97,7 @@ class AppGraph(private val app: Application) {
      * #339: the public update policy. Its own client-free repository on
      * purpose — see UpdateRepository for why it must not ride ApiClient.
      */
-    val updates = UpdateRepository(http = http, baseUrl = BuildConfig.API_URL)
+    val updates = UpdateRepository(http = http, baseUrl = apiUrl)
     val authManager = AuthManager(supabaseAuth, sessionStore, prefs)
     /**
      * #289: is a call live on this device right now?
@@ -97,7 +116,7 @@ class AppGraph(private val app: Application) {
 
     val realtime = RealtimeClient(
         http = http,
-        supabaseUrl = BuildConfig.SUPABASE_URL,
+        supabaseUrl = supabaseUrl,
         publishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY,
         scope = appScope,
     )
