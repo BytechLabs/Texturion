@@ -8,6 +8,7 @@ import {
 
 import { ApiError } from "../http/errors";
 import { bytesMatchDeclaredType } from "../routes/core/attachments";
+import { stripImageLocation } from "./location";
 import { scanAttachment } from "./scan";
 
 /**
@@ -78,15 +79,30 @@ export interface PreviewCandidate {
 }
 
 /**
- * Validate a client-supplied preview against the original it claims to stand
- * in for.
+ * Make a client-supplied preview fit to store: check it against the original it
+ * claims to stand in for, then take the customer's location out of it.
  *
  * Throws `ApiError` — a bad preview is a bad request, not a silent drop. The
  * caller uploads the original first and only reaches this on a file that was
  * itself accepted, so every message here is about the preview specifically and
  * a client can act on it.
+ *
+ * #581/13 — WHY THE STRIP LIVES HERE rather than beside the original's.
+ *
+ * It was beside the original's, and only the original got it: the route stripped
+ * the file and stored the derivative with its Exif intact, so D128's promise that a
+ * customer's home coordinates never reach the bucket was being kept for one of the
+ * two objects we store per photo. Nothing about a phone resizing an image makes it
+ * drop the GPS block, and #581/9 later made the preview the object the PUBLIC job
+ * photos page serves.
+ *
+ * Two calls a caller has to remember are one a caller can half-remember. A preview
+ * arriving from a client is not usable until both have happened, so both happen
+ * here, and the next path that accepts one cannot get this wrong by omission. The
+ * name says `accept` rather than `assert` for the same reason: this rewrites the
+ * bytes it is given.
  */
-export function assertUsablePreview(
+export function acceptUploadedPreview(
   preview: PreviewCandidate,
   original: { sizeBytes: number },
 ): void {
@@ -127,6 +143,9 @@ export function assertUsablePreview(
   if (scan.verdict !== "clean") {
     throw new ApiError("validation_failed", `preview: ${scan.message}`);
   }
+  // #294 / D128, and last for the same reason it is last on the original: it
+  // rewrites bytes, so it must never run on a file we were going to refuse.
+  stripImageLocation(preview.bytes, type);
 }
 
 /**

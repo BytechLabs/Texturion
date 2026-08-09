@@ -26,9 +26,11 @@ import {
   supabaseStub,
   type SupabaseStub,
 } from "../test/routes-harness";
+import { isZeroed, jpegWithGps } from "../test/exif-fixtures";
 import {
   completeEnv,
   createTestAuth,
+  type FetchRoute,
   jwksRoute,
   stubFetch,
   type TestAuth,
@@ -742,6 +744,83 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
       // …and the row points at it, with the size the egress claim will charge.
       const stamp = sb.find("PATCH", "/rest/v1/attachments")[0];
       expect(stamp.body).toMatchObject({ preview_bytes: 120 * 1024 });
+    });
+
+    it("#581/13: strips the location from the PREVIEW as well as the original", async () => {
+      /**
+       * D128's promise is that a customer's home coordinates never reach the bucket.
+       * It was being kept for one of the two objects we store per photo.
+       *
+       * The original was stripped; the preview — a separate file the client also
+       * chose — got the type check, the magic bytes, the size bounds and the malware
+       * scan, and went to storage with its Exif intact. Nothing about a phone
+       * resizing an image makes it drop the GPS block; several deliberately carry it
+       * across.
+       *
+       * It matters most where it is least visible: #581/9 made the preview the object
+       * the PUBLIC job-photos page serves, so the leak had a route to somebody
+       * outside the business entirely.
+       *
+       * Asserted on the BYTES THAT REACHED STORAGE, through a route that reads the
+       * raw body — the supabase stub records a request body as text, which is lossy
+       * for a binary upload and cannot answer this question.
+       */
+      const original = jpegWithGps();
+      const preview = jpegWithGps();
+      // Big enough that a ~110-byte preview counts as materially smaller. Padded
+      // after the EOI marker, so the Exif block the strip parses is untouched and
+      // `latAt` still points where it did.
+      const padded = new Uint8Array(4 * 1024 * 1024);
+      padded.set(original.bytes, 0);
+
+      const sb = stubWithRole("member");
+      uploadStubs(sb);
+      sb.on("PATCH", "/rest/v1/attachments", () => []);
+      sb.on("POST", "/rest/v1/conversation_events", () => []);
+
+      const stored: { path: string; bytes: Uint8Array }[] = [];
+      const capture: FetchRoute = async (url, request) => {
+        if (!url.pathname.startsWith("/storage/v1/object/attachments/")) {
+          return undefined;
+        }
+        stored.push({
+          path: url.pathname,
+          bytes: new Uint8Array(await request.clone().arrayBuffer()),
+        });
+        return Response.json({ Key: "attachments/x" });
+      };
+
+      stubFetch(jwksRoute(auth), capture, sb.route);
+      const res = await apiRequest(app, env, await auth.token(), "/v1/attachments", {
+        method: "POST",
+        companyId: COMPANY_ID,
+        rawBody: withPreview(
+          uploadForm("note", NOTE_ID, {
+            name: "kitchen.jpg",
+            type: "image/jpeg",
+            bytes: padded,
+          }),
+          { bytes: preview.bytes, type: "image/jpeg" },
+        ),
+      });
+
+      expect(res.status).toBe(201);
+      expect(stored).toHaveLength(2);
+
+      const previewObject = stored.find((object) => object.path.includes("/preview-"));
+      const originalObject = stored.find((object) => !object.path.includes("/preview-"));
+      expect(previewObject, "no preview reached storage").toBeDefined();
+      expect(originalObject, "no original reached storage").toBeDefined();
+
+      // The latitude is GONE from both — not orphaned, not unreferenced. Zeroed.
+      expect(
+        isZeroed(previewObject!.bytes, preview.latAt, preview.latLength),
+        "the preview still carries the coordinates of somebody's home",
+      ).toBe(true);
+      expect(
+        isZeroed(originalObject!.bytes, original.latAt, original.latLength),
+        "the original still carries the coordinates of somebody's home",
+      ).toBe(true);
     });
 
     it("keeps the upload when only the preview fails", async () => {

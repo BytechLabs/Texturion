@@ -47,7 +47,7 @@ import {
 } from "../attachments/egress";
 import {
   MAX_PREVIEW_BYTES,
-  assertUsablePreview,
+  acceptUploadedPreview,
   parseContentTwin,
   previewStoragePath,
   sha256Hex,
@@ -495,9 +495,14 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
   // inserts the row, so a 422 raised after it would leave a ghost — a row
   // holding accounting for bytes that never landed, waiting on the #15 sweep.
   // A bad preview costs a 422 and nothing else. It is a
-  // client-supplied file and gets every gate the original got — see
-  // attachments/preview.ts for why "it is just the same image, smaller" is not
-  // something this Worker can know.
+  // client-supplied file and gets every gate the original got — the type check, the
+  // magic bytes, the size bounds, the malware scan here, and the location strip
+  // below. See attachments/preview.ts for why "it is just the same image, smaller"
+  // is not something this Worker can know.
+  //
+  // That sentence was true of everything except the strip for as long as previews
+  // have existed (#581/13). Listing the gates rather than claiming "every" one, so
+  // the next gate added to the original has somewhere obvious to be missing from.
   const previewField = form.get("preview");
   let preview: { bytes: Uint8Array; contentType: string } | null = null;
   if (previewField !== null && typeof previewField !== "string") {
@@ -506,7 +511,7 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
       bytes: new Uint8Array(await previewBlob.arrayBuffer()),
       contentType: previewBlob.type || "application/octet-stream",
     };
-    assertUsablePreview(preview, { sizeBytes: bytes.byteLength });
+    acceptUploadedPreview(preview, { sizeBytes: bytes.byteLength });
   }
 
   // #294 / D128 — the customer's home coordinates never reach the bucket.
@@ -516,6 +521,12 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
   // first would store both. After the scan, equally deliberately: this rewrites
   // bytes, and it must never run on a file we were going to refuse.
   stripImageLocation(bytes, declaredType);
+  // The PREVIEW is stripped too, inside `acceptUploadedPreview` above. #581/13: it
+  // was not, so the derivative went to the bucket carrying the coordinates the
+  // original had just had removed — and #581/9 had made that derivative the object
+  // the PUBLIC photos page serves. It lives in that function rather than as a second
+  // call here because two calls a caller has to remember are one a caller can
+  // half-remember, which is precisely what happened.
 
   // #240 item 3 — the same file, stored once.
   //

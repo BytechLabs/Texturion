@@ -6,7 +6,7 @@ import {
   MAX_PREVIEW_BYTES,
   MAX_PREVIEW_FRACTION,
   PREVIEW_WORTH_IT_BYTES,
-  assertUsablePreview,
+  acceptUploadedPreview,
   previewStoragePath,
   previewWorthHaving,
 } from "./preview";
@@ -103,13 +103,13 @@ describe("a preview is a client-supplied file", () => {
 
   it("accepts a real, materially smaller image", () => {
     expect(() =>
-      assertUsablePreview(
+      acceptUploadedPreview(
         { bytes: jpeg(120 * 1024), contentType: "image/jpeg" },
         original,
       ),
     ).not.toThrow();
     expect(() =>
-      assertUsablePreview(
+      acceptUploadedPreview(
         { bytes: png(90 * 1024), contentType: "image/png" },
         original,
       ),
@@ -121,7 +121,7 @@ describe("a preview is a client-supplied file", () => {
     // an object into the bucket that skipped the original's allow-list.
     expect(
       refusal(() =>
-        assertUsablePreview(
+        acceptUploadedPreview(
           { bytes: jpeg(1024), contentType: "application/pdf" },
           original,
         ),
@@ -129,7 +129,7 @@ describe("a preview is a client-supplied file", () => {
     ).toContain("must be an image");
     expect(
       refusal(() =>
-        assertUsablePreview(
+        acceptUploadedPreview(
           { bytes: jpeg(1024), contentType: "image/svg+xml" },
           original,
         ),
@@ -144,7 +144,7 @@ describe("a preview is a client-supplied file", () => {
     pdf.set([0x25, 0x50, 0x44, 0x46], 0); // %PDF
     expect(
       refusal(() =>
-        assertUsablePreview({ bytes: pdf, contentType: "image/jpeg" }, original),
+        acceptUploadedPreview({ bytes: pdf, contentType: "image/jpeg" }, original),
       ),
     ).toContain("does not match its declared type");
   });
@@ -155,7 +155,7 @@ describe("a preview is a client-supplied file", () => {
     const small = { sizeBytes: 300 * 1024 };
     expect(
       refusal(() =>
-        assertUsablePreview(
+        acceptUploadedPreview(
           { bytes: jpeg(299 * 1024), contentType: "image/jpeg" },
           small,
         ),
@@ -164,13 +164,13 @@ describe("a preview is a client-supplied file", () => {
     // Exactly at the fraction is allowed; a byte over is not.
     const half = Math.floor(small.sizeBytes * MAX_PREVIEW_FRACTION);
     expect(() =>
-      assertUsablePreview(
+      acceptUploadedPreview(
         { bytes: jpeg(half), contentType: "image/jpeg" },
         small,
       ),
     ).not.toThrow();
     expect(() =>
-      assertUsablePreview(
+      acceptUploadedPreview(
         { bytes: jpeg(half + 1), contentType: "image/jpeg" },
         small,
       ),
@@ -182,7 +182,7 @@ describe("a preview is a client-supplied file", () => {
     // "preview" — technically smaller, and a second full-size path in practice.
     expect(
       refusal(() =>
-        assertUsablePreview(
+        acceptUploadedPreview(
           { bytes: jpeg(MAX_PREVIEW_BYTES + 1), contentType: "image/jpeg" },
           { sizeBytes: 25 * 1024 * 1024 },
         ),
@@ -193,7 +193,7 @@ describe("a preview is a client-supplied file", () => {
   it("refuses an empty one", () => {
     expect(
       refusal(() =>
-        assertUsablePreview(
+        acceptUploadedPreview(
           { bytes: new Uint8Array(0), contentType: "image/jpeg" },
           original,
         ),
@@ -209,7 +209,7 @@ describe("a preview is a client-supplied file", () => {
     // through the call rather than around it.
     expect(scanAttachment(jpeg(100 * 1024), "image/jpeg").verdict).toBe("clean");
     expect(() =>
-      assertUsablePreview(
+      acceptUploadedPreview(
         { bytes: jpeg(100 * 1024), contentType: "image/jpeg" },
         original,
       ),

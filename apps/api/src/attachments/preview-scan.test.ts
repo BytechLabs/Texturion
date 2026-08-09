@@ -29,7 +29,7 @@ vi.mock("./scan", () => ({
   })),
 }));
 
-const { assertUsablePreview } = await import("./preview");
+const { acceptUploadedPreview } = await import("./preview");
 const { scanAttachment } = await import("./scan");
 
 function jpeg(sizeBytes: number): Uint8Array {
@@ -43,7 +43,7 @@ describe("the preview is scanned", () => {
     const bytes = jpeg(100 * 1024);
     let message = "";
     try {
-      assertUsablePreview(
+      acceptUploadedPreview(
         { bytes, contentType: "image/jpeg" },
         { sizeBytes: 8 * 1024 * 1024 },
       );
