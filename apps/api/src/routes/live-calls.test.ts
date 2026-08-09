@@ -357,6 +357,69 @@ describe("POST /v1/calls/live/:id/consult + complete (D43 phase 3)", () => {
     expect(res.status).toBe(409);
   });
 
+  /**
+   * #581 — CHARACTERIZATION. This passed before the change and passes after;
+   * it exists because the code comment it replaces claimed the opposite, and a
+   * sentence is not enough to stop the next reader re-adding an actor check.
+   *
+   * complete's `senderLeg` guard is a MECHANIC (there must be a leg to hang up),
+   * not an authorization boundary — and it cannot be one, because /consult is
+   * open to the same crew, so anyone able to satisfy the guard can first make
+   * themselves the sender. Live-call control is crew-shared by decision; if this
+   * test starts failing, that decision was reversed, not repaired.
+   */
+  it("crew-shared (#581): a member who did NOT answer the call may consult on it and complete", async () => {
+    const sb = liveWorld({
+      // The row says a TEAMMATE answered this call. No route reads the field —
+      // it is here to state what the caller is not.
+      call: { answered_by_user_id: TARGET_ID },
+      credentials: (call) => {
+        const filter = call.url.searchParams.get("user_id") ?? "";
+        if (filter.includes(TARGET_ID)) {
+          return [{ user_id: TARGET_ID, sip_username: "gencred_target" }];
+        }
+        if (filter.includes(auth.subject)) {
+          return [{ user_id: auth.subject, sip_username: "gencred_sender" }];
+        }
+        return [];
+      },
+    });
+    const telnyx = telnyxDialAndActions();
+    stubFetch(jwksRoute(auth), sb.route, telnyx.route);
+
+    const started = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls/live/${SESSION}/consult`,
+      { companyId: COMPANY_ID, method: "POST", body: { target_user_id: TARGET_ID } },
+    );
+    expect(started.status).toBe(202);
+
+    // Both consult legs answered — the bystander is now the consult's sender.
+    const sb2 = liveWorld({
+      call: { answered_by_user_id: TARGET_ID },
+      consultLegs: [
+        { call_control_id: "brc-target", user_id: TARGET_ID, state: "answered" },
+        { call_control_id: "brc-sender", user_id: auth.subject, state: "answered" },
+      ],
+    });
+    const telnyx2 = telnyxDialAndActions();
+    stubFetch(jwksRoute(auth), sb2.route, telnyx2.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/calls/live/${SESSION}/consult/complete`,
+      { companyId: COMPANY_ID, method: "POST", body: {} },
+    );
+    expect(res.status).toBe(200);
+    expect(
+      telnyx2.calls.find((c) => c.url.pathname.endsWith("/bridge"))!.url.pathname,
+    ).toBe("/v2/calls/brc-target/actions/bridge");
+  });
+
   /** #208: a CALL_SESSIONS namespace recording setOwner/clearIntent into a
    *  shared ops log, so DO-vs-Telnyx ordering is assertable. */
   function recordingSessions(ops: string[]): Env["CALL_SESSIONS"] {
@@ -757,15 +820,25 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     } as unknown as Env["CALL_SESSIONS"];
   }
 
-  /** Membership (for requireRole) + the company ringing-sessions read. */
-  function world(rows: { call_session_id: string }[]): SupabaseStub {
+  /**
+   * Membership (for requireRole) + the company ringing-sessions read + the
+   * caller's own #106 access (#581 — the fan-out resolves it once and skips
+   * hidden numbers). `restricted` empty means nothing in the company is ruled.
+   */
+  function world(
+    rows: { call_session_id: string; phone_number_id?: string | null }[],
+    restricted: { phone_number_id: string; level: string }[] = [],
+  ): SupabaseStub {
     const sb = supabaseStub(env);
     sb.on(
       "POST",
       "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, "member"),
     );
-    sb.on("GET", "/rest/v1/calls", () => rows);
+    sb.on("GET", "/rest/v1/calls", () =>
+      rows.map((row) => ({ phone_number_id: NUMBER_ID, ...row })),
+    );
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => restricted);
     return sb;
   }
 
@@ -802,11 +875,53 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     // Routed into the DO for THIS member (auth.subject), not MEMBER_ID.
     expect(routed).toEqual([{ sessionId: SESSION, userId: auth.subject }]);
 
-    // The queryable truth: company-scoped, state='ringing', outcome null.
+    // The queryable truth: company-scoped, state='ringing', outcome null, and
+    // (#581) inside the same live window /calls/live/mine uses — an older
+    // 'ringing' row is a crashed session, not a call anyone can decline.
     const read = sb.find("GET", "/rest/v1/calls")[0];
     expect(read.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(read.url.searchParams.get("state")).toBe("eq.ringing");
     expect(read.url.searchParams.get("outcome")).toBe("is.null");
+    expect(read.url.searchParams.get("created_at")).toMatch(/^gte\./);
+  });
+
+  it("#581 (#106): a session ringing on a HIDDEN number is never declined and never listed", async () => {
+    // Two sessions ring at once. HIDDEN is on a number ruled away from this
+    // member; the DO would happily report it as declined (that is the point —
+    // the route must not ask). Before the per-number filter the member learned
+    // the session id and that it was live.
+    const HIDDEN_SESSION = "sess-hidden";
+    const HIDDEN_NUMBER = "bbbbbbbb-0000-4000-8000-000000000009";
+    const routed: { sessionId: string; userId: string }[] = [];
+    const doEnv: Env = {
+      ...env,
+      CALL_SESSIONS: fakeSessions(
+        {
+          [HIDDEN_SESSION]: { declined: true, state: "ringing" },
+          [SESSION]: { declined: true, state: "voicemail_greeting" },
+        },
+        routed,
+      ),
+    };
+    const sb = world(
+      [
+        { call_session_id: HIDDEN_SESSION, phone_number_id: HIDDEN_NUMBER },
+        { call_session_id: SESSION, phone_number_id: NUMBER_ID },
+      ],
+      [{ phone_number_id: HIDDEN_NUMBER, level: "none" }],
+    );
+    const res = await post(doEnv, sb);
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      declined: boolean;
+      sessions: { session_id: string }[];
+    };
+    expect(body.sessions).toEqual([
+      { session_id: SESSION, state: "voicemail_greeting" },
+    ]);
+    // Not merely filtered out of the body — its DO was never asked at all.
+    expect(routed).toEqual([{ sessionId: SESSION, userId: auth.subject }]);
   });
 
   it("a ringing session NOT targeting me → declined:false, not listed, no leak of the other session", async () => {

@@ -128,7 +128,7 @@ gets overlooked.
 |---|---|---|
 | `email_events`, `email_suppressions` | **recipient email** | Suppressions outlive by design: they are how we stop mailing somebody who bounced or complained |
 | `email_ledger` | an email **key**, not the address | Rolling |
-| `public_link_access` | **country only**, deliberately never the IP (#335) | 30 days |
+| `public_link_access` | **country only**, deliberately never the IP (#335) | 30 days, swept daily by `job:prune-public-link-access` — `apps/api/src/crons/retention-prunes.ts`. The window was published here while the SQL that enforces it had no caller (#581); the number was always right, the sweep is what makes the row true |
 | `public_links` | token **hash** only, never the token | Life of the linked object |
 | `webhook_events` | provider payloads, which **contain message bodies and numbers** | Pruned daily |
 | `webhook_rejections` | signature failures | Rolling |

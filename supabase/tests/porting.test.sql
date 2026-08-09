@@ -623,7 +623,13 @@ begin
   where id = walk_id;
 
   -- The exception + cancel-pending voice states must also be assignable.
+  -- account_number has to be re-supplied on the way back OUT of 'ported':
+  -- reaching a terminal status scrubbed it (PT24) and a LIVE port may not exist
+  -- without one (PT26). This walk is a raw exercise of the enum — the app's
+  -- ALLOWED_STATUS_TRANSITIONS has no ported → exception edge at all — so it is
+  -- the test paying for driving a transition production cannot.
   update public.port_requests set status = 'exception',
+         account_number = 'ACCT-REWALK',
          rejection_reason = 'PASSCODE_PIN_INVALID' where id = walk_id;
   update public.port_requests set status = 'cancel-pending' where id = walk_id;
   update public.port_requests set status = 'cancelled', cancelled_at = now() where id = walk_id;
@@ -801,6 +807,275 @@ begin
     raise exception 'PT23 FAILED: service_role cannot execute claim_port_slot';
   end if;
   raise notice 'PT23 PASSED: claim_port_slot execute is service-role-only';
+end $$;
+
+-- ===========================================================================
+-- PT24. A FINISHED port stops holding the losing carrier's credentials.
+--       account_number + pin_passcode are the customer's account and port-out
+--       PIN at the OTHER carrier — together they are enough to move the number
+--       again — and ssn_sin_last4 is the wireless identity check. PORTING.md
+--       §2.2 keeps all three for exactly two jobs: building the Telnyx order
+--       payload, and re-filing a rejected one. Reaching 'ported' ends both, so
+--       the row must not still be carrying them afterwards.
+-- ===========================================================================
+do $$
+declare
+  r public.port_requests;
+begin
+  insert into public.port_requests
+    (id, company_id, phone_number_id, phone_e164, country,
+     entity_name, auth_person_name, account_number, pin_passcode,
+     is_wireless, ssn_sin_last4,
+     service_street, service_locality, service_admin_area, service_postal_code)
+  values ('b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c1',
+          'b5b5b5b5-b5b5-4b5b-8b5b-b5b5b5b5b5b5',
+          'b5b5b5b5-b5b5-4b5b-8b5b-b5b000000001',
+          '+13035550701', 'US',
+          'PT24 Roofing LLC', 'Pat Signer', 'ACCT-PT24', 'PIN-PT24',
+          true, '4321',
+          '24 Main St', 'Denver', 'CO', '80202');
+
+  -- A LIVE port keeps them: they are the reason the order can be filed at all,
+  -- and a scrub that fired early would break the port rather than protect it.
+  select * into r from public.port_requests
+  where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c1';
+  if r.id is distinct from 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c1'::uuid then
+    raise exception 'PT24 FAILED: the fixture row was not inserted';
+  end if;
+  if r.account_number is null or r.pin_passcode is null or r.ssn_sin_last4 is null then
+    raise exception 'PT24 FAILED: a still-running port lost its credentials early';
+  end if;
+
+  update public.port_requests
+     set status = 'ported', messaging_port_status = 'ported', ported_at = now()
+   where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c1';
+
+  select * into r from public.port_requests
+  where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c1';
+  if r.account_number is not null then
+    raise exception 'PT24 FAILED: a ported request still holds the carrier account number';
+  end if;
+  if r.pin_passcode is not null then
+    raise exception 'PT24 FAILED: a ported request still holds the port-out PIN';
+  end if;
+  if r.ssn_sin_last4 is not null then
+    raise exception 'PT24 FAILED: a ported request still holds the SSN/SIN last-4';
+  end if;
+
+  -- Only the credentials go. What was filed, and that it completed, is the
+  -- record of the port and the support/audit trail — scrubbing that would be a
+  -- different (and unasked-for) change.
+  if r.entity_name is distinct from 'PT24 Roofing LLC' then
+    raise exception 'PT24 FAILED: the scrub took entity_name (%)', r.entity_name;
+  end if;
+  if r.auth_person_name is distinct from 'Pat Signer' then
+    raise exception 'PT24 FAILED: the scrub took auth_person_name (%)', r.auth_person_name;
+  end if;
+  if r.ported_at is null then
+    raise exception 'PT24 FAILED: the scrub took ported_at';
+  end if;
+  raise notice 'PT24 PASSED: reaching ported nulls account_number/pin_passcode/ssn_sin_last4 and keeps the record';
+end $$;
+
+-- ===========================================================================
+-- PT25. 'cancelled' is the other terminal status and scrubs identically — an
+--       abandoned port has even less claim on the credentials than a completed
+--       one. And the scrub is not a one-shot on the transition: a LATER write
+--       cannot re-arm a finished port, which is what makes the guarantee hold
+--       against a buggy caller rather than only against the happy path.
+-- ===========================================================================
+do $$
+declare
+  r public.port_requests;
+begin
+  insert into public.port_requests
+    (id, company_id, phone_number_id, phone_e164, country,
+     entity_name, auth_person_name, account_number, pin_passcode,
+     is_wireless, ssn_sin_last4,
+     service_street, service_locality, service_admin_area, service_postal_code)
+  values ('b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c2',
+          'b5b5b5b5-b5b5-4b5b-8b5b-b5b5b5b5b5b5',
+          'b5b5b5b5-b5b5-4b5b-8b5b-b5b000000001',
+          '+13035550702', 'US',
+          'PT25 Paving LLC', 'Sam Signer', 'ACCT-PT25', 'PIN-PT25',
+          true, '5432',
+          '25 Main St', 'Denver', 'CO', '80202');
+
+  update public.port_requests set status = 'cancelled', cancelled_at = now()
+  where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c2';
+
+  select * into r from public.port_requests
+  where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c2';
+  if r.id is distinct from 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c2'::uuid then
+    raise exception 'PT25 FAILED: the fixture row vanished';
+  end if;
+  if r.account_number is not null or r.pin_passcode is not null
+     or r.ssn_sin_last4 is not null then
+    raise exception 'PT25 FAILED: a cancelled request kept credentials (acct=%, pin set=%, ssn set=%)',
+      r.account_number, r.pin_passcode is not null, r.ssn_sin_last4 is not null;
+  end if;
+
+  -- Write them straight back onto the finished row. The scrub fires on EVERY
+  -- write, so the value never lands.
+  update public.port_requests
+     set account_number = 'ACCT-PT25-AGAIN',
+         pin_passcode   = 'PIN-PT25-AGAIN',
+         ssn_sin_last4  = '9876'
+   where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c2';
+
+  select * into r from public.port_requests
+  where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c2';
+  if r.account_number is not null or r.pin_passcode is not null
+     or r.ssn_sin_last4 is not null then
+    raise exception 'PT25 FAILED: a finished port was re-armed with credentials by a later write';
+  end if;
+  raise notice 'PT25 PASSED: cancelled scrubs too, and a later write cannot put the credentials back';
+end $$;
+
+-- ===========================================================================
+-- PT26. account_number stopped being NOT NULL so it could be scrubbed, and the
+--       conditional CHECK is what stops that from also making it optional. A
+--       LIVE port with no account number is the state in which the §3.4 PATCH
+--       ships `account_number: null` to Telnyx and the carrier rejects the
+--       order — so it must be unrepresentable, including by walking a scrubbed
+--       row back out of a terminal status.
+-- ===========================================================================
+do $$
+declare
+  r public.port_requests;
+begin
+  -- A live (draft) port with no account number → rejected.
+  begin
+    insert into public.port_requests
+      (company_id, phone_number_id, phone_e164, country,
+       entity_name, auth_person_name, account_number,
+       service_street, service_locality, service_admin_area, service_postal_code)
+    values ('b5b5b5b5-b5b5-4b5b-8b5b-b5b5b5b5b5b5',
+            'b5b5b5b5-b5b5-4b5b-8b5b-b5b000000001',
+            '+13035550703', 'US',
+            'PT26 No Acct Co', 'Kim Signer', null,
+            '26 Main St', 'Denver', 'CO', '80202');
+    raise exception 'PT26 FAILED: a live port with no account_number was accepted';
+  exception when check_violation then null;
+  end;
+
+  -- A finished one with no account number is exactly what the scrub produces,
+  -- so it has to be legal.
+  insert into public.port_requests
+    (id, company_id, phone_number_id, phone_e164, country,
+     entity_name, auth_person_name, account_number, status, cancelled_at,
+     service_street, service_locality, service_admin_area, service_postal_code)
+  values ('b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c3',
+          'b5b5b5b5-b5b5-4b5b-8b5b-b5b5b5b5b5b5',
+          'b5b5b5b5-b5b5-4b5b-8b5b-b5b000000001',
+          '+13035550704', 'US',
+          'PT26 Done Co', 'Lee Signer', null, 'cancelled', now(),
+          '26 Done St', 'Denver', 'CO', '80202');
+
+  -- Reviving it into a live status without re-collecting the number → rejected.
+  begin
+    update public.port_requests set status = 'exception'
+    where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c3';
+    raise exception 'PT26 FAILED: a scrubbed port was revived into a live status with no account_number';
+  exception when check_violation then null;
+  end;
+
+  -- Re-collecting it in the same statement is the way back, and the only one.
+  update public.port_requests set status = 'exception', account_number = 'ACCT-PT26'
+  where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c3';
+  select * into r from public.port_requests
+  where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c3';
+  if r.account_number is distinct from 'ACCT-PT26' then
+    raise exception 'PT26 FAILED: re-supplying the account number did not revive the port (got %)',
+      r.account_number;
+  end if;
+  raise notice 'PT26 PASSED: a live port must carry an account number; a finished one need not';
+end $$;
+
+-- ===========================================================================
+-- PT27. The sweep reaches the rows the trigger never can: the ones that were
+--       ALREADY terminal when it was created. That is the entire production
+--       backfill, so it is tested against the state it was written for — a
+--       terminal row still carrying credentials, planted with the trigger
+--       switched off (the transaction rolls back, and so does the switch).
+-- ===========================================================================
+do $$
+declare
+  r        public.port_requests;
+  scrubbed int;
+begin
+  alter table public.port_requests disable trigger port_requests_scrub_credentials;
+  insert into public.port_requests
+    (id, company_id, phone_number_id, phone_e164, country,
+     entity_name, auth_person_name, account_number, pin_passcode,
+     is_wireless, ssn_sin_last4, status, cancelled_at,
+     service_street, service_locality, service_admin_area, service_postal_code)
+  values ('b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c4',
+          'b5b5b5b5-b5b5-4b5b-8b5b-b5b5b5b5b5b5',
+          'b5b5b5b5-b5b5-4b5b-8b5b-b5b000000001',
+          '+13035550777', 'US',
+          'PT27 Legacy LLC', 'Ash Signer', 'ACCT-LEGACY', 'PIN-LEGACY',
+          true, '1234', 'cancelled', now(),
+          '27 Legacy St', 'Denver', 'CO', '80202');
+  alter table public.port_requests enable trigger port_requests_scrub_credentials;
+
+  -- The fixture must genuinely be dirty, or the sweep proves nothing by
+  -- "cleaning" it.
+  select * into r from public.port_requests
+  where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c4';
+  if r.account_number is null or r.pin_passcode is null or r.ssn_sin_last4 is null then
+    raise exception 'PT27 FAILED: the pre-fix fixture is already clean — nothing left to sweep';
+  end if;
+
+  scrubbed := public.sweep_terminal_port_credentials();
+  if scrubbed is null or scrubbed < 1 then
+    raise exception 'PT27 FAILED: the sweep reported % rows (want at least the planted one)', scrubbed;
+  end if;
+
+  select * into r from public.port_requests
+  where id = 'b5b5b5b5-b5b5-4b5b-8b5b-b5b0000000c4';
+  if r.account_number is not null or r.pin_passcode is not null
+     or r.ssn_sin_last4 is not null then
+    raise exception 'PT27 FAILED: the sweep left credentials on an already-terminal row';
+  end if;
+
+  -- Re-runnable and free once there is nothing to do: an already-clean row is
+  -- skipped rather than rewritten, so re-running the sweep costs no updated_at
+  -- churn and no re-broadcast. A scrub nobody dares re-run is not a scrub.
+  scrubbed := public.sweep_terminal_port_credentials();
+  if scrubbed is distinct from 0 then
+    raise exception 'PT27 FAILED: a second sweep rewrote % already-clean row(s)', scrubbed;
+  end if;
+  raise notice 'PT27 PASSED: the sweep scrubs rows that were terminal before the trigger existed, and re-runs clean';
+end $$;
+
+-- ===========================================================================
+-- PT28. Both new functions are unreachable from the browser roles. A function
+--       is created with EXECUTE granted to PUBLIC, which anon and authenticated
+--       inherit — so this is the assertion that the revoke was actually issued
+--       (SPEC §6 RLS posture, same shape as PT23).
+-- ===========================================================================
+do $$
+begin
+  if has_function_privilege('anon', 'public.sweep_terminal_port_credentials()', 'execute') then
+    raise exception 'PT28 FAILED: anon can execute sweep_terminal_port_credentials';
+  end if;
+  if has_function_privilege('authenticated', 'public.sweep_terminal_port_credentials()', 'execute') then
+    raise exception 'PT28 FAILED: authenticated can execute sweep_terminal_port_credentials';
+  end if;
+  if not has_function_privilege('service_role', 'public.sweep_terminal_port_credentials()', 'execute') then
+    raise exception 'PT28 FAILED: service_role cannot re-run the sweep';
+  end if;
+
+  -- Nothing calls a trigger function by name (Postgres does not re-check
+  -- EXECUTE when a trigger fires), so it is granted to nobody at all.
+  if has_function_privilege('anon', 'public.scrub_port_credentials()', 'execute') then
+    raise exception 'PT28 FAILED: anon can execute scrub_port_credentials';
+  end if;
+  if has_function_privilege('authenticated', 'public.scrub_port_credentials()', 'execute') then
+    raise exception 'PT28 FAILED: authenticated can execute scrub_port_credentials';
+  end if;
+  raise notice 'PT28 PASSED: the scrub trigger function and the sweep are denied to anon/authenticated';
 end $$;
 
 rollback;

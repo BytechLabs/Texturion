@@ -1137,6 +1137,36 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1440,
     graceMinutes: 360,
   },
+  "job:prune-public-link-access": {
+    what:
+      "Public-link access rows are no longer pruned past the 30-day window " +
+      "PERSONAL-DATA-INVENTORY.md publishes for them.",
+    doThis:
+      "Workers Logs, search `cron job job:prune-public-link-access failed` " +
+      "for the stack. Low stakes as an outage — nothing customer-facing " +
+      "breaks — but the window is a published one, so a long silence here " +
+      "means we are keeping access records past what we said we would. " +
+      "Fully self-draining: one good run clears the backlog. This job and " +
+      "`job:prune-probe-results` were both written, granted and documented " +
+      "and then called by NOTHING until #581, so if either goes quiet " +
+      "check first that it is still registered in index.ts rather than " +
+      "assuming the cron trigger. Several `job:prune-*` keys together " +
+      "means the 15:30 UTC trigger, not these jobs.",
+    everyMinutes: 1440,
+    graceMinutes: 360,
+  },
+  "job:prune-probe-results": {
+    what: "Synthetic probe results accumulate for the life of the install.",
+    doThis:
+      "Workers Logs, search `cron job job:prune-probe-results failed` for " +
+      "the stack. The lowest-stakes job here: probe rows are our own " +
+      "telemetry, no customer data is involved, and the only cost of a " +
+      "silence is table growth. One good run clears the backlog. See the " +
+      "note on `job:prune-public-link-access` — both were unreferenced " +
+      "until #581.",
+    everyMinutes: 1440,
+    graceMinutes: 360,
+  },
   "job:prune-expired-exports": {
     what:
       "Expired data exports are not being deleted from storage. Each one is a full " +

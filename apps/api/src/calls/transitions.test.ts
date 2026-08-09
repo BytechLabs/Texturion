@@ -695,6 +695,60 @@ describe("#171 — decline (first-class avenue removal)", () => {
     }
   });
 
+  it("#581: a member this ring never reached gets declined:false and changes nothing", () => {
+    // u9 is in no leg, no queue and no push audience — decline-mine fans a
+    // decline into every session ringing in the company, so this is the check
+    // that keeps somebody else's live call out of their reply.
+    const machine = twoMemberRinging();
+    const r = reduce(machine, { type: "decline", userId: "u9" }, 2_000, KEY);
+    expect(r.reply).toEqual({
+      declined: false,
+      state: "ringing",
+      reason: "not_a_target",
+    });
+    // Nothing moved: no leg touched, no avenue dropped, no rejection recorded
+    // (a recorded one would block a LATER genuine ring-me for that member).
+    expect(r.effects).toHaveLength(0);
+    expect(r.machine?.declinedUserIds).toEqual([]);
+    expect(r.machine?.pushCapableUserIds).toEqual(["u1", "u2"]);
+    expect(r.machine?.legs.map((leg) => leg.status)).toEqual([
+      "ringing",
+      "ringing",
+    ]);
+  });
+
+  it("#581: the ring's own audience still declines — leg, queued turn, or push", () => {
+    // Each member of the target set, one at a time, on a machine where they are
+    // ONLY in that set. All three must still be able to say no.
+    const withLeg = ringingMachine(); // u1 holds leg-u1
+    expect(
+      reduce(withLeg, { type: "decline", userId: "u1" }, 2_000, KEY).reply,
+    ).toMatchObject({ declined: true });
+
+    // #278 in_turn: u2's phone has not been dialed yet — it is queued — and u2
+    // holds no push. The machine still intends to reach them.
+    const queued = ringingMachine({
+      dialTargets: [
+        { userId: "u1", sipUsername: "sip1" },
+        { userId: "u2", sipUsername: "sip2" },
+      ],
+      pushAudience: [],
+      ringStrategy: "in_turn",
+    });
+    expect(queued.queuedTargets.map((t) => t.userId)).toEqual(["u2"]);
+    expect(queued.legs.some((leg) => leg.userId === "u2")).toBe(false);
+    expect(
+      reduce(queued, { type: "decline", userId: "u2" }, 2_000, KEY).reply,
+    ).toMatchObject({ declined: true });
+
+    // Push-only: no credential, so no leg was ever dialed for u1.
+    const pushOnly = ringingMachine({ dialTargets: [], pushAudience: ["u1"] });
+    expect(pushOnly.legs).toHaveLength(0);
+    expect(
+      reduce(pushOnly, { type: "decline", userId: "u1" }, 2_000, KEY).reply,
+    ).toMatchObject({ declined: true });
+  });
+
   it("PROPERTY: a declined member's device is never counted as an avenue again", () => {
     const machine = twoMemberRinging();
     const declined = reduce(machine, { type: "decline", userId: "u1" }, 2_000, KEY).machine as SessionMachine;

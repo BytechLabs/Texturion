@@ -39,7 +39,29 @@ export function decodeSessionCandidates(
   return decoded.split("|").filter((part) => UUID_RE.test(part));
 }
 
-/** Extract what we need from a `call.cost` payload (pure, defensive). */
+/**
+ * Extract what we need from a `call.cost` payload (pure, defensive).
+ *
+ * #581 — the candidate list is the tag's UUIDs PLUS Telnyx's own
+ * `call_session_id`, and that second source is not a nicety: it is the only
+ * candidate an INBOUND leg has ever had. The inbound tags carry no UUID at all
+ * — `bri|<caller>|<answeredAtIso>` and `vmi|<caller>` are a phone number and a
+ * timestamp, and the customer's own leg is untagged until we re-tag it — so a
+ * tag-only list came back EMPTY for every inbound leg and not one was ever
+ * attributed. A voicemail-heavy workspace therefore reported roughly zero voice
+ * cost and could not trip the margin warning that exists to catch it. For an
+ * inbound call our session id S IS Telnyx's `call_session_id` (the rule
+ * webhook-router.sessionKeyFor is built on), so the payload's own id resolves
+ * the workspace unaided.
+ *
+ * Added as ONE MORE CANDIDATE rather than an inbound special case, because the
+ * lookup already disambiguates: on a server-dialed oc/op leg Telnyx's T differs
+ * from our S and is nobody's `calls.call_session_id`, so it matches no row and
+ * the tag's S still wins. Shape-filtered like the tag parts — Telnyx call ids
+ * are UUIDs, and it keeps a value that would need quoting (PostgREST quotes
+ * reserved characters in an `in.()` list but does not escape them) out of the
+ * filter.
+ */
 export function parseCallCost(payload: unknown): {
   callLegId: string;
   candidates: string[];
@@ -48,16 +70,23 @@ export function parseCallCost(payload: unknown): {
   const p = payload as Record<string, unknown> | null | undefined;
   const callLegId = typeof p?.call_leg_id === "string" ? p.call_leg_id : "";
   if (!callLegId) return null;
+  const tagged = decodeSessionCandidates(p?.client_state as string | undefined);
+  const sessionId =
+    typeof p?.call_session_id === "string" ? p.call_session_id : "";
   return {
     callLegId,
-    candidates: decodeSessionCandidates(p?.client_state as string | undefined),
+    candidates:
+      UUID_RE.test(sessionId) && !tagged.includes(sessionId)
+        ? [...tagged, sessionId]
+        : tagged,
     costUsd: parseCostUsd(p?.total_cost),
   };
 }
 
 /**
  * Record a `call.cost` leg against its company, resolved via the calls row
- * (call_session_id = our S, extracted from client_state). Best-effort: an
+ * (call_session_id = our S, taken from the client_state tag or — the only
+ * source an inbound leg has, #581 — the payload's own id). Best-effort: an
  * untracked leg, or a cost that raced ahead of the calls row, is skipped (the
  * projection's max(estimate, actual) absorbs the small under-count). #216.
  */

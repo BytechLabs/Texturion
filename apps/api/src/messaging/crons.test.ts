@@ -738,20 +738,34 @@ describe("sweepStaleCalls — runaway cost backstop (D43, #145)", () => {
     ];
   }
 
-  it("hangs up an OUTBOUND call whose answer stamp was lost — answered_at=null, aged by created_at (#145)", async () => {
-    const hangup = hangupStub();
-    // Query (a): ANSWERED runaways — none here.
-    const answered = stubRoute(
+  /** Query (a) — the ANSWER-STAMPED arm. Empty unless a test needs it. */
+  function answeredQueryStub(rows: unknown[] = []) {
+    return stubRoute(
       restMatch(
         env,
         "GET",
         "calls",
         (url) => url.searchParams.get("answered_at") !== "is.null",
       ),
-      () => [],
+      () => rows,
     );
-    // Query (b, #145): the unstamped outbound leg the old sweep would skip.
-    const unstamped = stubRoute(
+  }
+
+  /**
+   * Query (b) — the answered_at IS NULL arm — answered from a fixture table
+   * that APPLIES the request's `direction` filter the way PostgREST would.
+   * Returning the rows regardless would let an inbound fixture pass against a
+   * sweep that still filters `direction=eq.outbound` server-side, which is the
+   * whole thing under test (#581).
+   */
+  function unstampedQueryStub(
+    rows: Array<{
+      call_session_id: string;
+      customer_call_control_id: string;
+      direction: "inbound" | "outbound";
+    }>,
+  ) {
+    return stubRoute(
       restMatch(
         env,
         "GET",
@@ -759,54 +773,82 @@ describe("sweepStaleCalls — runaway cost backstop (D43, #145)", () => {
         (url) => url.searchParams.get("answered_at") === "is.null",
       ),
       (call) => {
-        // It really is the outbound + null-answer + creation-aged query.
-        expect(call.url.searchParams.get("direction")).toBe("eq.outbound");
-        expect(call.url.searchParams.get("created_at")).toMatch(/^lt\./);
-        return [
-          {
-            call_session_id: "sess-unstamped",
-            customer_call_control_id: "cust-ccid-unstamped",
-          },
-        ];
+        const direction = call.url.searchParams.get("direction");
+        return rows
+          .filter((row) => direction === null || direction === `eq.${row.direction}`)
+          .map(({ call_session_id, customer_call_control_id }) => ({
+            call_session_id,
+            customer_call_control_id,
+          }));
       },
     );
+  }
+
+  it("hangs up an OUTBOUND call whose answer stamp was lost — answered_at=null, aged by created_at (#145)", async () => {
+    const hangup = hangupStub();
+    const answered = answeredQueryStub();
+    const unstamped = unstampedQueryStub([
+      {
+        call_session_id: "sess-unstamped",
+        customer_call_control_id: "cust-ccid-unstamped",
+        direction: "outbound",
+      },
+    ]);
     stubFetch(answered.route, unstamped.route, hangup.route, ...tailStubs().map((s) => s.route));
 
     await sweepStaleCalls(env);
 
+    // Creation age is the bound: nothing stamped an answer on this leg.
+    expect(unstamped.calls[0].url.searchParams.get("created_at")).toMatch(/^lt\./);
     expect(hangup.calls).toHaveLength(1);
     expect(hangup.calls[0].url.pathname).toBe(
       "/v2/calls/cust-ccid-unstamped/actions/hangup",
     );
   });
 
+  it("hangs up an INBOUND leg WE answered into voicemail — answering to record never stamps answered_at (#581)", async () => {
+    // The leg is live and billing on Telnyx: telnyx-answer-vm answered it to
+    // play the greeting and record, and the recording webhooks that would have
+    // ended the session were lost. answered_at stays null (it is the
+    // member-answer billing anchor), and the row is inbound — so BOTH arms of
+    // the sweep used to miss it and nothing ever bounded its cost.
+    const hangup = hangupStub();
+    const answered = answeredQueryStub();
+    const unstamped = unstampedQueryStub([
+      {
+        call_session_id: "sess-vm",
+        customer_call_control_id: "cust-ccid-vm",
+        direction: "inbound",
+      },
+    ]);
+    stubFetch(answered.route, unstamped.route, hangup.route, ...tailStubs().map((s) => s.route));
+
+    await sweepStaleCalls(env);
+
+    expect(hangup.calls.map((c) => c.url.pathname)).toEqual([
+      "/v2/calls/cust-ccid-vm/actions/hangup",
+    ]);
+  });
+
   it("hangs up each distinct leg once across both the answered and unstamped sets", async () => {
     const hangup = hangupStub();
-    const answered = stubRoute(
-      restMatch(
-        env,
-        "GET",
-        "calls",
-        (url) => url.searchParams.get("answered_at") !== "is.null",
-      ),
-      () => [
-        { call_session_id: "sess-a", customer_call_control_id: "ccid-a" },
-        // Same leg surfaces in both queries — it must be hung up ONCE.
-        { call_session_id: "sess-dup", customer_call_control_id: "ccid-dup" },
-      ],
-    );
-    const unstamped = stubRoute(
-      restMatch(
-        env,
-        "GET",
-        "calls",
-        (url) => url.searchParams.get("answered_at") === "is.null",
-      ),
-      () => [
-        { call_session_id: "sess-dup", customer_call_control_id: "ccid-dup" },
-        { call_session_id: "sess-b", customer_call_control_id: "ccid-b" },
-      ],
-    );
+    const answered = answeredQueryStub([
+      { call_session_id: "sess-a", customer_call_control_id: "ccid-a" },
+      // Same leg surfaces in both queries — it must be hung up ONCE.
+      { call_session_id: "sess-dup", customer_call_control_id: "ccid-dup" },
+    ]);
+    const unstamped = unstampedQueryStub([
+      {
+        call_session_id: "sess-dup",
+        customer_call_control_id: "ccid-dup",
+        direction: "outbound",
+      },
+      {
+        call_session_id: "sess-b",
+        customer_call_control_id: "ccid-b",
+        direction: "inbound",
+      },
+    ]);
     stubFetch(answered.route, unstamped.route, hangup.route, ...tailStubs().map((s) => s.route));
 
     await sweepStaleCalls(env);

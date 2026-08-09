@@ -21,24 +21,42 @@ function fakeDb(opts: {
   callsError?: boolean;
   callsData?: { company_id: string }[];
   upsertError?: boolean;
+  /**
+   * #581: what the calls lookup was ASKED, and what actually landed in the
+   * ledger. Both are needed to pin the inbound arm, because a leg that resolves
+   * nobody returns the same `true` as one that records successfully — the skip
+   * signal alone cannot tell "recorded" from "silently dropped".
+   */
+  seen?: {
+    sessionCandidates: string[][];
+    upserts: Record<string, unknown>[];
+  };
 }) {
   return {
     from(table: string) {
       if (table === "calls") {
         return {
           select: () => ({
-            in: () => ({
-              limit: async () =>
-                opts.callsError
-                  ? { data: null, error: { message: "boom" } }
-                  : { data: opts.callsData ?? [{ company_id: "c1" }], error: null },
-            }),
+            in: (_column: string, values: string[]) => {
+              opts.seen?.sessionCandidates.push(values);
+              return {
+                limit: async () =>
+                  opts.callsError
+                    ? { data: null, error: { message: "boom" } }
+                    : {
+                        data: opts.callsData ?? [{ company_id: "c1" }],
+                        error: null,
+                      },
+              };
+            },
           }),
         };
       }
       return {
-        upsert: async () =>
-          opts.upsertError ? { error: { message: "boom" } } : { error: null },
+        upsert: async (row: Record<string, unknown>) => {
+          opts.seen?.upserts.push(row);
+          return opts.upsertError ? { error: { message: "boom" } } : { error: null };
+        },
       };
     },
   } as unknown as Parameters<typeof recordVoiceCost>[0];
@@ -50,6 +68,14 @@ const REAL_CLIENT_STATE =
   "b3B8NzI0ZTZjODgtYzk2Ny00NmM0LWEzM2QtMWFlMDU3MzM2NTg0fDQxMjFkNmViLWEyZmMtNDJlNS1hNWYzLThlNDE0YTM4MjRmMQ==";
 const SESSION_ID = "724e6c88-c967-46c4-a33d-1ae057336584";
 const USER_ID = "4121d6eb-a2fc-42e5-a5f3-8e414a3824f1";
+
+// The INBOUND tags in full (messaging/inbound-ring.ts). Neither holds a UUID —
+// a caller's number and an ISO stamp — which is exactly why the tag alone names
+// no workspace for the legs that cost us PSTN minutes.
+const BRI_CLIENT_STATE = btoa("bri|+15555550123|2026-07-24T03:54:00.000Z");
+const VMI_CLIENT_STATE = btoa("vmi|+15555550123");
+/** Telnyx's session id for an inbound call — which, inbound only, IS our S. */
+const INBOUND_SESSION = "3211758a-871f-11f1-ba22-02420aef8e1f";
 
 describe("parseCostUsd", () => {
   it("parses a decimal-string amount", () => {
@@ -148,5 +174,107 @@ describe("recordVoiceCost transient-vs-skip signal (#216 sweeper recovery)", () 
     expect(
       await recordVoiceCost(fakeDb({ callsData: [{ company_id: "c1" }] }), payload),
     ).toBe(true);
+  });
+});
+
+describe("#581 inbound legs reach the ledger at all", () => {
+  /** A fresh capture pair for one recordVoiceCost run. */
+  function capture() {
+    return {
+      sessionCandidates: [] as string[][],
+      upserts: [] as Record<string, unknown>[],
+    };
+  }
+
+  it("names the payload session id as a candidate when the tag names nobody", () => {
+    const parsed = parseCallCost({
+      call_leg_id: "vm-leg-1",
+      call_session_id: INBOUND_SESSION,
+      client_state: VMI_CLIENT_STATE,
+      total_cost: "0.0090",
+    });
+    // The vmi tag contributes nothing (a phone number is not a UUID), so the
+    // payload's own session id is the whole list — and inbound's S IS that id.
+    expect(parsed?.candidates).toEqual([INBOUND_SESSION]);
+  });
+
+  it("records a VOICEMAIL leg's cost against the workspace", async () => {
+    const seen = capture();
+    const ok = await recordVoiceCost(
+      fakeDb({ callsData: [{ company_id: "c1" }], seen }),
+      {
+        call_leg_id: "vm-leg-1",
+        call_session_id: INBOUND_SESSION,
+        client_state: VMI_CLIENT_STATE,
+        total_cost: "0.0090",
+      },
+    );
+    expect(ok).toBe(true);
+    expect(seen.sessionCandidates[0]).toEqual([INBOUND_SESSION]);
+    // THE assertion. An unattributed leg also returns true (it is a "definite
+    // skip"), so only a landed row distinguishes a workspace that is billed for
+    // its voicemail from one that reports zero voice cost forever.
+    expect(seen.upserts).toHaveLength(1);
+    expect(seen.upserts[0]).toMatchObject({
+      kind: "voice",
+      ref: "vm-leg-1",
+      company_id: "c1",
+    });
+    expect(Number(seen.upserts[0].cost_usd)).toBeCloseTo(0.009, 6);
+  });
+
+  it("records a BROWSER-ANSWERED inbound leg's cost against the workspace", async () => {
+    const seen = capture();
+    await recordVoiceCost(fakeDb({ callsData: [{ company_id: "c1" }], seen }), {
+      call_leg_id: "bri-leg-1",
+      call_session_id: INBOUND_SESSION,
+      client_state: BRI_CLIENT_STATE,
+      total_cost: "0.0180",
+    });
+    expect(seen.upserts).toHaveLength(1);
+    expect(seen.upserts[0]).toMatchObject({ ref: "bri-leg-1", company_id: "c1" });
+  });
+
+  it("records the customer's own UNTAGGED inbound leg (no client_state at all)", async () => {
+    const seen = capture();
+    await recordVoiceCost(fakeDb({ callsData: [{ company_id: "c1" }], seen }), {
+      call_leg_id: "untagged-leg-1",
+      call_session_id: INBOUND_SESSION,
+      total_cost: "0.0120",
+    });
+    expect(seen.sessionCandidates[0]).toEqual([INBOUND_SESSION]);
+    expect(seen.upserts).toHaveLength(1);
+  });
+
+  it("keeps the tag's S for an outbound leg, whose Telnyx id is only an extra", () => {
+    // On a server-dialed leg Telnyx's T is NOT our S. It rides along as one more
+    // candidate and matches no calls row, so the tag's S still resolves the
+    // workspace — which is why this is a candidate and not an inbound branch.
+    const telnyxT = "9f2b1c44-0000-4000-8000-0000000000aa";
+    const parsed = parseCallCost({
+      call_leg_id: "leg-1",
+      call_session_id: telnyxT,
+      client_state: REAL_CLIENT_STATE,
+      total_cost: "0.0180",
+    });
+    expect(parsed?.candidates).toEqual([SESSION_ID, USER_ID, telnyxT]);
+  });
+
+  it("ignores a session id that is not UUID-shaped, and never duplicates one", () => {
+    // Telnyx call ids are UUIDs; anything else is not one of ours and must not
+    // reach the PostgREST `in.()` list unshaped.
+    expect(
+      parseCallCost({ call_leg_id: "leg-1", call_session_id: "not-a-uuid" })
+        ?.candidates,
+    ).toEqual([]);
+    // An op leg whose tag S and payload id agree (the inbound case, reached via
+    // a tag) contributes one candidate, not two.
+    expect(
+      parseCallCost({
+        call_leg_id: "leg-1",
+        call_session_id: SESSION_ID,
+        client_state: btoa(`bri|+15555550123|${SESSION_ID}`),
+      })?.candidates,
+    ).toEqual([SESSION_ID]);
   });
 });

@@ -504,10 +504,16 @@ export async function sweepStaleCalls(env: Env): Promise<void> {
   // up the customer leg of any call open longer ago than the hard ceiling; its
   // terminal hangup then bills the talk time and finalizes the outcome
   // normally. This bounds a single call's cost even between period-cap checks.
+  // #581: the ceiling is not browser-specific. It is the only bound on ANY open
+  // customer leg whose terminal webhook is lost — including one WE answered,
+  // into voicemail or the #490 notice — so neither arm below filters by
+  // direction or by how the leg came to be answered.
   const ceiling = new Date(Date.now() - MAX_LIVE_CALL_MS).toISOString();
 
-  // (a) The common case — an ANSWERED call open past the ceiling (talk time is
-  //     known, so age by answered_at).
+  // (a) The common case — a call whose ANSWER STAMP LANDED, open past the
+  //     ceiling. answered_at is the billing anchor (a member picked up, or an
+  //     outbound callee did), NOT "the carrier connected", so talk time is
+  //     known and the ceiling is measured from it rather than from creation.
   const { data: runaway, error: runawayError } = await db
     .from("calls")
     .select("call_session_id,customer_call_control_id")
@@ -520,22 +526,32 @@ export async function sweepStaleCalls(env: Env): Promise<void> {
     throw new Error(`runaway calls read failed: ${runawayError.message}`);
   }
 
-  // (b) #145: the call.answered webhook can race ahead of call.initiated and
-  //     leave answered_at=null on a genuinely-connected OUTBOUND call. Such a
-  //     call is EXCLUDED from (a), so if its terminal hangup is lost it could
-  //     run unbounded on the carrier (direct Telnyx cost) while billing sees 0
-  //     seconds — defeating the exact backstop, for the exact out-of-order race
-  //     the surrounding code already treats as possible. Catch it by CREATION
-  //     age: an outbound call still open a full ceiling after it was minted is
-  //     runaway regardless of a missing answer stamp. (Inbound outcome-null
-  //     rows are left to api_sweep_stale_calls: mirror-terminal ones finalize
-  //     to the outcome their state proves, the rest flip to 'missed'. #209)
+  // (b) Every OTHER open leg, aged by CREATION instead. Two ways a connected,
+  //     carrier-billing call reaches the ceiling with no answer stamp, and (a)
+  //     excludes both:
+  //       - #145 OUTBOUND: call.answered can race ahead of call.initiated and
+  //         leave answered_at null on a genuinely-connected call — the exact
+  //         out-of-order race the surrounding code already treats as possible.
+  //       - #581 INBOUND: WE answered the customer leg to play voicemail
+  //         (telnyx-answer-vm) or the #490 suspended-line notice
+  //         (telnyx-answer-notice). Neither stamps answered_at — correctly, it
+  //         is the member-answer billing anchor, not a carrier-connect flag —
+  //         so Telnyx bills a live answered leg the sweep could not see.
+  //     Hence no direction filter: past a full ceiling with no answer stamp, an
+  //     open leg is runaway whichever way it was dialed. It cannot overlap (a)
+  //     — answered_at nullity partitions the two sets, so no row is ever hung
+  //     up twice (the ccid Map below is the second guard).
+  //
+  //     This is the LAST chance to stop the money, not merely a slower one:
+  //     api_sweep_stale_calls at the tail flips a wedged row's outcome to
+  //     'missed' (4h, or 5 minutes once the DO mirror reads ended_%), and BOTH
+  //     queries here require outcome IS NULL. After that flip the row is
+  //     honest, the leg is still up, and nothing on this path can reach it.
   const { data: unstamped, error: unstampedError } = await db
     .from("calls")
     .select("call_session_id,customer_call_control_id")
     .is("outcome", null)
     .is("answered_at", null)
-    .eq("direction", "outbound")
     .not("customer_call_control_id", "is", null)
     .lt("created_at", ceiling)
     .limit(200);
@@ -543,7 +559,9 @@ export async function sweepStaleCalls(env: Env): Promise<void> {
     throw new Error(`unstamped runaway calls read failed: ${unstampedError.message}`);
   }
 
-  // One hangup per distinct customer leg across both sets.
+  // One hangup per distinct customer leg across both sets — which the
+  // answered_at partition already guarantees per ROW, so this is the guard for
+  // two rows naming one leg.
   const runawayByCcid = new Map<string, string>();
   for (const row of [...(runaway ?? []), ...(unstamped ?? [])]) {
     runawayByCcid.set(

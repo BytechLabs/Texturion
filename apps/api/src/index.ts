@@ -101,6 +101,10 @@ import { searchRoutes } from "./routes/search";
 import { sessionsRoutes } from "./routes/sessions";
 import { pruneAuditLog } from "./audit/retention";
 import { pruneUserSessions } from "./auth/session-retention";
+import {
+  pruneProbeResults,
+  prunePublicLinkAccess,
+} from "./crons/retention-prunes";
 import { buildDataExports, pruneExpiredExports } from "./workspace/export";
 import { purgeClosedWorkspaces } from "./workspace/purge";
 import { accountRoutes } from "./routes/account";
@@ -554,6 +558,12 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // #236: dead and revoked device rows past the 90-day window. Live
     // sessions are never touched, at any age.
     job("job:prune-user-sessions", pruneUserSessions),
+    // #581: the two prunes whose SQL shipped without a caller. Here beside the
+    // other bounded-by-age sweeps rather than at the end of the list, because
+    // the tail of this trigger is the notice→enforce pair whose order is
+    // load-bearing and must not be pushed around by unrelated arrivals.
+    job("job:prune-public-link-access", prunePublicLinkAccess),
+    job("job:prune-probe-results", pruneProbeResults),
     job("job:purge-closed-workspaces", purgeClosedWorkspaces),
     // #227: exports build here for the same reason the purge does — a busy
     // workspace cannot be processed inside a request.

@@ -42,6 +42,10 @@ import { runUsageAlertsJob } from "./billing/usage-alerts";
 import { sweepDeletedAttachments } from "./attachments/sweep";
 import { pruneAuditLog } from "./audit/retention";
 import { pruneUserSessions } from "./auth/session-retention";
+import {
+  pruneProbeResults,
+  prunePublicLinkAccess,
+} from "./crons/retention-prunes";
 import { buildDataExports } from "./workspace/export";
 import { purgeClosedWorkspaces } from "./workspace/purge";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
@@ -556,6 +560,12 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       pruneWebhookEvents,
       pruneAuditLog,
       pruneUserSessions, // #236: dead and revoked device rows past 90 days
+      // #581: both of these existed, were granted and were documented — and
+      // were called by nothing at all, while PERSONAL-DATA-INVENTORY.md
+      // published a 30-day window for the first one. Registered here is what
+      // makes the published window true.
+      prunePublicLinkAccess,
+      pruneProbeResults,
       purgeClosedWorkspaces,
       buildDataExports,
       pruneExpiredExports, // #378: expired exports are deleted, not just hidden

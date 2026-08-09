@@ -15,6 +15,14 @@
  * The line model (founder-binding) holds throughout: the customer call never
  * leaves its number, a consult is its own two-party call, and no Telnyx
  * conference is ever created.
+ *
+ * #581 — company + live + #106 'text' is the WHOLE actor boundary. These routes
+ * are CREW-SHARED by decision: no route here asks who answered the call, so any
+ * member with 'text' on the number may transfer, consult on, or complete a call
+ * a teammate is holding. That is the product (the crew covers each other's
+ * calls; a phone put down mid-job is somebody else's to pick up), not an
+ * oversight — do not add an actor check to one route and leave the others,
+ * which is how a boundary ends up half-true.
  */
 import { Hono, type Context } from "hono";
 import { z } from "zod";
@@ -225,10 +233,20 @@ liveCallsRoutes.get("/calls/live/mine", requireCapability("conversations.read"),
  * server finds the company's currently-ringing sessions (the DO mirrors machine
  * state → calls.state, so `state='ringing'` is the queryable truth — typically
  * 0-1 rows) and routes the EXISTING idempotent DO.decline(session, me) into
- * each. The DO no-ops (declined:false) for any session where this member isn't
- * a ring target, so "decline mine" only ever affects sessions actually ringing
- * this member — that per-session target check is also the #106 boundary (a
- * member can only decline a session they were genuinely rung for).
+ * each.
+ *
+ * #581 — this is the one route that acts on sessions the caller never named, so
+ * it needs BOTH halves of the boundary, and it shipped with neither:
+ *   (1) #106, HERE: a session ringing on a number hidden from this member is
+ *       dropped before its DO is ever asked. There was no per-number gate on
+ *       this route at all.
+ *   (2) the DO's per-session target check (`reduceDecline`): declined:false for
+ *       a member the ring never reached. THIS docblock claimed that check
+ *       existed; the reducer only guarded on state. It is what keeps a
+ *       notes-only member — past (1), because 'note' is restricted but not
+ *       hidden — out of a session they may never take.
+ * Only declined:true sessions enter the body, so the reply lists exactly the
+ * calls that were ringing the caller and nothing else.
  *
  * Registered BEFORE the :sessionId routes so 'decline-mine' never parses as a
  * session id. ALWAYS 200 (never a 409 for state). Crash-safe fan-out: a
@@ -246,25 +264,48 @@ liveCallsRoutes.post(
     const db = getDb(env);
     // The company's currently-ringing sessions. The DO mirror keeps
     // calls.state authoritative; bound to the newest 25 (there is realistically
-    // never more than one ringing session, but the query stays bounded).
-    const rows = unwrap<{ call_session_id: string }[]>(
+    // never more than one ringing session, but the query stays bounded) and to
+    // LIVE_CALL_WINDOW_MS like /calls/live/mine — a 'ringing' row older than the
+    // window is a crashed session whose mirror never got its terminal write, and
+    // waking its DO to be told so costs a round trip per decline forever.
+    const rows = unwrap<
+      { call_session_id: string; phone_number_id: string | null }[]
+    >(
       await db
         .from("calls")
-        .select("call_session_id")
+        .select("call_session_id,phone_number_id")
         .eq("company_id", companyId)
         .eq("state", "ringing")
         .is("outcome", null)
+        .gte(
+          "created_at",
+          new Date(Date.now() - LIVE_CALL_WINDOW_MS).toISOString(),
+        )
         .order("created_at", { ascending: false })
         .limit(25),
       "ringing sessions",
     );
+    // #106 (#581): resolved once for the fan-out, not per session. Owners and
+    // admins cost zero queries here.
+    const access = await resolveNumberAccess(db, {
+      companyId,
+      userId,
+      role: c.get("role"),
+    });
+    const hidden = new Set(access.hiddenNumberIds ?? []);
 
     // Route the existing DO.decline into each; collect ONLY the sessions this
     // member was genuinely a target of (declined:true). We never enumerate the
-    // company's other ringing sessions in the body — the per-session no-op both
-    // enforces #106 and keeps those sessions out of the response.
+    // company's other ringing sessions in the body — the per-session no-op keeps
+    // those sessions out of the response.
     const sessions: { session_id: string; state: string }[] = [];
     for (const row of rows) {
+      // A number hidden from this member is not theirs to decline OR to learn
+      // about: skip before the DO is asked, so the session cannot surface as a
+      // declined:true either. (A null number is un-ruled, so never hidden.)
+      if (row.phone_number_id !== null && hidden.has(row.phone_number_id)) {
+        continue;
+      }
       const stub = callSessionStub(env, row.call_session_id);
       if (!stub) continue;
       try {
@@ -721,9 +762,19 @@ liveCallsRoutes.post(
     const senderLeg = legs.find(
       (leg) => leg.state === "answered" && leg.user_id === c.get("userId"),
     );
-    // Only the consult's SENDER (an answered consult leg is theirs) may
-    // complete it — a non-participant with 'text' access must not bridge the
-    // customer onto an arbitrary leg.
+    // The caller must hold an ANSWERED consult leg of their own. This is a
+    // MECHANIC, not an authorization boundary: completing hangs up "the
+    // sender's leg", so there has to be one, and announcing a customer you
+    // haven't spoken to yet is not a hand-off.
+    //
+    // #581: this used to claim a non-participant "must not bridge the customer
+    // onto an arbitrary leg". False — POST /consult is open to the same
+    // 'text'-access crew, so anyone who could satisfy this guard could first
+    // start their own consult and become its sender. Nothing here narrows the
+    // actor set and nothing should (see the crew-shared decision in the file
+    // docblock); the sentence was deleted rather than made true, because a
+    // boundary that exists only in a comment is the one a reader stops
+    // checking for.
     if (!senderLeg) {
       return errorResponse(
         c,

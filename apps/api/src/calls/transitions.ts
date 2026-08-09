@@ -626,7 +626,13 @@ export interface RingMeReply {
 export interface DeclineReply {
   declined: boolean;
   state: CallState;
-  reason?: "not_ringing";
+  reason?:
+    | "not_ringing"
+    /** #581: the session IS ringing — just not for this member. Its own reason
+     *  rather than `not_ringing` because the two mean opposite things to the
+     *  decline-mine fan-out: one session resolved on its own, the other is a
+     *  live call belonging to somebody else. */
+    | "not_a_target";
 }
 
 export interface ReduceResult {
@@ -2157,6 +2163,37 @@ function reduceRingMe(
 }
 
 /**
+ * #581 — did this ring ever reach this member?
+ *
+ * Every way a member learns a call is ringing leaves one of these behind, so
+ * the union IS the ring's audience:
+ *   - a leg, at ANY status. A dead one still means the ring was aimed at them
+ *     (presented, or dialed and failed), and after their own decline their leg
+ *     is `dead` — a repeat decline has always been the idempotent
+ *     `declined:true` this must not turn into a refusal.
+ *   - a queued `in_turn` target (#278): their phone has not joined the ring
+ *     yet, but the machine has committed to dialing it. Counted because the
+ *     safe direction here is accepting a decline from somebody the ring was
+ *     always going to reach, never refusing one.
+ *   - the push audience.
+ *   - `declinedUserIds`, which a decline writes before leaving the other three.
+ *
+ * An ADOPTED machine (§7.5.4 cutover) knows only what the ring ledger recorded,
+ * so a push-woken member of a pre-v3 session reads as no-target. That is the
+ * intended failure: the cost is one legacy call ringing its full window, and
+ * the alternative — exempting adopted machines — is a hole in the boundary that
+ * every unrecognised session falls through.
+ */
+function wasRingTarget(machine: SessionMachine, userId: string): boolean {
+  return (
+    machine.legs.some((leg) => leg.userId === userId) ||
+    (machine.queuedTargets ?? []).some((target) => target.userId === userId) ||
+    machine.pushCapableUserIds.includes(userId) ||
+    machine.declinedUserIds.includes(userId)
+  );
+}
+
+/**
  * #171 DECLINE — an explicit member rejection, first-class in the machine.
  *
  * A member who declines is STILL push-capable, so leaving them in the avenue
@@ -2172,6 +2209,14 @@ function reduceRingMe(
  * `declined:false` no-op (never a 409 for state) — the session already
  * resolved. `declined:true` carries the POST-ladder state so the client learns
  * whether their decline sent the caller to voicemail.
+ *
+ * #581 — WHO may decline: only a member this ring actually reached. That check
+ * is the boundary POST /calls/live/decline-mine rests on, because that route
+ * fans a decline into EVERY session ringing in the company and reports back the
+ * ones that took it. Without it a member who was never rung — a notes-only
+ * member, say, who can see the number but may never speak to a customer on it —
+ * gets `declined:true` and the reply becomes a listing of their colleagues'
+ * live calls.
  */
 function reduceDecline(
   next: SessionMachine,
@@ -2183,6 +2228,21 @@ function reduceDecline(
       machine: next,
       effects,
       reply: { declined: false, state: next.state, reason: "not_ringing" },
+    };
+  }
+
+  // #581: the target check the route's docblock has always claimed lived here.
+  // What leaks without it is small — an opaque session id and the fact that it
+  // is ringing, no number, no caller, no content — and it leaks only to a member
+  // of the same company. It is fixed anyway because a boundary asserted in prose
+  // and absent from the code is worse than no boundary: the next reader stops
+  // looking. Ordered AFTER the state check so a non-ringing session keeps
+  // answering `not_ringing` to everybody (#211 M2 pins that for outbound).
+  if (!wasRingTarget(next, event.userId)) {
+    return {
+      machine: next,
+      effects,
+      reply: { declined: false, state: next.state, reason: "not_a_target" },
     };
   }
 

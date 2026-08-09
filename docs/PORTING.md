@@ -130,7 +130,9 @@ create table public.port_requests (
   entity_name            text not null,                 -- account holder / business legal name on the bill
   auth_person_name       text not null,                 -- authorized signer on the LOA
   billing_phone_number   text,                          -- BTN if different from the ported number
-  account_number         text not null,                 -- losing-carrier account number
+  account_number         text,                          -- losing-carrier account number. Nullable ONLY so a
+                                                         -- finished port can be scrubbed; a LIVE one still
+                                                         -- must carry it (CHECK + retention note below).
   pin_passcode           text,                          -- port-out PIN / passcode (wireless often requires)
   is_wireless            boolean not null default false,-- mobile ports may need PIN + last-4 SSN (verify in build)
 
@@ -173,6 +175,19 @@ create unique index port_requests_telnyx_uq on public.port_requests (telnyx_port
 create index port_requests_open_idx on public.port_requests (status)
   where status not in ('ported','cancelled');             -- reconciliation cron work-set
 create index port_requests_company_idx on public.port_requests (company_id);
+
+-- A LIVE port must carry its account number — the §3.4 PATCH copies it straight into
+-- end_user.admin and a null would ship as a null. A FINISHED one must be free to lose
+-- it. This replaces the NOT NULL that made the scrub below impossible.
+alter table public.port_requests
+  add constraint port_requests_live_needs_account_number
+  check (status in ('ported','cancelled') or account_number is not null);
+
+-- Retention (see the note below): null the three carrier credentials on the write that
+-- makes the port terminal.
+create trigger port_requests_scrub_credentials
+  before insert or update on public.port_requests
+  for each row execute function public.scrub_port_credentials();
 ```
 
 `moddatetime` trigger on `port_requests` (SPEC §6). RLS **enabled, deny-by-default, no grants** — the
@@ -188,6 +203,33 @@ and invoice live in Telnyx (`/v2/documents`), not in Supabase Storage — we kee
 document UUIDs. **No full SSN/SIN is ever collected** (consistent with §10; wireless last-4 is
 **verify in build** — only collect if the portability check flags the number as wireless, and store
 last-4 only, mirroring the sole-prop `ein` rule).
+
+**Retention — the credentials do not outlive the port.** Both reasons for holding them run out in
+the same place: the §3.4 PATCH is never issued again, and the port stops being editable (§7), once
+`status` reaches `ported` or `cancelled`. So `account_number`, `pin_passcode` and `ssn_sin_last4`
+are **nulled on the write that makes the port terminal**, by the `port_requests_scrub_credentials`
+BEFORE trigger in `supabase/migrations/20260812200000_a_finished_port_does_not_keep_the_pin.sql`.
+Details that matter:
+
+- **Terminal is `('ported','cancelled')`** — the same set `port_requests_open_idx` and the §5.2
+  reconcile cron already use, not a fourth definition. `cancel-pending` is outside it: the
+  cancellation has not been acknowledged, so the port can still land.
+- **`ported` is the VOICE track**, and the messaging track may still be pending/activating/
+  exception. That is deliberate: the messaging sub-order carries no carrier credentials — it is
+  enabled by the same PATCH and escalated by Telnyx, never re-filed by us.
+- **Every write, not only the transition.** A later `UPDATE` cannot re-arm a finished port.
+- **Rows that went terminal before the trigger existed** are cleared by
+  `sweep_terminal_port_credentials()`, which that migration runs once and then leaves behind
+  (service-role only, skips already-clean rows) so it can be re-run after a restore from a
+  pre-fix dump.
+
+Two consequences worth knowing before they read as bugs:
+
+- `has_account_number` / `has_pin` / `has_ssn_sin_last4` are **false** on a completed or cancelled
+  port. Nothing depends on them there — the fix-and-resubmit form that consumes them renders only
+  on a **voice exception** (§8.2), which is not terminal.
+- A retry after a cancellation is a **fresh row** (`port_requests_active_uq` already assumes this),
+  so the customer re-enters the account number; the cancelled row's copy is gone for good.
 
 ### 2.3 `phone_numbers` additions
 
