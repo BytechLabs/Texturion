@@ -13,6 +13,7 @@
 --   BC-6  the filter means the same thing it means in the list
 --   BC-7  the cap, reported rather than silently truncating
 --   BC-8  argument coherence (an assign with no target must not unassign 300)
+--   BC-9  a target tag or assignee from another workspace is refused (#572)
 --
 -- One transaction, rolled back. Fixtures use a 'bc' id prefix.
 
@@ -25,7 +26,12 @@ insert into auth.users (id, email, encrypted_password, email_confirmed_at,
 values ('bc000000-0000-4000-8000-000000000001', 'bulk@test.local', '', now(),
         now(), now(), 'authenticated', 'authenticated'),
        ('bc000000-0000-4000-8000-00000000000a', 'bulk2@test.local', '', now(),
-        now(), now(), 'authenticated', 'authenticated')
+        now(), now(), 'authenticated', 'authenticated'),
+       -- #572 BC-9: a real auth user who is a member of NO workspace. Needed
+       -- because the assign target must now be an active member, so the test for
+       -- "a non-member is refused" needs somebody who genuinely is not one.
+       ('bc000000-0000-4000-8000-00000000000c', 'bulk-stranger@test.local', '',
+        now(), now(), now(), 'authenticated', 'authenticated')
 on conflict (id) do nothing;
 
 insert into public.companies
@@ -40,7 +46,13 @@ insert into public.company_members (company_id, user_id, role)
 values ('bc000000-0000-4000-8000-000000000002',
         'bc000000-0000-4000-8000-000000000001', 'owner'),
        ('bc000000-0000-4000-8000-00000000000b',
-        'bc000000-0000-4000-8000-000000000001', 'owner');
+        'bc000000-0000-4000-8000-000000000001', 'owner'),
+       -- #572: BC-4 assigns a conversation to this user to check that the prior
+       -- assignee is recorded for an undo. It never made them a member, and
+       -- nothing required it — so the fixture was quietly relying on the missing
+       -- check. Assigning to a non-member is now refused, which is the point.
+       ('bc000000-0000-4000-8000-000000000002',
+        'bc000000-0000-4000-8000-00000000000a', 'member');
 
 -- Two numbers on the test company: one the actor may see, one denied (#106).
 insert into public.phone_numbers
@@ -459,6 +471,106 @@ begin
   raise notice 'BC-8 PASSED: incoherent arguments are refused before anything is written';
 end $$;
 
-select 'bulk_conversations.test.sql: BC-1..BC-8 PASSED' as result;
+-- ===========================================================================
+-- BC-9 (#572). A target id from ANOTHER workspace is refused.
+--
+-- Both were only checked for presence, never for belonging: the route validates
+-- uuid SHAPE and forwards them raw. So a member of one workspace could attach
+-- another workspace's tag to their own conversations — moving that workspace's tag
+-- counts, and its pipeline win rate with them (#354) — or assign a conversation to
+-- somebody who is not a member at all, including a deactivated ex-teammate whose
+-- real user id is visible in timeline `assigned` events.
+--
+-- Two of the three sibling paths already refused both (api_bulk_tasks and the
+-- single-row assign), which is what made this a gap rather than a decision.
+-- ===========================================================================
+do $$
+declare
+  co        uuid := 'bc000000-0000-4000-8000-000000000002';
+  other_co  uuid := 'bc000000-0000-4000-8000-00000000000b';
+  us        uuid := 'bc000000-0000-4000-8000-000000000001';
+  stranger  uuid := 'bc000000-0000-4000-8000-00000000000c';
+  c1        uuid;
+  other_tag uuid;
+  own_tag   uuid;
+  before_n  int;
+begin
+  select id into c1 from public.conversations
+   where company_id = co order by id limit 1;
+
+  -- A tag that belongs to the OTHER workspace, and one that belongs to this one.
+  insert into public.tags (company_id, name) values (other_co, 'bc-foreign-tag')
+    returning id into other_tag;
+  insert into public.tags (company_id, name) values (co, 'bc-own-tag')
+    returning id into own_tag;
+
+  -- 1. A foreign tag is refused, and nothing is written.
+  select count(*) into before_n from public.conversation_tags where tag_id = other_tag;
+  if (public.api_bulk_conversations(
+        co, us, 'add_tag', array[c1], null, null, null, false, false, null,
+        null, other_tag, null, null, null) ->> 'error')
+     is distinct from 'validation_failed' then
+    raise exception 'BC-9 FAILED: add_tag accepted another workspace''s tag';
+  end if;
+  if (select count(*) from public.conversation_tags where tag_id = other_tag)
+     is distinct from before_n then
+    raise exception 'BC-9 FAILED: another workspace''s tag was attached anyway';
+  end if;
+
+  -- remove_tag takes the same argument and so needs the same refusal.
+  if (public.api_bulk_conversations(
+        co, us, 'remove_tag', array[c1], null, null, null, false, false, null,
+        null, other_tag, null, null, null) ->> 'error')
+     is distinct from 'validation_failed' then
+    raise exception 'BC-9 FAILED: remove_tag accepted another workspace''s tag';
+  end if;
+
+  -- 2. This workspace's own tag still works — the check must narrow, not break.
+  if (public.api_bulk_conversations(
+        co, us, 'add_tag', array[c1], null, null, null, false, false, null,
+        null, own_tag, null, null, null) -> 'error') is not null then
+    raise exception 'BC-9 FAILED: the workspace''s own tag was refused';
+  end if;
+
+  -- 3. A non-member assignee is refused for the WHOLE call, as api_bulk_tasks
+  --    does. `stranger` is a real auth user with no membership in `co`.
+  if (public.api_bulk_conversations(
+        co, us, 'assign', array[c1], null, null, null, false, false, null,
+        stranger, null, null, null, null) ->> 'error')
+     is distinct from 'not_member' then
+    raise exception 'BC-9 FAILED: assigned a conversation to a non-member';
+  end if;
+  if (select assigned_user_id from public.conversations where id = c1)
+     is not distinct from stranger then
+    raise exception 'BC-9 FAILED: a non-member was written to assigned_user_id';
+  end if;
+
+  -- 4. A deactivated member is a non-member for this purpose.
+  insert into public.company_members (company_id, user_id, role)
+  values (co, stranger, 'member')
+  on conflict (company_id, user_id) do update set deactivated_at = null;
+  update public.company_members set deactivated_at = now()
+   where company_id = co and user_id = stranger;
+
+  if (public.api_bulk_conversations(
+        co, us, 'assign', array[c1], null, null, null, false, false, null,
+        stranger, null, null, null, null) ->> 'error')
+     is distinct from 'not_member' then
+    raise exception 'BC-9 FAILED: assigned to a deactivated member';
+  end if;
+
+  -- 5. And an ACTIVE member is still assignable — the check must narrow only.
+  update public.company_members set deactivated_at = null
+   where company_id = co and user_id = stranger;
+  if (public.api_bulk_conversations(
+        co, us, 'assign', array[c1], null, null, null, false, false, null,
+        stranger, null, null, null, null) -> 'error') is not null then
+    raise exception 'BC-9 FAILED: an active member was refused';
+  end if;
+
+  raise notice 'BC-9 PASSED: a bulk action cannot borrow another workspace''s ids';
+end $$;
+
+select 'bulk_conversations.test.sql: BC-1..BC-9 PASSED' as result;
 
 rollback;

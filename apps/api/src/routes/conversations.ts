@@ -491,6 +491,21 @@ conversationsRoutes.post(
       );
     }
 
+    // #572: the RPC now also refuses a target that belongs to another workspace —
+    // a tag from somewhere else (which lands above as validation_failed) or an
+    // assignee who is not an active member. Mapped with the same words the
+    // single-row and bulk-task paths use, because it is the same refusal.
+    //
+    // Without this arm the RPC's answer fell through and the route returned 200
+    // with an `error` key in the body, then read `applied` off it as if the call
+    // had worked.
+    if (result && "error" in result && result.error === "not_member") {
+      throw new ApiError(
+        "validation_failed",
+        "target_user_id: not an active member of this company.",
+      );
+    }
+
     // #515: one alert for the whole selection, sized by what actually applied
     // rather than by what was requested — a filter arm can match rows the RPC
     // then refuses, and telling somebody they were given 40 threads when they
