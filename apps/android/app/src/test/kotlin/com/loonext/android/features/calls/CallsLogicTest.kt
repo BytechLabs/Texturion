@@ -211,6 +211,30 @@ class CallsLogicTest {
     }
 
     @Test
+    fun `a call over an hour reads with hours`() {
+        // #570: it read "183m 12s". Nothing caps talk time — the timeouts in the
+        // call code bound RINGING and a transfer, not a connected call.
+        assertEquals("3h 3m", formatCallDuration(3 * 3600 + 3 * 60 + 12))
+        assertEquals("1h", formatCallDuration(3600))
+        // The hour boundary, both sides.
+        assertEquals("59m 59s", formatCallDuration(3599))
+        assertEquals("1h", formatCallDuration(3601))
+        // Seconds are dropped past an hour and kept under one.
+        assertEquals("1h", formatCallDuration(3600 + 59))
+        assertEquals("59s", formatCallDuration(59))
+    }
+
+    @Test
+    fun `the live clock and the logged duration agree about the same call`() {
+        // #570: they did not. formatTimer has always rolled over to 1:02:33 while
+        // formatCallDuration said "62m 33s", so one call was described two ways
+        // depending on whether it was still happening.
+        val oneHourTwoMinutes = 3600 + 2 * 60 + 33
+        assertEquals("1:02:33", formatTimer(oneHourTwoMinutes * 1000L))
+        assertEquals("1h 2m", formatCallDuration(oneHourTwoMinutes))
+    }
+
+    @Test
     fun `the live timer formats minutes and hours`() {
         assertEquals("0:00", formatTimer(0))
         assertEquals("0:42", formatTimer(42_000))

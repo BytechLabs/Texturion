@@ -24,6 +24,24 @@ describe("formatCallDuration", () => {
   it("clamps negatives to zero", () => {
     expect(formatCallDuration(-5)).toBe("0s");
   });
+
+  it("rolls over to hours (#570)", () => {
+    // Before this a three-hour call read "183m 12s". Nothing caps talk time —
+    // the call code's timeouts bound RINGING and a transfer, not a connected
+    // call — so a crew member who leaves one open produces it today.
+    expect(formatCallDuration(3 * 3600 + 3 * 60 + 12)).toBe("3h 3m");
+    expect(formatCallDuration(3600)).toBe("1h");
+    // The hour boundary in both directions, which is where an off-by-one lives.
+    expect(formatCallDuration(3599)).toBe("59m 59s");
+    expect(formatCallDuration(3601)).toBe("1h");
+  });
+
+  it("drops the seconds past an hour, and keeps them under one", () => {
+    // "3h 3m 12s" is three facts where the reader wanted one. Under an hour the
+    // seconds are exactly what somebody is scanning for.
+    expect(formatCallDuration(3600 + 59)).toBe("1h");
+    expect(formatCallDuration(59)).toBe("59s");
+  });
 });
 
 describe("callOutcomeLabel", () => {

@@ -49,8 +49,15 @@ fun callerSubLine(name: String, number: String): String? {
 /** "4m 32s" / "58s" — talk time for answered calls (never ring time). */
 fun formatCallDuration(seconds: Int): String {
     val whole = maxOf(0, seconds)
-    val minutes = whole / 60
+    // #570: hours were missing, so a three-hour call read as "183m 12s". Nothing
+    // caps talk time — the call code's timeouts bound RINGING and a transfer, not a
+    // connected call. Past an hour the seconds are dropped: "3h 3m 12s" is three
+    // facts where the reader wanted one. Under an hour they stay, because 58s
+    // against 4m 32s is exactly what somebody is scanning for.
+    val hours = whole / 3600
+    val minutes = (whole % 3600) / 60
     val rest = whole % 60
+    if (hours > 0) return if (minutes == 0) "${hours}h" else "${hours}h ${minutes}m"
     if (minutes == 0) return "${rest}s"
     return if (rest == 0) "${minutes}m" else "${minutes}m ${rest}s"
 }

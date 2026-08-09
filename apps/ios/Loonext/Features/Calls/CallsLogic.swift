@@ -27,8 +27,15 @@ func callerDisplayName(_ call: Call) -> String {
 /// "4m 32s" / "58s" — talk time for answered calls (never ring time).
 func formatCallDuration(_ seconds: Int) -> String {
     let whole = max(0, seconds)
-    let minutes = whole / 60
+    // #570: hours were missing, so a three-hour call read as "183m 12s". Nothing
+    // caps talk time — the call code's timeouts bound RINGING and a transfer, not a
+    // connected call. Past an hour the seconds are dropped: "3h 3m 12s" is three
+    // facts where the reader wanted one. Under an hour they stay, because 58s
+    // against 4m 32s is exactly what somebody is scanning for.
+    let hours = whole / 3600
+    let minutes = (whole % 3600) / 60
     let rest = whole % 60
+    if hours > 0 { return minutes == 0 ? "\(hours)h" : "\(hours)h \(minutes)m" }
     if minutes == 0 { return "\(rest)s" }
     return rest == 0 ? "\(minutes)m" : "\(minutes)m \(rest)s"
 }

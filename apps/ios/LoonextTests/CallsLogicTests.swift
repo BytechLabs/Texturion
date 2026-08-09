@@ -144,6 +144,28 @@ final class CallsLogicTests: XCTestCase {
         XCTAssertEqual("0s", formatCallDuration(-5))
     }
 
+    func testACallOverAnHourReadsWithHours() {
+        // #570: it read "183m 12s". Nothing caps talk time — the timeouts in the
+        // call code bound RINGING and a transfer, not a connected call.
+        XCTAssertEqual("3h 3m", formatCallDuration(3 * 3600 + 3 * 60 + 12))
+        XCTAssertEqual("1h", formatCallDuration(3600))
+        // The hour boundary, both sides.
+        XCTAssertEqual("59m 59s", formatCallDuration(3599))
+        XCTAssertEqual("1h", formatCallDuration(3601))
+        // Seconds are dropped past an hour and kept under one.
+        XCTAssertEqual("1h", formatCallDuration(3600 + 59))
+        XCTAssertEqual("59s", formatCallDuration(59))
+    }
+
+    func testTheLiveClockAndTheLoggedDurationAgree() {
+        // #570: they did not. formatTimer has always rolled over to 1:02:33 while
+        // formatCallDuration said "62m 33s", so one call was described two ways
+        // depending on whether it was still happening.
+        let oneHourTwoMinutes = 3600 + 2 * 60 + 33
+        XCTAssertEqual("1:02:33", formatTimer(elapsedMs: oneHourTwoMinutes * 1000))
+        XCTAssertEqual("1h 2m", formatCallDuration(oneHourTwoMinutes))
+    }
+
     func testTheLiveTimerFormatsMinutesAndHours() {
         XCTAssertEqual("0:00", formatTimer(elapsedMs: 0))
         XCTAssertEqual("0:42", formatTimer(elapsedMs: 42_000))
