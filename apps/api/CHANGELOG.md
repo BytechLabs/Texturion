@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.15.2](https://github.com/BytechLabs/Texturion/compare/api-v0.15.1...api-v0.15.2) (2026-08-09)
+
+
+### Bug Fixes
+
+* **api:** erasing a workspace now erases all of it ([80fb128](https://github.com/BytechLabs/Texturion/commit/80fb128f643fbadb3d056402d90fb00ed0621d29))
+* **api:** the response-time report stops naming lines the reader cannot see ([ad12aa2](https://github.com/BytechLabs/Texturion/commit/ad12aa2d333b9098754bd752ff3895aa0a95f619))
+* **calls:** hang up any outgoing leg we did not dial, whatever it calls itself ([c8b2f0a](https://github.com/BytechLabs/Texturion/commit/c8b2f0a8d7fe7d452a0f1cd9d2d781f64e8fbcfb))
+* **calls:** the bookkeeper's phone stops ringing with the customer's number on it ([cd5bd17](https://github.com/BytechLabs/Texturion/commit/cd5bd17d2b67e342cf5c345184e2eabdb6fcea8b))
+
 ## [0.15.1](https://github.com/BytechLabs/Texturion/compare/api-v0.15.0...api-v0.15.1) (2026-08-09)
 
 
