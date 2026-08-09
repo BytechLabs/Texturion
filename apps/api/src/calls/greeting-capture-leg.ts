@@ -39,7 +39,12 @@ import {
 } from "./greeting-capture";
 
 /** The private bucket recorded greetings live in (20260804360000). */
-const GREETING_BUCKET = "voicemail-greetings";
+/**
+ * Exported because the workspace purge and the orphan sweep both have to name
+ * this bucket, and a second copy of the string is how one of them ends up
+ * sweeping a bucket that no longer exists (#581 — it was in neither).
+ */
+export const GREETING_BUCKET = "voicemail-greetings";
 
 /** Telnyx records to mp3, and the bucket accepts it. */
 const CAPTURE_MIME = "audio/mpeg";

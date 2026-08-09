@@ -31,6 +31,7 @@ interface WorldOptions {
   /** Steps returned in order; the last repeats. */
   steps?: Record<string, unknown>[];
   attachments?: Record<string, string>[];
+  greetings?: Record<string, string>[];
   /** #378: export rows whose objects must go with the workspace. */
   exports?: Record<string, string>[];
   /** #378: file names the exports bucket lists under a prefix. */
@@ -71,6 +72,10 @@ function world(options: WorldOptions = {}): {
   sb.on("GET", "/rest/v1/message_attachments", () => []);
   sb.on("GET", "/rest/v1/attachments", () => options.attachments ?? []);
   sb.on("GET", "/rest/v1/calls", () => []);
+  // #581: the fourth source. The greetings bucket was in no deletion path
+  // and no orphan sweep, so a recording of the owner's own voice outlived
+  // the email telling them their workspace had been erased.
+  sb.on("GET", "/rest/v1/voicemail_greetings", () => options.greetings ?? []);
   // #378: the fourth bucket. An export is a full copy of the workspace, so it
   // is the one object whose survival would most obviously falsify the erasure
   // receipt this job sends.
@@ -123,6 +128,37 @@ function world(options: WorldOptions = {}): {
 }
 
 describe("purgeClosedWorkspaces", () => {
+  it("takes the OWNER'S GREETING out too — it was in no deletion path at all", async () => {
+    /**
+     * #581: `voicemail-greetings` was the bucket nobody swept. It was absent from
+     * `OBJECT_SOURCES` and from the orphan pass, and `voicemail_greetings` was
+     * absent from the purge's own table list — so a recording of the owner's own
+     * voice outlived the email telling them their workspace had been erased, with
+     * `companies.voicemail_greeting_id` still pointing at it.
+     *
+     * The stored path carries the bucket name (`greeting-capture-leg.ts` writes it
+     * in), and Storage wants the key without it — the same shape as the legacy MMS
+     * rows. Getting that wrong deletes nothing and reports success, so the
+     * assertion is on the STRIPPED key.
+     */
+    const { routes, removed } = world({
+      greetings: [{ storage_path: `voicemail-greetings/${COMPANY_ID}/greeting.mp3` }],
+      steps: [
+        { step: "voicemail_greetings", deleted: 1, done: false },
+        { step: null, deleted: 0, done: true },
+      ],
+    });
+    stubFetch(...routes);
+
+    const summary = await purgeClosedWorkspaces(env);
+
+    expect(removed).toContain(`${COMPANY_ID}/greeting.mp3`);
+    expect(removed).not.toContain(
+      `voicemail-greetings/${COMPANY_ID}/greeting.mp3`,
+    );
+    expect(summary).toMatchObject({ workspaces: 1, completed: 1 });
+  });
+
   it("takes the files out before the rows that point at them", async () => {
     // A teardown that deletes `attachments` first leaves a customer's photos in
     // a bucket with nothing pointing at them: unreachable, and undeleted.
@@ -189,6 +225,7 @@ describe("purgeClosedWorkspaces", () => {
     ]);
     sb.on("GET", "/rest/v1/message_attachments", () => []);
     sb.on("GET", "/rest/v1/attachments", () => []);
+    sb.on("GET", "/rest/v1/voicemail_greetings", () => []);
     sb.on("GET", "/rest/v1/calls", () => []);
     sb.on("GET", "/rest/v1/data_exports", () => []); // #378: the fourth bucket
     sb.on("POST", "/rest/v1/rpc/purge_workspace_step", (call) =>

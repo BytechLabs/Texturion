@@ -161,6 +161,10 @@ const SUITES = [
   // remotely signed-out device kept joining live topics for the rest of its
   // token's life while /v1 401'd and the owner was told the device was off.
   "presence_topic",
+  // Erasure coverage, derived from the catalog rather than listed: 21 tables
+  // survived a workspace purge because `v_tables` is hand-written and the
+  // companies row is anonymised, so the cascades never fire.
+  "purge_coverage",
 ];
 
 const args = process.argv.slice(2);

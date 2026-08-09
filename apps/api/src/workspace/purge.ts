@@ -24,6 +24,7 @@ import * as Sentry from "@sentry/cloudflare";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getStripe } from "../billing/stripe";
+import { GREETING_BUCKET } from "../calls/greeting-capture-leg";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { MMS_BUCKET } from "../messaging/media";
@@ -45,8 +46,15 @@ const MAX_STEPS_PER_RUN = 200;
 const MAX_WORKSPACES_PER_RUN = 5;
 
 /**
- * Three of the four places a closed workspace's files live, and the column
+ * Four of the five places a closed workspace's files live, and the column
  * holding each path. Swept before the owning table's rows are deleted.
+ *
+ * #581: `voicemail-greetings` was in NEITHER this list nor the orphan sweep, so
+ * a recording of the owner's own voice outlived the email telling them their
+ * workspace had been erased — and `companies.voicemail_greeting_id` went on
+ * pointing at it. This header said "three of the four" while there were four
+ * here and five in total, which is how it stayed unnoticed: the count was
+ * describing the code rather than the buckets.
  *
  * #378: the EXPORTS bucket is the fourth and is swept separately below,
  * because it stores a PREFIX per row rather than one path per object — the
@@ -74,6 +82,15 @@ const OBJECT_SOURCES = [
     column: "voicemail_path",
     bucket: VOICEMAILS_BUCKET,
     stripPrefix: null,
+  },
+  {
+    table: "voicemail_greetings",
+    column: "storage_path",
+    bucket: GREETING_BUCKET,
+    // The row stores `voicemail-greetings/<path>` (greeting-capture-leg.ts
+    // writes the bucket into the value), and Storage wants the key without it —
+    // the same shape as the legacy MMS rows above.
+    stripPrefix: "voicemail-greetings/",
   },
 ] as const;
 
