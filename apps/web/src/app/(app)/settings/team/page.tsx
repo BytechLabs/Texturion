@@ -8,7 +8,11 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
-import { roleHasCapability, SELF_DOWNGRADE_ACK } from "@loonext/shared";
+import {
+  avatarInitials,
+  roleHasCapability,
+  SELF_DOWNGRADE_ACK,
+} from "@loonext/shared";
 
 import {
   GiveUpAccessDialog,
@@ -71,13 +75,6 @@ import {
   countPendingInvites,
   seatUsage,
 } from "@/lib/settings/seat-line";
-
-function initials(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "?";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[1][0]).toUpperCase();
-}
 
 const ROLE_LABELS: Record<Member["role"], string> = {
   owner: "Owner",
@@ -146,7 +143,7 @@ function MemberRow({
     <div className="flex items-center gap-3 py-3">
       <Avatar className="size-8">
         <AvatarFallback className="bg-primary/10 text-xs font-medium text-primary">
-          {initials(name)}
+          {avatarInitials(name)}
         </AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">

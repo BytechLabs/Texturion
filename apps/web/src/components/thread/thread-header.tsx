@@ -25,12 +25,13 @@ import {
   isFlaggedUrgent,
   URGENT_BADGE_LABEL,
   type DeferralKind,
+  avatarInitials,
 } from "@loonext/shared";
 
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 
 import { CallButton } from "@/components/calls/call-button";
-import { avatarColorClass, avatarInitials } from "@/components/shell/avatar-color";
+import { avatarColorClass } from "@/components/shell/avatar-color";
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { StatusPill } from "@/components/inbox/status-pill";
 import { Badge } from "@/components/ui/badge";

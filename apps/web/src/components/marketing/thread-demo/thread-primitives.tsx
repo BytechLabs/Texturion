@@ -1,3 +1,5 @@
+import { avatarInitials } from "@loonext/shared";
+
 /**
  * Thread-demo primitives, the marketing-owned recreation of the app's thread
  * visual language, restaged for v4 "FIRST RESPONSE" under Law 2: the product
@@ -34,13 +36,6 @@ import type {
 } from "./script";
 
 /** Initials from a display name, same rule as the app's member-avatar. */
-export function initials(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "?";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
-}
-
 /** Assignee/sender avatar: the app's flat single-tone treatment (petrol tint
  *  ground, petrol-deep initials, never gradients). */
 export function DemoAvatar({
@@ -58,7 +53,7 @@ export function DemoAvatar({
       )}
       aria-hidden
     >
-      {initials(name)}
+      {avatarInitials(name)}
     </span>
   );
 }

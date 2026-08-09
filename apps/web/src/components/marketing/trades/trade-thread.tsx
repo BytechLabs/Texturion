@@ -1,3 +1,5 @@
+import { avatarInitials } from "@loonext/shared";
+
 /**
  * TradeThread (trades crew), v4 "FIRST RESPONSE" Law 2: the example thread on
  * every /for/<trade> page, rendered as a static, server-only depiction of the
@@ -37,13 +39,6 @@ import type {
 } from "./scripts";
 
 /** Initials, same rule as the app's avatar helpers. */
-function initials(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "?";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
-}
-
 /** Flat single-tone avatar: petrol tint fill, petrol-deep initials (the
  *  app's calm avatar treatment, PORTAL-UX §4). */
 function Avatar({ name }: { name: string }) {
@@ -52,7 +47,7 @@ function Avatar({ name }: { name: string }) {
       className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-app-tint text-[11px] font-medium text-app-olive-deep"
       aria-hidden
     >
-      {initials(name)}
+      {avatarInitials(name)}
     </span>
   );
 }

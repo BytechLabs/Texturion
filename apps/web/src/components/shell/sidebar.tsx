@@ -34,6 +34,7 @@ import {
   roleHasCapability,
   type Capability,
   type MemberRole,
+  avatarInitials,
 } from "@loonext/shared";
 
 import { useActiveCompany } from "@/lib/company/provider";
@@ -41,7 +42,6 @@ import { cn } from "@/lib/utils";
 
 import { useNumbers } from "@/lib/api/numbers";
 
-import { avatarInitials } from "./avatar-color";
 import { MemberMenu } from "./member-menu";
 import { isNavActive } from "./nav";
 import { useNavCounts } from "./use-nav-counts";

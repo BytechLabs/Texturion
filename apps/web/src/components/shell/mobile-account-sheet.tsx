@@ -37,8 +37,9 @@ import { endSessionOnThisDevice } from "@/lib/auth/end-session";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
 
-import { avatarInitials } from "./avatar-color";
+
 import { WorkspaceNumbers, companyInitials } from "./workspace-bits";
+import { avatarInitials } from "@loonext/shared";
 
 /** Count above this renders as `9+` (the calm numeral cap, §1.3). */
 function cap(n: number): string {

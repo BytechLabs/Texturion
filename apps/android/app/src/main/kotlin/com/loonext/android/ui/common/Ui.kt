@@ -214,14 +214,50 @@ fun boundedGlyph(size: Dp, glyph: TextUnit): TextUnit {
     return with(density) { minOf(wanted, ceiling).dp.toSp() }
 }
 
+/**
+ * #582 — the two letters in an avatar. The hand-port of
+ * `packages/shared/src/avatar-initials.ts`; `AvatarInitialsParityTest` holds this to
+ * that file, so change them together or the test says so.
+ *
+ * This used to take the first CHARACTER of the first and last word, whatever it was.
+ * An unnamed contact displays as its formatted number, so the badge was handed
+ * `(415) 555-0134` and wore `(5` — on the contacts list and the thread header, which
+ * is the busiest screen in the app.
+ *
+ * Code points, not code units and not grapheme clusters. See the shared module for
+ * why: three implementations each "correct" against a different Unicode table is how
+ * this drifts apart again.
+ */
 fun initialsOf(name: String?): String {
     val trimmed = name?.trim().orEmpty()
-    if (trimmed.isEmpty()) return "#"
-    val parts = trimmed.split(Regex("\\s+")).filter { it.isNotEmpty() }
-    return when {
-        parts.size >= 2 -> "${parts.first().first()}${parts.last().first()}".uppercase()
-        else -> trimmed.take(2).uppercase()
+    if (trimmed.isEmpty()) return "?"
+    // No letter anywhere means this is not a name — it is the number we show instead
+    // of one, and `(5` is not initials.
+    if (trimmed.codePoints().noneMatch { Character.isLetter(it) }) return "#"
+
+    val words = trimmed.split(Regex("\\s+")).filter { word ->
+        word.codePoints().anyMatch { isGlyph(it) }
     }
+    if (words.isEmpty()) return "?"
+    if (words.size == 1) {
+        return words[0].codePoints()
+            .filter { isGlyph(it) }
+            .limit(2)
+            .toArray()
+            .let { String(it, 0, it.size) }
+            .uppercase()
+    }
+    return (firstGlyph(words.first()) + firstGlyph(words.last())).uppercase()
+}
+
+/** A character worth showing: a letter or a digit, never punctuation. */
+private fun isGlyph(codePoint: Int): Boolean =
+    Character.isLetter(codePoint) || Character.isDigit(codePoint)
+
+/** The first letter-or-digit in a word, or "" if it has none. */
+private fun firstGlyph(word: String): String {
+    val found = word.codePoints().filter { isGlyph(it) }.findFirst()
+    return if (found.isPresent) String(Character.toChars(found.asInt)) else ""
 }
 
 /** '(415) 555-0134' for +1 NANP numbers, raw otherwise. */

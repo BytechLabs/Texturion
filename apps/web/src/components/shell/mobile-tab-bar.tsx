@@ -9,10 +9,11 @@ import { useActiveCompany } from "@/lib/company/provider";
 import { useForYouNotificationsRealtime } from "@/lib/realtime/for-you-notifications";
 import { cn } from "@/lib/utils";
 
-import { avatarInitials } from "./avatar-color";
+
 import { MobileAccountSheet } from "./mobile-account-sheet";
 import { isNavActive, MOBILE_NAV } from "./nav";
 import { useNavCounts } from "./use-nav-counts";
+import { avatarInitials } from "@loonext/shared";
 
 /** Counts above this render as `9+` (the calm numeral cap, PORTAL-UX §1.1). */
 function cap(n: number): string {

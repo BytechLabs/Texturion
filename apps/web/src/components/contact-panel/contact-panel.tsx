@@ -6,11 +6,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { contactRelationshipLine } from "@loonext/shared";
+import { contactRelationshipLine , avatarInitials } from "@loonext/shared";
 
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import { StatusPill } from "@/components/inbox/status-pill";
-import { avatarColorClass, avatarInitials } from "@/components/shell/avatar-color";
+import { avatarColorClass } from "@/components/shell/avatar-color";
 import { AttachmentsClump } from "@/components/thread/attachments-gallery";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

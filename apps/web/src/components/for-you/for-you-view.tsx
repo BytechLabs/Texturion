@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { toast } from "sonner";
 
-import { avatarInitials } from "@/components/shell/avatar-color";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { Button } from "@/components/ui/button";
 import { useLeaveTransition } from "@/components/ui/motion";
@@ -48,6 +47,7 @@ import {
   dashboardTiles,
   type DashboardTile,
   type DashboardTileId,
+  avatarInitials,
 } from "@loonext/shared";
 import { cn } from "@/lib/utils";
 

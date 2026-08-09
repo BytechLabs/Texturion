@@ -304,6 +304,18 @@ jobs:
       - name: Guard the shared barrel
         run: node scripts/check-shared-barrel.mjs
 
+      # #582: the two letters in an avatar were computed EIGHT times — the issue found
+      # five, this guard found three more in the marketing pages on its first run. Two
+      # of the five disagreed on one screen, so a contact was two people at a glance,
+      # and both phones showed `(5` for every unnamed contact because the badge is
+      # handed a formatted phone number.
+      #
+      # One of them had already been fixed once; the fix landed in one copy and the
+      # other four kept the bug. Counting declarations is the cheap half of stopping a
+      # ninth — the #376 parity vectors are the half that catches a port that drifts.
+      - name: Guard the avatar initials rule
+        run: node scripts/check-avatar-initials.mjs
+
       # #554: a customer replied "1" to "how did it go?" and nobody was told.
       # `job_rated` was inserted by shipped code and had never been added to
       # `conversation_event_type`, so the insert raised at runtime, the caller

@@ -3,6 +3,7 @@ package com.loonext.android.core.model
 import com.loonext.android.features.compose.Nanp
 import com.loonext.android.features.compose.SmsEncoding
 import com.loonext.android.features.compose.estimateSegments
+import com.loonext.android.ui.common.initialsOf
 import java.io.File
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -58,6 +59,12 @@ class ParityVectorsTest {
         val reason: String,
         val recognised: Boolean,
         val field: String? = null,
+    )
+
+    @Serializable
+    private data class AvatarInitialsVector(
+        val name: String,
+        val initials: String,
     )
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -157,6 +164,24 @@ class ParityVectorsTest {
             // timezone here would text somebody at 3am.
             assertEquals("timezone for ${case.e164}", case.timezone, entry?.timezone)
             assertEquals("country for ${case.e164}", case.country, entry?.country)
+        }
+    }
+
+    @Test
+    fun `avatar initials agree with the TypeScript`() {
+        // #582: this rule existed FIVE times and the five disagreed. Two of them
+        // disagreed on one screen, so a contact was two people at a glance, and this
+        // phone showed `(5` for every unnamed contact — the badge is handed a
+        // formatted number and the old code took its first character.
+        //
+        // There is one implementation now. This is what keeps the hand-port on it.
+        val cases =
+            json.decodeFromString<List<AvatarInitialsVector>>(vectors("avatar-initials.json"))
+        assertTrue("no avatar-initials vectors", cases.isNotEmpty())
+        for (case in cases) {
+            // The label names the INPUT, so a failure says which name diverged rather
+            // than which line of a JSON file.
+            assertEquals("initials for '${case.name}'", case.initials, initialsOf(case.name))
         }
     }
 }

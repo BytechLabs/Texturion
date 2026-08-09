@@ -41,6 +41,11 @@ final class ParityVectorsTests: XCTestCase {
         let field: String?
     }
 
+    private struct AvatarInitialsVector: Decodable {
+        let name: String
+        let initials: String
+    }
+
     /// Walk UP to the repo root from this source file rather than counting
     /// directories. The test bundle's own resources would be a COPY of the
     /// vectors, which is a fourth place the cases live — the exact problem this
@@ -143,6 +148,27 @@ final class ParityVectorsTests: XCTestCase {
                 Nanp.destinationCountry(c.e164),
                 c.country,
                 "country for \(c.e164)"
+            )
+        }
+    }
+
+    func testAvatarInitialsAgreeWithTheTypeScript() throws {
+        // #582: this rule existed FIVE times and the five disagreed. Two of them
+        // disagreed on one screen, so a contact was two people at a glance, and this
+        // phone showed `(5` for every unnamed contact — the badge is handed a
+        // formatted number and the old code took its first character.
+        //
+        // There is one implementation now. This is what keeps the hand-port on it,
+        // including the case Swift would otherwise get "right" differently: a
+        // decomposed accent, where a grapheme cluster and a scalar disagree.
+        let cases = try vectors("avatar-initials.json", as: [AvatarInitialsVector].self)
+        XCTAssertFalse(cases.isEmpty, "no avatar-initials vectors")
+        for one in cases {
+            // Names the INPUT, so a failure says which name diverged rather than
+            // which line of a JSON file.
+            XCTAssertEqual(
+                initialsOf(one.name), one.initials,
+                "initials for '\(one.name)'"
             )
         }
     }

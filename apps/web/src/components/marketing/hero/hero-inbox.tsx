@@ -1,5 +1,7 @@
 "use client";
 
+import { avatarInitials } from "@loonext/shared";
+
 /**
  * The hero inbox (P5-SPEC §"Coupling to the real DOM"): REAL conversation-row
  * patterns rendering with the app's own tokens (the app's petrol accents, the
@@ -27,13 +29,6 @@ import {
 } from "./arrival-script";
 
 /** Initials the way the app's avatar draws them ("Karen M" → "KM"). */
-function initials(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "?";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
-}
-
 interface RowState {
   /** Index into ARRIVAL_SCRIPT. */
   idx: number;
@@ -65,7 +60,7 @@ function InboxRow({ row }: { row: RowState }) {
         aria-hidden
         className="app-ava-petrol grid size-[36px] shrink-0 place-items-center rounded-xl text-[12.5px] font-semibold"
       >
-        {initials(item.name)}
+        {avatarInitials(item.name)}
       </span>
 
       <span className="min-w-0 flex-1">

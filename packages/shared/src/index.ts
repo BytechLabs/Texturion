@@ -902,6 +902,10 @@ export {
 // sentences, because a client that can read the words but not the destination is
 // exactly the client that posts the digits at the wrong end. Two of these kinds share
 // their sentence word for word and do not share a destination.
+// #582 — the two letters in an avatar, decided ONCE. They were computed five
+// separate times and the five disagreed, two of them on the same screen.
+export { avatarInitials } from "./avatar-initials";
+
 export {
   HANDOVER_CODE_DESTINATION,
   HANDOVER_CONFIRM_FIELD,

@@ -82,6 +82,7 @@ import { join } from "node:path";
 import { estimateSegments } from "../packages/shared/src/segments.ts";
 import { isUsCaDestination, lookupAreaCode } from "../packages/shared/src/nanp.ts";
 import { explainRejection } from "../packages/shared/src/rejection-guidance.ts";
+import { avatarInitials } from "../packages/shared/src/avatar-initials.ts";
 
 const OUT_DIR = join("packages", "shared", "vectors");
 
@@ -228,10 +229,61 @@ function rejectionVectors() {
   });
 }
 
+/**
+ * #582 — the two letters in an avatar.
+ *
+ * It earned a place here the way `rejections` did: by having been wrong. The rule
+ * existed FIVE times and the five disagreed — two of them on one screen, so one
+ * contact was two people at a glance, and both phones showed `(5` for every unnamed
+ * contact because the badge is handed a formatted phone number and they took its
+ * first character. There is one implementation now, and these are what hold the two
+ * hand-ports to it.
+ *
+ * Chosen for the boundaries a reimplementation gets wrong rather than for typical
+ * names: a middle name (first-plus-LAST, the case that differed), a name that is
+ * really a phone number, a leading digit, punctuation-only words, and characters
+ * outside the basic plane — where indexing by code unit returns half a character.
+ */
+const AVATAR_INITIALS_INPUTS = [
+  "Sam Founder",
+  // The disagreement that was visible on one screen.
+  "Ana Maria Rojas",
+  "Maria de los Angeles Cruz",
+  // An unnamed contact shows as its formatted number. `(5` is not initials.
+  "(415) 555-0134",
+  "+1 415 555 0134",
+  "",
+  "   ",
+  "--",
+  "Cher",
+  "X",
+  // A business is allowed to start with a digit.
+  "4th Street Deli",
+  "24 Hour Plumbing",
+  "Jean - Rojas",
+  // A letter built from a surrogate pair must survive whole.
+  "\u{1D49C}lice Rojas",
+  // An emoji is neither letter nor digit: the word is skipped and the name wins.
+  "\u{1F642} Rojas",
+  "Ana\u{1F642} Rojas",
+  // Precomposed, then DECOMPOSED. Both must answer the same on all three clients.
+  "\u00C9mile Zola",
+  "E\u0301mile Zola",
+  "ana rojas",
+];
+
+function avatarInitialsVectors() {
+  return AVATAR_INITIALS_INPUTS.map((name) => ({
+    name,
+    initials: avatarInitials(name),
+  }));
+}
+
 const FILES = {
   "segments.json": segmentVectors,
   "nanp.json": nanpVectors,
   "rejections.json": rejectionVectors,
+  "avatar-initials.json": avatarInitialsVectors,
 };
 
 const check = process.argv.includes("--check");

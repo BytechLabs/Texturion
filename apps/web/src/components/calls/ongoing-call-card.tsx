@@ -25,15 +25,13 @@
 import { useEffect, useState } from "react";
 
 import { callerName } from "@/components/calls/call-row";
-import {
-  avatarColorClass,
-  avatarInitials,
-} from "@/components/shell/avatar-color";
+import { avatarColorClass } from "@/components/shell/avatar-color";
 import { useNumbers } from "@/lib/api/numbers";
 import { useMembers } from "@/lib/api/team";
 import type { Call } from "@/lib/api/types";
 import { formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
+import { avatarInitials } from "@loonext/shared";
 
 /**
  * A row still holding the line: outcome unstamped AND the #208 state mirror

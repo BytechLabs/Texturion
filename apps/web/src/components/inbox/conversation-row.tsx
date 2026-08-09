@@ -10,6 +10,7 @@ import {
   mmsMediaKind,
   URGENT_BADGE_LABEL,
   type MmsMediaKind,
+  avatarInitials,
 } from "@loonext/shared";
 import { attachmentLabel, sharedMediaKind } from "@/lib/attachments/media-label";
 import type { ThreadData } from "@/lib/api/cache";
@@ -29,7 +30,7 @@ import { cn } from "@/lib/utils";
 import { isSnoozed } from "@/lib/api/filters";
 import { snoozeReturnLabel } from "../thread/snooze-menu";
 
-import { avatarColorClass, avatarInitials } from "../shell/avatar-color";
+import { avatarColorClass } from "../shell/avatar-color";
 import { useMemberNames } from "./member-avatar";
 
 /** The fixed row height the virtualizer estimates (avatar + name + 2-line

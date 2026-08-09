@@ -66,15 +66,58 @@ func absoluteTime(_ iso: String, calendar: Calendar = .current) -> String {
     return formatter.string(from: date)
 }
 
-/// Flat avatar initials: "Dana Whitcomb" → "DW", "cher" → "CH", empty → "#".
+/// #582 — the two letters in an avatar. The hand-port of
+/// `packages/shared/src/avatar-initials.ts`; `AvatarInitialsParityTests` holds this to
+/// that file, so change them together or the test says so.
+///
+/// This used to take the first CHARACTER of the first and last word, whatever it was.
+/// An unnamed contact displays as its formatted number, so the badge was handed
+/// `(415) 555-0134` and wore `(5` — on the contacts list and the thread header, which
+/// is the busiest screen in the app.
+///
+/// Unicode SCALARS rather than Swift `Character`s, deliberately. A `Character` is a
+/// grapheme cluster and would be the prettier answer here — a decomposed "É" would
+/// stay "É" — but TypeScript and Kotlin reach for two different APIs built on two
+/// different Unicode tables to do the same, and three implementations each correct
+/// against a different table is how this drifts apart again. Scalars are the same
+/// operation in all three, which is what lets the parity test hold them together.
+///
+/// "Dana Whitcomb" → "DW", "Ana Maria Rojas" → "AR", "cher" → "CH",
+/// "(415) 555-0134" → "#", "" → "?".
 func initialsOf(_ name: String?) -> String {
     let trimmed = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-    if trimmed.isEmpty { return "#" }
-    let parts = trimmed.split(whereSeparator: { $0.isWhitespace })
-    if parts.count >= 2, let first = parts.first?.first, let last = parts.last?.first {
-        return String([first, last]).uppercased()
+    if trimmed.isEmpty { return "?" }
+    // No letter anywhere means this is not a name — it is the number we show instead
+    // of one, and `(5` is not initials.
+    if !trimmed.unicodeScalars.contains(where: { isLetterScalar($0) }) { return "#" }
+
+    let words = trimmed
+        .split(whereSeparator: { $0.isWhitespace })
+        .filter { word in word.unicodeScalars.contains(where: { isGlyphScalar($0) }) }
+    if words.isEmpty { return "?" }
+    if words.count == 1 {
+        let glyphs = words[0].unicodeScalars.filter { isGlyphScalar($0) }.prefix(2)
+        return String(String.UnicodeScalarView(glyphs)).uppercased()
     }
-    return String(trimmed.prefix(2)).uppercased()
+    return (firstGlyph(words[0]) + firstGlyph(words[words.count - 1])).uppercased()
+}
+
+/// A letter, by Unicode general category.
+private func isLetterScalar(_ scalar: Unicode.Scalar) -> Bool {
+    scalar.properties.isAlphabetic
+}
+
+/// A character worth showing: a letter or a digit, never punctuation.
+private func isGlyphScalar(_ scalar: Unicode.Scalar) -> Bool {
+    isLetterScalar(scalar) || scalar.properties.numericType != nil
+}
+
+/// The first letter-or-digit in a word, or "" if it has none.
+private func firstGlyph(_ word: Substring) -> String {
+    guard let scalar = word.unicodeScalars.first(where: { isGlyphScalar($0) }) else {
+        return ""
+    }
+    return String(Character(scalar))
 }
 
 /// A not-done task whose due date is in the past.

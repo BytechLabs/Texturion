@@ -17,12 +17,13 @@ import {
 } from "@/components/calls/voicemail-player";
 import { VoicemailIntakeSummary } from "@/components/calls/voicemail-intake-summary";
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
-import { avatarColorClass, avatarInitials } from "@/components/shell/avatar-color";
+import { avatarColorClass } from "@/components/shell/avatar-color";
 import type { Call } from "@/lib/api/types";
 import { callOutcomeLabel } from "@/lib/format/call";
 import { formatPhone } from "@/lib/format/phone";
 import { formatRelativeTime } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
+import { avatarInitials } from "@loonext/shared";
 
 /** The one caller-identity resolution (#210 reuses it on the Ongoing card):
  *  linked contact name, else the CNAM dip, else the formatted number. */
