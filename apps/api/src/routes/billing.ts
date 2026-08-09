@@ -72,6 +72,7 @@ import { payPendingReferralRewards } from "../referrals/referrals";
 import { getStripe, type Stripe } from "../billing/stripe";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
+import { callerIp } from "../public-links/guard";
 import { getEnv, type Env } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { expectOk, parseJsonBody } from "./core/http";
@@ -232,6 +233,35 @@ billingRoutes.use("*", requireCapability("billing.manage"));
 billingRoutes.post("/checkout", async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
+
+  /**
+   * #581/#586: the burst limit SPEC.md said was at the front door.
+   *
+   * It was not. Forty back-to-back POSTs from one IP on 2026-08-09 all answered
+   * 401 — no 429 anywhere — so the documented Cloudflare rule either does not exist
+   * or does not match this path. Enforced here instead, where it can be read from a
+   * clone, reviewed in a diff and tested.
+   *
+   * FIRST in the handler, before the body is parsed and before any read: the cost
+   * being bounded is the whole request, and a limiter that runs after the work is a
+   * limiter that pays for it.
+   *
+   * Keyed on IP because a checkout is how somebody with no subscription gets one —
+   * there is an account, but nothing per-tenant worth bounding, and the abuse shape
+   * is one host hammering the path. Absent binding → skipped, like every other
+   * limiter in this Worker, so dev and tests are unchanged.
+   */
+  const limiter = env.CHECKOUT_RATE_LIMITER;
+  if (limiter) {
+    const { success } = await limiter.limit({ key: `checkout:${callerIp(c)}` });
+    if (!success) {
+      return errorResponse(
+        c,
+        "rate_limited",
+        "Too many checkout attempts. Wait a minute and try again.",
+      );
+    }
+  }
 
   const parsed = planBodySchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) {

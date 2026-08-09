@@ -395,6 +395,30 @@ const envSchema = z.object({
   ATTACHMENT_URL_RATE_LIMITER: rateLimiterSchema.optional(),
 
   /**
+   * #581/#586 — the checkout burst limit, keyed on IP, brought into the repo.
+   *
+   * `SPEC.md` §"Front door" has documented "Cloudflare WAF rate-limiting rule on
+   * `/v1/billing/checkout` (10 req/min/IP)" for months. On 2026-08-09 I sent 40
+   * back-to-back unauthenticated POSTs to that path from one IP: 39 answered 401
+   * and one connection reset. No 429, ever. The rule is not in effect.
+   *
+   * The point is not the missing rule; it is that nobody could tell. A control that
+   * lives only in a dashboard cannot be read from a clone, cannot be reviewed in a
+   * diff, and cannot be tested — so a documented protection and an absent one look
+   * identical from here, which is how this went unnoticed. The Worker's own limiter
+   * bindings are the opposite of that in every respect, so the limit lives here now
+   * and the doc says what the code does.
+   *
+   * 10/60s matches the number the spec already promised. Keyed on IP rather than on
+   * the company, because a checkout attempt is how somebody who has no subscription
+   * yet gets one — the account exists but there is nothing per-tenant to bound.
+   *
+   * OPTIONAL, like every other limiter here: absent binding → gate skipped, so dev
+   * and tests behave as they always have.
+   */
+  CHECKOUT_RATE_LIMITER: rateLimiterSchema.optional(),
+
+  /**
    * #335: the public-link surface (D75). Unauthenticated by design, so keyed
    * on IP — there is no account to key on. Optional in src/env.ts → dev/tests
    * skip it, like every other limiter here.

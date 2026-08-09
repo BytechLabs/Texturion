@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { billingRoutes } from "./billing";
 import type { AppEnv, MemberRole } from "../context";
+import type { Env } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import {
   countResponse,
@@ -50,6 +51,13 @@ async function post(
   body: unknown,
   harness: Harness,
   role: MemberRole = "owner",
+  /**
+   * #581/#586: an env with a rate-limiter binding, and the caller's IP.
+   *
+   * Optional so every existing call is unchanged — absent limiter means the gate is
+   * skipped, which is how this Worker's other limiters behave in dev and in tests.
+   */
+  options: { env?: Env; ip?: string } = {},
 ): Promise<Response> {
   stubFetch(harness.route);
   return makeApp(role).request(
@@ -57,9 +65,12 @@ async function post(
     {
       method: "POST",
       body: body === undefined ? undefined : JSON.stringify(body),
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.ip ? { "CF-Connecting-IP": options.ip } : {}),
+      },
     },
-    env,
+    options.env ?? env,
   );
 }
 
@@ -2263,5 +2274,66 @@ describe("#277 the seasonal pause", () => {
       reason: "subscription_unhealthy",
       monthly_cents: null,
     });
+  });
+});
+
+describe("POST /v1/billing/checkout — the burst limit (#581/#586)", () => {
+  /**
+   * SPEC.md promised "Cloudflare WAF rate-limiting rule on /v1/billing/checkout
+   * (10 req/min/IP)" for months. Measured against production on 2026-08-09: 40
+   * back-to-back POSTs from one IP, 39 answered 401 and one connection reset, no 429
+   * at any point. The rule was not in effect.
+   *
+   * The missing rule is not really the finding. The finding is that nobody could tell:
+   * a control that lives only in a dashboard cannot be read from a clone, reviewed in
+   * a diff, or tested, so a documented protection and an absent one look identical
+   * from in here. These two tests are the difference.
+   */
+  it("refuses over budget, before doing any work", async () => {
+    const limit = vi.fn(async () => ({ success: false }));
+    const harness = makeHarness([]);
+
+    const response = await post("/v1/billing/checkout", { plan: "starter" }, harness, "owner", {
+      env: { ...env, CHECKOUT_RATE_LIMITER: { limit } },
+      ip: "203.0.113.7",
+    });
+
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({
+      error: { code: "rate_limited", message: expect.any(String) },
+    });
+    expect(limit).toHaveBeenCalledExactlyOnceWith({ key: "checkout:203.0.113.7" });
+    // Nothing was read and nothing was composed. A limiter that runs after the work
+    // is a limiter that pays for it.
+    expect(harness.calls).toHaveLength(0);
+  });
+
+  it("lets an ordinary attempt through, keyed on the caller's IP", async () => {
+    const limit = vi.fn(async () => ({ success: true }));
+    const harness = makeHarness([
+      companyEndpoint(companyRow({ country: "CA", us_texting_enabled: false })),
+      checkoutSessionEndpoint(),
+    ]);
+
+    const response = await post("/v1/billing/checkout", { plan: "starter" }, harness, "owner", {
+      env: { ...env, CHECKOUT_RATE_LIMITER: { limit } },
+      ip: "203.0.113.9",
+    });
+
+    expect(response.status).toBe(200);
+    expect(limit).toHaveBeenCalledExactlyOnceWith({ key: "checkout:203.0.113.9" });
+  });
+
+  it("is skipped entirely when the binding is absent", async () => {
+    // Dev and every other suite in this file. The gate must not become a reason the
+    // route behaves differently locally than it does in production.
+    const harness = makeHarness([
+      companyEndpoint(companyRow({ country: "CA", us_texting_enabled: false })),
+      checkoutSessionEndpoint(),
+    ]);
+
+    const response = await post("/v1/billing/checkout", { plan: "starter" }, harness);
+
+    expect(response.status).toBe(200);
   });
 });
