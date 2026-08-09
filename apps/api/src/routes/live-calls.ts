@@ -16,13 +16,20 @@
  * leaves its number, a consult is its own two-party call, and no Telnyx
  * conference is ever created.
  *
- * #581 — company + live + #106 'text' is the WHOLE actor boundary. These routes
- * are CREW-SHARED by decision: no route here asks who answered the call, so any
- * member with 'text' on the number may transfer, consult on, or complete a call
- * a teammate is holding. That is the product (the crew covers each other's
- * calls; a phone put down mid-job is somebody else's to pick up), not an
- * oversight — do not add an actor check to one route and leave the others,
- * which is how a boundary ends up half-true.
+ * #581 — company + live + #106 'text' is the WHOLE actor boundary FOR THE FIVE
+ * CONTROL ROUTES ABOVE. They are CREW-SHARED by decision: none of them asks who
+ * answered the call, so any member with 'text' on the number may transfer,
+ * consult on, or complete a call a teammate is holding. That is the product (the
+ * crew covers each other's calls; a phone put down mid-job is somebody else's to
+ * pick up), not an oversight — do not add an actor check to one of those five and
+ * leave the others, which is how a boundary ends up half-true.
+ *
+ * Two routes in this file are NOT in that set and must not be read as if they
+ * were. `GET /calls/live/mine` scopes on `answered_by_user_id` — the whole point
+ * of it is "the call I am on" — and `POST /calls/live/decline-mine` acts only on
+ * sessions this member was actually rung for. The sentence above said "no route
+ * here" for as long as both of those existed, which is how somebody comes to
+ * believe a per-member scope is absent from a file that has two of them.
  */
 import { Hono, type Context } from "hono";
 import { z } from "zod";
@@ -287,12 +294,23 @@ liveCallsRoutes.post(
     );
     // #106 (#581): resolved once for the fan-out, not per session. Owners and
     // admins cost zero queries here.
-    const access = await resolveNumberAccess(db, {
-      companyId,
-      userId,
-      role: c.get("role"),
-    });
-    const hidden = new Set(access.hiddenNumberIds ?? []);
+    //
+    // And not at all when nothing is ringing, which is the overwhelmingly common
+    // case: a member tapping decline on a notification that has already been
+    // answered elsewhere, or a stale one. There is nothing to hide a number from
+    // when there are no sessions, so this was a database round trip bought on
+    // every no-op decline in the product.
+    const hidden = new Set<string>(
+      rows.length === 0
+        ? []
+        : ((
+            await resolveNumberAccess(db, {
+              companyId,
+              userId,
+              role: c.get("role"),
+            })
+          ).hiddenNumberIds ?? []),
+    );
 
     // Route the existing DO.decline into each; collect ONLY the sessions this
     // member was genuinely a target of (declined:true). We never enumerate the

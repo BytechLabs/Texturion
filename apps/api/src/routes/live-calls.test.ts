@@ -851,6 +851,26 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     });
   }
 
+  it("#581: asks nobody about number access when nothing is ringing", async () => {
+    // The overwhelmingly common decline: a member tapping a notification for a call
+    // that has already been answered elsewhere, or a stale one. There is nothing to
+    // hide a number FROM when there are no sessions, so resolving #106 access here
+    // was a database round trip bought on every no-op decline in the product.
+    const routed: { sessionId: string; userId: string }[] = [];
+    const doEnv: Env = { ...env, CALL_SESSIONS: fakeSessions({}, routed) };
+    const sb = world([]);
+
+    const res = await post(doEnv, sb);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ declined: false, sessions: [] });
+    expect(
+      sb.find("POST", "/rest/v1/rpc/member_number_levels"),
+      "resolved number access with no ringing session to apply it to",
+    ).toHaveLength(0);
+    expect(routed).toHaveLength(0);
+  });
+
   it("declines the one session ringing me (solo → the DO resolves to voicemail)", async () => {
     const routed: { sessionId: string; userId: string }[] = [];
     const doEnv: Env = {
