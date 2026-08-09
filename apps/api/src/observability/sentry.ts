@@ -201,8 +201,42 @@ function scrubUnknown(value: unknown): unknown {
  * `beforeBreadcrumb`. Almost every crumb in this Worker is `fetchIntegration`'s,
  * so this is the hook that cuts an outbound URL — before the crumb is added to
  * the scope, rather than only on the way out with an event.
+ *
+ * # Console crumbs are DROPPED, and that is a decision (#585)
+ *
+ * `consoleIntegration` is on by default and turns every `console.error` into a
+ * crumb carrying the formatted `message` and a `data.arguments` array of the raw
+ * values. Everything else this file does is keyed on a field NAME — `url`,
+ * `*_name` — and free text has no field name, so a URL interpolated into a log
+ * line, or sitting inside that arguments array, walks straight past all of it.
+ *
+ * The alternative was a URL-shaped regex over the message and over every string
+ * in the arguments. It was rejected, and not on taste:
+ *
+ *   * **It cannot be complete.** A pattern list is a vocabulary, and the next
+ *     thing worth redacting is always the one not in it — a split URL, an encoded
+ *     one, a bare street address, a typed search term. SPEC §10 states as a
+ *     COMMITMENT that "message bodies, names, addresses, and phone numbers never
+ *     reach Sentry". A commitment cannot rest on a matcher that is definitionally
+ *     incomplete, and a passing test over the patterns somebody thought of reads
+ *     as proof that it is.
+ *   * **It would mangle honest log lines**, truncating any message that merely
+ *     mentions a path at its first `?`.
+ *
+ * WHAT IS ACTUALLY LOST IS SMALL, because the crumb was a duplicate of a log we
+ * already keep. `consoleIntegration` instruments console; it does not replace it,
+ * so every `console.error` still reaches Cloudflare Workers Logs in full, and
+ * `captureException` still carries the route tag and the ray id that joins an
+ * event to those lines. The trail did not disappear — it stayed in our own log
+ * store instead of being copied to a third party's.
+ *
+ * Structural rather than filtered, so it cannot drift: no console output reaches
+ * Sentry at all, whatever a future `console.error` decides to interpolate.
  */
-export function scrubBreadcrumb(breadcrumb: Breadcrumb): Breadcrumb {
+export function scrubBreadcrumb(breadcrumb: Breadcrumb): Breadcrumb | null {
+  // #585. Returning null drops the crumb — `addBreadcrumb` bails on a null
+  // `beforeBreadcrumb` result before it ever reaches the scope.
+  if (breadcrumb.category === "console") return null;
   if (breadcrumb.message) {
     breadcrumb.message = redactPhones(breadcrumb.message);
   }
@@ -239,7 +273,13 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent {
     }
   }
   if (event.breadcrumbs) {
-    event.breadcrumbs = event.breadcrumbs.map(scrubBreadcrumb);
+    // #585: `scrubBreadcrumb` can now drop a crumb entirely, so this filters
+    // rather than maps. Belt and braces — `beforeBreadcrumb` already refused the
+    // console ones on the way in — but an event can carry crumbs attached by
+    // other means, and the two must not disagree about what is allowed out.
+    event.breadcrumbs = event.breadcrumbs
+      .map(scrubBreadcrumb)
+      .filter((crumb): crumb is Breadcrumb => crumb !== null);
   }
   if (event.request) {
     delete event.request.data; // request bodies never leave the Worker (§10)

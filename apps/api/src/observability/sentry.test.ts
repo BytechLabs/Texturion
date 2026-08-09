@@ -158,9 +158,28 @@ describe("scrubEvent (SPEC §10: no bodies, names, or phone numbers reach Sentry
   });
 });
 
+/**
+ * `scrubBreadcrumb` for a crumb that is expected to SURVIVE.
+ *
+ * #585 gave the scrubber a second answer — console crumbs are dropped and it
+ * returns null — so every existing call site had to say which it expected. This
+ * says "kept", and fails loudly rather than throwing on a property of null, so a
+ * future change that starts dropping one of these is a readable failure.
+ */
+function kept(breadcrumb: Parameters<typeof scrubBreadcrumb>[0]) {
+  const crumb = scrubBreadcrumb(breadcrumb);
+  if (crumb === null) {
+    throw new Error(
+      `scrubBreadcrumb dropped a crumb this test expects to survive: ` +
+        JSON.stringify(breadcrumb),
+    );
+  }
+  return crumb;
+}
+
 describe("scrubBreadcrumb (beforeBreadcrumb defense-in-depth)", () => {
   it("redacts phones in message and data", () => {
-    const crumb = scrubBreadcrumb({
+    const crumb = kept({
       message: `sms to ${PHONE}`,
       data: { name: "Jane" },
     });
@@ -342,7 +361,7 @@ const FETCH_SINKS: readonly (readonly [
 describe("#581 an outbound fetch breadcrumb never carries its query string", () => {
   it.each(FETCH_SINKS)("cuts %s", (_what, url, secret, cut) => {
     // The exact crumb fetchIntegration writes: { method, url, status_code }.
-    const crumb = scrubBreadcrumb({
+    const crumb = kept({
       category: "fetch",
       type: "http",
       data: { method: "GET", url, status_code: 500 },
@@ -394,7 +413,7 @@ describe("#581 an outbound fetch breadcrumb never carries its query string", () 
     // while the credential ships — which is why TOKEN_PATH_PREFIXES exists for
     // the shape where the path IS the secret.
     const [, url] = FETCH_SINKS[4];
-    const cut = scrubBreadcrumb({ data: { url } }).data?.url as string;
+    const cut = kept({ data: { url } }).data?.url as string;
     expect(cut).not.toContain("X-Amz-Signature");
     expect(cut).not.toContain("X-Amz-Credential");
     expect(cut).not.toContain("X-Amz-Expires");
@@ -405,8 +424,81 @@ describe("#581 an outbound fetch breadcrumb never carries its query string", () 
     // `to`/`from` are navigation keys in the browser twin and destination
     // numbers here. Both arms end in redactPhones, so adopting the twin's
     // pattern wholesale cannot under-redact — this is the case that proves it.
-    expect(scrubBreadcrumb({ data: { to: PHONE } }).data?.to).toBe(
-      "[phone redacted]",
+    expect(kept({ data: { to: PHONE } }).data?.to).toBe("[phone redacted]");
+  });
+});
+
+describe("#585 a URL cannot reach Sentry through a console crumb", () => {
+  /**
+   * The gap this closes. Every other rule in the scrubber is keyed on a field
+   * NAME — `url`, `*_name` — and `consoleIntegration` produces free text plus an
+   * array of raw values, neither of which has a field name. A URL interpolated
+   * into a log line walked past all of it.
+   *
+   * These plant the exact crumb `consoleIntegration` builds — `category:
+   * "console"`, `data.arguments` holding the raw values, `message` holding the
+   * formatted string — rather than a hand-made approximation, because the shape
+   * is the whole point and a friendlier fixture would prove nothing.
+   */
+  const SIGNED =
+    "https://s3.telnyx.example/rec/abc.mp3?X-Amz-Signature=deadbeef&X-Amz-Expires=600";
+
+  /** What `consoleIntegration` builds for `console.error(...args)`. */
+  const consoleCrumb = (...args: unknown[]) => ({
+    category: "console",
+    level: "error" as const,
+    message: args.map(String).join(" "),
+    data: { arguments: args, logger: "console" },
+  });
+
+  it("drops a URL interpolated into the message", () => {
+    expect(scrubBreadcrumb(consoleCrumb(`fetch failed for ${SIGNED}`))).toBeNull();
+  });
+
+  it("drops a URL sitting in the raw arguments array", () => {
+    // The half a message-only regex would miss even if one existed: `arguments`
+    // holds the unformatted values, so an object logged as a second argument
+    // carries every field it has.
+    expect(
+      scrubBreadcrumb(consoleCrumb("voicemail download failed", { url: SIGNED })),
+    ).toBeNull();
+  });
+
+  it("drops an ordinary console line too, not just the ones that look risky", () => {
+    // Structural, not filtered. If this returned the crumb for "harmless" text,
+    // the rule would be a matcher again — and the next thing worth redacting is
+    // always the one nobody put in the list.
+    expect(scrubBreadcrumb(consoleCrumb("reconcile pass complete"))).toBeNull();
+  });
+
+  it("keeps the fetch crumb, which is the one worth having", () => {
+    // The trade is deliberate and narrow: console output is a duplicate of a log
+    // we already keep in full, while with tracesSampleRate 0 the fetch crumb is
+    // the ONLY record of which upstream call preceded a crash.
+    const crumb = kept({
+      category: "fetch",
+      type: "http",
+      data: { method: "GET", url: SIGNED, status_code: 500 },
+    });
+    expect((crumb.data as Record<string, unknown>).url).toBe(
+      "https://s3.telnyx.example/rec/abc.mp3",
     );
+  });
+
+  it("an event carrying a console crumb has it removed on the way out", () => {
+    // `beforeBreadcrumb` refuses them on the way in, so this is the second belt:
+    // an event can arrive with crumbs attached by other means, and the two hooks
+    // must not disagree about what is allowed out.
+    const event = scrubEvent({
+      breadcrumbs: [
+        consoleCrumb(`fetch failed for ${SIGNED}`),
+        { category: "fetch", type: "http", data: { url: SIGNED } },
+      ],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    expect(event.breadcrumbs).toHaveLength(1);
+    expect(event.breadcrumbs?.[0].category).toBe("fetch");
+    expect(JSON.stringify(event)).not.toContain("X-Amz-Signature");
   });
 });
