@@ -382,6 +382,117 @@ describe("handle10dlcEvent — §4.4 webhook mapping", () => {
     expect(brandRowOf(rest).status).toBe("pending");
   });
 
+  it("#581/15: the transition writes only if the row is still where it was read", async () => {
+    /**
+     * The MECHANISM, asserted on the wire: the update carries the status it judged.
+     *
+     * Without it the gate is a check-then-act with a Telnyx round trip inside the
+     * window. Verifying a sole proprietor's OTP is what makes Telnyx flip the brand,
+     * so our own post-verify refresh and the signed webhook describe the same flip —
+     * both read `pending`, both pass, and both used to buy a campaign.
+     */
+    const { env, rest, telnyx, emails } = setup();
+    seedRows(rest, { status: "pending", telnyx_id: "brand-1" }, {});
+    telnyx.on("POST", /^\/v2\/10dlc\/campaignBuilder$/, () => ({
+      data: { campaignId: "camp-1" },
+    }));
+
+    const patches: URL[] = [];
+    // Records and falls through: returning undefined leaves the fake REST to answer.
+    const spy: FetchRoute = (url, request) => {
+      if (
+        request.method === "PATCH" &&
+        url.pathname.endsWith("/messaging_registrations")
+      ) {
+        patches.push(url);
+      }
+      return undefined;
+    };
+    stubFetch(spy, rest.route(), telnyx.route(), resendRoute(emails));
+
+    await handle10dlcEvent(env, brandEvent({ identityStatus: "VERIFIED" }));
+
+    expect(brandRowOf(rest).status).toBe("approved");
+    const transition = patches[0];
+    expect(transition, "no transition write was made at all").toBeDefined();
+    expect(
+      transition.searchParams.get("status"),
+      "the transition write is unconditional — two triggers reacting to one carrier " +
+        "event both pass the gate and both buy a campaign",
+    ).toBe("eq.pending");
+  });
+
+  it("#581/15: losing that race buys nothing and says nothing", async () => {
+    /**
+     * The BEHAVIOUR. A second trigger reaches the write and finds the status already
+     * moved, so it does nothing at all — no campaign purchase, no "your US texting is
+     * live", no second count in the one activation metric D12 rests on.
+     *
+     * The purchase is the part that lasts. The row keeps only the last campaign id, so
+     * a second one exists at the carrier with nothing here pointing at it, and its
+     * recurring monthly fee bills forever with nothing tracking it — deactivation can
+     * only ever reach the one we recorded.
+     */
+    const { env, rest, telnyx, emails } = setup();
+    seedRows(rest, { status: "pending", telnyx_id: "brand-1" }, {});
+    telnyx.on("POST", /^\/v2\/10dlc\/campaignBuilder$/, () => ({
+      data: { campaignId: "camp-1" },
+    }));
+
+    // Zero rows back: exactly what the database returns to the loser of the swap.
+    let lost = false;
+    const raceLoser: FetchRoute = (url, request) => {
+      if (
+        !lost &&
+        request.method === "PATCH" &&
+        url.pathname.endsWith("/messaging_registrations")
+      ) {
+        lost = true;
+        return Response.json([]);
+      }
+      return undefined;
+    };
+    stubFetch(raceLoser, rest.route(), telnyx.route(), resendRoute(emails));
+
+    await handle10dlcEvent(env, brandEvent({ identityStatus: "VERIFIED" }));
+
+    expect(lost, "the transition never attempted a write").toBe(true);
+    expect(
+      telnyx.callsTo("POST", /campaignBuilder/),
+      "bought a campaign on a transition somebody else had already applied",
+    ).toHaveLength(0);
+    expect(emails).toHaveLength(0);
+  });
+
+  it("#581/15: the paid campaign POST carries a deterministic key", async () => {
+    // The second line of defence on the one call here that spends money — two sibling
+    // Telnyx paths already send one and this sent none. Keyed on the counts as READ,
+    // so two racers reacting to the same approval compose the SAME key and Telnyx
+    // answers both with the first result, while a legitimate resubmission after a
+    // rejection has consumed a unit by then and correctly buys a new campaign.
+    const { env, rest, telnyx } = setup();
+    const { campaignRow } = seedRows(
+      rest,
+      { status: "pending", telnyx_id: "brand-1" },
+      {},
+    );
+    telnyx.on("POST", /^\/v2\/10dlc\/campaignBuilder$/, () => ({
+      data: { campaignId: "camp-1" },
+    }));
+
+    await handle10dlcEvent(env, brandEvent({ identityStatus: "VERIFIED" }));
+
+    const key = telnyx
+      .callsTo("POST", /campaignBuilder/)[0]
+      .headers.get("Idempotency-Key");
+    expect(key, "a paid POST with no idempotency key").toBeTruthy();
+    // Derived from the row and its budget counts, so it is stable for one attempt and
+    // different for the next one — a bare row id would make a rejected campaign's
+    // resubmission a no-op at Telnyx, which is the opposite failure.
+    expect(key).toContain(String(campaignRow.id));
+    expect(key).toBe(`10dlc-campaign:${campaignRow.id}:review:0:0`);
+  });
+
   it("brand VERIFIED → approved, and R2 submits the campaign", async () => {
     const { env, rest, telnyx } = setup();
     seedRows(rest, { status: "pending", telnyx_id: "brand-1" }, {});

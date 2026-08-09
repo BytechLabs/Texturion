@@ -150,6 +150,59 @@ async function findRowByTelnyxId(
   return (data?.[0] ?? null) as unknown as RegistrationRow | null;
 }
 
+/**
+ * #581/15 — the transition patch, applied ONLY if the row is still where we read it.
+ *
+ * `applyTransition` decides legality from a row read earlier and used to write it back
+ * unconditionally, which is a check-then-act with a Telnyx round trip inside the
+ * window. Verifying a sole proprietor's OTP is what makes Telnyx flip the brand, so our
+ * own post-verify refresh and the signed `10dlc.brand.update` webhook describe the same
+ * flip — both read `submitted`, both pass the gate, and both went on to buy a campaign.
+ *
+ * A campaign purchase is real money and the second one is INVISIBLE: the row keeps only
+ * the last `telnyx_id`, so the first campaign exists at the carrier with nothing here
+ * pointing at it, and its recurring monthly fee bills forever with nothing tracking it.
+ * Deactivation can only ever reach the one we recorded.
+ *
+ * Returning null rather than throwing: losing this race is the system working. Somebody
+ * else applied the transition, their side effects ran, and the right thing to do is
+ * nothing at all.
+ */
+async function applyTransitionPatch(
+  db: SupabaseClient,
+  rowId: string,
+  expectedStatus: string,
+  patch: Record<string, unknown>,
+): Promise<RegistrationRow | null> {
+  const { data, error } = await db
+    .from("messaging_registrations")
+    .update(patch)
+    .eq("id", rowId)
+    // The compare half of the swap. Zero rows means the status moved under us.
+    .eq("status", expectedStatus)
+    .select(ROW_COLUMNS);
+  if (error) {
+    throw new Error(`messaging_registrations update failed: ${error.message}`);
+  }
+  return (data?.[0] ?? null) as unknown as RegistrationRow | null;
+}
+
+/** The row as it stands now, by id. */
+async function loadRowById(
+  db: SupabaseClient,
+  rowId: string,
+): Promise<RegistrationRow | null> {
+  const { data, error } = await db
+    .from("messaging_registrations")
+    .select(ROW_COLUMNS)
+    .eq("id", rowId)
+    .limit(1);
+  if (error) {
+    throw new Error(`messaging_registrations lookup failed: ${error.message}`);
+  }
+  return (data?.[0] ?? null) as unknown as RegistrationRow | null;
+}
+
 async function updateRow(
   db: SupabaseClient,
   rowId: string,
@@ -496,7 +549,15 @@ async function applyTransition(
     patch.rejection_reason =
       mapped.reason ?? "The carrier suspended this registration.";
   }
-  const updated = await updateRow(db, row.id, patch);
+  // #581/15: the write is conditional on the status we just judged. Losing means
+  // another delivery of the same carrier event got there first — its side effects have
+  // run or are running, and repeating them is what buys a second campaign, sends a
+  // second "your US texting is live", and counts one workspace twice in the one
+  // activation metric D12 rests on. The comment on that capture claims
+  // ALLOWED_TRANSITIONS makes it at-most-once; that was true of sequential redelivery
+  // and false the moment two triggers overlapped.
+  const updated = await applyTransitionPatch(db, row.id, row.status, patch);
+  if (!updated) return (await loadRowById(db, row.id)) ?? row;
 
   if (row.kind === "brand" && mapped.next === "approved") {
     // R2: brand acceptance → submit the campaign (recovered by the poller if
@@ -1015,6 +1076,24 @@ async function submitCampaign(
     await telnyxRequest(env, {
       method: "POST",
       path: "/v2/10dlc/campaignBuilder",
+      /**
+       * #581/15 — the second line of defence on the one call here that spends money.
+       *
+       * The compare-and-swap in `applyTransition` is what actually stops two triggers
+       * reacting to the same carrier event, and this is what stops a campaign being
+       * bought twice anyway if some future path finds another way to arrive here at
+       * once. Two sibling paths already send deterministic keys; this one sent none.
+       *
+       * Keyed on the counts as READ on this row, not on anything minted here. Two
+       * racers reacting to the same approval both read the row before either consumed
+       * its budget, so they compose the SAME key and Telnyx returns the first result
+       * to both. A legitimate resubmission after a rejection has consumed a unit by
+       * then, so it composes a different one and correctly buys a new campaign —
+       * which is the case that makes a bare row id the wrong key.
+       */
+      idempotencyKey:
+        `10dlc-campaign:${campaign.id}:${cause}:` +
+        `${campaign.submission_count}:${campaign.reactivation_count}`,
       body: buildCampaignPayload(env, {
         brandId: brand.telnyx_id,
         soleProprietor: brand.sole_proprietor,
