@@ -531,6 +531,83 @@ describe("the inbound-webhook probe (#308)", () => {
     expect(world.beats).not.toContain("channel:webhook-signature");
   });
 
+  it("#581/16: withholds the beat when STRIPE is discarding everything", async () => {
+    /**
+     * THE CASE THE ALARM COULD NOT SEE. Rejections were summed across every provider
+     * and divided by TELNYX's acceptances — and inbound texts arrive all day, so that
+     * denominator is essentially never zero.
+     *
+     * Rotate or mis-copy the Stripe secret and every delivery 400s in silence. A
+     * rejected delivery never becomes a `webhook_events` row, so the five-minute
+     * sweeper has nothing to replay, and `charge.dispute.created/updated/closed` has
+     * no other entry point in this product: a customer disputes a charge and their
+     * workspace keeps full service, with nothing anywhere saying so.
+     */
+    const world = checkWorld({
+      inbound: {
+        telnyx_accepted: 400,
+        accepted: { telnyx: 400 },
+        rejections: { stripe: 9 },
+      },
+    });
+    stubFetch(...world.routes);
+
+    await runLivenessCheckJob(env, AT);
+
+    expect(world.beats).not.toContain("channel:webhook-signature");
+  });
+
+  it("#581/16: and for RESEND, whose rotation stops every bounce being recorded", async () => {
+    // No bounce recorded means no address suppressed, which means we keep mailing
+    // addresses that have already hard bounced — and that is how a sending domain's
+    // reputation goes. Busy Telnyx traffic used to hold the alarm quiet through it.
+    const world = checkWorld({
+      inbound: {
+        telnyx_accepted: 400,
+        accepted: { telnyx: 400 },
+        rejections: { resend: 4 },
+      },
+    });
+    stubFetch(...world.routes);
+
+    await runLivenessCheckJob(env, AT);
+
+    expect(world.beats).not.toContain("channel:webhook-signature");
+  });
+
+  it("#581/16: a provider rejecting AND accepting is still just noise", async () => {
+    // Per provider, the two numbers finally describe the same thing — so Stripe
+    // retries alongside Stripe acceptances read as noise, exactly as Telnyx's do,
+    // and a busy Telnyx does not vouch for anybody else.
+    const world = checkWorld({
+      inbound: {
+        telnyx_accepted: 400,
+        accepted: { telnyx: 400, stripe: 20 },
+        rejections: { stripe: 2 },
+      },
+    });
+    stubFetch(...world.routes);
+
+    await runLivenessCheckJob(env, AT);
+
+    expect(world.beats).toContain("channel:webhook-signature");
+  });
+
+  it("#581/16: falls back to the old field against a database mid-deploy", async () => {
+    // The Worker ships separately from the migrations, so this reader meets a probe
+    // with no per-provider map for a while. Reading the missing map as zero would
+    // alarm on every provider at once the moment it shipped — a false alarm on day
+    // one is how an operator learns to ignore this mailbox.
+    const world = checkWorld({
+      inbound: { telnyx_accepted: 12, rejections: { stripe: 3 } },
+    });
+    stubFetch(...world.routes);
+
+    await runLivenessCheckJob(env, AT);
+
+    expect(world.beats).toContain("channel:webhook-signature");
+  });
+
   it("stays healthy on a platform with no traffic at all", async () => {
     // Zero rejections and zero acceptances is idle, not broken. Getting this
     // backwards would page every night on a young product, which is exactly

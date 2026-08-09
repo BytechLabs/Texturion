@@ -111,6 +111,12 @@ resendWebhookRoute.post("/", async (c) => {
   // the secret is set, whereas trusting an unsigned body would let anybody
   // suppress any address in the product.
   if (!env.RESEND_WEBHOOK_SECRET) {
+    // #581/16: counted, like a bad signature is. This is the MOST likely Resend
+    // misconfiguration — a secret cleared or never copied into an environment — and it
+    // returned before the counter, so the one arrangement the alarm exists to catch
+    // was the one arrangement that recorded nothing at all. Every delivery is refused
+    // either way; what differs is whether anybody finds out.
+    countWebhookRejection(c, "resend");
     return c.json({ error: "resend webhooks are not configured" }, 503);
   }
 

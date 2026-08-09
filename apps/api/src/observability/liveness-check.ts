@@ -339,7 +339,16 @@ interface InboundProbe {
   inbound_message?: number;
   message_status?: number;
   call_event?: number;
+  /**
+   * Telnyx acceptances alone.
+   *
+   * The OLD denominator, kept only so this reader still works against a database
+   * that has not taken the #581/16 migration yet — the Worker and the migrations
+   * deploy separately. `accepted` is the one to use.
+   */
   telnyx_accepted?: number;
+  /** #581/16: acceptances per provider, shaped like `rejections`. */
+  accepted?: Record<string, number>;
   rejections?: Record<string, number>;
 }
 
@@ -388,15 +397,37 @@ async function probeInboundWebhooks(
     await recordHeartbeatBestEffort(env, "channel:telnyx-call-events", now, db);
   }
 
-  // The conjunction. Healthy is everything EXCEPT "we rejected signed
-  // deliveries and accepted none of them", so a quiet window with no
-  // rejections at all is healthy — it has to be, or this alerts on every
-  // platform that is simply idle.
-  const rejected = Object.values(probe.rejections ?? {}).reduce(
-    (total, n) => total + (Number(n) || 0),
-    0,
+  // The conjunction, asked ONCE PER PROVIDER. Healthy is everything EXCEPT "we
+  // rejected this provider's signed deliveries and accepted none of them", so a quiet
+  // window with no rejections at all is healthy — it has to be, or this alerts on
+  // every platform that is simply idle.
+  //
+  // #581/16: it used to sum rejections across every provider and divide by TELNYX's
+  // acceptances. Inbound texts arrive all day, so that denominator is essentially
+  // never zero and the alarm could not fire for the two providers whose secrets a
+  // human rotates by hand. Rotate the Stripe one and every delivery 400s in silence:
+  // a rejected delivery never becomes a `webhook_events` row, so the sweeper has
+  // nothing to replay, and `charge.dispute.*` has no other way into this product —
+  // a customer disputes a charge and keeps full service. Rotate the Resend one and no
+  // bounce is ever recorded, so we keep mailing addresses that have hard bounced.
+  //
+  // Per provider, the two numbers finally describe the same thing.
+  const rejections = probe.rejections ?? {};
+  const accepted = probe.accepted ?? null;
+  const discardingEverything = Object.entries(rejections).some(
+    ([provider, count]) => {
+      if ((Number(count) || 0) === 0) return false;
+      // A database still on the previous migration sends no per-provider map. Fall
+      // back to what it does send rather than reading `undefined` as zero and
+      // alarming on every provider at once, which would be a false alarm the moment
+      // this ships and the exact way an operator learns to ignore it.
+      const acceptances =
+        accepted === null
+          ? (probe.telnyx_accepted ?? 0)
+          : (Number(accepted[provider]) || 0);
+      return acceptances === 0;
+    },
   );
-  const discardingEverything = rejected > 0 && (probe.telnyx_accepted ?? 0) === 0;
   if (!discardingEverything) {
     await recordHeartbeatBestEffort(env, "channel:webhook-signature", now, db);
   }

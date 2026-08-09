@@ -14,7 +14,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from "../test/support";
-import { processResendEvent, verifyResendSignature } from "./resend";
+import {
+  processResendEvent,
+  resendWebhookRoute,
+  verifyResendSignature,
+} from "./resend";
 
 const env = completeEnv();
 const SECRET = "whsec_dGVzdHNlY3JldGZvcnJlc2VuZHdlYmhvb2tzMTIzNA==";
@@ -185,5 +189,46 @@ describe("processResendEvent", () => {
     });
 
     expect(w.recorded).toHaveLength(0);
+  });
+});
+
+describe("#581/16 — an unconfigured secret is a rotation, and says so", () => {
+  /**
+   * Refusing outright is right: trusting an unsigned body would let anybody suppress
+   * any address in the product. What was wrong is that this arm returned BEFORE the
+   * rejection counter, so the most likely Resend misconfiguration — a secret cleared,
+   * or never copied into an environment — recorded nothing at all.
+   *
+   * That is the one arrangement the `channel:webhook-signature` alarm exists to catch.
+   * Every delivery is refused either way; what differs is whether anybody finds out
+   * before we have spent a week not suppressing hard-bounced addresses.
+   */
+  it("counts the refusal, so the liveness alarm can see it", async () => {
+    const sb = supabaseStub(env);
+    const rejections: { p_provider: string }[] = [];
+    sb.on("POST", "/rest/v1/rpc/record_webhook_rejection", (call) => {
+      rejections.push(call.body as { p_provider: string });
+      return null;
+    });
+    stubFetch(sb.route);
+
+    const unconfigured = { ...env, RESEND_WEBHOOK_SECRET: undefined };
+    const res = await resendWebhookRoute.request(
+      "/",
+      {
+        method: "POST",
+        // Resend signs with ITS key; ours is the one that is missing. The header is
+        // present, which is what tells the counter this was a real delivery rather
+        // than somebody poking the endpoint.
+        headers: { "svix-signature": "v1,whatever", "svix-id": "msg_1" },
+        body: JSON.stringify({ type: "email.bounced" }),
+      },
+      unconfigured,
+    );
+
+    expect(res.status).toBe(503);
+    // The counter runs off the response path; let its promise settle.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(rejections).toEqual([{ p_provider: "resend" }]);
   });
 });
