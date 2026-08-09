@@ -65,9 +65,9 @@ final class HandoverGateTests: XCTestCase {
     func testEveryDestinationQuestionIsNegated() throws {
         /// Deleting one `!` inverts every destination, and NOTHING else in this file
         /// notices: the needle above still matches, the ordering still holds, the retry
-        /// still carries `codeForRetry`, and all three Supabase calls are still present.
-        /// The Kotlin twin guards this by name; Swift did not, on the one platform with
-        /// no local compiler and no behavioural test.
+        /// still carries nothing on the proved path, and all three Supabase calls are
+        /// still present. The Kotlin twin guards this by name; Swift did not, on the
+        /// one platform with no local compiler and, until #593, no behavioural test.
         ///
         /// Inverted, a stale-factor code goes back to our API — the original lockout,
         /// verbatim — and an EMAILED code gets proved against Supabase, where somebody
@@ -134,30 +134,87 @@ final class HandoverGateTests: XCTestCase {
     }
 
     func testTheSuppliedCodeNeverTravelsToOurApi() throws {
+        /// #593: PER CALL SITE, which is how the Kotlin twin has always done it.
+        ///
+        /// This used to require exactly ONE `proof.attempt(` and that its argument be the
+        /// local `codeForRetry`. Both were descriptions of the shape this file happened to
+        /// have rather than of the property, and #593's parity requirement made the file
+        /// grow a second attempt site — inside the shared prove-then-retry both questions
+        /// now reach. A rule that counted sites would have had to be relaxed to a weaker
+        /// one; this rule needs no relaxing, because it asks the real question of every
+        /// site independently: did anything ask where these digits are checked before
+        /// sending them?
+        ///
+        /// It is strictly stronger than what it replaces. The old form was satisfied by a
+        /// single correct site and said nothing about a second one; this one cannot be
+        /// satisfied by adding a site that skips the question.
         let source = squashed(try gateSource())
-        // ONE retry, and its argument is the gated value rather than the parameter the
-        // sheet handed in. `proof.attempt(code)` is the bug, exactly as written.
-        let retries = source.components(separatedBy: "proof.attempt(").dropFirst()
-        XCTAssertEqual(
-            retries.count, 1,
-            "expected exactly one retry of the held action, found \(retries.count)"
+        let attempts = attemptSites(in: source)
+        XCTAssertFalse(attempts.isEmpty, "the funnel must still run the action it was handed")
+
+        // The retry after a local proof carries NOTHING — that is what makes it work.
+        XCTAssertTrue(
+            attempts.contains { $0.argument == "nil" },
+            "\n\nNo attempt runs the action without a code, so the Supabase path either "
+                + "does not exist or is still posting digits at a route that ignores "
+                + "them. That route reads how long ago this session proved a factor; "
+                + "there is no code for it to read.\n"
         )
-        for retry in retries {
+
+        // The API-checked kind still sends its code, so an attempt carrying one is
+        // expected — every one of them just has to have asked the destination first.
+        let carrying = attempts.filter { $0.argument != "nil" }
+        XCTAssertFalse(
+            carrying.isEmpty,
+            "nothing carries a code any more; the emailed-code path needs it"
+        )
+        for site in carrying {
             XCTAssertTrue(
-                retry.hasPrefix("codeForRetry)"),
-                "\n\nThe retry must carry `codeForRetry`, which the Supabase path has "
-                    + "already emptied — not the code the sheet supplied. Passing the "
-                    + "code straight through sends a reprove code to our API, which is "
-                    + "not checking a code there and answers with the same refusal "
-                    + "every time.\n"
+                site.ranBefore.contains("codeGoesToOurApi("),
+                "\n\n`proof.attempt(\(site.argument))` is reached without asking where "
+                    + "those digits are checked. On the reprove path our server is not "
+                    + "reading a code at all — it is reading how long ago this session "
+                    + "proved a factor — so posting them returns the same refusal "
+                    + "forever and the owner is told their correct code is wrong every "
+                    + "time.\n"
             )
         }
-        XCTAssertTrue(
-            source.contains("codeForRetry = nil"),
-            "\n\nOn the Supabase path the retry must carry NO code at all: the server "
-                + "reads how long ago this session proved a factor, and there is no "
-                + "code for it to read.\n"
-        )
+    }
+
+    /// One `proof.attempt(...)` call, with what ran before it inside its own function.
+    private struct AttemptSite {
+        let argument: String
+        /// Everything between the nearest preceding `func ` and this call.
+        let ranBefore: String
+    }
+
+    /// Every attempt site in squashed source, each with its enclosing function's prefix.
+    ///
+    /// Function-scoped rather than file-scoped on purpose: a question asked in some OTHER
+    /// function above is not a question this call site asked. Kotlin's twin resolves the
+    /// enclosing declaration the same way, by taking the nearest preceding `fun name(`.
+    private func attemptSites(in source: String) -> [AttemptSite] {
+        var sites: [AttemptSite] = []
+        var cursor = source.startIndex
+        while let call = source.range(of: "proof.attempt(", range: cursor ..< source.endIndex) {
+            let afterOpen = call.upperBound
+            guard let close = source.range(of: ")", range: afterOpen ..< source.endIndex) else {
+                break
+            }
+            let argument = String(source[afterOpen ..< close.lowerBound])
+                .trimmingCharacters(in: .whitespaces)
+            let head = source[source.startIndex ..< call.lowerBound]
+            let declaration = head.range(of: "func ", options: .backwards)?.lowerBound
+                ?? source.startIndex
+            sites.append(
+                AttemptSite(
+                    argument: argument,
+                    ranBefore: String(source[declaration ..< call.lowerBound])
+                )
+            )
+            cursor = close.upperBound
+        }
+        return sites
     }
 
     // MARK: - The local proof

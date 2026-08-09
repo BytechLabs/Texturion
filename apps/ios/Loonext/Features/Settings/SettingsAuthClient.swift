@@ -16,6 +16,13 @@ let reauthenticationNeededCode = "reauthentication_needed"
 struct SettingsAuthClient: Sendable {
     var supabaseURL: URL = AppConfig.supabaseURL
     var publishableKey: String = AppConfig.supabasePublishableKey
+    /// #593: the same transport seam `ApiClient` already has.
+    ///
+    /// `supabaseURL` was injectable but nothing else was, so a test could only point this
+    /// at a URL nobody answers — a connection error, not a scripted identity provider.
+    /// Trailing and defaulted, so the memberwise init stays source-compatible and every
+    /// existing `SettingsAuthClient()` compiles unchanged.
+    var transport: HTTPClient = URLSessionHTTPClient()
 
     func updateEmail(accessToken: String, newEmail: String) async throws {
         _ = try await request(
@@ -147,7 +154,7 @@ struct SettingsAuthClient: Sendable {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await URLSession.shared.data(for: request)
+            (data, response) = try await transport.data(for: request)
         } catch {
             throw ApiError(
                 code: ApiErrorCode.network,

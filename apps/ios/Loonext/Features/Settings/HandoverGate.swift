@@ -71,31 +71,39 @@ func attemptHandover(
     scope: SettingsScope,
     proof: HandoverProof,
     code: String?,
-    alreadyOpen: Bool
+    alreadyOpen: Bool,
+    /// #593: the identity client, injectable so one test can drive this end to end.
+    ///
+    /// Defaulted and trailing, so all three screens call this exactly as before and the
+    /// production path is untouched. It exists because the property that matters here —
+    /// that digits which are not ours to check never reach our own server — was pinned
+    /// only by a check that reads this file's text, on the one platform with no local
+    /// compiler.
+    auth: SettingsAuthClient = SettingsAuthClient()
 ) async -> HandoverOutcome {
-    var codeForRetry = code
     if let code, !HandoverConfirmation.codeGoesToOurApi(proof.kind) {
-        do {
-            try await handoverReproveFactor(scope: scope, code: code)
-        } catch {
-            // The same answer as a code our own server refused: the sheet stays up and
-            // says so once. Telling a wrong code apart from an expired one helps
-            // whoever is guessing more than it helps the owner.
-            return .needsCode(kind: proof.kind, refused: true)
-        }
-        // Proved, and the fresh session is stored, so this session last proved a factor
-        // seconds ago. The retry carries NO code: the server reads that timestamp on
-        // this path and never reads a code, so digits sent at it would come back with
-        // the identical refusal every time — to every CORRECT code, forever.
-        codeForRetry = nil
+        return await handoverProveThenRetry(
+            scope: scope, proof: proof, kind: proof.kind, code: code, auth: auth
+        )
     }
 
     do {
-        try await proof.attempt(codeForRetry)
+        try await proof.attempt(code)
         return .done
     } catch {
         guard let kind = HandoverConfirmation.kind(of: (error as? ApiError)?.code) else {
             return .failed(message: error.userMessage)
+        }
+        // #593 parity with Android: the refusal NAMES the demand, and that name outranks
+        // whatever we arrived holding. A screen that rebuilds its request for each attempt
+        // gets here still carrying the default one — so if the digits in hand turn out to
+        // have never been ours to check, prove them now instead of posting them a second
+        // time. Posting them a second time is the forever loop, and the person is told
+        // their own correct code is wrong.
+        if let code, !HandoverConfirmation.codeGoesToOurApi(kind) {
+            return await handoverProveThenRetry(
+                scope: scope, proof: proof, kind: kind, code: code, auth: auth
+            )
         }
         if !alreadyOpen, kind == .email {
             // Best effort. A send that fails must not replace the demand with a
@@ -103,6 +111,43 @@ func attemptHandover(
             try? await scope.repo.requestHandoverCode(scope.companyId, action: proof.action)
         }
         return .needsCode(kind: kind, refused: code != nil)
+    }
+}
+
+/// Prove the factor here, then run the action again carrying NO code. #593.
+///
+/// One function reached from both questions above, rather than the same six lines twice.
+/// `kind` is carried in rather than assumed, so the sheet that stays up on a failure is
+/// still the sheet the server asked for.
+///
+/// The retry carries nothing on purpose: what the server refused was not a missing code
+/// but the AGE of the last proof on this session. Nothing on that route reads a code, so
+/// digits sent at it come back with the identical refusal every time — to every CORRECT
+/// code, forever.
+@MainActor
+private func handoverProveThenRetry(
+    scope: SettingsScope,
+    proof: HandoverProof,
+    kind: HandoverConfirmation.Kind,
+    code: String,
+    auth: SettingsAuthClient
+) async -> HandoverOutcome {
+    do {
+        try await handoverReproveFactor(scope: scope, code: code, auth: auth)
+    } catch {
+        // The same answer as a code our own server refused: the sheet stays up and says
+        // so once. Telling a wrong code apart from an expired one helps whoever is
+        // guessing more than it helps the owner, who types the next one either way.
+        return .needsCode(kind: kind, refused: true)
+    }
+    do {
+        try await proof.attempt(nil)
+        return .done
+    } catch {
+        guard let again = HandoverConfirmation.kind(of: (error as? ApiError)?.code) else {
+            return .failed(message: error.userMessage)
+        }
+        return .needsCode(kind: again, refused: true)
     }
 }
 
@@ -118,7 +163,11 @@ func attemptHandover(
 /// has no factor to challenge. The caller says the one thing worth saying about any of
 /// them and leaves the sheet up.
 @MainActor
-private func handoverReproveFactor(scope: SettingsScope, code: String) async throws {
+private func handoverReproveFactor(
+    scope: SettingsScope,
+    code: String,
+    auth: SettingsAuthClient
+) async throws {
     let token = try await scope.repo.freshAccessToken()
     // GET /v1/mfa lists VERIFIED factors only, so the first one is a real one. Nothing
     // typed into the sheet can satisfy a demand for a factor this account does not
@@ -130,9 +179,8 @@ private func handoverReproveFactor(scope: SettingsScope, code: String) async thr
             httpStatus: 401
         )
     }
-    let client = SettingsAuthClient()
-    let challengeId = try await client.challengeFactor(accessToken: token, factorId: factorId)
-    let session = try await client.verifyFactor(
+    let challengeId = try await auth.challengeFactor(accessToken: token, factorId: factorId)
+    let session = try await auth.verifyFactor(
         accessToken: token,
         factorId: factorId,
         challengeId: challengeId,
