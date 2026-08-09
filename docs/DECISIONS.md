@@ -7711,3 +7711,48 @@ which is a thing that nearly happened while this issue was open. §2 now points 
 the rule had been written out three times and two copies had forgotten that the status
 segment is a filter — which is what made a Reset button do nothing on Android and made
 the iOS empty state blame filters nobody could see.
+
+---
+
+## D130 — signing a device out revokes voice for the whole person, not that device (#573, #545, 2026-08-10)
+
+**Ending a session now deletes the member's Telnyx telephony credential. That ends
+voice on every device they are signed in on, not only the one being signed out,
+and that asymmetry with the push-token rule beside it is deliberate.**
+
+The bug it fixes: session revocation ended the API session, deleted the device's
+push token and deleted the GoTrue session and refresh tokens — and left the
+telephony credential alone. That credential has no expiry, and the login token
+minted from it stays valid, so a handset that had already registered kept ringing
+and could **answer a customer as the business** after being signed out. It is the
+one control that exists for a phone somebody else is holding, and it did not cover
+the thing a phone does.
+
+**Why not per device, which is what the push token does.** A push token is
+addressed per device, so revocation deletes exactly the one that left; the rule
+beside this one says why that matters — "sign out my old tablet" must not
+unsubscribe the laptop in front of them. A telephony credential cannot work that
+way. There is one per membership and its `sip_username` **is** the member's inbound
+ring target: `resolveRingTargets` maps exactly one per member and fans an incoming
+call out to those addresses. Per-device credentials would multiply the dial legs of
+every inbound call by however many devices each person carries — a change to how
+ringing behaves and what it costs, arriving as a side effect of a security fix.
+
+**Why the cost is acceptable.** It is self-healing rather than an outage. A client
+whose token dies gets an SDK error and runs its own recovery, which re-mints a
+token and re-registers within seconds — `SoftphoneCore.scheduleRecover` on Android,
+with twins on the other two clients. A signed-out device cannot re-mint, because
+minting requires a live session. So the healing is automatic for everyone who
+should still have voice, and permanent for the device that was revoked.
+
+**What this does not do, stated rather than implied.** It does not shorten the
+Telnyx login token's own life — we do not set one, and Telnyx controls it. Deleting
+the credential is what invalidates every token minted from it, which is why the
+Telnyx-side delete is the load-bearing half and why a failure there is logged with
+the credential id rather than counted: a credential we could not delete is a device
+that can still ring.
+
+**Consistency:** the row is removed inside `api_revoke_sessions` alongside the push
+sweep, so no caller can revoke a session and forget; the HTTP delete lives in the
+route because SQL cannot make it. Member deactivation and workspace close reach the
+same RPC.

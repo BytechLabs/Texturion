@@ -125,12 +125,85 @@ describe("GET /v1/sessions — your own devices", () => {
   });
 });
 
+describe("#573 signing out stops the softphone", () => {
+  it("deletes the Telnyx credential the revocation orphaned", async () => {
+    // The gap: the session, the push token and the refresh tokens all went, and
+    // the telephony credential did not. It has no expiry, and the login token
+    // minted from it stays valid — so a handset that had already registered kept
+    // ringing and could answer a customer as the business after being signed out.
+    // Deleting the row is not enough; the credential has to die AT Telnyx.
+    const sb = stub([]);
+    sb.on("POST", "/rest/v1/rpc/api_revoke_sessions", () => ({
+      sessions: 1,
+      devices: 1,
+      voice_credentials: ["cred-abc", "cred-def"],
+    }));
+    const deleted: string[] = [];
+    // A FetchRoute is a function `(url, request) => Response | undefined`, not an
+    // object. Getting that wrong is invisible here: the throw lands in revoke()'s
+    // best-effort catch and the count stays 0, which reads as "the code did not
+    // call Telnyx" rather than "the stub was the wrong shape".
+    stubFetch(jwksRoute(auth), sb.route, (url, request) => {
+      if (!url.pathname.startsWith("/v2/telephony_credentials/")) return undefined;
+      if (request.method === "DELETE") {
+        deleted.push(url.pathname.split("/").pop() ?? "");
+      }
+      return Response.json({ data: {} });
+    });
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/sessions/revoke",
+      { method: "POST", companyId: null, body: { session_id: OTHER_SESSION } },
+    );
+
+    expect(res.status).toBe(200);
+    expect(deleted).toEqual(["cred-abc", "cred-def"]);
+    expect(await res.json()).toEqual({ sessions: 1, devices: 1, voice: 2 });
+  });
+
+  it("still signs the device out when Telnyx refuses", async () => {
+    // A Telnyx outage must not make a sign-out fail. The session, the push token
+    // and the refresh tokens are already gone by this point, so the account is far
+    // better off than before — and the credential that survived is logged with its
+    // id rather than counted, because it means a device that can still ring.
+    const sb = stub([]);
+    sb.on("POST", "/rest/v1/rpc/api_revoke_sessions", () => ({
+      sessions: 1,
+      devices: 1,
+      voice_credentials: ["cred-doomed"],
+    }));
+    stubFetch(jwksRoute(auth), sb.route, (url) =>
+      url.pathname.startsWith("/v2/telephony_credentials/")
+        ? new Response("upstream is down", { status: 503 })
+        : undefined,
+    );
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      "/v1/sessions/revoke",
+      { method: "POST", companyId: null, body: { session_id: OTHER_SESSION } },
+    );
+
+    expect(res.status).toBe(200);
+    // Zero deleted, and the sign-out still happened.
+    expect(await res.json()).toEqual({ sessions: 1, devices: 1, voice: 0 });
+  });
+});
+
 describe("POST /v1/sessions/revoke", () => {
   it("signs one device out and reports what it took with it", async () => {
     const sb = stub([]);
     sb.on("POST", "/rest/v1/rpc/api_revoke_sessions", () => ({
       sessions: 1,
       devices: 1,
+      // #573: no softphone credential existed for this member, so nothing to
+      // delete at Telnyx — the common case for somebody who never made a call.
+      voice_credentials: [],
     }));
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -142,7 +215,7 @@ describe("POST /v1/sessions/revoke", () => {
       { method: "POST", companyId: null, body: { session_id: OTHER_SESSION } },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ sessions: 1, devices: 1 });
+    expect(await res.json()).toEqual({ sessions: 1, devices: 1, voice: 0 });
 
     // Scoped to the caller and to exactly the session they named.
     expect(sb.find("POST", "/rest/v1/rpc/api_revoke_sessions")[0].body).toEqual({
@@ -288,6 +361,7 @@ describe("POST /v1/members/:id/sessions/revoke", () => {
     sb.on("POST", "/rest/v1/rpc/api_revoke_sessions", () => ({
       sessions: 2,
       devices: 3,
+      voice_credentials: [],
     }));
     sb.on("POST", "/rest/v1/audit_log", () => []);
     return sb;
@@ -305,7 +379,7 @@ describe("POST /v1/members/:id/sessions/revoke", () => {
       { method: "POST", companyId: COMPANY_ID, body: {} },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ sessions: 2, devices: 3 });
+    expect(await res.json()).toEqual({ sessions: 2, devices: 3, voice: 0 });
 
     // Every session of theirs, with no exception — the point is that the
     // person is gone.

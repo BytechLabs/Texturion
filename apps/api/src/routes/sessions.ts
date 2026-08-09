@@ -38,6 +38,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
+import { telnyxRequest } from "../telnyx/client";
 import { parseJsonBody, pathUuid, unwrap } from "./core/http";
 
 export const sessionsRoutes = new Hono<AppEnv>();
@@ -129,7 +130,7 @@ sessionsRoutes.post("/sessions/revoke", async (c) => {
     );
   }
 
-  const result = await revoke(db, {
+  const result = await revoke(db, getEnv(c.env), {
     userId,
     sessionIds: "session_id" in body ? [body.session_id] : null,
     except: "session_id" in body ? null : current,
@@ -205,7 +206,7 @@ sessionsRoutes.post(
       );
     }
 
-    const result = await revoke(db, {
+    const result = await revoke(db, getEnv(c.env), {
       userId: member.user_id,
       sessionIds: null,
       // An owner clearing their own devices from the workspace screen keeps
@@ -224,6 +225,9 @@ sessionsRoutes.post(
       after: {
         sessions_ended: result.sessions,
         push_devices_removed: result.devices,
+        // #573: recorded because a softphone that kept ringing after a sign-out
+        // is the kind of thing somebody asks about afterwards.
+        voice_credentials_revoked: result.voice,
       },
     });
 
@@ -241,8 +245,9 @@ interface RevokeInput {
 
 async function revoke(
   db: ReturnType<typeof getDb>,
+  env: ReturnType<typeof getEnv>,
   input: RevokeInput,
-): Promise<{ sessions: number; devices: number }> {
+): Promise<{ sessions: number; devices: number; voice: number }> {
   const { data, error } = await db.rpc("api_revoke_sessions", {
     p_user_id: input.userId,
     p_session_ids: input.sessionIds,
@@ -251,9 +256,46 @@ async function revoke(
     p_reason: input.reason,
   });
   if (error) throw new Error(`session revoke failed: ${error.message}`);
-  const result = data as { sessions?: number; devices?: number };
+  const result = data as {
+    sessions?: number;
+    devices?: number;
+    voice_credentials?: string[];
+  };
+
+  // #573: the softphone stops ringing.
+  //
+  // The row is already gone — that is what stops us handing the credential to a
+  // new registration — but the credential still EXISTS at Telnyx, and the login
+  // token minted from it stays valid until it does not. Deleting it there is what
+  // actually kills a handset that had already registered, which is the whole
+  // point: the control exists for a phone somebody else is holding.
+  //
+  // Best-effort per credential, and loud. A Telnyx outage must not make a sign-out
+  // fail — the session, the push token and the refresh tokens are already gone, so
+  // the account is far better off than before — but a credential we failed to
+  // delete is a device still ringing, so it is logged with its id rather than
+  // swallowed as a count.
+  const credentials = result?.voice_credentials ?? [];
+  let voice = 0;
+  for (const credentialId of credentials) {
+    try {
+      await telnyxRequest(env, {
+        method: "DELETE",
+        path: `/v2/telephony_credentials/${credentialId}`,
+      });
+      voice += 1;
+    } catch (cause) {
+      console.error(
+        `#573 telephony credential ${credentialId} survived a session revoke ` +
+          `— that device can still ring:`,
+        cause instanceof Error ? cause.message : String(cause),
+      );
+    }
+  }
+
   return {
     sessions: Number(result?.sessions ?? 0),
     devices: Number(result?.devices ?? 0),
+    voice,
   };
 }
