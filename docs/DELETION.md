@@ -84,12 +84,32 @@ while carrying none of the business's identity.
 
 Cleared at step 15: `name`, `stripe_customer_id`, `stripe_subscription_id`,
 `telnyx_messaging_profile_id`, `chosen_number_e164`, `away_message`,
-`mctb_message`, `voicemail_greeting`, `cnam_display_name`, and `business_hours`
-(reset to `{}` — the column is `NOT NULL`). Kept: `id`, `created_at`,
-`country`, `timezone` and a `purged_at` stamp, so a regulator's question — was
-there consent, on what date, in what jurisdiction — still has an answer.
-`timezone` stays because it is `NOT NULL` with a default and says nothing about
-who the business was.
+`mctb_message`, `emergency_message`, `offramp_message`, `voicemail_greeting`,
+`cnam_display_name`, `signup_source`, `signup_landing_path`, and
+`business_hours` (reset to `{}` — the column is `NOT NULL`).
+
+Kept: `id`, `created_at`, `country`, `timezone` and a `purged_at` stamp, so a
+regulator's question — was there consent, on what date, in what jurisdiction —
+still has an answer. `timezone` stays because it is `NOT NULL` with a default
+and says nothing about who the business was. Also kept, each for its own
+reason: `legal_hold_reason` (clearing it would leave a hold in place with its
+justification destroyed), `aup_enforcement` and `aup_enforcement_note` (the
+abuse history, so the same actor cannot be re-onboarded with no memory of why
+they left), and the configuration columns — ring strategy, call screening,
+locale, currency, crew size, requested area code — which are settings rather
+than identity.
+
+> **This paragraph was wrong until 2026-08-09, and the way it was wrong is the
+> point.** It presented itself as exhaustive while omitting `emergency_message`
+> and `offramp_message` — the business's own words to its own customers, the
+> same class as the `away_message` sitting three items earlier in the list. They
+> were added to `companies` after `anonymize_purged_workspace` was written, and
+> nobody came back to either the function or this list. A published exhaustive
+> list with nothing checking it against the table is a promise that decays
+> silently. `supabase/tests/purge_coverage.test.sql` (PC-3) now asserts the
+> cleared set against the catalog, with the keep-list and a reason for each
+> entry, so a text column added to `companies` in future fails the build until
+> somebody decides which side of this paragraph it belongs on.
 
 Because the row survives, the 13 `cascade` tables no longer go with it and are
 deleted explicitly at step 14: `call_member_legs`, `company_ai_settings`,

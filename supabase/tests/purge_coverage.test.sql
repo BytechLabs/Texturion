@@ -169,4 +169,63 @@ begin
   raise notice 'PC-2 PASSED: every table holding a storage path is reached by the purge';
 end $$;
 
+-- The `companies` row SURVIVES erasure — D48 anonymises it rather than deleting
+-- it, so a STOP still works after the business is gone. That makes the list of
+-- columns cleared by `anonymize_purged_workspace` the whole of what erasure means
+-- for the business's own record, and it is a hand-written list inside a function
+-- with nothing comparing it to the table. Two columns of exactly the kind it
+-- clears — the business's own words to its own customers — were added later and
+-- never added to it (#581).
+--
+-- So: every text column either goes, or is named below with a reason.
+do $$
+declare
+  v_undecided text[];
+  v_kept text[] := array[
+    -- The regulator's question is whether consent existed, on what date, in what
+    -- jurisdiction. Documented in DELETION.md as kept, deliberately.
+    'country', 'timezone',
+    -- The record of WHY data was preserved. Clearing it would leave the hold in
+    -- place with its justification destroyed, which is worse than keeping it.
+    'legal_hold_reason',
+    -- The abuse history, kept so the same actor cannot be re-onboarded with no
+    -- memory of why they left.
+    'aup_enforcement', 'aup_enforcement_note',
+    -- Configuration, not identity: none of these says anything about who the
+    -- business was or who its customers were.
+    'after_hours_calls', 'billing_currency', 'call_screening', 'crew_size',
+    'locale', 'ring_strategy', 'requested_area_code',
+    -- A pointer into `email_ledger`, which the purge deletes; the address itself
+    -- is cleared by the function.
+    'purge_receipt_email_id',
+    -- Shared publicly by the business itself while it existed, and every row that
+    -- joins against it is deleted by the purge.
+    'referral_code'
+  ];
+begin
+  with fn as (
+    select p.prosrc from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'anonymize_purged_workspace'
+  )
+  select coalesce(array_agg(c.column_name::text order by c.column_name::text), array[]::text[])
+  into v_undecided
+  from information_schema.columns c
+  where c.table_schema = 'public'
+    and c.table_name = 'companies'
+    and c.data_type in ('text', 'character varying')
+    -- `<col> =` is how the update assigns it; a column merely MENTIONED in a
+    -- comment does not count as cleared.
+    and (select prosrc from fn) not like '%' || c.column_name || ' =%'
+    and c.column_name::text <> all(v_kept);
+
+  if array_length(v_undecided, 1) is not null then
+    raise exception
+      'PC-3 FAILED: % on `companies` is neither cleared by anonymize_purged_workspace nor in this test''s keep-list. Decide which, and write the reason next to it',
+      array_to_string(v_undecided, ', ');
+  end if;
+
+  raise notice 'PC-3 PASSED: every text column on companies is cleared on erasure or kept for a stated reason';
+end $$;
+
 rollback;
