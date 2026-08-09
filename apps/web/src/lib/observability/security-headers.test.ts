@@ -20,7 +20,7 @@ describe("SECURITY_HEADERS (issue #33 response-header hardening)", () => {
 
   it("pins HTTPS for a year including subdomains, preload-eligible (#118)", () => {
     expect(byKey.get("Strict-Transport-Security")).toBe(
-      "max-age=31536000; includeSubDomains; preload",
+      "max-age=63072000; includeSubDomains; preload",
     );
   });
 

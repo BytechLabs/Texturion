@@ -25,14 +25,27 @@ export const SECURITY_HEADERS: ReadonlyArray<{ key: string; value: string }> = [
   { key: "X-Frame-Options", value: "DENY" },
   // Never MIME-sniff a response into an executable type.
   { key: "X-Content-Type-Options", value: "nosniff" },
-  // HTTPS only, one year, subdomains included (loonext.com and the
-  // app/api hosts all terminate TLS at Cloudflare), preload-eligible (#118 —
-  // the "strong HSTS" bar: max-age >= 1y + includeSubDomains + preload).
-  // Browsers ignore HSTS on plain-HTTP responses, so local `next dev` is
-  // unaffected.
+  // HTTPS only, TWO years, subdomains included (loonext.com and the app/api
+  // hosts all terminate TLS at Cloudflare), preload-eligible (#118 — the
+  // "strong HSTS" bar: max-age >= 1y + includeSubDomains + preload). Browsers
+  // ignore HSTS on plain-HTTP responses, so local `next dev` is unaffected.
+  //
+  // Two years rather than one because THE PIN HAS TO OUTLIVE THE COOKIE IT IS
+  // PROTECTING. The Supabase session cookie has a 400-day lifetime that the
+  // library re-pins after our own options are applied, so it cannot be shortened
+  // from the client construction — and it carries the refresh token, i.e. the
+  // whole session. A 365-day pin left a 35-day window in which a browser that
+  // had not revisited would send that cookie over plain HTTP if anything ever
+  // stripped the `Secure` flag. Now the pin is the longer of the two, so the
+  // cookie can never outlive its own protection.
+  //
+  // Raising this is close to one-way: a browser that sees it pins for two years
+  // and lowering the number only takes effect on its next visit. That is
+  // acceptable here because the product is HTTPS-only and has been for its whole
+  // life; there is no plain-HTTP surface a pin could break.
   {
     key: "Strict-Transport-Security",
-    value: "max-age=31536000; includeSubDomains; preload",
+    value: "max-age=63072000; includeSubDomains; preload",
   },
   // Origin isolation (#118): no page here opens popups it needs to script
   // (OAuth, Stripe Checkout, and the billing portal are all redirect flows;
