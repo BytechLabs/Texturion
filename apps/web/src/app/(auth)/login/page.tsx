@@ -31,6 +31,7 @@ import { authErrorMessage } from "@/lib/auth/messages";
 import { needsStepUp } from "@/lib/auth/mfa-step-up";
 import { safeNextPath } from "@/lib/auth/redirects";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
+import { endSessionOnThisDevice } from "@/lib/auth/end-session";
 
 const schema = z.object({
   email: z.email("Enter your email address."),
@@ -121,7 +122,9 @@ function LoginForm() {
             type="button"
             className="text-muted-foreground underline-offset-4 hover:underline"
             onClick={() => {
-              void getSupabaseBrowser().auth.signOut();
+              // Revokes too: a stale session abandoned on the login screen is
+              // exactly the one nobody comes back to clean up.
+              void endSessionOnThisDevice(null);
               setChallenge(false);
             }}
           >

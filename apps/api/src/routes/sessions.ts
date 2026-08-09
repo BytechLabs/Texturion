@@ -58,15 +58,36 @@ interface SessionRow {
 }
 
 /**
- * Exactly one of the two, and the schema says so rather than the handler:
+ * Exactly one of the three, and the schema says so rather than the handler:
  * `{ session_id }` signs out one device, `{ others: true }` signs out
- * everything except the one asking. There is no "sign out of everything
- * including this browser" — that is the sign-out button, and offering it here
- * would mean the confirmation screen logs you out before you can read it.
+ * everything except the one asking, `{ self: true }` signs out THIS one.
+ *
+ * `self` exists because the sign-out button did not reach this route at all.
+ * Every client ended a session by calling GoTrue `/logout` directly, which
+ * deletes the auth session and nothing else — so `user_sessions.revoked_at`
+ * stayed null and `member_telephony_credentials` was never swept, both of which
+ * happen only inside `api_revoke_sessions`. Since `api_authorize_request`
+ * authorizes on `revoked_at is null` and never checks that the GoTrue session
+ * still exists, a captured access token kept full read and send for the rest of
+ * its life AFTER the user pressed Sign out.
+ *
+ * It was invisible too: `api_list_user_sessions` inner-joins `auth.sessions`,
+ * which `/logout` had just deleted, so the row that needed killing was missing
+ * from Settings → Devices. A remedy existed — sign back in, revoke `{others}` —
+ * and nobody could find it. That is what makes this worth a schema change rather
+ * than a note: it defeated the exact instruction we would give somebody
+ * mid-incident, against a guarantee the migration states in its own header.
+ *
+ * The docblock here used to say there is deliberately no "sign out of
+ * everything including this browser", and that reasoning still holds for the
+ * DEVICES LIST — the 409 below keeps it out of there, because a confirmation
+ * screen that logs you out before you can read it is a bad screen. What it was
+ * never meant to do was forbid the operation.
  */
 const revokeSchema = z.union([
   z.object({ session_id: z.uuid() }),
   z.object({ others: z.literal(true) }),
+  z.object({ self: z.literal(true) }),
 ]);
 
 function locationOf(row: SessionRow): string | null {
@@ -121,8 +142,9 @@ sessionsRoutes.post("/sessions/revoke", async (c) => {
   const current = c.get("sessionId") ?? null;
 
   if ("session_id" in body && body.session_id === current) {
-    // Signing yourself out from inside the list would 401 the very response
-    // that reports it. The sign-out button is the honest way to do this.
+    // Signing yourself out from inside the LIST would 401 the very response that
+    // reports it. Still refused here; `{ self: true }` is how the sign-out
+    // button does it, where 401ing the next request is the desired outcome.
     return errorResponse(
       c,
       "conflict",
@@ -130,12 +152,33 @@ sessionsRoutes.post("/sessions/revoke", async (c) => {
     );
   }
 
+  // `{ self: true }` with no session id is a no-op rather than a sweep of
+  // everything. Falling through would leave `sessionIds` null and `except` null,
+  // which `revoke` reads as "every session this user has" — so a client whose
+  // token somehow carries no session id would sign the user out of every device
+  // they own from a button labelled "Sign out". Answering honestly that nothing
+  // was revoked is the safe direction, and the client signs out locally anyway.
+  if ("self" in body && current === null) {
+    return c.json({ sessions: 0, push: 0, voice: 0 });
+  }
+
   const result = await revoke(db, getEnv(c.env), {
     userId,
-    sessionIds: "session_id" in body ? [body.session_id] : null,
-    except: "session_id" in body ? null : current,
+    sessionIds:
+      "session_id" in body
+        ? [body.session_id]
+        : "self" in body
+          ? [current as string]
+          : null,
+    except: "session_id" in body || "self" in body ? null : current,
     actor: userId,
-    reason: "session_id" in body ? "self" : "sign_out_all",
+    // `self` for both single-device cases, and not for want of a better word:
+    // `user_sessions.revoke_reason` is a CHECK constraint whose vocabulary is
+    // ('self','sign_out_all','admin','member_removed','account_deleted'), and its
+    // comment defines 'self' as "the person killed this one device" — which is
+    // exactly what a sign-out is. Inventing 'sign_out' here would have violated
+    // the constraint and failed the write.
+    reason: "others" in body ? "sign_out_all" : "self",
   });
 
   if ("session_id" in body && result.sessions === 0) {

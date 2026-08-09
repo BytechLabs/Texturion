@@ -508,3 +508,59 @@ describe("POST /contact — abuse reports (#303)", () => {
     expect(world.sb.find("POST", "/rest/v1/rpc/api_claim_contact_message")).toHaveLength(0);
   });
 });
+
+/**
+ * #581 — the ack goes to an address nobody verified, so it may carry nothing
+ * the submitter wrote. The message body was already excluded for that reason;
+ * the greeting was not, and the ack renders through `renderEmailHtml`, which
+ * linkifies bare URLs.
+ */
+describe("POST /contact — the ack carries nothing the submitter wrote (#581)", () => {
+  it("does not repeat the submitted name back at the submitter", async () => {
+    const env = completeEnv();
+    const world = buildWorld(env);
+    stubFetch(...world.routes);
+
+    await post(buildApp(), env, validBody());
+
+    const ack = world.resend.calls[1] as { text: string; html: string };
+    expect(ack.text).not.toContain("Dana Smith");
+    expect(ack.html).not.toContain("Dana Smith");
+    // Still a greeting, and still identifies itself as ours.
+    expect(ack.text).toContain("Hi there,");
+    expect(ack.text).toContain("Loonext");
+  });
+
+  it("cannot be made to send a branded clickable link to a chosen address", async () => {
+    const env = completeEnv();
+    const world = buildWorld(env);
+    stubFetch(...world.routes);
+
+    const res = await post(buildApp(), env, {
+      ...validBody(),
+      name: "https://evil.example/invoice",
+      email: "victim@example.com",
+    });
+    expect(res.status).toBe(201);
+
+    const ack = world.resend.calls[1] as {
+      to: string[];
+      text: string;
+      html: string;
+    };
+    // The recipient IS submitter-chosen — that is what an acknowledgment is,
+    // and it is the whole reason the content has to be ours.
+    expect(ack.to).toEqual(["victim@example.com"]);
+    // The anchor specifically: linkifyUrls used to turn the greeting into
+    // `<a href="https://evil.example/invoice,">` inside the Loonext layout.
+    expect(ack.html).not.toContain('<a href="https://evil.example');
+    expect(ack.text).not.toContain("evil.example");
+    expect(ack.html).not.toContain("evil.example");
+
+    // The support forward still shows the founder exactly what was submitted;
+    // that one goes to a fixed inbox, not an address the submitter picked.
+    const support = world.resend.calls[0] as { to: string[]; subject: string };
+    expect(support.to).toEqual([CONTACT_INBOX]);
+    expect(support.subject).toBe("Contact form: https://evil.example/invoice");
+  });
+});

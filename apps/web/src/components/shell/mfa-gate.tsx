@@ -8,6 +8,40 @@ import { GateSignOut } from "@/components/shell/gate-escape";
 import { Button } from "@/components/ui/button";
 import { useCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
+import { useQueryClient } from "@tanstack/react-query";
+import { keys } from "@/lib/api/keys";
+
+/**
+ * What has to be refetched once the challenge is satisfied, and why it is two
+ * reads rather than one.
+ *
+ * `useCompany()` is what the wall is watching, so refetching it is what takes the
+ * wall down. But `GET /v1/me` also carries the workspace — and since #581 it OMITS
+ * it at aal1, because the exempt-route early return meant `/v1/me` was handing out
+ * the whole payload `/v1/company` refuses. That read is hydrated and cached for a
+ * minute with no refetch on focus, and `RealtimeProvider` mounts ABOVE this gate
+ * and derives its per-number topics from it.
+ *
+ * So without invalidating it, somebody who satisfies the challenge inside that
+ * minute keeps the company-less copy: the socket connects to the company topic
+ * alone, and since #484 every number-scoped event — new messages, conversation
+ * updates, delivery status, tasks, read state — rides `company:<id>:number:<id>`.
+ * A green socket and nothing live on it, which is exactly the failure #483 was
+ * filed for, and it would not arm the retry ladder either because the read
+ * SUCCEEDED. The empty state also reads the missing company and tells a workspace
+ * with a live number that its number is still being set up.
+ */
+function useSatisfied() {
+  const company = useCompany();
+  const queryClient = useQueryClient();
+  return {
+    company,
+    onSatisfied: () => {
+      void company.refetch();
+      void queryClient.invalidateQueries({ queryKey: keys.me });
+    },
+  };
+}
 
 /**
  * The two MFA walls, which look alike and mean opposite things.
@@ -29,7 +63,7 @@ import { ApiError } from "@/lib/api/error";
  * a person who can satisfy neither must still be able to get out.
  */
 export function MfaGate({ children }: { children: React.ReactNode }) {
-  const company = useCompany();
+  const { company, onSatisfied } = useSatisfied();
   const code =
     company.isError && company.error instanceof ApiError
       ? company.error.code
@@ -40,7 +74,7 @@ export function MfaGate({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen flex-col items-center justify-center px-6">
         <div className="w-full max-w-sm">
           <MfaChallenge
-            onVerified={() => void company.refetch()}
+            onVerified={onSatisfied}
             footer={<GateSignOut />}
           />
         </div>
@@ -74,7 +108,7 @@ export function MfaGate({ children }: { children: React.ReactNode }) {
               this link cannot lead to another wall. */}
           <Link href="/settings/account">Set up two-factor</Link>
         </Button>
-        <Button variant="outline" onClick={() => void company.refetch()}>
+        <Button variant="outline" onClick={onSatisfied}>
           I&apos;ve done it
         </Button>
       </div>

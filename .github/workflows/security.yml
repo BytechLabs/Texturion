@@ -31,6 +31,21 @@ on:
   # #493: the release-please pull request is skipped at JOB level, not here.
   # `branches-ignore` filters the BASE branch and those PRs target `main`, so a
   # pattern here never matches — see the condition on each job below.
+  #
+  # ---------------------------------------------------------------------------
+  # #581: THAT CONDITION USED TO BE A BRANCH NAME, WHICH ON A FORK PULL REQUEST
+  # THE CONTRIBUTOR CHOOSES.
+  #
+  # A branch called `release-please--anything` skipped every job in this file —
+  # including the secret scan, the one job whose whole reason for existing is that
+  # this repository is public — plus all seven in checks.yml. GitHub reports a
+  # skipped job as a pass, so the answer to "is this safe to merge?" was green for
+  # a run that scanned nothing.
+  #
+  # release-please pushes its branch into THIS repository, which nobody outside it
+  # can do, so that is what the condition now asks first. The same wording is on
+  # every job in checks.yml; the long version of the argument is there.
+  # ---------------------------------------------------------------------------
   pull_request:
   push:
     branches: [main]
@@ -67,9 +82,14 @@ jobs:
     # approved or the approval requirement is lifted, they skip instead of
     # re-running a gate that already passed on the push that produced the PR.
     #
-    # `github.head_ref` is empty for push and workflow_call, so this is true on
-    # every path except the one it exists to skip.
-    if: "!startsWith(github.head_ref, 'release-please--')"
+    # #581: the branch NAME cannot be the whole test — on a fork pull request the
+    # contributor picks it, and a skipped job reports as a pass. The repository
+    # comparison is the half no submitter can satisfy; it is null on push and on
+    # the schedule, so this job still runs there exactly as it did when the name
+    # was the only test. Full reason on the `on:` block above.
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -174,7 +194,10 @@ jobs:
     #
     # `github.head_ref` is empty for push and workflow_call, so this is true on
     # every path except the one it exists to skip.
-    if: "!startsWith(github.head_ref, 'release-please--') && (github.event_name == 'pull_request')"
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--')) &&
+      github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -207,9 +230,14 @@ jobs:
     # approved or the approval requirement is lifted, they skip instead of
     # re-running a gate that already passed on the push that produced the PR.
     #
-    # `github.head_ref` is empty for push and workflow_call, so this is true on
-    # every path except the one it exists to skip.
-    if: "!startsWith(github.head_ref, 'release-please--')"
+    # #581: the branch NAME cannot be the whole test — on a fork pull request the
+    # contributor picks it, and a skipped job reports as a pass. The repository
+    # comparison is the half no submitter can satisfy; it is null on push and on
+    # the schedule, so this job still runs there exactly as it did when the name
+    # was the only test. Full reason on the `on:` block above.
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -248,9 +276,14 @@ jobs:
     # approved or the approval requirement is lifted, they skip instead of
     # re-running a gate that already passed on the push that produced the PR.
     #
-    # `github.head_ref` is empty for push and workflow_call, so this is true on
-    # every path except the one it exists to skip.
-    if: "!startsWith(github.head_ref, 'release-please--')"
+    # #581: the branch NAME cannot be the whole test — on a fork pull request the
+    # contributor picks it, and a skipped job reports as a pass. The repository
+    # comparison is the half no submitter can satisfy; it is null on push and on
+    # the schedule, so this job still runs there exactly as it did when the name
+    # was the only test. Full reason on the `on:` block above.
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -273,8 +306,12 @@ jobs:
   # Package.resolved for Dependabot to read. So this asks GitHub's advisory
   # database about them directly, on the same weekly cadence.
   #
-  # Scheduled only, and it does not block: it is an external API call about
-  # somebody else's release feed, and a flaky lookup must not fail a merge.
+  # Scheduled only, so it still cannot fail a merge. What changed in #581 is what
+  # it does when it cannot get an answer: the script used to log the failed lookup
+  # and finish on "No HIGH or CRITICAL advisories", so two dead network calls read
+  # exactly like two clean packages. It now retries, and then FAILS — for this job
+  # a red run is the notification, and "I could not check" is a different sentence
+  # from "there is nothing to find".
   # ---------------------------------------------------------------------------
   swift-advisories:
     name: iOS package advisories
@@ -294,7 +331,10 @@ jobs:
     #
     # `github.head_ref` is empty for push and workflow_call, so this is true on
     # every path except the one it exists to skip.
-    if: "!startsWith(github.head_ref, 'release-please--') && (github.event_name == 'schedule')"
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--')) &&
+      github.event_name == 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

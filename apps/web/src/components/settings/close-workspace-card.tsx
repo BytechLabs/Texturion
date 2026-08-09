@@ -24,7 +24,7 @@ import { HandoverConfirmDialog } from "@/components/ownership/handover-confirm-d
 import { ApiError } from "@/lib/api/error";
 import type { CompanyView } from "@/lib/api/types";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
-import { releasePushOnThisDevice } from "@/lib/push/release";
+import { endSessionOnThisDevice } from "@/lib/auth/end-session";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 /**
@@ -58,8 +58,7 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
       onSuccess: async (result) => {
         // The session is already dead server-side; clear this browser too so
         // nothing lingers on a shared machine.
-        await releasePushOnThisDevice(company.id);
-        await getSupabaseBrowser().auth.signOut();
+        await endSessionOnThisDevice(company.id);
         const when = result.purge_after
           ? formatAbsoluteDateTime(result.purge_after)
           : "in 30 days";

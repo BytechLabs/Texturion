@@ -340,6 +340,24 @@ class SettingsRepository(
     suspend fun revokeMyOtherSessions(): SessionRevokeResult =
         api.post("/v1/sessions/revoke", buildJsonObject { put("others", true) })
 
+    /**
+     * Sign THIS phone out server-side, which is what the sign-out button forgot.
+     *
+     * `SupabaseAuth.signOut` ends the GoTrue session and nothing else, so
+     * `user_sessions.revoked_at` stayed null and the softphone credential was
+     * never swept — and since authorization is `revoked_at is null`, a captured
+     * access token kept working for the rest of its life after somebody pressed
+     * Sign out. Called from RootViewModel BEFORE the local clear, while the bearer
+     * still works, in the same slot the push-token delete already occupies.
+     *
+     * The comment above about there being deliberately no "and this one too" is
+     * about the DEVICES LIST, where ending the session that is reading the result
+     * makes for a bad screen. It was never meant to mean the operation should not
+     * exist.
+     */
+    suspend fun revokeThisSession(): SessionRevokeResult =
+        api.post("/v1/sessions/revoke", buildJsonObject { put("self", true) })
+
     suspend fun workspaceSessions(companyId: String): Page<WorkspaceSession> =
         api.get("/v1/members/sessions", companyId = companyId)
 

@@ -26,7 +26,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { keys } from "@/lib/api/keys";
 import { useActiveCompany } from "@/lib/company/provider";
-import { releasePushOnThisDevice } from "@/lib/push/release";
+import { endSessionOnThisDevice } from "@/lib/auth/end-session";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 // display_name is synced to public.profiles (display_name text). Keep it 1–120
@@ -99,8 +99,7 @@ export default function ProfileSettingsPage() {
     setSigningOut(true);
     // Hand this browser's push subscription back FIRST (#264) — while the
     // session that owns it still exists.
-    await releasePushOnThisDevice(companyId);
-    await getSupabaseBrowser().auth.signOut();
+    await endSessionOnThisDevice(companyId);
     queryClient.clear();
     router.push("/login");
   }

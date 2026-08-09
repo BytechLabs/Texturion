@@ -103,7 +103,28 @@ jobs:
     outputs:
       released: ${{ steps.please.outputs.releases_created }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      # #581/D93: PINNED, because THIS job is the one with a write token.
+      #
+      # The permissions block above grants `contents: write`, `pull-requests:
+      # write` and `issues: write` to every step in this job, and this step is
+      # third-party code. On a major tag the publisher can change what runs with
+      # those credentials and no commit appears here — the same property that took
+      # a deploy down on 2026-07-24, except pointed at a token that can rewrite
+      # the repository rather than at a CLI download.
+      #
+      # D93 exempted this file alongside checks.yml on the argument that "a
+      # surprise there costs a red build". That is true of checks.yml, which holds
+      # `contents: read`. It was never true of main.yml. The exemption was reading
+      # the wrong half of the pair, so the pin is here now, and
+      # scripts/check-action-pins.mjs no longer decides by filename: it classes a
+      # workflow by the token the workflow grants, which is a property this file
+      # cannot quietly lose. The name list it keeps is a floor under that, not the
+      # rule.
+      #
+      # The comment IS the version — keep it accurate; a stale one is worse than
+      # absent because it will be believed. Dependabot moves both together
+      # monthly, and majors are ignored for this action in .github/dependabot.yml.
+      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4.4.1
         id: please
         with:
           config-file: release-please-config.json

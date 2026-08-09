@@ -1,3 +1,4 @@
+import type { Context } from "hono";
 import { createMiddleware } from "hono/factory";
 import { z } from "zod";
 
@@ -7,7 +8,12 @@ import {
   type Capability,
 } from "@loonext/shared";
 
-import { MEMBER_ROLES, type AppEnv, type MemberRole } from "../context";
+import {
+  MEMBER_ROLES,
+  type AppEnv,
+  type AssuranceLevel,
+  type MemberRole,
+} from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
@@ -49,6 +55,17 @@ const authorizeSchema = z.object({
     .nullable()
     .catch(null),
 });
+
+/**
+ * #581: `company_mfa_posture` read on its own, by {@link resolveMfaStepUp}, for
+ * a route the RPC above never computed one for. Only the field that gates is
+ * named — see {@link MfaPosture} for why the other two exist. Same tolerance as
+ * the object above, and for the same reason.
+ */
+const posturePayloadSchema = z
+  .object({ enforcing: z.boolean() })
+  .nullable()
+  .catch(null);
 
 /**
  * The only /v1 routes that carry a JWT but no company scope (SPEC §7):
@@ -189,63 +206,150 @@ export function companyContext() {
       return errorResponse(c, "forbidden", "Not an active member of this company.");
     }
 
-    // #314: the workspace requires a second factor, the grace window the crew
-    // was given has passed, and this token does not have one.
+    // #314 the workspace's demand, #496 the person's own. Both readings live in
+    // {@link mfaStepUpRequired} below, because GET /v1/me has to make the same
+    // decision about the same payload from outside this middleware.
     //
     // Placed AFTER membership so the answer cannot be mined by a non-member,
-    // and expressed as its own code because all three clients route on it —
-    // to the enrolment screen, not to an error toast.
-    //
-    // What makes this safe to switch on at all: every route that could get
-    // somebody OUT of this state is company-exempt (enrolment lives against
-    // GoTrue directly, recovery and the factor list are bearer-only), so a
-    // member being told to enrol can always reach the place that fixes it.
-    // An enforcement gate with no exit is not a security feature, it is an
-    // outage with a good reason.
-    if (authorized.mfa?.enforcing && c.get("aal") !== "aal2") {
-      return errorResponse(
-        c,
-        "mfa_required",
-        "This workspace requires two-factor authentication. Set it up to carry on.",
-      );
-    }
-
-    // #496 — "I am able to login without any 2fa codes even though 2fa is
-    // enabled." Correct, and the gap was this: enrolment happens against
-    // GoTrue, which signs a password login in at aal1 and leaves demanding the
-    // second factor to the application. #314 only demanded it when a WORKSPACE
-    // policy said so, so a person who turned 2FA on for themselves got a factor
-    // and no consequence — the control was real and the switch that armed it
-    // belonged to somebody else.
-    //
-    // Enrolling IS the demand. No policy, no grace window, no owner involved:
-    // that is what everyone means by "two-factor is on", and it is the only
-    // reading under which the toggle is not decorative.
-    //
-    // Its own code because the remedy differs and all three clients route on
-    // it. `mfa_required` means "you have no factor, go and enrol"; this means
-    // "you have one, enter a code" — sending somebody already enrolled to the
-    // enrolment screen is a dead end that invites them to add a SECOND factor
-    // to fix being asked for the first.
-    //
-    // Same placement as the workspace gate, and for the same two reasons: after
-    // membership, so a non-member cannot mine whether an account has MFA; and
-    // after the company-exempt early return, so every route that gets somebody
-    // OUT of this state (recovery, the factor list, signing a lost device out)
-    // stays reachable at aal1.
-    if (authorized.mfa?.enrolled && c.get("aal") !== "aal2") {
-      return errorResponse(
-        c,
-        "mfa_challenge_required",
-        "Enter the code from your authenticator app to continue.",
-      );
-    }
+    // and after the company-exempt early return so every route that could get
+    // somebody OUT of this state (enrolment lives against GoTrue directly;
+    // recovery, the factor list and signing a lost device out are bearer-only)
+    // stays reachable at aal1. An enforcement gate with no exit is not a
+    // security feature, it is an outage with a good reason attached.
+    const stepUp = mfaStepUpRequired(authorized.mfa, c.get("aal"));
+    if (stepUp) return errorResponse(c, stepUp.code, stepUp.message);
 
     c.set("companyId", companyId);
     c.set("role", parsedRow.data.role);
     c.set("memberId", parsedRow.data.id);
     await next();
   });
+}
+
+/**
+ * The two MFA facts a (user, workspace) pair produces: #314's workspace policy
+ * once its grace window has run out, and #496's "this person holds a verified
+ * factor". `required` and `grace_until` travel beside them on the wire for the
+ * clients to render, and gate nothing.
+ */
+export interface MfaPosture {
+  enforcing: boolean;
+  enrolled: boolean;
+}
+
+/** What a session that has not presented its second factor is owed. */
+export interface MfaStepUp {
+  code: "mfa_required" | "mfa_challenge_required";
+  message: string;
+}
+
+/**
+ * Must this session present a second factor before it is shown a workspace?
+ *
+ * #314: the workspace requires one, the grace window the crew was given has
+ * passed, and this token does not have one. It is expressed as its own code
+ * rather than a 403 with prose because all three clients route on it — to the
+ * enrolment screen, not to an error toast.
+ *
+ * #496 — "I am able to login without any 2fa codes even though 2fa is enabled."
+ * Correct, and the gap was this: enrolment happens against GoTrue, which signs a
+ * password login in at aal1 and leaves demanding the second factor to the
+ * application. #314 only demanded it when a WORKSPACE policy said so, so a
+ * person who turned 2FA on for themselves got a factor and no consequence — the
+ * control was real and the switch that armed it belonged to somebody else.
+ * Enrolling IS the demand: no policy, no grace window, no owner involved.
+ *
+ * The two codes are not interchangeable and neither is its wording.
+ * `mfa_required` means "you have no factor, go and enrol"; the other means "you
+ * have one, enter a code" — sending somebody already enrolled to the enrolment
+ * screen is a dead end that invites them to add a SECOND factor to fix being
+ * asked for the first. So the copy is returned from here rather than written at
+ * each gate: a fork in the message is a fork in which of the two states a
+ * person is told they are in.
+ *
+ * #581 — EXPORTED, and that is the point of the shape. The company-exempt
+ * routes run before the middleware above reaches either gate, and one of them,
+ * GET /v1/me, hydrates the identical workspace payload that GET /v1/company
+ * serves from behind it. That route already re-implemented the membership half
+ * of what it was exempted from; a second copy of THIS half is how the two would
+ * drift again.
+ *
+ * A null posture is "no workspace was named, or a Worker is running ahead of the
+ * migration that reports the field" — no demand either way, per the
+ * expand/contract reasoning on `authorizeSchema` above.
+ */
+export function mfaStepUpRequired(
+  posture: MfaPosture | null,
+  aal: AssuranceLevel,
+): MfaStepUp | null {
+  if (aal === "aal2") return null;
+  if (posture?.enforcing) {
+    return {
+      code: "mfa_required",
+      message:
+        "This workspace requires two-factor authentication. Set it up to carry on.",
+    };
+  }
+  if (posture?.enrolled) {
+    return {
+      code: "mfa_challenge_required",
+      message: "Enter the code from your authenticator app to continue.",
+    };
+  }
+  return null;
+}
+
+/**
+ * #581: the same question, asked by a company-EXEMPT route that resolves a
+ * workspace of its own anyway.
+ *
+ * Those routes make the middleware pass `p_company_id => null`, so
+ * `api_authorize_request` never computes a posture for them — the exemption
+ * removes the answer as well as the gate. This asks for it directly.
+ *
+ * It reads the two SQL functions that RPC itself composes rather than deriving
+ * either fact from columns the caller already has. `enforcing` is "required, AND
+ * the grace deadline has passed", and a TypeScript copy of that comparison would
+ * be a second opinion about a deadline — which is exactly the failure this
+ * change exists to remove, one layer down.
+ *
+ * Nothing is asked at aal2, where no posture can produce a demand. The caller is
+ * the hottest route in the product, and a session that has already presented its
+ * factor should not pay two lookups to be told so.
+ *
+ * A lookup FAILURE throws: an infrastructure blip is not an authorization
+ * outcome, which is how the middleware above answers too.
+ */
+export async function resolveMfaStepUp(
+  c: Context<AppEnv>,
+  companyId: string,
+): Promise<MfaStepUp | null> {
+  const aal = c.get("aal");
+  if (aal === "aal2") return null;
+
+  const db = getDb(getEnv(c.env));
+  const [postureRes, enrolledRes] = await Promise.all([
+    db.rpc("company_mfa_posture", { p_company_id: companyId }),
+    db.rpc("user_has_verified_mfa", { p_user_id: c.get("userId") }),
+  ]);
+  if (postureRes.error) {
+    throw new Error(`mfa posture lookup failed: ${postureRes.error.message}`);
+  }
+  if (enrolledRes.error) {
+    throw new Error(`mfa enrolment lookup failed: ${enrolledRes.error.message}`);
+  }
+
+  return mfaStepUpRequired(
+    {
+      // Null for a workspace that does not exist, and `.catch(null)` for a shape
+      // this build does not recognise — both resolve to "no policy", which is
+      // the behaviour of every build before this one. Degrading to the old
+      // answer beats 500ing the route the whole app boots on.
+      enforcing: posturePayloadSchema.parse(postureRes.data)?.enforcing === true,
+      enrolled: enrolledRes.data === true,
+    },
+    aal,
+  );
 }
 
 /**

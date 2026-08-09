@@ -76,6 +76,10 @@ func wrapUpFailureMessage(_ reason: String?) -> String {
     case "disabled":
         return "Wrap-up dictation is turned off for this workspace. Settings, "
             + "AI turns it back on."
+    // #581: billing, not breakage — so it must not say "try again", which is
+    // not what fixes it. Same sentence everywhere Lou refuses for this reason.
+    case "subscription_inactive":
+        return "Lou is paused while the subscription is sorted out. An owner can fix that in Billing."
     case "over_cap":
         return "This month's dictation is used up. It starts again next month "
             + "\u{2014} type the note in the meantime."

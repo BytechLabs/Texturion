@@ -121,13 +121,17 @@ updates:
   # chain risk with our deploy credentials in scope, and this is the cheapest
   # ecosystem to keep current.
   #
-  # THIS IS ALSO THE BUMP MECHANISM FOR ship.yml's COMMIT PINS (#444, D93).
-  # Every action there is pinned to a SHA so a publisher cannot change what
-  # production runs without a commit here. Dependabot understands SHA pins and
-  # moves the version comment with them, so it is what NOTICES a pin has gone
-  # stale — the failure mode SHA-pinning otherwise introduces. The pin stops the
-  # change being silent; this stops it being permanent. A human still merges,
-  # which is the review the pin exists to force.
+  # THIS IS ALSO THE BUMP MECHANISM FOR THE COMMIT PINS (#444, D93, #581).
+  # Every action in ship.yml, and the release-please action in main.yml, is pinned
+  # to a SHA so a publisher cannot change what runs with our deploy or write
+  # credentials without a commit here. Dependabot understands SHA pins and moves
+  # the version comment with them, so it is what NOTICES a pin has gone stale —
+  # the failure mode SHA-pinning otherwise introduces. The pin stops the change
+  # being silent; this stops it being permanent. A human still merges, which is
+  # the review the pin exists to force.
+  #
+  # It matters more than usual for the main.yml pin: `scripts/ops/bump-action-pins.mjs`
+  # still only reads ship.yml, so this entry is the ONLY thing watching that one.
   #
   # Majors are ignored for exactly the actions ship.yml pins, for the reason
   # already applied to Compose and AGP below: a major is a deliberate migration
@@ -173,6 +177,13 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: supabase/setup-cli
         update-types: ["version-update:semver-major"]
+      # #581: main.yml's release job runs this with `contents: write`,
+      # `pull-requests: write` and `issues: write`. v5 is already out upstream and
+      # changes how the action is configured, so crossing that major is a decision
+      # somebody makes with the release notes open — not a Monday chore PR landing
+      # on the job that cuts our versions and tags.
+      - dependency-name: googleapis/release-please-action
+        update-types: ["version-update:semver-major"]
     labels: ["dependencies", "P3"]
     commit-message:
       prefix: chore
@@ -184,9 +195,15 @@ updates:
 # committed Package.resolved, and this project has neither — the two SPM
 # dependencies (TelnyxRTC, Firebase) are declared in apps/ios/project.yml and
 # resolved by Xcode at build time, so there is no manifest for Dependabot to
-# read. The gap is covered instead by `swift-pins` in
-# .github/workflows/security.yml, which reads project.yml directly and fails
-# when a pin drifts from what was reviewed. That is less than Dependabot would
-# give us; it is more than nothing, and it is the honest version of what we
-# actually have.
+# read. The gap is covered instead by the `swift-advisories` job in
+# .github/workflows/security.yml, which reads those pins straight out of
+# project.yml and asks GitHub's advisory database about them weekly.
+#
+# #581: this note used to name a job called `swift-pins` and describe it as
+# failing "when a pin drifts from what was reviewed". No such job has ever
+# existed and no drift check has ever existed — the compensating control the gap
+# was signed off against was the description, not the code. What is really there
+# is an advisory lookup, which raises a known CVE and says nothing about drift.
+# That is less than Dependabot would give us; it is more than nothing, and this
+# is now the honest version of what we actually have.
 # -----------------------------------------------------------------------------

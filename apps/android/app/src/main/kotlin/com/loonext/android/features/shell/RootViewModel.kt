@@ -11,6 +11,7 @@ import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.SubscriptionStatus
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
+import com.loonext.android.features.settings.SettingsRepository
 import com.loonext.android.core.realtime.RealtimeLifecycle
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -195,6 +196,19 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
             // Drop the device push token while the bearer still works —
             // best-effort; a dead token also self-prunes server-side (#151).
             runCatching { graph.pushRegistrar.unregister() }
+            // Revoke the session SERVER-side, in the same "while the bearer still
+            // works" slot and for a sharper reason. `AuthManager.signOut` ends the
+            // GoTrue session and nothing else, so `user_sessions.revoked_at` stayed
+            // null and the softphone credential was never swept — and because
+            // authorization is `revoked_at is null`, the access token this phone is
+            // holding kept full read and send for the rest of its life after
+            // somebody pressed Sign out.
+            //
+            // Best-effort, like the line above and for the same reason: nobody may
+            // be trapped in an account because the network blipped on the way out.
+            // The cost of a failure is that the token expires on its own instead of
+            // being cut short, which is the state we were in for every sign-out.
+            runCatching { SettingsRepository(graph.api).revokeThisSession() }
             graph.authManager.signOut()
         }
     }

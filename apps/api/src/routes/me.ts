@@ -4,8 +4,11 @@
  * send X-Company-Id (the dashboard shell does, to hydrate the active
  * workspace in one round trip), the response additionally embeds that
  * company's subscription status, plan, registration snapshot, and number
- * list — after validating the caller's active membership, exactly as the
- * company-context middleware would.
+ * list — after validating the caller's active membership AND its MFA posture
+ * (#581), which is everything the company-context middleware would have
+ * checked. Half of that pair was missing, and the missing half was the one an
+ * exemption cannot excuse: the embedded object is byte-for-byte what
+ * GET /v1/company refuses to an aal1 session.
  *
  * PATCH /v1/me { display_name } (#112) — set the caller's own display name.
  * Also company-exempt: the invite-accept flow needs it BEFORE the caller is a
@@ -17,7 +20,7 @@ import { DASHBOARD_PANEL_IDS, normaliseHiddenPanels } from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { requireCapability } from "../auth/company";
+import { requireCapability, resolveMfaStepUp } from "../auth/company";
 import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -354,14 +357,41 @@ meRoutes.get("/me", async (c) => {
         "Not an active member of this company.",
       );
     }
-    const company = await loadCompanyView(db, parsed.data, env, {
-      userId,
-      // company_members.role is DB-constrained to the MemberRole union.
-      role: membership.role as MemberRole,
-    });
+    // #581: the aal gate this route IS exempt from the middleware for, and is
+    // not exempt from the consequences of. `loadCompanyView` returns the exact
+    // object GET /v1/company serves from BEHIND that gate, so an aal1 session
+    // refused there with `mfa_challenge_required` was reading the same workspace
+    // — its name, plan, every number's E.164, the away and emergency copy —
+    // one header later. The decision is imported rather than restated: this
+    // route already re-implemented the membership half of the exemption, and a
+    // hand-written second copy of the MFA half is how the two drift apart.
+    //
+    // Resolved in PARALLEL with the view rather than before it. A refusal is the
+    // rare case and the view is the common one, so gating serially would put an
+    // extra round trip on every app load to save work on almost none of them.
+    const [stepUp, company] = await Promise.all([
+      resolveMfaStepUp(c, parsed.data),
+      loadCompanyView(db, parsed.data, env, {
+        userId,
+        // company_members.role is DB-constrained to the MemberRole union.
+        role: membership.role as MemberRole,
+      }),
+    ]);
     if (!company) {
       return errorResponse(c, "not_found", "No such company.");
     }
+    // OMITTED, never refused, and that distinction is the whole care here: the
+    // workspace switcher and every MFA recovery path bootstrap from this
+    // response, so 403ing it would lock somebody out of the very flow that
+    // satisfies the challenge — a low-severity read turned into an outage.
+    //
+    // Nothing is invented to say so. All three shells learn which of the two
+    // walls to draw from GET /v1/company, which answers the code (web:
+    // components/shell/mfa-gate.tsx), and `company` is optional in every
+    // client's model of this payload because a call without X-Company-Id has
+    // always omitted it.
+    if (stepUp) return c.json(body);
+
     body.company = company;
     // #283: the flags this workspace should honour CLIENT-side.
     //

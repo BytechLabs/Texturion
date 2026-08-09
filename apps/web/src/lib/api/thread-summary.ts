@@ -72,6 +72,8 @@ export type ThreadSummaryReason =
    * the service, and the honest sentence for it is different.
    */
   | "unusable_output"
+  /** #581: Lou stopped spending because the workspace stopped paying. */
+  | "subscription_inactive"
   | "unavailable";
 
 /**
@@ -159,6 +161,12 @@ export function threadSummaryFailureMessage(
       // true about how this feature works: nothing shows unless Lou can point
       // at the message it came from.
       return "Lou couldn't point at the messages behind what it read, so there's nothing to show. The thread is still the record.";
+    case "subscription_inactive":
+      // Billing, not breakage — so it must not say "try again", which is not
+      // what fixes it. Names the one place that does, in the same words the
+      // send paths already use for a lapsed subscription, so a crew meeting
+      // both in one afternoon reads one story rather than two.
+      return "Lou is paused while the subscription is sorted out. An owner can fix that in Billing.";
     default:
       return "No catch-up this time. Try again.";
   }

@@ -1962,6 +1962,12 @@ async function readCachedSummary(
 // that could fetch it back. A test asserts this rather than trusting the
 // comment.
 //
+// EVERYTHING DEGRADES to `{ text: null, reason }` and leaves the member in the
+// note composer with a keyboard: too long, the feature switched off, over the
+// monthly cap, an unreachable model, output with no words in it, and since #581
+// `rate_limited` (the burst gates below) and `subscription_inactive` (billing,
+// owned by the shared gate).
+//
 // Requires the 'note' level on the number (#106), matching where the text is
 // going: this produces something for the crew, not for the customer.
 // --------------------------------------------------------------------------
@@ -2019,20 +2025,61 @@ conversationsRoutes.post(
       return c.json({ text: null, reason: "too_long" as const });
     }
 
+    // The same two limiters reply drafting and thread catch-up use, and this
+    // route had NEITHER — the only member-triggered AI path in the product
+    // without a burst gate, so one member holding a button in a loop (or a
+    // stuck client, or a stolen token) could spend the crew's whole month of
+    // wrap-ups in minutes and the cap alert was the first anyone heard of it.
+    //
+    // SHARED buckets rather than a namespace of this route's own, deliberately.
+    // AI_REPLY_RATE_LIMITER carries drafting's name and thread catch-up already
+    // shares it, because what it really counts is a workspace's AI request rate;
+    // the member one counts a person's. Private buckets would let one member run
+    // every feature's burst allowance at once, which is the thing the member
+    // bucket exists to stop. AI_TRANSCRIBE_RATE_LIMITER was the other candidate,
+    // this being audio — declined because it is voicemail's own soft degrade
+    // ("the recording still plays, only the transcript waits"), and a second
+    // feature draining it would silence transcripts nobody asked it about.
+    //
+    // Ahead of the settings read and the ledger reservation, because a burst
+    // must not buy the work behind them either.
+    if (env.AI_REPLY_RATE_LIMITER) {
+      const { success } = await env.AI_REPLY_RATE_LIMITER.limit({ key: companyId });
+      if (!success) {
+        return c.json({ text: null, reason: "rate_limited" as const });
+      }
+    }
+    if (env.AI_MEMBER_RATE_LIMITER) {
+      const { success } = await env.AI_MEMBER_RATE_LIMITER.limit({
+        key: `${companyId}:${c.get("userId")}`,
+      });
+      if (!success) {
+        return c.json({ text: null, reason: "rate_limited" as const });
+      }
+    }
+
     const settings = await loadAiSettings(db, companyId);
-    // One door onto the model (ai/run.ts): it owns the opt-in, the monthly cap,
-    // the alert before the cap, and the timeout.
+    // One door onto the model (ai/run.ts): it owns the opt-in, the billing
+    // standing, the monthly cap, the alert before the cap, and the timeout.
     const run = await runAiFeature(env, db, {
       companyId,
       spec: CALL_WRAPUP_FEATURE_SPEC,
       model: VOICEMAIL_TRANSCRIPT_MODEL,
-      input: transcriptInput(Buffer.from(audio).toString("base64")),
+      // BOTH inputs are thunks, and that is a cost fix rather than a style
+      // choice. This is the most expensive input the product builds — a base64
+      // copy of up to 8 MB, and a fallback shape that spreads the same bytes
+      // into an array of eight million numbers — and building them here meant
+      // every refusal the gate makes (feature off, subscription dead, over the
+      // monthly cap) was paid for in CPU and memory before it was refused.
+      // Deferred, the fallback's copy is also only made if the first shape
+      // really failed, which is the common case never paying for the rare one.
+      input: () => transcriptInput(Buffer.from(audio).toString("base64")),
       settings,
       // The binding cannot be exercised outside a deployed Worker, so one
       // model's input contract being wrong must not mean no words at all.
       fallback: {
         model: VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL,
-        input: fallbackTranscriptInput(audio),
+        input: () => fallbackTranscriptInput(audio),
       },
       accept: (raw) => sanitizeWrapUp(transcriptText(raw)) !== null,
     });

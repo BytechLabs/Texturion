@@ -15,6 +15,26 @@ on:
   # #493: the release-please pull request is skipped at JOB level, not here.
   # `branches-ignore` filters the BASE branch and those PRs target `main`, so a
   # pattern here never matches — see the condition on each job below.
+  #
+  # ---------------------------------------------------------------------------
+  # #581: THAT CONDITION USED TO BE A BRANCH NAME, AND A BRANCH NAME IS NOT OURS.
+  #
+  # On a pull request from a fork the head branch is named by the CONTRIBUTOR, so
+  # a branch called `release-please--anything` skipped all seven jobs in this file
+  # and all five in security.yml — and GitHub reports a skipped job as a pass, so
+  # the pull request's check list read green over a run that compiled nothing,
+  # scanned no history and ran no test. Whether the gate ran at all was the
+  # submitter's choice.
+  #
+  # Not a secrets path: these run on `pull_request`, so a fork gets a read-only
+  # token and no secret is in scope. It is a COVERAGE path, which is worse in the
+  # one place it counts — the merge decision.
+  #
+  # release-please pushes its branch into THIS repository, and nobody outside the
+  # repository can do that. So the condition asks BOTH questions and the half that
+  # decides is the one no submitter can satisfy; the name is only kept to tell a
+  # release branch from an ordinary branch pushed by somebody with write access.
+  # ---------------------------------------------------------------------------
   pull_request:
   workflow_call:
 
@@ -60,9 +80,14 @@ jobs:
     # approved or the approval requirement is lifted, they skip instead of
     # re-running a gate that already passed on the push that produced the PR.
     #
-    # `github.head_ref` is empty for push and workflow_call, so this is true on
-    # every path except the one it exists to skip.
-    if: "!startsWith(github.head_ref, 'release-please--')"
+    # #581: the branch NAME cannot be the whole test — on a fork pull request the
+    # contributor picks it, and a skipped job reports as a pass. The repository
+    # comparison is the half no submitter can satisfy; it is null on push and
+    # workflow_call, so the job still runs on those paths exactly as it did when
+    # the name was the only test. Full reason on the `on:` block above.
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -113,9 +138,14 @@ jobs:
     # approved or the approval requirement is lifted, they skip instead of
     # re-running a gate that already passed on the push that produced the PR.
     #
-    # `github.head_ref` is empty for push and workflow_call, so this is true on
-    # every path except the one it exists to skip.
-    if: "!startsWith(github.head_ref, 'release-please--')"
+    # #581: the branch NAME cannot be the whole test — on a fork pull request the
+    # contributor picks it, and a skipped job reports as a pass. The repository
+    # comparison is the half no submitter can satisfy; it is null on push and
+    # workflow_call, so the job still runs on those paths exactly as it did when
+    # the name was the only test. Full reason on the `on:` block above.
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -181,9 +211,14 @@ jobs:
     # approved or the approval requirement is lifted, they skip instead of
     # re-running a gate that already passed on the push that produced the PR.
     #
-    # `github.head_ref` is empty for push and workflow_call, so this is true on
-    # every path except the one it exists to skip.
-    if: "!startsWith(github.head_ref, 'release-please--')"
+    # #581: the branch NAME cannot be the whole test — on a fork pull request the
+    # contributor picks it, and a skipped job reports as a pass. The repository
+    # comparison is the half no submitter can satisfy; it is null on push and
+    # workflow_call, so the job still runs on those paths exactly as it did when
+    # the name was the only test. Full reason on the `on:` block above.
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -236,6 +271,24 @@ jobs:
       # missed, and it fails loudly on finding zero rather than printing a pass.
       - name: Guard CSV exports against formula injection
         run: node scripts/check-csv-escaping.mjs
+
+      # Signing out has to REVOKE the session, not just forget it. Every client
+      # ended a session by calling GoTrue /logout and nothing else, which deletes
+      # the auth session and leaves `user_sessions.revoked_at` null — and since
+      # authorization is `revoked_at is null` and never checks the GoTrue session
+      # still exists, a captured access token kept full read and send for the rest
+      # of its life after somebody pressed Sign out. It was invisible too: the
+      # devices list inner-joins `auth.sessions`, so the row that needed killing
+      # was missing from the screen you would go to kill it.
+      #
+      # The shape is the reason this is a guard rather than a fix. The sequence has
+      # an order and every step but the last needs the session being ended, and on
+      # web that order was written out by hand at NINE call sites — the push half
+      # correct at eight of them, the login page missing even that, and the revoke
+      # half missing at all nine. One rule copied nine times is how a step added
+      # later reaches some copies and not others.
+      - name: Guard the sign-out path
+        run: node scripts/check-sign-out-path.mjs
 
       # #554: a customer replied "1" to "how did it go?" and nobody was told.
       # `job_rated` was inserted by shipped code and had never been added to
@@ -363,16 +416,26 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/check-open-lists.mjs
 
-      # #444/D93: ship.yml is the only file whose output reaches customers, and
-      # every action in it used to be pinned to a MUTABLE major tag — one of
-      # them to a branch. A publisher moving that tag changes what production
-      # runs with no commit here, which is the property that took a deploy down
-      # on 2026-07-24, one layer lower. The pins are the fix; this stops them
-      # reverting the next time somebody adds a step and types `@v4` from habit.
-      # Deliberately ship.yml ONLY — this file keeps readable major tags, where
-      # a surprise costs a red build and nothing else. Offline, so unlike the
-      # lookup behind that outage it cannot itself be rate-limited.
-      - name: Guard deploy-path action pins
+      # #444/D93: every action in ship.yml used to be pinned to a MUTABLE major
+      # tag — one of them to a branch. A publisher moving that tag changes what
+      # production runs with no commit here, which is the property that took a
+      # deploy down on 2026-07-24, one layer lower. The pins are the fix; this
+      # stops them reverting the next time somebody adds a step and types `@v4`
+      # from habit. Offline, so unlike the lookup behind that outage it cannot
+      # itself be rate-limited.
+      #
+      # #581: it now reads EVERY workflow, and decides which ones must pin by the
+      # token they hold rather than by name. Naming ship.yml was the bug: the same
+      # sentence exempted main.yml, whose release job runs a third party's action
+      # with `contents: write`, `pull-requests: write` and `issues: write` in
+      # scope. This file still keeps readable major tags, and now for a reason a
+      # new workflow inherits automatically — `contents: read` cannot do worse
+      # than turn a build red.
+      #
+      # Same run also asks whether a job's `if:` lets somebody OUTSIDE the
+      # repository decide that the job does not run at all, which was the other
+      # half of #581 and is invisible to every other check here.
+      - name: Guard workflow pins and trust conditions
         run: node scripts/check-action-pins.mjs
 
       # feat/fix/perf subjects are published verbatim in the release notes, so
@@ -435,9 +498,14 @@ jobs:
     # approved or the approval requirement is lifted, they skip instead of
     # re-running a gate that already passed on the push that produced the PR.
     #
-    # `github.head_ref` is empty for push and workflow_call, so this is true on
-    # every path except the one it exists to skip.
-    if: "!startsWith(github.head_ref, 'release-please--')"
+    # #581: the branch NAME cannot be the whole test — on a fork pull request the
+    # contributor picks it, and a skipped job reports as a pass. The repository
+    # comparison is the half no submitter can satisfy; it is null on push and
+    # workflow_call, so the job still runs on those paths exactly as it did when
+    # the name was the only test. Full reason on the `on:` block above.
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--'))
     runs-on: ubuntu-latest
     env:
       # next build inlines these; web/src/env.ts fails the build if they are
@@ -549,9 +617,14 @@ jobs:
     # approved or the approval requirement is lifted, they skip instead of
     # re-running a gate that already passed on the push that produced the PR.
     #
-    # `github.head_ref` is empty for push and workflow_call, so this is true on
-    # every path except the one it exists to skip.
-    if: "!startsWith(github.head_ref, 'release-please--')"
+    # #581: the branch NAME cannot be the whole test — on a fork pull request the
+    # contributor picks it, and a skipped job reports as a pass. The repository
+    # comparison is the half no submitter can satisfy; it is null on push and
+    # workflow_call, so the job still runs on those paths exactly as it did when
+    # the name was the only test. Full reason on the `on:` block above.
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -663,9 +736,14 @@ jobs:
     # approved or the approval requirement is lifted, they skip instead of
     # re-running a gate that already passed on the push that produced the PR.
     #
-    # `github.head_ref` is empty for push and workflow_call, so this is true on
-    # every path except the one it exists to skip.
-    if: "!startsWith(github.head_ref, 'release-please--')"
+    # #581: the branch NAME cannot be the whole test — on a fork pull request the
+    # contributor picks it, and a skipped job reports as a pass. The repository
+    # comparison is the half no submitter can satisfy; it is null on push and
+    # workflow_call, so the job still runs on those paths exactly as it did when
+    # the name was the only test. Full reason on the `on:` block above.
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--'))
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -723,9 +801,14 @@ jobs:
     # approved or the approval requirement is lifted, they skip instead of
     # re-running a gate that already passed on the push that produced the PR.
     #
-    # `github.head_ref` is empty for push and workflow_call, so this is true on
-    # every path except the one it exists to skip.
-    if: "!startsWith(github.head_ref, 'release-please--')"
+    # #581: the branch NAME cannot be the whole test — on a fork pull request the
+    # contributor picks it, and a skipped job reports as a pass. The repository
+    # comparison is the half no submitter can satisfy; it is null on push and
+    # workflow_call, so the job still runs on those paths exactly as it did when
+    # the name was the only test. Full reason on the `on:` block above.
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--'))
     runs-on: macos-latest
     defaults:
       run:

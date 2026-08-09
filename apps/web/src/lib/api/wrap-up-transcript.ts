@@ -57,7 +57,9 @@ export type WrapUpFailureReason =
   | "over_cap"
   | "model_error"
   | "unusable_output"
-  | "unavailable";
+  | "unavailable"
+  /** #581: the AI gate refuses a workspace that has stopped paying. */
+  | "subscription_inactive";
 
 /** POST /v1/conversations/:id/wrap-up-transcript — verbatim words, or a reason. */
 export interface WrapUpTranscript {
@@ -84,6 +86,9 @@ export function wrapUpFailureMessage(
       } minutes, or type it.`;
     case "disabled":
       return "Dictation is turned off for this workspace. Type the note, or turn it back on in Settings, Lou.";
+    case "subscription_inactive":
+      // billing, not breakage — so it must not say "try again", which is not what fixes it. Same words everywhere Lou refuses for this reason (#581).
+      return "Lou is paused while the subscription is sorted out. An owner can fix that in Billing.";
     case "over_cap":
       return "This month's dictation is used up. It starts again next month — type the note for now.";
     case "model_error":

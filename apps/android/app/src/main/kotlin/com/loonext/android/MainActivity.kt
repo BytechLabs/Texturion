@@ -298,9 +298,12 @@ class MainActivity : FragmentActivity() {
                 CompositionLocalProvider(LocalWindowSizeClass provides windowSizeClass) {
                     // #330: OUTSIDE Root, so a locked app does not compose the
                     // inbox at all rather than covering it. A scrim is one
-                    // screenshot — or one recents thumbnail — away from being
-                    // nothing, and the recents view is exactly where a
-                    // handed-over phone shows its last screen.
+                    // screenshot away from being nothing.
+                    //
+                    // #581: this placement buys nothing against the RECENTS
+                    // thumbnail, which it used to claim. That picture is taken on
+                    // the way out, while the app is unlocked and composing the
+                    // inbox — the gate turns the card off itself instead.
                     AppLockGate(graph.prefs) {
                     Root(graph, deepLinks)
                     // #168A: no adb on the founder's device — if the last run

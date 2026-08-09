@@ -13,7 +13,7 @@ import { ApiError } from "@/lib/api/error";
 import { fetchMe, useUpdateDisplayName } from "@/lib/api/me";
 import { useAcceptInvite } from "@/lib/api/team";
 import { writeCompanyCookie } from "@/lib/company/cookie";
-import { releasePushOnThisDevice } from "@/lib/push/release";
+import { endSessionOnThisDevice } from "@/lib/auth/end-session";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 type SessionState = "checking" | "authed" | "anonymous";
@@ -167,8 +167,7 @@ export default function InviteAcceptPage() {
     // that leaves the previous member's push subscription on this browser
     // (#264). No workspace is active here, so this only ends the browser's
     // subscription — the server prunes the row as dead on its next send.
-    await releasePushOnThisDevice(null);
-    await getSupabaseBrowser().auth.signOut();
+    await endSessionOnThisDevice(null);
     router.push(`/login?next=${encodeURIComponent(`/invite/${token}`)}`);
   }
 

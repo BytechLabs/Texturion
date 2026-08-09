@@ -54,6 +54,39 @@ function baseStub(): SupabaseStub {
   return sb;
 }
 
+const POSTURE_RPC = "/rest/v1/rpc/company_mfa_posture";
+const FACTOR_RPC = "/rest/v1/rpc/user_has_verified_mfa";
+
+/**
+ * #581: the MFA posture of the X-Company-Id workspace, which this route resolves
+ * for itself.
+ *
+ * It has to. /v1/me is company-EXEMPT, so the middleware asks
+ * `api_authorize_request` for `p_company_id => null` and gets no posture back at
+ * all — the ambient authorize responder reproduces exactly that, which is the
+ * state production is in, and the reason the handler cannot lean on it.
+ *
+ * `membershipResponder`'s `mfa` option could not stand in here even for a
+ * company-scoped route: it has no `enrolled` field, so everything that turns on
+ * #496 reads false through it and a test written that way passes against code
+ * with no gate at all.
+ *
+ * `{ enforcing: false, enrolled: false }` is the quiet answer — no workspace
+ * policy and no factor — which is the state every test written before #581 was
+ * asserting against.
+ */
+function onMfaPosture(
+  sb: SupabaseStub,
+  posture: { enforcing: boolean; enrolled: boolean },
+): void {
+  sb.on("POST", POSTURE_RPC, () => ({
+    required: posture.enforcing,
+    grace_until: posture.enforcing ? "2020-01-01T00:00:00Z" : null,
+    enforcing: posture.enforcing,
+  }));
+  sb.on("POST", FACTOR_RPC, () => posture.enrolled);
+}
+
 describe("GET /v1/me", () => {
   it("returns profile + memberships without X-Company-Id (company-exempt)", async () => {
     const sb = baseStub();
@@ -94,6 +127,7 @@ describe("GET /v1/me", () => {
 
   it("hydrates the X-Company-Id company: subscription, plan, registration snapshot, numbers", async () => {
     const sb = baseStub();
+    onMfaPosture(sb, { enforcing: false, enrolled: false });
     sb.on("GET", "/rest/v1/companies", () => [
       {
         id: COMPANY_ID,
@@ -159,6 +193,7 @@ describe("GET /v1/me", () => {
 
   it("flips billing_writes_enabled to false under the BILLING_WRITES_DISABLED kill-switch (#163)", async () => {
     const sb = baseStub();
+    onMfaPosture(sb, { enforcing: false, enrolled: false });
     sb.on("GET", "/rest/v1/companies", () => [
       {
         id: COMPANY_ID,
@@ -231,6 +266,110 @@ describe("GET /v1/me", () => {
     stubFetch();
     const res = await app.request("/v1/me", {}, env);
     expect(res.status).toBe(401);
+  });
+});
+
+describe("GET /v1/me withholds the workspace at aal1 (#581)", () => {
+  /** The hydration stub, with the posture this route resolves for itself. */
+  function mfaStub(posture: {
+    enforcing: boolean;
+    enrolled: boolean;
+  }): SupabaseStub {
+    const sb = baseStub();
+    onMfaPosture(sb, posture);
+    sb.on("GET", "/rest/v1/companies", () => [
+      {
+        id: COMPANY_ID,
+        name: "Acme Plumbing",
+        country: "US",
+        plan: "starter",
+        subscription_status: "active",
+        created_at: "2026-06-14T00:00:00+00:00",
+        updated_at: "2026-06-15T00:00:00+00:00",
+      },
+    ]);
+    sb.on("GET", "/rest/v1/phone_numbers", () => [
+      {
+        id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+        status: "active",
+        country: "US",
+        number_e164: "+14165550000",
+        created_at: "2026-06-15T00:02:00+00:00",
+      },
+    ]);
+    sb.on("GET", "/rest/v1/messaging_registrations", () => []);
+    sb.on("GET", "/rest/v1/company_modules", () => []);
+    return sb;
+  }
+
+  it("omits `company` for a session whose owner holds a factor (#496 reading)", async () => {
+    // The workspace has NO policy — this is the personal enrolment that
+    // GET /v1/company answers with `mfa_challenge_required`, and this route was
+    // handing over the identical object.
+    const sb = mfaStub({ enforcing: false, enrolled: true });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/me", {
+      companyId: COMPANY_ID,
+    });
+    // 200, not 403: the workspace switcher and every recovery path bootstrap
+    // from this response, so refusing it would lock somebody out of the flow
+    // that satisfies the challenge.
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.company).toBeUndefined();
+    expect(body.flags).toBeUndefined();
+    // The half that MUST survive: the memberships the switcher reads, and the
+    // identity the account screens read.
+    expect(body.memberships).toHaveLength(1);
+    expect(body.user_id).toBe(auth.subject);
+  });
+
+  it("omits `company` when the workspace enforces and the session is aal1", async () => {
+    // #314's half of the same gate, for somebody with no factor of their own.
+    const sb = mfaStub({ enforcing: true, enrolled: false });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/me", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.company).toBeUndefined();
+  });
+
+  it("serves it once the code has been presented, without asking anything", async () => {
+    const sb = mfaStub({ enforcing: true, enrolled: true });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token({ aal: "aal2" }),
+      "/v1/me",
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { company?: { plan: string } };
+    expect(body.company?.plan).toBe("starter");
+    // No posture can produce a demand at aal2, so neither lookup is paid for on
+    // the hottest route in the product.
+    expect(sb.find("POST", POSTURE_RPC)).toHaveLength(0);
+    expect(sb.find("POST", FACTOR_RPC)).toHaveLength(0);
+  });
+
+  it("serves it to the ordinary case: no factor, no policy", async () => {
+    // The state almost every workspace is in. A gate that fired here would be an
+    // outage, not a fix.
+    const sb = mfaStub({ enforcing: false, enrolled: false });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/me", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { company?: { plan: string } };
+    expect(body.company?.plan).toBe("starter");
   });
 });
 

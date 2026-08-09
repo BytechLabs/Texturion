@@ -22,6 +22,9 @@ export function suggestionFailureMessage(
       return "This thread is marked as spam, so Lou skips it. Unmark it to draft a reply.";
     case "nothing_to_reply":
       return "Nothing to reply to yet. Type a few words and try again.";
+    case "subscription_inactive":
+      // billing, not breakage — so it must not say "try again", which is not what fixes it. Same words everywhere Lou refuses for this reason (#581).
+      return "Lou is paused while the subscription is sorted out. An owner can fix that in Billing.";
     case "over_cap":
       return "This month's drafting is used up. It starts again next month.";
     case "rate_limited":

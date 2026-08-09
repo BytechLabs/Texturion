@@ -170,6 +170,10 @@ func replyDraftMessage(_ reason: String?) -> String {
         return "This thread is marked as spam, so Lou skips it. Unmark it to draft a reply."
     case "nothing_to_reply":
         return "Nothing to draft from yet. Type a few words and try again."
+    // #581: billing, not breakage — so it must not say "try again", which is
+    // not what fixes it. Same sentence everywhere Lou refuses for this reason.
+    case "subscription_inactive":
+        return "Lou is paused while the subscription is sorted out. An owner can fix that in Billing."
     case "over_cap":
         return "This month's drafting is used up. It starts again next month."
     case "rate_limited":

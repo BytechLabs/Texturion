@@ -382,8 +382,26 @@ begin
 end $$;
 
 -- ===========================================================================
--- NL-7. Grants. The policy calls the singular as `authenticated`; the plural
---       enumerates a company's restrictions and stays service-role only.
+-- NL-7. Grants. BOTH functions are service_role only.
+--
+-- This assertion used to say the opposite of its second half — that the singular
+-- MUST be executable by `authenticated`, "or the topic policy denies every
+-- per-number join and realtime silently stops working for everyone". That reason
+-- was wrong, and #581 is what it cost: the policies on `realtime.messages` call
+-- `is_company_topic_member`, which is `security definer`, so `member_number_level`
+-- is privilege-checked inside it against the function's OWNER and never against
+-- the caller. No end-user role has ever needed the grant.
+--
+-- What the grant actually bought was PostgREST: the singular takes a user id from
+-- its caller, so any signed-in browser could POST it a teammate's id and read
+-- back that person's level for any number — the plural's withheld lookup, one
+-- number at a time. 20260812120000 revokes it.
+--
+-- Both directions are asserted, because both are how this breaks. Widening it
+-- back to `authenticated` reopens #581; losing service_role breaks the Worker's
+-- ring and transfer paths (`resolveRingTargets`, `eligibleTarget`). That the
+-- realtime gate still resolves with the grant gone is proved live, as the
+-- `authenticated` role, by `presence_topic.test.sql` PT-1.
 -- ===========================================================================
 do $$
 declare leaked text;
@@ -401,6 +419,8 @@ begin
     raise exception 'NL-7 FAILED: member_number_levels EXECUTE leaked to %', leaked;
   end if;
 
+  -- #581: `authenticated` joins the list. An end-user role reaching the singular
+  -- directly is a teammate's access map behind one PostgREST call.
   select string_agg(distinct r.rolname, ',') into leaked
   from pg_proc p
   join pg_namespace n on n.oid = p.pronamespace
@@ -409,13 +429,13 @@ begin
   where n.nspname = 'public'
     and p.proname = 'member_number_level'
     and a.privilege_type = 'EXECUTE'
-    and r.rolname in ('public', 'anon');
+    and r.rolname in ('public', 'anon', 'authenticated');
   if leaked is not null then
     raise exception 'NL-7 FAILED: member_number_level EXECUTE leaked to %', leaked;
   end if;
 
-  -- And it MUST be executable by authenticated, or the topic policy denies
-  -- every per-number join and realtime silently stops working for everyone.
+  -- And it MUST still be executable by service_role: the Worker's ring and
+  -- transfer paths call it directly, and they are the only callers left.
   if not exists (
     select 1
     from pg_proc p
@@ -425,12 +445,12 @@ begin
     where n.nspname = 'public'
       and p.proname = 'member_number_level'
       and a.privilege_type = 'EXECUTE'
-      and r.rolname = 'authenticated'
+      and r.rolname = 'service_role'
   ) then
-    raise exception 'NL-7 FAILED: authenticated cannot execute member_number_level';
+    raise exception 'NL-7 FAILED: service_role cannot execute member_number_level';
   end if;
 
-  raise notice 'NL-7 PASSED: singular is authenticated-callable, plural is not';
+  raise notice 'NL-7 PASSED: both functions are service_role only';
 end $$;
 
 

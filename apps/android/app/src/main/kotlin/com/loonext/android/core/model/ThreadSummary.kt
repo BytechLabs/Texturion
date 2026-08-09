@@ -306,6 +306,8 @@ val THREAD_SUMMARY_REASONS: List<String> = listOf(
     "too_short",
     "rate_limited",
     "unusable_output",
+    // #581: Lou stopped spending because the workspace stopped paying.
+    "subscription_inactive",
     THREAD_SUMMARY_NOT_ALLOWED,
 )
 
@@ -344,5 +346,11 @@ fun threadSummaryMessage(reason: String?): String = when (reason) {
     // every line is quoted, which is the thing that makes the card trustworthy.
     "unusable_output" ->
         "Nothing came back that Lou could point at in the thread, so there's nothing to show."
+    // #581: billing, not breakage — and it must not say "try again", because
+    // trying again is not what fixes it. Names the fix in the same words the
+    // send paths already use for a lapsed subscription, so a crew that meets
+    // both in one afternoon reads one story rather than two.
+    "subscription_inactive" ->
+        "Lou is paused while the subscription is sorted out. An owner can fix that in Billing."
     else -> "No catch-up this time. Try again."
 }

@@ -7,6 +7,7 @@ import {
   isTransientAuthBlip,
 } from "@/lib/auth/redirects";
 import { decideBlogRoute, decideHostRedirect } from "@/lib/hosts";
+import { SUPABASE_COOKIE_OPTIONS } from "@/lib/supabase/cookie-options";
 
 /**
  * Session-refreshing auth middleware (SPEC §10, G12): enforces the
@@ -58,6 +59,14 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
+      // The THIRD writer of this cookie, and the one that writes it most often:
+      // `getUser()` below is normally the first thing to notice an expired access
+      // token, so this rewrites the session about once an hour. `Secure` is not
+      // part of a cookie's identity, so omitting it here REPLACED the secure
+      // cookie the browser and server clients set — which made securing those two
+      // alone no fix at all, just a flag that was absent for most of the cookie's
+      // life. The value is the serialized session, refresh token included.
+      cookieOptions: SUPABASE_COOKIE_OPTIONS,
       cookies: {
         getAll() {
           return request.cookies.getAll();

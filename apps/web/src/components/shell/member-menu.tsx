@@ -18,7 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useActiveCompany } from "@/lib/company/provider";
-import { releasePushOnThisDevice } from "@/lib/push/release";
+import { endSessionOnThisDevice } from "@/lib/auth/end-session";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 /**
@@ -47,11 +47,11 @@ export function MemberMenu({
     // Hand this browser's push subscription back FIRST (#264) — while the
     // session that owns it still exists. Otherwise the next person to sign in
     // on this laptop keeps getting your customers' messages.
-    await releasePushOnThisDevice(companyId);
-    // signOut() returns { error } (and can throw on a network failure) — a
-    // swallowed failure left the user still signed in with nothing on screen.
+    // endSessionOnThisDevice returns signOut()'s own { error } (and can throw on
+    // a network failure) — a swallowed failure left the user still signed in with
+    // nothing on screen.
     try {
-      const { error } = await getSupabaseBrowser().auth.signOut();
+      const { error } = await endSessionOnThisDevice(companyId);
       if (error) throw error;
     } catch {
       toast.error("Couldn't sign out. Check your connection and try again.");

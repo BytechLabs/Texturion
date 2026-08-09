@@ -197,6 +197,21 @@ final class RootViewModel {
             // Best-effort device push-token delete BEFORE the session clears —
             // the DELETE needs the bearer (#151); failure never blocks sign-out.
             await PushCoordinator.shared.ensureRegistrar(api: graph.api).unregister()
+            // Revoke the session SERVER-side, in the same "needs the bearer" slot
+            // and for a sharper reason. `AuthManager.signOut` ends the GoTrue
+            // session and nothing else, so `user_sessions.revoked_at` stayed null
+            // and the softphone credential was never swept — and because
+            // authorization is `revoked_at is null`, this phone's access token kept
+            // full read and send for the rest of its life after Sign out.
+            //
+            // Best-effort like the line above: nobody may be trapped in an account
+            // because the network blipped on the way out. A failure means the token
+            // expires on its own instead of being cut short, which is where every
+            // sign-out already was.
+            _ = try? await SettingsRepository(
+                api: graph.api,
+                sessionStore: graph.sessionStore
+            ).revokeThisSession()
             await self.graph.authManager.signOut()
         }
     }

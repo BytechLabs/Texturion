@@ -220,7 +220,7 @@ contactRoutes.post("/contact", async (c) => {
   // forwarded, so an ack failure must not turn a delivered message into a
   // user-facing error (and a retry would double-post).
   try {
-    const ack = ackCopy(body);
+    const ack = ackCopy();
     await sendEmail(env, {
       to: body.email,
       subject: ack.subject,
@@ -285,15 +285,25 @@ function supportHtml(body: ContactBody, ip: string): string {
 }
 
 /**
- * Plain acknowledgment. Deliberately does NOT echo the message body: the
- * submitter address is unverified, so echoing attacker-written content to an
- * arbitrary inbox would make this endpoint a spam relay.
+ * Plain acknowledgment. Deliberately carries NOTHING the submitter wrote: the
+ * address it goes to is whatever the form said and is never verified, so any
+ * attacker-written content echoed here makes this endpoint a spam relay.
+ *
+ * That already excluded the message body. It now excludes the NAME too, which
+ * was the same hole one field narrower (#581): the greeting was interpolated
+ * raw, and this email renders through `renderEmailHtml`, which linkifies bare
+ * URLs — so a `name` of "https://…" arrived at an address the same submitter
+ * chose as a clickable, Loonext-branded link in a message our own domain signed.
+ * Extending the existing rule beats sanitizing the name: a filter that has to
+ * decide which strings are link-shaped is a list nobody can finish, and the
+ * greeting is the whole cost. The founder still sees the real name on the
+ * support forward, which goes to a fixed inbox.
  */
-function ackCopy(body: ContactBody): { subject: string; text: string } {
+function ackCopy(): { subject: string; text: string } {
   return {
     subject: "We received your message",
     text:
-      `Hi ${body.name},\n\n` +
+      `Hi there,\n\n` +
       `Thanks for contacting Loonext. Your message is in our inbox and we ` +
       `reply to this address, usually within one business day.\n\n` +
       `If you did not submit the contact form on loonext.com, you can ` +

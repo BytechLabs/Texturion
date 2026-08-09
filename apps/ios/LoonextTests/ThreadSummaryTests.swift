@@ -296,6 +296,8 @@ final class ThreadSummaryTests: XCTestCase {
         let reasons = [
             "disabled", "spam", "too_short", "over_cap", "rate_limited",
             "model_error", "unavailable", "unusable_output",
+            // #581: the AI gate refuses a workspace that has stopped paying.
+            "subscription_inactive",
         ]
         let messages = reasons.map { threadCatchUpMessage($0) }
         // `model_error` and `unavailable` deliberately share one sentence: both

@@ -557,6 +557,13 @@ func threadCatchUpMessage(_ reason: String?) -> String {
         return "Nothing Lou wrote checked out against the thread, so it said "
             + "nothing. Read the thread."
 
+    // #581: billing, not breakage. Deliberately does NOT say "try again" —
+    // trying again is not what fixes it — and names the one place that does,
+    // in the same words the send paths already use for a lapsed subscription.
+    case "subscription_inactive":
+        return "Lou is paused while the subscription is sorted out. "
+            + "An owner can fix that in Billing."
+
     // ---- the request never came back with a body (see
     //      `threadCatchUpFailureReason`) --------------------------------------
 

@@ -19,7 +19,7 @@ import {
   resolveActiveCompanyId,
   writeCompanyCookie,
 } from "@/lib/company/cookie";
-import { releasePushOnThisDevice } from "@/lib/push/release";
+import { endSessionOnThisDevice } from "@/lib/auth/end-session";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
 
@@ -77,8 +77,7 @@ export function GateSignOut() {
     try {
       // The push subscription goes back BEFORE the session it belongs to
       // (#264) — a gate is often exactly where a shared browser changes hands.
-      await releasePushOnThisDevice(readCompanyCookie());
-      await getSupabaseBrowser().auth.signOut();
+      await endSessionOnThisDevice(readCompanyCookie());
       queryClient.clear();
       router.push("/login");
     } catch {

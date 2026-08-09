@@ -1,9 +1,11 @@
-import { createBrowserClient } from "@supabase/ssr";
+import { createBrowserClient, type CookieOptions } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { publicEnv } from "@/env";
+import { SUPABASE_COOKIE_OPTIONS } from "./cookie-options";
 
 let client: SupabaseClient | undefined;
+
 
 /**
  * Browser Supabase client (@supabase/ssr cookie sessions — SPEC §10). One
@@ -13,6 +15,7 @@ export function getSupabaseBrowser(): SupabaseClient {
   client ??= createBrowserClient(
     publicEnv.NEXT_PUBLIC_SUPABASE_URL,
     publicEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    { cookieOptions: SUPABASE_COOKIE_OPTIONS },
   );
   return client;
 }

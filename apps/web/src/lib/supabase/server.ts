@@ -3,6 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 import { publicEnv } from "@/env";
+import { SUPABASE_COOKIE_OPTIONS } from "./cookie-options";
+
 
 /**
  * Server Supabase client for Server Components and Route Handlers
@@ -16,6 +18,9 @@ export async function getSupabaseServer(): Promise<SupabaseClient> {
     publicEnv.NEXT_PUBLIC_SUPABASE_URL,
     publicEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     {
+      // Shared with the browser client on purpose: a session cookie rewritten
+      // here without Secure would strip the flag the browser client set.
+      cookieOptions: SUPABASE_COOKIE_OPTIONS,
       cookies: {
         getAll() {
           return cookieStore.getAll();

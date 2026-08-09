@@ -157,6 +157,10 @@ const SUITES = [
   "referral_payout",
   "referral_ask",
   "task_map_projection",
+  // Realtime topic authorization, which never consulted session revocation: a
+  // remotely signed-out device kept joining live topics for the rest of its
+  // token's life while /v1 401'd and the owner was told the device was off.
+  "presence_topic",
 ];
 
 const args = process.argv.slice(2);

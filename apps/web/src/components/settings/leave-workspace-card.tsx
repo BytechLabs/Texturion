@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { useLeaveWorkspace } from "@/lib/api/team";
 import { ApiError } from "@/lib/api/error";
-import { releasePushOnThisDevice } from "@/lib/push/release";
+import { endSessionOnThisDevice } from "@/lib/auth/end-session";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import type { CompanyView } from "@/lib/api/types";
 
@@ -49,8 +49,7 @@ export function LeaveWorkspaceCard({ company }: { company: CompanyView }) {
       const result = await leave.mutateAsync();
       // The seat is gone server-side; clear this device so a stale push cannot
       // arrive for a workspace the person has left.
-      await releasePushOnThisDevice(company.id).catch(() => {});
-      await getSupabaseBrowser().auth.signOut();
+      await endSessionOnThisDevice(company.id);
       toast.success(
         result.conversations_released + result.tasks_released > 0
           ? "You've left. Your open work went back to the team."

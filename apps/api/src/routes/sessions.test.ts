@@ -287,6 +287,51 @@ describe("POST /v1/sessions/revoke", () => {
     expect(res.status).toBe(404);
   });
 
+  it("signs THIS device out on { self: true }, which the sign-out button never did", async () => {
+    /**
+     * Every client used to end a session by calling GoTrue `/logout` and nothing
+     * else. That deletes the auth session; it leaves `user_sessions.revoked_at`
+     * null and never sweeps the softphone credential, because both of those
+     * happen only inside `api_revoke_sessions`. Since authorization is
+     * `revoked_at is null` and never checks the GoTrue session still exists, a
+     * captured access token kept full read and send for the rest of its life
+     * after somebody pressed Sign out — and the row that needed killing was
+     * missing from Settings → Devices, because that list inner-joins
+     * `auth.sessions`, which `/logout` had just deleted.
+     *
+     * `session_id` naming your own session still 409s (the test below), because
+     * that refusal is about the devices LIST. `self` is the sign-out button, where
+     * 401ing the next request is the whole point.
+     */
+    const token = await auth.token();
+    const sessionId = auth.sessionId;
+    const sb = stub([]);
+    sb.on("POST", "/rest/v1/rpc/api_revoke_sessions", () => ({
+      sessions: 1,
+      devices: 1,
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, token, "/v1/sessions/revoke", {
+      method: "POST",
+      companyId: null,
+      body: { self: true },
+    });
+    expect(res.status).toBe(200);
+    expect(sb.find("POST", "/rest/v1/rpc/api_revoke_sessions")[0].body).toEqual({
+      p_user_id: auth.subject,
+      // THIS session, named — not a null sweep, which the RPC reads as "every
+      // session this user has" and would sign them out of every device they own.
+      p_session_ids: [sessionId],
+      p_except: null,
+      p_actor: auth.subject,
+      // 'self' because `user_sessions.revoke_reason` is a CHECK constraint whose
+      // comment defines it as "the person killed this one device". A new
+      // 'sign_out' value would have violated the constraint and failed the write.
+      p_reason: "self",
+    });
+  });
+
   it("422s a body that names neither a session nor everything else", async () => {
     const sb = stub([]);
     stubFetch(jwksRoute(auth), sb.route);

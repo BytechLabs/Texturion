@@ -22,7 +22,7 @@ import {
   useDeleteAccount,
 } from "@/lib/api/account";
 import { ApiError } from "@/lib/api/error";
-import { releasePushOnThisDevice } from "@/lib/push/release";
+import { endSessionOnThisDevice } from "@/lib/auth/end-session";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 /** What has to be typed. Short, unambiguous, and not a name we might change. */
@@ -56,8 +56,7 @@ export function DeleteAccountCard() {
   async function confirm() {
     remove.mutate(undefined, {
       onSuccess: async () => {
-        await releasePushOnThisDevice(null);
-        await getSupabaseBrowser().auth.signOut();
+        await endSessionOnThisDevice(null);
         toast.success("Your account is deleted.");
         router.replace("/login");
       },

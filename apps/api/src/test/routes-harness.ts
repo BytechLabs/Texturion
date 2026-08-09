@@ -242,6 +242,29 @@ export function supabaseStub(env: Env): SupabaseStub {
       matcher: "/rest/v1/rpc/record_webhook_rejection",
       respond: () => null,
     },
+    {
+      // #581: every AI feature now asks whether the workspace is still paying
+      // before it spends anything, so `runAiFeature` reads `subscription_status`
+      // on a path that previously touched no company row at all. The ambient
+      // answer is `active` — the state every AI test was written against, and the
+      // state of any workspace that can reach these routes.
+      //
+      // Narrowed to THIS query rather than to the table. `companies` is read all
+      // over the suite for its own reasons, and an ambient row keyed on the path
+      // alone would answer those too — turning a forgotten stub into a silent
+      // half-populated company instead of the loud failure below. Returning
+      // `undefined` for anything else falls through to that failure, which is the
+      // property worth keeping.
+      //
+      // A suite that wants a lapsed workspace registers this path itself and
+      // wins, because explicit handlers are matched first.
+      method: "GET",
+      matcher: "/rest/v1/companies",
+      respond: (call: SbCall) =>
+        call.url.searchParams.get("select") === "subscription_status"
+          ? [{ subscription_status: "active" }]
+          : undefined,
+    },
   ];
 
   const matches = (matcher: string | RegExp, path: string) =>

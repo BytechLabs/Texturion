@@ -1,5 +1,8 @@
 package com.loonext.android.features.security
 
+import android.app.Activity
+import android.os.Build
+import android.view.WindowManager
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.Arrangement
@@ -12,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,11 +57,35 @@ import com.loonext.android.core.security.AppLock
  * `unlockedAt` lives in this composition and nowhere else. Persisting it would
  * mean a phone that was unlocked before it was handed over stays unlocked after,
  * which is the whole case this exists for.
+ *
+ * ## #581: the lock is re-evaluated on the way IN, so the way OUT needs its own answer
+ *
+ * Everything below ticks on RESUMED. At the moment the app LEAVES the foreground
+ * it is still unlocked and still composing a thread, and that is the frame the OS
+ * photographs for the recents card — so a phone can be swiped up on and read
+ * without the lock ever being asked. Re-evaluating earlier does not help: the age
+ * of the unlock has not changed yet at pause, so there is nothing new to decide.
+ * The card itself has to be turned off, which is [hideFromRecents].
  */
 @Composable
 fun AppLockGate(prefs: AppPrefs, content: @Composable () -> Unit) {
     val context = LocalContext.current
     val enabled by prefs.appLockEnabled.collectAsStateWithLifecycle(initialValue = false)
+
+    // #581: keyed on the SETTING and nothing else — deliberately not on [reason].
+    // The recents card has to already be off before the app is backgrounded, and
+    // at that moment the app is by definition unlocked, so a gate on "are we
+    // locked" is a gate that is always open when it matters. Gated on `enabled`
+    // rather than applied to everyone because both mechanisms cost something (see
+    // [RecentsCover]) and nobody who left this switch alone should pay it.
+    val activity = context as? Activity
+    DisposableEffect(activity, enabled) {
+        if (activity != null) hideFromRecents(activity, hide = enabled)
+        // Put back on the way out, so this cannot outlive the setting: an
+        // activity that is still alive with the switch turned off gets its
+        // switcher card and its screenshots back in the same frame.
+        onDispose { if (activity != null) hideFromRecents(activity, hide = false) }
+    }
 
     // Null until the first successful unlock IN THIS PROCESS — see the header.
     var unlockedAt by remember { mutableStateOf<Long?>(null) }
@@ -88,9 +116,12 @@ fun AppLockGate(prefs: AppPrefs, content: @Composable () -> Unit) {
     }
 
     // THE CONTENT IS NOT COMPOSED WHILE LOCKED, rather than drawn behind a
-    // scrim. A scrim is a screenshot away from being nothing at all, and the
-    // recents thumbnail is exactly where a handed-over phone shows its last
-    // screen.
+    // scrim. A scrim is a screenshot away from being nothing at all.
+    //
+    // #581: this does NOT cover the recents thumbnail, which this comment used
+    // to claim it did. The thumbnail is taken on the way OUT, while the app is
+    // still unlocked and still composing the inbox, so no decision made here can
+    // reach it — that is [hideFromRecents], applied above.
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(
@@ -135,6 +166,69 @@ fun AppLockGate(prefs: AppPrefs, content: @Composable () -> Unit) {
                 if (ok) unlockedAt = System.currentTimeMillis()
             }
         }
+    }
+}
+
+/**
+ * #581 — what this Android version can do about the app-switcher card.
+ *
+ * The two are NOT equivalent, which is the whole reason this is a decision rather
+ * than one line at the call site. [RECENTS_CARD_ONLY] blanks the switcher
+ * thumbnail and nothing else, so a tradesperson can still screenshot a thread to
+ * send a colleague — the thing people actually do with this app. [WHOLE_WINDOW]
+ * blanks the card as a side effect of making the window uncapturable, and takes
+ * those screenshots with it.
+ */
+internal enum class RecentsCover {
+    /** `Activity.setRecentsScreenshotEnabled(false)`, API 33 and up. */
+    RECENTS_CARD_ONLY,
+
+    /**
+     * `FLAG_SECURE`, below API 33, where there is no recents-only switch.
+     *
+     * Chosen rather than doing nothing because `minSdk` is 28 and the phones
+     * without the narrow API are exactly the ones this feature was written for:
+     * the old spare handset in the truck. A feature that quietly does nothing on
+     * the device it was named after is worse than one that costs a screenshot,
+     * and the cost is only ever paid by somebody who turned the lock on.
+     */
+    WHOLE_WINDOW,
+}
+
+/**
+ * THE version gate, in one place.
+ *
+ * Separate from [hideFromRecents] so the band of devices that gets which
+ * mechanism is an assertion rather than an intention: the failure this shape
+ * prevents is a call site that writes only the API-33 branch and ships a no-op to
+ * everything below it.
+ */
+internal fun recentsCoverFor(sdkInt: Int): RecentsCover =
+    if (sdkInt >= Build.VERSION_CODES.TIRAMISU) RecentsCover.RECENTS_CARD_ONLY
+    else RecentsCover.WHOLE_WINDOW
+
+/**
+ * Keep this activity out of the app switcher, or stop doing so.
+ *
+ * [sdkInt] is a parameter rather than read straight off [Build] so that the
+ * pre-33 branch can be exercised on the one Robolectric image this repo pins —
+ * see the note on `@Config(sdk = [34])` in `AppLockGateTest`. Production always
+ * passes the real one.
+ */
+internal fun hideFromRecents(
+    activity: Activity,
+    hide: Boolean,
+    sdkInt: Int = Build.VERSION.SDK_INT,
+) {
+    when (recentsCoverFor(sdkInt)) {
+        // `enabled = !hide`: the platform API is phrased as permission, not denial.
+        RecentsCover.RECENTS_CARD_ONLY -> activity.setRecentsScreenshotEnabled(!hide)
+        RecentsCover.WHOLE_WINDOW ->
+            if (hide) {
+                activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            } else {
+                activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            }
     }
 }
 

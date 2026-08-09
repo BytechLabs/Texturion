@@ -928,6 +928,8 @@ export interface ReplySuggestions {
     | "over_cap"
     | "model_error"
     | "unusable_output"
+    /** #581: the AI gate refuses a workspace that has stopped paying. */
+    | "subscription_inactive"
     // #250: the thread is marked spam, so no budget is spent drafting a warm
     // reply to a robotext.
     | "spam";

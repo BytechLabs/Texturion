@@ -133,6 +133,9 @@ data class WrapUpTranscript(
 fun wrapUpDictationMessage(reason: String?): String = when (reason) {
     "too_long" -> "That was longer than two minutes. Say the short version, or type the note."
     "disabled" -> "Dictated wrap-ups are turned off for this workspace. Settings, AI turns them back on."
+    // #581: billing, not breakage — so it must not say "try again", which is
+    // not what fixes it. Same sentence everywhere Lou refuses for this reason.
+    "subscription_inactive" -> "Lou is paused while the subscription is sorted out. An owner can fix that in Billing."
     "over_cap" -> "This month's dictation is used up. It starts again next month — type the note for now."
     "model_error", "unavailable" -> "Couldn't write that down just now. Try again, or type the note."
     "unusable_output" -> "Couldn't make out any words. Try again somewhere quieter, or type the note."
