@@ -74,8 +74,14 @@ final class FormatTests: XCTestCase {
         XCTAssertEqual(initialsOf("Dana Whitcomb"), "DW")
         XCTAssertEqual(initialsOf("cher"), "CH")
         XCTAssertEqual(initialsOf("Ana Maria Rojas"), "AR")
-        XCTAssertEqual(initialsOf("  "), "#")
-        XCTAssertEqual(initialsOf(nil), "#")
+        // #582: nothing at all and "a name that is really a phone number" used to be
+        // the same answer, because the old rule returned "#" for empty and never
+        // looked at whether a name contained a letter. They are different states and
+        // now read differently — and the second one is the one that mattered, because
+        // an unnamed contact displays as its number and every one of them wore "(5".
+        XCTAssertEqual(initialsOf("  "), "?")
+        XCTAssertEqual(initialsOf(nil), "?")
+        XCTAssertEqual(initialsOf("(415) 555-0134"), "#")
     }
 
     // MARK: formatDue / isOverdue
