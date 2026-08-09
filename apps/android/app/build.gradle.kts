@@ -28,7 +28,7 @@ plugins {
 val loonextVersionCode = providers.gradleProperty("loonextVersionCode")
     .orNull?.toIntOrNull() ?: 1
 val loonextVersionName = providers.gradleProperty("loonextVersionName")
-    .orNull ?: "0.13.0" // x-release-please-version
+    .orNull ?: "0.13.1" // x-release-please-version
 
 android {
     namespace = "com.loonext.android"

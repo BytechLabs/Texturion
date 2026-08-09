@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.2](https://github.com/BytechLabs/Texturion/compare/shared-v0.11.1...shared-v0.11.2) (2026-08-09)
+
+
+### Bug Fixes
+
+* **clients:** the thread an urgent text opens now says it is urgent ([474aef6](https://github.com/BytechLabs/Texturion/commit/474aef6253820a1d06ea8da491efcf17b6b876a9)), closes [#565](https://github.com/BytechLabs/Texturion/issues/565)
+
 ## [0.11.1](https://github.com/BytechLabs/Texturion/compare/shared-v0.11.0...shared-v0.11.1) (2026-08-08)
 
 
