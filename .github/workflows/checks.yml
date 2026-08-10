@@ -514,7 +514,7 @@ jobs:
       # the api package has no incremental build, so only web has a file). A
       # source change busts the key; restore-keys give partial reuse.
       - name: Cache TypeScript build info
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: apps/web/tsconfig.tsbuildinfo
           key: tsbuildinfo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/web/src/**/*.ts', 'apps/web/src/**/*.tsx') }}
@@ -584,7 +584,7 @@ jobs:
       # work instead of compiling the whole app every run. Keyed on the lockfile
       # + all source so a real change busts it; restore-keys give partial reuse.
       - name: Cache Next.js build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: apps/web/.next/cache
           key: nextjs-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/web/src/**/*.ts', 'apps/web/src/**/*.tsx', 'apps/web/src/**/*.css') }}

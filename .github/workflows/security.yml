@@ -231,7 +231,7 @@ jobs:
             echo "::warning title=Dependency review did not run::The dependency graph is off for this repository, so no dependency in this change was checked against the advisory database. This is an organisation setting and not something this pull request can fix — see the weekly Security run."
           fi
 
-      - uses: actions/dependency-review-action@v4
+      - uses: actions/dependency-review-action@v5
         if: steps.graph.outputs.available == 'true'
         with:
           # HIGH, not LOW. See D68: the floor is the whole design.
@@ -349,11 +349,11 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@v4
         with:
           languages: javascript-typescript
           config-file: .github/codeql-config.yml
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4
         with:
           category: "/language:javascript-typescript"
 
