@@ -486,6 +486,29 @@ jobs:
             node scripts/check-commit-message.mjs --range "$RANGE"
           fi
 
+      # A SQUASH MERGE COMMITS THE PULL REQUEST'S TITLE, AND NOTHING CHECKED IT.
+      #
+      # The step above validates commits that were pushed. When a pull request
+      # with more than one commit is squashed, GitHub uses the PR TITLE as the
+      # subject (`squash_merge_commit_title: COMMIT_OR_PR_TITLE`) — so the string
+      # that actually lands on main is one the guard never saw. #600 merged with
+      # a prose title and turned main red on the very next push, having been
+      # green on the pull request itself.
+      #
+      # Same script, same rules, so a title cannot pass here and fail there.
+      # Unconditional rather than "only when the PR has 2+ commits": the commit
+      # count changes with every push, and a rule that switches itself off is one
+      # nobody can rely on.
+      - name: Check the pull request title
+        if: github.event_name == 'pull_request'
+        env:
+          # Through the environment, never interpolated into the script — a title
+          # is attacker-controlled text on a fork PR and `${{ }}` here would run it.
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          printf '%s\n' "$PR_TITLE" > /tmp/pr-title.txt
+          node scripts/check-commit-message.mjs /tmp/pr-title.txt
+
       # Reuse the TS incremental buildinfo across runs so `tsc --noEmit` only
       # re-checks what changed (apps/web/tsconfig.json sets incremental: true;
       # the api package has no incremental build, so only web has a file). A
