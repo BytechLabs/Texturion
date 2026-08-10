@@ -201,13 +201,72 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # -------------------------------------------------------------------
+      # #601: ASK WHETHER THIS CAN RUN BEFORE FAILING SOMEBODY'S PULL REQUEST.
+      #
+      # The graph is off at the ORGANISATION level, so the action below answers
+      # every pull request with "Dependency review is not supported on this
+      # repository" — and has done since the day it was added. A check that is
+      # red on every pull request, about a setting no contributor can change,
+      # teaches everybody to merge past a red mark. That is worse than not
+      # having it, and it is how the one red that mattered would get merged too.
+      #
+      # So the gate runs when it can and annotates when it cannot. The half that
+      # must not go quiet — that the graph is off AT ALL — is the scheduled
+      # `dependency-graph` job below, which fails for as long as it is true.
+      # Skipping here is only safe BECAUSE that job exists; delete one and the
+      # other stops being honest.
+      # -------------------------------------------------------------------
+      - name: Can dependency review see anything?
+        id: graph
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if gh api "repos/${GITHUB_REPOSITORY}/dependency-graph/sbom" >/dev/null 2>&1; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Dependency review did not run::The dependency graph is off for this repository, so no dependency in this change was checked against the advisory database. This is an organisation setting and not something this pull request can fix — see the weekly Security run."
+          fi
+
       - uses: actions/dependency-review-action@v4
+        if: steps.graph.outputs.available == 'true'
         with:
           # HIGH, not LOW. See D68: the floor is the whole design.
           fail-on-severity: high
           # A licence that would force us to publish customer-facing code is a
           # different kind of problem, and it is cheap to notice here.
           deny-licenses: AGPL-3.0, AGPL-3.0-only, AGPL-3.0-or-later
+
+  # ---------------------------------------------------------------------------
+  # #601: the loud half of the job above.
+  #
+  # Scheduled only, so it gates no merge and a red run is the notification —
+  # the same shape as `iOS package advisories`, and for the same reason: "I
+  # could not check" is a different sentence from "there is nothing to find".
+  #
+  # It stays red for as long as the dependency graph is off, which is the point.
+  # The pull-request gate is allowed to step aside precisely because this does
+  # not.
+  # ---------------------------------------------------------------------------
+  dependency-graph:
+    name: Dependency graph is on
+    if: >-
+      !(github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.head_ref, 'release-please--')) &&
+      github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the dependency graph answers
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/check-dependency-graph.mjs
 
   # ---------------------------------------------------------------------------
   # The installed tree, on a schedule. Reports rather than blocks: an advisory

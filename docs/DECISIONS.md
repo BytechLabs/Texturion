@@ -7898,3 +7898,60 @@ service we have not.
 Stripe shipping a partial-duration coupon, or a way to express "N months and a
 fraction" as one object. The remainder problem is an artefact of coupons being whole
 months.
+
+---
+
+## D132 — a check that cannot run steps aside on the pull request and stays red on the schedule (#601, 2026-08-10)
+
+**Context.** `Dependency review` — the gate that refuses a pull request adding a
+dependency with a HIGH advisory or an AGPL licence — had failed on every pull
+request that ever ran it, always with the same sentence: *Dependency review is not
+supported on this repository. Please ensure that Dependency graph is enabled.*
+
+It is not the pull request. The dependency graph is off, and it is off at the
+**organisation** level. `PATCH /repos/{owner}/{repo}` with
+`security_and_analysis[dependency_graph]` returns 200, changes nothing, and the
+field is absent from the response; only an owner with `admin:org` can turn it on.
+So the check has never evaluated a single dependency, and nobody had to look —
+almost everything lands by direct push to `main`, and the release pull requests
+are merged with `--admin`.
+
+**Decision.** Split the two questions, and let each one be answered where it can
+be answered honestly.
+
+| Question | Where it is asked | Blocks a merge? |
+|---|---|---|
+| Does this change add a dependency with a HIGH advisory or an AGPL licence? | `Dependency review`, pull request | **yes — when the graph can answer.** Otherwise it emits a warning annotation and steps aside |
+| Is the dependency graph on at all? | `scripts/check-dependency-graph.mjs`, weekly schedule | no — but it **fails for as long as the answer is no** |
+
+**Why not leave it failing.** A check that is red on every pull request, about a
+repository setting no contributor can change, teaches everybody to merge past a
+red mark — and then the one red that mattered gets merged too. That is a worse
+outcome than not having the check, and it is the same failure this repo already
+recorded from the other direction in D68: a scanner tuned into silence.
+
+**Why not delete it.** Deleting the job gives up the gate permanently. Nobody
+re-adds a deleted check on the day a setting changes, and the setting is one click
+for somebody who has `admin:org`.
+
+**What makes the skip honest.** Only the scheduled job. Skipping a check on a pull
+request is otherwise indistinguishable from passing it — GitHub reports both as
+green, which is exactly the defect behind #599 (an `XCTSkipIf` that reported as a
+pass) and behind the fork-branch condition fixed in #581. The pull-request gate is
+allowed to step aside **because** `Dependency graph is on` does not. Delete that
+job and the skip silently becomes a lie.
+
+**The probe has a canary, for the same reason the Swift one does.** A 404 from the
+SBOM endpoint is how GitHub says "the graph is off" — and it is also how it would
+say "your token lost the permission", "the route moved", or "the API is having a
+bad afternoon". So the script asks `actions/checkout` first, whose graph is
+certainly on. If the canary comes back empty the script reports that *the probe is
+broken* rather than reporting on our repository, because at that point the honest
+answer about us is "unknown", not "off".
+
+### What would change this
+
+An owner enabling Dependency graph, after which the pull-request gate runs for
+real and the scheduled job goes green and quiet. Nothing else in this design has
+to change when that happens — which is the point of writing it this way rather
+than waiting.

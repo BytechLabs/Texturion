@@ -188,6 +188,35 @@ So there is one question per file: *is this ok?* (checks), *what happens on main
 
 **Why the gate is a separate file at all:** so a pull request and a merge run *the same checks*, not two copies that drift. `main.yml` calls it rather than repeating it.
 
+### What a direct push to `main` does not run (#601)
+
+Most work here lands by pushing straight to `main`, and the release pull requests
+are merged with `--admin`. Two checks only ever fire on a `pull_request` event, so
+a direct push is never seen by either:
+
+| Check | Where | Seen by a direct push? |
+|---|---|---|
+| **`Dependency review`** (`security.yml`) | pull request only | **no** — a dependency added by a direct push is never compared against the advisory database or the licence deny-list |
+| **CodeQL's pull-request analysis** | pull request | the *scan* runs on push too; the pull-request diff annotations do not |
+
+This is a property of how we merge, not a misconfiguration, and it is the reason
+`pnpm audit` and the weekly `Security` schedule matter more here than they would
+in a repo where everything arrives as a pull request.
+
+`Dependency review` has a second problem worth knowing about before you read a
+green tick: **the dependency graph is off for this repository**, so the check
+cannot evaluate anything at all. It is an organisation-level setting, so it is not
+fixable from a workflow or by any pull request. Since #601 the job **steps aside
+with a warning annotation** on pull requests instead of failing them — a check
+that is red on every pull request about a setting nobody can change is how people
+learn to merge past red — and the weekly **`Dependency graph is on`** job fails
+for as long as it stays off. That scheduled red is the whole safeguard; if you
+delete it, the pull-request skip stops being honest.
+
+To fix it: an owner with `admin:org` enables Dependency graph at
+<https://github.com/organizations/BytechLabs/settings/security_analysis>. It is
+free on public repositories.
+
 **What replaced what.** There used to be four workflows chained by `workflow_run`, which is a trigger and not an ordering — nothing guaranteed the release tags existed before the deploy looked for them, a cancelled run produced no deploy and no complaint, and answering "did this ship?" meant opening three runs. On 2026-07-26 six commits in a row failed and shipped nothing while every page looked ordinary. `needs:` cannot do that.
 
 For `android`/`ios` the released version is the one you archive and upload, and
