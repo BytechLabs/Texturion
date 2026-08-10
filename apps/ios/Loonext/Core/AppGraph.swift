@@ -210,8 +210,13 @@ final class AppGraph {
     let notificationsApi: NotificationsApi
     let searchApi: SearchApi
 
-    init() {
-        let sessionStore = SessionStore()
+    /// - Parameter sessionStore: #593 — injectable, defaulting to the one this graph
+    ///   would have built. Production passes nothing and is unchanged; a test passes a
+    ///   store backed by memory, because the simulator host has no keychain (#599) and
+    ///   because the handover funnel SAVES a refreshed session through `graph.sessionStore`
+    ///   — so a test whose repository used a different store would look signed out and
+    ///   never reach the code under test.
+    init(sessionStore: SessionStore = SessionStore()) {
         let prefs = AppPrefs()
         let supabaseAuth = SupabaseAuth()
         let api = ApiClient(sessionStore: sessionStore, auth: supabaseAuth)
