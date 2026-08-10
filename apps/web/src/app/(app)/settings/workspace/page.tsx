@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { capabilitiesOf } from "@loonext/shared";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -528,6 +529,29 @@ export default function WorkspaceSettingsPage() {
   const company = useCompany();
   const { role } = useActiveCompany();
 
+  /**
+   * #595 — the same question the server asks.
+   *
+   * `POST /v1/exports` is `requireCapability("contacts.bulk")`
+   * (apps/api/src/routes/exports.ts), and until now this card asked whether you
+   * were called "owner" or "admin" instead. Since #315 a role is a capability
+   * SET, not a rung, so a preset holding `contacts.bulk` would have been refused
+   * a card the server would happily have served it — and the fix for that is a
+   * pull request, which is the wrong shape for a permission.
+   *
+   * It is also why the bookkeeper never sees this. They were already excluded,
+   * but by where they sat on the owner/admin line rather than by anyone deciding
+   * they should be: `contacts.bulk` is the departing-employee signature
+   * (capabilities.ts), and somebody who only does the books does not carry it.
+   * Same rule, now stated.
+   *
+   * *Applying: Absent, not disabled — a control you cannot use is noise, and a
+   * disabled one is an invitation to go asking for the rank that enables it.*
+   */
+  const canExportWorkspace = role
+    ? capabilitiesOf(role).includes("contacts.bulk")
+    : false;
+
   return (
     <SettingsPage
       title="Workspace"
@@ -566,7 +590,7 @@ export default function WorkspaceSettingsPage() {
           <ContactFieldsCard canEdit={role === "owner" || role === "admin"} />
           {/* #227: above the close card on purpose — taking a copy of your
               data is the thing you want BEFORE destroying it. */}
-          {(role === "owner" || role === "admin") && <ExportDataCard />}
+          {canExportWorkspace && <ExportDataCard />}
           {/* #341: last, and only for the owner — ending the account is not an
               everyday setting and should not sit among them. */}
           {role === "owner" && <CloseWorkspaceCard company={company.data} />}

@@ -4,7 +4,14 @@ import { FileSpreadsheet } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { capabilitiesOf } from "@loonext/shared";
+import {
+  capabilitiesOf,
+  EXPORT_USAGE_ACTION,
+  EXPORT_USAGE_BLURB,
+  EXPORT_USAGE_NOTE,
+  lastCompleteMonth,
+  USAGE_EXPORT_CAPABILITY,
+} from "@loonext/shared";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,11 +54,16 @@ export function ExportUsage() {
   const { role } = useActiveCompany();
   const request = useExportUsage();
   const [open, setOpen] = useState(false);
-  const initial = lastCompleteMonth(new Date());
+  // Year and month rather than a Date: the rule is shared with two phones now,
+  // and nothing about this machine's time zone should cross that boundary.
+  const today = new Date();
+  const initial = lastCompleteMonth(today.getFullYear(), today.getMonth() + 1);
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
 
-  const allowed = role ? capabilitiesOf(role).includes("billing.manage") : false;
+  const allowed = role
+    ? capabilitiesOf(role).includes(USAGE_EXPORT_CAPABILITY)
+    : false;
   if (!allowed) return null;
 
   async function submit() {
@@ -132,35 +144,3 @@ export function ExportUsage() {
     </div>
   );
 }
-
-/**
- * The last COMPLETE calendar month, as two `yyyy-mm-dd` strings.
- *
- * Complete, not the current one: a bookkeeper reconciles a month that has
- * finished, and defaulting to a period still accruing would produce a file
- * that is out of date before it finishes building.
- */
-export function lastCompleteMonth(now: Date): { from: string; to: string } {
-  const firstOfThis = new Date(now.getFullYear(), now.getMonth(), 1);
-  const firstOfLast = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  // Day zero of this month is the last day of the previous one, which handles
-  // month lengths and February without a table.
-  const lastOfLast = new Date(firstOfThis.getTime() - 86_400_000);
-  return { from: isoDay(firstOfLast), to: isoDay(lastOfLast) };
-}
-
-function isoDay(date: Date): string {
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
-}
-
-/** The words this surface owns, kept where the parity test can read them. */
-export const EXPORT_USAGE_ACTION = "Export usage";
-export const EXPORT_USAGE_BLURB =
-  "Your texts, calls and storage for a period, as a file for whoever does " +
-  "your books.";
-export const EXPORT_USAGE_NOTE =
-  "It counts what we measured — it is not a copy of your Stripe invoice, and " +
-  "nothing on it is priced. It is put together in the background and appears " +
-  "under Data export.";

@@ -33,9 +33,10 @@ vi.mock("sonner", () => ({
 import {
   EXPORT_USAGE_ACTION,
   EXPORT_USAGE_NOTE,
-  ExportUsage,
   lastCompleteMonth,
-} from "./export-usage";
+} from "@loonext/shared";
+
+import { ExportUsage } from "./export-usage";
 import { ApiError } from "@/lib/api/error";
 
 afterEach(cleanup);
@@ -79,26 +80,29 @@ describe("#304 exporting a period's usage", () => {
     const to = screen.getByLabelText("To") as HTMLInputElement;
     expect(from.value).not.toBe("");
     expect(to.value).not.toBe("");
-    expect(from.value).toBe(lastCompleteMonth(new Date()).from);
+    const today = new Date();
+    expect(from.value).toBe(
+      lastCompleteMonth(today.getFullYear(), today.getMonth() + 1).from,
+    );
   });
 
   it("EU-4: last month means the last COMPLETE one, including its last day", () => {
     // A period still accruing produces a file out of date before it finishes
-    // building. And a month that ends on the 30th must end on the 30th — day
-    // zero of the next month, so February and the 31sts need no table.
-    expect(lastCompleteMonth(new Date(2026, 6, 15))).toEqual({
+    // building. And a month that ends on the 30th must end on the 30th.
+    //
+    // The rule moved to `@loonext/shared` for #595, because two phones now need
+    // the same default and a period that differs by client is worse than none.
+    // Its own suite and `packages/shared/vectors/last-complete-month.json` carry
+    // the boundaries; what is left here is that THIS CARD asks for the month it
+    // is actually in, which is the part a shared test cannot see.
+    expect(lastCompleteMonth(2026, 7)).toEqual({
       from: "2026-06-01",
       to: "2026-06-30",
     });
     // January reaches back across the year boundary.
-    expect(lastCompleteMonth(new Date(2026, 0, 9))).toEqual({
+    expect(lastCompleteMonth(2026, 1)).toEqual({
       from: "2025-12-01",
       to: "2025-12-31",
-    });
-    // A leap February, which is where a hand-written table would be wrong.
-    expect(lastCompleteMonth(new Date(2028, 2, 3))).toEqual({
-      from: "2028-02-01",
-      to: "2028-02-29",
     });
   });
 

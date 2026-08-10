@@ -146,6 +146,43 @@ class SettingsRepository(
     suspend fun usage(companyId: String): Usage =
         api.get("/v1/usage", companyId = companyId)
 
+    /**
+     * #595: ask for this workspace's metered usage over a period, as a file.
+     *
+     * [from] and [to] are ISO-8601 INSTANTS, not days — the caller resolves a
+     * picked day to the start or the end of it, so that a period named "the 1st
+     * to the 30th" includes the 30th. `from` is required by the route: an
+     * absent start would mean "since the beginning", which is a different
+     * document.
+     *
+     * Gated server-side on `billing.manage` rather than `contacts.bulk`; the
+     * file holds counts and no customer data.
+     */
+    suspend fun startUsageExport(
+        companyId: String,
+        from: String,
+        to: String?,
+    ): UsageExportStarted =
+        api.post(
+            "/v1/exports/usage",
+            buildJsonObject {
+                put("from", from)
+                if (to != null) put("to", to)
+            },
+            companyId = companyId,
+        )
+
+    /**
+     * #595: the recent exports, each with a download link minted for this read.
+     *
+     * NO ROLE LOGIC HERE OR AT THE CALL SITE. The route filters to the kinds
+     * the caller may collect (#581), so a bookkeeper's list holds their usage
+     * summaries and nothing else. A second opinion in this app would be a
+     * second place for it to be wrong.
+     */
+    suspend fun dataExports(companyId: String): Page<DataExport> =
+        api.get("/v1/exports", companyId = companyId)
+
     // -- team ---------------------------------------------------------------
 
     suspend fun members(companyId: String): Page<Member> =

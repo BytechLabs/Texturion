@@ -157,6 +157,12 @@ struct UsageSectionView: View {
                     if isOwner {
                         DetailsCard(usage: usage)
                     }
+                    // #595: the same numbers, as a file for whoever does the
+                    // books. Last on the screen because pulling a file is
+                    // occasional and deliberate, and mounted unconditionally
+                    // because the card asks `billing.manage` for itself — a
+                    // capability question answered in one place rather than two.
+                    UsageExportCard(scope: scope)
                 }
             }
         }

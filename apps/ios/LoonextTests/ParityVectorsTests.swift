@@ -46,6 +46,13 @@ final class ParityVectorsTests: XCTestCase {
         let initials: String
     }
 
+    private struct LastCompleteMonthVector: Decodable {
+        let year: Int
+        let month: Int
+        let from: String
+        let to: String
+    }
+
     private struct PrepaidCopyVector: Decodable {
         let from_plan: String
         let to_plan: String
@@ -179,6 +186,36 @@ final class ParityVectorsTests: XCTestCase {
                 initialsOf(one.name), one.initials,
                 "initials for '\(one.name)'"
             )
+        }
+    }
+
+    func testTheDefaultExportPeriodAgreesWithTheTypeScript() throws {
+        // #595: the period a bookkeeper's export opens on, which three clients
+        // now compute independently. If they disagree, two crews reconciling the
+        // same month against the same invoice get files covering different days
+        // — and the divergence is invisible, because each client is internally
+        // consistent and confidently wrong on its own.
+        //
+        // The cases worth having are the ones a shortcut gets wrong: January,
+        // which rolls back a year; February in a common year, a leap year, and
+        // BOTH century rules — 2100 is 28 days and 2000 is 29, which a `% 4`
+        // test gets right everywhere anybody would think to check and wrong in
+        // the one place nobody would.
+        //
+        // The Swift side reaches for `Calendar.range(of: .day, in: .month, for:)`
+        // rather than porting the TypeScript's spelled-out table. That is a
+        // DIFFERENT implementation of the same rule, which is exactly what these
+        // vectors are for: a hand-port that merely transliterated would agree
+        // with itself.
+        let cases = try vectors("last-complete-month.json", as: [LastCompleteMonthVector].self)
+        XCTAssertFalse(cases.isEmpty, "no last-complete-month vectors")
+        for one in cases {
+            let actual = UsageExport.lastCompleteMonth(year: one.year, month: one.month)
+            // Names the INPUT, so a failure says which month diverged rather
+            // than which line of a JSON file.
+            let label = "lastCompleteMonth(\(one.year), \(one.month))"
+            XCTAssertEqual(actual.from, one.from, "from for \(label)")
+            XCTAssertEqual(actual.to, one.to, "to for \(label)")
         }
     }
 
