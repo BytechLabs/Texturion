@@ -3,9 +3,11 @@ import XCTest
 
 /// #337 — the diagnostics surface iOS never had.
 ///
-/// This app compiles only in Mobile CI, so these tests are the only thing that
-/// runs the code before a device does. They pin the two properties that would
-/// be quietly wrong otherwise:
+/// This app compiles only in CI — `Gate / iOS`, inside the **Main** workflow. There is
+/// no Mobile workflow; the phone jobs were folded into `checks.yml`, and a comment
+/// naming one sends the next reader looking for a job that does not exist. So these
+/// tests are the only thing that runs the code before a device does. They pin the two
+/// properties that would be quietly wrong otherwise:
 ///
 ///   1. **Nothing long, and nothing multi-line, reaches an entry.** The screen
 ///      is something a customer screenshots and sends us, and the report is one
