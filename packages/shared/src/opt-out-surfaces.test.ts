@@ -94,7 +94,7 @@ function flat(source: string): string {
  * identified by the label it renders, however it reaches it.
  */
 const OFFERS_REVOKE =
-  /Mark opted in again|Remove opt-out|contactMarkOptedIn|markOptedInAgain|markOptedIn/;
+  /Mark opted in again|Remove opt-out|contactMarkOptedIn|markOptedInAgain|\bmarkOptedIn\b/;
 
 /**
  * #228: the CATALOGUE is not a surface.
@@ -159,7 +159,7 @@ describe("#407 — every surface offering a revoke asks which kind it is", () =>
       catalogue += readFileSync(join(sections, entry), "utf8");
     }
     let resolved = source;
-    for (const use of source.matchAll(/t\(\s*"[\w]+\.(\w+)"/g)) {
+    for (const use of source.matchAll(/\bt\(\s*"[\w]+\.(\w+)"/g)) {
       // A fixed window after the key rather than a lazy match to the next
       // comma: a catalogue value is often a concatenation across several lines,
       // and the first comma-newline inside one would cut the sentence in half.

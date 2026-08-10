@@ -50,10 +50,10 @@ describe("/security — the checked-claims page", () => {
     // the previous form could only be satisfied by silence, and silence is
     // what sends a buyer to email us for something already decided.
     expect(html).not.toMatch(
-      /(SOC ?2|ISO ?27001|HIPAA)[^.]{0,40}(certified|compliant|attested|audited|accredited)/i,
+      /(SOC ?2|ISO ?27001|HIPAA)[^.]{0,40}\b(certified|compliant|attested|audited|accredited)\b/i,
     );
     expect(html).not.toMatch(
-      /(certified|compliant|attested|audited|accredited)[^.]{0,40}(SOC ?2|ISO ?27001|HIPAA)/i,
+      /\b(certified|compliant|attested|audited|accredited)\b[^.]{0,40}(SOC ?2|ISO ?27001|HIPAA)/i,
     );
     // And the position itself is on the page, so this cannot be satisfied by
     // deleting the section instead.

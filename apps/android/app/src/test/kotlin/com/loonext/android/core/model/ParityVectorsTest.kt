@@ -124,10 +124,10 @@ class ParityVectorsTest {
         // them another multi-day carrier review for it.
         //
         // This case earned its vectors before it shipped: the obvious matcher
-        // is a word-boundary regex, and `ein` does not match
+        // is a word-boundary regex, and `\bein\b` does not match
         // `EIN_MISMATCH` because an underscore is a word character — so the
         // whole catalogue matched nothing while reading as correct. In Kotlin
-        // that mistake is worse, since "" here is a backspace character
+        // that mistake is worse, since "\b" here is a backspace character
         // rather than a boundary. Hence no regex on either side.
         val cases = json.decodeFromString<List<RejectionVector>>(vectors("rejections.json"))
         assertTrue("no rejection vectors", cases.isNotEmpty())

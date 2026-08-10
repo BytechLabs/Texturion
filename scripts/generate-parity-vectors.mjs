@@ -68,11 +68,11 @@
  *             multi-day carrier review for it.
  *
  *             It earned its place by failing first. The obvious spelling of the
- *             matcher is a word-boundary regex, and `ein` does not match
+ *             matcher is a word-boundary regex, and `\bein\b` does not match
  *             `EIN_MISMATCH` — an underscore is a word character. Every coded
  *             reason a carrier sends is underscore-separated, so the whole
  *             catalogue matched NOTHING while reading as correct. That is the
- *             precise failure a hand-port repeats, in a language where `` is
+ *             precise failure a hand-port repeats, in a language where `\b` is
  *             a backspace escape rather than a boundary.
  */
 import { createHash } from "node:crypto";

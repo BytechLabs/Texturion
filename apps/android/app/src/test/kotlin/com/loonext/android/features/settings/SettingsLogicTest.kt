@@ -501,7 +501,7 @@ class SettingsLogicTest {
 
     @Test
     fun `owner copy inviting the emergency reply is recognised`() {
-        // Regression guard: written as "$keyword" in source this regex
+        // Regression guard: written as "\b$keyword\b" in source this regex
         // held literal BACKSPACE characters, matched nothing ever, and the
         // settings warning was invisible on Android while passing review.
         assertTrue(
