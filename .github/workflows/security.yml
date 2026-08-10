@@ -100,7 +100,7 @@ jobs:
       startsWith(github.head_ref, 'release-please--'))
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # Full history: a secret removed in a later commit is still public,
           # and the whole point is to catch what a manual sweep would miss.
@@ -153,19 +153,48 @@ jobs:
           # by the pre-commit hook (correctly), flagged by every future history
           # scan, and would need an allowlist entry of its own — which is the
           # exact erosion this step exists to prevent.
+          # #579: ONE FILE PER CREDENTIAL, EACH ONE CHECKED BY NAME.
+          #
+          # This used to plant both in one file and fail only when the scan
+          # came back completely clean. gitleaks exits non-zero on ANY
+          # finding, so if one of the two rules had been renamed or narrowed
+          # the other still tripped the scan and this step stayed green with
+          # half its coverage gone — a check asserting "something was found"
+          # rather than "each specific thing was found".
           PREFIX="sb_""secret_"
-          {
-            printf 'const a = "%s9xKq2vRt7mZpLw3nBc8dYfHj5sAe1uGi";\n' "$PREFIX"
-            printf 'const b = "%s0193A5B7C9D1E3F5079BDF13579BDF13";\n' "KE""Y"
-          } > "$RUNNER_TEMP/gitleaks-selftest/planted.ts"
-          if gitleaks detect --no-git --source "$RUNNER_TEMP/gitleaks-selftest" \
-               --config .gitleaks.toml --redact --no-banner --exit-code 1; then
-            echo "SELF-TEST FAILED: gitleaks did not flag a planted Supabase" \
-                 "secret key or Telnyx API key. The config has been tuned into" \
-                 "silence — check .gitleaks.toml's allowlist." >&2
+          printf 'const a = "%s9xKq2vRt7mZpLw3nBc8dYfHj5sAe1uGi";\n' "$PREFIX" \
+            > "$RUNNER_TEMP/gitleaks-selftest/supabase.ts"
+          printf 'const b = "%s0193A5B7C9D1E3F5079BDF13579BDF13";\n' "KE""Y" \
+            > "$RUNNER_TEMP/gitleaks-selftest/telnyx.ts"
+
+          missed=""
+          for planted in supabase:supabase-secret-key telnyx:telnyx-api-key; do
+            file="${planted%%:*}"
+            rule="${planted##*:}"
+            report="$RUNNER_TEMP/gitleaks-selftest/$file.json"
+            # `|| true`: a finding is the PASS here, and `set -e` would end
+            # the run on the very exit code this step is hoping for.
+            gitleaks detect --no-git \
+              --source "$RUNNER_TEMP/gitleaks-selftest/$file.ts" \
+              --config .gitleaks.toml --redact --no-banner \
+              --report-format json --report-path "$report" --exit-code 1 || true
+            # By RULE ID, not by count. A finding from some OTHER rule is not
+            # evidence that this one still works, and a count is not either.
+            if ! grep -q "\"RuleID\": *\"$rule\"" "$report" 2>/dev/null; then
+              missed="$missed $rule"
+            fi
+          done
+
+          if [ -n "$missed" ]; then
+            echo "SELF-TEST FAILED: gitleaks no longer flags a planted" \
+                 "credential for:$missed. Each rule is planted in its own" \
+                 "file and looked for by ID, so this names exactly which" \
+                 "one went silent — check .gitleaks.toml for a renamed" \
+                 "rule, a narrowed regex, or an allowlist that grew over" \
+                 "it." >&2
             exit 1
           fi
-          echo "OK: planted credentials were caught."
+          echo "OK: every planted credential was caught by its own rule."
 
       # ---------------------------------------------------------------------
       # The specific thing most likely to go wrong here, asserted directly.
@@ -208,7 +237,7 @@ jobs:
       github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       # -------------------------------------------------------------------
       # #601: ASK WHETHER THIS CAN RUN BEFORE FAILING SOMEBODY'S PULL REQUEST.
@@ -239,7 +268,7 @@ jobs:
             echo "::warning title=Dependency review did not run::The dependency graph is off for this repository, so no dependency in this change was checked against the advisory database. This is an organisation setting and not something this pull request can fix — see the weekly Security run."
           fi
 
-      - uses: actions/dependency-review-action@v4
+      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0 (was a BRANCH ref)
         if: steps.graph.outputs.available == 'true'
         with:
           # HIGH, not LOW. See D68: the floor is the whole design.
@@ -271,8 +300,8 @@ jobs:
       github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
       - name: Check the dependency graph answers
@@ -311,13 +340,13 @@ jobs:
       startsWith(github.head_ref, 'release-please--'))
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
       # Deliberately NO `cache: pnpm`: this job never installs, so the store
       # path does not exist and the action's post-step fails the whole job
       # trying to save a cache of nothing. `pnpm audit` resolves the tree from
       # the lockfile alone, which is the reason there is no install here.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
 
@@ -360,12 +389,12 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: github/codeql-action/init@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3.37.6
         with:
           languages: javascript-typescript
           config-file: .github/codeql-config.yml
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@c4dd10e44af883a891fe31ced449bcb4a6728b9b # v3.37.6
         with:
           category: "/language:javascript-typescript"
 
@@ -408,8 +437,8 @@ jobs:
       github.event_name == 'schedule'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
       - name: Check the pinned Swift packages for advisories

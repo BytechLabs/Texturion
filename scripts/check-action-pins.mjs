@@ -79,11 +79,33 @@ import { basename, join } from "node:path";
 const WORKFLOW_DIR = ".github/workflows";
 
 /**
- * Strict no matter what their permissions say. `ship.yml` is the only file whose
- * output reaches customers (docs/ENVIRONMENTS.md: one environment, no staging)
- * and `main.yml` is the only thing that calls it.
+ * Strict no matter what their permissions say.
+ *
+ * This used to be `ship.yml` and `main.yml` alone — the deploy path — on the
+ * argument that a read-only workflow's worst case is a red build. #579 retired
+ * that argument for two reasons the first version did not weigh.
+ *
+ * `checks.yml` is the merge GATE, and a gate is not read-only in the way that
+ * matters: a third party who can change what it runs can change what it says
+ * about a change, and the answer to "is this safe to merge?" is the whole
+ * product of that file. It is also reached by `workflow_call` from `main.yml`,
+ * where it sees the caller's secrets.
+ *
+ * And the exemption was resting on a claim nobody had checked. #579 measured the
+ * refs and found `supabase/setup-cli@v1` and `actions/dependency-review-action@v4`
+ * are BRANCHES, not tags — `refs/heads/v1` with no `refs/tags/v1` at all. A
+ * major tag is at least a publisher's deliberate move; a branch head is whatever
+ * was pushed last.
+ *
+ * So: every workflow file, no exemption. The cost is a dependabot pull request
+ * per bump, which `.github/dependabot.yml` already opens.
  */
-const ALWAYS_STRICT = new Set(["ship.yml", "main.yml"]);
+const ALWAYS_STRICT = null;
+
+/** Every workflow file. Kept as a function so the reason above has somewhere to live. */
+function isAlwaysStrict(_file) {
+  return true;
+}
 
 /**
  * Write scopes that cannot change this repository or reach a customer.
@@ -148,8 +170,8 @@ function grantedWriteScopes(source) {
 }
 
 function tierFor(name, source) {
-  if (ALWAYS_STRICT.has(name)) {
-    return { strict: true, why: "the deploy path, or the file that calls it" };
+  if (isAlwaysStrict(name)) {
+    return { strict: true, why: "every workflow, since #579" };
   }
   if (!/^permissions:/m.test(source)) {
     return {
@@ -322,11 +344,21 @@ if (!only && strictFiles.length === 0) {
   );
 }
 if (!only) {
+  // The deploy path must still be PRESENT. Every file is strict now, so the old
+  // membership check could not fail — but "ship.yml went missing" has to stay a
+  // loud failure rather than one fewer file to walk.
   const present = new Set(files.map((file) => basename(file)));
-  for (const name of ALWAYS_STRICT) {
+  for (const name of ["ship.yml", "main.yml", "checks.yml", "security.yml"]) {
     if (!present.has(name)) {
-      vacuous.push(`${name} is in ALWAYS_STRICT and is not in ${WORKFLOW_DIR} — it moved or was renamed.`);
+      vacuous.push(`${name} is expected in ${WORKFLOW_DIR} and is not — it moved or was renamed.`);
     }
+  }
+  if (strictFiles.length !== files.length) {
+    vacuous.push(
+      `Only ${strictFiles.length} of ${files.length} workflow files were held to ` +
+        "commit pins. Since #579 every one of them is; a file escaping that is a " +
+        "hole, not a policy.",
+    );
   }
 }
 
