@@ -21,7 +21,23 @@ import {
 } from "./resend";
 
 const env = completeEnv();
-const SECRET = "whsec_dGVzdHNlY3JldGZvcnJlc2VuZHdlYmhvb2tzMTIzNA==";
+/**
+ * The signing secret this suite signs with. #599 triage.
+ *
+ * BUILT FROM A STEM RATHER THAN WRITTEN OUT, and the prefix is concatenated rather
+ * than part of the literal. A realistic-looking `whsec_`-then-random constant matched
+ * GitHub's Stripe webhook-secret pattern and sat as an open secret-scanning alert on a
+ * public repository for weeks — one of four that nobody triaged, which is how a real
+ * one would have gone unnoticed too.
+ *
+ * Still base64 after the prefix, because `sign` below decodes it to HMAC key bytes and
+ * the point of this suite is that the verifier is tested against real Svix input. Decode
+ * it and it reads what it is.
+ */
+const SECRET_STEM = "cmVzZW5kLXNpZ25pbmcta2V5LWZvci10ZXN0cw==";
+const SECRET = `whsec_${SECRET_STEM}`;
+/** A different key, for the case that must be REFUSED. Same stem treatment. */
+const WRONG_SECRET = `whsec_${"YS1kaWZmZXJlbnQta2V5LWZvci10ZXN0cw=="}`;
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -92,7 +108,7 @@ describe("verifyResendSignature", () => {
     const signature = await sign("msg_1", TS, body);
     await expect(
       verifyResendSignature(
-        "whsec_b3RoZXJzZWNyZXRlbnRpcmVseWRpZmZlcmVudDEyMzQ1Ng==",
+        WRONG_SECRET,
         { id: "msg_1", timestamp: TS, signature },
         body,
         NOW,
