@@ -16,6 +16,7 @@ import {
 } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT, type Translate } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { useUsage } from "@/lib/api/usage";
 import type { Usage, UsageMonth } from "@/lib/api/types";
@@ -45,7 +46,7 @@ function dollars(cents: number, currency: BillingCurrency = "usd"): string {
   });
 }
 
-function periodRange(usage: Usage): string | null {
+function periodRange(t: Translate, usage: Usage): string | null {
   if (!usage.period_start || !usage.period_end) return null;
   const options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
   const start = new Date(usage.period_start).toLocaleDateString(
@@ -53,7 +54,7 @@ function periodRange(usage: Usage): string | null {
     options,
   );
   const end = new Date(usage.period_end).toLocaleDateString(undefined, options);
-  return `${start} to ${end}`;
+  return t("appShell.usagePeriodRange", { start, end });
 }
 
 /**
@@ -62,7 +63,7 @@ function periodRange(usage: Usage): string | null {
  * vs voice.included_minutes). Both past the 80% alert line name both; below
  * it, the hotter share leads.
  */
-function pacingSubjects(usage: Usage): ("messages" | "calling minutes")[] {
+function pacingSubjects(usage: Usage): ("messages" | "calling")[] {
   const messages =
     usage.included_segments > 0
       ? usage.used_segments / usage.included_segments
@@ -72,10 +73,13 @@ function pacingSubjects(usage: Usage): ("messages" | "calling minutes")[] {
       ? usage.voice.used_minutes / usage.voice.included_minutes
       : 0;
   const HOT = 0.8;
-  if (messages >= HOT && calling >= HOT) return ["messages", "calling minutes"];
-  if (calling >= HOT) return ["calling minutes"];
+  // #228/D100: these are DISCRIMINATORS, not labels. The subject used to be its
+  // own English name, so translating the sentence would have silently broken
+  // the `includes` branches that read it.
+  if (messages >= HOT && calling >= HOT) return ["messages", "calling"];
+  if (calling >= HOT) return ["calling"];
   if (messages >= HOT) return ["messages"];
-  return calling > messages ? ["calling minutes"] : ["messages"];
+  return calling > messages ? ["calling"] : ["messages"];
 }
 
 /**
@@ -83,22 +87,22 @@ function pacingSubjects(usage: Usage): ("messages" | "calling minutes")[] {
  * marketing promises: one calm line and the policy, never a meter.
  */
 function QuietCard() {
+  const t = useT();
   return (
     <SettingsCard>
       <div className="space-y-2 text-sm">
         <p className="font-medium text-foreground">
-          Well within fair use this month.
+          {t("appShell.usageQuietHeadline")}
         </p>
         <p className="text-muted-foreground">
-          Almost every crew stays well inside fair use. If usage ever paces
-          past what your plan covers, we reach out early, right here.
+          {t("appShell.usageQuietBody")}
         </p>
         <p>
           <Link
             href="/legal/fair-use"
             className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
           >
-            How fair use works
+            {t("appShell.usageFairUseLink")}
           </Link>
         </p>
       </div>
@@ -113,7 +117,15 @@ function QuietCard() {
  * #92 warning email links here.
  */
 function PacingCard({ usage }: { usage: Usage }) {
+  const t = useT();
   const subjects = pacingSubjects(usage);
+  const subjectList = subjects
+    .map((subject) =>
+      subject === "messages"
+        ? t("appShell.usageSubjectMessages")
+        : t("appShell.usageSubjectCallingMinutes"),
+    )
+    .join(t("appShell.usageSubjectJoiner"));
   const projected = usage.overage_projection.projected_overage_cents;
   return (
     <SettingsCard>
@@ -125,51 +137,51 @@ function PacingCard({ usage }: { usage: Usage }) {
         />
         <div className="space-y-1 text-sm">
           <p className="font-medium text-foreground">
-            An early heads up: {subjects.join(" and ")} are pacing past what
-            your plan covers.
+            {t("appShell.usagePacingHeadline", { subjects: subjectList })}
           </p>
+          {/* Each figure keeps its own tabular-nums span, so the sentence is
+              split at the numbers rather than carrying markup in a key. */}
           <p className="text-muted-foreground">
             {subjects.includes("messages") && (
               <>
-                You&apos;ve used{" "}
+                {t("appShell.usageUsedBefore")}{" "}
                 <span className="tabular-nums">
                   {usage.used_segments.toLocaleString()}
                 </span>{" "}
-                of your{" "}
+                {t("appShell.usageUsedOfYour")}{" "}
                 <span className="tabular-nums">
                   {usage.included_segments.toLocaleString()}
                 </span>{" "}
-                included messages.{" "}
+                {t("appShell.usageIncludedMessages")}{" "}
               </>
             )}
-            {subjects.includes("calling minutes") && (
+            {subjects.includes("calling") && (
               <>
-                You&apos;ve used{" "}
+                {t("appShell.usageUsedBefore")}{" "}
                 <span className="tabular-nums">
                   {usage.voice.used_minutes.toLocaleString()}
                 </span>{" "}
-                of your{" "}
+                {t("appShell.usageUsedOfYour")}{" "}
                 <span className="tabular-nums">
                   {usage.voice.included_minutes.toLocaleString()}
                 </span>{" "}
-                included calling minutes.{" "}
+                {t("appShell.usageIncludedMinutes")}{" "}
               </>
             )}
             {projected > 0 ? (
               <>
-                At this pace, that&apos;s about{" "}
+                {t("appShell.usageProjectionBefore")}{" "}
                 <span className="font-medium tabular-nums text-foreground">
                   {dollars(projected, usage.currency)}
                 </span>{" "}
-                in extra charges by the end of the period.
+                {t("appShell.usageProjectionAfter")}
               </>
             ) : (
-              <>At this pace, this period runs past what your plan includes.</>
+              <>{t("appShell.usageProjectionUnpriced")}</>
             )}
           </p>
           <p className="text-muted-foreground">
-            Nothing can bill past the spending cap below. It&apos;s yours to
-            set.
+            {t("appShell.usageCapProtects")}
           </p>
         </div>
       </div>
@@ -205,15 +217,19 @@ function capMeterStates(usage: Usage): CapMeterState[] {
 }
 
 /** What pauses at the cap, per meter, stated plainly. */
-function pauseSentence(label: CapMeterState["label"], reached: boolean): string {
+function pauseSentence(
+  t: Translate,
+  label: CapMeterState["label"],
+  reached: boolean,
+): string {
   if (label === "Sending") {
     return reached
-      ? "Sending is paused until you raise the cap or the period rolls over. Incoming texts still arrive, free."
-      : "At the cap, sending pauses instead of billing further. Incoming texts still arrive, free.";
+      ? t("appShell.usagePauseSendingReached")
+      : t("appShell.usagePauseSendingAhead");
   }
   return reached
-    ? "Calling is paused until you raise the cap or the period rolls over. Missed callers still get your text-back."
-    : "At the cap, calling pauses instead of billing further. Missed callers still get your text-back.";
+    ? t("appShell.usagePauseCallingReached")
+    : t("appShell.usagePauseCallingAhead");
 }
 
 /**
@@ -222,6 +238,7 @@ function pauseSentence(label: CapMeterState["label"], reached: boolean): string 
  * the cap is the owner's own protection doing its job.
  */
 function CappedCard({ usage }: { usage: Usage }) {
+  const t = useT();
   const states = capMeterStates(usage);
   const reached = states.filter((s) => s.used >= s.cap);
   const near = states.filter((s) => s.used < s.cap && s.used >= 0.9 * s.cap);
@@ -239,8 +256,8 @@ function CappedCard({ usage }: { usage: Usage }) {
         <div className="space-y-1 text-sm">
           <p className="font-medium text-foreground">
             {isReached
-              ? "Your spending cap is doing its job."
-              : "You're getting close to your spending cap."}
+              ? t("appShell.usageCapReachedHeadline")
+              : t("appShell.usageCapNearHeadline")}
           </p>
           {active.map((state) => {
             const percent = Math.min(
@@ -249,29 +266,30 @@ function CappedCard({ usage }: { usage: Usage }) {
             );
             return (
               <p key={state.label} className="text-muted-foreground">
-                {state.label === "Sending" ? "Messages are" : "Calling minutes are"}{" "}
-                at{" "}
+                {state.label === "Sending"
+                  ? t("appShell.usageMeterMessages")
+                  : t("appShell.usageMeterCalling")}{" "}
+                {t("appShell.usageMeterAt")}{" "}
                 <span className="tabular-nums">
                   {state.used.toLocaleString()}
                 </span>{" "}
-                of the{" "}
+                {t("appShell.usageMeterOfThe")}{" "}
                 <span className="tabular-nums">{state.cap.toLocaleString()}</span>{" "}
-                you allowed
+                {t("appShell.usageMeterYouAllowed")}
                 {state.used >= state.cap ? (
-                  <>. {pauseSentence(state.label, true)}</>
+                  <>. {pauseSentence(t, state.label, true)}</>
                 ) : (
                   <>
                     {" "}
                     (<span className="tabular-nums">{percent}%</span>).{" "}
-                    {pauseSentence(state.label, false)}
+                    {pauseSentence(t, state.label, false)}
                   </>
                 )}
               </p>
             );
           })}
           <p className="text-muted-foreground">
-            Nothing bills past the cap. You can raise or lower it below at any
-            time.
+            {t("appShell.usageCapAdjustable")}
           </p>
         </div>
       </div>
@@ -289,13 +307,16 @@ function monthLabel(month: string, long = false): string {
 
 /** G8: 6-month history bars — petrol fill, tabular counts, month labels. */
 function HistoryBars({ history }: { history: UsageMonth[] }) {
+  const t = useT();
   const max = Math.max(1, ...history.map((entry) => entry.segments));
   return (
     <div
       role="img"
-      aria-label={`Messages sent by month: ${history
-        .map((entry) => `${monthLabel(entry.month, true)}: ${entry.segments}`)
-        .join(". ")}.`}
+      aria-label={t("appShell.usageHistoryAria", {
+        months: history
+          .map((entry) => `${monthLabel(entry.month, true)}: ${entry.segments}`)
+          .join(". "),
+      })}
     >
       <div aria-hidden className="flex items-end gap-2 sm:gap-3">
         {history.map((entry) => (
@@ -338,91 +359,96 @@ function HistoryBars({ history }: { history: UsageMonth[] }) {
  * history bars and the D30 storage lines.
  */
 function UsageDetails({ usage }: { usage: Usage }) {
+  const t = useT();
   const pauseAt = usage.cap_segments ?? capSegments(usage.included_segments, null);
   const voice = usage.voice;
   return (
     <details className="group">
       <summary className="inline-flex min-h-[44px] cursor-pointer list-none items-center gap-1 text-sm font-medium text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground [&::-webkit-details-marker]:hidden">
-        <span className="group-open:hidden">Show the numbers</span>
-        <span className="hidden group-open:inline">Hide the numbers</span>
+        <span className="group-open:hidden">
+          {t("appShell.usageShowNumbers")}
+        </span>
+        <span className="hidden group-open:inline">
+          {t("appShell.usageHideNumbers")}
+        </span>
       </summary>
       <div className="mt-2 space-y-6">
         <SettingsCard
-          title="This period"
-          description={periodRange(usage) ?? undefined}
+          title={t("appShell.usageThisPeriod")}
+          description={periodRange(t, usage) ?? undefined}
         >
           <div className="space-y-1 text-sm text-muted-foreground">
             <p>
-              Messages:{" "}
+              {t("appShell.usageMessagesLabel")}{" "}
               <span className="tabular-nums">
                 {usage.used_segments.toLocaleString()}
               </span>{" "}
-              sent of{" "}
+              {t("appShell.usageSentOf")}{" "}
               <span className="tabular-nums">
                 {usage.included_segments.toLocaleString()}
               </span>{" "}
-              included.
+              {t("appShell.usageIncludedSuffix")}
             </p>
             {usage.overage_segments > 0 && (
               <p>
                 <span className="tabular-nums">
                   {usage.overage_segments.toLocaleString()}
                 </span>{" "}
-                past included so far,{" "}
+                {t("appShell.usagePastIncluded")}{" "}
                 <span className="tabular-nums">
                   {dollars(usage.projected_overage_cents, usage.currency)}
                 </span>{" "}
-                at the overage rate.
+                {t("appShell.usageAtOverageRate")}
               </p>
             )}
             {/* #42: there is no uncapped state — the API clamps a null
                 multiplier to the 10x hard ceiling, so a null cap_segments can
                 only be legacy data and still names a real pause point. */}
             <p>
-              Sending pauses at{" "}
+              {t("appShell.usageSendingPausesAt")}{" "}
               <span className="tabular-nums">{pauseAt.toLocaleString()}</span>{" "}
-              messages
+              {t("appShell.usageMessagesWord")}
               {usage.cap_segments === null
-                ? ", the maximum, which is 10 times your included messages."
-                : ", the cap you set."}
+                ? t("appShell.usageCapIsMaximum")
+                : t("appShell.usageCapIsYours")}
             </p>
             {usage.inbound_segments > 0 && (
               <p>
                 <span className="tabular-nums">
                   {usage.inbound_segments.toLocaleString()}
                 </span>{" "}
-                messages received, always free.
+                {t("appShell.usageMessagesReceived")}
               </p>
             )}
           </div>
           {voice.included_minutes > 0 && (
             <div className="mt-4 space-y-1 text-sm text-muted-foreground">
               <p>
-                Calling:{" "}
+                {t("appShell.usageCallingLabel")}{" "}
                 <span className="tabular-nums">
                   {voice.used_minutes.toLocaleString()}
                 </span>{" "}
-                of{" "}
+                {t("appShell.usageOf")}{" "}
                 <span className="tabular-nums">
                   {voice.included_minutes.toLocaleString()}
                 </span>{" "}
-                included minutes used, both directions.
+                {t("appShell.usageIncludedMinutesUsed")}
               </p>
               {voice.overage_minutes > 0 && voice.overage_billed && (
                 <p>
                   <span className="tabular-nums">
                     {voice.overage_minutes.toLocaleString()}
                   </span>{" "}
-                  extra minutes so far at 1¢ each.
+                  {t("appShell.usageExtraMinutes")}
                 </p>
               )}
               {voice.cap_minutes !== null && (
                 <p>
-                  Calling pauses at{" "}
+                  {t("appShell.usageCallingPausesAt")}{" "}
                   <span className="tabular-nums">
                     {voice.cap_minutes.toLocaleString()}
                   </span>{" "}
-                  minutes, the same cap.
+                  {t("appShell.usageMinutesSameCap")}
                 </p>
               )}
             </div>
@@ -438,8 +464,8 @@ function UsageDetails({ usage }: { usage: Usage }) {
 
         {(usage.ai?.length ?? 0) > 0 && (
           <SettingsCard
-            title="Lou this month"
-            description="What Lou has drafted, filled in, and written down. Each resets on the 1st."
+            title={t("appShell.usageLouTitle")}
+            description={t("appShell.usageLouDescription")}
           >
             <AiUsage features={usage.ai ?? []} />
           </SettingsCard>
@@ -447,19 +473,16 @@ function UsageDetails({ usage }: { usage: Usage }) {
 
         {usage.history.length > 0 && (
           <SettingsCard
-            title="Last 6 months"
-            description="Outgoing messages by calendar month."
+            title={t("appShell.usageLastSixMonths")}
+            description={t("appShell.usageLastSixMonthsDescription")}
           >
             <HistoryBars history={usage.history} />
           </SettingsCard>
         )}
 
-        <SettingsCard title="How messages are counted">
+        <SettingsCard title={t("appShell.usageCountingTitle")}>
           <p className="text-sm text-muted-foreground">
-            Texts are counted in segments. A plain text fits 160 characters
-            per segment; texts with emoji fit 70; longer texts use more than
-            one. A picture message counts as 3. Incoming texts are always
-            free and don&apos;t count.
+            {t("appShell.usageCountingBody")}
           </p>
         </SettingsCard>
       </div>
@@ -468,10 +491,10 @@ function UsageDetails({ usage }: { usage: Usage }) {
 }
 
 /** Human name for a destination bucket. */
-function countryLabel(code: string): string {
-  if (code === "US") return "United States";
-  if (code === "CA") return "Canada";
-  return "Elsewhere";
+function countryLabel(t: Translate, code: string): string {
+  if (code === "US") return t("appShell.usageCountryUs");
+  if (code === "CA") return t("appShell.usageCountryCa");
+  return t("appShell.usageCountryElsewhere");
 }
 
 /**
@@ -493,6 +516,7 @@ function countryLabel(code: string): string {
  * receipt means a carrier acknowledged handoff, not that a person read it.
  */
 function DeliveryCard({ usage }: { usage: Usage }) {
+  const t = useT();
   const delivery = usage.delivery;
   if (!delivery) return null;
 
@@ -507,24 +531,30 @@ function DeliveryCard({ usage }: { usage: Usage }) {
 
   return (
     <SettingsCard
-      title="Are your texts arriving?"
-      description="Carrier-reported delivery this period. A carrier confirming it took the message is not the same as someone reading it, so this is the most we can honestly tell you."
+      title={t("appShell.usageDeliveryTitle")}
+      description={t("appShell.usageDeliveryDescription")}
     >
       <div className="space-y-4">
         <p className="text-sm">
           <span className="font-medium">
-            {delivery.delivered.toLocaleString()} confirmed delivered
+            {t("appShell.usageDeliveryConfirmed", {
+              count: delivery.delivered.toLocaleString(),
+            })}
           </span>
           {delivery.failed > 0 ? (
             <>
               {" · "}
-              {delivery.failed.toLocaleString()} didn&rsquo;t get through
+              {t("appShell.usageDeliveryFailed", {
+                count: delivery.failed.toLocaleString(),
+              })}
             </>
           ) : null}
           {delivery.pending > 0 ? (
             <>
               {" · "}
-              {delivery.pending.toLocaleString()} still on their way
+              {t("appShell.usageDeliveryPending", {
+                count: delivery.pending.toLocaleString(),
+              })}
             </>
           ) : null}
         </p>
@@ -533,10 +563,13 @@ function DeliveryCard({ usage }: { usage: Usage }) {
           <ul className="space-y-1.5 text-sm text-muted-foreground">
             {countries.map((row) => (
               <li key={row.country} className="flex justify-between gap-4">
-                <span>{countryLabel(row.country)}</span>
+                <span>{countryLabel(t, row.country)}</span>
                 <span className="tabular-nums">
                   {row.rate === null
-                    ? `${row.delivered.toLocaleString()} of ${(row.delivered + row.failed).toLocaleString()}`
+                    ? t("appShell.usageDeliveryOfTotal", {
+                        delivered: row.delivered.toLocaleString(),
+                        total: (row.delivered + row.failed).toLocaleString(),
+                      })
                     : `${Math.round(row.rate * 100)}%`}
                 </span>
               </li>
@@ -546,13 +579,11 @@ function DeliveryCard({ usage }: { usage: Usage }) {
 
         {delivery.failed > 0 ? (
           <p className="text-sm text-muted-foreground">
-            A text that doesn&rsquo;t get through is usually a disconnected
-            number or a handset that has been off for days. Open the
-            conversation and the message itself says what the carrier reported.
+            {t("appShell.usageDeliveryFailureHint")}
           </p>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Nothing has bounced this period.
+            {t("appShell.usageDeliveryNoBounces")}
           </p>
         )}
       </div>
@@ -561,6 +592,7 @@ function DeliveryCard({ usage }: { usage: Usage }) {
 }
 
 export default function UsageSettingsPage() {
+  const t = useT();
   const usage = useUsage();
   const company = useCompany();
   const { role } = useActiveCompany();
@@ -570,11 +602,11 @@ export default function UsageSettingsPage() {
 
   return (
     <SettingsPage
-      title="Usage"
-      description="Where this period stands under fair use."
+      title={t("appShell.usageTitle")}
+      description={t("appShell.usageDescription")}
     >
       {pending ? (
-        <div className="space-y-4" aria-label="Loading usage">
+        <div className="space-y-4" aria-label={t("appShell.usageLoading")}>
           <Skeleton className="h-36 w-full rounded-lg" />
           <Skeleton className="h-24 w-full rounded-lg" />
         </div>
@@ -589,11 +621,13 @@ export default function UsageSettingsPage() {
         <SettingsCard>
           <CalmEmptyState
             icon={<Gauge strokeWidth={1.5} aria-hidden />}
-            title="Fair use starts with your subscription"
-            description="Once your plan is live, this is where fair use and your spending cap live."
+            title={t("appShell.usageNoPlanTitle")}
+            description={t("appShell.usageNoPlanDescription")}
             action={
               <Button asChild variant="outline" size="sm">
-                <Link href="/settings/billing">See billing</Link>
+                <Link href="/settings/billing">
+                  {t("appShell.usageSeeBilling")}
+                </Link>
               </Button>
             }
           />
@@ -619,8 +653,8 @@ export default function UsageSettingsPage() {
           {/* The owner's protection stays reachable in every status — framed
               as the thing that stops a bill, never as a quota. */}
           <SettingsCard
-            title="Spending cap"
-            description="A spending cap you control. If a month ever runs that hot, sending and calling pause at the cap instead of billing past what you allowed."
+            title={t("appShell.usageSpendingCapTitle")}
+            description={t("appShell.usageSpendingCapDescription")}
           >
             <CapControl
               current={normalizeMultiplier(company.data.overage_cap_multiplier)}
@@ -634,8 +668,8 @@ export default function UsageSettingsPage() {
               surfaces they see and an owner-only check would hide it from the
               person it is for. */}
           <SettingsCard
-            title="Export usage"
-            description="Take a period's texts, calls and storage away as a file."
+            title={t("appShell.usageExportTitle")}
+            description={t("appShell.usageExportDescription")}
           >
             <ExportUsage />
           </SettingsCard>

@@ -26,6 +26,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useT, type MessageKey } from "@/i18n/provider";
 import { useAllTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,23 @@ import { toTaskFilters, type TaskPageState } from "../task-view-url";
 
 type CalMode = "month" | "week";
 
+/** The weekday strip, Sunday-first, as catalogue keys rather than words. */
+const DOW_KEYS: readonly MessageKey[] = [
+  "tasks.dowSun",
+  "tasks.dowMon",
+  "tasks.dowTue",
+  "tasks.dowWed",
+  "tasks.dowThu",
+  "tasks.dowFri",
+  "tasks.dowSat",
+];
+
+/** The two range buttons, whose visible word is lower-cased and CSS-capitalized. */
+const RANGE_KEYS: Record<CalMode, MessageKey> = {
+  month: "tasks.calendarRangeMonth",
+  week: "tasks.calendarRangeWeek",
+};
+
 /**
  * The Calendar view (D25) — the scheduling view, tasks laid out by `due_at`.
  * Month or week grid; each dated task is a chip on its day; drag a chip to
@@ -46,6 +64,7 @@ type CalMode = "month" | "week";
  * scheduling for this ICP).
  */
 export function CalendarView({ state }: { state: TaskPageState }) {
+  const t = useT();
   const [mode, setMode] = useState<CalMode>("month");
   const [cursor, setCursor] = useState(() => new Date());
 
@@ -107,7 +126,11 @@ export function CalendarView({ state }: { state: TaskPageState }) {
             variant="ghost"
             size="icon-sm"
             onClick={() => step(-1)}
-            aria-label={mode === "week" ? "Previous week" : "Previous month"}
+            aria-label={
+              mode === "week"
+                ? t("tasks.calendarPreviousWeek")
+                : t("tasks.calendarPreviousMonth")
+            }
           >
             <ChevronLeft className="size-4" strokeWidth={1.75} />
           </Button>
@@ -118,7 +141,11 @@ export function CalendarView({ state }: { state: TaskPageState }) {
             variant="ghost"
             size="icon-sm"
             onClick={() => step(1)}
-            aria-label={mode === "week" ? "Next week" : "Next month"}
+            aria-label={
+              mode === "week"
+                ? t("tasks.calendarNextWeek")
+                : t("tasks.calendarNextMonth")
+            }
           >
             <ChevronRight className="size-4" strokeWidth={1.75} />
           </Button>
@@ -128,10 +155,10 @@ export function CalendarView({ state }: { state: TaskPageState }) {
             onClick={() => setCursor(new Date())}
             className="ml-1"
           >
-            Today
+            {t("tasks.today")}
           </Button>
         </div>
-        <div role="group" aria-label="Calendar range" className="flex rounded-lg bg-muted p-0.5">
+        <div role="group" aria-label={t("tasks.calendarRangeAria")} className="flex rounded-lg bg-muted p-0.5">
           {(["month", "week"] as const).map((m) => (
             <button
               key={m}
@@ -143,7 +170,7 @@ export function CalendarView({ state }: { state: TaskPageState }) {
                 mode === m ? "bg-card text-foreground" : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {m}
+              {t(RANGE_KEYS[m])}
             </button>
           ))}
         </div>
@@ -152,12 +179,12 @@ export function CalendarView({ state }: { state: TaskPageState }) {
       <div className="overflow-x-auto">
         <div className="min-w-[640px]">
           <div className="grid grid-cols-7 border-b border-border">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+            {DOW_KEYS.map((key) => (
               <div
-                key={d}
+                key={key}
                 className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
               >
-                {d}
+                {t(key)}
               </div>
             ))}
           </div>
@@ -181,7 +208,7 @@ export function CalendarView({ state }: { state: TaskPageState }) {
       </div>
       {query.isError && (
         <LoadError
-          message="We couldn't load your scheduled tasks. Check your connection and try again."
+          message={t("tasks.calendarLoadFailed")}
           onRetry={() => void query.refetch()}
         />
       )}
@@ -190,10 +217,11 @@ export function CalendarView({ state }: { state: TaskPageState }) {
       {!query.isPending && !query.isError && tasks.length === 0 && (
         <div className="rounded-app-card border border-app-line bg-app-inset px-4 py-3 text-center">
           <p className="text-[13px] leading-relaxed text-muted-foreground">
-            No tasks are scheduled in this range. A task appears here once it has
-            a <span className="font-medium text-foreground">due date</span>.
-            Set one on a task from its row, the checklist, or its detail drawer,
-            then drag it between days to reschedule.
+            {t("tasks.calendarEmptyBefore")}
+            <span className="font-medium text-foreground">
+              {t("tasks.calendarEmptyDueDate")}
+            </span>
+            {t("tasks.calendarEmptyAfter")}
           </p>
         </div>
       )}
@@ -282,10 +310,13 @@ function DayCell({
  * arbitrary date is still reachable by dragging or from the task itself, so
  * nothing is lost by keeping this list short enough to read.
  */
-export const RESCHEDULE_MOVES: readonly { label: string; days: number }[] = [
-  { label: "A day earlier", days: -1 },
-  { label: "A day later", days: 1 },
-  { label: "A week later", days: 7 },
+export const RESCHEDULE_MOVES: readonly {
+  labelKey: MessageKey;
+  days: number;
+}[] = [
+  { labelKey: "tasks.rescheduleDayEarlier", days: -1 },
+  { labelKey: "tasks.rescheduleDayLater", days: 1 },
+  { labelKey: "tasks.rescheduleWeekLater", days: 7 },
 ];
 
 /**
@@ -330,6 +361,7 @@ export function movedDueAt(dueAt: string | null, days: number, now: Date): strin
  *   about what it even is.
  */
 function DayChip({ task }: { task: Task }) {
+  const t = useT();
   const reschedule = useTaskReschedule();
 
   return (
@@ -359,7 +391,7 @@ function DayChip({ task }: { task: Task }) {
             type="button"
             // Named for the task, because a screen reader reading thirty of
             // these needs to know which job each one moves.
-            aria-label={`Reschedule ${task.title}`}
+            aria-label={t("tasks.rescheduleAria", { title: task.title })}
             className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground opacity-40 transition-opacity duration-150 ease-out hover:bg-primary/10 hover:opacity-100 focus-visible:opacity-100 group-hover/chip:opacity-100 data-[state=open]:opacity-100"
           >
             <CalendarClock className="size-3.5" strokeWidth={1.75} aria-hidden />
@@ -368,7 +400,7 @@ function DayChip({ task }: { task: Task }) {
         <DropdownMenuContent align="end">
           {RESCHEDULE_MOVES.map((move) => (
             <DropdownMenuItem
-              key={move.label}
+              key={move.labelKey}
               onSelect={() =>
                 reschedule.mutate({
                   taskId: task.id,
@@ -377,7 +409,7 @@ function DayChip({ task }: { task: Task }) {
                 })
               }
             >
-              {move.label}
+              {t(move.labelKey)}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>

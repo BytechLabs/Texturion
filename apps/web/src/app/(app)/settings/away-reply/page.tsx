@@ -30,6 +30,7 @@ import {
   emergencyWordList,
 } from "@loonext/shared";
 
+import { useT } from "@/i18n/provider";
 import { previewAwayMessage } from "@/lib/settings/away-preview";
 import {
   isDirty,
@@ -41,8 +42,9 @@ import type { CompanyView } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 
 function AwaySkeleton() {
+  const t = useT();
   return (
-    <div className="space-y-4" aria-label="Loading away-reply settings">
+    <div className="space-y-4" aria-label={t("appShell.awayLoading")}>
       <Skeleton className="h-64 w-full rounded-lg" />
       <Skeleton className="h-56 w-full rounded-lg" />
     </div>
@@ -57,6 +59,7 @@ function BusinessHoursCard({
   company: CompanyView;
   canEdit: boolean;
 }) {
+  const t = useT();
   const update = useUpdateCompany();
   const initial = useMemo(
     () => toFormState(company.business_hours),
@@ -80,12 +83,12 @@ function BusinessHoursCard({
     update.mutate(
       { business_hours: toBusinessHours(days) },
       {
-        onSuccess: () => toast.success("Business hours saved."),
+        onSuccess: () => toast.success(t("appShell.hoursSaved")),
         onError: (cause) =>
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't save your hours. Try again.",
+              : t("appShell.hoursSaveFailed"),
           ),
       },
     );
@@ -93,13 +96,17 @@ function BusinessHoursCard({
 
   return (
     <SettingsCard
-      title="Business hours"
-      description={`When you're open, in ${company.timezone.replace(/_/g, " ")}. Texts that arrive outside these hours can get your away reply. This is separate from each customer's texting quiet hours.`}
+      title={t("appShell.hoursTitle")}
+      description={t("appShell.hoursDescription", {
+        timezone: company.timezone.replace(/_/g, " "),
+      })}
       footer={
         canEdit ? (
           <div className="flex items-center justify-end">
             <Button onClick={save} disabled={!dirty || update.isPending}>
-              {update.isPending ? "Saving…" : "Save hours"}
+              {update.isPending
+                ? t("common.saving")
+                : t("appShell.hoursSaveAction")}
             </Button>
           </div>
         ) : undefined
@@ -123,7 +130,7 @@ function BusinessHoursCard({
         )}
         {!canEdit && (
           <p className="text-xs text-muted-foreground">
-            Only owners and admins can change business hours.
+            {t("appShell.hoursOwnersOnly")}
           </p>
         )}
       </div>
@@ -139,6 +146,7 @@ function AwayMessageCard({
   company: CompanyView;
   canEdit: boolean;
 }) {
+  const t = useT();
   const update = useUpdateCompany();
   const [enabled, setEnabled] = useState(company.away_enabled);
   const [message, setMessage] = useState(company.away_message ?? "");
@@ -187,7 +195,7 @@ function AwayMessageCard({
     setError(null);
     const trimmed = message.trim();
     if (enabled && trimmed.length === 0) {
-      setError("Write your away message before turning the away reply on.");
+      setError(t("appShell.awayMessageRequired"));
       return;
     }
     update.mutate(
@@ -197,12 +205,12 @@ function AwayMessageCard({
         emergency_keyword_enabled: emergency,
       },
       {
-        onSuccess: () => toast.success("Away reply saved."),
+        onSuccess: () => toast.success(t("appShell.awaySaved")),
         onError: (cause) =>
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't save the away reply. Try again.",
+              : t("appShell.awaySaveFailed"),
           ),
       },
     );
@@ -210,13 +218,15 @@ function AwayMessageCard({
 
   return (
     <SettingsCard
-      title="Away reply"
-      description="One automatic text back when someone reaches you outside your business hours, in your words, so you never lose an after-hours emergency."
+      title={t("appShell.awayTitle")}
+      description={t("appShell.awayDescription")}
       footer={
         canEdit ? (
           <div className="flex items-center justify-end">
             <Button onClick={save} disabled={!dirty || update.isPending}>
-              {update.isPending ? "Saving…" : "Save away reply"}
+              {update.isPending
+                ? t("common.saving")
+                : t("appShell.awaySaveAction")}
             </Button>
           </div>
         ) : undefined
@@ -226,11 +236,10 @@ function AwayMessageCard({
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-0.5">
             <Label htmlFor="away-enabled" className="text-sm font-medium">
-              Send an away reply after hours
+              {t("appShell.awayEnabledLabel")}
             </Label>
             <p className="text-sm text-muted-foreground">
-              Fires once per conversation when a customer first texts outside
-              your hours. Replies to their ongoing thread are never gated.
+              {t("appShell.awayEnabledBody")}
             </p>
           </div>
           <Switch
@@ -248,14 +257,14 @@ function AwayMessageCard({
         {!usSendApproved(company) && enabled ? (
           <p className="rounded-md bg-warning/10 px-3 py-2 text-sm">
             {usTextingOff(company)
-              ? "Customers with US numbers won't get this reply: US texting isn't on for this workspace. Canadian numbers get it now."
-              : "Customers with US numbers won't get this reply until your registration is approved. Canadian numbers get it now."}
+              ? t("appShell.awayUsTextingOff")
+              : t("appShell.awayUsPendingApproval")}
           </p>
         ) : null}
 
         <div className="space-y-2">
           <Label htmlFor="away-message" className="text-sm font-medium">
-            Your away message
+            {t("appShell.awayMessageLabel")}
           </Label>
           <Textarea
             id="away-message"
@@ -266,17 +275,19 @@ function AwayMessageCard({
             placeholder={company.away_effective_message}
             onChange={(e) => setMessage(e.target.value)}
           />
+          {/* Three fragments rather than one key: the two merge tokens are
+              literal code a customer's carrier never translates, and they sit
+              inside the sentence. */}
           <p className="text-xs text-muted-foreground">
-            You can use{" "}
+            {t("appShell.awayMergeHintBefore")}{" "}
             <code className="rounded bg-secondary px-1 py-0.5">
               {"{first_name}"}
             </code>{" "}
-            and{" "}
+            {t("appShell.awayMergeHintBetween")}{" "}
             <code className="rounded bg-secondary px-1 py-0.5">
               {"{business_name}"}
             </code>
-            . Write it so an emergency still reaches you, never just
-            &ldquo;we&apos;re closed.&rdquo;
+            {t("appShell.awayMergeHintAfter")}
           </p>
         </div>
 
@@ -289,21 +300,20 @@ function AwayMessageCard({
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-0.5">
               <Label htmlFor="emergency-enabled" className="text-sm font-medium">
-                Treat an emergency word as an emergency
+                {t("appShell.awayEmergencyLabel")}
               </Label>
               {/* #460: names the words THIS workspace watches for. Hardcoding
                   the product's four was fine until an owner could change them,
                   at which point a switch label naming words nothing matches is
                   the #414 defect in a different place. */}
               <p className="text-sm text-muted-foreground">
-                Texts back that start with{" "}
-                {emergencyWordList(
-                  effectiveEmergencyKeywords(company.emergency_effective_keywords),
-                )}{" "}
-                reach
-                everyone on the crew straight away, at the priority that wakes a
-                phone — no away reply, and never held back by your daily
-                notification limit.
+                {t("appShell.awayEmergencyBody", {
+                  words: emergencyWordList(
+                    effectiveEmergencyKeywords(
+                      company.emergency_effective_keywords,
+                    ),
+                  ),
+                })}
               </p>
             </div>
             <Switch
@@ -335,7 +345,9 @@ function AwayMessageCard({
         </div>
 
         <div className="space-y-1.5">
-          <p className="text-xs font-medium text-muted-foreground">Preview</p>
+          <p className="text-xs font-medium text-muted-foreground">
+            {t("appShell.awayPreview")}
+          </p>
           <div
             aria-live="polite"
             className="rounded-md border border-border-subtle bg-accent/40 px-3 py-2.5 text-sm whitespace-pre-wrap"
@@ -351,7 +363,7 @@ function AwayMessageCard({
         )}
         {!canEdit && (
           <p className="text-xs text-muted-foreground">
-            Only owners and admins can change the away reply.
+            {t("appShell.awayOwnersOnly")}
           </p>
         )}
       </div>
@@ -360,14 +372,15 @@ function AwayMessageCard({
 }
 
 export default function AwayReplySettingsPage() {
+  const t = useT();
   const company = useCompany();
   const { role } = useActiveCompany();
   const canEdit = role === "owner" || role === "admin";
 
   return (
     <SettingsPage
-      title="Business hours & away reply"
-      description="Catch after-hours texts with one reply in your own words."
+      title={t("appShell.awayPageTitle")}
+      description={t("appShell.awayPageDescription")}
     >
       {company.isPending ? (
         <AwaySkeleton />

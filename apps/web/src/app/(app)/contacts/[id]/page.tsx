@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/i18n/provider";
 import {
   useContact,
   useDeleteContact,
@@ -102,24 +103,27 @@ function useAutosave(
 }
 
 function SaveStatus({ state }: { state: SaveState }) {
+  const t = useT();
   return (
     <p aria-live="polite" className="min-h-4 text-xs text-muted-foreground">
-      {state === "saving" && "Saving…"}
-      {state === "saved" && "Saved"}
+      {state === "saving" && t("common.saving")}
+      {state === "saved" && t("common.saved")}
       {state === "error" && (
-        <span className="text-destructive">Couldn&apos;t save. Check your connection.</span>
+        <span className="text-destructive">
+          {t("appShell.contactSaveFailed")}
+        </span>
       )}
     </p>
   );
 }
 
 function ConsentLine({ contact }: { contact: ContactDetail }) {
+  const t = useT();
   const members = useMembers();
   if (!contact.consent_source) {
     return (
       <p className="text-sm text-muted-foreground">
-        No consent recorded yet. It&apos;s recorded when they text you first,
-        or when you send them their first text, which attests they asked for it.
+        {t("appShell.contactNoConsent")}
       </p>
     );
   }
@@ -132,7 +136,8 @@ function ConsentLine({ contact }: { contact: ContactDetail }) {
   if (contact.consent_source === "inbound_sms") {
     return (
       <p className="text-sm">
-        Texted you first{date ? ` · ${date}` : ""}
+        {t("appShell.contactConsentInbound")}
+        {date ? ` · ${date}` : ""}
       </p>
     );
   }
@@ -141,7 +146,9 @@ function ConsentLine({ contact }: { contact: ContactDetail }) {
   )?.display_name;
   return (
     <p className="text-sm">
-      Consent recorded{attester ? ` by ${attester}` : ""}
+      {attester
+        ? t("appShell.contactConsentRecordedBy", { name: attester })
+        : t("appShell.contactConsentRecorded")}
       {date ? ` · ${date}` : ""}
     </p>
   );
@@ -154,6 +161,7 @@ function ConsentLine({ contact }: { contact: ContactDetail }) {
  * attribution, so this renders nothing rather than "Added by unknown".
  */
 function RecordAttribution({ contact }: { contact: ContactDetail }) {
+  const t = useT();
   const addedBy = contact.created_by_name?.trim();
   const editedBy = contact.updated_by_name?.trim();
   if (!addedBy && !editedBy) return null;
@@ -166,10 +174,12 @@ function RecordAttribution({ contact }: { contact: ContactDetail }) {
     <div className="space-y-0.5 text-xs text-muted-foreground">
       {addedBy && (
         <p>
-          Added by {addedBy} on {addedOn}
+          {t("appShell.contactAddedBy", { name: addedBy, date: addedOn })}
         </p>
       )}
-      {editedBy && editedBy !== addedBy && <p>Edited by {editedBy}</p>}
+      {editedBy && editedBy !== addedBy && (
+        <p>{t("appShell.contactEditedBy", { name: editedBy })}</p>
+      )}
     </div>
   );
 }
@@ -189,6 +199,7 @@ function RecordAttribution({ contact }: { contact: ContactDetail }) {
  * Disclosure, Smart Defaults (the picker opens on the current answer).
  */
 function DestinationClock({ contact }: { contact: ContactDetail }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const update = useUpdateContact(contact.id);
 
@@ -203,10 +214,10 @@ function DestinationClock({ contact }: { contact: ContactDetail }) {
   // do not know, which is the one they most need to see.
   const provenance =
     contact.timezone_source === "contact"
-      ? "Set by your crew"
+      ? t("appShell.contactClockSetByCrew")
       : contact.timezone_source === "area_code"
-        ? "From their area code"
-        : "Their area code doesn't say — using your timezone";
+        ? t("appShell.contactClockFromAreaCode")
+        : t("appShell.contactClockUnknown");
 
   function save(next: string | null) {
     update.mutate(
@@ -215,14 +226,16 @@ function DestinationClock({ contact }: { contact: ContactDetail }) {
         onSuccess: () => {
           setEditing(false);
           toast.success(
-            next ? "Timezone updated." : "Back to their area code.",
+            next
+              ? t("appShell.contactTimezoneUpdated")
+              : t("appShell.contactTimezoneReset"),
           );
         },
         onError: (cause) =>
           toast.error(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't save the timezone. Try again.",
+              : t("appShell.contactTimezoneSaveFailed"),
           ),
       },
     );
@@ -230,7 +243,9 @@ function DestinationClock({ contact }: { contact: ContactDetail }) {
 
   return (
     <div className="space-y-1.5">
-      <Label htmlFor="contact-timezone">Their time</Label>
+      <Label htmlFor="contact-timezone">
+        {t("appShell.contactTheirTime")}
+      </Label>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <p className="flex items-center gap-1.5 text-sm">
           <Clock className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden />
@@ -244,7 +259,7 @@ function DestinationClock({ contact }: { contact: ContactDetail }) {
             className="h-7 px-2 text-xs"
             onClick={() => setEditing(true)}
           >
-            Change
+            {t("appShell.contactClockChange")}
           </Button>
         )}
       </div>
@@ -275,7 +290,7 @@ function DestinationClock({ contact }: { contact: ContactDetail }) {
               disabled={update.isPending}
               onClick={() => save(null)}
             >
-              Use their area code
+              {t("appShell.contactUseAreaCode")}
             </Button>
           )}
           <Button
@@ -285,7 +300,7 @@ function DestinationClock({ contact }: { contact: ContactDetail }) {
             disabled={update.isPending}
             onClick={() => setEditing(false)}
           >
-            Cancel
+            {t("common.cancel")}
           </Button>
         </div>
       )}
@@ -294,6 +309,7 @@ function DestinationClock({ contact }: { contact: ContactDetail }) {
 }
 
 function ContactBody({ contact }: { contact: ContactDetail }) {
+  const t = useT();
   const router = useRouter();
   const optOut = useOptOutContact();
   const revoke = useRevokeOptOut();
@@ -328,17 +344,17 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="Copy number"
+          aria-label={t("appShell.contactCopyNumberAria")}
           onClick={() => {
             void navigator.clipboard.writeText(contact.phone_e164);
-            toast.success("Number copied.");
+            toast.success(t("appShell.contactNumberCopied"));
           }}
         >
           <Copy strokeWidth={1.75} />
         </Button>
         {contact.opted_out && (
           <Badge className="border-transparent bg-destructive/10 text-destructive">
-            Opted out
+            {t("appShell.contactOptedOutBadge")}
           </Badge>
         )}
         {/* #73/#82: message this contact. Contextual — if a conversation already
@@ -368,16 +384,16 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
             }
           >
             <SquarePen strokeWidth={1.75} />
-            {existingConversation ? "Open conversation" : "Message"}
+            {existingConversation
+              ? t("appShell.contactOpenConversation")
+              : t("appShell.contactMessage")}
           </Link>
         </Button>
       </div>
 
       {contact.opted_out && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
-          <p className="text-sm">
-            This customer opted out of texting. Sends to them are blocked.
-          </p>
+          <p className="text-sm">{t("appShell.contactOptedOutNotice")}</p>
           {/* Which kind of opt-out decides whether there is anything to press.
               A carrier block is a carrier block: undoing our record would not
               lift it, and the very next send would come back rejected anyway.
@@ -385,8 +401,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
               asks the predicate rather than naming one. */}
           {isCarrierEnforcedOptOut(contact.opt_out_source) ? (
             <p className="mt-2 text-xs text-muted-foreground">
-              They texted STOP, so their carrier is blocking your texts. Only
-              they can undo it, by texting START to your number.
+              {t("appShell.contactCarrierOptOut")}
             </p>
           ) : (
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -396,28 +411,30 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                 disabled={revoke.isPending}
                 onClick={() =>
                   revoke.mutate(contact.id, {
-                    onSuccess: () => toast.success("Marked opted in again."),
+                    onSuccess: () =>
+                      toast.success(t("appShell.contactOptedBackIn")),
                     onError: (cause) =>
                       toast.error(
                         cause instanceof ApiError
                           ? cause.message
-                          : "Couldn't opt them back in. Try again.",
+                          : t("appShell.contactOptInFailed"),
                       ),
                   })
                 }
               >
-                {revoke.isPending ? "Working…" : "Mark opted in again"}
+                {revoke.isPending
+                  ? t("appShell.contactWorking")
+                  : t("appShell.contactMarkOptedIn")}
               </Button>
               <p className="text-xs text-muted-foreground">
-                Someone recorded this by hand, so undoing it here is all it
-                takes.
+                {t("appShell.contactManualOptOutNote")}
               </p>
             </div>
           )}
         </div>
       )}
 
-      <SettingsCard title="Details">
+      <SettingsCard title={t("appShell.contactDetailsCard")}>
         <div className="space-y-4">
           {/* #291: FIRST, and above the name, because it belongs to the number
               in the header rather than to the record below it — the same
@@ -427,12 +444,12 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
               the page gets the tightest grouping.* */}
           <PhoneList contact={contact} />
           <div className="space-y-1.5">
-            <Label htmlFor="contact-name">Name</Label>
+            <Label htmlFor="contact-name">{t("appShell.contactName")}</Label>
             <Input
               id="contact-name"
               value={name.value}
               maxLength={200}
-              placeholder="Add a name"
+              placeholder={t("appShell.contactNamePlaceholder")}
               onChange={(event) => name.onChange(event.target.value)}
             />
             <SaveStatus state={name.state} />
@@ -443,24 +460,28 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
               *Applying: Relationship Strength — a strong semantic pair gets
               tight grouping.* */}
           <div className="space-y-1.5">
-            <Label htmlFor="contact-business">Business</Label>
+            <Label htmlFor="contact-business">
+              {t("appShell.contactBusiness")}
+            </Label>
             <Input
               id="contact-business"
               value={businessName.value}
               maxLength={200}
-              placeholder="Who they work for, if anyone"
+              placeholder={t("appShell.contactBusinessPlaceholder")}
               autoComplete="off"
               onChange={(event) => businessName.onChange(event.target.value)}
             />
             <SaveStatus state={businessName.state} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="contact-address">Address</Label>
+            <Label htmlFor="contact-address">
+              {t("appShell.contactAddress")}
+            </Label>
             <Input
               id="contact-address"
               value={address.value}
               maxLength={500}
-              placeholder="Add an address"
+              placeholder={t("appShell.contactAddressPlaceholder")}
               autoComplete="off"
               onChange={(event) => address.onChange(event.target.value)}
             />
@@ -475,26 +496,26 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
               it answers the same question — how do we reach them when a text
               is the wrong shape for what we are sending. */}
           <div className="space-y-1.5">
-            <Label htmlFor="contact-email">Email</Label>
+            <Label htmlFor="contact-email">{t("appShell.contactEmail")}</Label>
             <Input
               id="contact-email"
               type="email"
               value={email.value}
               maxLength={254}
-              placeholder="For quotes and receipts"
+              placeholder={t("appShell.contactEmailPlaceholder")}
               autoComplete="off"
               onChange={(event) => email.onChange(event.target.value)}
             />
             <SaveStatus state={email.state} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="contact-notes">Notes</Label>
+            <Label htmlFor="contact-notes">{t("appShell.contactNotes")}</Label>
             <Textarea
               id="contact-notes"
               value={notes.value}
               maxLength={5000}
               rows={4}
-              placeholder="Gate code, dog's name, preferred arrival window…"
+              placeholder={t("appShell.contactNotesPlaceholder")}
               onChange={(event) => notes.onChange(event.target.value)}
             />
             <SaveStatus state={notes.state} />
@@ -513,14 +534,16 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
               for htmlFor to point at, and the group already carries its own
               accessible name. */}
           <div className="space-y-1.5">
-            <p className="text-sm font-medium">Language</p>
+            <p className="text-sm font-medium">
+              {t("appShell.contactLanguage")}
+            </p>
             <ContactLanguage contact={contact} />
           </div>
           <RecordAttribution contact={contact} />
         </div>
       </SettingsCard>
 
-      <SettingsCard title="Consent">
+      <SettingsCard title={t("appShell.contactConsentCard")}>
         <ConsentLine contact={contact} />
       </SettingsCard>
 
@@ -540,7 +563,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
       {/* §3.3: the danger zone stays genuinely quiet — these are routine,
           reversible actions, so the triggers are neutral until hovered, no red
           scare-styling. The typed/confirm gauntlet lives in the dialogs. */}
-      <SettingsCard title="Manage this contact">
+      <SettingsCard title={t("appShell.contactManageCard")}>
         <div className="space-y-4">
           {/* #304: first in this card, because it is the only thing here that
               is not destructive — and absent entirely for anybody without
@@ -549,7 +572,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
           {!contact.opted_out && (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm text-muted-foreground">
-                Stop all texting to this customer.
+                {t("appShell.contactStopTexting")}
               </p>
               <Button
                 variant="ghost"
@@ -557,14 +580,13 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                 className="text-muted-foreground hover:text-destructive"
                 onClick={() => setConfirmingOptOut(true)}
               >
-                Opt out this contact
+                {t("appShell.contactOptOutAction")}
               </Button>
             </div>
           )}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-muted-foreground">
-              Hide this contact from your list. Texting history stays, and
-              they reappear if they text you again.
+              {t("appShell.contactHideNote")}
             </p>
             <Button
               variant="ghost"
@@ -572,7 +594,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
               className="text-muted-foreground hover:text-destructive"
               onClick={() => setConfirmingDelete(true)}
             >
-              Delete contact
+              {t("appShell.contactDeleteAction")}
             </Button>
           </div>
         </div>
@@ -581,16 +603,16 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
       <Dialog open={confirmingOptOut} onOpenChange={setConfirmingOptOut}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Opt out this contact?</DialogTitle>
+            <DialogTitle>{t("appShell.contactOptOutTitle")}</DialogTitle>
             <DialogDescription>
-              All texting to {formatPhone(contact.phone_e164)} is blocked
-              until they&apos;re opted back in. Use this when a customer asks
-              you to stop texting them.
+              {t("appShell.contactOptOutBody", {
+                phone: formatPhone(contact.phone_e164),
+              })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmingOptOut(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -599,18 +621,20 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                 optOut.mutate(contact.id, {
                   onSuccess: () => {
                     setConfirmingOptOut(false);
-                    toast.success("Contact opted out.");
+                    toast.success(t("appShell.contactOptedOut"));
                   },
                   onError: (cause) =>
                     toast.error(
                       cause instanceof ApiError
                         ? cause.message
-                        : "Couldn't opt them out. Try again.",
+                        : t("appShell.contactOptOutFailed"),
                     ),
                 })
               }
             >
-              {optOut.isPending ? "Working…" : "Opt out"}
+              {optOut.isPending
+                ? t("appShell.contactWorking")
+                : t("appShell.contactOptOutConfirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -619,16 +643,14 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
       <Dialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete this contact?</DialogTitle>
+            <DialogTitle>{t("appShell.contactDeleteTitle")}</DialogTitle>
             <DialogDescription>
-              They disappear from your contact list. Conversations and
-              messages stay, and the contact comes back automatically if they
-              text you again.
+              {t("appShell.contactDeleteBody")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmingDelete(false)}>
-              Keep contact
+              {t("appShell.contactKeepContact")}
             </Button>
             <Button
               variant="destructive"
@@ -636,19 +658,21 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
               onClick={() =>
                 deleteContact.mutate(contact.id, {
                   onSuccess: () => {
-                    toast.success("Contact deleted.");
+                    toast.success(t("appShell.contactDeleted"));
                     router.push("/contacts");
                   },
                   onError: (cause) =>
                     toast.error(
                       cause instanceof ApiError
                         ? cause.message
-                        : "Couldn't delete the contact. Try again.",
+                        : t("appShell.contactDeleteFailed"),
                     ),
                 })
               }
             >
-              {deleteContact.isPending ? "Deleting…" : "Delete"}
+              {deleteContact.isPending
+                ? t("appShell.contactDeleting")
+                : t("common.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -662,6 +686,7 @@ export default function ContactDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const t = useT();
   const { id } = use(params);
   const contact = useContact(id);
 
@@ -672,11 +697,11 @@ export default function ContactDetailPage({
         className="inline-flex min-h-[44px] items-center gap-1 text-sm text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground"
       >
         <ChevronLeft className="size-4" strokeWidth={1.75} aria-hidden />
-        Contacts
+        {t("appShell.contactsTitle")}
       </Link>
 
       {contact.isPending ? (
-        <div className="space-y-4" aria-label="Loading contact">
+        <div className="space-y-4" aria-label={t("appShell.contactLoading")}>
           <Skeleton className="h-8 w-52" />
           <Skeleton className="h-64 w-full rounded-lg" />
         </div>
@@ -684,7 +709,7 @@ export default function ContactDetailPage({
         contact.error instanceof ApiError &&
         contact.error.code === "not_found" ? (
           <p className="rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground">
-            This contact doesn&apos;t exist or was removed.
+            {t("appShell.contactNotFound")}
           </p>
         ) : (
           <LoadError onRetry={() => contact.refetch()} />

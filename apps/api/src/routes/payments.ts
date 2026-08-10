@@ -703,8 +703,12 @@ publicPaymentRoutes.get("/pay/:token", publicLinkGuard(), async (c) => {
   )[0];
   if (!row) return publicLinkNotAvailable(c);
 
-  const company = unwrap<{ name: string }[]>(
-    await db.from("companies").select("name").eq("id", resolved.company_id).limit(1),
+  const company = unwrap<{ name: string; locale: string | null }[]>(
+    await db
+      .from("companies")
+      .select("name,locale")
+      .eq("id", resolved.company_id)
+      .limit(1),
     "company lookup",
   )[0];
 
@@ -718,6 +722,16 @@ publicPaymentRoutes.get("/pay/:token", publicLinkGuard(), async (c) => {
 
   return c.json({
     business_name: company?.name ?? "",
+    /**
+     * #228: the language the BUSINESS works in, and the one this page is drawn
+     * in.
+     *
+     * Not the reader's device and not ours. The person opening this has a
+     * relationship with the tradesperson, not with us — a Quebec plumber's
+     * customer meeting an English payment page is exactly the Bill 96 problem,
+     * and it is the business's own choice that should decide it.
+     */
+    locale: company?.locale ?? "en",
     amount_cents: row.amount_cents,
     currency: row.currency,
     amount: formatMoney(row.amount_cents, row.currency),

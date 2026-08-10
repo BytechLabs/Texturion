@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { ChangePlanDialog } from "@/components/settings/change-plan-dialog";
+import { useT } from "@/i18n/provider";
 import { Button } from "@/components/ui/button";
 import {
   useCancellationReason,
@@ -127,33 +128,39 @@ function releaseDay(canceledAt: string | null): string | null {
  *   no `canceled_at`  the general rule, with no date invented to fill the gap.
  */
 export function HoldSentence({ company }: { company: CompanyView }) {
+  const t = useT();
   const day = releaseDay(company.canceled_at);
 
   if (day === null) {
     return (
       <p className="text-sm">
-        We hold your number for {CANCELLATION_GRACE_DAYS} days from the day you
-        cancel. Resubscribe before then and everything picks up where it left
-        off.
+        {t("settings.holdGeneral", { days: CANCELLATION_GRACE_DAYS })}
       </p>
     );
   }
 
+  /*
+   * The date is emphasised, so the sentence is read around it rather than
+   * folded into one key: the bold span is the deadline, and dropping it to buy
+   * a single string would be a visual change made in the name of a copy one.
+   * Both languages put the date in the same place, which is what makes the
+   * split safe here and nowhere it is not.
+   */
   if (!isWithinCancellationGrace(company.canceled_at)) {
     return (
       <p className="text-sm">
-        The {CANCELLATION_GRACE_DAYS}-day hold on your number ended on{" "}
-        <span className="font-medium">{day}</span>. We are not keeping it for
-        you any more, so plan on a new number if you resubscribe — your message
-        history is still here either way.
+        {t("settings.holdEndedLead", { days: CANCELLATION_GRACE_DAYS })}{" "}
+        <span className="font-medium">{day}</span>
+        {t("settings.holdEndedTail")}
       </p>
     );
   }
 
   return (
     <p className="text-sm">
-      We hold your number until <span className="font-medium">{day}</span>.
-      Resubscribe before then and everything picks up where it left off.
+      {t("settings.holdUntilLead")}{" "}
+      <span className="font-medium">{day}</span>
+      {t("settings.holdUntilTail")}
     </p>
   );
 }
@@ -192,7 +199,7 @@ function OfferControl({
     return (
       <ResubscribeButton
         plan="starter"
-        label={actionLabel ?? "Resubscribe"}
+        label={actionLabel ?? undefined}
         variant="outline"
       />
     );
@@ -297,13 +304,14 @@ export function CancellationAnswer({
  */
 export function ResubscribeButton({
   plan,
-  label = "Resubscribe",
+  label,
   variant = "default",
 }: {
   plan: PlanId;
   label?: string;
   variant?: "default" | "outline";
 }) {
+  const t = useT();
   const checkout = useCheckout();
   const [error, setError] = useState<string | null>(null);
   return (
@@ -319,12 +327,14 @@ export function ResubscribeButton({
               setError(
                 cause instanceof ApiError
                   ? cause.message
-                  : "Couldn't start checkout. Try again.",
+                  : t("settings.checkoutFailed"),
               ),
           });
         }}
       >
-        {checkout.isPending ? "Opening…" : label}
+        {checkout.isPending
+          ? t("settings.opening")
+          : (label ?? t("settings.resubscribe"))}
       </Button>
       {error && (
         <p role="alert" className="text-sm text-destructive">
@@ -383,6 +393,7 @@ export function ResubscribeButton({
  * somebody who is leaving that our server would not take their "no thanks".
  */
 export function WinbackAnswer({ company }: { company: CompanyView }) {
+  const t = useT();
   const [dismissedNow, setDismissedNow] = useState(false);
   const dismiss = useDismissWinback();
 
@@ -429,7 +440,7 @@ export function WinbackAnswer({ company }: { company: CompanyView }) {
           dismiss.mutate();
         }}
       >
-        No thanks
+        {t("settings.winbackNoThanks")}
       </Button>
     </CancellationAnswer>
   );

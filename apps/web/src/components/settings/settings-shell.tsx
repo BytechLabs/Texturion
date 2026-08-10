@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 
 import { SettingsNav } from "@/components/settings/settings-nav";
 import { VersionFooter } from "@/components/settings/version-footer";
+import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils";
 export function SettingsShell({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const t = useT();
   const pathname = usePathname();
   const atIndex = pathname === "/settings";
 
@@ -28,7 +30,7 @@ export function SettingsShell({
         )}
       >
         <h1 className="mb-4 px-1 text-2xl font-semibold tracking-tight lg:mb-5">
-          Settings
+          {t("settingsMore.settingsHeading")}
         </h1>
         {/* Desktop link list */}
         <div className="hidden lg:block">

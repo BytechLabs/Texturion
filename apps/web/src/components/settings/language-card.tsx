@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { LOCALES, LOCALE_LABELS, isLocale, type Locale } from "@loonext/shared";
 
 import { SettingsCard } from "@/components/settings/section";
+import { useT } from "@/i18n/provider";
 import { useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import type { CompanyView } from "@/lib/api/types";
@@ -43,6 +44,7 @@ export function LanguageCard({
   company: CompanyView;
   canEdit: boolean;
 }) {
+  const t = useT();
   const update = useUpdateCompany();
   const [error, setError] = useState<string | null>(null);
   const radioRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -62,13 +64,13 @@ export function LanguageCard({
     update.mutate(
       { locale: value },
       {
-        onSuccess: () => toast.success("Language saved."),
+        onSuccess: () => toast.success(t("settings.languageSaved")),
         onError: (cause) => {
           setPending(null);
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't save the language. Try again.",
+              : t("settings.languageSaveFailed"),
           );
         },
       },
@@ -99,13 +101,13 @@ export function LanguageCard({
 
   return (
     <SettingsCard
-      title="Language"
-      description="The language the texts we send on your behalf go out in."
+      title={t("settings.languageTitle")}
+      description={t("settings.languageDescription")}
     >
       {canEdit ? (
         <div
           role="radiogroup"
-          aria-label="Language"
+          aria-label={t("settings.languageTitle")}
           onKeyDown={onKeyDown}
           className="flex flex-wrap gap-2"
         >
@@ -145,14 +147,10 @@ export function LanguageCard({
       )}
 
       <p className="mt-3 text-xs text-muted-foreground">
-        It changes four texts: the after-hours away reply, the missed-call
-        text-back, the emergency acknowledgment, and the rating ask. It does not
-        translate this app, and it does not translate a message you wrote
-        yourself. An away message you typed keeps the words you typed.
+        {t("settings.languageScope")}
       </p>
       <p className="mt-1.5 text-xs text-muted-foreground">
-        A customer set to their own language on their contact record keeps it.
-        This is what everyone else hears from you.
+        {t("settings.languagePerContact")}
       </p>
 
       {error && (
@@ -162,7 +160,7 @@ export function LanguageCard({
       )}
       {!canEdit && (
         <p className="mt-3 text-xs text-muted-foreground">
-          Only owners and admins can change the language.
+          {t("settings.languageAdminOnly")}
         </p>
       )}
     </SettingsCard>

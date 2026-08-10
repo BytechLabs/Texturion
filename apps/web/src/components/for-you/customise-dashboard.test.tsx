@@ -33,6 +33,8 @@ import {
   DASHBOARD_TILE_LABELS,
 } from "@loonext/shared";
 
+import { makeTranslate, type MessageKey } from "@/i18n/provider";
+
 import { CustomiseDashboard } from "./customise-dashboard";
 
 beforeEach(() => {
@@ -198,9 +200,13 @@ describe("the switch is named after the card it controls (#540)", () => {
       heading: /<h2[\s\S]*?<\/h2>/,
     },
     // Recent calls is a `Section`, whose heading comes from its label prop.
+    // Anchored to the section's own component rather than to "the first
+    // `<Section>` in the file": that file holds several, and which one comes
+    // first is an accident of editing order, not a fact this guard should rest
+    // on.
     recent_calls: {
       file: "src/components/for-you/for-you-view.tsx",
-      heading: /<Section label="Recent calls"/,
+      heading: /function RecentCallsSection[\s\S]*?<Section label=\{t\("inbox\.[A-Za-z]+"\)\}/,
     },
   };
 
@@ -221,6 +227,23 @@ describe("the switch is named after the card it controls (#540)", () => {
       .trim();
   }
 
+  /**
+   * #228: the heading is a catalogue lookup now, so the words are read the way
+   * the card reads them — the KEY is taken from the card's own heading and
+   * resolved through the catalogue.
+   *
+   * Deliberately not a list of expected keys here. The failure this whole block
+   * exists for is a heading and a switch drifting apart, and a roster of keys
+   * maintained beside them is a third copy that can drift from both. Taking the
+   * key out of the card keeps the card as the source, exactly as reading its
+   * literal did before.
+   */
+  function headingWords(block: string): string {
+    const key = block.match(/\bt\("(inbox\.[A-Za-z]+)"\)/)?.[1];
+    if (key) return makeTranslate("en")(key as MessageKey);
+    return headingText(block);
+  }
+
   for (const [id, { file, heading }] of Object.entries(CARDS)) {
     it(`${id} is called what its card is called`, async () => {
       const { readFileSync } = await import("node:fs");
@@ -228,7 +251,12 @@ describe("the switch is named after the card it controls (#540)", () => {
       // A card whose heading this cannot find is a guard that has stopped
       // guarding, so that fails rather than passing vacuously.
       expect(block, `no heading found in ${file}`).toBeTruthy();
-      const text = id === "recent_calls" ? "Recent calls" : headingText(block!);
+      const text = headingWords(block!);
+      // And the lookup actually resolved: an unnamed key comes back AS the key,
+      // which would then fail the prefix check below for the wrong reason.
+      expect(text, `${id}'s heading did not resolve to words`).not.toMatch(
+        /^inbox\./,
+      );
       const label = DASHBOARD_PANEL_LABELS[id as keyof typeof DASHBOARD_PANEL_LABELS];
       // A prefix, case-insensitively: the heading may carry a window the switch
       // does not need to repeat ("Quotes" for "Quotes, last 30 days").

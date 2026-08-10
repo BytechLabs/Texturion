@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SettingsCard } from "@/components/settings/section";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/i18n/provider";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 
 /** Two segments. Long enough to say where you went and how to reach you. */
@@ -39,6 +40,7 @@ const MAX = 320;
  * is the referral channel.
  */
 export function OffRampCard() {
+  const t = useT();
   const company = useCompany();
   const update = useUpdateCompany();
   const saved = company.data?.offramp_message ?? null;
@@ -70,13 +72,15 @@ export function OffRampCard() {
   const dirty = trimmed !== (saved ?? "");
 
   return (
-    <SettingsCard title="Tell your customers where you went">
+    <SettingsCard title={t("settingsMore.offRampTitle")}>
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Anyone who texts your old number gets this back, once each.{" "}
+          {t("settingsMore.offRampLead")}{" "}
           {releaseAt ? (
             <>
-              {holdEnded ? "The hold ended on " : "It stops on "}
+              {holdEnded
+                ? t("settingsMore.offRampHoldEndedOn")
+                : t("settingsMore.offRampStopsOn")}{" "}
               <span className="font-medium text-foreground">
                 {/* UTC, because that is the clock the release job runs on.
                     Rendering this in the reader's zone would show a date one
@@ -93,25 +97,13 @@ export function OffRampCard() {
                 })}
               </span>
               {holdEnded ? (
-                <>
-                  . We are not holding the number for you any more. Once it
-                  goes back to the phone company we can&apos;t answer it, and
-                  texts to it reach whoever gets it next.
-                </>
+                <>{t("settingsMore.offRampAfterEnded")}</>
               ) : (
-                <>
-                  , when the number goes back to the phone company. After that
-                  we can&apos;t answer it, and texts to it reach whoever gets it
-                  next.
-                </>
+                <>{t("settingsMore.offRampAfterUpcoming")}</>
               )}
             </>
           ) : (
-            <>
-              It stops when the number goes back to the phone company. After
-              that we can&apos;t answer it, and texts to it reach whoever gets
-              it next.
-            </>
+            <>{t("settingsMore.offRampNoDate")}</>
           )}
         </p>
 
@@ -121,15 +113,18 @@ export function OffRampCard() {
           rows={3}
           // An example, in grey, never prefilled: a message we drafted is a
           // message we wrote to their customers.
-          placeholder="We've moved to (416) 555-0123 — call or text us there and we'll pick right up."
-          aria-label="Message sent to customers who text your old number"
+          placeholder={t("settingsMore.offRampPlaceholder")}
+          aria-label={t("settingsMore.offRampAria")}
         />
 
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-muted-foreground">
             {trimmed.length === 0
-              ? "Nothing is sent until you write something here."
-              : `${trimmed.length} of ${MAX} characters. Your words, sent as they are.`}
+              ? t("settingsMore.offRampNothingSent")
+              : t("settingsMore.offRampCharacterCount", {
+                  count: trimmed.length,
+                  max: MAX,
+                })}
           </p>
           <div className="flex gap-2">
             {saved !== null && (
@@ -141,7 +136,7 @@ export function OffRampCard() {
                   update.mutate({ offramp_message: null });
                 }}
               >
-                Turn off
+                {t("settingsMore.offRampTurnOff")}
               </Button>
             )}
             <Button
@@ -149,10 +144,10 @@ export function OffRampCard() {
               onClick={() => update.mutate({ offramp_message: trimmed })}
             >
               {update.isPending
-                ? "Saving…"
+                ? t("common.saving")
                 : saved === null
-                  ? "Start sending this"
-                  : "Save"}
+                  ? t("settingsMore.offRampStartSending")
+                  : t("common.save")}
             </Button>
           </div>
         </div>

@@ -42,6 +42,7 @@ export default async function Page({
   if (!response.ok) return <PaymentPage notAvailable />;
 
   const data = (await response.json()) as {
+    locale?: string;
     business_name: string;
     amount: string;
     description: string;
@@ -50,6 +51,7 @@ export default async function Page({
   };
   return (
     <PaymentPage
+      locale={data.locale}
       businessName={data.business_name}
       amount={data.amount}
       description={data.description}

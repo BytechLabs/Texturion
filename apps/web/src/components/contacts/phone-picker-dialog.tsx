@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useT } from "@/i18n/provider";
 import { useImportContacts } from "@/lib/api/contacts";
 import { ApiError } from "@/lib/api/error";
 import type { ImportResult } from "@/lib/api/types";
@@ -40,6 +41,7 @@ export function PhonePickerDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const importContacts = useImportContacts();
   const [pickError, setPickError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -70,7 +72,7 @@ export function PhonePickerDialog({
     const manager = getContactsManager();
     if (!manager) {
       // Defensive: the parent gates on support, but never trust that alone.
-      setPickError("Picking from your phone isn't available on this device.");
+      setPickError(t("contacts.pickerUnavailable"));
       return;
     }
     setPicking(true);
@@ -88,9 +90,7 @@ export function PhonePickerDialog({
     const rows = mapPickedContacts(picked);
     if (rows.length === 0) {
       // Either nothing was chosen or the chosen contacts had no phone number.
-      setPickError(
-        "None of the contacts you picked had a phone number to import.",
-      );
+      setPickError(t("contacts.pickerNoNumbers"));
       return;
     }
 
@@ -108,7 +108,7 @@ export function PhonePickerDialog({
           setPickError(
             cause instanceof ApiError
               ? cause.message
-              : "The import didn't go through. Try again.",
+              : t("contacts.importFailed"),
           ),
       },
     );
@@ -123,28 +123,26 @@ export function PhonePickerDialog({
           <>
             <ImportSummaryView
               result={result}
-              errorsHeading="These couldn't be imported (usually a number that isn't a US or Canada mobile):"
+              errorsHeading={t("contacts.pickerErrorsHeading")}
               renderError={(error) => error.reason}
             />
             <DialogFooter>
               <Button variant="outline" onClick={reset}>
-                Pick more
+                {t("contacts.pickMore")}
               </Button>
-              <Button onClick={() => close(false)}>Done</Button>
+              <Button onClick={() => close(false)}>{t("contacts.done")}</Button>
             </DialogFooter>
           </>
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Import from your phone</DialogTitle>
+              <DialogTitle>{t("contacts.pickerTitle")}</DialogTitle>
               <DialogDescription>
                 {/* "Nothing is texted" used to close this paragraph; the
                     attestation below now says it, louder and next to the
                     button it qualifies, and saying it twice on one screen
                     makes both copies easier to skip. */}
-                Choose contacts from your device. We&apos;ll import the ones with
-                a valid US or Canada number. Existing numbers are updated, not
-                duplicated.
+                {t("contacts.pickerBlurb")}
               </DialogDescription>
             </DialogHeader>
             <ImportConsentCheck
@@ -163,11 +161,13 @@ export function PhonePickerDialog({
                 onClick={() => void pick()}
                 disabled={busy || !consentAttested}
               >
-                {picking
-                  ? "Opening your contacts…"
-                  : importContacts.isPending
-                    ? "Importing…"
-                    : "Choose contacts"}
+                {t(
+                  picking
+                    ? "contacts.pickerOpening"
+                    : importContacts.isPending
+                      ? "contacts.importing"
+                      : "contacts.chooseContacts",
+                )}
               </Button>
             </div>
             {pickError && (

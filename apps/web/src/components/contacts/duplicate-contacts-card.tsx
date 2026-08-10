@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useDuplicateContacts,
@@ -36,6 +37,7 @@ import { formatPhone } from "@/lib/format/phone";
  * card at all when there is nothing to merge.*
  */
 export function DuplicateContactsCard({ canMerge }: { canMerge: boolean }) {
+  const t = useT();
   const duplicates = useDuplicateContacts();
   const [merging, setMerging] = useState<DuplicatePair | null>(null);
 
@@ -52,12 +54,11 @@ export function DuplicateContactsCard({ canMerge }: { canMerge: boolean }) {
           <div className="space-y-0.5">
             <h2 className="text-sm font-semibold">
               {pairs.length === 1
-                ? "These two look like the same customer"
-                : `${pairs.length} pairs look like the same customer`}
+                ? t("contacts.duplicatesOnePair")
+                : t("contacts.duplicatesManyPairs", { count: pairs.length })}
             </h2>
             <p className="text-sm text-muted-foreground">
-              Merging keeps every message, task and photo from both, under one
-              record.
+              {t("contacts.duplicatesBlurb")}
             </p>
           </div>
         </div>
@@ -70,7 +71,9 @@ export function DuplicateContactsCard({ canMerge }: { canMerge: boolean }) {
               <div className="min-w-0 flex-1 text-sm">
                 <p className="truncate">
                   {describe(pair.name_a, pair.phone_a)}
-                  <span className="text-muted-foreground"> and </span>
+                  <span className="text-muted-foreground">
+                    {t("contacts.duplicateAnd")}
+                  </span>
                   {describe(pair.name_b, pair.phone_b)}
                 </p>
                 {/* The reason, in the words the server used. A suggestion
@@ -85,7 +88,7 @@ export function DuplicateContactsCard({ canMerge }: { canMerge: boolean }) {
                   onClick={() => setMerging(pair)}
                 >
                   <Merge className="size-3.5" strokeWidth={1.75} aria-hidden />
-                  Merge
+                  {t("contacts.merge")}
                 </Button>
               )}
             </li>
@@ -123,6 +126,7 @@ function MergeDialog({
   pair: DuplicatePair | null;
   onClose: () => void;
 }) {
+  const t = useT();
   const merge = useMergeContacts();
   const [keepFirst, setKeepFirst] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -140,16 +144,15 @@ function MergeDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Merge these two customers</DialogTitle>
-          <DialogDescription>
-            Everything from both — messages, tasks, photos, notes — ends up
-            under the record you keep. Both phone numbers keep working.
-          </DialogDescription>
+          <DialogTitle>{t("contacts.mergeTitle")}</DialogTitle>
+          <DialogDescription>{t("contacts.mergeBlurb")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
           <fieldset className="space-y-2">
-            <legend className="text-sm font-medium">Which one to keep</legend>
+            <legend className="text-sm font-medium">
+              {t("contacts.mergeWhichToKeep")}
+            </legend>
             {[true, false].map((first) => {
               const option = first
                 ? { name: pair.name_a, phone: pair.phone_a }
@@ -173,8 +176,10 @@ function MergeDialog({
 
           {/* Said back in the direction people get backwards. */}
           <p className="text-[13px] text-muted-foreground">
-            {describe(folded.name, folded.phone)} stops being a separate
-            customer. Its history moves to {describe(survivor.name, survivor.phone)}.
+            {t("contacts.mergeDirection", {
+              folded: describe(folded.name, folded.phone),
+              survivor: describe(survivor.name, survivor.phone),
+            })}
           </p>
 
           {error !== null && (
@@ -186,7 +191,7 @@ function MergeDialog({
 
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             disabled={merge.isPending}
@@ -198,22 +203,24 @@ function MergeDialog({
                   onSuccess: (result) => {
                     onClose();
                     toast.success(
-                      result.opted_out
-                        ? "Merged. This customer is opted out, so nothing sends to either number."
-                        : "Merged.",
+                      t(
+                        result.opted_out
+                          ? "contacts.mergedOptedOut"
+                          : "contacts.merged",
+                      ),
                     );
                   },
                   onError: (cause) =>
                     setError(
                       cause instanceof ApiError
                         ? cause.message
-                        : "Couldn't merge those. Try again in a moment.",
+                        : t("contacts.mergeFailed"),
                     ),
                 },
               );
             }}
           >
-            {merge.isPending ? "Merging…" : "Merge"}
+            {merge.isPending ? t("contacts.merging") : t("contacts.merge")}
           </Button>
         </DialogFooter>
       </DialogContent>

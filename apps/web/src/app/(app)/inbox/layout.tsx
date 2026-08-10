@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { InboxPane } from "@/components/inbox/inbox-pane";
 import { ListSkeleton } from "@/components/inbox/empty-states";
+import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -16,13 +17,14 @@ import { cn } from "@/lib/utils";
 export default function InboxLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const t = useT();
   const pathname = usePathname();
   const listOnly = pathname === "/inbox";
 
   return (
     <div className="flex h-full min-h-0">
       <section
-        aria-label="Conversation list"
+        aria-label={t("appShell.conversationListAria")}
         className={cn(
           "h-full w-full min-w-0 flex-col md:flex md:w-[360px] md:shrink-0 md:border-r md:border-border",
           listOnly ? "flex" : "hidden",

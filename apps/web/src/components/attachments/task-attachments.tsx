@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { groupJobPhotos } from "@loonext/shared";
 
+import { useT } from "@/i18n/provider";
 import { useDeleteAttachment } from "@/lib/api/attachments";
 import type { TaskAttachmentItem } from "@/lib/api/types";
 
@@ -63,6 +64,7 @@ export function TaskAttachments({
    */
   names?: Map<string, string>;
 }) {
+  const t = useT();
   const del = useDeleteAttachment();
   const [pendingDelete, setPendingDelete] = useState<TaskAttachmentItem | null>(
     null,
@@ -71,8 +73,7 @@ export function TaskAttachments({
   if (items.length === 0) {
     return (
       <p className="text-[13px] leading-relaxed text-app-muted">
-        Files live on the messages and notes of this conversation. Attach one
-        in the discussion below.
+        {t("misc.taskAttachmentsEmpty")}
       </p>
     );
   }
@@ -84,12 +85,12 @@ export function TaskAttachments({
       {
         onSuccess: () => {
           setPendingDelete(null);
-          toast.success("File deleted.");
+          toast.success(t("misc.fileDeleted"));
         },
         // The dialog stays open on failure so the action can be retried from
         // where it was started, rather than dropping the user back to a list
         // that still shows the file with no explanation.
-        onError: () => toast.error("Couldn't delete that file. Try again."),
+        onError: () => toast.error(t("misc.fileDeleteFailed")),
       },
     );
   };
@@ -142,11 +143,13 @@ export function TaskAttachments({
       >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Delete this file?</DialogTitle>
+            <DialogTitle>{t("misc.deleteFileTitle")}</DialogTitle>
             <DialogDescription>
               {pendingDelete?.file_name
-                ? `"${pendingDelete.file_name}" is removed for everyone on the crew. This can't be undone.`
-                : "This file is removed for everyone on the crew. This can't be undone."}
+                ? t("misc.deleteFileNamedBody", {
+                    name: pendingDelete.file_name,
+                  })
+                : t("misc.deleteFileBody")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -155,7 +158,7 @@ export function TaskAttachments({
               onClick={() => setPendingDelete(null)}
               disabled={del.isPending}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -165,7 +168,7 @@ export function TaskAttachments({
               {del.isPending ? (
                 <Loader2 className="size-4 animate-spin" aria-hidden />
               ) : (
-                "Delete file"
+                t("misc.deleteFileAction")
               )}
             </Button>
           </DialogFooter>

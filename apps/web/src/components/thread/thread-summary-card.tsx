@@ -4,6 +4,7 @@ import { THREAD_SUMMARY_ATTRIBUTION } from "@loonext/shared";
 import { useRef, useState } from "react";
 
 import { AiOrb, AiStatus } from "@/components/ui/ai-orb";
+import { useT } from "@/i18n/provider";
 import { reportAiOutcome } from "@/lib/api/conversations";
 import {
   canRetryThreadSummary,
@@ -88,6 +89,7 @@ export function ThreadSummaryCard({
   newestMessageId: string | undefined;
   onJump: (messageId: string) => void;
 }) {
+  const t = useT();
   const companyId = useCompanyId();
   const summary = useThreadSummary(conversationId);
   const [dismissed, setDismissed] = useState(false);
@@ -185,17 +187,19 @@ export function ThreadSummaryCard({
    */
   function retryLabel(): string | null {
     if (summary.isPending) return null;
-    if (result === null) return failure?.retry ? "Try again" : null;
+    if (result === null) return failure?.retry ? t("common.retry") : null;
     if (!canRetryThreadSummary(result.reason)) return null;
-    if (result.lines.length === 0) return "Try again";
-    return askedAt.current !== newestMessageId ? "Catch me up again" : null;
+    if (result.lines.length === 0) return t("common.retry");
+    return askedAt.current !== newestMessageId
+      ? t("thread.catchMeUpAgain")
+      : null;
   }
   const retryWord = retryLabel();
 
   if (!showCard) {
     return (
       <section
-        aria-label="Catch-up"
+        aria-label={t("thread.catchUp")}
         className="overflow-hidden rounded-app-card border border-app-line bg-app-paper"
       >
         <button
@@ -205,13 +209,13 @@ export function ThreadSummaryCard({
         >
           <AiOrb state="idle" size={14} />
           <span className="text-[13px] font-medium text-app-ink">
-            Catch me up
+            {t("thread.catchMeUp")}
           </span>
           <span className="ml-auto text-[11px] text-app-muted-2">
             {/* Says what it does before it is pressed, because pressing it is
                 the thing that costs. "Reads the last stretch" is also the
                 honest scope — it is never the whole thread (see `truncated`). */}
-            Lou reads the recent messages
+            {t("thread.louReadsRecent")}
           </span>
         </button>
       </section>
@@ -220,7 +224,7 @@ export function ThreadSummaryCard({
 
   return (
     <section
-      aria-label="Catch-up"
+      aria-label={t("thread.catchUp")}
       className="overflow-hidden rounded-app-card border border-app-line bg-app-paper"
     >
       {/* CARRIER TRUTH FIRST — before the header, before anything Lou wrote.
@@ -237,7 +241,11 @@ export function ThreadSummaryCard({
           // `done` is a claim that Lou answered, which a rejected request is
           // exactly what did not happen — the ring rests instead of blooming.
           state={summary.isPending ? "thinking" : failure ? "idle" : "done"}
-          label={summary.isPending ? "Reading the thread…" : "Catch-up"}
+          label={
+            summary.isPending
+              ? t("thread.readingThread")
+              : t("thread.catchUp")
+          }
         />
         {!summary.isPending && (
           <div className="ml-auto flex items-center gap-1">
@@ -255,14 +263,14 @@ export function ThreadSummaryCard({
               onClick={() => setDismissed(true)}
               className="rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
             >
-              Dismiss
+              {t("thread.dismiss")}
             </button>
           </div>
         )}
       </div>
 
       {summary.isPending ? (
-        <div className="px-3 pb-3 pt-1" aria-label="Reading the thread">
+        <div className="px-3 pb-3 pt-1" aria-label={t("thread.readingThreadAria")}>
           {/* Two placeholders, not a spinner: the card keeps roughly the shape
               the sections will take instead of jumping when they land. */}
           {[0, 1].map((row) => (
@@ -316,8 +324,7 @@ export function ThreadSummaryCard({
               role="status"
               className="mx-3 mb-1.5 rounded-app-card bg-app-tint px-2 py-1 text-[11px] leading-[1.4] text-app-olive-deep"
             >
-              New messages have come in since this catch-up. Read the newest
-              ones below, or ask again.
+              {t("thread.newMessagesSinceCatchUp")}
             </p>
           ) : null}
 
@@ -336,7 +343,9 @@ export function ThreadSummaryCard({
                       <button
                         type="button"
                         onClick={() => openCited(line.message_id)}
-                        aria-label={`Open the message behind: ${line.text}`}
+                        aria-label={t("thread.openMessageBehindAria", {
+                          text: line.text,
+                        })}
                         className="flex w-full items-start gap-2 px-3 py-1 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                       >
                         <span className="min-w-0 flex-1 text-[13px] leading-[1.45] text-app-ink">
@@ -366,8 +375,7 @@ export function ThreadSummaryCard({
             // be exactly the kind that quietly becomes last quarter's. The
             // scope is what the reader needs; the count is not.
             <p className="px-3 pb-2.5 text-[11px] leading-[1.4] text-app-muted-2">
-              This thread is longer than the stretch Lou read, so anything older
-              isn&rsquo;t in here.
+              {t("thread.threadLongerThanRead")}
             </p>
           ) : null}
         </>
@@ -401,6 +409,7 @@ type CarrierStanding = Pick<ThreadSummaryResult, "opt_out" | "opt_out_hint_at">;
  * customer's to lift, a hand-recorded opt-out is the crew's.
  */
 function OptOutStrip({ standing }: { standing: CarrierStanding }) {
+  const t = useT();
   if (standing.opt_out) {
     const carrierBlocked = isCarrierEnforcedOptOut(standing.opt_out.source);
     return (
@@ -409,8 +418,8 @@ function OptOutStrip({ standing }: { standing: CarrierStanding }) {
         className="border-b border-destructive/30 bg-destructive/10 px-3 py-2 text-[13px] leading-[1.45] text-foreground"
       >
         {carrierBlocked
-          ? "This customer texted STOP. Their carrier is blocking your texts and only they can undo it."
-          : "This customer is marked opted out. You can undo that on their contact."}
+          ? t("thread.optOutStripCarrier")
+          : t("thread.bannerOptedOut")}
       </p>
     );
   }
@@ -422,8 +431,7 @@ function OptOutStrip({ standing }: { standing: CarrierStanding }) {
         role="alert"
         className="border-b border-destructive/30 bg-destructive/10 px-3 py-2 text-[13px] leading-[1.45] text-foreground"
       >
-        Someone on this thread asked not to be contacted. That request is
-        binding however it is worded.
+        {t("thread.optOutHintShort")}
       </p>
     );
   }

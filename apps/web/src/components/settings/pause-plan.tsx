@@ -4,10 +4,13 @@ import { PauseCircle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
 import { PLAN_FACTS } from "@/app/(app)/settings/billing/plan-facts";
 import { AnswerNote } from "@/components/settings/cancellation-answer";
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
+import { makeTranslate, useT, type Translate } from "@/i18n/provider";
 import { usePauseOffer, usePausePlan, useResumePlan } from "@/lib/api/billing";
 import { ApiError } from "@/lib/api/error";
 import type { CompanyView } from "@/lib/api/types";
@@ -157,31 +160,44 @@ function monthly(cents: number): string {
  * an answer and do not argue with the decision; this is a better answer to
  * "quiet season" than the hold is, offered once, in the same muted voice.
  */
-export function pauseOfferHeading(monthlyCents: number): string {
-  return `Pause instead — keep the number for ${monthly(monthlyCents)} a month`;
+/**
+ * #228: the reader's own words, with English as the DEFAULT rather than the
+ * only option.
+ *
+ * These three are exported and read by `billing.test.tsx`, which has no
+ * provider around it — so the parameter defaults to the English lookup and the
+ * assertions keep comparing the shipped sentence rather than a paraphrase. The
+ * components below pass the real `t`, so a French reader gets French.
+ */
+const EN = makeTranslate(DEFAULT_LOCALE);
+
+export function pauseOfferHeading(
+  monthlyCents: number,
+  t: Translate = EN,
+): string {
+  return t("settingsMore.pauseOfferHeading", {
+    amount: monthly(monthlyCents),
+  });
 }
 
-export function pauseOfferBody(monthlyCents: number): string {
-  return (
-    `${monthly(monthlyCents)} a month instead of your plan fee. Your number ` +
-    "and your whole message history stay exactly where they are, and texts " +
-    "your customers send still arrive — you cannot send or take calls until " +
-    "you are back, and anything you had scheduled waits rather than fails. " +
-    "Nothing expires while you are paused, so there is no deadline on the " +
-    "number and nothing to set up again. Come back to the same plan whenever " +
-    "the work does."
-  );
+export function pauseOfferBody(
+  monthlyCents: number,
+  t: Translate = EN,
+): string {
+  return t("settingsMore.pauseOfferBody", { amount: monthly(monthlyCents) });
 }
 
-export function pauseOfferAction(monthlyCents: number): string {
-  return `Pause for ${monthly(monthlyCents)} a month`;
+export function pauseOfferAction(
+  monthlyCents: number,
+  t: Translate = EN,
+): string {
+  return t("settingsMore.pauseOfferAction", { amount: monthly(monthlyCents) });
 }
 
 /** Said once, where the press happened — the paused card is a screen away. */
-export const PAUSE_CONFIRMATION =
-  "Your plan is paused. Your number and your history are held.";
+export const PAUSE_CONFIRMATION = EN("settingsMore.pauseConfirmation");
 
-export const RESUME_CONFIRMATION = "You're back. Texting is on again.";
+export const RESUME_CONFIRMATION = EN("settingsMore.resumeConfirmation");
 
 /**
  * The seasonal answer, when there is a pause to offer.
@@ -204,13 +220,14 @@ export function SeasonalPauseAnswer({
   /** The REAL price, from `GET /v1/billing/pause`. Never a default. */
   monthlyCents: number;
 }) {
+  const t = useT();
   const pause = usePausePlan();
   const [error, setError] = useState<string | null>(null);
 
   return (
     <AnswerNote
-      heading={pauseOfferHeading(monthlyCents)}
-      body={pauseOfferBody(monthlyCents)}
+      heading={pauseOfferHeading(monthlyCents, t)}
+      body={pauseOfferBody(monthlyCents, t)}
     >
       <div className="space-y-2">
         <Button
@@ -223,17 +240,20 @@ export function SeasonalPauseAnswer({
               // the Stripe swap and 409s when the two disagree, so a success
               // here really is a paused workspace. The query invalidation the
               // hook does is what takes this offer off the screen.
-              onSuccess: () => toast.success(PAUSE_CONFIRMATION),
+              onSuccess: () =>
+                toast.success(t("settingsMore.pauseConfirmation")),
               onError: (cause) =>
                 setError(
                   cause instanceof ApiError
                     ? cause.message
-                    : "That didn't go through. Try again in a moment.",
+                    : t("settingsMore.didNotGoThrough"),
                 ),
             });
           }}
         >
-          {pause.isPending ? "Pausing…" : pauseOfferAction(monthlyCents)}
+          {pause.isPending
+            ? t("settingsMore.pausing")
+            : pauseOfferAction(monthlyCents, t)}
         </Button>
         {error && (
           <p role="alert" className="text-sm text-destructive">
@@ -303,6 +323,7 @@ export function PausedPlanCard({
   /** `billing.manage`, a plan, and an active subscription. */
   show: boolean;
 }) {
+  const t = useT();
   const pause = usePauseOffer(show);
   const resume = useResumePlan();
   const [error, setError] = useState<string | null>(null);
@@ -314,7 +335,7 @@ export function PausedPlanCard({
   const resumeName = data.resume_plan ? PLAN_FACTS[data.resume_plan].name : null;
 
   return (
-    <SettingsCard title="Your plan is paused">
+    <SettingsCard title={t("settingsMore.pausedTitle")}>
       <div className="flex items-start gap-3">
         <PauseCircle
           className="mt-0.5 size-4 shrink-0 text-muted-foreground"
@@ -322,27 +343,24 @@ export function PausedPlanCard({
           aria-hidden
         />
         <div className="min-w-0 flex-1 space-y-3">
-          <p className="text-sm">
-            Texting is off. You can&apos;t send messages or take calls while your
-            plan is paused.
-          </p>
+          <p className="text-sm">{t("settingsMore.pausedTextingOff")}</p>
           <p className="text-sm text-muted-foreground">
-            Texts your customers send still arrive, so nothing is lost — and
-            anything you had scheduled is waiting rather than failed. Your
-            number and your whole message history are exactly where you left
-            them.
+            {t("settingsMore.pausedNothingLost")}
           </p>
           {/* Absent rather than approximated when the mirror has no figure.
               There is no honest sentence about a charge whose amount we cannot
               read, and the rest of this card is true without it. */}
           {data.monthly_cents !== null && (
             <p className="text-sm text-muted-foreground">
-              You&apos;re paying{" "}
+              {t("settingsMore.pausedPayingLead")}{" "}
               <span className="font-medium text-foreground">
-                {monthly(data.monthly_cents)} a month
+                {t("settingsMore.pausedPayingAmount", {
+                  amount: monthly(data.monthly_cents),
+                })}
               </span>{" "}
-              to hold them
-              {since ? `, since ${since}` : ""}.
+              {since
+                ? t("settingsMore.pausedPayingSince", { date: since })
+                : t("settingsMore.pausedPayingTail")}
             </p>
           )}
 
@@ -355,7 +373,8 @@ export function PausedPlanCard({
                   // Same rule as the pause: the route re-reads the mirror and
                   // 409s rather than reporting a success it cannot see, so this
                   // card disappearing on the refetch is the real answer.
-                  onSuccess: () => toast.success(RESUME_CONFIRMATION),
+                  onSuccess: () =>
+                    toast.success(t("settingsMore.resumeConfirmation")),
                   onError: (cause) =>
                     setError(
                       cause instanceof ApiError
@@ -363,17 +382,18 @@ export function PausedPlanCard({
                           // most need to hear on a second press ("you won't be
                           // charged twice"). Shown as-is.
                           cause.message
-                        : "That didn't go through. Try again in a moment.",
+                        : t("settingsMore.didNotGoThrough"),
                     ),
                 });
               }}
             >
-              {resume.isPending ? "Resuming…" : "Resume"}
+              {resume.isPending
+                ? t("settingsMore.resuming")
+                : t("settingsMore.resume")}
             </Button>
             {resumeName && (
               <p className="text-xs text-muted-foreground">
-                {resumeName} starts again at its usual price, with everything
-                where it is.
+                {t("settingsMore.pausedResumeNote", { plan: resumeName })}
               </p>
             )}
             {error && (

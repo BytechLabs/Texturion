@@ -44,7 +44,10 @@ vi.mock("@/lib/api/contacts-vcard", () => ({
 }));
 
 import { VCardImportDialog } from "./vcard-import-dialog";
-import { IMPORT_CONSENT_LABEL } from "./import-consent-check";
+// #228: the attestation sentence moved into the catalogue, keyed by door.
+import { contactsEn } from "@/i18n/sections/contacts";
+
+const IMPORT_CONSENT_LABEL = { file: contactsEn.consentLabelFile } as const;
 
 afterEach(cleanup);
 beforeEach(() => {

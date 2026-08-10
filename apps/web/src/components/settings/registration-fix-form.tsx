@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useT, type MessageKey } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useSaveRegistration,
@@ -69,10 +70,38 @@ const TCR_VERTICALS = [
   "TRANSPORTATION",
 ] as const;
 
-function verticalLabel(vertical: string): string {
-  const lower = vertical.toLowerCase().replace(/_/g, " ");
-  return lower.charAt(0).toUpperCase() + lower.slice(1);
-}
+/**
+ * TCR's taxonomy, in the reader's language.
+ *
+ * A map rather than the old title-casing of the token, because "REAL_ESTATE"
+ * title-cased is English, and a French reader picking their trade out of a list
+ * is the one person on this form who cannot be asked to guess.
+ */
+const VERTICAL_LABELS: Record<(typeof TCR_VERTICALS)[number], MessageKey> = {
+  AGRICULTURE: "settingsMore.verticalAgriculture",
+  COMMUNICATION: "settingsMore.verticalCommunication",
+  CONSTRUCTION: "settingsMore.verticalConstruction",
+  EDUCATION: "settingsMore.verticalEducation",
+  ENERGY: "settingsMore.verticalEnergy",
+  ENTERTAINMENT: "settingsMore.verticalEntertainment",
+  FINANCIAL: "settingsMore.verticalFinancial",
+  GAMBLING: "settingsMore.verticalGambling",
+  GOVERNMENT: "settingsMore.verticalGovernment",
+  HEALTHCARE: "settingsMore.verticalHealthcare",
+  HOSPITALITY: "settingsMore.verticalHospitality",
+  HUMAN_RESOURCES: "settingsMore.verticalHumanResources",
+  INSURANCE: "settingsMore.verticalInsurance",
+  LEGAL: "settingsMore.verticalLegal",
+  MANUFACTURING: "settingsMore.verticalManufacturing",
+  NGO: "settingsMore.verticalNgo",
+  POLITICAL: "settingsMore.verticalPolitical",
+  POSTAL: "settingsMore.verticalPostal",
+  PROFESSIONAL: "settingsMore.verticalProfessional",
+  REAL_ESTATE: "settingsMore.verticalRealEstate",
+  RETAIL: "settingsMore.verticalRetail",
+  TECHNOLOGY: "settingsMore.verticalTechnology",
+  TRANSPORTATION: "settingsMore.verticalTransportation",
+};
 
 interface FixFormValues {
   displayName: string;
@@ -116,8 +145,8 @@ interface FixFormProps {
   brand: RegistrationRow | null;
   campaign: RegistrationRow | null;
   country: Country;
-  /** Button label — "Submit registration" for a first submission (draft recovery). */
-  submitLabel?: string;
+  /** Button label — the first-submission key for a draft recovery. */
+  submitLabel?: MessageKey;
   /** Called after a successful resubmission. */
   onSubmitted?: () => void;
 }
@@ -130,9 +159,10 @@ export function RegistrationFixForm({
   brand,
   campaign,
   country,
-  submitLabel = "Resubmit registration",
+  submitLabel = "settingsMore.regResubmitAction",
   onSubmitted,
 }: FixFormProps) {
+  const t = useT();
   const editBrand = editable(brand);
   const editCampaign = editable(campaign);
   const soleProp = brand?.sole_proprietor ?? false;
@@ -165,75 +195,94 @@ export function RegistrationFixForm({
       const need = (
         key: keyof FixFormValues,
         max: number,
-        label: string,
+        label: MessageKey,
       ) => {
         const value = v[key].trim();
         if (value === "") {
-          ctx.addIssue({ code: "custom", path: [key], message: `Enter ${label}.` });
+          ctx.addIssue({
+            code: "custom",
+            path: [key],
+            message: t("settingsMore.regEnter", { what: t(label) }),
+          });
         } else if (value.length > max) {
           ctx.addIssue({
             code: "custom",
             path: [key],
-            message: `Keep it under ${max} characters.`,
+            message: t("settingsMore.regTooLong", { max }),
           });
         }
       };
 
       if (editBrand) {
-        need("displayName", 255, "the business name customers know");
+        need("displayName", 255, "settingsMore.regFieldDisplayName");
         if (!EMAIL_RE.test(v.email.trim()) || v.email.trim().length > 320) {
           ctx.addIssue({
             code: "custom",
             path: ["email"],
-            message: "Enter a contact email address.",
+            message: t("settingsMore.regEmailInvalid"),
           });
         }
         if (!CONTACT_PHONE_RE.test(v.phone.trim())) {
           ctx.addIssue({
             code: "custom",
             path: ["phone"],
-            message: "Enter a contact phone number.",
+            message: t("settingsMore.regPhoneInvalid"),
           });
         }
-        need("street", 255, "the street address");
-        need("city", 100, "the city");
-        need("state", 20, country === "US" ? "the state" : "the province");
-        need("postalCode", 10, country === "US" ? "the ZIP code" : "the postal code");
+        need("street", 255, "settingsMore.regFieldStreet");
+        need("city", 100, "settingsMore.regFieldCity");
+        need(
+          "state",
+          20,
+          country === "US"
+            ? "settingsMore.regFieldState"
+            : "settingsMore.regFieldProvince",
+        );
+        need(
+          "postalCode",
+          10,
+          country === "US"
+            ? "settingsMore.regFieldZip"
+            : "settingsMore.regFieldPostal",
+        );
 
         if (soleProp) {
-          need("firstName", 100, "your first name");
-          need("lastName", 100, "your last name");
+          need("firstName", 100, "settingsMore.regFieldFirstName");
+          need("lastName", 100, "settingsMore.regFieldLastName");
           if (!/^\d{4}$/.test(v.ein.trim())) {
             ctx.addIssue({
               code: "custom",
               path: ["ein"],
-              message: `Enter the last 4 digits of your ${country === "US" ? "SSN" : "SIN"}.`,
+              message:
+                country === "US"
+                  ? t("settingsMore.regSsnLast4")
+                  : t("settingsMore.regSinLast4"),
             });
           }
           if (normalizeNanpPhone(v.mobilePhone) === null) {
             ctx.addIssue({
               code: "custom",
               path: ["mobilePhone"],
-              message: "Enter a US or Canadian mobile number; it gets the verification text.",
+              message: t("settingsMore.regMobileInvalid"),
             });
           }
           if (!isValidOptionalWebsite(v.website)) {
             ctx.addIssue({
               code: "custom",
               path: ["website"],
-              message: "Enter a web address (e.g. mikesplumbing.com) or leave it blank.",
+              message: t("settingsMore.regWebsiteInvalid"),
             });
           }
         } else {
-          need("companyName", 255, "your legal business name");
+          need("companyName", 255, "settingsMore.regFieldCompanyName");
           if (!/^[0-9A-Za-z][0-9A-Za-z-]{7,14}$/.test(v.ein.trim())) {
             ctx.addIssue({
               code: "custom",
               path: ["ein"],
               message:
                 country === "US"
-                  ? "Enter your 9-digit EIN (numbers only, dashes ok)."
-                  : "Enter your CRA business number.",
+                  ? t("settingsMore.regEinInvalid")
+                  : t("settingsMore.regCraInvalid"),
             });
           }
           // Website is OPTIONAL on the EIN path too (matches the API +
@@ -244,7 +293,7 @@ export function RegistrationFixForm({
             ctx.addIssue({
               code: "custom",
               path: ["website"],
-              message: "Enter a web address (e.g. mikesplumbing.com) or leave it blank.",
+              message: t("settingsMore.regWebsiteInvalid"),
             });
           }
         }
@@ -255,14 +304,13 @@ export function RegistrationFixForm({
           ctx.addIssue({
             code: "custom",
             path: ["messageFlow"],
-            message:
-              "Carriers need at least 40 characters here: describe how customers ask you to text them.",
+            message: t("settingsMore.regMessageFlowShort"),
           });
         } else if (v.messageFlow.trim().length > 2048) {
           ctx.addIssue({
             code: "custom",
             path: ["messageFlow"],
-            message: "Keep it under 2,048 characters.",
+            message: t("settingsMore.regMessageFlowLong"),
           });
         }
         for (const key of ["sample1", "sample2"] as const) {
@@ -271,19 +319,20 @@ export function RegistrationFixForm({
             ctx.addIssue({
               code: "custom",
               path: [key],
-              message: "At least 20 characters: a real text you'd send.",
+              message: t("settingsMore.regSampleShort"),
             });
           } else if (value.length > 1024) {
             ctx.addIssue({
               code: "custom",
               path: [key],
-              message: "Keep it under 1,024 characters.",
+              message: t("settingsMore.regSampleLong"),
             });
           }
         }
       }
     });
-  }, [editBrand, editCampaign, soleProp, country]);
+    // `t` is a dependency so a language change rebuilds these messages.
+  }, [editBrand, editCampaign, soleProp, country, t]);
 
   const form = useForm<FixFormValues>({
     resolver: zodResolver(schema),
@@ -360,13 +409,13 @@ export function RegistrationFixForm({
         await save.mutateAsync(payload);
       }
       await submit.mutateAsync();
-      toast.success("Submitted. We'll email you when carriers approve it.");
+      toast.success(t("settingsMore.regSubmitted"));
       onSubmitted?.();
     } catch (cause) {
       setServerError(
         cause instanceof ApiError
           ? cause.message
-          : "Couldn't resubmit. Try again in a moment.",
+          : t("settingsMore.regResubmitFailed"),
       );
     }
   }
@@ -393,7 +442,9 @@ export function RegistrationFixForm({
                     name="firstName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>First name</FormLabel>
+                        <FormLabel>
+                          {t("settingsMore.regFirstNameLabel")}
+                        </FormLabel>
                         <FormControl>
                           <Input autoComplete="given-name" {...field} />
                         </FormControl>
@@ -406,7 +457,9 @@ export function RegistrationFixForm({
                     name="lastName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Last name</FormLabel>
+                        <FormLabel>
+                          {t("settingsMore.regLastNameLabel")}
+                        </FormLabel>
                         <FormControl>
                           <Input autoComplete="family-name" {...field} />
                         </FormControl>
@@ -422,7 +475,9 @@ export function RegistrationFixForm({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          Last 4 of your {country === "US" ? "SSN" : "SIN"}
+                          {country === "US"
+                            ? t("settingsMore.regSsnLabel")
+                            : t("settingsMore.regSinLabel")}
                         </FormLabel>
                         <FormControl>
                           <Input
@@ -433,8 +488,7 @@ export function RegistrationFixForm({
                           />
                         </FormControl>
                         <FormDescription>
-                          Carriers use it to verify you&apos;re a real person.
-                          We never store the full number.
+                          {t("settingsMore.regSsnHelp")}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -445,12 +499,14 @@ export function RegistrationFixForm({
                     name="mobilePhone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Your mobile number</FormLabel>
+                        <FormLabel>
+                          {t("settingsMore.regMobileLabel")}
+                        </FormLabel>
                         <FormControl>
                           <Input inputMode="tel" autoComplete="tel" {...field} />
                         </FormControl>
                         <FormDescription>
-                          A verification code is texted here after you resubmit.
+                          {t("settingsMore.regMobileHelp")}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -465,13 +521,16 @@ export function RegistrationFixForm({
                   name="companyName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Legal business name</FormLabel>
+                      <FormLabel>
+                        {t("settingsMore.regLegalNameLabel")}
+                      </FormLabel>
                       <FormControl>
                         <Input autoComplete="organization" {...field} />
                       </FormControl>
                       <FormDescription>
-                        Exactly as it appears on your{" "}
-                        {country === "US" ? "EIN letter" : "CRA registration"}.
+                        {country === "US"
+                          ? t("settingsMore.regLegalNameHelpUs")
+                          : t("settingsMore.regLegalNameHelpCa")}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -483,7 +542,9 @@ export function RegistrationFixForm({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        {country === "US" ? "EIN" : "Business number"}
+                        {country === "US"
+                          ? t("settingsMore.regEinLabel")
+                          : t("settingsMore.regBusinessNumberLabel")}
                       </FormLabel>
                       <FormControl>
                         <Input autoComplete="off" {...field} />
@@ -499,7 +560,9 @@ export function RegistrationFixForm({
               name="displayName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Business name customers know</FormLabel>
+                  <FormLabel>
+                    {t("settingsMore.regDisplayNameLabel")}
+                  </FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
@@ -513,7 +576,7 @@ export function RegistrationFixForm({
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Contact email</FormLabel>
+                    <FormLabel>{t("settingsMore.regEmailLabel")}</FormLabel>
                     <FormControl>
                       <Input type="email" inputMode="email" {...field} />
                     </FormControl>
@@ -526,7 +589,7 @@ export function RegistrationFixForm({
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Contact phone</FormLabel>
+                    <FormLabel>{t("settingsMore.regPhoneLabel")}</FormLabel>
                     <FormControl>
                       <Input inputMode="tel" {...field} />
                     </FormControl>
@@ -540,7 +603,7 @@ export function RegistrationFixForm({
               name="street"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Street address</FormLabel>
+                  <FormLabel>{t("settingsMore.regStreetLabel")}</FormLabel>
                   <FormControl>
                     <Input autoComplete="street-address" {...field} />
                   </FormControl>
@@ -554,7 +617,7 @@ export function RegistrationFixForm({
                 name="city"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>City</FormLabel>
+                    <FormLabel>{t("settingsMore.portFixCity")}</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -567,7 +630,11 @@ export function RegistrationFixForm({
                 name="state"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{country === "US" ? "State" : "Province"}</FormLabel>
+                    <FormLabel>
+                      {country === "US"
+                        ? t("settingsMore.portFixState")
+                        : t("settingsMore.portFixProvince")}
+                    </FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
@@ -581,7 +648,9 @@ export function RegistrationFixForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      {country === "US" ? "ZIP code" : "Postal code"}
+                      {country === "US"
+                        ? t("settingsMore.portFixZip")
+                        : t("settingsMore.portFixPostalCode")}
                     </FormLabel>
                     <FormControl>
                       <Input {...field} />
@@ -598,7 +667,9 @@ export function RegistrationFixForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      Website{soleProp ? " (optional)" : ""}
+                      {soleProp
+                        ? t("settingsMore.regWebsiteOptionalLabel")
+                        : t("settingsMore.regWebsiteLabel")}
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -617,7 +688,7 @@ export function RegistrationFixForm({
                 name="vertical"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Line of work</FormLabel>
+                    <FormLabel>{t("settingsMore.regVerticalLabel")}</FormLabel>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
                         <SelectTrigger className="w-full">
@@ -627,7 +698,7 @@ export function RegistrationFixForm({
                       <SelectContent>
                         {TCR_VERTICALS.map((vertical) => (
                           <SelectItem key={vertical} value={vertical}>
-                            {verticalLabel(vertical)}
+                            {t(VERTICAL_LABELS[vertical])}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -647,14 +718,14 @@ export function RegistrationFixForm({
               name="messageFlow"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>How customers ask you to text them</FormLabel>
+                  <FormLabel>
+                    {t("settingsMore.regMessageFlowLabel")}
+                  </FormLabel>
                   <FormControl>
                     <Textarea rows={3} {...field} />
                   </FormControl>
                   <FormDescription>
-                    Plain words work best. For example, &quot;Customers text our
-                    business number first, or ask us in person or by phone to
-                    text them.&quot;
+                    {t("settingsMore.regMessageFlowHelp")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -665,7 +736,7 @@ export function RegistrationFixForm({
               name="sample1"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Example text you send</FormLabel>
+                  <FormLabel>{t("settingsMore.regSample1Label")}</FormLabel>
                   <FormControl>
                     <Textarea rows={2} {...field} />
                   </FormControl>
@@ -678,7 +749,7 @@ export function RegistrationFixForm({
               name="sample2"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Another example</FormLabel>
+                  <FormLabel>{t("settingsMore.regSample2Label")}</FormLabel>
                   <FormControl>
                     <Textarea rows={2} {...field} />
                   </FormControl>
@@ -695,7 +766,7 @@ export function RegistrationFixForm({
           </p>
         )}
         <Button type="submit" disabled={busy}>
-          {busy ? "Submitting…" : submitLabel}
+          {busy ? t("settingsMore.regSubmitting") : t(submitLabel)}
         </Button>
       </form>
     </Form>

@@ -1,4 +1,5 @@
 import {
+  DEFAULT_LOCALE,
   formatMoney,
   US_REGISTRATION_FEE_CENTS,
   type BillingCurrency,
@@ -9,6 +10,17 @@ import {
   readSaysRunning,
   type PauseRead,
 } from "@/components/settings/pause-read";
+import { makeTranslate, type Translate } from "@/i18n/provider";
+
+/**
+ * #228: English is the DEFAULT here, not the only option.
+ *
+ * Every export below is read by `us-registration-timing.test.ts`, which has no
+ * provider around it and asserts the shipped sentence rather than a paraphrase
+ * of it — the whole point of the copy living in this file. The card passes the
+ * reader's own `t`, so a French owner reads French.
+ */
+const EN = makeTranslate(DEFAULT_LOCALE);
 
 /**
  * #525 — what the enable-US card promises a workspace whose plan is paused.
@@ -112,13 +124,11 @@ export function usRegistrationFee(currency: BillingCurrency): string {
  * No count of days here. The card is an invitation, and the dialog states the
  * carrier window once, where the money is.
  */
-export const US_REGISTRATION_PAUSED_HEADING =
-  "You can start this while your plan is paused";
+export const US_REGISTRATION_PAUSED_HEADING = EN(
+  "settingsMore.usRegPausedHeading",
+);
 
-export const US_REGISTRATION_PAUSED_NOTE =
-  "Carrier review takes days either way, and none of it needs your plan " +
-  "running. Doing it now means the waiting happens in your quiet season " +
-  "rather than in your first week back.";
+export const US_REGISTRATION_PAUSED_NOTE = EN("settingsMore.usRegPausedNote");
 
 /**
  * The terms every reader gets, paused or not — what is charged, by whom it is
@@ -129,19 +139,19 @@ export const US_REGISTRATION_PAUSED_NOTE =
  * agreement. The carrier window is the same "3 to 7 business days" the review
  * timeline further down this screen and the marketing pages already state.
  */
-export function usRegistrationTerms(currency: BillingCurrency): string {
-  return (
-    `A one-time ${usRegistrationFee(currency)} registration fee is charged to ` +
-    "your card on file, and we register your business with US carriers. " +
-    "Approval usually takes 3 to 7 business days."
-  );
+export function usRegistrationTerms(
+  currency: BillingCurrency,
+  t: Translate = EN,
+): string {
+  return t("settingsMore.usRegTerms", { fee: usRegistrationFee(currency) });
 }
 
 /**
  * The closing line for a plan that is running. Today's sentence, untouched.
  */
-export const US_REGISTRATION_RUNNING_TAIL =
-  "We handle it and email you when it's live.";
+export const US_REGISTRATION_RUNNING_TAIL = EN(
+  "settingsMore.usRegRunningTail",
+);
 
 /**
  * The three things a paused buyer is agreeing to, as three things.
@@ -165,14 +175,14 @@ export const US_REGISTRATION_RUNNING_TAIL =
  */
 export function usRegistrationPausedTerms(
   currency: BillingCurrency,
+  t: Translate = EN,
 ): readonly string[] {
   return [
-    `The ${usRegistrationFee(currency)} is charged today, and it is charged ` +
-      "once ever — not again when you come back.",
-    "Carriers review you while your plan is paused. The pause does not hold " +
-      "the registration up.",
-    "Sending stays off until you resume. Approval means US texting is set up " +
-      "and waiting for you, not that a paused plan starts sending.",
+    t("settingsMore.usRegPausedTermMoney", {
+      fee: usRegistrationFee(currency),
+    }),
+    t("settingsMore.usRegPausedTermWait"),
+    t("settingsMore.usRegPausedTermLimit"),
   ];
 }
 
@@ -186,8 +196,11 @@ export function usRegistrationPausedTerms(
  * every state, so silence here costs the reader nothing and claims nothing —
  * the same discipline `planStateUnknownNote` applies on the billing screen.
  */
-export function usRegistrationTail(timing: UsRegistrationTiming): string | null {
-  return timing === "running" ? US_REGISTRATION_RUNNING_TAIL : null;
+export function usRegistrationTail(
+  timing: UsRegistrationTiming,
+  t: Translate = EN,
+): string | null {
+  return timing === "running" ? t("settingsMore.usRegRunningTail") : null;
 }
 
 /**
@@ -204,9 +217,11 @@ export function usRegistrationTail(timing: UsRegistrationTiming): string | null 
  * telling a paying crew to go and resume a plan that is already running is the
  * worse error.
  */
-export function usRegistrationStarted(timing: UsRegistrationTiming): string {
+export function usRegistrationStarted(
+  timing: UsRegistrationTiming,
+  t: Translate = EN,
+): string {
   return timing === "paused"
-    ? "US registration started. We'll email you when the carriers approve it, " +
-        "and US texting works when you resume."
-    : "US registration started. We'll email you when it's approved.";
+    ? t("settingsMore.usRegStartedPaused")
+    : t("settingsMore.usRegStartedRunning");
 }

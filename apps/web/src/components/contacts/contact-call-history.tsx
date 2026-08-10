@@ -17,6 +17,7 @@ import { CalmEmptyState } from "@/components/settings/empty-state";
 import { dateGroupLabel } from "@/components/thread/gallery-grouping";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { useContactCalls } from "@/lib/api/calls";
 import { flattenPages } from "@/lib/api/pagination";
 import type { Call } from "@/lib/api/types";
@@ -49,6 +50,7 @@ export function groupCallsByDay(
 }
 
 export function ContactCallHistory({ contactId }: { contactId: string }) {
+  const t = useT();
   const calls = useContactCalls(contactId);
   const rows = flattenPages(calls.data);
   const groups = groupCallsByDay(rows);
@@ -56,11 +58,11 @@ export function ContactCallHistory({ contactId }: { contactId: string }) {
   return (
     <section>
       <h2 className="flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
-        Call history
+        {t("contacts.callHistory")}
       </h2>
       <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
         {calls.isPending ? (
-          <div className="space-y-0" aria-label="Loading call history">
+          <div className="space-y-0" aria-label={t("contacts.callHistoryLoading")}>
             {Array.from({ length: 3 }, (_, i) => (
               <div
                 key={i}
@@ -78,11 +80,11 @@ export function ContactCallHistory({ contactId }: { contactId: string }) {
           <CalmEmptyState
             className="py-10"
             icon={<PhoneIncoming className="size-7" strokeWidth={1.5} />}
-            title="Couldn't load their calls."
-            description="Check your connection and try again."
+            title={t("contacts.callsLoadFailed")}
+            description={t("contacts.callsLoadFailedDetail")}
             action={
               <Button variant="outline" onClick={() => calls.refetch()}>
-                Try again
+                {t("common.retry")}
               </Button>
             }
           />
@@ -90,8 +92,8 @@ export function ContactCallHistory({ contactId }: { contactId: string }) {
           <CalmEmptyState
             className="py-10"
             icon={<PhoneIncoming className="size-7" strokeWidth={1.5} />}
-            title="No calls with this contact yet."
-            description="Calls between you and this customer will show up here."
+            title={t("contacts.noCallsYet")}
+            description={t("contacts.noCallsYetDetail")}
           />
         ) : (
           groups.map((group) => (
@@ -116,7 +118,9 @@ export function ContactCallHistory({ contactId }: { contactId: string }) {
             onClick={() => calls.fetchNextPage()}
             disabled={calls.isFetchingNextPage}
           >
-            {calls.isFetchingNextPage ? "Loading…" : "Show more"}
+            {calls.isFetchingNextPage
+              ? t("contacts.loading")
+              : t("contacts.showMore")}
           </Button>
         </div>
       )}

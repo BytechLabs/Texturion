@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { useT, type MessageKey, type Translate } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
 import { useUploadNoteFiles } from "@/lib/api/attachments";
 import { ApiError } from "@/lib/api/error";
@@ -110,10 +111,13 @@ const UNASSIGNED = "__unassigned__";
  * A dispatcher deciding whether to send a van reads them differently, so the
  * line does too.
  */
-function confirmedLine(by: "customer" | "crew" | null | undefined): string {
+function confirmedLine(
+  by: "customer" | "crew" | null | undefined,
+  t: Translate,
+): string {
   return by === "customer"
-    ? "They confirmed they'll be there."
-    : "Marked confirmed by your crew.";
+    ? t("tasks.confirmedByCustomer")
+    : t("tasks.confirmedByCrew");
 }
 
 export function TaskDetailPanel({
@@ -123,6 +127,7 @@ export function TaskDetailPanel({
   taskId: string;
   onClose?: () => void;
 }) {
+  const t = useT();
   const query = useTask(taskId);
 
   if (query.isPending) return <TaskDetailSkeleton />;
@@ -134,12 +139,12 @@ export function TaskDetailPanel({
       <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
         <p className="text-sm text-app-muted">
           {notFound
-            ? "This task doesn't exist or was removed."
-            : "We couldn't load this task."}
+            ? t("tasks.detailNotFound")
+            : t("tasks.detailLoadFailed")}
         </p>
         {!notFound && (
           <Button variant="outline" size="sm" onClick={() => query.refetch()}>
-            Try again
+            {t("common.retry")}
           </Button>
         )}
       </div>
@@ -156,6 +161,7 @@ function TaskDetailLoaded({
   task: TaskDetail;
   onClose?: () => void;
 }) {
+  const t = useT();
   const me = useMe();
   const members = useMembers();
   const { role } = useActiveCompany();
@@ -208,7 +214,7 @@ function TaskDetailLoaded({
     }
     update.mutate(
       { taskId: task.id, title: trimmed },
-      { onError: () => toast.error("Couldn't rename this task.") },
+      { onError: () => toast.error(t("tasks.renameFailed")) },
     );
   };
 
@@ -216,7 +222,7 @@ function TaskDetailLoaded({
     if (description === task.description) return;
     update.mutate(
       { taskId: task.id, description },
-      { onError: () => toast.error("Couldn't save the description.") },
+      { onError: () => toast.error(t("tasks.descriptionSaveFailed")) },
     );
   };
 
@@ -225,7 +231,7 @@ function TaskDetailLoaded({
   const saveAssignee = (value: string) => {
     update.mutate(
       { taskId: task.id, assigned_user_id: value === UNASSIGNED ? null : value },
-      { onError: () => toast.error("Couldn't reassign this task.") },
+      { onError: () => toast.error(t("tasks.reassignFailed")) },
     );
   };
 
@@ -244,14 +250,14 @@ function TaskDetailLoaded({
         // an ISO instant.
         due_at: new Date(value).toISOString(),
       },
-      { onError: () => toast.error("Couldn't change the due date.") },
+      { onError: () => toast.error(t("tasks.dueChangeFailed")) },
     );
   };
 
   const clearDue = () => {
     update.mutate(
       { taskId: task.id, due_at: null },
-      { onError: () => toast.error("Couldn't clear the due date.") },
+      { onError: () => toast.error(t("tasks.dueClearFailed")) },
     );
   };
 
@@ -270,12 +276,12 @@ function TaskDetailLoaded({
   const runDelete = () => {
     del.mutate(task.id, {
       onSuccess: () => {
-        toast.success("Task deleted.");
+        toast.success(t("tasks.deleted"));
         onClose?.();
       },
       onError: () => {
         setConfirmDelete(false);
-        toast.error("Couldn't delete this task.");
+        toast.error(t("tasks.deleteFailed"));
       },
     });
   };
@@ -294,7 +300,7 @@ function TaskDetailLoaded({
         conversationId,
         done: !task.done,
       },
-      { onError: () => toast.error("Couldn't update this task.") },
+      { onError: () => toast.error(t("tasks.updateFailed")) },
     );
   };
 
@@ -313,14 +319,14 @@ function TaskDetailLoaded({
           <span
             aria-hidden
             className="mt-1 size-5 shrink-0 rounded-full border border-dashed border-app-line"
-            title="Marking this done needs access to the conversation it came from"
+            title={t("tasks.doneNeedsAccessTitle")}
           />
         ) : (
           <TaskDoneCheckbox task={task} className="mt-1" />
         )}
         <div className="min-w-0 flex-1">
           <input
-            aria-label="Task title"
+            aria-label={t("tasks.titleAria")}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onBlur={saveTitle}
@@ -342,7 +348,7 @@ function TaskDetailLoaded({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label="Task actions"
+              aria-label={t("tasks.actionsAria")}
               className="tap-target mt-0.5 shrink-0 rounded-full p-1 text-app-muted-2 transition-colors hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <MoreHorizontal className="size-4" strokeWidth={1.75} aria-hidden />
@@ -358,7 +364,7 @@ function TaskDetailLoaded({
                 disabled={done.isPending}
               >
                 <Check className="size-4" strokeWidth={1.75} aria-hidden />
-                Done
+                {t("tasks.markDoneAction")}
               </DropdownMenuToggleItem>
             )}
             {/* #89: a real, destructive Delete (creator or owner/admin only).
@@ -372,7 +378,7 @@ function TaskDetailLoaded({
                   disabled={del.isPending}
                 >
                   <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
-                  Delete task
+                  {t("tasks.deleteTask")}
                 </DropdownMenuItem>
               </>
             )}
@@ -385,34 +391,32 @@ function TaskDetailLoaded({
         {/* #107: no access to the source number — explain the withheld content. */}
         {noAccess && (
           <section
-            aria-label="Access notice"
+            aria-label={t("tasks.accessNoticeAria")}
             className="rounded-app-card border border-app-line bg-app-inset p-3"
           >
             <p className="text-[13px] text-app-muted">
-              This task is linked to a number you don&apos;t have access to. You
-              can see the task, but not its messages, files, or discussion — ask
-              an owner or admin for access.
+              {t("tasks.noAccessNotice")}
             </p>
           </section>
         )}
 
         {/* Source message + thread link. */}
         {task.source_message && (
-          <section aria-label="Source message" className="space-y-1.5">
+          <section aria-label={t("tasks.sourceMessageAria")} className="space-y-1.5">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
-              From this message
+              {t("tasks.fromThisMessage")}
             </p>
             <div className="rounded-app-card border border-app-line bg-app-inset p-3">
               <p className="whitespace-pre-wrap break-words text-[13px] text-app-ink">
                 {task.source_message.body.trim() === ""
-                  ? "A photo"
+                  ? t("tasks.sourcePhotoOnly")
                   : task.source_message.body}
               </p>
               <Link
                 href={`/inbox/${conversationId}?message=${task.message_id}`}
                 className="mt-2 inline-flex items-center gap-1 text-[12px] font-medium text-app-olive hover:text-app-olive-deep"
               >
-                View in conversation
+                {t("tasks.viewInConversation")}
                 <ArrowUpRight className="size-3" strokeWidth={1.75} aria-hidden />
               </Link>
             </div>
@@ -422,17 +426,21 @@ function TaskDetailLoaded({
         {/* Editable metadata. */}
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="task-assignee">Assignee</Label>
+            <Label htmlFor="task-assignee">{t("tasks.assignee")}</Label>
             <Select value={assignee} onValueChange={saveAssignee}>
               <SelectTrigger id="task-assignee" className="w-full">
-                <SelectValue placeholder="Unassigned" />
+                <SelectValue placeholder={t("tasks.unassigned")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                <SelectItem value={UNASSIGNED}>
+                  {t("tasks.unassigned")}
+                </SelectItem>
                 {memberOptions.map((member) => (
                   <SelectItem key={member.id} value={member.user_id}>
                     {member.display_name}
-                    {me.data?.user_id === member.user_id ? " (you)" : ""}
+                    {me.data?.user_id === member.user_id
+                      ? t("tasks.youSuffix")
+                      : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -440,14 +448,14 @@ function TaskDetailLoaded({
           </div>
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between gap-2">
-              <Label htmlFor="task-due">Due</Label>
+              <Label htmlFor="task-due">{t("tasks.due")}</Label>
               {task.due_at && (
                 <button
                   type="button"
                   onClick={clearDue}
                   className="text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                 >
-                  Clear
+                  {t("tasks.clearDue")}
                 </button>
               )}
             </div>
@@ -473,19 +481,19 @@ function TaskDetailLoaded({
           <section className="flex flex-wrap items-center justify-between gap-2 rounded-app-ctrl border border-app-line px-3 py-2">
             <div className="min-w-0">
               <p className="text-[13px] font-medium text-app-ink">
-                Remind this customer
+                {t("tasks.remindCustomer")}
               </p>
               <p className="text-[12px] text-app-muted">
                 {task.confirmed_at
-                  ? confirmedLine(task.confirmed_by)
+                  ? confirmedLine(task.confirmed_by, t)
                   : task.reminders_off
-                    ? "Off for this job. Nothing goes out about it."
-                    : "Uses your workspace reminders."}
+                    ? t("tasks.remindersOffForJob")
+                    : t("tasks.remindersFromWorkspace")}
               </p>
             </div>
             <Switch
               checked={!(task.reminders_off ?? false)}
-              aria-label="Remind this customer about this job"
+              aria-label={t("tasks.remindCustomerAria")}
               onCheckedChange={(on) =>
                 setReminders.mutate({
                   taskId: task.id,
@@ -499,7 +507,7 @@ function TaskDetailLoaded({
 
         {/* Description. */}
         <section className="flex flex-col gap-1.5">
-          <Label htmlFor="task-description">Description</Label>
+          <Label htmlFor="task-description">{t("tasks.description")}</Label>
           <Textarea
             id="task-description"
             value={description}
@@ -507,7 +515,7 @@ function TaskDetailLoaded({
             onBlur={saveDescription}
             rows={3}
             maxLength={5000}
-            placeholder="Add details for your crew…"
+            placeholder={t("tasks.descriptionPlaceholder")}
           />
         </section>
 
@@ -517,7 +525,7 @@ function TaskDetailLoaded({
           onSave={(address) =>
             update.mutate(
               { taskId: task.id, address },
-              { onError: () => toast.error("Couldn't save the address.") },
+              { onError: () => toast.error(t("tasks.addressSaveFailed")) },
             )
           }
         />
@@ -531,7 +539,7 @@ function TaskDetailLoaded({
                 attached through the discussion composer, never the task. */}
             <section className="space-y-2">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
-                Attachments
+                {t("tasks.attachments")}
               </p>
               <TaskAttachments items={task.attachments} names={memberNames} />
               {/* #294: only when there are photos to send. The control belongs
@@ -547,7 +555,7 @@ function TaskDetailLoaded({
             {/* Merged activity + discussion timeline (D-C + D-D). */}
             <section className="space-y-2">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
-                Activity
+                {t("tasks.activity")}
               </p>
               <TaskActivityTimeline items={task.activity} />
             </section>
@@ -566,12 +574,15 @@ function TaskDetailLoaded({
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Delete this task?</DialogTitle>
+            <DialogTitle>{t("tasks.deleteConfirmTitle")}</DialogTitle>
             <DialogDescription>
-              This task has{" "}
-              {taskDeleteSummary(deleteContent.notes, deleteContent.attachments)}
-              . Deleting it removes the task and its activity for everyone. This
-              can&apos;t be undone.
+              {t("tasks.deleteConfirmBody", {
+                summary: taskDeleteSummary(
+                  deleteContent.notes,
+                  deleteContent.attachments,
+                  t,
+                ),
+              })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -580,7 +591,7 @@ function TaskDetailLoaded({
               onClick={() => setConfirmDelete(false)}
               disabled={del.isPending}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -590,7 +601,7 @@ function TaskDetailLoaded({
               {del.isPending ? (
                 <Loader2 className="size-4 animate-spin" aria-hidden />
               ) : (
-                "Delete task"
+                t("tasks.deleteTask")
               )}
             </Button>
           </DialogFooter>
@@ -602,13 +613,12 @@ function TaskDetailLoaded({
 
 /** The merged task_* events + linked notes list, oldest-first. */
 function TaskActivityTimeline({ items }: { items: TaskActivityItem[] }) {
+  const t = useT();
   const memberNames = useMemberNames();
 
   if (items.length === 0) {
     return (
-      <p className="text-[13px] text-app-muted">
-        No activity yet. Post a note below to start a discussion.
-      </p>
+      <p className="text-[13px] text-app-muted">{t("tasks.noActivity")}</p>
     );
   }
 
@@ -624,10 +634,12 @@ function TaskActivityTimeline({ items }: { items: TaskActivityItem[] }) {
               item,
               item.actor?.display_name ??
                 (item.actor_user_id
-                  ? memberNames.get(item.actor_user_id) ?? "A teammate"
-                  : "Loonext"),
+                  ? memberNames.get(item.actor_user_id) ?? t("tasks.aTeammate")
+                  : // A product name, so it is the same word in every language.
+                    "Loonext"),
               (userId) => (userId ? memberNames.get(userId) ?? null : null),
-            ) ?? "Task updated"}
+              t,
+            ) ?? t("tasks.taskUpdated")}
             <span className="ml-1 tabular-nums text-app-muted-2/80">
               · {format(new Date(item.created_at), "MMM d, h:mm a")}
             </span>
@@ -635,13 +647,13 @@ function TaskActivityTimeline({ items }: { items: TaskActivityItem[] }) {
         ) : (
           <li key={`n:${item.id}`} className="flex gap-2.5">
             <MemberAvatar
-              name={item.author?.display_name ?? "A teammate"}
+              name={item.author?.display_name ?? t("tasks.aTeammate")}
               className="mt-0.5 size-6"
             />
             <div className="min-w-0 flex-1 rounded-app-card border border-app-amber-line bg-app-amber-bg px-3 py-2">
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-[12px] font-semibold text-app-amber-ink">
-                  {item.author?.display_name ?? "A teammate"}
+                  {item.author?.display_name ?? t("tasks.aTeammate")}
                 </span>
                 <span className="shrink-0 text-[11px] tabular-nums text-app-amber-ink/70">
                   {format(new Date(item.created_at), "MMM d, h:mm a")}
@@ -673,6 +685,7 @@ function TaskNoteComposer({
   taskId: string;
   conversationId: string;
 }) {
+  const t = useT();
   const [body, setBody] = useState("");
   const create = useCreateTaskNote(conversationId);
   const uploadFiles = useUploadNoteFiles();
@@ -705,7 +718,7 @@ function TaskNoteComposer({
     } catch {
       setBody(draftBody);
       stage.restore(draftFiles);
-      toast.error("Couldn't post your note.");
+      toast.error(t("tasks.notePostFailed"));
       return;
     }
 
@@ -720,8 +733,11 @@ function TaskNoteComposer({
     if (failed.length === 0) return;
     toast.error(
       failed.length === draftFiles.length
-        ? "The note posted, but its files didn't upload. Re-attach them from the note's Files section in the thread."
-        : `The note posted, but ${failed.length} of ${draftFiles.length} files didn't upload. Re-attach them from the note's Files section in the thread.`,
+        ? t("tasks.noteFilesAllFailed")
+        : t("tasks.noteFilesSomeFailed", {
+            failed: failed.length,
+            total: draftFiles.length,
+          }),
     );
   };
 
@@ -741,7 +757,7 @@ function TaskNoteComposer({
           type="button"
           variant="ghost"
           size="icon-sm"
-          aria-label="Attach files to this note"
+          aria-label={t("tasks.attachFilesAria")}
           onClick={() => fileRef.current?.click()}
           disabled={stage.files.length >= MAX_ATTACHMENTS_PER_OWNER}
           className="text-app-muted"
@@ -787,9 +803,9 @@ function TaskNoteComposer({
           }}
           rows={2}
           maxLength={4096}
-          placeholder="Add a note to the discussion…"
+          placeholder={t("tasks.notePlaceholder")}
           className="min-h-[44px] flex-1 resize-none"
-          aria-label="Task discussion note"
+          aria-label={t("tasks.noteAria")}
         />
         <Button
           type="button"
@@ -806,7 +822,7 @@ function TaskNoteComposer({
           {create.isPending ? (
             <Loader2 className="size-4 animate-spin" aria-hidden />
           ) : (
-            "Post"
+            t("tasks.notePost")
           )}
         </Button>
       </div>
@@ -855,13 +871,17 @@ interface AddrFields {
   country: string;
 }
 
-const ADDR_FIELDS: { key: keyof AddrFields; label: string; full?: boolean }[] = [
-  { key: "street", label: "Street", full: true },
-  { key: "unit", label: "Unit / suite" },
-  { key: "city", label: "City" },
-  { key: "state", label: "State / province" },
-  { key: "postal_code", label: "Postal code" },
-  { key: "country", label: "Country", full: true },
+const ADDR_FIELDS: {
+  key: keyof AddrFields;
+  labelKey: MessageKey;
+  full?: boolean;
+}[] = [
+  { key: "street", labelKey: "tasks.addrStreet", full: true },
+  { key: "unit", labelKey: "tasks.addrUnit" },
+  { key: "city", labelKey: "tasks.addrCity" },
+  { key: "state", labelKey: "tasks.addrState" },
+  { key: "postal_code", labelKey: "tasks.addrPostalCode" },
+  { key: "country", labelKey: "tasks.addrCountry", full: true },
 ];
 
 function addrFromTask(task: TaskDetail): AddrFields {
@@ -875,14 +895,17 @@ function addrFromTask(task: TaskDetail): AddrFields {
   };
 }
 
-function addrProvenanceLabel(p: AddressProvenance | null): string | null {
+function addrProvenanceLabel(
+  p: AddressProvenance | null,
+  t: Translate,
+): string | null {
   switch (p) {
     case "message":
-      return "From the message";
+      return t("tasks.addrFromMessage");
     case "contact":
-      return "From the contact";
+      return t("tasks.addrFromContact");
     case "company":
-      return "Inferred from area code";
+      return t("tasks.addrFromAreaCode");
     default:
       return null;
   }
@@ -895,6 +918,7 @@ function TaskAddressSection({
   task: TaskDetail;
   onSave: (address: TaskAddressInput | null) => void;
 }) {
+  const t = useT();
   const [fields, setFields] = useState<AddrFields>(() => addrFromTask(task));
   const [provenance, setProvenance] = useState<AddressProvenance | null>(
     task.addr_provenance,
@@ -946,7 +970,7 @@ function TaskAddressSection({
     );
   }
 
-  const provLabel = addrProvenanceLabel(provenance);
+  const provLabel = addrProvenanceLabel(provenance, t);
 
   return (
     <section className="flex flex-col gap-1.5">
@@ -958,7 +982,7 @@ function TaskAddressSection({
       >
         <span className="flex items-center gap-2">
           <MapPin className="size-4 text-app-muted-2" strokeWidth={1.75} />
-          Address
+          {t("tasks.address")}
           {provLabel && (
             <span className="inline-flex items-center gap-1 rounded-full bg-app-inset px-2 py-0.5 text-[11px] font-normal text-app-muted">
               <AiOrb state="idle" size={12} />
@@ -987,8 +1011,8 @@ function TaskAddressSection({
           {ADDR_FIELDS.map((f) => (
             <Input
               key={f.key}
-              aria-label={f.label}
-              placeholder={f.label}
+              aria-label={t(f.labelKey)}
+              placeholder={t(f.labelKey)}
               className={cn(f.full && "col-span-2")}
               list={f.key === "country" ? "task-detail-countries" : undefined}
               autoComplete={f.key === "country" ? "country-name" : undefined}

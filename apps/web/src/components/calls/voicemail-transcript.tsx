@@ -4,6 +4,7 @@ import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -62,6 +63,7 @@ export function VoicemailTranscript({
   className?: string;
   prominent?: boolean;
 }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
 
   const copy = async (event: React.MouseEvent) => {
@@ -71,14 +73,14 @@ export function VoicemailTranscript({
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      toast.success("Transcript copied.");
+      toast.success(t("shell.transcriptCopied"));
       // Long enough to read, short enough that the control is ready again for
       // somebody pasting into two places.
       setTimeout(() => setCopied(false), 2000);
     } catch {
       // Same sentence the thread uses, because it is the same failure: a
       // browser that refuses clipboard access, not anything the reader did.
-      toast.error("Couldn't copy. Your browser blocked clipboard access.");
+      toast.error(t("shell.copyBlocked"));
     }
   };
 
@@ -100,7 +102,7 @@ export function VoicemailTranscript({
       <button
         type="button"
         onClick={(event) => void copy(event)}
-        aria-label="Copy transcript"
+        aria-label={t("shell.copyTranscript")}
         className="tap-target -mt-0.5 shrink-0 rounded-md p-1 text-app-muted-2 transition-colors duration-150 ease-out hover:bg-app-hover hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {copied ? (

@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useT, type MessageKey } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { ringsIn } from "@/components/settings/ring-card";
 import { activeSources, useLeadSources } from "@/lib/api/lead-sources";
@@ -70,6 +71,7 @@ export function NumberIdentityDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const identity = useNumberIdentity(numberId, open);
   const save = useSetNumberIdentity(numberId);
   // #309: only fetched while the dialog is open, and only to put NAMES on
@@ -91,10 +93,12 @@ export function NumberIdentityDialog({
     try {
       await save.mutateAsync(patchFrom(identity.data, draft));
       onOpenChange(false);
-      toast.success("Saved. New callers hear this straight away.");
+      toast.success(t("settingsMore.numberIdentitySaved"));
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "That could not be saved.",
+        cause instanceof ApiError
+          ? cause.message
+          : t("settingsMore.saveFailedGeneric"),
       );
     }
   }
@@ -102,10 +106,12 @@ export function NumberIdentityDialog({
   async function restoreWorkspaceValue(field: ClearableField) {
     try {
       await save.mutateAsync({ [field]: null } as NumberIdentityPatch);
-      toast.success("Back to your workspace's.");
+      toast.success(t("settingsMore.backToWorkspace"));
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "That could not be changed.",
+        cause instanceof ApiError
+          ? cause.message
+          : t("settingsMore.changeFailedGeneric"),
       );
     }
   }
@@ -114,15 +120,16 @@ export function NumberIdentityDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>How this line answers</DialogTitle>
+          <DialogTitle>{t("settingsMore.numberIdentityTitle")}</DialogTitle>
           <DialogDescription>
-            Anything you leave alone follows your workspace. Change one here and
-            it only affects this number.
+            {t("settingsMore.numberIdentityDescription")}
           </DialogDescription>
         </DialogHeader>
 
         {identity.isPending ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">
+            {t("settingsMore.loading")}
+          </p>
         ) : identity.data ? (
           <div className="space-y-4">
             {/*
@@ -142,16 +149,16 @@ export function NumberIdentityDialog({
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
               <div className="space-y-0.5">
                 <Label htmlFor="identity-mctb-enabled">
-                  Text back a missed caller
+                  {t("settingsMore.numberIdentityMctbLabel")}
                 </Label>
                 <p className="text-[12px] text-app-muted-2">
-                  Sent from this line when a call goes unanswered.
+                  {t("settingsMore.numberIdentityMctbHint")}
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 {identity.data.mctb_enabled.inherited ? (
                   <span className="text-[12px] text-app-muted-2">
-                    Same as your workspace
+                    {t("settingsMore.sameAsWorkspace")}
                   </span>
                 ) : (
                   <Button
@@ -161,7 +168,7 @@ export function NumberIdentityDialog({
                     disabled={save.isPending}
                     onClick={() => void restoreWorkspaceValue("mctb_enabled")}
                   >
-                    Use the workspace&apos;s
+                    {t("settingsMore.useWorkspaces")}
                   </Button>
                 )}
                 <Switch
@@ -187,10 +194,12 @@ export function NumberIdentityDialog({
             {(greetings.data?.data.length ?? 0) > 0 && (
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <Label htmlFor="identity-greeting">Voicemail voice</Label>
+                  <Label htmlFor="identity-greeting">
+                    {t("settingsMore.numberIdentityVoiceLabel")}
+                  </Label>
                   {identity.data.voicemail_greeting_id.inherited ? (
                     <span className="text-[12px] text-app-muted-2">
-                      Same as your workspace
+                      {t("settingsMore.sameAsWorkspace")}
                     </span>
                   ) : (
                     <Button
@@ -202,7 +211,7 @@ export function NumberIdentityDialog({
                         void restoreWorkspaceValue("voicemail_greeting_id")
                       }
                     >
-                      Use the workspace&apos;s
+                      {t("settingsMore.useWorkspaces")}
                     </Button>
                   )}
                 </div>
@@ -219,7 +228,7 @@ export function NumberIdentityDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={WRITTEN}>
-                      The written greeting, read aloud
+                      {t("settingsMore.numberIdentityWrittenGreeting")}
                     </SelectItem>
                     {greetings.data?.data.map((row) => (
                       <SelectItem key={row.id} value={row.id}>
@@ -229,8 +238,7 @@ export function NumberIdentityDialog({
                   </SelectContent>
                 </Select>
                 <p className="text-[12px] text-app-muted-2">
-                  A recording that will not play falls back to the words below,
-                  so a caller never hears silence.
+                  {t("settingsMore.numberIdentityVoiceHint")}
                 </p>
               </div>
             )}
@@ -246,10 +254,12 @@ export function NumberIdentityDialog({
             */}
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <Label htmlFor="identity-after-hours">After-hours calls</Label>
+                <Label htmlFor="identity-after-hours">
+                  {t("settingsMore.numberIdentityAfterHoursLabel")}
+                </Label>
                 {identity.data.after_hours_calls.inherited ? (
                   <span className="text-[12px] text-app-muted-2">
-                    Same as your workspace
+                    {t("settingsMore.sameAsWorkspace")}
                   </span>
                 ) : (
                   <Button
@@ -261,7 +271,7 @@ export function NumberIdentityDialog({
                       void restoreWorkspaceValue("after_hours_calls")
                     }
                   >
-                    Use the workspace&apos;s
+                    {t("settingsMore.useWorkspaces")}
                   </Button>
                 )}
               </div>
@@ -285,21 +295,21 @@ export function NumberIdentityDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={INHERIT}>
-                    Same as your workspace
+                    {t("settingsMore.sameAsWorkspace")}
                   </SelectItem>
                   <SelectItem value="ring_everyone">
-                    Ring everyone, day or night
+                    {t("settingsMore.numberIdentityRingEveryone")}
                   </SelectItem>
                   <SelectItem value="on_call_only">
-                    Ring only whoever&apos;s on call
+                    {t("settingsMore.numberIdentityOnCallOnly")}
                   </SelectItem>
-                  <SelectItem value="voicemail">Take a message</SelectItem>
+                  <SelectItem value="voicemail">
+                    {t("settingsMore.numberIdentityTakeMessage")}
+                  </SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-[12px] text-app-muted-2">
-                Outside this line&apos;s hours. With nobody on call, the last
-                two still differ — one rings the crew anyway, the other takes a
-                message.
+                {t("settingsMore.numberIdentityAfterHoursHint")}
               </p>
             </div>
             {/*
@@ -309,10 +319,12 @@ export function NumberIdentityDialog({
             */}
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <Label htmlFor="identity-ring">How the phones ring</Label>
+                <Label htmlFor="identity-ring">
+                  {t("settingsMore.numberIdentityRingLabel")}
+                </Label>
                 {identity.data.ring_strategy.inherited ? (
                   <span className="text-[12px] text-app-muted-2">
-                    Same as your workspace
+                    {t("settingsMore.sameAsWorkspace")}
                   </span>
                 ) : (
                   <Button
@@ -322,7 +334,7 @@ export function NumberIdentityDialog({
                     disabled={save.isPending}
                     onClick={() => void restoreWorkspaceValue("ring_strategy")}
                   >
-                    Use the workspace&apos;s
+                    {t("settingsMore.useWorkspaces")}
                   </Button>
                 )}
               </div>
@@ -345,18 +357,26 @@ export function NumberIdentityDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={INHERIT}>Same as your workspace</SelectItem>
-                  <SelectItem value="all">All at once</SelectItem>
-                  <SelectItem value="in_turn">One at a time</SelectItem>
+                  <SelectItem value={INHERIT}>
+                    {t("settingsMore.sameAsWorkspace")}
+                  </SelectItem>
+                  <SelectItem value="all">
+                    {t("settingsMore.numberIdentityRingAll")}
+                  </SelectItem>
+                  <SelectItem value="in_turn">
+                    {t("settingsMore.numberIdentityRingInTurn")}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <Label htmlFor="identity-ring-seconds">How long they ring</Label>
+                <Label htmlFor="identity-ring-seconds">
+                  {t("settingsMore.numberIdentityRingSecondsLabel")}
+                </Label>
                 {identity.data.ring_seconds.inherited ? (
                   <span className="text-[12px] text-app-muted-2">
-                    Same as your workspace
+                    {t("settingsMore.sameAsWorkspace")}
                   </span>
                 ) : (
                   <Button
@@ -366,7 +386,7 @@ export function NumberIdentityDialog({
                     disabled={save.isPending}
                     onClick={() => void restoreWorkspaceValue("ring_seconds")}
                   >
-                    Use the workspace&apos;s
+                    {t("settingsMore.useWorkspaces")}
                   </Button>
                 )}
               </div>
@@ -386,10 +406,15 @@ export function NumberIdentityDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={INHERIT}>Same as your workspace</SelectItem>
+                  <SelectItem value={INHERIT}>
+                    {t("settingsMore.sameAsWorkspace")}
+                  </SelectItem>
                   {RING_SECOND_CHOICES.map((value) => (
                     <SelectItem key={value} value={String(value)}>
-                      {value} seconds · about {ringsIn(value)} rings
+                      {t("settingsMore.numberRingLength", {
+                        seconds: value,
+                        rings: ringsIn(value),
+                      })}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -408,7 +433,9 @@ export function NumberIdentityDialog({
             */}
             {activeSources(sources.data?.data).length > 0 && (
               <div className="space-y-1.5">
-                <Label htmlFor="identity-lead-source">Where this line is advertised</Label>
+                <Label htmlFor="identity-lead-source">
+                  {t("settingsMore.numberIdentityLeadSourceLabel")}
+                </Label>
                 <Select
                   value={identity.data.lead_source_id ?? UNTRACKED}
                   onValueChange={(next) =>
@@ -421,7 +448,9 @@ export function NumberIdentityDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={UNTRACKED}>Not advertised anywhere</SelectItem>
+                    <SelectItem value={UNTRACKED}>
+                      {t("settingsMore.numberIdentityUntracked")}
+                    </SelectItem>
                     {activeSources(sources.data?.data).map((row) => (
                       <SelectItem key={row.id} value={row.id}>
                         {row.name}
@@ -430,9 +459,7 @@ export function NumberIdentityDialog({
                   </SelectContent>
                 </Select>
                 <p className="text-[12px] text-app-muted-2">
-                  Every new conversation on this line is counted here, with
-                  nobody tapping anything. Changing it later does not relabel
-                  the customers you already have.
+                  {t("settingsMore.numberIdentityLeadSourceHint")}
                 </p>
               </div>
             )}
@@ -441,10 +468,12 @@ export function NumberIdentityDialog({
               return (
                 <div key={field.key} className="space-y-1.5">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <Label htmlFor={`identity-${field.key}`}>{field.label}</Label>
+                    <Label htmlFor={`identity-${field.key}`}>
+                      {t(field.label)}
+                    </Label>
                     {resolved.inherited ? (
                       <span className="text-[12px] text-app-muted-2">
-                        Same as your workspace
+                        {t("settingsMore.sameAsWorkspace")}
                       </span>
                     ) : (
                       <Button
@@ -454,7 +483,7 @@ export function NumberIdentityDialog({
                         disabled={save.isPending}
                         onClick={() => void restoreWorkspaceValue(field.key)}
                       >
-                        Use the workspace&apos;s
+                        {t("settingsMore.useWorkspaces")}
                       </Button>
                     )}
                   </div>
@@ -476,26 +505,26 @@ export function NumberIdentityDialog({
                       }
                     />
                   )}
-                  <p className="text-[12px] text-app-muted-2">{field.hint}</p>
+                  <p className="text-[12px] text-app-muted-2">{t(field.hint)}</p>
                 </div>
               );
             })}
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            That number could not be loaded.
+            {t("settingsMore.numberNotLoaded")}
           </p>
         )}
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             disabled={save.isPending || !identity.data}
             onClick={() => void submit()}
           >
-            Save
+            {t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -537,28 +566,33 @@ const UNTRACKED = "__untracked__";
  *  what a reasonable ring length is. */
 const RING_SECOND_CHOICES = [15, 20, 30, 45];
 
-const FIELDS: { key: Field; label: string; hint: string; multiline?: boolean }[] = [
+const FIELDS: {
+  key: Field;
+  label: MessageKey;
+  hint: MessageKey;
+  multiline?: boolean;
+}[] = [
   {
     key: "label",
-    label: "Name for this line",
-    hint: "Used in the greeting, on missed-call texts, and wherever this line introduces itself.",
+    label: "settingsMore.numberIdentityNameLabel",
+    hint: "settingsMore.numberIdentityNameHint",
   },
   {
     key: "voicemail_greeting",
-    label: "Voicemail greeting",
-    hint: "What a caller hears when nobody picks up.",
+    label: "settingsMore.numberIdentityVoicemailLabel",
+    hint: "settingsMore.numberIdentityVoicemailHint",
     multiline: true,
   },
   {
     key: "away_message",
-    label: "After-hours reply",
-    hint: "The text sent when somebody messages this line outside your hours.",
+    label: "settingsMore.numberIdentityAwayLabel",
+    hint: "settingsMore.numberIdentityAwayHint",
     multiline: true,
   },
   {
     key: "mctb_message",
-    label: "Missed-call text",
-    hint: "What a caller gets when nobody picks up and they hang up.",
+    label: "settingsMore.numberIdentityMctbTextLabel",
+    hint: "settingsMore.numberIdentityMctbTextHint",
     multiline: true,
   },
 ];

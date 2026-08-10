@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/i18n/provider";
 
 /**
  * #537 — the confirmation in front of a handover.
@@ -80,6 +81,7 @@ export function HandoverConfirmDialog({
   onResend: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const [code, setCode] = useState("");
 
   // Cleared whenever the dialog opens for a new demand. Without this, a second
@@ -144,7 +146,7 @@ export function HandoverConfirmDialog({
           )}
           <span className="flex gap-2">
             <Button variant="ghost" onClick={onCancel} disabled={pending}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               disabled={!valid || pending}

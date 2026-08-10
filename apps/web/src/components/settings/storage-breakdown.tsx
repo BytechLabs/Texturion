@@ -1,5 +1,6 @@
 "use client";
 
+import { useT, type MessageKey } from "@/i18n/provider";
 import type { UsageStorage } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +20,7 @@ export function formatStorageBytes(bytes: number): string {
 
 export interface StorageSlice {
   key: string;
-  label: string;
+  label: MessageKey;
   bytes: number;
   /** Tailwind background for the bar segment and its legend dot. */
   className: string;
@@ -49,16 +50,17 @@ export interface StorageSlice {
  * rule — usage is never a wall — while answering "what is actually in there".
  */
 export function StorageBreakdown({ storage }: { storage: UsageStorage }) {
+  const t = useT();
   const slices: StorageSlice[] = [
     {
       key: "received",
-      label: "Attachments received",
+      label: "settingsMore.storageReceived",
       bytes: storage.received_media_bytes,
       className: "bg-app-olive",
     },
     {
       key: "sent",
-      label: "Attachments sent",
+      label: "settingsMore.storageSent",
       bytes: storage.sent_media_bytes,
       // Deep petrol pairs this with "received" above: both are message
       // attachments, told apart by direction. It replaces an olive that the
@@ -68,20 +70,20 @@ export function StorageBreakdown({ storage }: { storage: UsageStorage }) {
     },
     {
       key: "notes",
-      label: "Files on notes",
+      label: "settingsMore.storageNotes",
       bytes: storage.attachments_bytes,
       className: "bg-app-amber",
     },
     {
       key: "voicemail",
-      label: "Voicemail recordings",
+      label: "settingsMore.storageVoicemail",
       bytes: storage.voicemail_bytes,
       className: "bg-app-clay",
     },
     // Only ever shown when it is real: anything the named kinds miss.
     {
       key: "other",
-      label: "Other files",
+      label: "settingsMore.storageOther",
       bytes: storage.other_bytes,
       className: "bg-app-muted-2",
     },
@@ -96,8 +98,7 @@ export function StorageBreakdown({ storage }: { storage: UsageStorage }) {
   if (total === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Nothing stored yet. Attachments in and out, files on notes, and
-        voicemail recordings are all free on every plan, with no caps.
+        {t("settingsMore.storageEmpty")}
       </p>
     );
   }
@@ -113,10 +114,12 @@ export function StorageBreakdown({ storage }: { storage: UsageStorage }) {
     <div>
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-sm font-medium text-foreground">
-          {formatStorageBytes(total)} stored
+          {t("settingsMore.storageTotal", {
+            size: formatStorageBytes(total),
+          })}
         </span>
         <span className="text-xs text-muted-foreground">
-          Free on every plan, no caps
+          {t("settingsMore.storageFree")}
         </span>
       </div>
 
@@ -125,9 +128,16 @@ export function StorageBreakdown({ storage }: { storage: UsageStorage }) {
       <div
         className="mt-2 flex h-2 w-full overflow-hidden rounded-full"
         role="img"
-        aria-label={`Storage: ${present
-          .map((slice) => `${formatStorageBytes(slice.bytes)} ${slice.label.toLowerCase()}`)
-          .join(", ")}. Free on every plan, no caps.`}
+        aria-label={t("settingsMore.storageBarAria", {
+          parts: present
+            .map((slice) =>
+              t("settingsMore.storageBarPart", {
+                size: formatStorageBytes(slice.bytes),
+                kind: t(slice.label).toLowerCase(),
+              }),
+            )
+            .join(", "),
+        })}
       >
         {present.map((slice) => (
           <span
@@ -150,7 +160,7 @@ export function StorageBreakdown({ storage }: { storage: UsageStorage }) {
                 slice.bytes > 0 ? slice.className : "bg-app-line",
               )}
             />
-            <span className="flex-1">{slice.label}</span>
+            <span className="flex-1">{t(slice.label)}</span>
             <span className="tabular-nums">
               {formatStorageBytes(slice.bytes)}
             </span>

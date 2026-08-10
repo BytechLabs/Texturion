@@ -1,4 +1,10 @@
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
 import type { TaskDetail } from "@/lib/api/types";
+
+/** English, for a caller that has not been extracted yet. See `formatDue`. */
+const EN = makeTranslate(DEFAULT_LOCALE);
 
 /**
  * Delete-gating for the task detail panel (#89).
@@ -27,22 +33,38 @@ export function taskDeleteContent(
   return { notes, attachments, hasContent: notes > 0 || attachments > 0 };
 }
 
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
-}
-
 /**
  * A short phrase naming what the task carries, for the confirm copy — e.g.
  * "3 notes and 2 files", "a note", "2 files". Empty when there is nothing (the
  * no-friction path, where no confirm is shown at all).
+ *
+ * #228: the singular and the plural are two catalogue entries rather than a
+ * noun with an "s" bolted on, because that trick is English-only — French
+ * agrees the count and the noun differently, and a language with more than two
+ * number forms has nowhere to put them. `t` defaults to English so a caller
+ * that has not been extracted yet keeps saying exactly what it said before.
  */
-export function taskDeleteSummary(notes: number, attachments: number): string {
+export function taskDeleteSummary(
+  notes: number,
+  attachments: number,
+  t: Translate = EN,
+): string {
   const parts: string[] = [];
-  if (notes > 0) parts.push(notes === 1 ? "a note" : plural(notes, "note"));
+  if (notes > 0) {
+    parts.push(
+      notes === 1
+        ? t("tasks.deleteSummaryANote")
+        : t("tasks.deleteSummaryNotes", { count: notes }),
+    );
+  }
   if (attachments > 0) {
-    parts.push(attachments === 1 ? "a file" : plural(attachments, "file"));
+    parts.push(
+      attachments === 1
+        ? t("tasks.deleteSummaryAFile")
+        : t("tasks.deleteSummaryFiles", { count: attachments }),
+    );
   }
   if (parts.length === 0) return "";
   if (parts.length === 1) return parts[0];
-  return `${parts[0]} and ${parts[1]}`;
+  return t("tasks.deleteSummaryAnd", { first: parts[0], second: parts[1] });
 }

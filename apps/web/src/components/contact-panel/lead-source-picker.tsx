@@ -3,6 +3,7 @@
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useUpdateConversation } from "@/lib/api/conversations";
 import { activeSources, useLeadSources } from "@/lib/api/lead-sources";
@@ -43,6 +44,7 @@ export function LeadSourcePicker({
 }: {
   conversation: ConversationDetail;
 }) {
+  const t = useT();
   const sources = useLeadSources();
   const update = useUpdateConversation(conversation.id);
   const options = activeSources(sources.data?.data);
@@ -66,7 +68,9 @@ export function LeadSourcePicker({
       {
         onError: (cause) =>
           toast.error(
-            cause instanceof ApiError ? cause.message : "That could not be saved.",
+            cause instanceof ApiError
+              ? cause.message
+              : t("contacts.leadSourceSaveFailed"),
           ),
       },
     );
@@ -81,7 +85,7 @@ export function LeadSourcePicker({
         <p className="text-sm">
           {currentName}
           <span className="ml-1.5 text-[12px] text-app-muted-2">
-            · the line they called
+            {t("contacts.sourceFromLine")}
           </span>
         </p>
         <Chips
@@ -100,12 +104,12 @@ export function LeadSourcePicker({
         <p className="text-sm">
           {currentName}
           <span className="ml-1.5 text-[12px] text-app-muted-2">
-            · somebody said so
+            {t("contacts.sourceSaidSo")}
           </span>
         </p>
       ) : (
         <p className="text-[12px] text-app-muted-2">
-          Ask them: how did you hear about us?
+          {t("contacts.askHowTheyHeard")}
         </p>
       )}
       <Chips
@@ -129,6 +133,7 @@ function Chips({
   disabled: boolean;
   onChoose: (id: string | null) => void;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-wrap gap-1.5">
       {options.map((source) => {
@@ -162,7 +167,7 @@ function Chips({
           onClick={() => onChoose(null)}
           className="h-auto rounded-full px-2.5 py-1 text-[12px] text-muted-foreground"
         >
-          Don&apos;t know
+          {t("contacts.dontKnow")}
         </Button>
       )}
     </div>

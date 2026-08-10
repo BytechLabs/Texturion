@@ -12,6 +12,7 @@ import { useState } from "react";
 
 import { ReferralShare } from "@/components/settings/referral-share";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import {
   useDismissReferralAsk,
   useReferralMoment,
@@ -60,6 +61,7 @@ import { useActiveCompany } from "@/lib/company/provider";
  * removes itself, not furniture somebody has to arrange.
  */
 export function ReferralAsk() {
+  const t = useT();
   const { role } = useActiveCompany();
   // The reward is a month off the invoice. A tech cannot see the invoice, so an
   // offer of one is an offer we have no way to keep — and the endpoint is behind
@@ -108,7 +110,7 @@ export function ReferralAsk() {
               // The one place a wait is worth showing: they pressed a button and
               // are owed an answer about it.
               <p className="mt-3 text-[13px] text-app-muted">
-                Getting your link…
+                {t("inbox.referralGettingLink")}
               </p>
             )
           ) : (

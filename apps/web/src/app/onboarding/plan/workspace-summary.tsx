@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useOnboardingUpdateCompany } from "@/lib/api/onboarding";
 import { formatPhone } from "@/lib/format/phone";
@@ -62,6 +63,7 @@ export function WorkspaceSummary({
    */
   billingCurrency?: BillingCurrency;
 }) {
+  const t = useT();
   const update = useOnboardingUpdateCompany();
   const [editing, setEditing] = useState<null | "name" | "number">(null);
   const [nameDraft, setNameDraft] = useState(name);
@@ -96,14 +98,14 @@ export function WorkspaceSummary({
     setError(
       cause instanceof ApiError
         ? cause.message
-        : "Couldn't save that change. Try again in a moment.",
+        : t("onboarding.saveChangeFailed"),
     );
   }
 
   async function saveName() {
     const next = nameDraft.trim();
     if (next.length === 0) {
-      setError("Your workspace needs a name.");
+      setError(t("onboarding.workspaceNameRequired"));
       return;
     }
     if (next === name) {
@@ -134,7 +136,7 @@ export function WorkspaceSummary({
 
   async function saveNumber() {
     if (!draftChosen) {
-      setError("Pick a number to continue.");
+      setError(t("onboarding.pickNumberError"));
       return;
     }
     setError(null);
@@ -157,24 +159,27 @@ export function WorkspaceSummary({
 
   return (
     <div className="rounded-lg border border-border bg-card p-5">
-      <h2 className="text-[15px] font-medium">Your workspace</h2>
+      <h2 className="text-[15px] font-medium">
+        {t("onboarding.workspaceTitle")}
+      </h2>
       <p className="mt-1 text-[13px] text-muted-foreground">
-        You can still change these before you pay. They lock once your number is
-        set up.
+        {t("onboarding.workspaceHint")}
       </p>
 
       <dl className="mt-4 space-y-3">
         {/* Workspace name */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <dt className="text-[13px] text-muted-foreground">Workspace name</dt>
+            <dt className="text-[13px] text-muted-foreground">
+              {t("onboarding.workspaceNameLabel")}
+            </dt>
             {editing === "name" ? (
               <div className="mt-1 flex items-center gap-2">
                 <Input
                   value={nameDraft}
                   onChange={(e) => setNameDraft(e.target.value)}
                   className="h-9"
-                  aria-label="Workspace name"
+                  aria-label={t("onboarding.workspaceNameLabel")}
                   maxLength={200}
                   autoFocus
                 />
@@ -183,7 +188,7 @@ export function WorkspaceSummary({
                   onClick={() => void saveName()}
                   disabled={update.isPending}
                 >
-                  Save
+                  {t("common.save")}
                 </Button>
                 <Button
                   size="sm"
@@ -195,7 +200,7 @@ export function WorkspaceSummary({
                   }}
                   disabled={update.isPending}
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
               </div>
             ) : (
@@ -212,7 +217,7 @@ export function WorkspaceSummary({
                 setError(null);
               }}
             >
-              Edit
+              {t("onboarding.edit")}
             </Button>
           ) : null}
         </div>
@@ -223,17 +228,19 @@ export function WorkspaceSummary({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <dt className="text-[13px] text-muted-foreground">
-                  Your business number
+                  {t("onboarding.businessNumberLabel")}
                 </dt>
                 {editing !== "number" ? (
                   <dd className="mt-0.5 text-sm font-medium">
-                    {country === "US" ? "United States" : "Canada"}
+                    {country === "US"
+                      ? t("onboarding.countryUs")
+                      : t("onboarding.countryCa")}
                     {" · "}
                     <span className="tabular-nums">{numberLabel}</span>
                     {country === "CA" && usTexting ? (
                       <span className="text-muted-foreground">
                         {" "}
-                        · also texts US
+                        {t("onboarding.alsoTextsUs")}
                       </span>
                     ) : null}
                   </dd>
@@ -247,7 +254,9 @@ export function WorkspaceSummary({
                 }
                 disabled={update.isPending}
               >
-                {editing === "number" ? "Cancel" : "Change"}
+                {editing === "number"
+                  ? t("common.cancel")
+                  : t("onboarding.change")}
               </Button>
             </div>
 
@@ -255,7 +264,7 @@ export function WorkspaceSummary({
               <div className="mt-3 space-y-3">
                 <fieldset>
                   <legend className="text-[13px] text-muted-foreground">
-                    Country
+                    {t("onboarding.countryLegend")}
                   </legend>
                   <RadioGroup
                     value={draftCountry}
@@ -264,8 +273,8 @@ export function WorkspaceSummary({
                   >
                     {(
                       [
-                        ["US", "United States"],
-                        ["CA", "Canada"],
+                        ["US", t("onboarding.countryUs")],
+                        ["CA", t("onboarding.countryCa")],
                       ] as const
                     ).map(([value, label]) => (
                       <Label
@@ -308,10 +317,11 @@ export function WorkspaceSummary({
                       onChange={(e) => setDraftUsTexting(e.target.checked)}
                     />
                     <span>
-                      Also text customers with US numbers
+                      {t("onboarding.alsoTextUsLabel")}
                       <span className="mt-0.5 block text-[13px] text-muted-foreground">
-                        US texting needs a one-time {registrationFee} carrier
-                        registration.
+                        {t("onboarding.usTextingFeeShort", {
+                          fee: registrationFee,
+                        })}
                       </span>
                     </span>
                   </label>
@@ -322,7 +332,9 @@ export function WorkspaceSummary({
                   onClick={() => void saveNumber()}
                   disabled={update.isPending || !draftChosen}
                 >
-                  {update.isPending ? "Saving…" : "Save number"}
+                  {update.isPending
+                    ? t("common.saving")
+                    : t("onboarding.saveNumber")}
                 </Button>
               </div>
             ) : null}

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -41,6 +42,7 @@ import { LEAD_CHASE_WIDEN_MINUTES } from "@loonext/shared";
  * empty form.*
  */
 export function LeadChaseRow() {
+  const t = useT();
   const company = useCompany();
   const update = useUpdateCompany();
   const { role } = useActiveCompany();
@@ -58,7 +60,7 @@ export function LeadChaseRow() {
           const message =
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't save that. Try again.";
+              : t("settings.leadChaseSaveFailed");
           setError(message);
           toast.error(message);
         },
@@ -71,16 +73,16 @@ export function LeadChaseRow() {
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-0.5">
           <Label htmlFor="lead-chase-crew" className="text-sm font-medium">
-            Tell the whole crew after {LEAD_CHASE_WIDEN_MINUTES} minutes
+            {t("settings.leadChaseLabel", {
+              minutes: LEAD_CHASE_WIDEN_MINUTES,
+            })}
           </Label>
           <p className="text-sm text-muted-foreground">
-            When a conversation is assigned to one person and they still
-            haven&apos;t replied, notify everyone who can see it. Business hours
-            only, and never someone who has turned their own notifications off.{" "}
+            {t("settings.leadChaseHelp")}{" "}
             <span className="font-medium text-foreground">
-              This one is for the whole workspace, not just you
+              {t("settings.leadChaseScope")}
             </span>
-            {canEdit ? "." : " — only owners and admins can change it."}
+            {canEdit ? "." : t("settings.leadChaseAdminOnly")}
           </p>
         </div>
         <Switch

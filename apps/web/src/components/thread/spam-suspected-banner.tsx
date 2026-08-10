@@ -4,6 +4,7 @@ import { ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { useUpdateConversation } from "@/lib/api/conversations";
 import type { Conversation } from "@/lib/api/types";
 
@@ -41,6 +42,7 @@ export function SpamSuspectedBanner({
    */
   canAct: boolean;
 }) {
+  const t = useT();
   const update = useUpdateConversation(conversation.id);
 
   if (!conversation.spam_suspected_at) return null;
@@ -61,10 +63,9 @@ export function SpamSuspectedBanner({
           strokeWidth={1.75}
         />
         <div className="min-w-0 space-y-1">
-          <p className="text-sm font-medium">This looks like spam</p>
+          <p className="text-sm font-medium">{t("thread.spamTitle")}</p>
           <p className="text-[13px] text-muted-foreground">
-            We didn&apos;t send a notification for it. Nothing is hidden, and
-            you can reply as normal.
+            {t("thread.spamBody")}
           </p>
           {reasons.length > 0 && (
             <ul className="space-y-0.5 text-[13px] text-muted-foreground">
@@ -88,14 +89,13 @@ export function SpamSuspectedBanner({
             update.mutate(
               { spam_suspected: false },
               {
-                onSuccess: () => toast.success("Thanks. We won't flag this one."),
-                onError: () =>
-                  toast.error("Couldn't clear that just now. Try again."),
+                onSuccess: () => toast.success(t("thread.spamCleared")),
+                onError: () => toast.error(t("thread.spamClearFailed")),
               },
             );
           }}
         >
-          Not spam
+          {t("thread.notSpam")}
         </Button>
       )}
     </div>

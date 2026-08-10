@@ -4,6 +4,7 @@ import { useCallback } from "react";
 
 import { Turnstile } from "@/components/auth/turnstile";
 import { publicEnv } from "@/env";
+import { useT } from "@/i18n/provider";
 
 /**
  * Native-app captcha bridge (#166). The Android/iOS apps load this page in a
@@ -36,6 +37,7 @@ declare global {
 }
 
 export default function NativeCaptchaPage() {
+  const t = useT();
   const siteKey = publicEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
   const handleToken = useCallback((token: string | null) => {
@@ -50,7 +52,7 @@ export default function NativeCaptchaPage() {
         <Turnstile siteKey={siteKey} onToken={handleToken} />
       ) : (
         <p className="text-sm text-muted-foreground">
-          Captcha isn&apos;t configured in this environment.
+          {t("onboarding.captchaNotConfigured")}
         </p>
       )}
     </main>

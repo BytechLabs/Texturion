@@ -15,6 +15,7 @@ import { useNow } from "@/lib/use-now";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberReveal } from "@/components/ui/number-reveal";
+import { useT, type Translate } from "@/i18n/provider";
 import { trackCheckoutCompleted } from "@/lib/analytics/events";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
@@ -110,6 +111,7 @@ function ChecklistRow({
   order?: number;
   children?: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <li className="flex gap-4 py-5 first:pt-0 last:pb-0">
       <RowIcon status={status} order={order} />
@@ -123,10 +125,10 @@ function ChecklistRow({
           {title}
           <span className="sr-only">
             {status === "done"
-              ? ", done"
+              ? t("onboarding.rowDone")
               : status === "action"
-                ? ", needs your attention"
-                : ", in progress"}
+                ? t("onboarding.rowNeedsAttention")
+                : t("onboarding.rowInProgress")}
           </span>
         </p>
         {children}
@@ -145,6 +147,7 @@ function OtpRow({
   phoneLabel: string;
   canEnter: boolean;
 }) {
+  const t = useT();
   const verify = useOnboardingVerifyOtp();
   const resend = useOnboardingResendOtp();
   const [code, setCode] = useState("");
@@ -162,7 +165,7 @@ function OtpRow({
     setError(null);
     setNotice(null);
     if (!/^\d{6}$/.test(code)) {
-      setError("Enter the 6-digit code from the text.");
+      setError(t("onboarding.otpCodeError"));
       return;
     }
     try {
@@ -172,7 +175,7 @@ function OtpRow({
       setError(
         cause instanceof ApiError
           ? cause.message
-          : "Something went wrong on our end. Try again in a moment.",
+          : t("onboarding.genericError"),
       );
     }
   }
@@ -183,12 +186,12 @@ function OtpRow({
     try {
       await resend.mutateAsync({ companyId });
       setCooldown(60);
-      setNotice("We sent a new code. It's good for 24 hours.");
+      setNotice(t("onboarding.otpResent"));
     } catch (cause) {
       setError(
         cause instanceof ApiError
           ? cause.message
-          : "Something went wrong on our end. Try again in a moment.",
+          : t("onboarding.genericError"),
       );
     }
   }
@@ -209,7 +212,7 @@ function OtpRow({
               inputMode="numeric"
               autoComplete="one-time-code"
               placeholder="123456"
-              aria-label="Verification code"
+              aria-label={t("onboarding.otpAria")}
               className="w-32 tabular-nums"
             />
             <Button
@@ -218,7 +221,9 @@ function OtpRow({
               onClick={onVerify}
               disabled={verify.isPending}
             >
-              {verify.isPending ? "Checking…" : "Verify"}
+              {verify.isPending
+                ? t("onboarding.checking")
+                : t("onboarding.otpVerify")}
             </Button>
             <Button
               type="button"
@@ -227,7 +232,9 @@ function OtpRow({
               onClick={onResend}
               disabled={cooldown > 0 || resend.isPending}
             >
-              {cooldown > 0 ? `Resend code (${cooldown}s)` : "Resend code"}
+              {cooldown > 0
+                ? t("onboarding.otpResendIn", { seconds: cooldown })
+                : t("onboarding.otpResend")}
             </Button>
           </div>
           {error ? (
@@ -243,7 +250,7 @@ function OtpRow({
         </>
       ) : (
         <p className="text-[13px] text-muted-foreground">
-          Your account owner or an admin enters the code here.
+          {t("onboarding.otpOwnerOnly")}
         </p>
       )}
     </div>
@@ -251,8 +258,8 @@ function OtpRow({
 }
 
 /** Human date for the confirmed switch-over (mirrors the Settings port card). */
-function switchDate(iso: string | null): string {
-  if (!iso) return "your switch-over date";
+function switchDate(iso: string | null, t: Translate): string {
+  if (!iso) return t("onboarding.switchDateFallback");
   return new Date(iso).toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
@@ -273,6 +280,7 @@ function PortRow({
   item: PortChecklistItem;
   canAct: boolean;
 }) {
+  const t = useT();
   const { port, phase } = item;
 
   if (phase === "needs_documents" || phase === "needs_submit") {
@@ -306,11 +314,13 @@ function PortRow({
         </p>
         {canAct ? (
           <Button asChild variant="outline" size="sm">
-            <Link href="/settings/numbers">Fix and resubmit</Link>
+            <Link href="/settings/numbers">
+              {t("onboarding.fixAndResubmit")}
+            </Link>
           </Button>
         ) : (
           <p className="text-[13px] text-muted-foreground">
-            Ask an owner or admin to fix the flagged details and resubmit.
+            {t("onboarding.fixMemberNote")}
           </p>
         )}
       </div>
@@ -320,7 +330,7 @@ function PortRow({
   // Carrier-side phases — honest §9 copy, nothing for the user to do here.
   const body =
     phase === "date_confirmed"
-      ? PORT_STATE_COPY.focConfirmed(switchDate(port.foc_date))
+      ? PORT_STATE_COPY.focConfirmed(switchDate(port.foc_date, t))
       : phase === "texting_activating"
         ? PORT_STATE_COPY.numberSwitched
         : phase === "texting_delayed"
@@ -340,6 +350,7 @@ function PortRow({
 }
 
 function SettingUp() {
+  const t = useT();
   const state = useOnboardingState();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -496,14 +507,14 @@ function SettingUp() {
   const rejectionReason =
     (campaign?.status === "rejected"
       ? campaign.rejection_reason
-      : brand?.rejection_reason) ?? "the carrier flagged a detail";
+      : brand?.rejection_reason) ?? t("onboarding.rejectionFallback");
   const otpPending =
     brand?.sole_proprietor === true &&
     (brand.status === "submitted" || brand.status === "pending");
   const otpPhone =
     typeof brand?.data?.mobilePhone === "string"
       ? formatPhone(brand.data.mobilePhone)
-      : "your mobile";
+      : t("onboarding.yourMobileFallback");
   const canActOnRegistration = state.role === "owner" || state.role === "admin";
 
   const numberStatus: RowStatus = activeNumber
@@ -549,7 +560,9 @@ function SettingUp() {
         {/* §3.4: the hero line carries the app's ONE exclamation mark once the
             number lands (G10). */}
         <h1 className="app-hero-line">
-          {numberReady ? "Your number is ready!" : "Setting up your number"}
+          {numberReady
+            ? t("onboarding.numberReadyTitle")
+            : t("onboarding.settingUpTitle")}
         </h1>
         <p className="text-sm text-muted-foreground">
           {setupHeadline({ numberReady, everyRowDone, aRowNeedsYou })}
@@ -575,7 +588,7 @@ function SettingUp() {
           <ChecklistRow
             status={numberStatus}
             order={0}
-            title="Creating your number"
+            title={t("onboarding.rowCreatingNumber")}
           >
             {activeNumber?.number_e164 ? (
               // §3.4 number reveal via the tokens-track primitive: the
@@ -587,7 +600,7 @@ function SettingUp() {
               />
             ) : confirming ? (
               <p className="text-sm text-muted-foreground">
-                Confirming your payment. A few seconds.
+                {t("onboarding.confirmingPayment")}
               </p>
             ) : numberActionNeeded ? (
               <div className="space-y-2">
@@ -605,7 +618,7 @@ function SettingUp() {
                   href="/settings/numbers"
                   className="inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
                 >
-                  Choose your number
+                  {t("onboarding.chooseYourNumber")}
                 </Link>
               </div>
             ) : (
@@ -621,11 +634,11 @@ function SettingUp() {
         <ChecklistRow
           status={registrationStatus}
           order={1}
-          title="Registering your business with carriers"
+          title={t("onboarding.rowRegistering")}
         >
           {!owes ? (
             <p className="text-sm text-muted-foreground">
-              Not needed. Canadian texting works right away.
+              {t("onboarding.registrationNotNeeded")}
             </p>
           ) : campaignApproved ? (
             <p className="text-sm text-muted-foreground">
@@ -638,7 +651,9 @@ function SettingUp() {
               </p>
               {canActOnRegistration ? (
                 <Button asChild variant="outline" size="sm">
-                  <Link href="/settings/numbers">Fix and resubmit</Link>
+                  <Link href="/settings/numbers">
+                    {t("onboarding.fixAndResubmit")}
+                  </Link>
                 </Button>
               ) : null}
             </div>
@@ -655,14 +670,18 @@ function SettingUp() {
           )}
         </ChecklistRow>
 
-        <ChecklistRow status={inboxStatus} order={2} title="Inbox ready">
+        <ChecklistRow
+          status={inboxStatus}
+          order={2}
+          title={t("onboarding.rowInboxReady")}
+        >
           {activeNumber ? (
             <div className="space-y-3 animate-in fade-in duration-300 ease-out">
               <p className="text-sm text-muted-foreground">
-                Text your new number from your phone and watch it land.
+                {t("onboarding.inboxReadyHint")}
               </p>
               <Button asChild size="lg">
-                <Link href="/inbox">Open your inbox</Link>
+                <Link href="/inbox">{t("onboarding.openInbox")}</Link>
               </Button>
             </div>
           ) : (
@@ -671,12 +690,10 @@ function SettingUp() {
             // visible on every page.
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                You can start using Loonext now. Your inbox fills in the moment
-                your number is ready, and we&apos;ll keep you posted at the top
-                of every screen.
+                {t("onboarding.inboxWaitingHint")}
               </p>
               <Button asChild variant="outline" size="sm">
-                <Link href="/inbox">Open your inbox</Link>
+                <Link href="/inbox">{t("onboarding.openInbox")}</Link>
               </Button>
             </div>
           )}

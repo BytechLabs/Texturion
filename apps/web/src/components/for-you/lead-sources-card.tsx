@@ -42,6 +42,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT, type Translate } from "@/i18n/provider";
 import { useLeadSourceReport, type LeadSourceReport } from "@/lib/api/reports";
 
 /** How many sources get their own row before the rest are folded together. */
@@ -54,19 +55,27 @@ const TOP_N = 4;
  * that point "most of your work came from X" is simply false, and the table
  * says it better than a sentence would.
  */
-export function leadingSentence(report: LeadSourceReport): string | null {
+export function leadingSentence(
+  report: LeadSourceReport,
+  t: Translate,
+): string | null {
   const top = report.sources[0];
   if (!top) return null;
   const attributed = report.total - report.unknown;
   if (attributed === 0) return null;
   const share = top.total / attributed;
   if (share < 0.34) return null;
-  return `Most of the work you can account for came from ${top.name} — ${top.total} of ${attributed}.`;
+  return t("inbox.leadSourcesLeading", {
+    name: top.name,
+    count: top.total,
+    total: attributed,
+  });
 }
 
 /** The rows to render: the top few, then everything else as one. */
 export function visibleRows(
   report: LeadSourceReport,
+  t: Translate,
 ): { name: string; total: number }[] {
   const rows = report.sources
     .slice(0, TOP_N)
@@ -74,7 +83,7 @@ export function visibleRows(
   const rest = report.sources.slice(TOP_N);
   if (rest.length > 0) {
     rows.push({
-      name: `${rest.length} more`,
+      name: t("inbox.leadSourcesMore", { count: rest.length }),
       total: rest.reduce((sum, source) => sum + source.total, 0),
     });
   }
@@ -82,6 +91,7 @@ export function visibleRows(
 }
 
 export function LeadSourcesCard() {
+  const t = useT();
   const report = useLeadSourceReport(30);
 
   if (report.isLoading) {
@@ -103,21 +113,18 @@ export function LeadSourcesCard() {
       <section>
         <h2 className="flex items-baseline justify-between gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
           <span className="flex items-baseline gap-2">
-            Where your customers come from
+            {t("inbox.leadSourcesTitle")}
           </span>
         </h2>
         <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper p-4">
         <p className="text-sm text-muted-foreground">
-          You haven&apos;t told us yet. Put a source on the numbers you
-          advertise — the one on the truck, the one in the ad — and every call
-          and text to them is counted from then on, with nobody tapping
-          anything.
+          {t("inbox.leadSourcesNoneSetUp")}
         </p>
         <Link
           href="/settings/numbers"
           className="mt-2 inline-flex items-center gap-1 text-sm text-primary hover:underline"
         >
-          Set one up
+          {t("inbox.leadSourcesSetOneUp")}
           <ArrowRight className="size-3.5" />
         </Link>
         </div>
@@ -125,8 +132,8 @@ export function LeadSourcesCard() {
     );
   }
 
-  const headline = leadingSentence(data);
-  const rows = visibleRows(data);
+  const headline = leadingSentence(data, t);
+  const rows = visibleRows(data, t);
   const max = Math.max(...rows.map((row) => row.total), data.unknown, 1);
 
   return (
@@ -136,7 +143,7 @@ export function LeadSourcesCard() {
     <section>
       <h2 className="flex items-baseline justify-between gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
         <span className="flex items-baseline gap-2">
-          Where your customers come from
+          {t("inbox.leadSourcesTitle")}
         </span>
       </h2>
       <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper p-4">
@@ -158,12 +165,22 @@ export function LeadSourcesCard() {
           // A ROW, never a footnote. Left in the same list and the same scale
           // as the sources, because that is the only presentation in which an
           // owner can see it competing with them.
-          <Row name="Don't know" total={data.unknown} max={max} muted />
+          <Row
+            name={t("inbox.leadSourcesUnknown")}
+            total={data.unknown}
+            max={max}
+            muted
+          />
         )}
       </ul>
 
       <p className="mt-3 text-xs text-muted-foreground">
-        Last 30 days · {data.total} conversation{data.total === 1 ? "" : "s"}
+        {t(
+          data.total === 1
+            ? "inbox.leadSourcesFooterOne"
+            : "inbox.leadSourcesFooterMany",
+          { count: data.total },
+        )}
       </p>
       </div>
     </section>

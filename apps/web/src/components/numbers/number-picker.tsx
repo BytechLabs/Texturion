@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { areaCodeHint, searchAreaCodes } from "@/app/onboarding/area-codes";
+import { useT } from "@/i18n/provider";
 import { useAvailableNumbers } from "@/lib/api/numbers";
 import { formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
@@ -95,6 +96,7 @@ export function NumberPicker({
   selected?: string | null;
   onSelect: (value: string) => void;
 }) {
+  const t = useT();
   const [areaCode, setAreaCode] = useState<string | null>(initialAreaCode);
   const [query, setQuery] = useState("");
   const [bestEffort, setBestEffort] = useState(false);
@@ -138,15 +140,15 @@ export function NumberPicker({
       {/* Area code: an OPTIONAL filter, not a gate. */}
       {areaCode === null ? (
         <div className="space-y-2">
-          <Label htmlFor="np-area">Area code (optional)</Label>
+          <Label htmlFor="np-area">{t("misc.areaCodeLabel")}</Label>
           <Input
             id="np-area"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={
               country === "US"
-                ? "Denver or 720, or leave blank to browse all"
-                : "Toronto or 416"
+                ? t("misc.areaCodeSearchUs")
+                : t("misc.areaCodeSearchCa")
             }
             autoComplete="off"
             inputMode="search"
@@ -173,14 +175,16 @@ export function NumberPicker({
             </ul>
           ) : searchingAreaCode ? (
             <p className="text-[13px] text-muted-foreground">
-              No {country === "US" ? "US" : "Canadian"} area codes match that.
+              {country === "US"
+                ? t("misc.areaCodeNoMatchUs")
+                : t("misc.areaCodeNoMatchCa")}
             </p>
           ) : null}
         </div>
       ) : (
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-medium">
-            {hint ? hint.label : `Area code ${areaCode}`}
+            {hint ? hint.label : t("misc.areaCodeNamed", { code: areaCode })}
           </span>
           <Button
             variant="ghost"
@@ -191,7 +195,7 @@ export function NumberPicker({
               setDigits("");
             }}
           >
-            Change area code
+            {t("misc.areaCodeChange")}
           </Button>
         </div>
       )}
@@ -210,32 +214,32 @@ export function NumberPicker({
                 onChange={(e) =>
                   setDigits(e.target.value.replace(/\D/g, "").slice(0, 7))
                 }
-                placeholder="Digits you'd like (optional)"
+                placeholder={t("misc.digitsPlaceholder")}
                 inputMode="numeric"
-                aria-label="Filter by digits"
+                aria-label={t("misc.digitsFilterAria")}
                 className="h-9 flex-1"
               />
               <select
                 value={match}
                 onChange={(e) => setMatch(e.target.value as DigitMatch)}
-                aria-label="Where those digits appear"
+                aria-label={t("misc.digitsWhereAria")}
                 className="h-9 shrink-0 rounded-md border border-input bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <option value="anywhere">anywhere</option>
-                <option value="start">at start</option>
-                <option value="end">at end</option>
+                <option value="anywhere">{t("misc.digitsAnywhere")}</option>
+                <option value="start">{t("misc.digitsAtStart")}</option>
+                <option value="end">{t("misc.digitsAtEnd")}</option>
               </select>
             </div>
           ) : null}
 
           {list.isError ? (
             <p className="text-sm text-destructive">
-              Couldn&apos;t load numbers. Try Refresh in a moment.
+              {t("misc.numbersLoadFailed")}
             </p>
           ) : list.isPending ? (
             <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" aria-hidden />
-              Finding available numbers…
+              {t("misc.numbersFinding")}
             </div>
           ) : masked && areaCode ? (
             // Canada: Telnyx doesn't reveal the exact digits before order, so the
@@ -255,12 +259,10 @@ export function NumberPicker({
               <SelectDot on={selected === areaCode} />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">
-                  Get a number in area code {areaCode}
+                  {t("misc.numbersGetInAreaCode", { code: areaCode })}
                 </span>
                 <span className="mt-0.5 block text-[13px] text-muted-foreground">
-                  Canadian numbers are assigned the moment you finish setup, so
-                  the exact number isn&apos;t shown here — we&apos;ll give you a
-                  local {areaCode} number (or a nearby one).
+                  {t("misc.numbersMaskedInAreaCode", { code: areaCode })}
                 </span>
               </span>
             </button>
@@ -268,8 +270,7 @@ export function NumberPicker({
             // Canada with no area code chosen: masked numbers can't be browsed,
             // so guide the user to pick an area code above.
             <p className="text-sm text-muted-foreground">
-              Canadian numbers are assigned at setup, so pick an area code above
-              and we&apos;ll give you a local number in it.
+              {t("misc.numbersMaskedPickAreaCode")}
             </p>
           ) : filtered.length > 0 ? (
             <ul className="max-h-64 divide-y divide-border overflow-auto rounded-lg border">
@@ -308,22 +309,23 @@ export function NumberPicker({
             </ul>
           ) : digits && numbers.length > 0 ? (
             <p className="text-sm text-muted-foreground">
-              None of the available numbers{" "}
-              {match === "start"
-                ? "start with"
-                : match === "end"
-                  ? "end in"
-                  : "contain"}{" "}
-              {digits}. Try fewer digits, Refresh for a new batch, or turn on
-              nearby numbers.
+              {t("misc.numbersNoneMatchDigits", {
+                match:
+                  match === "start"
+                    ? t("misc.numbersMatchStart")
+                    : match === "end"
+                      ? t("misc.numbersMatchEnd")
+                      : t("misc.numbersMatchAnywhere"),
+                digits,
+              })}
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">
               {bestEffort
-                ? `No numbers available near area code ${areaCode ?? ""} right now. Try a different area code.`
+                ? t("misc.numbersNoneNearAreaCode", { code: areaCode ?? "" })
                 : areaCode
-                  ? `No numbers in area code ${areaCode} right now. Turn on nearby numbers, or try a different area code.`
-                  : "No numbers available right now. Refresh for a new batch, or turn on nearby numbers."}
+                  ? t("misc.numbersNoneInAreaCode", { code: areaCode })
+                  : t("misc.numbersNoneAtAll")}
             </p>
           )}
 
@@ -338,7 +340,7 @@ export function NumberPicker({
                   checked={bestEffort}
                   onChange={(e) => setBestEffort(e.target.checked)}
                 />
-                Show nearby numbers
+                {t("misc.numbersShowNearby")}
               </label>
               <Button
                 variant="outline"
@@ -350,7 +352,7 @@ export function NumberPicker({
                   className={cn("size-4", list.isFetching && "animate-spin")}
                   aria-hidden
                 />
-                Refresh
+                {t("misc.numbersRefresh")}
               </Button>
             </div>
           ) : null}

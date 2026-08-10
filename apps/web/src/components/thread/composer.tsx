@@ -45,6 +45,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ReplySuggestionChips } from "./reply-suggestion-chips";
+import { useT, type Translate } from "@/i18n/provider";
 import { useUploadNoteFiles } from "@/lib/api/attachments";
 import { useCompany } from "@/lib/api/companies";
 import {
@@ -154,11 +155,11 @@ const MAX_MENTIONS_PER_NOTE = 10;
  * field name. That is right for the wire and wrong on screen: the author reads
  * "mention_user_ids" and cannot tell which teammate to remove.
  */
-export function mentionAwareMessage(message: string): string {
+export function mentionAwareMessage(message: string, t: Translate): string {
   if (!message.startsWith("mention_user_ids")) return message;
   return message.includes("access to this conversation")
-    ? "One of the teammates you named can't see this conversation. Remove them and save again."
-    : `A note can name up to ${MAX_MENTIONS_PER_NOTE} teammates. Assign the thread if the whole crew needs it.`;
+    ? t("thread.mentionNoAccess")
+    : t("thread.mentionCap", { count: MAX_MENTIONS_PER_NOTE });
 }
 
 export function fileToBase64(file: File): Promise<string> {
@@ -185,11 +186,12 @@ export function AttachmentChips({
   attachments: DraftAttachment[];
   onRemove: (id: string) => void;
 }) {
+  const t = useT();
   if (attachments.length === 0) return null;
   return (
     <div className="mx-auto flex max-w-[42rem] flex-wrap items-center gap-2 px-1 pb-2">
       {attachments.map((attachment) => {
-        const name = attachment.file.name || "File";
+        const name = attachment.file.name || t("thread.fileFallbackName");
         if (attachment.previewUrl !== null) {
           return (
             <span key={attachment.id} className="relative">
@@ -203,7 +205,7 @@ export function AttachmentChips({
               <button
                 type="button"
                 onClick={() => onRemove(attachment.id)}
-                aria-label={`Remove ${name}`}
+                aria-label={t("thread.removeAria", { name })}
                 className="tap-target absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full border border-border bg-background text-foreground hover:bg-secondary"
               >
                 <X className="size-3" strokeWidth={1.75} />
@@ -227,7 +229,7 @@ export function AttachmentChips({
             <button
               type="button"
               onClick={() => onRemove(attachment.id)}
-              aria-label={`Remove ${name}`}
+              aria-label={t("thread.removeAria", { name })}
               className="tap-target flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-foreground"
             >
               <X className="size-3" strokeWidth={1.75} />
@@ -316,6 +318,7 @@ export function MediaErrors({ errors }: { errors: string[] }) {
  * *Applying: G10 (system states must be precise) and the Safety principle.*
  */
 export function UnsentNotice({ show }: { show: boolean }) {
+  const t = useT();
   if (!show) return null;
   return (
     <div
@@ -323,10 +326,7 @@ export function UnsentNotice({ show }: { show: boolean }) {
       aria-live="polite"
       className="mx-auto max-w-[42rem] px-1 pb-2"
     >
-      <p className="text-xs text-app-amber-ink">
-        This didn&rsquo;t send. Press send to try again. It won&rsquo;t send
-        twice.
-      </p>
+      <p className="text-xs text-app-amber-ink">{t("thread.unsentNotice")}</p>
     </div>
   );
 }
@@ -435,6 +435,7 @@ export function MergeFieldPreview({
   /** #393: the signature this send will carry, when it applies. */
   identificationSuffix?: string | null;
 }) {
+  const t = useT();
   // #393: a plain draft about to be SIGNED needs the preview too — otherwise
   // the one case where the sent text differs from the typed text without any
   // {token} to hint at it is the case with no preview at all.
@@ -444,7 +445,7 @@ export function MergeFieldPreview({
   return (
     <div className="text-xs text-muted-foreground">
       <p className="truncate">
-        Sends as:{" "}
+        {t("thread.sendsAs")}{" "}
         {appendIdentificationSuffix(
           applyMergeFields(text, {
             contactName,
@@ -516,6 +517,7 @@ export function Composer({
    */
   onTyping?: () => void;
 }) {
+  const t = useT();
   const send = useSendMessage(conversationId);
   const createNote = useCreateNote(conversationId);
   // Who the author PICKED. Ids never come from parsing the draft: two
@@ -725,9 +727,9 @@ export function Composer({
         }
         toast(suggestionFailureMessage(result.reason));
       },
-      onError: () => toast.error("Couldn't draft a reply. Try again."),
+      onError: () => toast.error(t("thread.draftReplyFailed")),
     });
-  }, [conversationId, lastActivityAt, suggestReplies, text]);
+  }, [conversationId, lastActivityAt, suggestReplies, text, t]);
 
   /**
    * #431: which of Lou's drafts (if any) was taken into the composer, kept in a ref
@@ -868,7 +870,7 @@ export function Composer({
             setWrapUpError(
               error instanceof ApiError
                 ? error.message
-                : "Couldn't send that recording. Check your connection, or type the note.",
+                : t("thread.wrapUpSendFailed"),
             );
             textareaRef.current?.focus();
           },
@@ -969,8 +971,8 @@ export function Composer({
         setWorkPhase(draftPhase);
         toast.error(
           error instanceof ApiError
-            ? mentionAwareMessage(error.message)
-            : "That note didn't save. Try again.",
+            ? mentionAwareMessage(error.message, t)
+            : t("thread.noteSaveFailed"),
         );
         return;
       }
@@ -997,8 +999,11 @@ export function Composer({
       // toaster fires this even if the composer already unmounted.
       toast.error(
         failed.length === draftFiles.length
-          ? "The note saved, but its files didn't upload. Re-attach them from the note's Files section."
-          : `The note saved, but ${failed.length} of ${draftFiles.length} files didn't upload. Re-attach them from the note's Files section.`,
+          ? t("thread.noteFilesAllFailed")
+          : t("thread.noteFilesSomeFailed", {
+              failed: failed.length,
+              total: draftFiles.length,
+            }),
       );
       return;
     }
@@ -1019,7 +1024,7 @@ export function Composer({
     } catch {
       setText(draftText);
       setAttachments(draftAttachments);
-      toast.error("Couldn't read that file. Try attaching it again.");
+      toast.error(t("thread.fileReadFailed"));
       return;
     }
     // Reuse the Idempotency-Key when this is a RETRY of the same text and
@@ -1075,7 +1080,7 @@ export function Composer({
           toast.error(
             error instanceof ApiError
               ? error.message
-              : "That didn't send. Check your connection and try again.",
+              : t("thread.sendFailedConnection"),
           );
         },
       },
@@ -1090,6 +1095,7 @@ export function Composer({
     createNote,
     noteStage,
     uploadNoteFiles,
+    t,
     // #507: the wrap-up outcome is reported against this company.
     companyId,
     // #294: NOT optional. Choosing a phase is often the LAST thing somebody does
@@ -1114,7 +1120,7 @@ export function Composer({
   };
 
   const onMentionPick = (member: { user_id: string; display_name: string }) => {
-    const name = member.display_name.trim() || "Teammate";
+    const name = member.display_name.trim() || t("thread.teammate");
     const field = textareaRef.current;
     const caret = field?.selectionStart ?? text.length;
     const next = insertMention(text, caret, name);
@@ -1124,7 +1130,7 @@ export function Composer({
       // note bounce with a validation string naming an internal field.
       if (prior.length >= MAX_MENTIONS_PER_NOTE) {
         toast.error(
-          `A note can name up to ${MAX_MENTIONS_PER_NOTE} teammates. Assign the thread if the whole crew needs it.`,
+          t("thread.mentionCap", { count: MAX_MENTIONS_PER_NOTE }),
         );
         return prior;
       }
@@ -1230,11 +1236,13 @@ export function Composer({
         setText("");
         setQuietConfirmFor(null);
         toast.success(
-          `Scheduled for ${new Date(sendAtIso).toLocaleString(undefined, {
-            weekday: "short",
-            hour: "numeric",
-            minute: "2-digit",
-          })}. You can cancel it any time before it goes.`,
+          t("thread.scheduledFor", {
+            when: new Date(sendAtIso).toLocaleString(undefined, {
+              weekday: "short",
+              hour: "numeric",
+              minute: "2-digit",
+            }),
+          }),
         );
       } catch (cause) {
         if (
@@ -1247,11 +1255,11 @@ export function Composer({
         toast.error(
           cause instanceof ApiError
             ? cause.message
-            : "That could not be scheduled. Try again.",
+            : t("thread.scheduleFailed"),
         );
       }
     },
-    [conversationId, schedule, text],
+    [conversationId, schedule, text, t],
   );
 
   return (
@@ -1277,7 +1285,7 @@ export function Composer({
         <div
           className="mx-auto mb-2 flex max-w-[42rem] gap-1"
           role="group"
-          aria-label="Composer mode"
+          aria-label={t("thread.composerModeAria")}
         >
           {(["sms", "note"] as const).map((m) => (
             <button
@@ -1295,7 +1303,7 @@ export function Composer({
                   : "text-app-muted hover:text-app-ink",
               )}
             >
-              {m === "sms" ? "Text" : "Note"}
+              {m === "sms" ? t("thread.modeText") : t("thread.modeNote")}
             </button>
           ))}
         </div>
@@ -1415,7 +1423,7 @@ export function Composer({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Attach files"
+                    aria-label={t("thread.attachFilesAria")}
                     onClick={openFilePicker}
                     disabled={attachDisabled}
                     className="rounded-full text-muted-foreground"
@@ -1424,7 +1432,7 @@ export function Composer({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Attach up to {MMS_MAX_MEDIA_ITEMS} files, 1 MB each
+                  {t("thread.attachTooltip", { count: MMS_MAX_MEDIA_ITEMS })}
                 </TooltipContent>
               </Tooltip>
               <Tooltip>
@@ -1433,14 +1441,14 @@ export function Composer({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Insert a saved reply"
+                    aria-label={t("thread.savedReplyAria")}
                     onClick={() => setPickerOpen(true)}
                     className="rounded-full text-muted-foreground"
                   >
                     <FileText className="size-5" strokeWidth={1.75} />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Saved replies, or type “/”</TooltipContent>
+                <TooltipContent>{t("thread.savedReplyTooltip")}</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -1449,7 +1457,9 @@ export function Composer({
                     variant="ghost"
                     size="icon-sm"
                     aria-label={
-                      text.trim() === "" ? "Draft with Lou" : "Finish with Lou"
+                      text.trim() === ""
+                        ? t("thread.draftWithLou")
+                        : t("thread.finishWithLou")
                     }
                     onClick={askForSuggestions}
                     disabled={suggestReplies.isPending}
@@ -1462,7 +1472,9 @@ export function Composer({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {text.trim() === "" ? "Draft with Lou" : "Finish with Lou"}
+                  {text.trim() === ""
+                    ? t("thread.draftWithLou")
+                    : t("thread.finishWithLou")}
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -1475,7 +1487,7 @@ export function Composer({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Add to message"
+                    aria-label={t("thread.addToMessageAria")}
                     className="rounded-full text-muted-foreground"
                   >
                     <Plus className="size-5" strokeWidth={1.75} />
@@ -1498,11 +1510,11 @@ export function Composer({
                     disabled={attachDisabled}
                   >
                     <Paperclip className="size-4" strokeWidth={1.75} aria-hidden />
-                    Attach a file
+                    {t("thread.attachAFile")}
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setPickerOpen(true)}>
                     <FileText className="size-4" strokeWidth={1.75} aria-hidden />
-                    Saved reply
+                    {t("thread.savedReply")}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={askForSuggestions}
@@ -1512,7 +1524,9 @@ export function Composer({
                       state={suggestReplies.isPending ? "thinking" : "idle"}
                       size={16}
                     />
-                    {text.trim() === "" ? "Draft with Lou" : "Finish with Lou"}
+                    {text.trim() === ""
+                      ? t("thread.draftWithLou")
+                      : t("thread.finishWithLou")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -1540,7 +1554,7 @@ export function Composer({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Attach files to this note"
+                    aria-label={t("thread.attachNoteFilesAria")}
                     onClick={() => noteFileRef.current?.click()}
                     disabled={noteAttachDisabled}
                     className="rounded-full text-muted-foreground"
@@ -1549,7 +1563,9 @@ export function Composer({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Attach up to {MAX_ATTACHMENTS_PER_OWNER} files, 25 MB each
+                  {t("thread.attachNoteTooltip", {
+                    count: MAX_ATTACHMENTS_PER_OWNER,
+                  })}
                 </TooltipContent>
               </Tooltip>
               {/* #507: dictating the wrap-up sits beside attaching a photo of
@@ -1599,8 +1615,10 @@ export function Composer({
           onKeyDown={onKeyDown}
           onPaste={onPaste}
           rows={1}
-          placeholder={isNote ? "Write an internal note…" : "Text message"}
-          aria-label={isNote ? "Internal note" : "Message"}
+          placeholder={
+            isNote ? t("thread.notePlaceholder") : t("thread.textPlaceholder")
+          }
+          aria-label={isNote ? t("thread.noteAria") : t("thread.messageAria")}
           className={cn(
             // 16px on mobile (iOS zoom lock, §3.1); generous vertical padding.
             "min-h-9 flex-1 resize-none border-0 bg-transparent px-2 py-2 text-[16px] leading-6 outline-none placeholder:text-muted-foreground focus-visible:ring-0 md:text-[15px]",
@@ -1636,7 +1654,9 @@ export function Composer({
               type="button"
               onClick={() => void requestSend()}
               disabled={!canSend}
-              aria-label={isNote ? "Save note" : "Send message"}
+              aria-label={
+                isNote ? t("thread.saveNoteAria") : t("thread.sendMessageAria")
+              }
               aria-keyshortcuts="Control+Enter Meta+Enter"
               className={cn(
                 "inline-flex items-center gap-1.5 px-3 active:translate-y-px",
@@ -1644,7 +1664,7 @@ export function Composer({
               )}
             >
               <span className="hidden sm:inline">
-                {isNote ? "Save" : "Send"}
+                {isNote ? t("common.save") : t("thread.send")}
               </span>
               <SendIcon className="size-[15px]" />
             </button>
@@ -1654,7 +1674,7 @@ export function Composer({
                   <button
                     type="button"
                     disabled={!canSend}
-                    aria-label="Send later"
+                    aria-label={t("thread.sendLaterAria")}
                     className="inline-flex items-center border-l border-white/25 px-1.5 hover:bg-app-olive-deep active:translate-y-px"
                   >
                     <ChevronDown className="size-[15px]" />
@@ -1712,13 +1732,13 @@ export function Composer({
       <Dialog open={confirmCollision} onOpenChange={setConfirmCollision}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Somebody already answered</DialogTitle>
+            <DialogTitle>{t("thread.alreadyAnsweredTitle")}</DialogTitle>
             <DialogDescription>
               {duplicateReplyPrompt(
                 collision.byUserId
                   ? members.data?.data.find(
                       (m) => m.user_id === collision.byUserId,
-                    )?.display_name ?? "A teammate"
+                    )?.display_name ?? t("thread.aTeammate")
                   : null,
                 newestOutbound
                   ? Math.max(
@@ -1729,12 +1749,12 @@ export function Composer({
                     )
                   : 0,
               )}{" "}
-              Send yours as well?
+              {t("thread.sendYoursAsWell")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setConfirmCollision(false)}>
-              Let me look
+              {t("thread.letMeLook")}
             </Button>
             <Button
               onClick={() => {
@@ -1742,7 +1762,7 @@ export function Composer({
                 void doSend();
               }}
             >
-              Send anyway
+              {t("thread.sendAnyway")}
             </Button>
           </DialogFooter>
         </DialogContent>

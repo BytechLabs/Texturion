@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT, type Translate } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { fetchMe, useUpdateDisplayName } from "@/lib/api/me";
 import { useAcceptInvite } from "@/lib/api/team";
@@ -20,7 +21,10 @@ type SessionState = "checking" | "authed" | "anonymous";
 /** Once authed: are we still checking the profile, asking for a name, or done. */
 type NameState = "checking" | "needs-name" | "ready";
 
-function inviteErrorCopy(error: unknown): {
+function inviteErrorCopy(
+  error: unknown,
+  t: Translate,
+): {
   title: string;
   body: string;
   wrongEmail: boolean;
@@ -28,29 +32,29 @@ function inviteErrorCopy(error: unknown): {
   if (error instanceof ApiError) {
     if (error.code === "forbidden") {
       return {
-        title: "This invite belongs to another email",
-        body: "Log in with the email address the invite was sent to, then open the link again.",
+        title: t("onboarding.inviteWrongEmailTitle"),
+        body: t("onboarding.inviteWrongEmailBody"),
         wrongEmail: true,
       };
     }
     if (error.code === "conflict") {
       return {
-        title: "This invite can't be used",
+        title: t("onboarding.inviteConflictTitle"),
         body: error.message,
         wrongEmail: false,
       };
     }
     if (error.code === "not_found") {
       return {
-        title: "This invite link doesn't work",
-        body: "It may have been revoked. Ask your team to send a new one.",
+        title: t("onboarding.inviteNotFoundTitle"),
+        body: t("onboarding.inviteNotFoundBody"),
         wrongEmail: false,
       };
     }
   }
   return {
-    title: "Something went wrong",
-    body: "We couldn't accept the invite. Check your connection and try again.",
+    title: t("onboarding.inviteErrorTitle"),
+    body: t("onboarding.inviteErrorBody"),
     wrongEmail: false,
   };
 }
@@ -62,6 +66,7 @@ function inviteErrorCopy(error: unknown): {
  * /inbox (G12). Signed-out visitors are sent through /login first.
  */
 export default function InviteAcceptPage() {
+  const t = useT();
   const params = useParams<{ token: string }>();
   const token = params.token;
   const router = useRouter();
@@ -158,7 +163,7 @@ export default function InviteAcceptPage() {
         setNameState("ready");
         acceptInvite.current();
       },
-      onError: () => toast.error("Couldn't save your name. Try again."),
+      onError: () => toast.error(t("onboarding.saveNameFailed")),
     });
   }
 
@@ -176,7 +181,9 @@ export default function InviteAcceptPage() {
       <div className="space-y-3">
         <Skeleton className="h-7 w-44" />
         <Skeleton className="h-4 w-full" />
-        <p className="text-sm text-muted-foreground">Opening your invite…</p>
+        <p className="text-sm text-muted-foreground">
+          {t("onboarding.openingInvite")}
+        </p>
       </div>
     );
   }
@@ -185,24 +192,23 @@ export default function InviteAcceptPage() {
     return (
       <div className="space-y-4">
         <h1 className="text-2xl font-semibold tracking-tight">
-          You&apos;re invited
+          {t("onboarding.invitedTitle")}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Log in to join your team&apos;s shared inbox. Use the email address
-          this invite was sent to.
+          {t("onboarding.invitedBody")}
         </p>
         <Button asChild className="w-full">
           <Link href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}>
-            Log in to accept
+            {t("onboarding.loginToAccept")}
           </Link>
         </Button>
         <p className="text-sm text-muted-foreground">
-          No password yet?{" "}
+          {t("onboarding.noPasswordYet")}{" "}
           <Link
             href="/reset-password"
             className="font-medium text-primary underline-offset-4 hover:underline"
           >
-            Set one here
+            {t("onboarding.setOneHere")}
           </Link>
           .
         </p>
@@ -216,14 +222,14 @@ export default function InviteAcceptPage() {
       <form onSubmit={submitName} className="space-y-4">
         <div className="space-y-1.5">
           <h1 className="text-2xl font-semibold tracking-tight">
-            What&apos;s your name?
+            {t("onboarding.whatsYourName")}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Your teammates will see this on messages, notes, and tasks.
+            {t("onboarding.nameForTeammates")}
           </p>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="invite-name">Your name</Label>
+          <Label htmlFor="invite-name">{t("onboarding.yourNameLabel")}</Label>
           <Input
             id="invite-name"
             autoFocus
@@ -231,7 +237,7 @@ export default function InviteAcceptPage() {
             value={name}
             onChange={(event) => setName(event.target.value)}
             maxLength={80}
-            placeholder="Alex Rivera"
+            placeholder={t("onboarding.inviteNamePlaceholder")}
           />
         </div>
         <Button
@@ -239,25 +245,27 @@ export default function InviteAcceptPage() {
           className="w-full"
           disabled={name.trim() === "" || updateName.isPending}
         >
-          {updateName.isPending ? "Joining…" : "Continue"}
+          {updateName.isPending
+            ? t("onboarding.joining")
+            : t("onboarding.continue")}
         </Button>
       </form>
     );
   }
 
   if (accept.isError) {
-    const copy = inviteErrorCopy(accept.error);
+    const copy = inviteErrorCopy(accept.error, t);
     return (
       <div className="space-y-4">
         <h1 className="text-2xl font-semibold tracking-tight">{copy.title}</h1>
         <p className="text-sm text-muted-foreground">{copy.body}</p>
         {copy.wrongEmail ? (
           <Button onClick={() => void signOutAndLogin()} className="w-full">
-            Log in with a different email
+            {t("onboarding.loginDifferentEmail")}
           </Button>
         ) : (
           <Button asChild variant="outline" className="w-full">
-            <Link href="/login">Back to log in</Link>
+            <Link href="/login">{t("onboarding.backToLogin")}</Link>
           </Button>
         )}
       </div>
@@ -268,7 +276,9 @@ export default function InviteAcceptPage() {
     <div className="space-y-3">
       <Skeleton className="h-7 w-44" />
       <Skeleton className="h-4 w-full" />
-      <p className="text-sm text-muted-foreground">Joining your team…</p>
+      <p className="text-sm text-muted-foreground">
+        {t("onboarding.joiningTeam")}
+      </p>
     </div>
   );
 }

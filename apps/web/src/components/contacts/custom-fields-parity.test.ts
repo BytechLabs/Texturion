@@ -23,7 +23,19 @@ import {
 
 import { describe, expect, it } from "vitest";
 
+import { contactsEn } from "@/i18n/sections/contacts";
+
 import { parityCode } from "./parity-source";
+
+/**
+ * #228 — web's answer states live in the catalogue now. The KEYS are listed
+ * rather than the whole section: a join of every sentence turns each assertion
+ * into a substring search over unrelated copy, which is how the sibling
+ * contact-filter guard passed with its chip renamed.
+ */
+const WEB_WORDS = [contactsEn.notAsked, contactsEn.notSet, contactsEn.yes, contactsEn.no].join(
+  "\n",
+);
 
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
 
@@ -158,8 +170,9 @@ describe("#291 the contact fields read the same everywhere", () => {
     // A yes/no field that has never been answered is not a no. Collapsing the
     // two makes somebody ask a customer a question they already answered.
     for (const [platform, path] of Object.entries(VALUE_SURFACES)) {
-      expect(code(path), `${platform}: Not asked`).toContain("Not asked");
-      expect(code(path), `${platform}: Not set`).toContain("Not set");
+      const text = platform === "web" ? WEB_WORDS : code(path);
+      expect(text, `${platform}: Not asked`).toContain("Not asked");
+      expect(text, `${platform}: Not set`).toContain("Not set");
     }
   });
 });

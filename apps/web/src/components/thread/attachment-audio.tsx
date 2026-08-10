@@ -2,6 +2,7 @@
 
 import { Download, FileMusic } from "lucide-react";
 
+import { useT } from "@/i18n/provider";
 import { useAttachmentUrl } from "@/lib/api/attachments";
 import type { AttachmentSummary } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ export function AttachmentAudio({
   /** Whose clip this is, for the accessible name ("Voice message from Dana"). */
   fromLabel: string;
 }) {
+  const t = useT();
   // #240: audio never has a preview, and a player needs the whole file. Said
   // explicitly so the default cannot quietly change underneath it.
   const url = useAttachmentUrl(attachment.id, true, "original");
@@ -41,13 +43,13 @@ export function AttachmentAudio({
     return (
       <div className="flex items-center gap-2.5 rounded-lg border border-border bg-muted/50 px-3 py-2 text-muted-foreground">
         <FileMusic className="size-4 shrink-0" strokeWidth={1.75} aria-hidden />
-        <span className="text-sm">Audio message</span>
+        <span className="text-sm">{t("thread.audioMessage")}</span>
         <button
           type="button"
           onClick={() => url.refetch()}
           className="text-xs underline-offset-2 hover:underline"
         >
-          Didn&apos;t load. Retry
+          {t("thread.didntLoadRetry")}
         </button>
       </div>
     );
@@ -64,7 +66,7 @@ export function AttachmentAudio({
       <div className="flex items-center gap-2 text-muted-foreground">
         <FileMusic className="size-4 shrink-0" strokeWidth={1.75} aria-hidden />
         <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
-          Audio message
+          {t("thread.audioMessage")}
         </span>
         {size && (
           <span className="shrink-0 text-[11px] tabular-nums">{size}</span>
@@ -74,7 +76,7 @@ export function AttachmentAudio({
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label={`Download audio message ${fromLabel}`}
+            aria-label={t("thread.downloadAudioAria", { from: fromLabel })}
             className="shrink-0 rounded-md p-0.5 transition-colors duration-150 ease-out hover:text-foreground"
           >
             <Download className="size-4" strokeWidth={1.75} aria-hidden />
@@ -88,7 +90,7 @@ export function AttachmentAudio({
           controls
           preload="none"
           src={href}
-          aria-label={`Audio message ${fromLabel}`}
+          aria-label={t("thread.audioMessageAria", { from: fromLabel })}
           className="w-full"
         />
       ) : (

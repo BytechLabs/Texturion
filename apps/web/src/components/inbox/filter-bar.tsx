@@ -17,6 +17,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useT } from "@/i18n/provider";
 import { useConversations } from "@/lib/api/conversations";
 import { flattenPages } from "@/lib/api/pagination";
 import { useTags } from "@/lib/api/tags";
@@ -38,7 +39,7 @@ import {
   OPEN_COUNT_CAP,
   OPEN_COUNT_FILTERS,
   segmentOf,
-  STATUS_CHIP_LABELS,
+  STATUS_CHIP_KEYS,
   type InboxUrlFilters,
   type SecondaryFilterKey,
 } from "./filter-url";
@@ -62,6 +63,7 @@ export function FilterBar({
   filters: InboxUrlFilters;
   onChange: (next: InboxUrlFilters) => void;
 }) {
+  const t = useT();
   const segment = segmentOf(filters);
   const openCount = useOpenCount();
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -92,7 +94,7 @@ export function FilterBar({
           segments (Open/Mine/All/Closed), just crafted. */}
       <div
         role="tablist"
-        aria-label="Conversation status"
+        aria-label={t("inbox.statusTablistAria")}
         aria-disabled={searching || undefined}
         onKeyDown={onTablistKeyDown}
         className={cn(
@@ -100,7 +102,7 @@ export function FilterBar({
           searching && "opacity-45",
         )}
       >
-        {INBOX_SEGMENTS.map(({ id, label }, index) => {
+        {INBOX_SEGMENTS.map(({ id, labelKey }, index) => {
           const selected = segment === id;
           const countLabel =
             id === "open" ? formatOpenCount(openCount) : "";
@@ -124,14 +126,18 @@ export function FilterBar({
                   : "font-medium text-app-muted hover:text-app-ink",
               )}
             >
-              {label}
+              {t(labelKey)}
               {countLabel !== "" && (
                 // Quiet stone count on Open only, shown when > 0, capped 9+
                 // (issue #64 / APP-UI-ELEVATION §2.1: petrol in this region is
                 // reserved for the compose action, never a count).
                 <span
                   className="grid h-4 min-w-4 place-items-center rounded-full bg-app-line-soft px-1 text-[10.5px] font-semibold tabular-nums text-app-muted"
-                  aria-label={`${openCount > OPEN_COUNT_CAP ? `over ${OPEN_COUNT_CAP}` : openCount} open`}
+                  aria-label={
+                    openCount > OPEN_COUNT_CAP
+                      ? t("inbox.openCountOverAria", { cap: OPEN_COUNT_CAP })
+                      : t("inbox.openCountAria", { count: openCount })
+                  }
                 >
                   {countLabel}
                 </span>
@@ -145,7 +151,7 @@ export function FilterBar({
         // Said once, quietly, instead of leaving the row above to imply
         // otherwise. It names what search DOES rather than what it ignores.
         <p className="px-0.5 text-[11px] text-app-muted">
-          Search looks through every conversation, so these filters are paused.
+          {t("inbox.searchPausesFilters")}
         </p>
       )}
     </div>
@@ -176,6 +182,7 @@ function SearchField({
   filters: InboxUrlFilters;
   onChange: (next: InboxUrlFilters) => void;
 }) {
+  const t = useT();
   const [searchText, setSearchText] = useState(filters.q ?? "");
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -222,8 +229,8 @@ function SearchField({
         type="search"
         value={searchText}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search conversations"
-        aria-label="Search conversations and contacts"
+        placeholder={t("inbox.searchPlaceholder")}
+        aria-label={t("inbox.searchAria")}
         className="h-9 pl-8 pr-8"
       />
       {searchText !== "" && (
@@ -235,7 +242,7 @@ function SearchField({
             // back to the input so keyboard users don't get dropped to <body>.
             inputRef.current?.focus();
           }}
-          aria-label="Clear search"
+          aria-label={t("inbox.clearSearchAria")}
           className="tap-target absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <X className="size-3.5" strokeWidth={1.75} />
@@ -261,6 +268,7 @@ function ChipRow({
   onChange: (next: InboxUrlFilters) => void;
   disabled: boolean;
 }) {
+  const t = useT();
   const chips = activeChips(filters);
   const tags = useTags();
   const members = useMembers();
@@ -270,24 +278,29 @@ function ChipRow({
       case "status":
         // #548: only ever a status the segments cannot show, so the word alone
         // would sit beside four tabs meaning the same kind of thing.
-        return `Status: ${
-          value ? STATUS_CHIP_LABELS[value as ConversationStatus] : "set"
-        }`;
+        return t("inbox.statusChipLabel", {
+          label: value
+            ? t(STATUS_CHIP_KEYS[value as ConversationStatus])
+            : t("inbox.statusChipUnset"),
+        });
       case "assignee":
         return (
           members.data?.data.find((m) => m.user_id === value)?.display_name ||
-          "Assignee"
+          t("inbox.chipAssignee")
         );
       case "tag":
-        return tags.data?.data.find((t) => t.id === value)?.name ?? "Tag";
+        return (
+          tags.data?.data.find((tag) => tag.id === value)?.name ??
+          t("inbox.chipTag")
+        );
       case "unread":
-        return "Unread";
+        return t("inbox.chipUnread");
       case "spam":
-        return "Spam";
+        return t("inbox.chipSpam");
       case "snoozed":
-        return "Snoozed";
+        return t("inbox.chipSnoozed");
       case "awaiting":
-        return "Unanswered";
+        return t("inbox.chipUnanswered");
     }
   };
 
@@ -327,7 +340,7 @@ function ChipRow({
           onClick={() => onChange(clearAllFilters())}
           className="tap-target inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium text-app-muted underline decoration-app-line underline-offset-2 transition-colors duration-150 ease-out hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          Clear all
+          {t("inbox.clearAll")}
         </button>
       )}
     </div>
@@ -344,6 +357,7 @@ function Chip({
   onRemove: () => void;
   disabled: boolean;
 }) {
+  const t = useT();
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-secondary py-0.5 pl-2 pr-1 text-[11px] font-medium text-secondary-foreground">
       {label}
@@ -351,7 +365,7 @@ function Chip({
         type="button"
         onClick={onRemove}
         disabled={disabled}
-        aria-label={`Remove ${label} filter`}
+        aria-label={t("inbox.removeFilterAria", { label })}
         className="tap-target rounded-full p-0.5 text-muted-foreground transition-colors duration-150 ease-out hover:bg-background hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <X className="size-3" strokeWidth={1.75} />
@@ -377,6 +391,7 @@ function FilterPopover({
   onChange: (next: InboxUrlFilters) => void;
   disabled: boolean;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const tags = useTags();
   const members = useMembers();
@@ -403,11 +418,11 @@ function FilterPopover({
         <button
           type="button"
           disabled={disabled}
-          aria-label="Add filter"
+          aria-label={t("inbox.addFilterAria")}
           className="tap-target inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <ListFilter className="size-3" strokeWidth={1.75} aria-hidden />
-          Filter
+          {t("inbox.filterAction")}
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -423,24 +438,24 @@ function FilterPopover({
             return haystack.includes(search.toLowerCase().trim()) ? 1 : 0;
           }}
         >
-          <CommandInput placeholder="Filter by…" />
+          <CommandInput placeholder={t("inbox.filterByPlaceholder")} />
           <CommandList>
-            <CommandEmpty>No filters.</CommandEmpty>
-            <CommandGroup heading="Assignee">
+            <CommandEmpty>{t("inbox.filterNone")}</CommandEmpty>
+            <CommandGroup heading={t("inbox.filterGroupAssignee")}>
               {assignableMembers.map((m) => {
                 const active = filters.assignee === m.user_id;
                 return (
                   <CommandItem
                     key={m.user_id}
                     value={`assignee-${m.user_id}`}
-                    keywords={[m.display_name || "teammate"]}
+                    keywords={[m.display_name || t("inbox.teammateFallback")]}
                     onSelect={() =>
                       set("assignee", active ? undefined : m.user_id)
                     }
                   >
                     <span className="truncate">
-                      {m.display_name || "Teammate"}
-                      {m.user_id === userId ? " (you)" : ""}
+                      {m.display_name || t("inbox.teammateFallback")}
+                      {m.user_id === userId ? t("inbox.youSuffix") : ""}
                     </span>
                     {active && (
                       <Check
@@ -453,7 +468,7 @@ function FilterPopover({
               })}
             </CommandGroup>
             {availableTags.length > 0 && (
-              <CommandGroup heading="Tag">
+              <CommandGroup heading={t("inbox.filterGroupTag")}>
                 {availableTags.map((tag) => {
                   const active = filters.tag === tag.id;
                   return (
@@ -475,7 +490,7 @@ function FilterPopover({
                 })}
               </CommandGroup>
             )}
-            <CommandGroup heading="More">
+            <CommandGroup heading={t("inbox.filterGroupMore")}>
               {/* #508: first in the group, because it is the one filter here
                   that names money leaving. It is also the destination the
                   response-time card links to, and a destination reachable only
@@ -483,7 +498,11 @@ function FilterPopover({
                   learns exists. */}
               <CommandItem
                 value="awaiting"
+                // The reader's own word first, then the English aliases: cmdk
+                // matches on this list, so a French crew that never sees the
+                // word "unanswered" still has to be able to type what they see.
                 keywords={[
+                  t("inbox.chipUnanswered"),
                   "unanswered",
                   "awaiting",
                   "needs reply",
@@ -494,7 +513,7 @@ function FilterPopover({
                   set("awaiting", filters.awaiting ? undefined : true)
                 }
               >
-                <span>Unanswered</span>
+                <span>{t("inbox.chipUnanswered")}</span>
                 {filters.awaiting && (
                   <Check
                     className="ml-auto size-4 text-primary"
@@ -504,12 +523,12 @@ function FilterPopover({
               </CommandItem>
               <CommandItem
                 value="unread"
-                keywords={["unread"]}
+                keywords={[t("inbox.chipUnread"), "unread"]}
                 onSelect={() =>
                   set("unread", filters.unread ? undefined : true)
                 }
               >
-                <span>Unread</span>
+                <span>{t("inbox.chipUnread")}</span>
                 {filters.unread && (
                   <Check
                     className="ml-auto size-4 text-primary"
@@ -519,10 +538,10 @@ function FilterPopover({
               </CommandItem>
               <CommandItem
                 value="spam"
-                keywords={["spam"]}
+                keywords={[t("inbox.chipSpam"), "spam"]}
                 onSelect={() => set("spam", filters.spam ? undefined : true)}
               >
-                <span>Spam</span>
+                <span>{t("inbox.chipSpam")}</span>
                 {filters.spam && (
                   <Check
                     className="ml-auto size-4 text-primary"
@@ -536,12 +555,18 @@ function FilterPopover({
                   population in the inbox already lives. */}
               <CommandItem
                 value="snoozed"
-                keywords={["snoozed", "snooze", "later", "deferred"]}
+                keywords={[
+                  t("inbox.chipSnoozed"),
+                  "snoozed",
+                  "snooze",
+                  "later",
+                  "deferred",
+                ]}
                 onSelect={() =>
                   set("snoozed", filters.snoozed ? undefined : true)
                 }
               >
-                <span>Snoozed</span>
+                <span>{t("inbox.chipSnoozed")}</span>
                 {filters.snoozed && (
                   <Check
                     className="ml-auto size-4 text-primary"

@@ -10,6 +10,7 @@ import { Play } from "lucide-react";
 import { useState } from "react";
 
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
+import { useT, type Translate } from "@/i18n/provider";
 import { useVoicemailUrl } from "@/lib/api/calls";
 import { formatCallDuration } from "@/lib/format/call";
 
@@ -29,6 +30,7 @@ export function VoicemailPlayer({
    */
   showTranscript?: boolean;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const voicemail = useVoicemailUrl(callSessionId, open);
 
@@ -41,7 +43,7 @@ export function VoicemailPlayer({
           autoPlay
           preload="auto"
           className="h-8 w-full max-w-[280px]"
-          aria-label="Voicemail recording"
+          aria-label={t("shell.voicemailRecording")}
         />
         {/* A recording from before transcription existed, or one whose
             transcription failed at the time, gets its words on first open. */}
@@ -74,22 +76,29 @@ export function VoicemailPlayer({
     >
       <Play className="size-3.5" strokeWidth={1.75} aria-hidden />
       {voicemail.isFetching
-        ? "Loading…"
+        ? t("shell.loading")
         : voicemail.isError
-          ? "Couldn't load — retry"
-          : `Play voicemail${seconds ? ` (${formatCallDuration(seconds)})` : ""}`}
+          ? t("shell.voicemailLoadFailed")
+          : seconds
+            ? t("shell.playVoicemailWithLength", {
+                duration: formatCallDuration(seconds),
+              })
+            : t("shell.playVoicemail")}
     </button>
   );
 }
 
 /** D43: honest screening label from the raw carrier verdict — mirrors the
  *  server's flag vocabulary; unknown strings show nothing (never cry wolf). */
-export function screeningLabel(result: string | null): string | null {
+export function screeningLabel(
+  result: string | null,
+  t: Translate,
+): string | null {
   if (!result) return null;
   const value = result.toLowerCase();
   if (value.includes("no_flag") || value.includes("clean")) return null;
   if (["spam", "fraud", "scam", "robo", "flag", "spoof"].some((m) => value.includes(m))) {
-    return "Spam likely";
+    return t("shell.spamLikely");
   }
   return null;
 }

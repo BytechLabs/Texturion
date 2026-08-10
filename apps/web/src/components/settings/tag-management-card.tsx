@@ -23,6 +23,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useT } from "@/i18n/provider";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useMergeTags, useTagUsage, useUpdateTag, type TagUsage } from "@/lib/api/tags";
@@ -53,6 +54,7 @@ import { formatRelativeTime } from "@/lib/format/time";
  * "merge A into B" is exactly the phrasing people get backwards.
  */
 export function TagManagementCard({ canManage }: { canManage: boolean }) {
+  const t = useT();
   const usage = useTagUsage();
   const [merging, setMerging] = useState<TagUsage | null>(null);
 
@@ -66,8 +68,8 @@ export function TagManagementCard({ canManage }: { canManage: boolean }) {
     <>
       {canManage && <TagLockCard />}
       <SettingsCard
-        title="Tags"
-        description="What the crew has been tagging, and how often. The quiet ones at the bottom are usually duplicates of something above."
+        title={t("settingsMore.tagsTitle")}
+        description={t("settingsMore.tagsDescription")}
       >
         <ul className="divide-y divide-border">
           {rows.map((row) => (
@@ -116,6 +118,7 @@ function TagUsageRow({
   canMerge: boolean;
   onMerge: () => void;
 }) {
+  const t = useT();
   const update = useUpdateTag();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(row.description ?? "");
@@ -129,7 +132,9 @@ function TagUsageRow({
         onSuccess: () => setEditing(false),
         onError: (cause) =>
           setError(
-            cause instanceof ApiError ? cause.message : "Couldn't save that.",
+            cause instanceof ApiError
+              ? cause.message
+              : t("settingsMore.saveThatFailed"),
           ),
       },
     );
@@ -141,12 +146,17 @@ function TagUsageRow({
         <span className="min-w-0 flex-1 truncate text-sm">{row.name}</span>
         <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
           {row.uses === 0
-            ? "never used"
-            : `${row.uses} ${row.uses === 1 ? "thread" : "threads"}`}
+            ? t("settingsMore.tagNeverUsed")
+            : row.uses === 1
+              ? t("settingsMore.tagUsesOne", { count: row.uses })
+              : t("settingsMore.tagUsesMany", { count: row.uses })}
           {/* Last used, beside the count: a tag with forty uses and nothing
               since March is a category the crew has stopped believing in, and
               the count alone cannot say that. */}
-          {row.last_used !== null && ` · last ${formatRelativeTime(row.last_used)}`}
+          {row.last_used !== null &&
+            t("settingsMore.tagLastUsed", {
+              when: formatRelativeTime(row.last_used),
+            })}
         </span>
         {canManage && (
           <Button
@@ -158,8 +168,8 @@ function TagUsageRow({
             // about to write the first description or change an existing one.
             aria-label={
               row.description === null || row.description === ""
-                ? `Describe ${row.name}`
-                : `Edit the description for ${row.name}`
+                ? t("settingsMore.tagDescribeAria", { name: row.name })
+                : t("settingsMore.tagEditDescriptionAria", { name: row.name })
             }
             onClick={() => {
               setDraft(row.description ?? "");
@@ -177,7 +187,7 @@ function TagUsageRow({
             onClick={onMerge}
           >
             <Merge className="size-3.5" strokeWidth={1.75} aria-hidden />
-            Merge
+            {t("settingsMore.tagMerge")}
           </Button>
         )}
       </div>
@@ -188,7 +198,7 @@ function TagUsageRow({
             value={draft}
             maxLength={200}
             autoFocus
-            placeholder="What does this one mean?"
+            placeholder={t("settingsMore.tagDescriptionPlaceholder")}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") save();
@@ -197,7 +207,7 @@ function TagUsageRow({
             className="h-8 text-sm"
           />
           <Button size="sm" className="h-8" disabled={update.isPending} onClick={save}>
-            Save
+            {t("common.save")}
           </Button>
         </div>
       ) : (
@@ -225,6 +235,7 @@ function MergeDialog({
   others: TagUsage[];
   onClose: () => void;
 }) {
+  const t = useT();
   const merge = useMergeTags();
   const [into, setInto] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
@@ -242,17 +253,18 @@ function MergeDialog({
     <Dialog open={from !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Merge &ldquo;{from?.name}&rdquo; into another tag</DialogTitle>
+          <DialogTitle>
+            {t("settingsMore.tagMergeTitle", { name: from?.name ?? "" })}
+          </DialogTitle>
           <DialogDescription>
-            Every conversation tagged &ldquo;{from?.name}&rdquo; keeps its place
-            under the tag you pick, and this one goes away. Nothing is untagged.
+            {t("settingsMore.tagMergeBody", { name: from?.name ?? "" })}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-2">
           <Select value={into} onValueChange={setInto}>
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Keep which tag?" />
+              <SelectValue placeholder={t("settingsMore.tagMergeKeepWhich")} />
             </SelectTrigger>
             <SelectContent>
               {others.map((tag) => (
@@ -267,9 +279,17 @@ function MergeDialog({
             // is ambiguous to almost everybody; a sentence naming what survives
             // is not.
             <p className="text-[13px] text-muted-foreground">
-              {from.uses} {from.uses === 1 ? "thread" : "threads"} moves to
-              &ldquo;{target.name}&rdquo;. &ldquo;{from.name}&rdquo; stops
-              existing.
+              {from.uses === 1
+                ? t("settingsMore.tagMergeOutcomeOne", {
+                    count: from.uses,
+                    into: target.name,
+                    name: from.name,
+                  })
+                : t("settingsMore.tagMergeOutcomeMany", {
+                    count: from.uses,
+                    into: target.name,
+                    name: from.name,
+                  })}
             </p>
           )}
           {error !== null && (
@@ -281,7 +301,7 @@ function MergeDialog({
 
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             disabled={into === "" || merge.isPending}
@@ -295,12 +315,14 @@ function MergeDialog({
                   setError(
                     cause instanceof ApiError
                       ? cause.message
-                      : "Could not merge those. Try again in a moment.",
+                      : t("settingsMore.tagMergeFailed"),
                   );
                 });
             }}
           >
-            {merge.isPending ? "Merging…" : "Merge"}
+            {merge.isPending
+              ? t("settingsMore.tagMerging")
+              : t("settingsMore.tagMerge")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -333,6 +355,7 @@ function MergeDialog({
  * cost an admin is deciding to pay and it is invisible from this screen.*
  */
 function TagLockCard() {
+  const t = useT();
   const company = useCompany();
   const update = useUpdateCompany();
   const locked = company.data?.tags_locked ?? false;
@@ -342,17 +365,16 @@ function TagLockCard() {
 
   return (
     <SettingsCard
-      title="Who can create tags"
-      description="Anyone on the crew can add a tag by default. Lock it once your list is the list."
+      title={t("settingsMore.tagLockTitle")}
+      description={t("settingsMore.tagLockDescription")}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-0.5">
           <Label htmlFor="tags-locked" className="text-sm font-medium">
-            Only owners and admins can create tags
+            {t("settingsMore.tagLockLabel")}
           </Label>
           <p className="text-sm text-muted-foreground">
-            Everyone can still use every tag you already have. This only stops
-            new ones being invented mid-job.
+            {t("settingsMore.tagLockHint")}
           </p>
         </div>
         <Switch
@@ -368,7 +390,7 @@ function TagLockCard() {
                   setError(
                     cause instanceof ApiError
                       ? cause.message
-                      : "Couldn't save. Try again.",
+                      : t("settingsMore.saveFailed"),
                   );
                 },
               },
@@ -378,8 +400,7 @@ function TagLockCard() {
       </div>
       {locked && (
         <p className="mt-3 text-[13px] text-muted-foreground">
-          A tech who needs a category you do not have will leave the thread
-          untagged rather than ask. Check the list below now and then.
+          {t("settingsMore.tagLockedNote")}
         </p>
       )}
       {error !== null && (

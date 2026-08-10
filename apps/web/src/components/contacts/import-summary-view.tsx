@@ -5,6 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useT } from "@/i18n/provider";
 import type { ImportResult } from "@/lib/api/types";
 import { summarizeImport } from "@/lib/contacts/import-summary";
 
@@ -28,11 +29,12 @@ export function ImportSummaryView({
   /** How to render a single skipped row (source-specific labeling). */
   renderError: (error: { row: number; reason: string }) => React.ReactNode;
 }) {
+  const t = useT();
   const summary = summarizeImport(result);
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Import finished</DialogTitle>
+        <DialogTitle>{t("contacts.importFinished")}</DialogTitle>
         <DialogDescription>{summary.headline}</DialogDescription>
       </DialogHeader>
       {/* Above the skipped rows on purpose. Skipped rows are a chore the person
@@ -49,7 +51,9 @@ export function ImportSummaryView({
             ))}
             {summary.hiddenErrorCount > 0 && (
               <li className="text-muted-foreground">
-                …and {summary.hiddenErrorCount.toLocaleString()} more.
+                {t("contacts.andMore", {
+                  count: summary.hiddenErrorCount.toLocaleString(),
+                })}
               </li>
             )}
           </ul>

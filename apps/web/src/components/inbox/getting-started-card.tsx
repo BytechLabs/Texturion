@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 
 import { hasPaid } from "@/app/onboarding/steps";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { useConversations } from "@/lib/api/conversations";
 import { useMembers } from "@/lib/api/team";
@@ -92,6 +93,7 @@ export function GettingStartedCard() {
  * *Applying: Chunking — three things, which is what a person holds.*
  */
 function MemberStartedCard() {
+  const t = useT();
   const companyId = useCompanyId();
   const firsts = useMemberFirsts(true);
 
@@ -112,27 +114,25 @@ function MemberStartedCard() {
     {
       key: "reply",
       done: firsts.data.replied,
-      label: "Answer a customer",
+      label: t("inbox.startedMemberReplyLabel"),
       hint: firsts.data.replied
         ? undefined
-        : "Open a thread and reply. It goes out from the business number, and the whole crew can see it.",
+        : t("inbox.startedMemberReplyHint"),
     },
     {
       key: "note",
       done: firsts.data.noted,
-      label: "Leave a note for the crew",
+      label: t("inbox.startedMemberNoteLabel"),
       // The one worth learning deliberately rather than by accident.
-      hint: firsts.data.noted
-        ? undefined
-        : "Switch the composer to Note. Notes stay inside the app — the customer never sees them.",
+      hint: firsts.data.noted ? undefined : t("inbox.startedMemberNoteHint"),
     },
     {
       key: "done",
       done: firsts.data.marked_done,
-      label: "Mark something done",
+      label: t("inbox.startedMemberDoneLabel"),
       hint: firsts.data.marked_done
         ? undefined
-        : "Tick a message off when it is handled, so the rest of the crew knows nobody needs to chase it.",
+        : t("inbox.startedMemberDoneHint"),
     },
   ];
 
@@ -149,7 +149,7 @@ function MemberStartedCard() {
 
   return (
     <ChecklistCard
-      title="Getting the hang of it"
+      title={t("inbox.startedMemberTitle")}
       items={items}
       onDismiss={dismiss}
       // Their notification settings are their own, which is a real adoption
@@ -157,9 +157,9 @@ function MemberStartedCard() {
       // to derive from, because opening a settings page is not a row.
       footer={
         <>
-          Your notification settings are yours alone.{" "}
+          {t("inbox.startedMemberNotifications")}{" "}
           <Link href="/settings/notifications" className="underline">
-            Change when we buzz you
+            {t("inbox.startedMemberNotificationsLink")}
           </Link>
           .
         </>
@@ -169,6 +169,7 @@ function MemberStartedCard() {
 }
 
 function OwnerStartedCard() {
+  const t = useT();
   const companyId = useCompanyId();
   const company = useCompany();
   const conversations = useConversations({});
@@ -226,40 +227,36 @@ function OwnerStartedCard() {
       // customer decides to send one.
       key: "signup",
       done: true,
-      label: "Set your workspace up",
+      label: t("inbox.startedOwnerSignupLabel"),
     },
     {
       key: "number",
       done: numberDone,
-      label: "Get your business number",
+      label: t("inbox.startedOwnerNumberLabel"),
       hint: numberDone
         ? undefined
         : numberStalled
-          ? "Taking a little longer than usual. You don't need to do anything."
-          : "It's on its way, usually under a minute.",
+          ? t("inbox.startedOwnerNumberStalledHint")
+          : t("inbox.startedOwnerNumberHint"),
     },
     {
       key: "inbound",
       done: inboundDone,
-      label: "Receive your first text",
-      hint: inboundDone
-        ? undefined
-        : "Text your number from your phone, and it lands right here.",
+      label: t("inbox.startedOwnerInboundLabel"),
+      hint: inboundDone ? undefined : t("inbox.startedOwnerInboundHint"),
     },
     {
       key: "reply",
       done: replyDone,
-      label: "Send your first reply",
-      hint: replyDone
-        ? undefined
-        : "Open a conversation and answer like you would from your cell.",
+      label: t("inbox.startedOwnerReplyLabel"),
+      hint: replyDone ? undefined : t("inbox.startedOwnerReplyHint"),
     },
     {
       key: "teammate",
       done: teammateDone,
-      label: "Invite a teammate",
+      label: t("inbox.startedOwnerTeammateLabel"),
       href: teammateDone ? undefined : "/settings/team",
-      linkLabel: "Invite",
+      linkLabel: t("inbox.startedOwnerTeammateLink"),
     },
   ];
 
@@ -276,7 +273,7 @@ function OwnerStartedCard() {
 
   return (
     <ChecklistCard
-      title="Getting started"
+      title={t("inbox.startedOwnerTitle")}
       items={items}
       onDismiss={dismiss}
     />
@@ -304,6 +301,7 @@ function ChecklistCard({
   onDismiss: () => void;
   footer?: React.ReactNode;
 }) {
+  const t = useT();
   const doneCount = items.filter((i) => i.done).length;
   const pct = Math.round((doneCount / items.length) * 100);
   return (
@@ -315,13 +313,18 @@ function ChecklistCard({
         <div>
           <h2 className="text-sm font-medium">{title}</h2>
           <p className="text-[13px] text-muted-foreground tabular-nums">
-            {doneCount} of {items.length} done
+            {t("inbox.startedProgress", {
+              done: doneCount,
+              total: items.length,
+            })}
           </p>
         </div>
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label={`Dismiss ${title.toLowerCase()}`}
+          aria-label={t("inbox.startedDismissAria", {
+            title: title.toLowerCase(),
+          })}
           onClick={onDismiss}
         >
           <X className="size-4" strokeWidth={1.75} aria-hidden />
@@ -332,7 +335,10 @@ function ChecklistCard({
       <div
         className="mt-3 h-1 w-full overflow-hidden rounded-full bg-app-line-soft"
         role="img"
-        aria-label={`${doneCount} of ${items.length} steps done`}
+        aria-label={t("inbox.startedProgressAria", {
+          done: doneCount,
+          total: items.length,
+        })}
       >
         <div
           className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
@@ -365,7 +371,9 @@ function ChecklistCard({
               >
                 {item.label}
                 <span className="sr-only">
-                  {item.done ? ", done" : ", not done yet"}
+                  {item.done
+                    ? t("inbox.startedStepDone")
+                    : t("inbox.startedStepNotDone")}
                 </span>
               </span>
               {!item.done && item.hint ? (

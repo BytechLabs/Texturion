@@ -4,6 +4,7 @@ import { useEffect, useId, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -44,6 +45,7 @@ export function CapControl({
   current: number | null;
   includedSegments: number;
 }) {
+  const t = useT();
   const { role } = useActiveCompany();
   const update = useUpdateCompany();
   const sliderId = useId();
@@ -60,9 +62,9 @@ export function CapControl({
   if (!isOwner) {
     return (
       <p className="text-sm text-muted-foreground">
-        Spending cap:{" "}
+        {t("settings.capReadOnlyLead")}{" "}
         <span className="font-medium text-foreground">{capLabel(current)}</span>{" "}
-        your included messages. Only the account owner can change it.
+        {t("settings.capReadOnlyTail")}
       </p>
     );
   }
@@ -76,12 +78,13 @@ export function CapControl({
     update.mutate(
       { overage_cap_multiplier: proposed },
       {
-        onSuccess: () => toast.success(`Cap set to ${capLabel(proposed)}.`),
+        onSuccess: () =>
+          toast.success(t("settings.capSaved", { cap: capLabel(proposed) })),
         onError: (cause) => {
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't change the cap. Try again.",
+              : t("settings.capSaveFailed"),
           );
           setProposed(currentValue);
         },
@@ -103,7 +106,7 @@ export function CapControl({
       <div className="flex items-end justify-between gap-4">
         <label htmlFor={sliderId} className="min-w-0">
           <span className="block text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
-            Sending pauses at
+            {t("settings.capPausesAt")}
           </span>
           <span
             className="mt-1 block text-[28px] font-semibold leading-none tabular-nums tracking-[-0.02em] text-app-ink"
@@ -112,7 +115,7 @@ export function CapControl({
             {pauseAt.toLocaleString()}
           </span>
           <span className="mt-1 block text-[12px] text-app-muted">
-            messages this period
+            {t("settings.capMessagesThisPeriod")}
           </span>
         </label>
         <span className="shrink-0 rounded-full bg-app-tint px-2.5 py-1 text-[12px] font-semibold tabular-nums text-app-olive-deep">
@@ -130,18 +133,21 @@ export function CapControl({
         onChange={(event) => setProposed(Number(event.target.value))}
         disabled={update.isPending}
         // Screen readers hear the consequence, not the raw multiplier.
-        aria-valuetext={`${capLabel(proposed)} your included messages, pausing at ${pauseAt.toLocaleString()} messages`}
+        aria-valuetext={t("settings.capSliderValueText", {
+          cap: capLabel(proposed),
+          pauseAt: pauseAt.toLocaleString(),
+        })}
         style={{ "--cap-fill": `${fillPercent}%` } as React.CSSProperties}
         className="cap-slider mt-4"
       />
       <div className="flex justify-between text-[11px] tabular-nums text-app-muted-2">
-        <span>{MIN_CAP_MULTIPLIER}× included</span>
-        <span>{MAX_CAP_MULTIPLIER}× max</span>
+        <span>{t("settings.capRailMin", { n: MIN_CAP_MULTIPLIER })}</span>
+        <span>{t("settings.capRailMax", { n: MAX_CAP_MULTIPLIER })}</span>
       </div>
 
       {proposed >= MAX_CAP_MULTIPLIER && (
         <p className="mt-2 text-[12px] text-app-muted">
-          That&apos;s the highest the cap goes.
+          {t("settings.capAtCeiling")}
         </p>
       )}
 
@@ -155,7 +161,7 @@ export function CapControl({
           </p>
           <div className="flex gap-2">
             <Button size="sm" disabled={update.isPending} onClick={save}>
-              {update.isPending ? "Saving…" : "Save cap"}
+              {update.isPending ? t("common.saving") : t("settings.capSave")}
             </Button>
             <Button
               size="sm"
@@ -166,7 +172,7 @@ export function CapControl({
                 setError(null);
               }}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
           </div>
         </div>
@@ -179,8 +185,7 @@ export function CapControl({
       )}
 
       <p className="mt-4 border-t border-app-line-soft pt-3 text-[12px] leading-[1.5] text-app-muted">
-        The cap is a multiple of what your plan includes. If a month ever hits
-        it, sending pauses until you raise it, and nothing is billed past it.
+        {t("settings.capFootnote")}
       </p>
     </div>
   );

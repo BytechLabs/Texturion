@@ -11,6 +11,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { useSavedViews } from "@/lib/api/saved-views";
 import { useActiveCompany } from "@/lib/company/provider";
 
@@ -37,6 +38,7 @@ import { SearchResults } from "./search-results";
  * keeps back-button history clean while filtering.
  */
 export function InboxPane() {
+  const t = useT();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -96,11 +98,18 @@ export function InboxPane() {
           "New message" button owns compose; below lg the floating FAB does. The
           segment + search below carry the filtering. */}
       <header className="flex items-center justify-between px-4 pb-1 pt-4 md:hidden">
-        <h1 className="text-lg font-semibold text-app-ink">Inbox</h1>
-        <Button asChild size="sm" variant="ghost" aria-label="New conversation">
+        <h1 className="text-lg font-semibold text-app-ink">
+          {t("inbox.title")}
+        </h1>
+        <Button
+          asChild
+          size="sm"
+          variant="ghost"
+          aria-label={t("inbox.newConversationAria")}
+        >
           <Link href="/inbox/new">
             <SquarePen className="size-4" strokeWidth={1.75} />
-            New
+            {t("inbox.newAction")}
           </Link>
         </Button>
       </header>

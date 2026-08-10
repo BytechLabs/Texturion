@@ -7,6 +7,7 @@ import {
   useLastUsedMethod,
 } from "@/components/auth/last-used-badge";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { authErrorMessage } from "@/lib/auth/messages";
 import { oauthRedirectTo, type OAuthProvider } from "@/lib/auth/oauth";
 import { rememberSignInMethod } from "@/lib/auth/last-used";
@@ -28,6 +29,7 @@ import { getSupabaseBrowser } from "@/lib/supabase/browser";
  * see lib/auth/oauth.ts.
  */
 export function OAuthButtons({ next }: { next?: string | null }) {
+  const t = useT();
   const [pending, setPending] = useState<OAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
   const lastUsed = useLastUsedMethod();
@@ -64,7 +66,9 @@ export function OAuthButtons({ next }: { next?: string | null }) {
           onClick={() => void signIn("google")}
         >
           <GoogleMark />
-          {pending === "google" ? "Opening Google…" : "Continue with Google"}
+          {pending === "google"
+            ? t("onboarding.openingGoogle")
+            : t("onboarding.continueWithGoogle")}
           {lastUsed === "google" && <LastUsedBadge className="ml-auto" />}
         </Button>
       </div>
@@ -76,7 +80,9 @@ export function OAuthButtons({ next }: { next?: string | null }) {
       {/* Divider — quiet stone rule with a centered label (§1.7 calm). */}
       <div className="flex items-center gap-3 py-1">
         <span className="h-px flex-1 bg-border" aria-hidden />
-        <span className="text-xs text-muted-foreground">or</span>
+        <span className="text-xs text-muted-foreground">
+          {t("onboarding.or")}
+        </span>
         <span className="h-px flex-1 bg-border" aria-hidden />
       </div>
     </div>

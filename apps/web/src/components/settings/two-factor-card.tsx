@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useIssueRecoveryCodes, useMfa } from "@/lib/api/mfa";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
@@ -59,6 +60,7 @@ type Step =
   | { kind: "codes"; codes: string[] };
 
 export function TwoFactorCard() {
+  const t = useT();
   const mfa = useMfa();
   const issueCodes = useIssueRecoveryCodes();
   const [step, setStep] = useState<Step>({ kind: "idle" });
@@ -74,7 +76,9 @@ export function TwoFactorCard() {
     try {
       const { data, error: enrolError } = await getSupabaseBrowser().auth.mfa.enroll({
         factorType: "totp",
-        friendlyName: `Authenticator app · ${new Date().toLocaleDateString()}`,
+        friendlyName: t("settingsMore.tfaAuthenticatorFactorName", {
+          date: new Date().toLocaleDateString(),
+        }),
       });
       if (enrolError || !data) throw enrolError ?? new Error("enrol failed");
       setStep({
@@ -87,7 +91,7 @@ export function TwoFactorCard() {
       setError(
         cause instanceof Error
           ? cause.message
-          : "Couldn't start setup. Try again.",
+          : t("settingsMore.tfaStartFailed"),
       );
     } finally {
       setBusy(false);
@@ -122,7 +126,9 @@ export function TwoFactorCard() {
       const supabase = getSupabaseBrowser();
       const { data: factor, error: enrolError } = await supabase.auth.mfa.enroll({
         factorType: "webauthn",
-        friendlyName: `Passkey · ${new Date().toLocaleDateString()}`,
+        friendlyName: t("settingsMore.tfaPasskeyFactorName", {
+          date: new Date().toLocaleDateString(),
+        }),
       });
       if (enrolError || !factor) throw enrolError ?? new Error("enrol failed");
 
@@ -141,7 +147,7 @@ export function TwoFactorCard() {
         // Enrolling a fresh factor can only be a creation ceremony. If the
         // server asks for an assertion instead, something is being replayed and
         // the honest move is to stop rather than sign whatever was sent.
-        throw new Error("Unexpected passkey step. Start again.");
+        throw new Error(t("settingsMore.tfaUnexpectedStep"));
       }
 
       // TWO CASTS, ONE REASON, AND IT IS A TYPE VINTAGE RATHER THAN A DOUBT.
@@ -196,7 +202,7 @@ export function TwoFactorCard() {
             // either timed out or was not allowed" is what a person needs to
             // read when their fingerprint was not recognised.
             cause.message
-          : "Couldn't add a passkey. Try again, or use an authenticator app.",
+          : t("settingsMore.tfaPasskeyFailed"),
       );
     } finally {
       setBusy(false);
@@ -224,7 +230,7 @@ export function TwoFactorCard() {
       setError(
         cause instanceof ApiError
           ? cause.message
-          : "That code didn't match. Check your app and try the next one.",
+          : t("settingsMore.tfaCodeMismatch"),
       );
     } finally {
       setBusy(false);
@@ -243,12 +249,12 @@ export function TwoFactorCard() {
       }
       setConfirmOff(false);
       await mfa.refetch();
-      toast.success("Two-factor authentication is off.");
+      toast.success(t("settingsMore.tfaTurnedOff"));
     } catch (cause) {
       toast.error(
         cause instanceof Error
           ? cause.message
-          : "Couldn't turn it off. Try again.",
+          : t("settingsMore.tfaTurnOffFailed"),
       );
     } finally {
       setBusy(false);
@@ -261,7 +267,9 @@ export function TwoFactorCard() {
       setStep({ kind: "codes", codes });
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "Couldn't issue new codes.",
+        cause instanceof ApiError
+          ? cause.message
+          : t("settingsMore.tfaIssueCodesFailed"),
       );
     }
   }
@@ -280,14 +288,14 @@ export function TwoFactorCard() {
   const hasAuthenticator = factors.some((factor) => factor.type === "totp");
   const enrolledLabel =
     hasPasskey && hasAuthenticator
-      ? "Passkey and authenticator app are on"
+      ? t("settingsMore.tfaBothOn")
       : hasPasskey
-        ? "Passkey is on"
+        ? t("settingsMore.tfaPasskeyOn")
         : hasAuthenticator
-          ? "Authenticator app is on"
+          ? t("settingsMore.tfaAuthenticatorOn")
           : // A verified factor of a type this card does not name yet. Say the
             // true thing rather than guessing which one it is.
-            "Two-factor authentication is on";
+            t("settingsMore.tfaOn");
 
   // Only offered where the browser can actually do it. A button that opens
   // nothing is worse than an absent one, and Safari on an old iPad is a real
@@ -298,8 +306,8 @@ export function TwoFactorCard() {
 
   return (
     <SettingsCard
-      title="Two-factor authentication"
-      description="A code from your phone, on top of your password. It is what stops a stolen password becoming somebody texting your customers as you."
+      title={t("settingsMore.tfaTitle")}
+      description={t("settingsMore.tfaDescription")}
     >
       <div className="space-y-4">
         {enrolled ? (
@@ -320,14 +328,19 @@ export function TwoFactorCard() {
                 <p className="text-sm text-muted-foreground">
                   {remaining > 0 ? (
                     <>
-                      {remaining} recovery{" "}
-                      {remaining === 1 ? "code" : "codes"} left.
+                      {remaining === 1
+                        ? t("settingsMore.tfaCodesLeftOne", {
+                            count: remaining,
+                          })
+                        : t("settingsMore.tfaCodesLeftMany", {
+                            count: remaining,
+                          })}
                     </>
                   ) : (
                     // Nought left is a lockout waiting for a lost phone, so it
                     // reads as something to fix rather than a statistic.
                     <span className="text-amber-600 dark:text-amber-500">
-                      No recovery codes left — issue a new set now.
+                      {t("settingsMore.tfaNoCodesLeft")}
                     </span>
                   )}
                 </p>
@@ -341,7 +354,7 @@ export function TwoFactorCard() {
                 disabled={issueCodes.isPending}
                 onClick={regenerate}
               >
-                New recovery codes
+                {t("settingsMore.tfaNewCodes")}
               </Button>
               <Button
                 type="button"
@@ -349,7 +362,7 @@ export function TwoFactorCard() {
                 size="sm"
                 onClick={() => setConfirmOff(true)}
               >
-                Turn off
+                {t("settingsMore.offRampTurnOff")}
               </Button>
             </div>
           </>
@@ -364,14 +377,11 @@ export function TwoFactorCard() {
             {passkeysAvailable ? (
               <>
                 <p className="text-sm text-muted-foreground">
-                  Use your face, fingerprint or screen lock as the second step.
-                  Nothing to type and nothing to lose — it stays on this device.
-                  We&apos;ll give you backup codes for the day the device
-                  doesn&apos;t.
+                  {t("settingsMore.tfaPasskeyPitch")}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" disabled={busy} onClick={beginPasskey}>
-                    Use a passkey
+                    {t("settingsMore.tfaUsePasskey")}
                   </Button>
                   <Button
                     type="button"
@@ -379,20 +389,17 @@ export function TwoFactorCard() {
                     disabled={busy}
                     onClick={beginEnrolment}
                   >
-                    Use an authenticator app
+                    {t("settingsMore.tfaUseAuthenticator")}
                   </Button>
                 </div>
               </>
             ) : (
               <>
                 <p className="text-sm text-muted-foreground">
-                  You&apos;ll scan a QR code with an authenticator app — Google
-                  Authenticator, 1Password, whatever you already use — and enter
-                  a six-digit code to prove it worked. We&apos;ll give you
-                  backup codes for the day you lose the phone.
+                  {t("settingsMore.tfaAuthenticatorPitch")}
                 </p>
                 <Button type="button" disabled={busy} onClick={beginEnrolment}>
-                  Set up two-factor
+                  {t("settingsMore.tfaSetUp")}
                 </Button>
               </>
             )}
@@ -418,9 +425,9 @@ export function TwoFactorCard() {
           {step.kind === "scan" && (
             <>
               <DialogHeader>
-                <DialogTitle>Scan this with your authenticator app</DialogTitle>
+                <DialogTitle>{t("settingsMore.tfaScanTitle")}</DialogTitle>
                 <DialogDescription>
-                  Then type the six-digit code it shows.
+                  {t("settingsMore.tfaScanBody")}
                 </DialogDescription>
               </DialogHeader>
               <div className="flex flex-col items-center gap-4">
@@ -428,19 +435,21 @@ export function TwoFactorCard() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={step.qr}
-                  alt="QR code for your authenticator app"
+                  alt={t("settingsMore.tfaQrAlt")}
                   className="size-48 rounded-lg bg-white p-2"
                 />
                 <div className="w-full space-y-1">
                   <Label className="text-xs text-muted-foreground">
-                    Can&apos;t scan? Enter this key instead
+                    {t("settingsMore.tfaManualKey")}
                   </Label>
                   <code className="block w-full break-all rounded-md bg-muted px-3 py-2 text-xs">
                     {step.secret}
                   </code>
                 </div>
                 <div className="w-full space-y-1.5">
-                  <Label htmlFor="mfa-code">Six-digit code</Label>
+                  <Label htmlFor="mfa-code">
+                    {t("settingsMore.tfaSixDigitCode")}
+                  </Label>
                   <Input
                     id="mfa-code"
                     inputMode="numeric"
@@ -459,14 +468,16 @@ export function TwoFactorCard() {
                   variant="outline"
                   onClick={() => setStep({ kind: "idle" })}
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button
                   type="button"
                   disabled={busy || code.replace(/\D/g, "").length < 6}
                   onClick={() => verify(step.factorId)}
                 >
-                  {busy ? "Checking…" : "Turn it on"}
+                  {busy
+                    ? t("settingsMore.regOtpChecking")
+                    : t("settingsMore.tfaTurnItOn")}
                 </Button>
               </DialogFooter>
             </>
@@ -485,11 +496,9 @@ export function TwoFactorCard() {
           {step.kind === "codes" && (
             <>
               <DialogHeader>
-                <DialogTitle>Save your recovery codes</DialogTitle>
+                <DialogTitle>{t("settingsMore.tfaCodesTitle")}</DialogTitle>
                 <DialogDescription>
-                  This is the only time you will see these. If you lose your
-                  phone, one of these codes is how you get back in — without
-                  them, getting back into your business line takes us weeks.
+                  {t("settingsMore.tfaCodesBody")}
                 </DialogDescription>
               </DialogHeader>
               <ul className="grid grid-cols-2 gap-2 rounded-lg border bg-muted/40 p-3 font-mono text-sm">
@@ -505,7 +514,7 @@ export function TwoFactorCard() {
                   onClick={() => {
                     void navigator.clipboard.writeText(step.codes.join("\n"));
                     setCopied(true);
-                    toast.success("Copied.");
+                    toast.success(t("settingsMore.tfaCopied"));
                   }}
                 >
                   {copied ? (
@@ -513,7 +522,7 @@ export function TwoFactorCard() {
                   ) : (
                     <Copy className="size-4" strokeWidth={1.75} aria-hidden />
                   )}
-                  Copy
+                  {t("settingsMore.tfaCopy")}
                 </Button>
                 <Button
                   type="button"
@@ -522,10 +531,9 @@ export function TwoFactorCard() {
                   onClick={() => {
                     const blob = new Blob(
                       [
-                        "Loonext recovery codes\n\n",
+                        `${t("settingsMore.tfaFileHeading")}\n\n`,
                         step.codes.join("\n"),
-                        "\n\nEach code works once. Keep them somewhere you can " +
-                          "reach without your phone.\n",
+                        `\n\n${t("settingsMore.tfaFileFooter")}\n`,
                       ],
                       { type: "text/plain" },
                     );
@@ -539,7 +547,7 @@ export function TwoFactorCard() {
                   }}
                 >
                   <Download className="size-4" strokeWidth={1.75} aria-hidden />
-                  Download
+                  {t("settingsMore.tfaDownload")}
                 </Button>
               </div>
               <DialogFooter>
@@ -553,10 +561,10 @@ export function TwoFactorCard() {
                     setStep({ kind: "idle" });
                     setCopied(false);
                     void mfa.refetch();
-                    toast.success("Two-factor authentication is on.");
+                    toast.success(t("settingsMore.tfaOn"));
                   }}
                 >
-                  I&apos;ve saved them
+                  {t("settingsMore.tfaSavedThem")}
                 </Button>
               </DialogFooter>
             </>
@@ -567,11 +575,9 @@ export function TwoFactorCard() {
       <Dialog open={confirmOff} onOpenChange={setConfirmOff}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Turn off two-factor authentication?</DialogTitle>
+            <DialogTitle>{t("settingsMore.tfaTurnOffTitle")}</DialogTitle>
             <DialogDescription>
-              Your account goes back to a password alone. If this workspace
-              requires two-factor, you will be asked to set it up again the
-              next time you open the app.
+              {t("settingsMore.tfaTurnOffBody")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -580,7 +586,7 @@ export function TwoFactorCard() {
               variant="outline"
               onClick={() => setConfirmOff(false)}
             >
-              Keep it on
+              {t("settingsMore.tfaKeepItOn")}
             </Button>
             <Button
               type="button"
@@ -588,7 +594,7 @@ export function TwoFactorCard() {
               disabled={busy}
               onClick={turnOff}
             >
-              Turn it off
+              {t("settingsMore.tfaTurnItOff")}
             </Button>
           </DialogFooter>
         </DialogContent>

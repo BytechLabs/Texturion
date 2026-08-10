@@ -11,6 +11,7 @@ import { ArrowRight, Check, Phone } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { useMeCompany } from "@/lib/api/me-company";
 import { useActiveCompany } from "@/lib/company/provider";
 
@@ -42,6 +43,7 @@ import { useActiveCompany } from "@/lib/company/provider";
  * the moment texting is live, rather than becoming permanent furniture.
  */
 export function WhileYouWait() {
+  const t = useT();
   const { data } = useMeCompany();
   const { role } = useActiveCompany();
   // #286: OPENING the team screen and INVITING somebody are now different
@@ -74,7 +76,7 @@ export function WhileYouWait() {
         aria-valuenow={progress.percent}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label="Texting registration progress"
+        aria-label={t("inbox.whileWaitProgressAria")}
       >
         <div
           className="h-full rounded-full bg-app-olive-deep transition-[width] duration-500"
@@ -90,10 +92,9 @@ export function WhileYouWait() {
       <div className="mt-5 flex items-start gap-3 rounded-lg bg-app-tint/60 p-3">
         <Phone className="mt-0.5 size-4 shrink-0 text-app-olive-deep" aria-hidden />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">Calls already work</p>
+          <p className="text-sm font-medium">{t("inbox.whileWaitCallsWork")}</p>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Your number rings, takes voicemail, and texts back anyone you miss.
-            None of that waits on the carriers.
+            {t("inbox.whileWaitCallsBody")}
           </p>
         </div>
       </div>
@@ -101,7 +102,7 @@ export function WhileYouWait() {
       {/* Three, not everything. The brain holds 3–4 items, and a settings tour
           is not a sense of arriving somewhere. */}
       <ul className="mt-4 space-y-1">
-        <SetupStep href="/contacts" label="Bring your customers in" />
+        <SetupStep href="/contacts" label={t("inbox.whileWaitContacts")} />
         {/* #515: two of the three go to Settings surfaces a member cannot
             ACT on. Offering them anyway turns the one card a new workspace
             lands on into a pair of walls. Contacts is everybody's.
@@ -112,12 +113,12 @@ export function WhileYouWait() {
             the section — a checklist item nobody can complete is worse than
             an absent one, because it reads as something they failed to do. */}
         {canInvite && (
-          <SetupStep href="/settings/team" label="Invite your crew" />
+          <SetupStep href="/settings/team" label={t("inbox.whileWaitInvite")} />
         )}
         <SettingsLink section="hours">
           <SetupStep
             href="/settings/hours"
-            label="Set your hours and greeting"
+            label={t("inbox.whileWaitHours")}
           />
         </SettingsLink>
       </ul>

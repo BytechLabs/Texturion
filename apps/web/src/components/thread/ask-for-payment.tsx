@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useCompany } from "@/lib/api/companies";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -57,6 +58,7 @@ import {
  *   rule — a price with no currency is a price in a currency nobody chose.*
  */
 export function AskForPayment({ conversationId }: { conversationId: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   // Smart Defaults: the ask this feature was built for, editable in one tap.
@@ -107,7 +109,9 @@ export function AskForPayment({ conversationId }: { conversationId: string }) {
         description: description.trim(),
         idempotencyKey,
       });
-      toast.success(`Asked for ${formatMoney(cents, currency)}.`);
+      toast.success(
+        t("payments.asked", { amount: formatMoney(cents, currency) }),
+      );
       setOpen(false);
       setAmount("");
       setDescription("Deposit");
@@ -120,7 +124,7 @@ export function AskForPayment({ conversationId }: { conversationId: string }) {
       // send" would read as the button being broken rather than the rule
       // working.
       toast.error(
-        cause instanceof ApiError ? cause.message : "That didn't send.",
+        cause instanceof ApiError ? cause.message : t("payments.sendFailed"),
       );
     }
   }
@@ -135,7 +139,7 @@ export function AskForPayment({ conversationId }: { conversationId: string }) {
         className="gap-1.5"
       >
         <HandCoins className="size-3.5" strokeWidth={1.75} aria-hidden />
-        Ask for payment
+        {t("payments.askAction")}
       </Button>
     );
   }
@@ -145,7 +149,7 @@ export function AskForPayment({ conversationId }: { conversationId: string }) {
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[8rem] flex-1">
           <Label htmlFor="payment-amount" className="text-[12px] text-app-muted">
-            Amount
+            {t("payments.amountLabel")}
           </Label>
           <div className="relative">
             <span
@@ -172,7 +176,7 @@ export function AskForPayment({ conversationId }: { conversationId: string }) {
             htmlFor="payment-description"
             className="text-[12px] text-app-muted"
           >
-            What for
+            {t("payments.descriptionLabel")}
           </Label>
           <Input
             id="payment-description"
@@ -192,7 +196,9 @@ export function AskForPayment({ conversationId }: { conversationId: string }) {
       {/* The message itself, not a description of it. */}
       {preview && (
         <div className="mt-3">
-          <p className="text-[12px] text-app-muted">They will receive:</p>
+          <p className="text-[12px] text-app-muted">
+            {t("payments.theyWillReceive")}
+          </p>
           <p className="mt-1 whitespace-pre-wrap rounded-app-bub bg-app-paper px-3 py-2 text-[13px] text-app-ink">
             {preview}
           </p>
@@ -207,8 +213,8 @@ export function AskForPayment({ conversationId }: { conversationId: string }) {
           onClick={() => void submit()}
         >
           {cents !== null && problem === null
-            ? `Ask for ${formatMoney(cents, currency)}`
-            : "Ask for payment"}
+            ? t("payments.askFor", { amount: formatMoney(cents, currency) })
+            : t("payments.askAction")}
         </Button>
         <Button
           type="button"
@@ -216,12 +222,11 @@ export function AskForPayment({ conversationId }: { conversationId: string }) {
           variant="ghost"
           onClick={() => setOpen(false)}
         >
-          Cancel
+          {t("common.cancel")}
         </Button>
       </div>
       <p className="mt-2 text-[12px] text-app-muted-2">
-        Goes out as a text with a secure payment link. The money lands in your
-        bank account — we take nothing on top.
+        {t("payments.footnote")}
       </p>
     </div>
   );

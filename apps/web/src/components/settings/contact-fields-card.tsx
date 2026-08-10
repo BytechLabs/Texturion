@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT, type Translate } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useContactFields,
@@ -57,13 +58,15 @@ import {
  */
 
 /** What each type is called on screen, and what it is for. */
-const KIND_LABELS: Record<ContactFieldKind, string> = {
-  text: "Text",
-  number: "Number",
-  date: "Date",
-  select: "Dropdown",
-  checkbox: "Yes / no",
-};
+function kindLabels(t: Translate): Record<ContactFieldKind, string> {
+  return {
+    text: t("settings.contactFieldKindText"),
+    number: t("settings.contactFieldKindNumber"),
+    date: t("settings.contactFieldKindDate"),
+    select: t("settings.contactFieldKindSelect"),
+    checkbox: t("settings.contactFieldKindCheckbox"),
+  };
+}
 
 interface DraftField extends ContactFieldDef {
   /** Rows the owner added in this session, which have no key until saved. */
@@ -71,6 +74,8 @@ interface DraftField extends ContactFieldDef {
 }
 
 export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
+  const t = useT();
+  const KIND_LABELS = kindLabels(t);
   const query = useContactFields();
   const save = useSaveContactFields();
   const [draft, setDraft] = useState<DraftField[] | null>(null);
@@ -123,21 +128,21 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
     const fields = draft ?? [];
     const unnamed = fields.find((field) => !field.key || !field.label.trim());
     if (unnamed) {
-      toast.error("Give every field a name first.");
+      toast.error(t("settings.contactFieldsNeedName"));
       return;
     }
     try {
       await save.mutateAsync(fields);
       toast.success(
         fields.length === 0
-          ? "Saved. Your contacts are back to the standard fields."
-          : "Saved. These show on every customer.",
+          ? t("settings.contactFieldsSavedEmpty")
+          : t("settings.contactFieldsSaved"),
       );
     } catch (cause) {
       toast.error(
         cause instanceof ApiError
           ? cause.message
-          : "That could not be saved. Try again.",
+          : t("settings.contactFieldsSaveFailed"),
       );
     }
   }
@@ -150,8 +155,7 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
       <div className="space-y-4">
         {draft.length === 0 && (
           <p className="text-[13px] text-app-muted">
-            You have not added any yet. Your contacts show the standard fields —
-            name, phone, email, address and notes.
+            {t("settings.contactFieldsEmpty")}
           </p>
         )}
 
@@ -163,19 +167,19 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
             <div className="flex flex-wrap items-end gap-2">
               <div className="min-w-[10rem] flex-1 space-y-1">
                 <Label className="sr-only" htmlFor={`field-label-${index}`}>
-                  What this field is called
+                  {t("settings.contactFieldLabelLabel")}
                 </Label>
                 <Input
                   id={`field-label-${index}`}
                   value={field.label}
                   disabled={!canEdit}
-                  placeholder="Boiler model"
+                  placeholder={t("settings.contactFieldLabelPlaceholder")}
                   onChange={(event) => relabel(index, event.target.value)}
                 />
               </div>
               <div className="space-y-1">
                 <Label className="sr-only" htmlFor={`field-kind-${index}`}>
-                  What kind of answer it takes
+                  {t("settings.contactFieldKindLabel")}
                 </Label>
                 <select
                   id={`field-kind-${index}`}
@@ -200,7 +204,9 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
               {canEdit && (
                 <button
                   type="button"
-                  aria-label={`Remove ${field.label || "this field"}`}
+                  aria-label={t("settings.contactFieldRemoveAria", {
+                    name: field.label || t("settings.contactFieldThisField"),
+                  })}
                   onClick={() =>
                     setDraft((current) =>
                       (current ?? []).filter((_, i) => i !== index),
@@ -220,14 +226,14 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
                   className="text-[12px] text-app-muted"
                   htmlFor={`field-options-${index}`}
                 >
-                  The choices, one per line
+                  {t("settings.contactFieldChoicesLabel")}
                 </Label>
                 <textarea
                   id={`field-options-${index}`}
                   rows={3}
                   disabled={!canEdit}
                   value={(field.options ?? []).join("\n")}
-                  placeholder={"Combi\nSystem\nHeat only"}
+                  placeholder={t("settings.contactFieldChoicesPlaceholder")}
                   onChange={(event) =>
                     update(index, {
                       options: event.target.value
@@ -248,8 +254,8 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
             */}
             {field.key && (
               <p className="text-[12px] text-app-muted-2">
-                Exports as <code>{field.key}</code>
-                {!field.isNew && " · the name can change, the type cannot"}
+                {t("settings.contactFieldExportsAs")} <code>{field.key}</code>
+                {!field.isNew && t("settings.contactFieldFrozenType")}
               </p>
             )}
           </div>
@@ -269,7 +275,7 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
             }
           >
             <Plus className="size-3.5" strokeWidth={1.75} />
-            Add a field
+            {t("settings.contactFieldsAdd")}
           </Button>
         )}
 
@@ -300,14 +306,14 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
                 disabled={save.isPending}
                 onClick={() => void commit()}
               >
-                Save fields
+                {t("settings.contactFieldsSave")}
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setDraft(query.data?.data ?? [])}
               >
-                Discard
+                {t("settings.contactFieldsDiscard")}
               </Button>
             </div>
           </div>

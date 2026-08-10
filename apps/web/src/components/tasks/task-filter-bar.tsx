@@ -17,12 +17,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useT } from "@/i18n/provider";
 import { useMembers } from "@/lib/api/team";
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
 import {
-  DUE_LABELS,
+  DUE_LABEL_KEYS,
   TASK_TABS,
   tabsForView,
   type DueFilter,
@@ -49,6 +50,7 @@ export function TaskFilterBar({
   state: TaskPageState;
   onChange: (next: TaskPageState) => void;
 }) {
+  const t = useT();
   // #113: only the tabs the active view actually applies (Board/Map organize
   // by status themselves, so Open/Done are a no-op there — show Mine | All).
   const visibleTabs = tabsForView(state.view);
@@ -88,11 +90,11 @@ export function TaskFilterBar({
       <SearchField state={state} onChange={onChange} />
       <div
         role="tablist"
-        aria-label="Task status"
+        aria-label={t("tasks.statusTabsAria")}
         onKeyDown={onTabKeyDown}
         className="flex max-w-md rounded-lg bg-app-line-soft p-0.5"
       >
-        {shownTabs.map(({ id, label }, i) => {
+        {shownTabs.map(({ id, labelKey }, i) => {
             const selected = state.tab === id;
             return (
               <button
@@ -114,7 +116,7 @@ export function TaskFilterBar({
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {label}
+                {t(labelKey)}
               </button>
             );
           },
@@ -133,6 +135,7 @@ function SearchField({
   state: TaskPageState;
   onChange: (next: TaskPageState) => void;
 }) {
+  const t = useT();
   const [text, setText] = useState(state.q ?? "");
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stateRef = useRef(state);
@@ -176,15 +179,15 @@ function SearchField({
         type="search"
         value={text}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search tasks"
-        aria-label="Search tasks by title"
+        placeholder={t("tasks.searchPlaceholder")}
+        aria-label={t("tasks.searchAria")}
         className="h-9 pl-8"
       />
       {text !== "" && (
         <button
           type="button"
           onClick={() => setSearch("")}
-          aria-label="Clear search"
+          aria-label={t("tasks.clearSearch")}
           className="tap-target absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
         >
           <X className="size-3.5" strokeWidth={1.75} />
@@ -202,10 +205,11 @@ function ChipRow({
   state: TaskPageState;
   onChange: (next: TaskPageState) => void;
 }) {
+  const t = useT();
   const members = useMembers();
   const assigneeName = state.assignee
     ? members.data?.data.find((m) => m.user_id === state.assignee)
-        ?.display_name || "Assignee"
+        ?.display_name || t("tasks.assigneeChipFallback")
     : null;
 
   return (
@@ -222,7 +226,7 @@ function ChipRow({
       )}
       {state.unassigned && (
         <Chip
-          label="Unassigned"
+          label={t("tasks.unassigned")}
           onRemove={() => {
             const next = { ...state };
             delete next.unassigned;
@@ -232,7 +236,7 @@ function ChipRow({
       )}
       {state.due && (
         <Chip
-          label={DUE_LABELS[state.due]}
+          label={t(DUE_LABEL_KEYS[state.due])}
           onRemove={() => {
             const next = { ...state };
             delete next.due;
@@ -246,13 +250,14 @@ function ChipRow({
 }
 
 function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  const t = useT();
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-secondary py-0.5 pl-2 pr-1 text-[11px] font-medium text-secondary-foreground">
       {label}
       <button
         type="button"
         onClick={onRemove}
-        aria-label={`Remove ${label} filter`}
+        aria-label={t("tasks.removeFilterAria", { label })}
         className="tap-target rounded-full p-0.5 text-muted-foreground hover:bg-background hover:text-foreground"
       >
         <X className="size-3" strokeWidth={1.75} />
@@ -269,6 +274,7 @@ function FilterPopover({
   state: TaskPageState;
   onChange: (next: TaskPageState) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const members = useMembers();
   const { userId } = useActiveCompany();
@@ -311,11 +317,11 @@ function FilterPopover({
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label="Add filter"
+          aria-label={t("tasks.addFilterAria")}
           className="tap-target inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-foreground"
         >
           <ListFilter className="size-3" strokeWidth={1.75} aria-hidden />
-          Filter
+          {t("tasks.filter")}
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" sideOffset={6} className="w-64 p-0 shadow-lg">
@@ -325,16 +331,16 @@ function FilterPopover({
             return haystack.includes(search.toLowerCase().trim()) ? 1 : 0;
           }}
         >
-          <CommandInput placeholder="Filter by…" />
+          <CommandInput placeholder={t("tasks.filterPlaceholder")} />
           <CommandList>
-            <CommandEmpty>No filters.</CommandEmpty>
-            <CommandGroup heading="Assignee">
+            <CommandEmpty>{t("tasks.noFilters")}</CommandEmpty>
+            <CommandGroup heading={t("tasks.assignee")}>
               <CommandItem
                 value="unassigned"
-                keywords={["unassigned", "nobody"]}
+                keywords={[t("tasks.unassigned"), t("tasks.keywordNobody")]}
                 onSelect={toggleUnassigned}
               >
-                <span>Unassigned</span>
+                <span>{t("tasks.unassigned")}</span>
                 {state.unassigned && (
                   <Check className="ml-auto size-4 text-primary" strokeWidth={1.75} />
                 )}
@@ -345,12 +351,12 @@ function FilterPopover({
                   <CommandItem
                     key={m.user_id}
                     value={`assignee-${m.user_id}`}
-                    keywords={[m.display_name || "teammate"]}
+                    keywords={[m.display_name || t("tasks.teammate")]}
                     onSelect={() => setAssignee(active ? undefined : m.user_id)}
                   >
                     <span className="truncate">
-                      {m.display_name || "Teammate"}
-                      {m.user_id === userId ? " (you)" : ""}
+                      {m.display_name || t("tasks.teammate")}
+                      {m.user_id === userId ? t("tasks.youSuffix") : ""}
                     </span>
                     {active && (
                       <Check className="ml-auto size-4 text-primary" strokeWidth={1.75} />
@@ -359,17 +365,17 @@ function FilterPopover({
                 );
               })}
             </CommandGroup>
-            <CommandGroup heading="Due">
+            <CommandGroup heading={t("tasks.due")}>
               {(["overdue", "today", "week"] as const).map((due) => {
                 const active = state.due === due;
                 return (
                   <CommandItem
                     key={due}
                     value={due}
-                    keywords={[DUE_LABELS[due]]}
+                    keywords={[t(DUE_LABEL_KEYS[due])]}
                     onSelect={() => setDue(active ? undefined : due)}
                   >
-                    <span>{DUE_LABELS[due]}</span>
+                    <span>{t(DUE_LABEL_KEYS[due])}</span>
                     {active && (
                       <Check className="ml-auto size-4 text-primary" strokeWidth={1.75} />
                     )}

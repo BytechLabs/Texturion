@@ -13,10 +13,12 @@
  * A retry still runs on the next foreground or reconnect, which is why this
  * says the phone is not connected rather than that calling is broken forever.
  */
+import { useT } from "@/i18n/provider";
 import { useSoftphone } from "@/lib/softphone/provider";
 import { cn } from "@/lib/utils";
 
 export function SoftphoneStatus({ className }: { className?: string }) {
+  const t = useT();
   const softphone = useSoftphone();
   const ready = softphone?.ready ?? false;
   // `error` is cleared the moment registration succeeds, so this can only be
@@ -38,10 +40,10 @@ export function SoftphoneStatus({ className }: { className?: string }) {
       )}
       title={
         ready
-          ? "Your browser will ring for incoming calls"
+          ? t("shell.phoneReadyTitle")
           : failed
-            ? "This browser won't ring for incoming calls. It keeps trying, and reloading the page retries now."
-            : "Connecting your phone — incoming calls won't ring until this is ready"
+            ? t("shell.phoneFailedTitle")
+            : t("shell.phoneConnectingTitle")
       }
     >
       <span
@@ -62,7 +64,11 @@ export function SoftphoneStatus({ className }: { className?: string }) {
           !ready && !failed && "text-amber-600 dark:text-amber-500",
         )}
       >
-        {ready ? "Ready" : failed ? "Can't ring" : "Connecting…"}
+        {ready
+          ? t("shell.phoneReady")
+          : failed
+            ? t("shell.phoneCantRing")
+            : t("shell.phoneConnecting")}
       </span>
     </span>
   );

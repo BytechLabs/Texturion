@@ -8,21 +8,31 @@
  * public-env validation in with it, which is a poor reason to leave the
  * decisions untested.
  */
+import type { Translate } from "@/i18n/provider";
 import type { CallDetail as CallDetailRow } from "@/lib/api/types";
 
-/** What happened, in the words an owner would use. */
-export function outcomeLine(call: CallDetailRow): string {
-  if (call.outcome === null) return "In progress";
+/**
+ * What happened, in the words an owner would use.
+ *
+ * #228: the reader's `t` is a PARAMETER rather than a hook call, which is what
+ * keeps these two decisions pure — the whole reason they live outside the
+ * component. A test hands them `makeTranslate("en")` and asserts the same
+ * sentences it always did.
+ */
+export function outcomeLine(call: CallDetailRow, t: Translate): string {
+  if (call.outcome === null) return t("shell.outcomeInProgress");
   if (call.direction === "outbound") {
-    return call.outcome === "answered" ? "Answered" : "No answer";
+    return call.outcome === "answered"
+      ? t("shell.outcomeAnswered")
+      : t("shell.outcomeNoAnswer");
   }
   switch (call.outcome) {
     case "answered":
-      return "Answered";
+      return t("shell.outcomeAnswered");
     case "voicemail":
-      return "Left a voicemail";
+      return t("shell.outcomeLeftVoicemail");
     default:
-      return "Missed";
+      return t("shell.outcomeMissed");
   }
 }
 
@@ -35,7 +45,10 @@ export function outcomeLine(call: CallDetailRow): string {
  * from "we never tried". An empty panel would read as a bug in both cases.
  * *Applying: G10 — system states must be precise.*
  */
-export function transcriptState(call: CallDetailRow): { text: string; muted: boolean } {
+export function transcriptState(
+  call: CallDetailRow,
+  t: Translate,
+): { text: string; muted: boolean } {
   if (call.voicemail_transcript) {
     return { text: call.voicemail_transcript, muted: false };
   }
@@ -47,19 +60,19 @@ export function transcriptState(call: CallDetailRow): { text: string; muted: boo
     // words. Caught by looking at the rendered page, not by reading the code.
     return call.outcome === "voicemail"
       ? {
-          text: "They started leaving a voicemail, but the recording didn't save.",
+          text: t("shell.transcriptRecordingLost"),
           muted: true,
         }
-      : { text: "No voicemail was left on this call.", muted: true };
+      : { text: t("shell.transcriptNoVoicemail"), muted: true };
   }
   if (call.voicemail_transcript_attempted_at) {
     return {
-      text: "We couldn't make out any words in this one. The recording still plays.",
+      text: t("shell.transcriptNoWords"),
       muted: true,
     };
   }
   return {
-    text: "This voicemail hasn't been written down yet. Playing it will do that.",
+    text: t("shell.transcriptNotYet"),
     muted: true,
   };
 }

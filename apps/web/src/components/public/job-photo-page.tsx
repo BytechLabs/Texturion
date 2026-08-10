@@ -1,4 +1,11 @@
-import { WORK_PHASE_LABELS, type WorkPhase } from "@loonext/shared";
+import {
+  DEFAULT_LOCALE,
+  isLocale,
+  WORK_PHASE_LABELS,
+  type WorkPhase,
+} from "@loonext/shared";
+
+import { makeTranslate } from "@/i18n/provider";
 
 /**
  * #294 — the job photo record, as the homeowner sees it.
@@ -38,6 +45,7 @@ export function JobPhotoPage({
   businessName,
   photos = [],
   truncated = false,
+  locale,
   notAvailable = false,
 }: {
   businessName?: string;
@@ -51,16 +59,24 @@ export function JobPhotoPage({
    * neither would the crew who sent it.
    */
   truncated?: boolean;
+  /**
+   * #228: the BUSINESS's language. Same reasoning as the payment page — the
+   * homeowner has a relationship with the crew, not with us, so it is the
+   * crew's own setting that decides. No provider here: this renders outside the
+   * app shell for somebody with no account.
+   */
+  locale?: string;
   notAvailable?: boolean;
 }) {
+  const t = makeTranslate(isLocale(locale) ? locale : DEFAULT_LOCALE);
   if (notAvailable) {
     return (
       <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
         <h1 className="text-xl font-semibold tracking-tight">
-          This link isn&apos;t available
+          {t("misc.photoLinkUnavailableTitle")}
         </h1>
         <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
-          It may have expired. Ask whoever sent it for a new one.
+          {t("misc.photoLinkUnavailableDetail")}
         </p>
       </main>
     );
@@ -74,20 +90,22 @@ export function JobPhotoPage({
     <main className="mx-auto w-full max-w-2xl px-4 py-10 md:px-6">
       <header className="space-y-1">
         <h1 className="text-xl font-semibold tracking-tight">
-          Photos from {businessName}
+          {t("misc.photosFrom", { business: businessName ?? "" })}
         </h1>
         <p className="text-[14px] text-muted-foreground">
           {photos.length === 0
-            ? "There are no photos on this job yet."
-            : "The work on your job, as it was photographed."}
+            ? t("misc.photosNone")
+            : t("misc.photosIntro")}
         </p>
         {/* One plain sentence in the header rather than a banner: it qualifies what
             the line above just promised, and it is not a problem the reader has to
             do anything about. Whoever sent the link is the one who can send more. */}
         {truncated && (
           <p className="text-[14px] text-muted-foreground">
-            This job has more photos than fit on one page — these are the first{" "}
-            {photos.length}. Ask {businessName} if you need the rest.
+            {t("misc.photosTruncated", {
+              count: photos.length,
+              business: businessName ?? "",
+            })}
           </p>
         )}
       </header>

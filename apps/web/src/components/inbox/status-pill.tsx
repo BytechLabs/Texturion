@@ -49,17 +49,3 @@ export function StatusPill({
     </span>
   );
 }
-
-/** Spam chip shown on rows inside the spam view (red-700: 4.5:1+ per G11). */
-export function SpamPill({ className }: { className?: string }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium leading-4 text-red-700 dark:text-destructive",
-        className,
-      )}
-    >
-      Spam
-    </span>
-  );
-}

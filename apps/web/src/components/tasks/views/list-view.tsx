@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import { TaskBulkBar } from "@/components/tasks/task-bulk-bar";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { useBulkTasks, type BulkTasksBody } from "@/lib/api/tasks";
 import {
   bulkResultMessage,
@@ -41,6 +42,7 @@ import { toTaskFilters, type TaskPageState } from "../task-view-url";
  * petrol state mark.
  */
 export function ListView({ state }: { state: TaskPageState }) {
+  const t = useT();
   const filters = toTaskFilters(state);
   // The Open / Done tabs pin a status → one paginated query with "Load more".
   // The statusless tabs (All, Mine, an assignee chip) must show open AND done —
@@ -90,10 +92,10 @@ export function ListView({ state }: { state: TaskPageState }) {
   const hasMore = hasStatus ? single.hasNextPage === true : false;
 
   const BULK_VERB: Record<BulkTasksBody["action"], string> = {
-    mark_done: "Marked done",
-    mark_undone: "Marked not done",
-    assign: "Assigned",
-    delete: "Deleted",
+    mark_done: t("tasks.bulkVerbMarkedDone"),
+    mark_undone: t("tasks.bulkVerbMarkedNotDone"),
+    assign: t("tasks.bulkVerbAssigned"),
+    delete: t("tasks.bulkVerbDeleted"),
   };
 
   function runBulk(body: Omit<BulkTasksBody, "ids" | "filter">) {
@@ -106,10 +108,15 @@ export function ListView({ state }: { state: TaskPageState }) {
         onSuccess: (result) => {
           // The server's count, never one this component worked out. In filter
           // mode the client genuinely does not know how many rows matched.
-          toast.success(bulkResultMessage(BULK_VERB[body.action], result, { one: "task", many: "tasks" }));
+          toast.success(
+            bulkResultMessage(BULK_VERB[body.action], result, {
+              one: t("tasks.bulkNounOne"),
+              many: t("tasks.bulkNounMany"),
+            }),
+          );
           setSelection(EMPTY_SELECTION);
         },
-        onError: () => toast.error("That didn't go through. Nothing was changed."),
+        onError: () => toast.error(t("tasks.bulkFailed")),
       },
     );
   }
@@ -120,7 +127,7 @@ export function ListView({ state }: { state: TaskPageState }) {
     return (
       <div className="px-1 py-8">
         <LoadError
-          message="We couldn't load your tasks. Check your connection and try again."
+          message={t("tasks.tasksLoadFailed")}
           onRetry={() => {
             if (hasStatus) void single.refetch();
             else {
@@ -157,10 +164,10 @@ export function ListView({ state }: { state: TaskPageState }) {
       {/* Column header — quiet stone labels, hidden on mobile (the row carries
           its own compact layout there). */}
       <div className="hidden min-w-[640px] grid-cols-[minmax(0,1fr)_160px_128px_96px] items-center gap-4 border-b border-border px-3 pb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:grid">
-        <span>Task</span>
-        <span>Assignee</span>
-        <span>Due</span>
-        <span>Status</span>
+        <span>{t("tasks.columnTask")}</span>
+        <span>{t("tasks.assignee")}</span>
+        <span>{t("tasks.due")}</span>
+        <span>{t("tasks.columnStatus")}</span>
       </div>
       <ul>
         {tasks.map((task) => (
@@ -184,7 +191,9 @@ export function ListView({ state }: { state: TaskPageState }) {
             onClick={() => single.fetchNextPage()}
             disabled={single.isFetchingNextPage}
           >
-            {single.isFetchingNextPage ? "Loading…" : "Load more"}
+            {single.isFetchingNextPage
+              ? t("tasks.loadingMore")
+              : t("tasks.loadMore")}
           </Button>
         </div>
       )}
@@ -206,6 +215,7 @@ function TaskRow({
   selected: boolean;
   onToggleSelected: () => void;
 }) {
+  const t = useT();
   const { openTask } = useTaskDrawer();
   return (
     <li className="group border-b border-border-subtle">
@@ -220,7 +230,7 @@ function TaskRow({
             type="checkbox"
             checked={selected}
             onChange={onToggleSelected}
-            aria-label={`Select ${task.title}`}
+            aria-label={t("tasks.selectRowAria", { title: task.title })}
             className={`mt-0.5 size-4 shrink-0 accent-app-olive md:mt-0 ${
               selected ? "" : "opacity-0 focus-visible:opacity-100 group-hover:opacity-100"
             }`}
@@ -241,7 +251,7 @@ function TaskRow({
               href={`/inbox/${task.conversation_id}?message=${task.message_id}`}
               className="mt-0.5 inline-flex items-center gap-1 truncate text-[12px] text-muted-foreground hover:text-foreground"
             >
-              Open conversation
+              {t("tasks.openConversation")}
               <ArrowUpRight className="size-3" strokeWidth={1.75} aria-hidden />
             </Link>
             {/* Mobile-only meta row (the desktop grid shows these as columns). */}

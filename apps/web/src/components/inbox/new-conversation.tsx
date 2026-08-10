@@ -38,6 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { useMe } from "@/lib/api/me";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -98,6 +99,7 @@ type Recipient =
  * checkbox was removed).
  */
 export function NewConversation() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const company = useCompany();
@@ -356,7 +358,7 @@ export function NewConversation() {
       }
     } catch {
       submittingRef.current = false;
-      toast.error("Couldn't read that file. Try attaching it again.");
+      toast.error(t("inbox.composeFileReadFailed"));
       return;
     }
     // Same rule as the thread composer: retrying identical content reuses the
@@ -416,7 +418,7 @@ export function NewConversation() {
         toast.error(
           error instanceof ApiError
             ? error.message
-            : "That didn't send. Check your connection and try again.",
+            : t("inbox.composeSendFailed"),
         );
       },
     });
@@ -454,21 +456,21 @@ export function NewConversation() {
           variant="ghost"
           size="icon-sm"
           className="md:hidden"
-          aria-label="Back to inbox"
+          aria-label={t("inbox.composeBackAria")}
         >
           <Link href="/inbox">
             <ArrowLeft className="size-4" strokeWidth={1.75} />
           </Link>
         </Button>
         <h1 className="flex-1 text-sm font-semibold text-foreground">
-          New conversation
+          {t("inbox.composeTitle")}
         </h1>
         <Button
           asChild
           variant="ghost"
           size="icon-sm"
           className="hidden md:inline-flex"
-          aria-label="Close"
+          aria-label={t("common.close")}
         >
           <Link href="/inbox">
             <X className="size-4" strokeWidth={1.75} />
@@ -489,7 +491,7 @@ export function NewConversation() {
 
         {/* Recipient */}
         <div className="space-y-1.5">
-          <Label htmlFor="compose-to">To</Label>
+          <Label htmlFor="compose-to">{t("inbox.composeToLabel")}</Label>
           {recipient ? (
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1.5 text-sm">
@@ -506,7 +508,7 @@ export function NewConversation() {
                 <button
                   type="button"
                   onClick={() => setRecipient(null)}
-                  aria-label="Change recipient"
+                  aria-label={t("inbox.composeChangeRecipientAria")}
                   className="rounded-full p-0.5 hover:bg-background"
                 >
                   <X className="size-3.5" strokeWidth={1.75} />
@@ -530,7 +532,7 @@ export function NewConversation() {
                 id="compose-to"
                 value={displayInput}
                 autoComplete="off"
-                placeholder="Search contacts or type a number"
+                placeholder={t("inbox.composeToPlaceholder")}
                 role="combobox"
                 aria-expanded={listOpen}
                 aria-controls={listOpen ? listboxId : undefined}
@@ -582,13 +584,13 @@ export function NewConversation() {
                     setActiveIndex(-1);
                   }
                 }}
-                aria-label="Recipient: search contacts or type a phone number"
+                aria-label={t("inbox.composeToAria")}
               />
               {listOpen && (
                 <div
                   id={listboxId}
                   role="listbox"
-                  aria-label="Recipient matches"
+                  aria-label={t("inbox.composeMatchesAria")}
                   className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-md border border-border bg-popover"
                 >
                   {contactRows.map((contact, index) => (
@@ -628,7 +630,9 @@ export function NewConversation() {
                         contactRows.length === active && "bg-secondary/60",
                       )}
                     >
-                      Text {formatPhone(typedE164)}
+                      {t("inbox.composeTextNumber", {
+                        number: formatPhone(typedE164),
+                      })}
                     </button>
                   )}
                   {contactRows.length === 0 && !typedE164 && (
@@ -637,10 +641,10 @@ export function NewConversation() {
                       className="px-3 py-2 text-sm text-muted-foreground"
                     >
                       {isPhone
-                        ? "Keep typing. A US or Canada number has 10 digits."
+                        ? t("inbox.composeKeepTyping")
                         : contacts.isPending && input.trim().length > 0
-                          ? "Searching…"
-                          : "No matching contacts."}
+                          ? t("inbox.composeSearching")
+                          : t("inbox.composeNoContacts")}
                     </p>
                   )}
                 </div>
@@ -652,13 +656,13 @@ export function NewConversation() {
         {/* From number (Pro companies can hold two). */}
         {activeNumbers.length > 1 && (
           <div className="space-y-1.5">
-            <Label htmlFor="compose-from">From</Label>
+            <Label htmlFor="compose-from">{t("inbox.composeFromLabel")}</Label>
             <Select
               value={numberId ?? undefined}
               onValueChange={(value) => setNumberId(value)}
             >
               <SelectTrigger id="compose-from" className="w-full">
-                <SelectValue placeholder="Choose a number" />
+                <SelectValue placeholder={t("inbox.composeChooseNumber")} />
               </SelectTrigger>
               <SelectContent>
                 {activeNumbers.map((number) => (
@@ -673,15 +677,14 @@ export function NewConversation() {
         {company.isPending && <Skeleton className="h-9 w-full" />}
         {company.isSuccess && activeNumbers.length === 0 && (
           <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
-            Your business number is still being set up. Sending unlocks the
-            moment it&apos;s ready.
+            {t("inbox.composeNumberProvisioning")}
           </p>
         )}
 
         {/* Message */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <Label htmlFor="compose-body">Message</Label>
+            <Label htmlFor="compose-body">{t("inbox.composeMessageLabel")}</Label>
             <div className="flex items-center gap-1">
               {/* Attach up to 3 files (§7 outbound MMS, #189) — the shared
                   admitFiles enforces count/type/size; this is the entry point. */}
@@ -689,11 +692,11 @@ export function NewConversation() {
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={attachments.length >= MMS_MAX_MEDIA_ITEMS}
-                aria-label="Attach files"
+                aria-label={t("inbox.composeAttachAria")}
                 className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-45"
               >
                 <Paperclip className="size-3.5" strokeWidth={1.75} aria-hidden />
-                Attach
+                {t("inbox.composeAttach")}
               </button>
               {/* Saved-reply (template) picker — same one as the in-thread
                   composer; also opens on "/" in an empty draft. */}
@@ -708,7 +711,7 @@ export function NewConversation() {
                   className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
                 >
                   <FileText className="size-3.5" strokeWidth={1.75} aria-hidden />
-                  Saved reply
+                  {t("inbox.composeSavedReply")}
                 </button>
               </TemplatePicker>
             </div>
@@ -750,7 +753,7 @@ export function NewConversation() {
               admitIncoming(event.clipboardData.files);
             }}
             rows={3}
-            placeholder="Write your text…  (/ for a saved reply)"
+            placeholder={t("inbox.composeBodyPlaceholder")}
             className="min-h-20 w-full resize-none rounded-md border border-input bg-transparent px-3 py-2 text-[16px] leading-6 outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring md:text-[15px]"
           />
           <div className="flex items-start justify-between gap-2">
@@ -759,8 +762,7 @@ export function NewConversation() {
                 Name the reason instead of leaving Send silently dead. */}
             {attachments.length > 0 && body.trim() === "" ? (
               <p className="text-xs text-muted-foreground">
-                Add a short message. The first text in a new conversation
-                can&apos;t be just an attachment.
+                {t("inbox.composeNeedsWords")}
               </p>
             ) : (
               <span aria-hidden />
@@ -815,8 +817,8 @@ export function NewConversation() {
               }
             >
               {localClock.quiet
-                ? `It's ${localClock.label} for this customer. We'll ask before sending this late.`
-                : `It's ${localClock.label} for them.`}
+                ? t("inbox.composeLocalTimeQuiet", { time: localClock.label })
+                : t("inbox.composeLocalTime", { time: localClock.label })}
             </p>
           ) : null}
         </div>
@@ -830,7 +832,9 @@ export function NewConversation() {
             aria-keyshortcuts="Control+Enter Meta+Enter"
           >
             <Send className="size-4" strokeWidth={1.75} />
-            {start.isPending ? "Sending…" : "Send"}
+            {start.isPending
+              ? t("inbox.composeSending")
+              : t("inbox.composeSend")}
           </Button>
         </div>
       </div>
@@ -844,14 +848,14 @@ export function NewConversation() {
           <DialogHeader>
             <DialogTitle>
               {quietHours?.localTime
-                ? `It's ${quietHours.localTime} for this customer.`
-                : "It's late where this customer is."}
+                ? t("inbox.composeQuietTitle", { time: quietHours.localTime })
+                : t("inbox.composeQuietTitleUnknown")}
             </DialogTitle>
-            <DialogDescription>Send anyway?</DialogDescription>
+            <DialogDescription>{t("inbox.composeQuietBody")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setQuietHours(null)}>
-              Wait
+              {t("inbox.composeQuietWait")}
             </Button>
             <Button
               onClick={() => {
@@ -860,7 +864,7 @@ export function NewConversation() {
               }}
               disabled={start.isPending}
             >
-              Send
+              {t("inbox.composeSend")}
             </Button>
           </DialogFooter>
         </DialogContent>

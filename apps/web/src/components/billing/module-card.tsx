@@ -2,6 +2,7 @@
 
 import { Check } from "lucide-react";
 
+import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -22,7 +23,7 @@ export function ModuleCard({
   disabled,
 }: {
   label: string;
-  /** Base monthly price string (e.g. "$10"); the card appends "/mo". */
+  /** Base monthly price string (e.g. "$10"); the card appends the period. */
   price: string;
   blurb: string;
   detail?: string | null;
@@ -30,12 +31,13 @@ export function ModuleCard({
   onToggle: () => void;
   disabled?: boolean;
 }) {
+  const t = useT();
   return (
     <button
       type="button"
       role="switch"
       aria-checked={on}
-      aria-label={`${label} add-on`}
+      aria-label={t("settingsMore.moduleCardAria", { name: label })}
       onClick={onToggle}
       disabled={disabled}
       className={cn(
@@ -60,7 +62,7 @@ export function ModuleCard({
         <span className="flex items-baseline justify-between gap-2">
           <span className="text-sm font-medium">{label}</span>
           <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
-            {price}/mo
+            {t("settingsMore.modulePricePerMonth", { price })}
           </span>
         </span>
         <span className="mt-0.5 block text-[13px] text-muted-foreground">

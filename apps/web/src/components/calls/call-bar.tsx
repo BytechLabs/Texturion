@@ -27,6 +27,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import {
   LIVE_NOTE_LOOKUP_ATTEMPTS,
   LIVE_NOTE_LOOKUP_INTERVAL_MS,
@@ -64,24 +65,27 @@ function TransferMenu({
   sessionId: string;
   onDone: () => void;
 }) {
+  const t = useT();
   const targets = useTransferTargets(sessionId, true);
   const members = useMembers();
   const transfer = useTransferCall();
 
   const nameOf = (userId: string) =>
     members.data?.data.find((m) => m.user_id === userId)?.display_name ??
-    "Teammate";
+    t("shell.teammate");
 
   return (
     <div className="absolute bottom-full left-0 right-0 mb-2 rounded-app-card border border-app-line bg-app-paper p-2 shadow-lg">
       <p className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
-        Transfer to
+        {t("shell.transferTo")}
       </p>
       {targets.isPending ? (
-        <p className="px-2 py-1.5 text-sm text-app-muted-2">Loading…</p>
+        <p className="px-2 py-1.5 text-sm text-app-muted-2">
+          {t("shell.loading")}
+        </p>
       ) : (targets.data?.targets.length ?? 0) === 0 ? (
         <p className="px-2 py-1.5 text-sm text-app-muted-2">
-          Nobody else has their phone open right now.
+          {t("shell.noTransferTargets")}
         </p>
       ) : (
         targets.data!.targets.map((target) => (
@@ -95,7 +99,9 @@ function TransferMenu({
                 {
                   onSuccess: () => {
                     toast.success(
-                      `Transferring to ${nameOf(target.user_id)}…`,
+                      t("shell.transferring", {
+                        name: nameOf(target.user_id),
+                      }),
                     );
                     onDone();
                   },
@@ -103,7 +109,7 @@ function TransferMenu({
                     toast.error(
                       cause instanceof ApiError
                         ? cause.message
-                        : "Couldn't transfer. Try again.",
+                        : t("shell.transferFailed"),
                     ),
                 },
               )
@@ -113,7 +119,7 @@ function TransferMenu({
             <span className="truncate">{nameOf(target.user_id)}</span>
             {target.busy && (
               <span className="ml-2 shrink-0 text-[11px] text-app-muted-2">
-                On a call
+                {t("shell.onACall")}
               </span>
             )}
           </button>
@@ -125,6 +131,7 @@ function TransferMenu({
 
 /** A compact chip for a NON-active call (held / ringing / ended). */
 function CallChip({ call }: { call: CallInfo }) {
+  const t = useT();
   const softphone = useSoftphone()!;
   const label = call.peer.name || formatPhone(call.peer.number);
   // The "ended" chip is meant to be brief — auto-dismiss it after a few seconds
@@ -143,7 +150,7 @@ function CallChip({ call }: { call: CallInfo }) {
       >
         <span aria-hidden className="size-2 rounded-full bg-primary animate-pulse" />
         <span className="max-w-[140px] truncate text-[12.5px] font-medium">
-          <span className="sr-only">Incoming call from </span>
+          <span className="sr-only">{t("shell.incomingCallFrom")} </span>
           {label}
         </span>
         <Button
@@ -154,19 +161,19 @@ function CallChip({ call }: { call: CallInfo }) {
               toast.error(
                 cause instanceof Error
                   ? cause.message
-                  : "Couldn't answer the call.",
+                  : t("shell.answerFailed"),
               ),
             )
           }
         >
           <Phone className="size-3" strokeWidth={1.75} />
-          Answer
+          {t("shell.answer")}
         </Button>
         <Button
           variant="ghost"
           size="icon-sm"
           className="size-6 text-app-clay hover:bg-app-clay/10"
-          aria-label="Decline"
+          aria-label={t("shell.decline")}
           onClick={() => softphone.hangup(call.id)}
         >
           <PhoneOff className="size-3.5" strokeWidth={1.75} />
@@ -179,13 +186,13 @@ function CallChip({ call }: { call: CallInfo }) {
       <div className="flex items-center gap-2 rounded-full border border-app-line bg-app-paper px-3 py-1.5 shadow-lg">
         <Pause className="size-3 text-app-muted-2" strokeWidth={1.75} aria-hidden />
         <span className="max-w-[140px] truncate text-[12.5px] text-app-muted">
-          {label} · on hold
+          {t("shell.callOnHold", { name: label })}
         </span>
         <Button
           variant="ghost"
           size="icon-sm"
           className="size-6"
-          aria-label={`Resume call with ${label}`}
+          aria-label={t("shell.resumeCall", { name: label })}
           onClick={() => softphone.toggleHold(call.id)}
         >
           <Play className="size-3.5" strokeWidth={1.75} />
@@ -194,7 +201,7 @@ function CallChip({ call }: { call: CallInfo }) {
           variant="ghost"
           size="icon-sm"
           className="size-6 text-app-clay hover:bg-app-clay/10"
-          aria-label="Hang up held call"
+          aria-label={t("shell.hangUpHeldCall")}
           onClick={() => softphone.hangup(call.id)}
         >
           <PhoneOff className="size-3.5" strokeWidth={1.75} />
@@ -206,13 +213,13 @@ function CallChip({ call }: { call: CallInfo }) {
     return (
       <div className="flex items-center gap-2 rounded-full border border-app-line bg-app-paper px-3 py-1.5 text-app-muted-2 shadow-lg">
         <span className="max-w-[140px] truncate text-[12.5px]">
-          {label} · ended
+          {t("shell.callEnded", { name: label })}
         </span>
         <Button
           variant="ghost"
           size="icon-sm"
           className="size-6"
-          aria-label="Dismiss"
+          aria-label={t("shell.dismiss")}
           onClick={() => softphone.dismiss(call.id)}
         >
           <X className="size-3.5" strokeWidth={1.75} />
@@ -253,17 +260,18 @@ function DtmfKeypad({
   callId: string;
   onClose: () => void;
 }) {
+  const t = useT();
   const softphone = useSoftphone()!;
   return (
     <div className="absolute bottom-full left-0 right-0 mb-2 rounded-app-card border border-app-line bg-app-paper p-3 shadow-lg">
       <div className="mb-2 flex items-center justify-between px-1">
         <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
-          Keypad
+          {t("shell.keypad")}
         </span>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close keypad"
+          aria-label={t("shell.closeKeypad")}
           className="text-app-muted-2 transition-colors hover:text-app-ink"
         >
           <X className="size-3.5" strokeWidth={2} />
@@ -287,6 +295,7 @@ function DtmfKeypad({
 
 /** The active call's full control card. */
 function ActiveCard({ call }: { call: CallInfo }) {
+  const t = useT();
   const softphone = useSoftphone()!;
   const [transferOpen, setTransferOpen] = useState(false);
   const [keypadOpen, setKeypadOpen] = useState(false);
@@ -354,7 +363,7 @@ function ActiveCard({ call }: { call: CallInfo }) {
         <p className="truncate text-sm font-medium text-app-ink">{name}</p>
         <p className="truncate text-xs text-app-muted-2">
           {call.phase === "connecting" ? (
-            "Calling…"
+            t("shell.calling")
           ) : call.activeSince !== null ? (
             <LiveTimer since={call.activeSince} />
           ) : (
@@ -378,7 +387,7 @@ function ActiveCard({ call }: { call: CallInfo }) {
             asChild
             variant="ghost"
             size="icon-sm"
-            aria-label="Open the conversation to take notes"
+            aria-label={t("shell.openConversationForNotes")}
           >
             <Link href={`/inbox/${conversationId}`}>
               <MessageSquareText className="size-4" strokeWidth={1.75} />
@@ -394,13 +403,13 @@ function ActiveCard({ call }: { call: CallInfo }) {
             // gave up is a lie the user waits on.
             aria-label={
               noteLinkPending
-                ? "Finding this call's conversation…"
-                : "This call has no conversation to take notes in"
+                ? t("shell.findingConversation")
+                : t("shell.noConversationForCallAria")
             }
             title={
               noteLinkPending
-                ? "Finding this call's conversation…"
-                : "No conversation for this call"
+                ? t("shell.findingConversation")
+                : t("shell.noConversationForCall")
             }
           >
             <MessageSquareText className="size-4" strokeWidth={1.75} />
@@ -410,7 +419,7 @@ function ActiveCard({ call }: { call: CallInfo }) {
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="Transfer this call"
+          aria-label={t("shell.transferThisCall")}
           aria-expanded={transferOpen}
           // #516: mounted for the whole active call, enabled once the server
           // can address the session. Disabled still communicates "this call can
@@ -419,7 +428,7 @@ function ActiveCard({ call }: { call: CallInfo }) {
           title={
             call.sessionId && serverAddressable
               ? undefined
-              : "Connecting this call to the server…"
+              : t("shell.connectingCallToServer")
           }
           onClick={() => {
             // Mutually exclusive with the keypad — they render in the same
@@ -435,7 +444,7 @@ function ActiveCard({ call }: { call: CallInfo }) {
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="Keypad"
+          aria-label={t("shell.keypad")}
           aria-expanded={keypadOpen}
           onClick={() => {
             setKeypadOpen((open) => !open);
@@ -449,7 +458,7 @@ function ActiveCard({ call }: { call: CallInfo }) {
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="Put on hold"
+          aria-label={t("shell.putOnHold")}
           onClick={() => softphone.toggleHold(call.id)}
         >
           <Pause className="size-4" strokeWidth={1.75} />
@@ -458,7 +467,7 @@ function ActiveCard({ call }: { call: CallInfo }) {
       <Button
         variant="ghost"
         size="icon-sm"
-        aria-label={call.muted ? "Unmute" : "Mute"}
+        aria-label={call.muted ? t("shell.unmute") : t("shell.mute")}
         aria-pressed={call.muted}
         onClick={() => softphone.toggleMute(call.id)}
       >
@@ -471,7 +480,7 @@ function ActiveCard({ call }: { call: CallInfo }) {
       <Button
         variant="ghost"
         size="icon-sm"
-        aria-label="Hang up"
+        aria-label={t("shell.hangUp")}
         onClick={() => softphone.hangup(call.id)}
         className="text-app-clay hover:bg-app-clay/10"
       >
@@ -482,6 +491,8 @@ function ActiveCard({ call }: { call: CallInfo }) {
 }
 
 export function CallBar() {
+  // Before the early return: hooks may not sit behind a condition.
+  const t = useT();
   const softphone = useSoftphone();
   if (!softphone || softphone.calls.length === 0) return null;
 
@@ -500,7 +511,7 @@ export function CallBar() {
         "bottom-[calc(3.5rem+env(safe-area-inset-bottom)+0.5rem)] lg:bottom-4",
       )}
       role="region"
-      aria-label="Calls"
+      aria-label={t("shell.navCalls")}
     >
       {others.length > 0 && (
         <div className="flex flex-wrap justify-center gap-2">

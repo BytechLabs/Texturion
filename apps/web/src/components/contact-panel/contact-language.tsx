@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { LOCALES, LOCALE_LABELS, isLocale, type Locale } from "@loonext/shared";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { useUpdateContact } from "@/lib/api/contacts";
 import { ApiError } from "@/lib/api/error";
@@ -38,6 +39,7 @@ import type { ContactDetail } from "@/lib/api/types";
  * as a chosen one.*
  */
 export function ContactLanguage({ contact }: { contact: ContactDetail }) {
+  const t = useT();
   const company = useCompany();
   const update = useUpdateContact(contact.id);
   const radioRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -65,8 +67,10 @@ export function ContactLanguage({ contact }: { contact: ContactDetail }) {
     {
       value: null,
       label: companyLocale
-        ? `Same as workspace (${LOCALE_LABELS[companyLocale]})`
-        : "Same as workspace",
+        ? t("contacts.sameAsWorkspaceNamed", {
+            language: LOCALE_LABELS[companyLocale],
+          })
+        : t("contacts.sameAsWorkspace"),
     },
     ...LOCALES.map((locale) => ({ value: locale, label: LOCALE_LABELS[locale] })),
   ];
@@ -79,7 +83,11 @@ export function ContactLanguage({ contact }: { contact: ContactDetail }) {
       {
         onSuccess: () =>
           toast.success(
-            value ? "Language saved." : "Back to the workspace language.",
+            t(
+              value
+                ? "contacts.languageSaved"
+                : "contacts.languageBackToWorkspace",
+            ),
           ),
         onError: (cause) => {
           // Put the chip back where it was. An optimistic move that survived a
@@ -88,7 +96,7 @@ export function ContactLanguage({ contact }: { contact: ContactDetail }) {
           toast.error(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't save the language. Try again.",
+              : t("contacts.languageSaveFailed"),
           );
         },
       },
@@ -128,7 +136,7 @@ export function ContactLanguage({ contact }: { contact: ContactDetail }) {
     <div className="space-y-1.5">
       <div
         role="radiogroup"
-        aria-label="Language for this customer"
+        aria-label={t("contacts.languageGroupLabel")}
         onKeyDown={onKeyDown}
         className="flex flex-wrap gap-1.5"
       >
@@ -167,7 +175,7 @@ export function ContactLanguage({ contact }: { contact: ContactDetail }) {
           French for a customer and then waits for their own typing to arrive
           in French. */}
       <p className="text-xs text-muted-foreground">
-        Automatic texts only. What you type is sent exactly as you type it.
+        {t("contacts.languageNote")}
       </p>
     </div>
   );

@@ -27,6 +27,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { publicEnv } from "@/env";
+import { useT } from "@/i18n/provider";
 import { authErrorMessage } from "@/lib/auth/messages";
 import { needsStepUp } from "@/lib/auth/mfa-step-up";
 import { safeNextPath } from "@/lib/auth/redirects";
@@ -41,6 +42,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 function LoginForm() {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -58,11 +60,9 @@ function LoginForm() {
   // ?error=oauth) as a calm inline message instead of a blank login page.
   useEffect(() => {
     if (searchParams.get("error") === "oauth") {
-      setServerError(
-        "We couldn't finish signing you in with that provider. Try again, or use your email and password below.",
-      );
+      setServerError(t("onboarding.oauthFailed"));
     }
-  }, [searchParams]);
+  }, [searchParams, t]);
 
   const lastUsed = useLastUsedMethod();
   const form = useForm<FormValues>({
@@ -128,7 +128,7 @@ function LoginForm() {
               setChallenge(false);
             }}
           >
-            Use a different account
+            {t("onboarding.useDifferentAccount")}
           </button>
         }
       />
@@ -138,9 +138,11 @@ function LoginForm() {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Log in</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {t("onboarding.logIn")}
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Your team&apos;s texts are waiting.
+          {t("onboarding.loginSubtitle")}
         </p>
       </div>
       {/* SSO stacked above the email form (§1.7): the petrol "Log in" button
@@ -161,7 +163,7 @@ function LoginForm() {
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>{t("onboarding.emailLabel")}</FormLabel>
                 <FormControl>
                   <Input
                     type="email"
@@ -181,12 +183,12 @@ function LoginForm() {
             render={({ field }) => (
               <FormItem>
                 <div className="flex items-center justify-between">
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel>{t("onboarding.passwordLabel")}</FormLabel>
                   <Link
                     href="/reset-password"
                     className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                   >
-                    Forgot your password?
+                    {t("onboarding.forgotPassword")}
                   </Link>
                 </div>
                 <FormControl>
@@ -219,18 +221,20 @@ function LoginForm() {
               (siteKey !== undefined && captchaToken === null)
             }
           >
-            {form.formState.isSubmitting ? "Logging in…" : "Log in"}
+            {form.formState.isSubmitting
+              ? t("onboarding.loggingIn")
+              : t("onboarding.logIn")}
             {lastUsed === "password" && <LastUsedBadge className="ml-auto" />}
           </Button>
         </form>
       </Form>
       <p className="text-center text-sm text-muted-foreground">
-        New to Loonext?{" "}
+        {t("onboarding.newToLoonext")}{" "}
         <Link
           href="/signup"
           className="font-medium text-primary underline-offset-4 hover:underline"
         >
-          Create an account
+          {t("onboarding.createAccount")}
         </Link>
       </p>
     </div>

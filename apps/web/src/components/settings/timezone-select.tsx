@@ -22,6 +22,7 @@ import {
   supportedTimezones,
   timezoneLabel,
 } from "@/lib/settings/timezone-options";
+import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -39,6 +40,7 @@ export function TimezoneSelect({
   onChange: (zone: string) => void;
   disabled?: boolean;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   const groups = useMemo(() => {
@@ -53,7 +55,7 @@ export function TimezoneSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          aria-label="Timezone"
+          aria-label={t("settingsMore.timezoneLabel")}
           disabled={disabled}
           className="w-full justify-between font-normal sm:w-80"
         >
@@ -67,9 +69,11 @@ export function TimezoneSelect({
       </PopoverTrigger>
       <PopoverContent className="w-(--radix-popover-trigger-width) p-0" align="start">
         <Command>
-          <CommandInput placeholder="Search timezones…" />
+          <CommandInput
+            placeholder={t("settingsMore.timezoneSearchPlaceholder")}
+          />
           <CommandList>
-            <CommandEmpty>No timezone matches that.</CommandEmpty>
+            <CommandEmpty>{t("settingsMore.timezoneNoMatch")}</CommandEmpty>
             {groups.map((group) => (
               <CommandGroup key={group.region} heading={group.region}>
                 {group.zones.map((zone) => (

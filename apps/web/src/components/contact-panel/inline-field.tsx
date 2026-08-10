@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useUpdateContact, type ContactPatch } from "@/lib/api/contacts";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,7 @@ export function InlineTextField({
    * address that lose their meaning when cut at a narrow drawer width. */
   wrap?: boolean;
 }) {
+  const t = useT();
   const update = useUpdateContact(contactId);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? "");
@@ -65,7 +67,11 @@ export function InlineTextField({
         toast.error(
           error instanceof ApiError
             ? error.message
-            : `Couldn't save the ${field}. Try again.`,
+            : t(
+                field === "name"
+                  ? "contacts.saveNameFailed"
+                  : "contacts.saveAddressFailed",
+              ),
         );
       },
     });
@@ -79,7 +85,15 @@ export function InlineTextField({
         // Fold the current value into the accessible name so a screen reader
         // announces it (a bare "Edit {label}" hid the value the button shows);
         // the button role already conveys the click-to-edit affordance.
-        aria-label={value ? `${label}: ${value}` : `Add ${label.toLowerCase()}`}
+        //
+        // #228: the EMPTY case is the placeholder rather than a composed
+        // `Add ${label.toLowerCase()}`. Lowercasing a translated label and
+        // gluing it after a verb is a sentence no language builds the same way
+        // — "Ajouter nom du client" is what that construction produces — and
+        // the placeholder is already the same words, written by a translator.
+        aria-label={
+          value ? t("contacts.fieldValueAria", { label, value }) : placeholder
+        }
         className={cn(
           "w-full rounded-md px-2 py-1 text-left text-sm transition-colors duration-150 ease-out hover:bg-app-hover",
           wrap ? "line-clamp-2 break-words" : "truncate",
@@ -121,6 +135,7 @@ export function AutoSaveNotes({
   contactId: string;
   value: string | null;
 }) {
+  const t = useT();
   const update = useUpdateContact(contactId);
   const [draft, setDraft] = useState(value ?? "");
   const [saved, setSaved] = useState(false);
@@ -163,7 +178,7 @@ export function AutoSaveNotes({
             toast.error(
               error instanceof ApiError
                 ? error.message
-                : "Couldn't save notes. Try again.",
+                : t("contacts.saveNotesFailed"),
             ),
         },
       );
@@ -192,8 +207,8 @@ export function AutoSaveNotes({
         value={draft}
         onChange={(e) => onChange(e.target.value)}
         rows={3}
-        placeholder="Notes about this customer…"
-        aria-label="Contact notes"
+        placeholder={t("contacts.notesPlaceholder")}
+        aria-label={t("contacts.notesLabel")}
         // field-sizing-content (the shared ui/textarea idiom): the box grows
         // with the note instead of clipping it mid-word at the fixed 3 rows;
         // max-h keeps a runaway note scrollable, not panel-swallowing.
@@ -206,7 +221,7 @@ export function AutoSaveNotes({
           update.isPending || saved ? "opacity-100" : "opacity-0",
         )}
       >
-        {update.isPending ? "Saving…" : saved ? "Saved" : ""}
+        {update.isPending ? t("common.saving") : saved ? t("common.saved") : ""}
       </p>
     </div>
   );

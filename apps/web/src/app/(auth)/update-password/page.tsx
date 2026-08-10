@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/form";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { authErrorMessage } from "@/lib/auth/messages";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
@@ -42,6 +43,7 @@ type SessionState = "checking" | "ready" | "missing";
  * beat after mount — wait for it before declaring the link dead.
  */
 export default function UpdatePasswordPage() {
+  const t = useT();
   const router = useRouter();
   const [sessionState, setSessionState] = useState<SessionState>("checking");
   const [serverError, setServerError] = useState<string | null>(null);
@@ -90,7 +92,7 @@ export default function UpdatePasswordPage() {
       setServerError(authErrorMessage(error));
       return;
     }
-    toast("Password updated.");
+    toast(t("onboarding.passwordUpdated"));
     router.replace("/for-you");
     router.refresh();
   }
@@ -100,7 +102,9 @@ export default function UpdatePasswordPage() {
       <div className="space-y-3">
         <Skeleton className="h-7 w-48" />
         <Skeleton className="h-4 w-full" />
-        <p className="text-sm text-muted-foreground">Checking your link…</p>
+        <p className="text-sm text-muted-foreground">
+          {t("onboarding.checkingLink")}
+        </p>
       </div>
     );
   }
@@ -109,14 +113,15 @@ export default function UpdatePasswordPage() {
     return (
       <div className="space-y-4">
         <h1 className="text-2xl font-semibold tracking-tight">
-          This link has expired
+          {t("onboarding.linkExpiredTitle")}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Password links only work once and expire after a while. Request a
-          new one and try again.
+          {t("onboarding.linkExpiredBody")}
         </p>
         <Button asChild className="w-full">
-          <Link href="/reset-password">Request a new link</Link>
+          <Link href="/reset-password">
+            {t("onboarding.requestNewLink")}
+          </Link>
         </Button>
       </div>
     );
@@ -126,10 +131,10 @@ export default function UpdatePasswordPage() {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">
-          Set a new password
+          {t("onboarding.setNewPasswordTitle")}
         </h1>
         <p className="text-sm text-muted-foreground">
-          You&apos;ll stay logged in on this device.
+          {t("onboarding.setNewPasswordSubtitle")}
         </p>
       </div>
       <Form {...form}>
@@ -146,7 +151,7 @@ export default function UpdatePasswordPage() {
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>New password</FormLabel>
+                <FormLabel>{t("onboarding.newPasswordLabel")}</FormLabel>
                 <FormControl>
                   <PasswordInput
                     autoComplete="new-password"
@@ -162,7 +167,7 @@ export default function UpdatePasswordPage() {
             name="confirm"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Confirm password</FormLabel>
+                <FormLabel>{t("onboarding.confirmPasswordLabel")}</FormLabel>
                 <FormControl>
                   <PasswordInput
                     autoComplete="new-password"
@@ -183,7 +188,9 @@ export default function UpdatePasswordPage() {
             className="w-full"
             disabled={form.formState.isSubmitting}
           >
-            {form.formState.isSubmitting ? "Saving…" : "Save password"}
+            {form.formState.isSubmitting
+              ? t("common.saving")
+              : t("onboarding.savePassword")}
           </Button>
         </form>
       </Form>

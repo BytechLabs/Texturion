@@ -11,6 +11,7 @@ import { Users } from "lucide-react";
 
 import { ReferralShare } from "@/components/settings/referral-share";
 import { SettingsCard } from "@/components/settings/section";
+import { useT } from "@/i18n/provider";
 import { useReferrals } from "@/lib/api/billing";
 import { type PlanId } from "@/lib/api/types";
 
@@ -69,6 +70,7 @@ export function ReferralCard({
   currency: BillingCurrency;
   show: boolean;
 }) {
+  const t = useT();
   const referrals = useReferrals(show);
 
   // Never a skeleton and never an error box: this is an offer on somebody
@@ -83,7 +85,7 @@ export function ReferralCard({
   const monthly = formatMoney(PLAN_PRICE_CENTS[currency][plan], currency);
 
   return (
-    <SettingsCard title="Refer another crew">
+    <SettingsCard title={t("settingsMore.referralTitle")}>
       <div className="flex items-start gap-3">
         <Users
           className="mt-0.5 size-4 shrink-0 text-muted-foreground"
@@ -98,7 +100,8 @@ export function ReferralCard({
               naming the wrong condition is worse than a vague one: the referrer
               watches their friend send a text and concludes we did not pay. */}
           <p className="text-sm text-muted-foreground">
-            {REFERRAL_REWARD_LINE} — {monthly} each.
+            {REFERRAL_REWARD_LINE}{" "}
+            {t("settingsMore.referralRewardEach", { amount: monthly })}
           </p>
 
           {/* #288: the draft and the share sheet, from the one component the
@@ -110,7 +113,7 @@ export function ReferralCard({
             // Said rather than hidden: a card that disappears when there is
             // nothing to show is a card nobody learns exists.
             <p className="text-sm text-muted-foreground">
-              Nobody has used your link yet.
+              {t("settingsMore.referralNobodyYet")}
             </p>
           ) : (
             <ul className="space-y-1.5">
@@ -135,8 +138,11 @@ export function ReferralCard({
 
           {rewarded > 0 && (
             <p className="text-sm font-medium text-foreground">
-              {rewarded} free {rewarded === 1 ? "month" : "months"} earned so
-              far.
+              {rewarded === 1
+                ? t("settingsMore.referralMonthsEarnedOne", { count: rewarded })
+                : t("settingsMore.referralMonthsEarnedMany", {
+                    count: rewarded,
+                  })}
             </p>
           )}
         </div>

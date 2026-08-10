@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
+import { useT } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
 
 import {
@@ -22,6 +23,7 @@ import {
  * filters, so the landing and the rows agree.
  */
 export default function SettingsIndexPage() {
+  const t = useT();
   const router = useRouter();
   const { role } = useActiveCompany();
   const first = firstVisibleSettingsSection(role);
@@ -35,7 +37,9 @@ export default function SettingsIndexPage() {
 
   return (
     <p className="hidden text-sm text-muted-foreground lg:block">
-      {first ? "Opening your settings…" : "There's nothing here for you yet."}
+      {first
+        ? t("appShell.settingsIndexOpening")
+        : t("appShell.settingsIndexNothingHere")}
     </p>
   );
 }

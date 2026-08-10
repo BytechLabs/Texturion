@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { type BillingModule, useModules, useSetModule } from "@/lib/api/billing";
 import { ApiError } from "@/lib/api/error";
 import {
@@ -41,6 +42,7 @@ interface PendingToggle {
  * remainder. Only modules whose Stripe price is provisioned are shown.
  */
 export function PlanModulesCard() {
+  const t = useT();
   const modules = useModules();
   const setModule = useSetModule();
   const [pending, setPending] = useState<PendingToggle | null>(null);
@@ -89,15 +91,15 @@ export function PlanModulesCard() {
           // for that whole cohort (see lib/settings/module-billing.ts).
           toast.success(
             enable
-              ? `${module.label} added. The prorated charge is on today's invoice.`
-              : `${module.label} turned off. If it was on your bill, the unused time is credited toward your next invoice.`,
+              ? t("settingsMore.moduleAdded", { name: module.label })
+              : t("settingsMore.moduleRemoved", { name: module.label }),
           );
         },
         onError: (cause) =>
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "We couldn't update that add-on. Try again.",
+              : t("settingsMore.moduleUpdateFailed"),
           ),
       },
     );
@@ -105,23 +107,23 @@ export function PlanModulesCard() {
 
   return (
     <SettingsCard
-      title="Add-ons"
-      description="Turn extra features on or off. Changes prorate to today, so you never pay for time you didn't have them."
+      title={t("settingsMore.modulesTitle")}
+      description={t("settingsMore.modulesDescription")}
     >
       {modules.isPending ? (
-        <div className="space-y-2" aria-label="Loading add-ons">
+        <div className="space-y-2" aria-label={t("settingsMore.modulesLoading")}>
           <Skeleton className="h-16 w-full rounded-lg" />
           <Skeleton className="h-16 w-full rounded-lg" />
         </div>
       ) : modules.isError ? (
         <p className="text-sm text-muted-foreground">
-          We couldn&apos;t load your add-ons.{" "}
+          {t("settingsMore.modulesLoadFailed")}{" "}
           <button
             type="button"
             className="underline underline-offset-2"
             onClick={() => void modules.refetch()}
           >
-            Try again
+            {t("common.retry")}
           </button>
         </p>
       ) : (
@@ -157,10 +159,10 @@ export function PlanModulesCard() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirming(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button disabled={setModule.isPending} onClick={confirm}>
-              {setModule.isPending ? "Saving…" : change?.confirmLabel}
+              {setModule.isPending ? t("common.saving") : change?.confirmLabel}
             </Button>
           </DialogFooter>
         </DialogContent>

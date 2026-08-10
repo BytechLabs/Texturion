@@ -31,7 +31,14 @@ vi.mock("sonner", () => ({
   toast: { error: toastError, success: vi.fn() },
 }));
 
-import { PhoneList, PHONE_ADD_LABEL, PHONE_MATCH_NOTE } from "./phone-list";
+import { PhoneList } from "./phone-list";
+// #228: the two sentences this surface owns now live in the catalogue rather
+// than as exported constants on the component. Read from there so the test
+// still asserts the words that actually render.
+import { contactsEn } from "@/i18n/sections/contacts";
+
+const PHONE_ADD_LABEL = contactsEn.phoneAddLabel;
+const PHONE_MATCH_NOTE = contactsEn.phoneMatchNote;
 import { ApiError } from "@/lib/api/error";
 import type { ContactDetail } from "@/lib/api/types";
 

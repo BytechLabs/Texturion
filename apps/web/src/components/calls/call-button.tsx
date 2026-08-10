@@ -15,6 +15,7 @@ import { Phone, PhoneOutgoing } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { MicPermissionError, useSoftphone } from "@/lib/softphone/provider";
 
@@ -39,6 +40,7 @@ export function CallButton({
   label?: string;
   className?: string;
 }) {
+  const t = useT();
   const softphone = useSoftphone();
   // Phase 3 (call waiting): a member can hold one call and start another —
   // the button rests only at the 2-call ceiling or while one is connecting.
@@ -49,7 +51,7 @@ export function CallButton({
 
   function onClick() {
     if (!softphone) {
-      toast.error("Calling isn't available right now. Try reloading the app.");
+      toast.error(t("shell.callingUnavailable"));
       return;
     }
     void softphone
@@ -64,7 +66,7 @@ export function CallButton({
           // so a raw fetch/chunk-load failure never reaches the user.
           cause instanceof MicPermissionError || cause instanceof ApiError
             ? cause.message
-            : "Couldn't start the call. Try again.",
+            : t("shell.callStartFailedRetry"),
         ),
       );
   }
@@ -81,7 +83,9 @@ export function CallButton({
       size={label ? "sm" : "icon-sm"}
       className={className}
       aria-label={
-        busy ? "On a call…" : `Call ${contactName} from your business number`
+        busy
+          ? t("shell.onACallEllipsis")
+          : t("shell.callContact", { name: contactName })
       }
       onClick={onClick}
       disabled={busy}

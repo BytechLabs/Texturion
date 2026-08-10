@@ -15,6 +15,7 @@ import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useCreateOnCallShift,
@@ -77,6 +78,7 @@ function formatUntil(iso: string): string {
 }
 
 export function OnCallCard({ canEdit }: { canEdit: boolean }) {
+  const t = useT();
   const shifts = useOnCallShifts();
   const members = useMembers();
   const create = useCreateOnCallShift();
@@ -85,7 +87,8 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
 
   const roster = members.data?.data ?? [];
   const nameOf = (id: string) =>
-    roster.find((member) => member.user_id === id)?.display_name ?? "Someone";
+    roster.find((member) => member.user_id === id)?.display_name ??
+    t("settingsMore.someone");
 
   const now = Date.now();
   const live: OnCallShift | undefined = shifts.data?.find(
@@ -103,10 +106,14 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
     const window = onCallWindow(preset, new Date(), offsetMinutesNow());
     try {
       await create.mutateAsync({ user_id: target, ...window });
-      toast.success(`${nameOf(target)} is on call`);
+      toast.success(
+        t("settingsMore.onCallPersonOnCall", { name: nameOf(target) }),
+      );
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "Could not set that shift",
+        cause instanceof ApiError
+          ? cause.message
+          : t("settingsMore.onCallSetFailed"),
       );
     }
   }
@@ -130,7 +137,7 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
               disabled={end.isPending}
               onClick={() => end.mutate(live.id)}
             >
-              End shift
+              {t("settingsMore.onCallEndShift")}
             </Button>
           ) : null}
         </div>
@@ -156,7 +163,7 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
                   onClick={() => end.mutate(shift.id)}
                   className="tap-target underline underline-offset-2 hover:text-app-ink"
                 >
-                  Remove
+                  {t("settingsMore.remove")}
                 </button>
               ) : null}
             </li>
@@ -167,7 +174,7 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
       {canEdit ? (
         <div className="mt-4 space-y-2 border-t border-app-line pt-4">
           <Label htmlFor="on-call-member" className="text-[13px]">
-            Put somebody on call
+            {t("settingsMore.onCallPutSomebody")}
           </Label>
           <div className="flex flex-wrap items-center gap-2">
             <select

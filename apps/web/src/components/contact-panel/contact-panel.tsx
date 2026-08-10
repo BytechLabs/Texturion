@@ -36,6 +36,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT, type Translate } from "@/i18n/provider";
 import { useOptOutContact, useRevokeOptOut } from "@/lib/api/contacts";
 import {
   useAttachTag,
@@ -108,19 +109,25 @@ function QuietGroup({
 function consentLine(
   contact: ContactDetail,
   memberName: (id: string | null) => string | null,
+  t: Translate,
 ): string {
   if (contact.consent_source === "inbound_sms") {
     return contact.consent_at
-      ? `Texted you first · ${format(new Date(contact.consent_at), "MMM d")}`
-      : "Texted you first";
+      ? t("contacts.consentTextedFirstOn", {
+          date: format(new Date(contact.consent_at), "MMM d"),
+        })
+      : t("contacts.consentTextedFirst");
   }
   if (contact.consent_source === "attested") {
-    const by = memberName(contact.consent_attested_by) ?? "a teammate";
+    const by = memberName(contact.consent_attested_by) ?? t("contacts.aTeammate");
     return contact.consent_at
-      ? `Consent recorded by ${by} · ${format(new Date(contact.consent_at), "MMM d")}`
-      : `Consent recorded by ${by}`;
+      ? t("contacts.consentRecordedByOn", {
+          name: by,
+          date: format(new Date(contact.consent_at), "MMM d"),
+        })
+      : t("contacts.consentRecordedBy", { name: by });
   }
-  return "No consent recorded yet";
+  return t("contacts.consentNone");
 }
 
 /**
@@ -154,6 +161,7 @@ export function ContactPanel({
    * "panel" keeps the desktop drawer's identity card. */
   variant?: "panel" | "sheet";
 }) {
+  const t = useT();
   const memberNames = useMemberNames();
   const [copied, setCopied] = useState(false);
   const [confirmOptOut, setConfirmOptOut] = useState(false);
@@ -175,7 +183,7 @@ export function ContactPanel({
     return (
       <div className="p-5">
         <p className="text-sm text-muted-foreground">
-          Couldn&apos;t load this contact.
+          {t("contacts.contactLoadFailed")}
         </p>
       </div>
     );
@@ -183,7 +191,7 @@ export function ContactPanel({
 
   const phone = formatPhone(contact.phone_e164);
   const memberName = (id: string | null) =>
-    id ? memberNames.get(id) ?? "a teammate" : null;
+    id ? memberNames.get(id) ?? t("contacts.aTeammate") : null;
 
   const copyNumber = async () => {
     try {
@@ -218,8 +226,8 @@ export function ContactPanel({
         contactId={contact.id}
         field="name"
         value={contact.name}
-        label="Contact name"
-        placeholder="Add a name"
+        label={t("contacts.contactNameLabel")}
+        placeholder={t("contacts.addName")}
         className="pr-7 text-[15px] font-semibold"
       />
       <div className="flex items-center gap-1 px-2">
@@ -230,7 +238,9 @@ export function ContactPanel({
           variant="ghost"
           size="icon-xs"
           onClick={copyNumber}
-          aria-label={copied ? "Number copied" : "Copy number"}
+          aria-label={t(
+            copied ? "contacts.numberCopied" : "contacts.copyNumber",
+          )}
         >
           {copied ? (
             <Check className="size-3 text-success" strokeWidth={1.75} />
@@ -257,8 +267,8 @@ export function ContactPanel({
         contactId={contact.id}
         field="address"
         value={contact.address}
-        label="Contact address"
-        placeholder="Add an address"
+        label={t("contacts.contactAddressLabel")}
+        placeholder={t("contacts.addAddress")}
         wrap
       />
       <div className="px-2">
@@ -286,7 +296,7 @@ export function ContactPanel({
             asChild
             variant="ghost"
             size="icon-xs"
-            aria-label="Open full contact page"
+            aria-label={t("contacts.openContactPage")}
             className="shrink-0"
           >
             <Link href={`/contacts/${contact.id}`}>
@@ -309,7 +319,7 @@ export function ContactPanel({
               asChild
               variant="ghost"
               size="icon-xs"
-              aria-label="Open full contact page"
+              aria-label={t("contacts.openContactPage")}
               className="absolute right-2 top-2"
             >
               <Link href={`/contacts/${contact.id}`}>
@@ -335,13 +345,13 @@ export function ContactPanel({
 
         {/* Consent history (D3/D4) — quiet metadata about the person, unless
             they're opted out (then it carries the actionable revoke). */}
-        <QuietGroup label="Consent">
+        <QuietGroup label={t("contacts.consentGroup")}>
           <p className="px-2 text-[13px] text-muted-foreground">
-            {consentLine(contact, memberName)}
+            {consentLine(contact, memberName, t)}
           </p>
           {contact.opted_out && (
             <div className="flex flex-wrap items-center gap-2 px-2 pt-1.5">
-              <Badge variant="destructive">Opted out</Badge>
+              <Badge variant="destructive">{t("contacts.optedOut")}</Badge>
               {/* #407: which kind of opt-out decides whether there is anything
                   to press. A STOP the customer sent is a CARRIER block —
                   clearing our row would not clear Telnyx's, so the server
@@ -353,8 +363,7 @@ export function ContactPanel({
                   *Applying: G10 — system states must be precise.* */}
               {isCarrierEnforcedOptOut(contact.opt_out_source) ? (
                 <p className="basis-full text-xs text-muted-foreground">
-                  They texted STOP, so their carrier is blocking your texts.
-                  Only they can undo it, by texting START to your number.
+                  {t("contacts.carrierOptOutNote")}
                 </p>
               ) : (
                 /* #73: the shared Button (matching the contact detail page's
@@ -366,13 +375,17 @@ export function ContactPanel({
                   disabled={revoke.isPending}
                   onClick={() =>
                     revoke.mutate(contact.id, {
-                      onSuccess: () => toast.success("Marked opted in again."),
-                      onError: (e) => onApiError(e, "Couldn't update opt-out."),
+                      onSuccess: () =>
+                        toast.success(t("contacts.optedInAgain")),
+                      onError: (e) =>
+                        onApiError(e, t("contacts.optOutUpdateFailed")),
                     })
                   }
                 >
                   <Undo2 strokeWidth={1.75} aria-hidden />
-                  {revoke.isPending ? "Working…" : "Mark opted in again"}
+                  {revoke.isPending
+                    ? t("contacts.working")
+                    : t("contacts.markOptedIn")}
                 </Button>
               )}
             </div>
@@ -383,7 +396,7 @@ export function ContactPanel({
             this person: whether we may send them automated texts at all, and
             which language those texts go out in. Quiet, like Consent, since a
             crew touches it once per customer at most. */}
-        <QuietGroup label="Language">
+        <QuietGroup label={t("contacts.languageGroup")}>
           <div className="px-2">
             <ContactLanguage contact={contact} />
           </div>
@@ -394,7 +407,7 @@ export function ContactPanel({
             /v1/messages/:id {done} (derived completion, T2), striking the
             message through in the thread via the one message.status broadcast.
             `active` gates the fetch to when the panel is open. */}
-        <PanelSection label="Tasks">
+        <PanelSection label={t("contacts.tasksGroup")}>
           <TasksChecklist conversationId={conversation.id} active={active} />
         </PanelSection>
 
@@ -412,17 +425,17 @@ export function ContactPanel({
             tag is a filing decision made afterwards — and because the ask
             disappears the moment it is answered, so it should not sit under
             something that never does. *Applying: Prioritize Intent.* */}
-        <QuietGroup label="Where they came from">
+        <QuietGroup label={t("contacts.leadSourceGroup")}>
           <LeadSourcePicker conversation={conversation} />
         </QuietGroup>
 
         {/* Tags on this conversation — quiet. */}
-        <QuietGroup label="Tags">
+        <QuietGroup label={t("contacts.tagsGroup")}>
           <ConversationTags conversation={conversation} />
         </QuietGroup>
 
         {/* Prior conversations with this contact — quiet. */}
-        <QuietGroup label="Conversations">
+        <QuietGroup label={t("contacts.conversationsGroup")}>
           <PriorConversations
             phoneE164={contact.phone_e164}
             currentConversationId={conversation.id}
@@ -445,7 +458,7 @@ export function ContactPanel({
             onClick={() => setConfirmOptOut(true)}
           >
             <Ban strokeWidth={1.75} aria-hidden />
-            Opt out this contact
+            {t("contacts.optOutAction")}
           </Button>
         </div>
       )}
@@ -453,15 +466,18 @@ export function ContactPanel({
       <Dialog open={confirmOptOut} onOpenChange={setConfirmOptOut}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Opt out {contactDisplayName(contact)}?</DialogTitle>
+            <DialogTitle>
+              {t("contacts.optOutTitle", {
+                name: contactDisplayName(contact),
+              })}
+            </DialogTitle>
             <DialogDescription>
-              They won&apos;t receive texts from you anymore. Use this when a
-              customer asks to stop hearing from you in any words.
+              {t("contacts.optOutConfirmBody")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmOptOut(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -470,13 +486,15 @@ export function ContactPanel({
                 optOut.mutate(contact.id, {
                   onSuccess: () => {
                     setConfirmOptOut(false);
-                    toast.success("Contact opted out.");
+                    toast.success(t("contacts.contactOptedOut"));
                   },
-                  onError: (e) => onApiError(e, "Couldn't opt out the contact."),
+                  onError: (e) => onApiError(e, t("contacts.optOutFailed")),
                 })
               }
             >
-              {optOut.isPending ? "Opting out…" : "Opt out"}
+              {optOut.isPending
+                ? t("contacts.optingOut")
+                : t("contacts.optOut")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -490,6 +508,7 @@ function ConversationTags({
 }: {
   conversation: ConversationDetail;
 }) {
+  const t = useT();
   const attach = useAttachTag(conversation.id);
   const detach = useDetachTag(conversation.id);
   const tags = useTags();
@@ -550,10 +569,10 @@ function ConversationTags({
             type="button"
             onClick={() =>
               detach.mutate(tag.id, {
-                onError: (e) => onApiError(e, "Couldn't remove the tag."),
+                onError: (e) => onApiError(e, t("contacts.tagRemoveFailed")),
               })
             }
-            aria-label={`Remove tag ${tag.name}`}
+            aria-label={t("contacts.removeTag", { name: tag.name })}
             className="rounded-full p-0.5 hover:bg-background"
           >
             <X className="size-3" strokeWidth={1.75} />
@@ -570,17 +589,17 @@ function ConversationTags({
         <PopoverTrigger asChild>
           <button
             type="button"
-            aria-label="Add a tag"
+            aria-label={t("contacts.addTag")}
             className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground"
           >
             <Plus className="size-3" strokeWidth={1.75} aria-hidden />
-            Tag
+            {t("contacts.tagChip")}
           </button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-56 p-0">
           <Command>
             <CommandInput
-              placeholder="Find or create a tag…"
+              placeholder={t("contacts.tagSearchPlaceholder")}
               value={query}
               onValueChange={setQuery}
             />
@@ -590,11 +609,13 @@ function ConversationTags({
                     can search this list but not add to it, and inviting a
                     member to "create" one is an offer we would then refuse. */}
                 {trimmed === ""
-                  ? mayCreate
-                    ? "Type to create a tag."
-                    : "Type to find a tag."
+                  ? t(
+                      mayCreate
+                        ? "contacts.typeToCreateTag"
+                        : "contacts.typeToFindTag",
+                    )
                   : !mayCreate
-                    ? "No tag by that name. Ask an admin to add it."
+                    ? t("contacts.noTagAskAdmin")
                     : null}
               </CommandEmpty>
               <CommandGroup>
@@ -605,7 +626,10 @@ function ConversationTags({
                     onSelect={() => {
                       attach.mutate(
                         { tag_id: tag.id },
-                        { onError: (e) => onApiError(e, "Couldn't add the tag.") },
+                        {
+                          onError: (e) =>
+                            onApiError(e, t("contacts.tagAddFailed")),
+                        },
                       );
                       setOpen(false);
                     }}
@@ -634,13 +658,16 @@ function ConversationTags({
                     onSelect={() => {
                       attach.mutate(
                         { tag_id: suggested.tag.id },
-                        { onError: (e) => onApiError(e, "Couldn't add the tag.") },
+                        {
+                          onError: (e) =>
+                            onApiError(e, t("contacts.tagAddFailed")),
+                        },
                       );
                       setOpen(false);
                     }}
                   >
                     <Sparkles className="size-3.5" strokeWidth={1.75} />
-                    Did you mean &ldquo;{suggested.tag.name}&rdquo;?
+                    {t("contacts.didYouMean", { name: suggested.tag.name })}
                   </CommandItem>
                 )}
                 {trimmed !== "" && !exactExists && mayCreate && (
@@ -649,13 +676,16 @@ function ConversationTags({
                     onSelect={() => {
                       attach.mutate(
                         { name: trimmed },
-                        { onError: (e) => onApiError(e, "Couldn't create the tag.") },
+                        {
+                          onError: (e) =>
+                            onApiError(e, t("contacts.tagCreateFailed")),
+                        },
                       );
                       setOpen(false);
                     }}
                   >
                     <Plus className="size-3.5" strokeWidth={1.75} />
-                    Create “{trimmed}”
+                    {t("contacts.createTag", { name: trimmed })}
                   </CommandItem>
                 )}
               </CommandGroup>
@@ -679,6 +709,7 @@ function PriorConversations({
   phoneE164: string;
   currentConversationId: string;
 }) {
+  const t = useT();
   const conversations = useConversations({ q: phoneE164 });
   const rows = flattenPages(conversations.data).filter(
     (row) => row.id !== currentConversationId,
@@ -695,14 +726,14 @@ function PriorConversations({
   if (conversations.isError) {
     return (
       <p className="px-2 text-[13px] text-muted-foreground">
-        Couldn&apos;t load prior conversations.
+        {t("contacts.priorConversationsFailed")}
       </p>
     );
   }
   if (rows.length === 0) {
     return (
       <p className="px-2 text-[13px] text-muted-foreground">
-        No other conversations with this contact.
+        {t("contacts.noPriorConversations")}
       </p>
     );
   }

@@ -28,6 +28,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useT } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { cn } from "@/lib/utils";
 
@@ -82,6 +83,7 @@ const schema = z.object({
  * TYPING, and the chips already removed it.
  */
 export default function CompanyNamePage() {
+  const t = useT();
   const { state, ready } = useWizardStepGuard("name");
   const router = useRouter();
 
@@ -124,8 +126,8 @@ export default function CompanyNamePage() {
     <StepShell
       index={progress.index}
       total={progress.total}
-      title="What's your company called?"
-      subtitle="This is the name your customers see."
+      title={t("onboarding.nameTitle")}
+      subtitle={t("onboarding.nameSubtitle")}
     >
       <Form {...form}>
         <form
@@ -138,19 +140,18 @@ export default function CompanyNamePage() {
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Company name</FormLabel>
+                <FormLabel>{t("onboarding.companyNameLabel")}</FormLabel>
                 <FormControl>
                   <Input
                     autoFocus
                     autoComplete="organization"
-                    placeholder="Mike's Plumbing"
+                    placeholder={t("onboarding.companyNamePlaceholder")}
                     className="h-12 text-base"
                     {...field}
                   />
                 </FormControl>
                 <FormDescription>
-                  It signs your first text to each customer. You can change it
-                  later in Settings.
+                  {t("onboarding.companyNameHint")}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -162,7 +163,7 @@ export default function CompanyNamePage() {
             name="crewSize"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>How many of you are there?</FormLabel>
+                <FormLabel>{t("onboarding.crewSizeLabel")}</FormLabel>
                 <FormControl>
                   <RadioGroup
                     value={field.value ?? ""}
@@ -253,7 +254,7 @@ export default function CompanyNamePage() {
           />
 
           <Button type="submit" size="lg" className="w-full">
-            Continue
+            {t("onboarding.continue")}
           </Button>
         </form>
       </Form>

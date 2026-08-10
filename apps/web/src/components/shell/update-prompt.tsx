@@ -4,6 +4,7 @@ import { ArrowRight, Download, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { APP_VERSION, useAppRelease, useUpdateRequirement } from "@/lib/api/app-release";
 
 /**
@@ -40,6 +41,7 @@ export const dismissKey = (version: string | null) =>
   `jt-update-dismissed:${version ?? "unknown"}`;
 
 export function UpdatePrompt() {
+  const t = useT();
   const requirement = useUpdateRequirement();
   const { data: policy } = useAppRelease();
   const [dismissed, setDismissed] = useState(false);
@@ -74,18 +76,18 @@ export function UpdatePrompt() {
       <div className="flex items-start gap-3 rounded-xl border bg-card p-4 shadow-lg">
         <Download className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">A newer version of Loonext is ready</p>
+          <p className="text-sm font-medium">{t("shell.updateReadyTitle")}</p>
           <p className="mt-1 text-sm text-muted-foreground">
             {/* The server's reason, when it gave one. Never invented here: a
                 demand we cannot explain is one the reader should not trust. */}
-            {policy?.message ?? "Reload to pick up the latest fixes."}
+            {policy?.message ?? t("shell.updateReadyBody")}
           </p>
           <Button
             size="sm"
             className="mt-3"
             onClick={() => window.location.reload()}
           >
-            Reload now
+            {t("shell.updateReload")}
             {/* Right chevron on the forward action, per the paywall/CTA rule. */}
             <ArrowRight className="size-4" aria-hidden />
           </Button>
@@ -93,7 +95,7 @@ export function UpdatePrompt() {
         <button
           type="button"
           onClick={dismiss}
-          aria-label="Dismiss update notice"
+          aria-label={t("shell.updateDismiss")}
           className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
         >
           <X className="size-4" aria-hidden />
@@ -113,6 +115,7 @@ export function UpdatePrompt() {
  * screen that would tell them.
  */
 function UpdateBlock() {
+  const t = useT();
   const { data: policy } = useAppRelease();
 
   return (
@@ -121,18 +124,21 @@ function UpdateBlock() {
         <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
           <Download className="size-6 text-foreground" aria-hidden />
         </div>
-        <h1 className="mt-6 text-xl font-semibold">Loonext needs an update</h1>
+        <h1 className="mt-6 text-xl font-semibold">{t("shell.updateBlockTitle")}</h1>
         <p className="mt-3 text-sm text-muted-foreground">
-          {policy?.message ??
-            "This version can no longer connect safely. Reload to get the current one."}
+          {policy?.message ?? t("shell.updateBlockBody")}
         </p>
         <Button className="mt-6 w-full" onClick={() => window.location.reload()}>
-          Reload Loonext
+          {t("shell.updateBlockAction")}
           <ArrowRight className="size-4" aria-hidden />
         </Button>
         <p className="mt-4 text-xs text-muted-foreground">
-          You are on {APP_VERSION ?? "an unknown version"}
-          {policy?.minimum_version ? ` · ${policy.minimum_version} or newer is required` : ""}
+          {t("shell.updateVersion", {
+            version: APP_VERSION ?? t("shell.updateUnknownVersion"),
+          })}
+          {policy?.minimum_version
+            ? t("shell.updateMinimum", { version: policy.minimum_version })
+            : ""}
         </p>
       </div>
     </div>

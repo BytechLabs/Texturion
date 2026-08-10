@@ -45,6 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT } from "@/i18n/provider";
 import { useContacts } from "@/lib/api/contacts";
 import { ApiError } from "@/lib/api/error";
 import { useNumbers } from "@/lib/api/numbers";
@@ -67,6 +68,7 @@ const KEYS = [
 ] as const;
 
 export function Dialer({ trigger }: { trigger: ReactNode }) {
+  const t = useT();
   const router = useRouter();
   const softphone = useSoftphone();
   const numbers = useNumbers();
@@ -162,7 +164,7 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
 
   async function call() {
     if (!softphone) {
-      toast.error("Calling isn't available right now. Try reloading the app.");
+      toast.error(t("shell.callingUnavailable"));
       return;
     }
     setCalling(true);
@@ -195,7 +197,7 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
         // carry actionable copy that ApiError-only narrowing threw away.
         cause instanceof MicPermissionError || cause instanceof ApiError
           ? cause.message
-          : "Couldn't start the call.",
+          : t("shell.callStartFailed"),
       );
     } finally {
       setCalling(false);
@@ -238,7 +240,7 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
         }}
       >
         <DialogHeader>
-          <DialogTitle>Dial a number</DialogTitle>
+          <DialogTitle>{t("shell.dialANumber")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div
@@ -249,14 +251,16 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
             className="min-h-[2.25rem] text-center text-2xl font-medium tabular-nums tracking-wide"
           >
             {digits || (
-              <span className="text-app-muted-2">Enter a number</span>
+              <span className="text-app-muted-2">
+                {t("shell.enterANumber")}
+              </span>
             )}
           </div>
 
           {/* #459: who this could be, best first. Between the readout and the
               keypad, where every system dialer puts it. */}
           {ranked.length > 0 ? (
-            <ul className="-mt-2 space-y-1" aria-label="Matching contacts">
+            <ul className="-mt-2 space-y-1" aria-label={t("shell.matchingContacts")}>
               {ranked.map((match) => {
                 const chosen = picked?.number === match.number;
                 return (
@@ -290,13 +294,15 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
 
           {active.length > 1 && (
             <Select value={fromId ?? active[0]?.id} onValueChange={setFromId}>
-              <SelectTrigger aria-label="Call from">
+              <SelectTrigger aria-label={t("shell.callFrom")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {active.map((n) => (
                   <SelectItem key={n.id} value={n.id}>
-                    From {formatPhone(n.number_e164)}
+                    {t("shell.fromNumber", {
+                      number: formatPhone(n.number_e164),
+                    })}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -323,7 +329,7 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
               disabled={!canCall}
             >
               <Phone strokeWidth={1.75} />
-              Call
+              {t("shell.call")}
             </Button>
             {/* #459: the other verb, and the one a trades crew uses more. It is
                 secondary because this screen is the dialer, not because texting
@@ -332,17 +338,17 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
               variant="outline"
               onClick={message}
               disabled={!canCall}
-              aria-label="Send a message instead"
+              aria-label={t("shell.sendMessageInstead")}
             >
               <MessageSquare strokeWidth={1.75} />
-              Text
+              {t("shell.textAction")}
             </Button>
             <Button
               variant="ghost"
               size="icon"
               onClick={backspace}
               disabled={!digits}
-              aria-label="Delete last digit"
+              aria-label={t("shell.deleteLastDigit")}
             >
               <Delete strokeWidth={1.75} />
             </Button>
@@ -358,7 +364,7 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
               className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 font-medium text-app-muted-2 transition-colors duration-100 hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Users strokeWidth={1.75} className="size-4" />
-              Contacts
+              {t("shell.navContacts")}
             </Link>
             {target?.contactId ? (
               <Link
@@ -366,7 +372,7 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
                 onClick={() => setOpen(false)}
                 className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 font-medium text-primary transition-colors duration-100 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                Open contact
+                {t("shell.openContact")}
               </Link>
             ) : canCall ? (
               <Link
@@ -375,7 +381,7 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
                 className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 font-medium text-primary transition-colors duration-100 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <UserPlus strokeWidth={1.75} className="size-4" />
-                Add contact
+                {t("shell.addContact")}
               </Link>
             ) : null}
           </div>

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { ALERT_BANNER_COPY, alertTakenLine } from "@loonext/shared";
 
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useAcknowledgeAlert } from "@/lib/api/on-call";
 import { cn } from "@/lib/utils";
@@ -51,6 +52,7 @@ export function AlertBanner({
   viewerId: string | null;
 }) {
   const acknowledge = useAcknowledgeAlert(conversationId);
+  const t = useT();
 
   // Absent on nearly every thread, and reserving space for it would be a
   // permanent cost paid for a rare event.
@@ -70,7 +72,7 @@ export function AlertBanner({
       );
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "Could not claim that",
+        cause instanceof ApiError ? cause.message : t("thread.alertClaimFailed"),
       );
     }
   }
@@ -92,7 +94,10 @@ export function AlertBanner({
       <p className="flex-1 text-[13px] text-app-ink">
         {ALERT_BANNER_COPY.waiting}
         {pagedName && paged !== viewerId ? (
-          <span className="text-app-muted-2"> · {pagedName} was told first</span>
+          <span className="text-app-muted-2">
+            {" · "}
+            {t("thread.alertPagedFirst", { name: pagedName })}
+          </span>
         ) : null}
       </p>
       <button

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { useDataExports, useRequestDataExport } from "@/lib/api/exports";
 import { ApiError } from "@/lib/api/error";
 import type { DataExport } from "@/lib/api/types";
@@ -21,6 +22,7 @@ import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
  * than leaving someone refreshing a page forever.
  */
 export function ExportDataCard() {
+  const t = useT();
   const exports = useDataExports();
   const request = useRequestDataExport();
 
@@ -33,24 +35,18 @@ export function ExportDataCard() {
 
   return (
     <SettingsCard
-      title="Export your data"
-      description="A copy of everything in this workspace, in a format you can load somewhere else."
+      title={t("settings.exportDataTitle")}
+      description={t("settings.exportDataDescription")}
     >
       <div className="space-y-4 p-4 pt-0">
         <p className="text-sm text-muted-foreground">
-          Contacts, conversations, messages, tasks, call history and voicemail
-          transcripts, saved replies, tags and opt-outs. Photos and recordings
-          are listed with where they live and how big they are, rather than
-          copied.
+          {t("settings.exportDataContents")}
         </p>
 
         {exports.isPending ? (
           <Skeleton className="h-9 w-40" />
         ) : building ? (
-          <p className="text-sm">
-            Building your export. It usually takes a few minutes, and we&apos;ll
-            email you when it&apos;s ready — you can close this page.
-          </p>
+          <p className="text-sm">{t("settings.exportDataBuilding")}</p>
         ) : (
           <Button
             variant="outline"
@@ -60,28 +56,30 @@ export function ExportDataCard() {
                 onSuccess: (result) =>
                   toast.success(
                     result.already_building
-                      ? "One is already being built."
-                      : "We're building your export. We'll email you when it's ready.",
+                      ? t("settings.exportDataAlready")
+                      : t("settings.exportDataStarted"),
                   ),
                 onError: (cause) =>
                   toast.error(
                     cause instanceof ApiError
                       ? cause.message
-                      : "Couldn't start the export. Try again in a moment.",
+                      : t("settings.exportDataStartFailed"),
                   ),
               })
             }
             disabled={request.isPending}
           >
-            {request.isPending ? "Starting…" : "Export my data"}
+            {request.isPending
+              ? t("settings.exportDataStarting")
+              : t("settings.exportDataAction")}
           </Button>
         )}
 
         {latestFailed && !building && (
           <p className="text-sm text-destructive">
-            The last export didn&apos;t finish{" "}
-            {formatRelativeTime(latestFailed.requested_at)}. Try again, and if
-            it keeps failing let us know.
+            {t("settings.exportDataFailed", {
+              when: formatRelativeTime(latestFailed.requested_at),
+            })}
           </p>
         )}
 
@@ -97,6 +95,7 @@ export function ExportDataCard() {
  * every file.
  */
 function ReadyExport({ row }: { row: DataExport }) {
+  const t = useT();
   const total = Object.values(row.row_counts).reduce(
     (sum, count) => sum + count,
     0,
@@ -108,9 +107,9 @@ function ReadyExport({ row }: { row: DataExport }) {
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         {/* Labelled rather than "Export from <time>": a just-finished export
             renders that as "Export from now", which reads as a typo. */}
-        <p className="text-sm font-medium">Latest export</p>
+        <p className="text-sm font-medium">{t("settings.exportDataLatest")}</p>
         <p className="text-xs tabular-nums text-muted-foreground">
-          {total.toLocaleString()} records ·{" "}
+          {t("settings.exportDataRecords", { count: total.toLocaleString() })} ·{" "}
           <time
             dateTime={row.completed_at ?? row.requested_at}
             title={formatAbsoluteDateTime(row.completed_at ?? row.requested_at)}
@@ -122,8 +121,7 @@ function ReadyExport({ row }: { row: DataExport }) {
 
       {expired ? (
         <p className="text-sm text-muted-foreground">
-          The download links have expired and the copy has been deleted. Ask for
-          a fresh one above.
+          {t("settings.exportDataExpired")}
         </p>
       ) : (
         <>
@@ -143,9 +141,9 @@ function ReadyExport({ row }: { row: DataExport }) {
           </ul>
           {row.expires_at && (
             <p className="text-xs text-muted-foreground">
-              These links work until{" "}
-              {formatAbsoluteDateTime(row.expires_at)}, then the copy is
-              deleted.
+              {t("settings.exportDataLinksExpire", {
+                when: formatAbsoluteDateTime(row.expires_at),
+              })}
             </p>
           )}
         </>

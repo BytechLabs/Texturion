@@ -14,7 +14,7 @@ import { GateSignOut } from "@/components/shell/gate-escape";
 import { SessionExpiredCard } from "@/components/shell/session-expired";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LocaleProvider } from "@/i18n/provider";
+import { LocaleProvider, useT } from "@/i18n/provider";
 import { useMe } from "@/lib/api/me";
 import type { MemberRole, Membership } from "@/lib/api/types";
 import { useSessionState } from "@/lib/auth/use-session-ready";
@@ -48,6 +48,17 @@ const CompanyContext = createContext<CompanyContextValue | null>(null);
  */
 export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  /*
+   * #228: these three sentences read English, and that is not an oversight.
+   *
+   * The LocaleProvider this component mounts is BELOW every branch that uses
+   * them — a failed or unresolved /v1/me is exactly the state in which the
+   * member's language is not yet known — so `t` here resolves against the
+   * default catalogue. The keys are in the catalogue anyway: the day a
+   * provider sits above this one, these translate without a second pass, and
+   * until then they are no more English than they were as literals.
+   */
+  const t = useT();
 
   // Gate /v1/me on the resolved Supabase session so the first call after an
   // OAuth redirect carries a token (shared with the onboarding wizard, which
@@ -129,11 +140,10 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
         <p className="text-sm text-muted-foreground">
-          We couldn&apos;t load your workspace. Check your connection and try
-          again.
+          {t("misc.workspaceLoadFailed")}
         </p>
         <Button onClick={() => me.refetch()} variant="outline" size="sm">
-          Try again
+          {t("common.retry")}
         </Button>
         <GateSignOut />
       </div>
@@ -153,8 +163,8 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
         <Skeleton className="h-8 w-40" />
         <p className="text-sm text-muted-foreground">
           {needsOnboarding || needsCheckout
-            ? "Taking you to setup…"
-            : "Loading your workspace…"}
+            ? t("misc.workspaceTakingYouToSetup")
+            : t("misc.workspaceLoading")}
         </p>
       </div>
     );

@@ -3,6 +3,7 @@
 import { ChevronDown, Paperclip } from "lucide-react";
 import { useState } from "react";
 
+import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
 import { AttachmentsSection } from "./attachments-section";
@@ -23,6 +24,7 @@ import { AttachmentsSection } from "./attachments-section";
  * outbound) and constrained so the file rows never exceed the bubble measure.
  */
 export function NoteAttachments({ noteId }: { noteId: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   return (
@@ -36,7 +38,7 @@ export function NoteAttachments({ noteId }: { noteId: string }) {
         )}
       >
         <Paperclip className="size-3" strokeWidth={1.75} aria-hidden />
-        Files
+        {t("misc.noteFiles")}
         <ChevronDown
           className={cn(
             "size-3 transition-transform duration-150 ease-out",

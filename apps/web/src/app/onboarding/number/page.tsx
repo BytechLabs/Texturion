@@ -16,6 +16,7 @@ import { NumberPicker, isFullNumber } from "@/components/numbers/number-picker";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useT } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
@@ -56,6 +57,7 @@ import { useWizardStepGuard } from "../use-onboarding-state";
  * PATCHes it pre-checkout instead of creating a second one.
  */
 export default function NumberStepPage() {
+  const t = useT();
   const { state, ready } = useWizardStepGuard("number");
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -142,9 +144,7 @@ export default function NumberStepPage() {
   function onError(cause: unknown) {
     setSubmitting(false); // re-enable Continue so the user can retry
     setFormError(
-      cause instanceof ApiError
-        ? cause.message
-        : "Something went wrong on our end. Try again in a moment.",
+      cause instanceof ApiError ? cause.message : t("onboarding.genericError"),
     );
   }
 
@@ -171,7 +171,7 @@ export default function NumberStepPage() {
     }
 
     if (!chosenNumber) {
-      setFormError("Pick a number to continue.");
+      setFormError(t("onboarding.pickNumberError"));
       return;
     }
     // A full-number pick (US) orders that exact number; an area-code pick (CA,
@@ -258,11 +258,11 @@ export default function NumberStepPage() {
       backHref={backHref}
       index={progress.index}
       total={progress.total}
-      title="How do you want your business number?"
+      title={t("onboarding.numberTitle")}
       subtitle={
         mode === "port"
-          ? "Bring the number your customers already know. It keeps working until the switch completes."
-          : "Get a fresh local number, or bring the one that's on your trucks and your listing."
+          ? t("onboarding.numberSubtitlePort")
+          : t("onboarding.numberSubtitleNew")
       }
     >
       <div className="space-y-6">
@@ -270,7 +270,9 @@ export default function NumberStepPage() {
             while editing an existing company — porting is a create-time choice. */}
         {!editing && (
           <fieldset className="space-y-2">
-            <legend className="sr-only">Number type</legend>
+            <legend className="sr-only">
+              {t("onboarding.numberTypeLegend")}
+            </legend>
             <RadioGroup
               value={mode}
               onValueChange={(v) => {
@@ -283,13 +285,13 @@ export default function NumberStepPage() {
                 [
                   [
                     "new",
-                    "Get a new number",
-                    "We set up a fresh local number for your area.",
+                    t("onboarding.modeNewLabel"),
+                    t("onboarding.modeNewHint"),
                   ],
                   [
                     "port",
-                    "Bring my existing number",
-                    "Transfer the number you already use. It's free.",
+                    t("onboarding.modePortLabel"),
+                    t("onboarding.modePortHint"),
                   ],
                 ] as const
               ).map(([value, label, hint]) => (
@@ -316,16 +318,15 @@ export default function NumberStepPage() {
                 wizard fork — it's a Settings flow after signup. One honest
                 mention here so landline owners know it exists. */}
             <p className="text-[13px] text-muted-foreground">
-              Have a landline you&apos;d rather keep with its current carrier?
-              After signup you can add texting to it from Settings → Numbers.
-              Calls don&apos;t change, and the carrier review takes a few
-              business days.
+              {t("onboarding.landlineNote")}
             </p>
           </fieldset>
         )}
 
         <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">Country</legend>
+          <legend className="text-sm font-medium">
+            {t("onboarding.countryLegend")}
+          </legend>
           <RadioGroup
             value={country}
             onValueChange={(v) => pickCountry(v as "US" | "CA")}
@@ -333,8 +334,8 @@ export default function NumberStepPage() {
           >
             {(
               [
-                ["US", "United States"],
-                ["CA", "Canada"],
+                ["US", t("onboarding.countryUs")],
+                ["CA", t("onboarding.countryCa")],
               ] as const
             ).map(([value, label]) => (
               <Label
@@ -358,7 +359,7 @@ export default function NumberStepPage() {
             No area code is pre-filled, and it resets on a country switch (#78):
             the picker starts on its area-code search, remounted per country. */}
         <div className={cn("space-y-2", mode === "port" && "hidden")}>
-          <Label>Pick your number</Label>
+          <Label>{t("onboarding.pickNumberLabel")}</Label>
           <NumberPicker
             key={country}
             country={country}
@@ -374,7 +375,7 @@ export default function NumberStepPage() {
         {country === "CA" ? (
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium">
-              Do you also text customers with US numbers?
+              {t("onboarding.usTextingLegend")}
             </legend>
             <RadioGroup
               value={usTexting ? "yes" : "no"}
@@ -383,8 +384,8 @@ export default function NumberStepPage() {
             >
               {(
                 [
-                  ["yes", "Yes, some of our customers are in the US"],
-                  ["no", "No, Canadian customers only"],
+                  ["yes", t("onboarding.usTextingYes")],
+                  ["no", t("onboarding.usTextingNo")],
                 ] as const
               ).map(([value, label]) => (
                 <Label
@@ -402,12 +403,12 @@ export default function NumberStepPage() {
               ))}
             </RadioGroup>
             <p className="text-[13px] text-muted-foreground">
-              US texting needs a one-time{" "}
-              {formatMoney(
-                US_REGISTRATION_FEE_CENTS[feeCurrency],
-                feeCurrency,
-              )}{" "}
-              carrier registration. You can turn it on later in Settings.
+              {t("onboarding.usTextingFeeNote", {
+                fee: formatMoney(
+                  US_REGISTRATION_FEE_CENTS[feeCurrency],
+                  feeCurrency,
+                ),
+              })}
             </p>
           </fieldset>
         ) : null}
@@ -425,12 +426,12 @@ export default function NumberStepPage() {
           disabled={busy}
         >
           {busy ? (
-            "Setting up your workspace…"
+            t("onboarding.settingUpWorkspace")
           ) : mode === "port" ? (
-            "Continue"
+            t("onboarding.continue")
           ) : (
             <>
-              Continue
+              {t("onboarding.continue")}
               {chosenNumber ? <Check className="size-4" aria-hidden /> : null}
             </>
           )}

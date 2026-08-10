@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT } from "@/i18n/provider";
 import { useMe } from "@/lib/api/me";
 import { useUpdateTask } from "@/lib/api/tasks";
 import { useMembers } from "@/lib/api/team";
@@ -38,6 +39,7 @@ const UNASSIGNED = "__unassigned__";
 
 /** A compact assignee picker: the avatar/name is the trigger; a Select edits it. */
 export function InlineAssignee({ task }: { task: Task }) {
+  const t = useT();
   const me = useMe();
   const members = useMembers();
   const update = useUpdateTask(task.conversation_id);
@@ -46,7 +48,7 @@ export function InlineAssignee({ task }: { task: Task }) {
   const name =
     task.assigned_user_id !== null
       ? memberOptions.find((m) => m.user_id === task.assigned_user_id)
-          ?.display_name ?? "Teammate"
+          ?.display_name ?? t("tasks.teammate")
       : null;
 
   return (
@@ -58,12 +60,12 @@ export function InlineAssignee({ task }: { task: Task }) {
             taskId: task.id,
             assigned_user_id: next === UNASSIGNED ? null : next,
           },
-          { onError: () => toast.error("Couldn't reassign this task.") },
+          { onError: () => toast.error(t("tasks.reassignFailed")) },
         )
       }
     >
       <SelectTrigger
-        aria-label="Assignee"
+        aria-label={t("tasks.assignee")}
         className="h-auto min-h-8 w-auto gap-1.5 border-none bg-transparent px-1.5 py-1 text-[13px] shadow-none hover:bg-app-hover focus-visible:ring-2 focus-visible:ring-ring data-[size=default]:h-auto"
         onClick={(e) => e.stopPropagation()}
       >
@@ -73,7 +75,7 @@ export function InlineAssignee({ task }: { task: Task }) {
             <span className="truncate text-app-muted">{name}</span>
           </span>
         ) : (
-          <SelectValue placeholder="Unassigned" />
+          <SelectValue placeholder={t("tasks.unassigned")} />
         )}
       </SelectTrigger>
       {/* #123: popper position (not the default item-aligned) so Radix's
@@ -85,11 +87,11 @@ export function InlineAssignee({ task }: { task: Task }) {
         sideOffset={4}
         onClick={(e) => e.stopPropagation()}
       >
-        <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+        <SelectItem value={UNASSIGNED}>{t("tasks.unassigned")}</SelectItem>
         {memberOptions.map((member) => (
           <SelectItem key={member.id} value={member.user_id}>
             {member.display_name}
-            {me.data?.user_id === member.user_id ? " (you)" : ""}
+            {me.data?.user_id === member.user_id ? t("tasks.youSuffix") : ""}
           </SelectItem>
         ))}
       </SelectContent>
@@ -99,12 +101,15 @@ export function InlineAssignee({ task }: { task: Task }) {
 
 /** A compact due-date editor: the due chip opens a datetime popover. */
 export function InlineDue({ task }: { task: Task }) {
+  const t = useT();
   const update = useUpdateTask(task.conversation_id);
   const [open, setOpen] = useState(false);
   const overdue = isOverdue(task);
 
   const label =
-    task.due_at !== null ? format(new Date(task.due_at), "MMM d, h:mm a") : "Set due";
+    task.due_at !== null
+      ? format(new Date(task.due_at), "MMM d, h:mm a")
+      : t("tasks.setDue");
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -114,9 +119,9 @@ export function InlineDue({ task }: { task: Task }) {
           aria-label={
             task.due_at
               ? overdue
-                ? "Change due date (overdue)"
-                : "Change due date"
-              : "Set due date"
+                ? t("tasks.changeDueOverdueAria")
+                : t("tasks.changeDueAria")
+              : t("tasks.setDueAria")
           }
           onClick={(e) => e.stopPropagation()}
           className={cn(
@@ -137,7 +142,7 @@ export function InlineDue({ task }: { task: Task }) {
         <div className="flex flex-col gap-2">
           <input
             type="datetime-local"
-            aria-label="Due date and time"
+            aria-label={t("tasks.dueDateTimeAria")}
             defaultValue={toLocalInput(task.due_at)}
             onChange={(e) => {
               // A datetime-local reads "" while ANY segment is blank, so
@@ -150,7 +155,7 @@ export function InlineDue({ task }: { task: Task }) {
                   taskId: task.id,
                   due_at: new Date(e.target.value).toISOString(),
                 },
-                { onError: () => toast.error("Couldn't change the due date.") },
+                { onError: () => toast.error(t("tasks.dueChangeFailed")) },
               );
             }}
             className="rounded-app-ctrl border border-app-line bg-app-paper px-2 py-1.5 text-[13px] text-app-ink outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -161,13 +166,13 @@ export function InlineDue({ task }: { task: Task }) {
               onClick={() => {
                 update.mutate(
                   { taskId: task.id, due_at: null },
-                  { onError: () => toast.error("Couldn't clear the due date.") },
+                  { onError: () => toast.error(t("tasks.dueClearFailed")) },
                 );
                 setOpen(false);
               }}
               className="tap-target self-start rounded-app-ctrl px-1 py-0.5 text-[12px] font-medium text-app-muted hover:text-app-ink"
             >
-              Clear due date
+              {t("tasks.clearDueDate")}
             </button>
           )}
         </div>

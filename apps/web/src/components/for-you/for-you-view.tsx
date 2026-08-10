@@ -11,6 +11,7 @@ import { useLeaveTransition } from "@/components/ui/motion";
 import { undoableToast } from "@/components/ui/optimistic-undo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDue } from "@/components/tasks/task-format";
+import { useT } from "@/i18n/provider";
 import { useCalls } from "@/lib/api/calls";
 import { ApiError } from "@/lib/api/error";
 import { useUpdateConversation } from "@/lib/api/conversations";
@@ -143,12 +144,17 @@ function Card({
 // --- Waiting on you — my open/waiting threads, urgency-sorted server-side. ---
 
 function WaitingRow({ item }: { item: ForYouWaiting }) {
+  const t = useT();
   const name = contactDisplayName(item.contact);
   const why = item.has_overdue_task
-    ? "Overdue task"
+    ? t("inbox.forYouWhyOverdueTask")
     : item.unread
-      ? `Unread · ${formatRelativeTime(item.last_message_at)}`
-      : `Waiting · ${formatRelativeTime(item.last_message_at)}`;
+      ? t("inbox.forYouWhyUnread", {
+          when: formatRelativeTime(item.last_message_at),
+        })
+      : t("inbox.forYouWhyWaiting", {
+          when: formatRelativeTime(item.last_message_at),
+        });
   return (
     <Card href={`/inbox/${item.conversation_id}`}>
       {item.unread && (
@@ -182,10 +188,16 @@ function WaitingRow({ item }: { item: ForYouWaiting }) {
  * exists to reduce.
  */
 function FollowUpRow({ item }: { item: ForYouFollowUp }) {
+  const t = useT();
   const name = contactDisplayName(item.contact);
   const why = item.note
-    ? `${item.note} · asked ${formatRelativeTime(item.due_at)}`
-    : `No reply since ${formatRelativeTime(item.last_message_at)}`;
+    ? t("inbox.forYouWhyFollowUpNote", {
+        note: item.note,
+        when: formatRelativeTime(item.due_at),
+      })
+    : t("inbox.forYouWhyNoReply", {
+        when: formatRelativeTime(item.last_message_at),
+      });
   return (
     <Card href={`/inbox/${item.conversation_id}`}>
       <Avatar name={name} />
@@ -204,6 +216,7 @@ function FollowUpRow({ item }: { item: ForYouFollowUp }) {
 // --- My tasks — overdue/soon; inline complete (optimistic + undo). ---
 
 function TaskRow({ task }: { task: ForYouTask }) {
+  const t = useT();
   const { openTask } = useTaskDrawer();
   const complete = useCompleteForYouTask();
   // #11: play the 150ms slide+fade closure BEFORE the optimistic mutation
@@ -218,18 +231,22 @@ function TaskRow({ task }: { task: ForYouTask }) {
         {
           onError: (e) =>
             toast.error(
-              e instanceof ApiError ? e.message : "Couldn't complete the task.",
+              e instanceof ApiError
+                ? e.message
+                : t("inbox.forYouTaskCompleteFailed"),
             ),
           onSuccess: () =>
             undoableToast({
-              message: "Task completed",
+              message: t("inbox.forYouTaskCompleted"),
               onUndo: () =>
                 complete.mutate(
                   { task, done: false },
                   {
                     onError: (e) =>
                       toast.error(
-                        e instanceof ApiError ? e.message : "Couldn't undo.",
+                        e instanceof ApiError
+                          ? e.message
+                          : t("inbox.forYouUndoFailed"),
                       ),
                   },
                 ),
@@ -240,13 +257,13 @@ function TaskRow({ task }: { task: ForYouTask }) {
   };
 
   const why = task.overdue
-    ? "Overdue task"
+    ? t("inbox.forYouWhyOverdueTask")
     : task.due_at
       ? // formatDue (forward-looking: Today / Tomorrow / MMM d), NOT
         // formatRelativeTime — the latter is an ELAPSED-time helper for PAST
         // timestamps, so a future due_at collapsed to "Due now" for every task.
-        `Due ${formatDue(task.due_at)}`
-      : "Open task";
+        t("inbox.forYouWhyDue", { when: formatDue(task.due_at) })
+      : t("inbox.forYouWhyOpenTask");
 
   return (
     <div
@@ -260,7 +277,7 @@ function TaskRow({ task }: { task: ForYouTask }) {
         type="button"
         onClick={onComplete}
         disabled={complete.isPending}
-        aria-label={`Complete task: ${task.title}`}
+        aria-label={t("inbox.forYouCompleteTaskAria", { title: task.title })}
         className="tap-target grid size-[18px] shrink-0 place-items-center rounded-[6px] border-[1.6px] border-app-muted-2 transition-colors hover:border-app-olive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
       />
       {/* #113: the task title opens the TASK itself (the drawer) — this is the
@@ -280,7 +297,7 @@ function TaskRow({ task }: { task: ForYouTask }) {
       </button>
       <Link
         href={`/inbox/${task.conversation_id}`}
-        aria-label="Open conversation"
+        aria-label={t("inbox.forYouOpenConversationAria")}
         className="shrink-0 text-app-muted-2 transition-colors hover:text-app-ink"
       >
         <ArrowRight className="size-4" strokeWidth={1.75} aria-hidden />
@@ -292,6 +309,7 @@ function TaskRow({ task }: { task: ForYouTask }) {
 // --- Unread — my conversations with unread inbound. ---
 
 function UnreadRow({ item }: { item: ForYouUnread }) {
+  const t = useT();
   const name = contactDisplayName(item.contact);
   return (
     <Card href={`/inbox/${item.conversation_id}`}>
@@ -302,7 +320,11 @@ function UnreadRow({ item }: { item: ForYouUnread }) {
           {name}
         </span>
         <span className="mt-0.5 block">
-          <Why text={`Unread · ${formatRelativeTime(item.last_message_at)}`} />
+          <Why
+            text={t("inbox.forYouWhyUnread", {
+              when: formatRelativeTime(item.last_message_at),
+            })}
+          />
         </span>
       </span>
     </Card>
@@ -312,6 +334,7 @@ function UnreadRow({ item }: { item: ForYouUnread }) {
 // --- Triage (owner/admin) — unassigned leads + tasks to dispatch. ---
 
 function TriageConvRow({ item }: { item: ForYouTriageConversation }) {
+  const t = useT();
   const name = contactDisplayName(item.contact);
   return (
     <Card href={`/inbox/${item.conversation_id}`}>
@@ -325,7 +348,7 @@ function TriageConvRow({ item }: { item: ForYouTriageConversation }) {
             {name}
           </span>
           <span className="shrink-0 rounded-full bg-app-tint px-2 py-[2px] text-[10.5px] font-semibold text-app-olive-deep">
-            New lead
+            {t("inbox.forYouNewLead")}
           </span>
         </span>
         <span className="mt-0.5 block">
@@ -337,6 +360,7 @@ function TriageConvRow({ item }: { item: ForYouTriageConversation }) {
 }
 
 function TriageTaskRow({ task }: { task: ForYouTriageTask }) {
+  const t = useT();
   return (
     <Card href={`/inbox/${task.conversation_id}`}>
       <span className="min-w-0 flex-1">
@@ -345,7 +369,11 @@ function TriageTaskRow({ task }: { task: ForYouTriageTask }) {
         </span>
         <span className="mt-0.5 block">
           <Why
-            text={task.overdue ? "Unassigned · overdue" : "Unassigned task"}
+            text={
+              task.overdue
+                ? t("inbox.forYouWhyUnassignedOverdue")
+                : t("inbox.forYouWhyUnassignedTask")
+            }
             warn={task.overdue}
           />
         </span>
@@ -361,14 +389,15 @@ function TriageTaskRow({ task }: { task: ForYouTriageTask }) {
 const RECENT_CALLS_LIMIT = 3;
 
 /** Caller display, /calls vocabulary: name → formatted number → unknown. */
-function recentCallerName(call: Call): string {
+function recentCallerName(call: Call, unknown: string): string {
   if (call.contact_name) return call.contact_name;
   if (call.caller_e164) return formatPhone(call.caller_e164);
-  return "Unknown caller";
+  return unknown;
 }
 
 function RecentCallRow({ call }: { call: Call }) {
-  const name = recentCallerName(call);
+  const t = useT();
+  const name = recentCallerName(call, t("inbox.forYouUnknownCaller"));
   // The /calls accent rule (#64): INBOUND misses are the one warning-tinted
   // element; everything else (answered, voicemail, outbound) stays quiet.
   const missedInbound =
@@ -420,6 +449,7 @@ function RecentCallRow({ call }: { call: Call }) {
  * empty log) is the correct calm state for ambient history.
  */
 function RecentCallsSection() {
+  const t = useT();
   const calls = useCalls();
   const recent = (calls.data?.pages[0]?.data ?? []).slice(
     0,
@@ -427,7 +457,7 @@ function RecentCallsSection() {
   );
   if (recent.length === 0) return null;
   return (
-    <Section label="Recent calls">
+    <Section label={t("inbox.forYouRecentCalls")}>
       {recent.map((call) => (
         <RecentCallRow key={call.id} call={call} />
       ))}
@@ -435,7 +465,7 @@ function RecentCallsSection() {
         href="/calls"
         className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-[12.5px] font-medium text-app-muted transition-colors duration-150 ease-out hover:bg-app-hover hover:text-app-ink"
       >
-        View all calls
+        {t("inbox.forYouViewAllCalls")}
         <ArrowRight className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
       </Link>
     </Section>
@@ -496,6 +526,7 @@ function SummaryTile({
   tile: DashboardTile;
   href: string;
 }) {
+  const t = useT();
   const active = tile.count > 0;
   const overdue = tile.signal?.kind === "overdue";
   // The one warm mark on the strip, spent on the only state that has actually
@@ -505,10 +536,12 @@ function SummaryTile({
     tile.signal === null
       ? null
       : tile.signal.kind === "overdue"
-        ? `${tile.signal.count} overdue`
-        : `oldest ${formatRelativeTime(
-            new Date(Date.now() - tile.signal.ageMillis).toISOString(),
-          )}`;
+        ? t("inbox.forYouTileOverdue", { count: tile.signal.count })
+        : t("inbox.forYouTileOldest", {
+            when: formatRelativeTime(
+              new Date(Date.now() - tile.signal.ageMillis).toISOString(),
+            ),
+          });
 
   const body = (
     <>
@@ -633,6 +666,7 @@ function Overflow({
   href: string;
   label: string;
 }) {
+  const t = useT();
   if (total <= shown) return null;
   return (
     <Link
@@ -640,8 +674,9 @@ function Overflow({
       className="flex items-center justify-between gap-2 border-t border-app-line-soft px-4 py-2.5 text-[12.5px] text-app-muted transition-colors duration-150 ease-out hover:bg-app-hover"
     >
       <span>
-        Showing {shown} of <span className="tabular-nums">{total}</span> ·{" "}
-        {label}
+        {t("inbox.forYouOverflowShowing", { shown })}
+        <span className="tabular-nums">{total}</span>
+        {t("inbox.forYouOverflowLabel", { label })}
       </span>
       <ArrowRight className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
     </Link>
@@ -649,6 +684,7 @@ function Overflow({
 }
 
 export function ForYouView() {
+  const t = useT();
   const forYou = useForYou();
 
   // How many THINGS need you, not how many rows are on screen. The unread
@@ -709,12 +745,15 @@ export function ForYouView() {
       <header className="mb-6 flex items-start justify-between gap-3">
         <div>
           <h1 className="text-[22px] font-semibold tracking-[-0.01em] text-app-ink">
-            For you
+            {t("inbox.forYouTitle")}
           </h1>
           <p className="mt-1 text-[13px] text-app-muted">
             {total > 0
-              ? `${total} ${total === 1 ? "thing needs" : "things need"} you · you're all caught up otherwise`
-              : "You're all caught up."}
+              ? t(
+                  total === 1 ? "inbox.forYouWorkOne" : "inbox.forYouWorkMany",
+                  { count: total },
+                )
+              : t("inbox.forYouAllCaughtUp")}
           </p>
         </div>
         {/* Desktop hosts search + bell in the top bar; keep those two here only
@@ -725,7 +764,7 @@ export function ForYouView() {
           <button
             type="button"
             onClick={openCommand}
-            aria-label="Search"
+            aria-label={t("inbox.forYouSearchAria")}
             aria-keyshortcuts="Meta+K Control+K"
             className="grid size-8 place-items-center rounded-[9px] border border-app-line bg-app-paper text-app-muted transition-colors hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
           >
@@ -772,11 +811,10 @@ export function ForYouView() {
       {forYou.isError ? (
         <div className="flex flex-col items-center gap-3 rounded-app-card border border-app-line bg-app-paper px-6 py-12 text-center">
           <p className="text-sm text-app-muted">
-            We couldn&apos;t load your queue. Check your connection and try
-            again.
+            {t("inbox.forYouLoadFailed")}
           </p>
           <Button variant="outline" size="sm" onClick={() => forYou.refetch()}>
-            Try again
+            {t("common.retry")}
           </Button>
         </div>
       ) : forYou.isPending ? (
@@ -812,12 +850,13 @@ export function ForYouView() {
  * it is), Loss Aversion (the framing is the customer you are about to lose).
  */
 function SpamReviewSection() {
+  const t = useT();
   const review = useSpamReview();
   const items = review.data?.data ?? [];
   if (items.length === 0) return null;
 
   return (
-    <Section label="Marked spam, still texting" count={items.length}>
+    <Section label={t("inbox.forYouSectionSpamReview")} count={items.length}>
       {items.map((item) => (
         <SpamReviewRow key={item.conversation_id} item={item} />
       ))}
@@ -826,16 +865,19 @@ function SpamReviewSection() {
 }
 
 function SpamReviewRow({ item }: { item: SpamReviewItem }) {
+  const t = useT();
   const update = useUpdateConversation(item.conversation_id);
   const name = contactDisplayName(item.contact);
 
   // Say which signal raised it. "4 messages since" alone reads as a counter;
   // "you texted them before marking this" reads as the mistake it probably is.
   const why = item.we_texted_them
-    ? "You texted them before this was marked"
+    ? t("inbox.forYouSpamWhyTexted")
     : item.sustained
-      ? `Still texting ${formatRelativeTime(item.last_inbound_at)}, over several days`
-      : `${item.inbound_since} messages since it was marked`;
+      ? t("inbox.forYouSpamWhySustained", {
+          when: formatRelativeTime(item.last_inbound_at),
+        })
+      : t("inbox.forYouSpamWhyCount", { count: item.inbound_since });
 
   return (
     <div className="flex items-center gap-3 border-b border-app-line-soft px-4 py-3 last:border-b-0">
@@ -860,16 +902,18 @@ function SpamReviewRow({ item }: { item: SpamReviewItem }) {
           update.mutate(
             { is_spam: false },
             {
-              onSuccess: () => toast.success("Back in the inbox."),
+              onSuccess: () => toast.success(t("inbox.forYouBackInInbox")),
               onError: (e) =>
                 toast.error(
-                  e instanceof ApiError ? e.message : "Couldn't undo the mark.",
+                  e instanceof ApiError
+                    ? e.message
+                    : t("inbox.forYouUndoMarkFailed"),
                 ),
             },
           )
         }
       >
-        Not spam
+        {t("inbox.forYouNotSpam")}
       </Button>
       <Button
         variant="ghost"
@@ -882,16 +926,18 @@ function SpamReviewRow({ item }: { item: SpamReviewItem }) {
             {
               // Not a toast worth celebrating — it says "nothing changed",
               // which is exactly what happened.
-              onSuccess: () => toast.success("Left as spam."),
+              onSuccess: () => toast.success(t("inbox.forYouLeftAsSpam")),
               onError: (e) =>
                 toast.error(
-                  e instanceof ApiError ? e.message : "Couldn't save that.",
+                  e instanceof ApiError
+                    ? e.message
+                    : t("inbox.forYouSaveFailed"),
                 ),
             },
           )
         }
       >
-        Still spam
+        {t("inbox.forYouStillSpam")}
       </Button>
     </div>
   );
@@ -966,6 +1012,7 @@ function ForYouSections({
   /** #540: the shared order, so the sections match the strip above them. */
   order: readonly DashboardTileId[];
 }) {
+  const t = useT();
   // #540: which measures this member has put away. Read from the /v1/me payload
   // the shell already holds, so the decision is known before this paints —
   // rendering four cards and then removing two looks like a broken page.
@@ -974,17 +1021,21 @@ function ForYouSections({
   // #293: absent from an older Worker, which is "no reminders" — the state
   // every client written before this shipped was already rendering.
   const followUps = data.follow_ups ?? [];
-  const t = data.totals;
+  // Named `totals` rather than `t`: `t` is the catalogue lookup everywhere in
+  // this file now, and a one-letter alias for the payload's counts beside it is
+  // the kind of shadowing that compiles somewhere else and reads as a bug here.
+  const totals = data.totals;
   // #306: the header count is what the section HOLDS; the rows are a page of
   // it. Falling back to the row count keeps a client running ahead of the
   // Worker on today's behaviour rather than a new wrong number.
-  const waitingTotal = t?.waiting_on_you ?? waiting_on_you.length;
-  const tasksTotal = t?.my_tasks ?? my_tasks.length;
-  const unreadTotal = t?.unread ?? unread.length;
-  const triageConvTotal = t?.triage_conversations ?? triage?.conversations.length ?? 0;
-  const triageTaskTotal = t?.triage_tasks ?? triage?.tasks.length ?? 0;
+  const waitingTotal = totals?.waiting_on_you ?? waiting_on_you.length;
+  const tasksTotal = totals?.my_tasks ?? my_tasks.length;
+  const unreadTotal = totals?.unread ?? unread.length;
+  const triageConvTotal =
+    totals?.triage_conversations ?? triage?.conversations.length ?? 0;
+  const triageTaskTotal = totals?.triage_tasks ?? triage?.tasks.length ?? 0;
   const triageCount = triageConvTotal + triageTaskTotal;
-  const followUpTotal = t?.follow_ups ?? followUps.length;
+  const followUpTotal = totals?.follow_ups ?? followUps.length;
 
   const everythingEmpty =
     followUps.length === 0 &&
@@ -1008,14 +1059,14 @@ function ForYouSections({
           </span>
           <div className="space-y-1">
             <p className="text-[15px] font-semibold text-app-ink">
-              You&apos;re all caught up.
+              {t("inbox.forYouAllCaughtUp")}
             </p>
             <p className="text-sm text-app-muted">
-              New leads will show up here.
+              {t("inbox.forYouNewLeadsHere")}
             </p>
           </div>
           <Button asChild variant="outline" size="sm">
-            <Link href="/inbox">Open the inbox</Link>
+            <Link href="/inbox">{t("inbox.forYouOpenInbox")}</Link>
           </Button>
         </div>
         {/* #540: THE MEASURES BELONG HERE TOO, and their absence was backwards.
@@ -1054,7 +1105,11 @@ function ForYouSections({
     unassigned: (
       <>
         {triageCount > 0 && (
-          <Section id="for-you-unassigned" label="Unassigned" count={triageCount}>
+          <Section
+            id="for-you-unassigned"
+            label={t("inbox.forYouSectionUnassigned")}
+            count={triageCount}
+          >
             {triage?.conversations.map((item) => (
               <TriageConvRow key={item.conversation_id} item={item} />
             ))}
@@ -1065,7 +1120,7 @@ function ForYouSections({
               shown={triage?.conversations.length ?? 0}
               total={triageConvTotal}
               href="/inbox"
-              label="unassigned conversations in the inbox"
+              label={t("inbox.forYouOverflowUnassignedConversations")}
             />
             {triage?.tasks.map((task) => (
               <TriageTaskRow key={task.task_id} task={task} />
@@ -1074,7 +1129,7 @@ function ForYouSections({
               shown={triage?.tasks.length ?? 0}
               total={triageTaskTotal}
               href="/tasks"
-              label="all tasks"
+              label={t("inbox.forYouOverflowAllTasks")}
             />
           </Section>
         )}
@@ -1083,7 +1138,11 @@ function ForYouSections({
     waiting: (
       <>
         {waiting_on_you.length > 0 && (
-          <Section id="for-you-waiting" label="Waiting on you" count={waitingTotal}>
+          <Section
+            id="for-you-waiting"
+            label={t("inbox.forYouSectionWaiting")}
+            count={waitingTotal}
+          >
             {waiting_on_you.map((item) => (
               <WaitingRow key={item.conversation_id} item={item} />
             ))}
@@ -1094,7 +1153,7 @@ function ForYouSections({
               shown={waiting_on_you.length}
               total={waitingTotal}
               href="/inbox?assignee=me"
-              label="see the rest in your inbox"
+              label={t("inbox.forYouOverflowRestInInbox")}
             />
           </Section>
         )}
@@ -1104,7 +1163,11 @@ function ForYouSections({
     tasks: (
       <>
         {my_tasks.length > 0 && (
-          <Section id="for-you-tasks" label="My tasks" count={tasksTotal}>
+          <Section
+            id="for-you-tasks"
+            label={t("inbox.forYouSectionTasks")}
+            count={tasksTotal}
+          >
             {my_tasks.map((task) => (
               <TaskRow key={task.task_id} task={task} />
             ))}
@@ -1115,7 +1178,7 @@ function ForYouSections({
               shown={my_tasks.length}
               total={tasksTotal}
               href="/tasks"
-              label="see all your open tasks"
+              label={t("inbox.forYouOverflowOpenTasks")}
             />
           </Section>
         )}
@@ -1125,7 +1188,11 @@ function ForYouSections({
     unread: (
       <>
         {unread.length > 0 && (
-          <Section id="for-you-unread" label="Unread" count={unreadTotal}>
+          <Section
+            id="for-you-unread"
+            label={t("inbox.forYouSectionUnread")}
+            count={unreadTotal}
+          >
             {unread.map((item) => (
               <UnreadRow key={item.conversation_id} item={item} />
             ))}
@@ -1133,7 +1200,7 @@ function ForYouSections({
               shown={unread.length}
               total={unreadTotal}
               href="/inbox?assignee=me&unread=true"
-              label="see the rest in your inbox"
+              label={t("inbox.forYouOverflowRestInInbox")}
             />
           </Section>
         )}
@@ -1203,7 +1270,10 @@ function ForYouSections({
           sections below it, this one only ever appears because the member
           asked for it — so it has earned the top of the queue. */}
       {followUps.length > 0 && (
-        <Section label="Chase these" count={followUpTotal}>
+        <Section
+          label={t("inbox.forYouSectionChaseThese")}
+          count={followUpTotal}
+        >
           {followUps.map((item) => (
             <FollowUpRow key={item.conversation_id} item={item} />
           ))}

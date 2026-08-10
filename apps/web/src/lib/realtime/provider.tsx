@@ -16,6 +16,7 @@ import {
   patchConversationLists,
   seedThreadFromDetail,
 } from "@/lib/api/conversations";
+import { useT, type Translate } from "@/i18n/provider";
 import { keys } from "@/lib/api/keys";
 import { fetchMessagesPage } from "@/lib/api/messages";
 import { trimToFirstPage } from "@/lib/api/pagination";
@@ -82,10 +83,11 @@ function listItemFromDetail(
 
 const TOAST_SNIPPET_LENGTH = 80;
 
-function toastSnippet(message: Message | undefined): string {
-  if (!message) return "New message";
+function toastSnippet(message: Message | undefined, t: Translate): string {
+  if (!message) return t("misc.realtimeNewMessage");
   const body = message.body.trim();
-  if (body.length === 0) return "Attachment"; // #189: not photos-only anymore
+  // #189: not photos-only anymore.
+  if (body.length === 0) return t("misc.realtimeAttachment");
   if (body.length <= TOAST_SNIPPET_LENGTH) return body;
   return `${body.slice(0, TOAST_SNIPPET_LENGTH - 1)}…`;
 }
@@ -254,6 +256,17 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const routerRef = useRef(router);
   routerRef.current = router;
 
+  /*
+   * #228: the words the inbound-message toast says.
+   *
+   * Held in a ref for the same reason the router is: the socket effect below
+   * must not tear down and re-subscribe because the reader changed language,
+   * and a `t` in its dependency list would do exactly that.
+   */
+  const t = useT();
+  const tRef = useRef(t);
+  tRef.current = t;
+
   /**
    * #483: ask /v1/me again, on a bounded ladder, when the read that decides the
    * subscription set failed.
@@ -411,9 +424,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       // message just appears when you are.
       if (direction === "inbound" && !isViewing(conversation_id)) {
         toast(contactName, {
-          description: toastSnippet(message),
+          description: toastSnippet(message, tRef.current),
           action: {
-            label: "View",
+            label: tRef.current("misc.realtimeView"),
             onClick: () => routerRef.current.push(`/inbox/${conversation_id}`),
           },
         });

@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useRemediateNumber } from "@/lib/api/numbers";
 import type { PhoneNumberSummary } from "@/lib/api/types";
@@ -33,6 +34,7 @@ export function ChooseNumberDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const remediate = useRemediateNumber(number.id);
   const [picked, setPicked] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -59,15 +61,17 @@ export function ChooseNumberDialog({
           close(false);
           toast.success(
             updated.number_e164
-              ? `${formatPhone(updated.number_e164)} is being set up.`
-              : "Setting up your number.",
+              ? t("settings.chooseNumberBeingSetUp", {
+                  number: formatPhone(updated.number_e164),
+                })
+              : t("settings.chooseNumberSettingUp"),
           );
         },
         onError: (cause) =>
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't set that up. Try again in a moment.",
+              : t("settings.chooseNumberFailed"),
           ),
       },
     );
@@ -77,10 +81,9 @@ export function ChooseNumberDialog({
     <Dialog open={open} onOpenChange={close}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Choose your number</DialogTitle>
+          <DialogTitle>{t("settings.chooseNumberTitle")}</DialogTitle>
           <DialogDescription>
-            Pick an available number to finish setting up your workspace. You
-            won&apos;t be charged again.
+            {t("settings.chooseNumberDescription")}
           </DialogDescription>
         </DialogHeader>
         <NumberPicker
@@ -96,10 +99,12 @@ export function ChooseNumberDialog({
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => close(false)}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button onClick={submit} disabled={!picked || remediate.isPending}>
-            {remediate.isPending ? "Setting up…" : "Use this number"}
+            {remediate.isPending
+              ? t("settings.chooseNumberBusy")
+              : t("settings.chooseNumberAction")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useT } from "@/i18n/provider";
 import { useAttachmentUrl } from "@/lib/api/attachments";
 import type { AttachmentSummary } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,7 @@ export function AttachmentImage({
   attachment: AttachmentSummary;
   alt: string;
 }) {
+  const t = useT();
   const url = useAttachmentUrl(attachment.id);
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
@@ -68,7 +70,7 @@ export function AttachmentImage({
             }}
             className="text-xs underline-offset-2 hover:underline"
           >
-            Photo didn&apos;t load. Retry
+            {t("thread.photoDidntLoadRetry")}
           </button>
         </div>
       </div>
@@ -81,7 +83,7 @@ export function AttachmentImage({
         type="button"
         onClick={() => setOpen(true)}
         disabled={!loaded}
-        aria-label={`Open photo: ${alt}`}
+        aria-label={t("thread.openPhotoAria", { alt })}
         className="relative block size-44 overflow-hidden rounded-lg border border-border bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         {!loaded && (
@@ -117,7 +119,7 @@ export function AttachmentImage({
           className="max-w-[92vw] border-none bg-transparent p-0 shadow-none sm:max-w-3xl"
           showCloseButton
         >
-          <DialogTitle className="sr-only">Photo</DialogTitle>
+          <DialogTitle className="sr-only">{t("thread.photo")}</DialogTitle>
           {url.data && !lightboxFailed && (
             <div className="relative">
               {/* The preview, already decoded and cached from the thumbnail.
@@ -155,7 +157,7 @@ export function AttachmentImage({
             <div className="flex items-center justify-center rounded-lg bg-muted p-12">
               <div className="flex flex-col items-center gap-2 text-muted-foreground">
                 <ImageOff className="size-6" strokeWidth={1.75} aria-hidden />
-                <span className="text-sm">This photo couldn&apos;t be loaded.</span>
+                <span className="text-sm">{t("thread.photoLoadFailed")}</span>
               </div>
             </div>
           )}

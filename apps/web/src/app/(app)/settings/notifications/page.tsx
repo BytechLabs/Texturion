@@ -33,6 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useMe } from "@/lib/api/me";
 import { useOnCallShifts } from "@/lib/api/on-call";
@@ -47,6 +48,7 @@ import {
  * PermissionCard + usePushSubscription).
  */
 export default function NotificationsSettingsPage() {
+  const t = useT();
   const prefs = useNotificationPrefs();
   const update = useUpdateNotificationPrefs();
   // #538 (audit): am I the one holding the phone right now?
@@ -83,7 +85,7 @@ export default function NotificationsSettingsPage() {
           toast.error(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't save that. Try again.",
+              : t("appShell.saveThatFailed"),
           ),
       },
     );
@@ -101,7 +103,7 @@ export default function NotificationsSettingsPage() {
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>You&apos;re on call</DialogTitle>
+          <DialogTitle>{t("appShell.notifOnCallTitle")}</DialogTitle>
           <DialogDescription>
             {onCallSilenceWarning(
               true,
@@ -128,11 +130,11 @@ export default function NotificationsSettingsPage() {
       </DialogContent>
     </Dialog>
     <SettingsPage
-      title="Notifications"
-      description="How you hear about customer texts, missed calls, and teammates who need you. These are your settings; teammates set their own."
+      title={t("appShell.notifTitle")}
+      description={t("appShell.notifDescription")}
     >
       {prefs.isPending ? (
-        <div className="space-y-4" aria-label="Loading notification settings">
+        <div className="space-y-4" aria-label={t("appShell.notifLoading")}>
           <Skeleton className="h-28 w-full rounded-lg" />
           <Skeleton className="h-20 w-full rounded-lg" />
         </div>
@@ -164,17 +166,15 @@ export default function NotificationsSettingsPage() {
               has something true to say.* */}
           <EmailReachabilityCard />
 
-          <SettingsCard title="When something needs you">
+          <SettingsCard title={t("appShell.notifCardTitle")}>
             <div className="space-y-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-0.5">
                   <Label htmlFor="pref-email" className="text-sm font-medium">
-                    Email
+                    {t("appShell.notifEmailLabel")}
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    Email you when a new conversation starts or a customer
-                    texts back after a quiet spell, never one email per
-                    message.
+                    {t("appShell.notifEmailBody")}
                   </p>
                 </div>
                 <Switch
@@ -188,12 +188,10 @@ export default function NotificationsSettingsPage() {
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-0.5">
                   <Label htmlFor="pref-push" className="text-sm font-medium">
-                    Push
+                    {t("appShell.notifPushLabel")}
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    Send a notification to your devices for those same moments,
-                    plus a missed call and any note where a teammate mentions
-                    you. Each device also needs push turned on below.
+                    {t("appShell.notifPushBody")}
                   </p>
                 </div>
                 <Switch
@@ -231,8 +229,7 @@ export default function NotificationsSettingsPage() {
           <PermissionCard />
 
           <p className="px-1 text-xs text-muted-foreground">
-            Billing, usage, and registration emails always go to owners and
-            admins. They can&apos;t be turned off here.
+            {t("appShell.notifAlwaysEmails")}
           </p>
         </div>
       )}

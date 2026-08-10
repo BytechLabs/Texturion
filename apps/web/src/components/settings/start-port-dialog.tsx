@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT, type MessageKey } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useCheckPortability,
@@ -53,6 +54,7 @@ function toE164(raw: string): string | null {
 }
 
 export function StartPortDialog({ country }: { country: Country }) {
+  const t = useT();
   const check = useCheckPortability();
   const create = useCreatePortRequest();
 
@@ -75,9 +77,18 @@ export function StartPortDialog({ country }: { country: Country }) {
 
   const e164 = toE164(raw);
   const isWireless = checked?.is_wireless === true;
-  const ssnSinLabel = country === "US" ? "SSN" : "SIN";
-  const regionLabel = country === "US" ? "State" : "Province";
-  const postalLabel = country === "US" ? "ZIP code" : "Postal code";
+  const ssnSinLabel =
+    country === "US"
+      ? t("settingsMore.startPortSsn")
+      : t("settingsMore.startPortSin");
+  const regionLabel: MessageKey =
+    country === "US"
+      ? "settingsMore.portFixState"
+      : "settingsMore.portFixProvince";
+  const postalLabel: MessageKey =
+    country === "US"
+      ? "settingsMore.portFixZip"
+      : "settingsMore.portFixPostalCode";
 
   function reset() {
     setRaw("");
@@ -104,7 +115,7 @@ export function StartPortDialog({ country }: { country: Country }) {
     setError(null);
     setChecked(null);
     if (!e164) {
-      setError("Enter your 10-digit US or Canadian number.");
+      setError(t("settingsMore.startPortNumberInvalid"));
       return;
     }
     try {
@@ -114,7 +125,7 @@ export function StartPortDialog({ country }: { country: Country }) {
       setError(
         cause instanceof ApiError
           ? cause.message
-          : "We couldn't check this number just now. Try again in a moment.",
+          : t("settingsMore.startPortCheckFailed"),
       );
     }
   }
@@ -131,12 +142,12 @@ export function StartPortDialog({ country }: { country: Country }) {
       !adminArea.trim() ||
       !postalCode.trim()
     ) {
-      setError("Fill in the account details and service address.");
+      setError(t("settingsMore.startPortFieldsMissing"));
       return;
     }
     if (isWireless && (!/^\d{4}$/.test(ssnSinLast4.trim()) || !pinPasscode.trim())) {
       setError(
-        `This is a mobile number. Enter the transfer PIN and the last 4 of the account holder's ${ssnSinLabel}.`,
+        t("settingsMore.startPortWirelessMissing", { idKind: ssnSinLabel }),
       );
       return;
     }
@@ -155,13 +166,13 @@ export function StartPortDialog({ country }: { country: Country }) {
           ? { pin_passcode: pinPasscode.trim(), ssn_sin_last4: ssnSinLast4.trim() }
           : {}),
       });
-      toast.success("Transfer started. Upload your documents to send it.");
+      toast.success(t("settingsMore.startPortStarted"));
       onOpenChange(false);
     } catch (cause) {
       setError(
         cause instanceof ApiError
           ? cause.message
-          : "Couldn't start the transfer. Try again in a moment.",
+          : t("settingsMore.startPortFailed"),
       );
     }
   }
@@ -171,17 +182,21 @@ export function StartPortDialog({ country }: { country: Country }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline">Bring a number</Button>
+        <Button variant="outline">
+          {t("settingsMore.startPortTrigger")}
+        </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Bring your existing number</DialogTitle>
+          <DialogTitle>{t("settingsMore.portBringNumberTitle")}</DialogTitle>
           <DialogDescription>{PORT_HONEST_WINDOW}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="start-port-number">Number to transfer</Label>
+            <Label htmlFor="start-port-number">
+              {t("settingsMore.startPortNumberLabel")}
+            </Label>
             <div className="flex gap-2">
               <Input
                 id="start-port-number"
@@ -202,7 +217,9 @@ export function StartPortDialog({ country }: { country: Country }) {
                 onClick={() => void onCheck()}
                 disabled={check.isPending}
               >
-                {check.isPending ? "Checking…" : "Check"}
+                {check.isPending
+                  ? t("settingsMore.regOtpChecking")
+                  : t("settingsMore.startPortCheck")}
               </Button>
             </div>
           </div>
@@ -222,38 +239,44 @@ export function StartPortDialog({ country }: { country: Country }) {
 
           {portable ? (
             <div className="space-y-4 border-t border-border-subtle pt-4">
-              <p className="text-sm font-medium">Your current carrier account</p>
+              <p className="text-sm font-medium">
+                {t("settingsMore.startPortCarrierAccount")}
+              </p>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Account holder" value={entityName} onChange={setEntityName} />
-                <Field label="Authorized person" value={authPersonName} onChange={setAuthPersonName} />
+                <Field label={t("settingsMore.startPortAccountHolder")} value={entityName} onChange={setEntityName} />
+                <Field label={t("settingsMore.portFixAuthPerson")} value={authPersonName} onChange={setAuthPersonName} />
               </div>
-              <Field label="Account number" value={accountNumber} onChange={setAccountNumber} />
+              <Field label={t("settingsMore.portFixAccountNumber")} value={accountNumber} onChange={setAccountNumber} />
 
               {isWireless ? (
                 <div className="grid gap-3 rounded-md border border-border bg-muted/30 p-3 sm:grid-cols-2">
-                  <Field label="Transfer PIN" value={pinPasscode} onChange={setPinPasscode} />
+                  <Field label={t("settingsMore.startPortTransferPin")} value={pinPasscode} onChange={setPinPasscode} />
                   <Field
-                    label={`Last 4 of ${ssnSinLabel}`}
+                    label={t("settingsMore.startPortLast4", {
+                      idKind: ssnSinLabel,
+                    })}
                     value={ssnSinLast4}
                     onChange={(v) => setSsnSinLast4(v.replace(/\D/g, "").slice(0, 4))}
                   />
                   <p className="text-[13px] text-muted-foreground sm:col-span-2">
-                    Mobile numbers need these to release. We store only the last
-                    4 of the {ssnSinLabel}.
+                    {t("settingsMore.startPortWirelessNote", {
+                      idKind: ssnSinLabel,
+                    })}
                   </p>
                 </div>
               ) : null}
 
-              <p className="pt-1 text-sm font-medium">Service address on file</p>
-              <p className="text-[13px] text-muted-foreground">
-                From your latest bill. A mismatch is the #1 reason a transfer
-                gets held up.
+              <p className="pt-1 text-sm font-medium">
+                {t("settingsMore.startPortServiceAddress")}
               </p>
-              <Field label="Street address" value={street} onChange={setStreet} />
-              <Field label="City" value={locality} onChange={setLocality} />
+              <p className="text-[13px] text-muted-foreground">
+                {t("settingsMore.startPortAddressNote")}
+              </p>
+              <Field label={t("settingsMore.regStreetLabel")} value={street} onChange={setStreet} />
+              <Field label={t("settingsMore.portFixCity")} value={locality} onChange={setLocality} />
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label={regionLabel} value={adminArea} onChange={setAdminArea} />
-                <Field label={postalLabel} value={postalCode} onChange={setPostalCode} />
+                <Field label={t(regionLabel)} value={adminArea} onChange={setAdminArea} />
+                <Field label={t(postalLabel)} value={postalCode} onChange={setPostalCode} />
               </div>
 
               <label className="flex items-start gap-2 text-sm">
@@ -261,11 +284,10 @@ export function StartPortDialog({ country }: { country: Country }) {
                   checked={wantsBridge}
                   onCheckedChange={(c) => setWantsBridge(c === true)}
                   className="mt-0.5"
-                  aria-label="Give me a temporary number while my number transfers"
+                  aria-label={t("settingsMore.startPortBridgeAria")}
                 />
                 <span className="text-muted-foreground">
-                  Give me a temporary number to text from while this one
-                  transfers. You can release it later.
+                  {t("settingsMore.startPortBridge")}
                 </span>
               </label>
             </div>
@@ -279,13 +301,15 @@ export function StartPortDialog({ country }: { country: Country }) {
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={() => void onCreate()}
               disabled={!portable || create.isPending}
             >
-              {create.isPending ? "Starting…" : "Start transfer"}
+              {create.isPending
+                ? t("settingsMore.regStarting")
+                : t("settingsMore.startPortAction")}
             </Button>
           </div>
         </div>

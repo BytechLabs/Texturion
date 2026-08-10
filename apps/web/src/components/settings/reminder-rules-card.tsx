@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useReminderRules,
@@ -52,6 +53,7 @@ import { cn } from "@/lib/utils";
 const OFFSET_CHOICES = [2880, 1440, 240, 120, 60] as const;
 
 export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
+  const t = useT();
   const query = useReminderRules();
   const save = useSaveReminderRules();
   const [draft, setDraft] = useState<ReminderRule[] | null>(null);
@@ -66,8 +68,8 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
   if (query.isPending || draft === null) {
     return (
       <SettingsCard
-        title="Appointment reminders"
-        description="A text before the job, so fewer people forget"
+        title={t("settingsMore.remindersTitle")}
+        description={t("settingsMore.remindersDescription")}
       >
         <Skeleton className="h-24 w-full" />
       </SettingsCard>
@@ -92,29 +94,28 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
       await save.mutateAsync(rules);
       toast.success(
         rules.length === 0
-          ? "Reminders are off. Nothing will go out automatically."
-          : "Saved. New jobs will carry these reminders.",
+          ? t("settingsMore.remindersAllOff")
+          : t("settingsMore.remindersSaved"),
       );
     } catch (cause) {
       toast.error(
         cause instanceof ApiError
           ? cause.message
-          : "That could not be saved. Try again.",
+          : t("settingsMore.saveFailedGenericRetry"),
       );
     }
   }
 
   return (
     <SettingsCard
-      title="Appointment reminders"
-      description="A text before the job, so fewer people forget"
+      title={t("settingsMore.remindersTitle")}
+      description={t("settingsMore.remindersDescription")}
     >
       {draft.length === 0 ? (
         <div className="space-y-3">
           {/* The honest empty state: off is a state, not a gap. */}
           <p className="text-[13px] text-app-muted">
-            Reminders are off. Nothing goes out automatically until you set one
-            up — a job booked for tomorrow gets no text from us today.
+            {t("settingsMore.remindersOffBody")}
           </p>
           {canEdit && suggested.length > 0 && (
             <Button
@@ -125,7 +126,7 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
                 )
               }
             >
-              Set up the usual two
+              {t("settingsMore.remindersSetUpUsual")}
             </Button>
           )}
         </div>
@@ -139,7 +140,7 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Label className="sr-only" htmlFor={`offset-${index}`}>
-                    How long before the job
+                    {t("settingsMore.remindersOffsetLabel")}
                   </Label>
                   <select
                     id={`offset-${index}`}
@@ -161,14 +162,20 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
                   <Switch
                     checked={rule.enabled}
                     disabled={!canEdit}
-                    aria-label={`${reminderOffsetLabel(rule.offset_minutes)} reminder`}
+                    aria-label={t("settingsMore.remindersToggleAria", {
+                      when: reminderOffsetLabel(rule.offset_minutes),
+                    })}
                     onCheckedChange={(enabled) => update(index, { enabled })}
                   />
                 </div>
                 {canEdit && (
                   <button
                     type="button"
-                    aria-label={`Remove the ${reminderOffsetLabel(rule.offset_minutes).toLowerCase()} reminder`}
+                    aria-label={t("settingsMore.remindersRemoveAria", {
+                      when: reminderOffsetLabel(
+                        rule.offset_minutes,
+                      ).toLowerCase(),
+                    })}
                     onClick={() =>
                       setDraft((current) =>
                         (current ?? []).filter((_, i) => i !== index),
@@ -184,7 +191,9 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
                 value={rule.body}
                 disabled={!canEdit}
                 rows={3}
-                aria-label={`What the ${reminderOffsetLabel(rule.offset_minutes).toLowerCase()} reminder says`}
+                aria-label={t("settingsMore.remindersBodyAria", {
+                  when: reminderOffsetLabel(rule.offset_minutes).toLowerCase(),
+                })}
                 onChange={(event) => update(index, { body: event.target.value })}
                 className={cn(!rule.enabled && "opacity-60")}
               />
@@ -213,14 +222,14 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
               }
             >
               <Plus className="size-3.5" strokeWidth={1.75} />
-              Add another
+              {t("settingsMore.remindersAddAnother")}
             </Button>
           )}
 
           {/* The ceiling, shown rather than enforced by a refusal at save. */}
           {draft.length >= cap && (
             <p className="text-[12px] text-app-muted-2">
-              Two is the most we send. Past that, customers stop reading them.
+              {t("settingsMore.remindersCap")}
             </p>
           )}
 
@@ -231,7 +240,7 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
                 disabled={!dirty || save.isPending}
                 onClick={() => void commit(draft)}
               >
-                Save reminders
+                {t("settingsMore.remindersSaveAction")}
               </Button>
               {dirty && (
                 <Button
@@ -239,7 +248,7 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
                   size="sm"
                   onClick={() => setDraft(query.data?.rules ?? [])}
                 >
-                  Discard
+                  {t("settingsMore.discard")}
                 </Button>
               )}
             </div>

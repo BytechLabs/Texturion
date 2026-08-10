@@ -7,6 +7,7 @@ import { StartPortDialog } from "@/components/settings/start-port-dialog";
 import { LoadError, SettingsCard } from "@/components/settings/section";
 import { usePortEvents } from "@/components/settings/use-port-events";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import type { HeldNumbersView } from "@/lib/api/billing";
 import { usePortRequests } from "@/lib/api/porting";
 import type { CompanyView, PhoneNumberSummary } from "@/lib/api/types";
@@ -39,6 +40,7 @@ export function PortSection({
   /** The billing answer, when this reader could ask for it. */
   held?: HeldNumbersView;
 }) {
+  const t = useT();
   const { companyId, role } = useActiveCompany();
   const ports = usePortRequests();
   usePortEvents(companyId);
@@ -48,14 +50,14 @@ export function PortSection({
 
   if (ports.isPending) {
     return (
-      <SettingsCard title="Number transfers">
+      <SettingsCard title={t("settingsMore.portSectionTitle")}>
         <Skeleton className="h-32 w-full" />
       </SettingsCard>
     );
   }
   if (ports.isError) {
     return (
-      <SettingsCard title="Number transfers">
+      <SettingsCard title={t("settingsMore.portSectionTitle")}>
         <LoadError onRetry={() => ports.refetch()} />
       </SettingsCard>
     );
@@ -69,8 +71,8 @@ export function PortSection({
     if (!canStart || !active) return null;
     return (
       <SettingsCard
-        title="Bring your existing number"
-        description="Transfer the number your customers already know to Loonext. It's free, and it keeps working until the switch completes."
+        title={t("settingsMore.portBringNumberTitle")}
+        description={t("settingsMore.portBringNumberDescription")}
       >
         <StartPortDialog country={company.country} />
       </SettingsCard>
@@ -79,8 +81,8 @@ export function PortSection({
 
   return (
     <SettingsCard
-      title="Number transfers"
-      description="Bringing your existing number over to Loonext."
+      title={t("settingsMore.portSectionTitle")}
+      description={t("settingsMore.portSectionDescription")}
     >
       <div className="space-y-5">
         {rows.map((port) => (

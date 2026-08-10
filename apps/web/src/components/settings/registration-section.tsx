@@ -11,8 +11,6 @@ import { RegistrationFixForm } from "@/components/settings/registration-fix-form
 import { RejectionNotice } from "@/components/settings/rejection-notice";
 import { LoadError, SettingsCard } from "@/components/settings/section";
 import {
-  US_REGISTRATION_PAUSED_HEADING,
-  US_REGISTRATION_PAUSED_NOTE,
   usRegistrationFee,
   usRegistrationPausedTerms,
   usRegistrationTail,
@@ -32,6 +30,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { usePauseOffer } from "@/lib/api/billing";
 import { ApiError } from "@/lib/api/error";
 import {
@@ -102,6 +101,7 @@ function Step({
 
 /** Sole-prop OTP row (§4.2/§4.4): shown while the brand awaits verification. */
 function OtpRow({ brand }: { brand: RegistrationRow }) {
+  const t = useT();
   const verify = useVerifyRegistrationOtp();
   const resend = useResendRegistrationOtp();
   const [code, setCode] = useState("");
@@ -110,13 +110,12 @@ function OtpRow({ brand }: { brand: RegistrationRow }) {
   const phone =
     typeof brand.data?.mobilePhone === "string"
       ? (brand.data.mobilePhone as string)
-      : "your mobile";
+      : t("settingsMore.regOtpYourMobile");
 
   return (
     <div className="rounded-md border border-warning/40 bg-warning/5 p-4">
       <p className="text-sm">
-        One step left: enter the verification code we sent to {phone} to
-        finish US registration.
+        {t("settingsMore.regOtpLead", { phone })}
       </p>
       <form
         // method="post" so a pre-hydration native submit sends the OTP code in
@@ -126,27 +125,27 @@ function OtpRow({ brand }: { brand: RegistrationRow }) {
         onSubmit={(event) => {
           event.preventDefault();
           if (!/^\d{6}$/.test(code)) {
-            setError("Enter the 6-digit code from the text.");
+            setError(t("settingsMore.regOtpCodeInvalid"));
             return;
           }
           setError(null);
           verify.mutate(code, {
             onSuccess: () => {
               setCode("");
-              toast.success("Verified. Registration is moving again.");
+              toast.success(t("settingsMore.regOtpVerified"));
             },
             onError: (cause) =>
               setError(
                 cause instanceof ApiError
                   ? cause.message
-                  : "That code didn't work. Try again.",
+                  : t("settingsMore.regOtpFailed"),
               ),
           });
         }}
       >
         <div className="space-y-1.5">
           <Label htmlFor="otp-code" className="sr-only">
-            Verification code
+            {t("settingsMore.regOtpLabel")}
           </Label>
           <Input
             id="otp-code"
@@ -156,12 +155,14 @@ function OtpRow({ brand }: { brand: RegistrationRow }) {
             }
             inputMode="numeric"
             autoComplete="one-time-code"
-            placeholder="6-digit code"
+            placeholder={t("settingsMore.regOtpPlaceholder")}
             className="w-36 tabular-nums"
           />
         </div>
         <Button type="submit" disabled={verify.isPending}>
-          {verify.isPending ? "Checking…" : "Verify"}
+          {verify.isPending
+            ? t("settingsMore.regOtpChecking")
+            : t("settingsMore.regOtpVerify")}
         </Button>
         <Button
           type="button"
@@ -169,17 +170,20 @@ function OtpRow({ brand }: { brand: RegistrationRow }) {
           disabled={resend.isPending}
           onClick={() =>
             resend.mutate(undefined, {
-              onSuccess: () => toast.success(`New code texted to ${phone}.`),
+              onSuccess: () =>
+                toast.success(t("settingsMore.regOtpResent", { phone })),
               onError: (cause) =>
                 toast.error(
                   cause instanceof ApiError
                     ? cause.message
-                    : "Couldn't resend the code. Try again.",
+                    : t("settingsMore.regOtpResendFailed"),
                 ),
             })
           }
         >
-          {resend.isPending ? "Sending…" : "Resend code"}
+          {resend.isPending
+            ? t("settingsMore.regOtpSending")
+            : t("settingsMore.regOtpResend")}
         </Button>
       </form>
       {error && (
@@ -193,6 +197,7 @@ function OtpRow({ brand }: { brand: RegistrationRow }) {
 
 /** CA companies with US texting off: the owner's enable-US flow (SPEC §4.2). */
 function EnableUsCard({ company }: { company: CompanyView }) {
+  const t = useT();
   const { role } = useActiveCompany();
   const enable = useEnableUsTexting();
   const [confirming, setConfirming] = useState(false);
@@ -223,12 +228,12 @@ function EnableUsCard({ company }: { company: CompanyView }) {
 
   const currency = billingCurrencyOf(company.billing_currency);
   const fee = usRegistrationFee(currency);
-  const tail = usRegistrationTail(timing);
+  const tail = usRegistrationTail(timing, t);
 
   return (
     <SettingsCard
-      title="US texting"
-      description="Texting Canadian numbers already works. Texting US numbers needs a one-time carrier registration."
+      title={t("settingsMore.regUsTextingTitle")}
+      description={t("settingsMore.regUsTextingDescription")}
     >
       {role === "owner" ? (
         <div className="space-y-4">
@@ -250,27 +255,29 @@ function EnableUsCard({ company }: { company: CompanyView }) {
               />
               <div className="space-y-1">
                 <p className="text-sm font-medium">
-                  {US_REGISTRATION_PAUSED_HEADING}
+                  {t("settingsMore.usRegPausedHeading")}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {US_REGISTRATION_PAUSED_NOTE}
+                  {t("settingsMore.usRegPausedNote")}
                 </p>
               </div>
             </div>
           )}
           <Button onClick={() => setConfirming(true)}>
-            Enable US texting: {fee} one-time
+            {t("settingsMore.regEnableUsAction", { fee })}
           </Button>
           <Dialog open={confirming} onOpenChange={setConfirming}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Enable US texting?</DialogTitle>
+                <DialogTitle>
+                  {t("settingsMore.regEnableUsConfirmTitle")}
+                </DialogTitle>
                 {/* The terms every reader gets. `tail` is null while the pause
                     is unread — the sentence it would otherwise add ("we email
                     you when it's live") is the one a pause makes misleading, so
                     it is withheld rather than guessed at. */}
                 <DialogDescription>
-                  {usRegistrationTerms(currency)}
+                  {usRegistrationTerms(currency, t)}
                   {tail ? ` ${tail}` : ""}
                 </DialogDescription>
               </DialogHeader>
@@ -286,7 +293,7 @@ function EnableUsCard({ company }: { company: CompanyView }) {
                     aria-hidden
                   />
                   <ul className="space-y-2">
-                    {usRegistrationPausedTerms(currency).map((line) => (
+                    {usRegistrationPausedTerms(currency, t).map((line) => (
                       <li key={line} className="text-sm text-muted-foreground">
                         {line}
                       </li>
@@ -301,7 +308,7 @@ function EnableUsCard({ company }: { company: CompanyView }) {
               )}
               <DialogFooter>
                 <Button variant="outline" onClick={() => setConfirming(false)}>
-                  Not now
+                  {t("settingsMore.regNotNow")}
                 </Button>
                 <Button
                   disabled={enable.isPending}
@@ -310,18 +317,20 @@ function EnableUsCard({ company }: { company: CompanyView }) {
                     enable.mutate(undefined, {
                       onSuccess: () => {
                         setConfirming(false);
-                        toast.success(usRegistrationStarted(timing));
+                        toast.success(usRegistrationStarted(timing, t));
                       },
                       onError: (cause) =>
                         setError(
                           cause instanceof ApiError
                             ? cause.message
-                            : "Couldn't start US registration. Try again.",
+                            : t("settingsMore.regEnableUsFailed"),
                         ),
                     });
                   }}
                 >
-                  {enable.isPending ? "Starting…" : "Enable US texting"}
+                  {enable.isPending
+                    ? t("settingsMore.regStarting")
+                    : t("settingsMore.regEnableUs")}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -329,8 +338,7 @@ function EnableUsCard({ company }: { company: CompanyView }) {
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Ask your account owner to enable US texting; it&apos;s a one-time{" "}
-          {fee} carrier registration.
+          {t("settingsMore.regAskOwnerEnableUs", { fee })}
         </p>
       )}
     </SettingsCard>
@@ -338,6 +346,7 @@ function EnableUsCard({ company }: { company: CompanyView }) {
 }
 
 export function RegistrationSection({ company }: { company: CompanyView }) {
+  const t = useT();
   const { role } = useActiveCompany();
   const registration = useRegistration();
   const canEdit = role === "owner" || role === "admin";
@@ -359,14 +368,14 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
 
   if (registration.isPending) {
     return (
-      <SettingsCard title="US texting registration">
+      <SettingsCard title={t("settingsMore.regSectionTitle")}>
         <Skeleton className="h-24 w-full" />
       </SettingsCard>
     );
   }
   if (registration.isError) {
     return (
-      <SettingsCard title="US texting registration">
+      <SettingsCard title={t("settingsMore.regSectionTitle")}>
         <LoadError onRetry={() => registration.refetch()} />
       </SettingsCard>
     );
@@ -376,10 +385,9 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
 
   if (!brand && !campaign) {
     return (
-      <SettingsCard title="US texting registration">
+      <SettingsCard title={t("settingsMore.regSectionTitle")}>
         <p className="text-sm text-muted-foreground">
-          Registration starts automatically once your subscription begins.
-          Nothing to do here yet.
+          {t("settingsMore.regNotStartedYet")}
         </p>
       </SettingsCard>
     );
@@ -409,33 +417,37 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
   const steps: { state: StepState; label: string; detail?: string | null }[] = [
     {
       state: submittedAt ? "done" : isDraft ? "active" : "todo",
-      label: "Business details submitted",
+      label: t("settingsMore.regStepSubmitted"),
       detail: submittedAt
-        ? `Submitted ${shortDate(submittedAt)}`
-        : "Your details are saved but not submitted yet",
+        ? t("settingsMore.regStepSubmittedOn", {
+            date: shortDate(submittedAt) ?? "",
+          })
+        : t("settingsMore.regStepNotSubmitted"),
     },
     {
       state: approved ? "done" : inReview ? "active" : "todo",
-      label: "Carrier review",
+      label: t("settingsMore.regStepReview"),
       detail: approved
         ? null
         : inReview
-          ? "Usually 3 to 7 business days, we handle it"
+          ? t("settingsMore.regStepReviewDetail")
           : null,
     },
     {
       state: approved ? "done" : "todo",
-      label: "US texting on",
+      label: t("settingsMore.regStepLive"),
       detail: campaign?.approved_at
-        ? `Approved ${shortDate(campaign.approved_at)}`
+        ? t("settingsMore.regStepApprovedOn", {
+            date: shortDate(campaign.approved_at) ?? "",
+          })
         : null,
     },
   ];
 
   return (
     <SettingsCard
-      title="US texting registration"
-      description="Carriers require every business to register before it can text US numbers. We run the process for you."
+      title={t("settingsMore.regSectionTitle")}
+      description={t("settingsMore.regSectionDescription")}
     >
       <div className="space-y-4">
         <ol className="pt-1">
@@ -452,15 +464,13 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
 
         {approved && (
           <p className="rounded-md bg-success/10 px-3 py-2 text-sm text-success">
-            US texting is live.
+            {t("settingsMore.regLive")}
           </p>
         )}
 
         {inReview && !otpOutstanding && (
           <p className="rounded-md bg-warning/10 px-3 py-2 text-sm">
-            US texting activates in ~3 to 7 business days (carrier approval).
-            Calling, receiving texts, and texting Canadian numbers already
-            work.
+            {t("settingsMore.regInReview")}
           </p>
         )}
 
@@ -468,8 +478,7 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
 
         {deactivated && !approved && !rejectedRow && (
           <p className="rounded-md bg-warning/10 px-3 py-2 text-sm">
-            US texting is paused while your subscription is inactive.
-            Resubscribing restarts carrier approval automatically.
+            {t("settingsMore.regDeactivated")}
           </p>
         )}
 
@@ -499,7 +508,7 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Ask an owner or admin to update and resubmit the registration.
+                {t("settingsMore.regAskOwnerResubmit")}
               </p>
             )}
           </div>
@@ -512,11 +521,11 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
                 brand={brand}
                 campaign={campaign}
                 country={company.country}
-                submitLabel="Submit registration"
+                submitLabel="settingsMore.regSubmitAction"
               />
             ) : (
               <p className="text-sm text-muted-foreground">
-                An owner or admin needs to finish and submit the registration.
+                {t("settingsMore.regAskOwnerSubmit")}
               </p>
             )}
           </div>

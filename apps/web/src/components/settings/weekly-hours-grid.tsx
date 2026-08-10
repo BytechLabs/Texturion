@@ -3,6 +3,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useT } from "@/i18n/provider";
 import {
   WEEKDAY_LABEL,
   type DayFormState,
@@ -33,6 +34,7 @@ export function WeeklyHoursGrid({
   idPrefix: string;
   onChange: (weekday: string, patch: Partial<DayFormState>) => void;
 }) {
+  const t = useT();
   return (
     <div className="space-y-3">
       {days.map((day) => (
@@ -55,16 +57,22 @@ export function WeeklyHoursGrid({
             <div className="flex items-center gap-2 text-sm">
               <Input
                 type="time"
-                aria-label={`${WEEKDAY_LABEL[day.weekday]} open time`}
+                aria-label={t("settingsMore.hoursOpenAria", {
+                  day: WEEKDAY_LABEL[day.weekday],
+                })}
                 value={day.open}
                 disabled={disabled}
                 onChange={(e) => onChange(day.weekday, { open: e.target.value })}
                 className="w-[7.5rem]"
               />
-              <span className="text-muted-foreground">to</span>
+              <span className="text-muted-foreground">
+                {t("settingsMore.quietTo")}
+              </span>
               <Input
                 type="time"
-                aria-label={`${WEEKDAY_LABEL[day.weekday]} close time`}
+                aria-label={t("settingsMore.hoursCloseAria", {
+                  day: WEEKDAY_LABEL[day.weekday],
+                })}
                 value={day.close}
                 disabled={disabled}
                 onChange={(e) =>
@@ -74,7 +82,9 @@ export function WeeklyHoursGrid({
               />
             </div>
           ) : (
-            <span className="text-sm text-muted-foreground">Closed</span>
+            <span className="text-sm text-muted-foreground">
+              {t("settingsMore.hoursClosed")}
+            </span>
           )}
         </div>
       ))}

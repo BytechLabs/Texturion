@@ -13,6 +13,7 @@ import {
 
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { useConversationEvents } from "@/lib/api/conversations";
 import {
   useConversationPinnedMessages,
@@ -72,6 +73,7 @@ export function MessageList({
   filter: ThreadFilter;
   onFilterChange: (next: ThreadFilter) => void;
 }) {
+  const t = useT();
   const messagesQuery = useMessages(conversationId);
   const eventsQuery = useConversationEvents(conversationId);
   const memberNames = useMemberNames();
@@ -180,8 +182,9 @@ export function MessageList({
   });
 
   const memberName = useCallback(
-    (userId: string | null) => (userId ? memberNames.get(userId) ?? "A teammate" : null),
-    [memberNames],
+    (userId: string | null) =>
+      userId ? memberNames.get(userId) ?? t("thread.aTeammate") : null,
+    [memberNames, t],
   );
 
   // --- Scroll behaviors -----------------------------------------------------
@@ -369,11 +372,14 @@ export function MessageList({
     if (lastMessage && lastMessage.direction === "inbound") {
       const body = lastMessage.body.trim();
       setAnnouncement(
-        `New message from ${contactDisplayName(contact)}: ${body === "" ? "attachment" : body}`,
+        t("thread.newMessageAnnouncement", {
+          name: contactDisplayName(contact),
+          body: body === "" ? t("thread.attachmentWord") : body,
+        }),
       );
     }
     return () => clearTimeout(timer);
-  }, [lastMessageId, lastMessage, contact, scrollToBottom]);
+  }, [lastMessageId, lastMessage, contact, scrollToBottom, t]);
 
   // --- Render ----------------------------------------------------------------
 
@@ -388,13 +394,13 @@ export function MessageList({
     return (
       <div className="flex flex-1 items-center justify-center p-8">
         <p className="text-sm text-muted-foreground">
-          We couldn&apos;t load this conversation.{" "}
+          {t("thread.conversationLoadFailed")}{" "}
           <button
             type="button"
             className="font-medium text-primary underline-offset-2 hover:underline"
             onClick={() => messagesQuery.refetch()}
           >
-            Try again
+            {t("common.retry")}
           </button>
         </p>
       </div>
@@ -424,10 +430,12 @@ export function MessageList({
             <button
               type="button"
               onClick={() => onFilterChange(ALL_CATEGORIES_ON)}
-              aria-label={`Showing ${shownCategoriesLabel} only. Show everything.`}
+              aria-label={t("thread.showingFilterAria", {
+                kinds: shownCategoriesLabel,
+              })}
               className="tap-target inline-flex items-center gap-1 rounded-full bg-app-tint px-3 py-1 text-[13px] font-medium text-app-olive-deep"
             >
-              Showing {shownCategoriesLabel}
+              {t("thread.showingFilter", { kinds: shownCategoriesLabel })}
               <X className="size-3.5" strokeWidth={1.75} aria-hidden />
             </button>
           </div>
@@ -482,11 +490,11 @@ export function MessageList({
         ref={scrollRef}
         onScroll={onScroll}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 md:px-6"
-        aria-label={`Messages with ${contactName}`}
+        aria-label={t("thread.messagesWithAria", { name: contactName })}
       >
         {messagesQuery.isFetchingNextPage && (
           <p className="py-2 text-center text-xs text-muted-foreground">
-            Loading earlier messages…
+            {t("thread.loadingEarlier")}
           </p>
         )}
         {items.length === 0 ? (
@@ -579,7 +587,8 @@ export function MessageList({
             onClick={() => scrollToBottom("smooth")}
             className="app-motion-message-in flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors duration-150 ease-out hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            New message <ArrowDown className="size-3.5" strokeWidth={1.75} />
+            {t("thread.newMessage")}{" "}
+            <ArrowDown className="size-3.5" strokeWidth={1.75} />
           </button>
         </div>
       )}

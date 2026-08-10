@@ -9,6 +9,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -58,11 +59,12 @@ export function WrapUpButton({
   onStart: () => void;
   onStop: () => void;
 }) {
+  const t = useT();
   const label = recording
-    ? "Stop and write it down"
+    ? t("thread.stopAndWriteDown")
     : transcribing
-      ? "Writing your wrap-up down"
-      : "Dictate a wrap-up";
+      ? t("thread.writingWrapUpDown")
+      : t("thread.dictateWrapUp");
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -90,10 +92,10 @@ export function WrapUpButton({
       </TooltipTrigger>
       <TooltipContent className="max-w-64">
         {recording
-          ? "Stop and write it down"
+          ? t("thread.stopAndWriteDown")
           : transcribing
-            ? "Writing your wrap-up down…"
-            : "Say what happened after a call. Your voice, not the call — Lou writes your words down for you to check."}
+            ? t("thread.writingWrapUpDownEllipsis")
+            : t("thread.dictateWrapUpTooltip")}
       </TooltipContent>
     </Tooltip>
   );
@@ -123,6 +125,7 @@ export function WrapUpStrip({
   error: string | null;
   onCancel: () => void;
 }) {
+  const t = useT();
   if (!recording && !transcribing && error === null) return null;
   return (
     <div className="mx-auto max-w-[42rem] px-1 pb-2">
@@ -136,7 +139,7 @@ export function WrapUpStrip({
               `off` on the clock itself, which would otherwise announce a new
               number every second for two minutes. */}
           <span className="text-[11px] font-medium text-foreground" aria-live="polite">
-            Recording your wrap-up
+            {t("thread.recordingWrapUp")}
           </span>
           <span
             className="text-[11px] tabular-nums text-muted-foreground"
@@ -152,11 +155,13 @@ export function WrapUpStrip({
             // hit area only — no layout shift).
             className="tap-target ml-auto rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
         </div>
       )}
-      {transcribing && <AiStatus state="thinking" label="Writing it down…" />}
+      {transcribing && (
+        <AiStatus state="thinking" label={t("thread.writingItDown")} />
+      )}
       {/* The distinction the whole feature rests on, stated where it is being
           relied upon rather than only in Settings (D117).
 
@@ -169,7 +174,7 @@ export function WrapUpStrip({
           the thing they are doing right now. */}
       {(recording || transcribing) && (
         <p className="mt-1 text-[11px] text-muted-foreground">
-          Your voice, after the call has ended — never the call itself.
+          {t("thread.yourVoiceAfterCall")}
         </p>
       )}
       {/* Inline, not a toast: a toast leaves after four seconds and this is the

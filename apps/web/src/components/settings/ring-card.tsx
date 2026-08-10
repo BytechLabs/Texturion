@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT, type MessageKey } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useUpdateCompany } from "@/lib/api/companies";
 import type { CompanyView } from "@/lib/api/types";
@@ -53,6 +54,7 @@ export function RingCard({
   company: CompanyView;
   canEdit: boolean;
 }) {
+  const t = useT();
   const update = useUpdateCompany();
   const [error, setError] = useState<string | null>(null);
   const radioRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -69,11 +71,13 @@ export function RingCard({
     update.mutate(
       { ring_strategy: value },
       {
-        onSuccess: () => toast.success("Ringing updated."),
+        onSuccess: () => toast.success(t("settingsMore.ringStrategySaved")),
         onError: (cause) => {
           setPending(null);
           setError(
-            cause instanceof ApiError ? cause.message : "Couldn't save. Try again.",
+            cause instanceof ApiError
+              ? cause.message
+              : t("settingsMore.saveFailed"),
           );
         },
       },
@@ -85,10 +89,12 @@ export function RingCard({
     update.mutate(
       { ring_seconds: Number(next) },
       {
-        onSuccess: () => toast.success("Ring length updated."),
+        onSuccess: () => toast.success(t("settingsMore.ringSecondsSaved")),
         onError: (cause) =>
           setError(
-            cause instanceof ApiError ? cause.message : "Couldn't save. Try again.",
+            cause instanceof ApiError
+              ? cause.message
+              : t("settingsMore.saveFailed"),
           ),
       },
     );
@@ -126,12 +132,12 @@ export function RingCard({
 
   return (
     <SettingsCard
-      title="How the phones ring"
-      description="When a call comes in, every phone on the crew can ring together, or they can join one at a time so whoever answers most gets first refusal."
+      title={t("settingsMore.ringCardTitle")}
+      description={t("settingsMore.ringCardDescription")}
     >
       <div
         role="radiogroup"
-        aria-label="How the phones ring"
+        aria-label={t("settingsMore.ringCardTitle")}
         onKeyDown={onKeyDown}
         className="space-y-2"
       >
@@ -156,9 +162,11 @@ export function RingCard({
                   : "border-border-subtle hover:bg-accent/20")
               }
             >
-              <span className="block text-sm font-medium">{choice.label}</span>
+              <span className="block text-sm font-medium">
+                {t(choice.label)}
+              </span>
               <span className="mt-0.5 block text-xs text-muted-foreground">
-                {choice.detail}
+                {t(choice.detail)}
               </span>
             </button>
           );
@@ -166,7 +174,9 @@ export function RingCard({
       </div>
 
       <div className="mt-4 space-y-1.5">
-        <Label htmlFor="ring-seconds">How long they ring</Label>
+        <Label htmlFor="ring-seconds">
+          {t("settingsMore.numberIdentityRingSecondsLabel")}
+        </Label>
         <Select
           disabled={!canEdit || update.isPending}
           value={String(seconds)}
@@ -178,15 +188,23 @@ export function RingCard({
           <SelectContent>
             {options.map((value) => (
               <SelectItem key={value} value={String(value)}>
-                {value} seconds · about {ringsIn(value)} rings
+                {t("settingsMore.numberRingLength", {
+                  seconds: value,
+                  rings: ringsIn(value),
+                })}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground">
           {active === "in_turn"
-            ? `Then the caller gets your greeting. In ${seconds} seconds, ${phonesReached(seconds)} ${phonesReached(seconds) === 1 ? "phone gets" : "phones get"} a turn — anyone after that never rings on this line.`
-            : "Then the caller gets your greeting. Longer than 45 seconds isn't offered: the call legs themselves end there, so it would be ringing nobody could hear."}
+            ? phonesReached(seconds) === 1
+              ? t("settingsMore.ringWindowOnePhone", { seconds })
+              : t("settingsMore.ringWindowManyPhones", {
+                  seconds,
+                  phones: phonesReached(seconds),
+                })
+            : t("settingsMore.ringWindowAll")}
         </p>
       </div>
 
@@ -197,7 +215,7 @@ export function RingCard({
       )}
       {!canEdit && (
         <p className="mt-3 text-xs text-muted-foreground">
-          Only owners and admins can change how the phones ring.
+          {t("settingsMore.ringOwnersOnly")}
         </p>
       )}
     </SettingsCard>
@@ -228,19 +246,17 @@ const SECOND_CHOICES = [15, 20, 30, 45];
 
 const RING_CHOICES: {
   value: CompanyView["ring_strategy"];
-  label: string;
-  detail: string;
+  label: MessageKey;
+  detail: MessageKey;
 }[] = [
   {
     value: "all",
-    label: "All at once",
-    detail:
-      "What happens today. Every phone on the crew rings for the whole time, and the first to pick up takes the call.",
+    label: "settingsMore.numberIdentityRingAll",
+    detail: "settingsMore.ringAllDetail",
   },
   {
     value: "in_turn",
-    label: "One at a time",
-    detail:
-      "The longest-serving member's phone rings first, alone. Twelve seconds later the next joins them, then the next — nobody's phone is ever cut off mid-reach.",
+    label: "settingsMore.numberIdentityRingInTurn",
+    detail: "settingsMore.ringInTurnDetail",
   },
 ];

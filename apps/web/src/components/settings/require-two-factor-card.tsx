@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useSetWorkspaceMfa } from "@/lib/api/mfa";
 import { useActionConfirmation } from "@/lib/hooks/use-action-confirmation";
@@ -46,6 +47,7 @@ export function RequireTwoFactorCard({
   required: boolean;
   graceUntil: string | null;
 }) {
+  const t = useT();
   const setMfa = useSetWorkspaceMfa();
   // #537 audit: turning this OFF lowers the whole crew's protection in one silent
   // save, which is the first move somebody makes with a session they stole. Turning
@@ -68,9 +70,11 @@ export function RequireTwoFactorCard({
           toast.success(
             nextRequired
               ? result.grace_until
-                ? `On. Everyone has until ${formatAbsoluteDateTime(result.grace_until)}.`
-                : "Two-factor is now required."
-              : "Two-factor is no longer required.",
+                ? t("settingsMore.mfaOnWithDeadline", {
+                    when: formatAbsoluteDateTime(result.grace_until),
+                  })
+                : t("settingsMore.mfaOn")
+              : t("settingsMore.mfaOff"),
           );
         },
         onError: (error) => {
@@ -85,7 +89,7 @@ export function RequireTwoFactorCard({
           toast.error(
             error instanceof ApiError
               ? error.message
-              : "Couldn't save that. Try again.",
+              : t("settingsMore.saveThatFailedRetry"),
           );
         },
       },
@@ -94,8 +98,8 @@ export function RequireTwoFactorCard({
 
   return (
     <SettingsCard
-      title="Require two-factor for everyone"
-      description="Every person on this workspace has to set up an authenticator app. You choose how long they get."
+      title={t("settingsMore.mfaTitle")}
+      description={t("settingsMore.mfaDescription")}
     >
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-4">
@@ -103,35 +107,30 @@ export function RequireTwoFactorCard({
             <p className="text-sm font-medium">
               {required
                 ? enforcing
-                  ? "Required — in force now"
-                  : "Required — grace period running"
-                : "Not required"}
+                  ? t("settingsMore.mfaStateInForce")
+                  : t("settingsMore.mfaStateGrace")
+                : t("settingsMore.mfaStateOff")}
             </p>
             <p className="text-sm text-muted-foreground">
               {required && graceUntil ? (
                 enforcing ? (
-                  <>
-                    Anyone without it is asked to set it up before they can use
-                    the workspace.
-                  </>
+                  <>{t("settingsMore.mfaInForceBody")}</>
                 ) : (
                   <>
-                    In force from {formatAbsoluteDateTime(graceUntil)}. Until
-                    then everyone keeps working as normal.
+                    {t("settingsMore.mfaGraceBody", {
+                      when: formatAbsoluteDateTime(graceUntil),
+                    })}
                   </>
                 )
               ) : (
-                <>
-                  A stolen password is enough to text your customers as you.
-                  This is the setting that stops that.
-                </>
+                <>{t("settingsMore.mfaOffBody")}</>
               )}
             </p>
           </div>
           <Switch
             checked={required}
             disabled={setMfa.isPending}
-            aria-label="Require two-factor authentication"
+            aria-label={t("settingsMore.mfaSwitchAria")}
             onCheckedChange={(next) => {
               if (next) setConfirming(true);
               else apply(false);
@@ -141,8 +140,7 @@ export function RequireTwoFactorCard({
 
         {required && graceUntil && !enforcing && (
           <p className="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-            This deadline is fixed. Saving again won&apos;t move it — so what
-            you tell your crew stays true.
+            {t("settingsMore.mfaDeadlineFixed")}
           </p>
         )}
       </div>
@@ -150,32 +148,39 @@ export function RequireTwoFactorCard({
       <Dialog open={confirming} onOpenChange={setConfirming}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Require two-factor for everyone?</DialogTitle>
+            <DialogTitle>{t("settingsMore.mfaConfirmTitle")}</DialogTitle>
             <DialogDescription>
-              Everyone gets a grace period to set it up. After that, anyone
-              without it is sent to the setup screen instead of the app — so
-              give the crew long enough to do it between jobs.
+              {t("settingsMore.mfaConfirmBody")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
-            <span className="text-sm font-medium">Grace period</span>
+            <span className="text-sm font-medium">
+              {t("settingsMore.mfaGraceLabel")}
+            </span>
             <Select value={graceDays} onValueChange={setGraceDays}>
               <SelectTrigger className="w-full sm:w-56">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="7">7 days</SelectItem>
+                <SelectItem value="7">
+                  {t("settingsMore.mfaGrace7")}
+                </SelectItem>
                 {/* Two weeks by default: long enough to catch somebody on
                     holiday, short enough to still mean something. */}
-                <SelectItem value="14">14 days (recommended)</SelectItem>
-                <SelectItem value="30">30 days</SelectItem>
-                <SelectItem value="0">Immediately</SelectItem>
+                <SelectItem value="14">
+                  {t("settingsMore.mfaGrace14")}
+                </SelectItem>
+                <SelectItem value="30">
+                  {t("settingsMore.mfaGrace30")}
+                </SelectItem>
+                <SelectItem value="0">
+                  {t("settingsMore.mfaGrace0")}
+                </SelectItem>
               </SelectContent>
             </Select>
             {graceDays === "0" && (
               <p className="text-sm text-amber-600 dark:text-amber-500">
-                Anyone without it right now — including you, if you have
-                not set it up — is locked out of the workspace until they do.
+                {t("settingsMore.mfaGrace0Warning")}
               </p>
             )}
           </div>
@@ -185,14 +190,14 @@ export function RequireTwoFactorCard({
               variant="outline"
               onClick={() => setConfirming(false)}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
               disabled={setMfa.isPending}
               onClick={() => apply(true)}
             >
-              Require it
+              {t("settingsMore.mfaRequireIt")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,3 +1,4 @@
+import type { MessageKey } from "@/i18n/provider";
 import type { TaskListFilters } from "@/lib/api/task-filters";
 
 /**
@@ -15,11 +16,16 @@ import type { TaskListFilters } from "@/lib/api/task-filters";
 
 export type TaskView = "list" | "board" | "calendar" | "map";
 
-export const TASK_VIEWS: readonly { id: TaskView; label: string }[] = [
-  { id: "list", label: "List" },
-  { id: "board", label: "Board" },
-  { id: "calendar", label: "Calendar" },
-  { id: "map", label: "Map" },
+/**
+ * #228: the switcher carries a catalogue KEY, not a word. A label baked in here
+ * is a label no translator sees, and the id is what the URL and every predicate
+ * below actually run on — so the two were never the same thing.
+ */
+export const TASK_VIEWS: readonly { id: TaskView; labelKey: MessageKey }[] = [
+  { id: "list", labelKey: "tasks.viewList" },
+  { id: "board", labelKey: "tasks.viewBoard" },
+  { id: "calendar", labelKey: "tasks.viewCalendar" },
+  { id: "map", labelKey: "tasks.viewMap" },
 ];
 
 const VIEW_IDS = new Set<TaskView>(["list", "board", "calendar", "map"]);
@@ -36,11 +42,11 @@ export function parseView(raw: string | null): TaskView {
 
 export type TaskTab = "open" | "mine" | "all" | "done";
 
-export const TASK_TABS: readonly { id: TaskTab; label: string }[] = [
-  { id: "open", label: "Open" },
-  { id: "mine", label: "Mine" },
-  { id: "all", label: "All" },
-  { id: "done", label: "Done" },
+export const TASK_TABS: readonly { id: TaskTab; labelKey: MessageKey }[] = [
+  { id: "open", labelKey: "tasks.tabOpen" },
+  { id: "mine", labelKey: "tasks.tabMine" },
+  { id: "all", labelKey: "tasks.tabAll" },
+  { id: "done", labelKey: "tasks.tabDone" },
 ];
 
 const TAB_IDS = new Set<TaskTab>(["open", "mine", "all", "done"]);
@@ -88,10 +94,10 @@ function parseDue(raw: string | null): DueFilter | undefined {
     : undefined;
 }
 
-export const DUE_LABELS: Record<DueFilter, string> = {
-  overdue: "Overdue",
-  today: "Due today",
-  week: "Due this week",
+export const DUE_LABEL_KEYS: Record<DueFilter, MessageKey> = {
+  overdue: "tasks.overdue",
+  today: "tasks.dueToday",
+  week: "tasks.dueThisWeek",
 };
 
 // ---------------------------------------------------------------------------

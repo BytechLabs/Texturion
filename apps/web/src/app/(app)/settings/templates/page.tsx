@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useDeleteTemplate, useTemplates } from "@/lib/api/templates";
 import type { Template } from "@/lib/api/types";
@@ -37,6 +38,7 @@ function TemplateRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   return (
     <div className="flex items-start gap-3 px-4 py-3 sm:px-5">
       <div className="min-w-0 flex-1">
@@ -55,8 +57,11 @@ function TemplateRow({
               The name is omitted rather than guessed when the editor has
               left the crew or predates the column.
               *Applying: G10 — system states must be precise.* */}
-          Updated {formatRelativeTime(template.updated_at)}
-          {editorName !== null && ` by ${editorName}`}
+          {t("appShell.templateUpdatedAgo", {
+            when: formatRelativeTime(template.updated_at),
+          })}
+          {editorName !== null &&
+            t("appShell.templateUpdatedBy", { name: editorName })}
         </p>
       </div>
       <div className="flex shrink-0 gap-1">
@@ -64,18 +69,18 @@ function TemplateRow({
           variant="ghost"
           size="sm"
           onClick={onEdit}
-          aria-label={`Edit template ${template.name}`}
+          aria-label={t("appShell.templateEditAria", { name: template.name })}
         >
-          Edit
+          {t("appShell.templateEdit")}
         </Button>
         <Button
           variant="ghost"
           size="sm"
           className="text-muted-foreground hover:text-destructive"
           onClick={onDelete}
-          aria-label={`Delete template ${template.name}`}
+          aria-label={t("appShell.templateDeleteAria", { name: template.name })}
         >
-          Delete
+          {t("common.delete")}
         </Button>
       </div>
     </div>
@@ -88,6 +93,7 @@ function TemplateRow({
  * /templates route, which read as its own page); /templates now redirects here.
  */
 export default function TemplatesSettingsPage() {
+  const t = useT();
   const templates = useTemplates();
   const deleteTemplate = useDeleteTemplate();
 
@@ -114,31 +120,30 @@ export default function TemplatesSettingsPage() {
 
   return (
     <SettingsPage
-      title="Templates & tags"
+      title={t("appShell.templatesTitle")}
       // #298: tags live here rather than in a section of their own. They are
       // the other thing a crew curates together, and the marketing already
       // pairs them at /features/templates-and-tags — inventing a fifteenth
       // settings section for one list would be a worse answer than joining the
       // one it belongs beside.
-      description="Saved replies your team can send in one tap, and the tags they file work under."
+      description={t("appShell.templatesDescription")}
     >
       <div className="space-y-4">
         {canCurate ? (
           <div className="flex justify-end">
             <Button onClick={openCreate}>
               <Plus strokeWidth={1.75} aria-hidden />
-              New template
+              {t("appShell.templateNew")}
             </Button>
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Anyone can send these — type / in the composer. Only an owner or
-            admin can add or change them.
+            {t("appShell.templatesReadOnlyNote")}
           </p>
         )}
 
         {templates.isPending ? (
-          <div className="space-y-2" aria-label="Loading templates">
+          <div className="space-y-2" aria-label={t("appShell.templatesLoading")}>
             {Array.from({ length: 3 }).map((_, index) => (
               <Skeleton key={index} className="h-20 w-full rounded-lg" />
             ))}
@@ -148,12 +153,11 @@ export default function TemplatesSettingsPage() {
         ) : templates.data.data.length === 0 ? (
           <div className="rounded-lg border bg-card px-4 py-10 text-center">
             <p className="text-sm text-muted-foreground">
-              No templates yet. Save a reply you type all the time, then insert
-              it with / in the composer.
+              {t("appShell.templatesEmpty")}
             </p>
             {canCurate && (
               <Button className="mt-4" onClick={openCreate}>
-                Create your first template
+                {t("appShell.templatesCreateFirst")}
               </Button>
             )}
           </div>
@@ -201,15 +205,18 @@ export default function TemplatesSettingsPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete &quot;{deleting?.name}&quot;?</DialogTitle>
+            <DialogTitle>
+              {t("appShell.templateDeleteTitle", {
+                name: deleting?.name ?? "",
+              })}
+            </DialogTitle>
             <DialogDescription>
-              It disappears from the composer&apos;s / picker for the whole
-              team. This can&apos;t be undone.
+              {t("appShell.templateDeleteBody")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>
-              Keep it
+              {t("appShell.templateKeepIt")}
             </Button>
             <Button
               variant="destructive"
@@ -219,18 +226,20 @@ export default function TemplatesSettingsPage() {
                 deleteTemplate.mutate(deleting.id, {
                   onSuccess: () => {
                     setDeleting(null);
-                    toast.success("Template deleted.");
+                    toast.success(t("appShell.templateDeleted"));
                   },
                   onError: (cause) =>
                     toast.error(
                       cause instanceof ApiError
                         ? cause.message
-                        : "Couldn't delete the template. Try again.",
+                        : t("appShell.templateDeleteFailed"),
                     ),
                 });
               }}
             >
-              {deleteTemplate.isPending ? "Deleting…" : "Delete"}
+              {deleteTemplate.isPending
+                ? t("appShell.templateDeleting")
+                : t("common.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

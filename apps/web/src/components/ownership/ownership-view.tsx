@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT, type Translate } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   isGatedOwnershipAction,
@@ -57,6 +58,7 @@ import { useActionConfirmation } from "@/lib/hooks/use-action-confirmation";
  * dependency on how the roster is gated.
  */
 export function OwnershipView() {
+  const t = useT();
   const ownership = useOwnership();
   const act = useOwnershipAction();
   const { membership } = useActiveCompany();
@@ -133,13 +135,13 @@ export function OwnershipView() {
         toast.error(
           error instanceof ApiError
             ? error.message
-            : "That didn't go through. Try again.",
+            : t("misc.ownershipActionFailed"),
         );
       },
     });
   }
 
-  const workspace = membership.name?.trim() || "this workspace";
+  const workspace = membership.name?.trim() || t("misc.ownershipThisWorkspace");
 
   return (
     // Narrower than the working surfaces (max-w-2xl, not 5xl): one decision
@@ -147,10 +149,11 @@ export function OwnershipView() {
     // press anything. Zen of Clarity.
     <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-6 md:px-6 md:py-8">
       <header className="space-y-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight">Ownership</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {t("misc.ownershipTitle")}
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Who {workspace} belongs to, and anything in the middle of changing
-          that.
+          {t("misc.ownershipSubtitle", { workspace })}
         </p>
       </header>
 
@@ -162,9 +165,12 @@ export function OwnershipView() {
         <Body
           state={ownership.data}
           busy={act.isPending}
-          onAccept={() => run({ action: "accept" }, "You now own this workspace.")}
+          t={t}
+          onAccept={() =>
+            run({ action: "accept" }, t("misc.ownershipAccepted"))
+          }
           onCancel={() =>
-            run({ action: "cancel" }, "Stopped. Nothing changed hands.")
+            run({ action: "cancel" }, t("misc.ownershipStopped"))
           }
           onAskToClaim={() => setConfirmingClaim(true)}
         />
@@ -195,13 +201,10 @@ export function OwnershipView() {
       <Dialog open={confirmingClaim} onOpenChange={setConfirmingClaim}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Ask to take over {workspace}?</DialogTitle>
-            <DialogDescription>
-              The owner will be emailed straight away and can stop this with one
-              click for the next 7 days. Everyone on the team is told too. If
-              nobody stops it, you can complete the takeover after 7 days. Only
-              do this if the owner genuinely cannot act.
-            </DialogDescription>
+            <DialogTitle>
+              {t("misc.ownershipAskTitle", { workspace })}
+            </DialogTitle>
+            <DialogDescription>{t("misc.ownershipAskBody")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button
@@ -209,7 +212,7 @@ export function OwnershipView() {
               variant="outline"
               onClick={() => setConfirmingClaim(false)}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -217,12 +220,12 @@ export function OwnershipView() {
               onClick={() =>
                 run(
                   { action: "claim" },
-                  "Asked. The owner has 7 days to stop it.",
+                  t("misc.ownershipClaimAsked"),
                   () => setConfirmingClaim(false),
                 )
               }
             >
-              Ask to take over
+              {t("misc.ownershipAskAction")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -234,12 +237,14 @@ export function OwnershipView() {
 function Body({
   state,
   busy,
+  t,
   onAccept,
   onCancel,
   onAskToClaim,
 }: {
   state: Ownership;
   busy: boolean;
+  t: Translate;
   onAccept: () => void;
   onCancel: () => void;
   onAskToClaim: () => void;
@@ -252,6 +257,7 @@ function Body({
         kind={prompt}
         state={state}
         busy={busy}
+        t={t}
         onAccept={onAccept}
         onCancel={onCancel}
         onAskToClaim={onAskToClaim}
@@ -265,21 +271,21 @@ function Body({
   // reach. Shown without names: this surface never loads the roster.
   if (state.pending) {
     return (
-      <SettingsCard title="A handover is in progress">
+      <SettingsCard title={t("misc.ownershipInProgress")}>
         <div className="space-y-4">
           <Notice>
             <p className="text-sm font-medium">
               {state.pending.kind === "offer"
-                ? "Ownership of this workspace has been offered to a teammate."
-                : "The backup owner has asked to take over this workspace."}
+                ? t("misc.ownershipOfferedOut")
+                : t("misc.ownershipClaimedByBackup")}
             </p>
             <p className="text-sm text-muted-foreground">
-              {detailFor(state)}
+              {detailFor(state, t)}
             </p>
           </Notice>
           {state.can_cancel && (
             <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
-              Stop this
+              {t("misc.ownershipStopThis")}
             </Button>
           )}
         </div>
@@ -288,12 +294,12 @@ function Body({
   }
 
   return (
-    <SettingsCard title="Nothing is changing hands">
+    <SettingsCard title={t("misc.ownershipSettled")}>
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
           {state.i_am_owner
-            ? "You own this workspace. If you ever can't get in, a backup owner is the one person who can ask to take over — name one before you need one."
-            : "This workspace has the owner it has always had. If that ever needs to change, whoever it involves will find it here."}
+            ? t("misc.ownershipYouOwnIt")
+            : t("misc.ownershipUnchanged")}
         </p>
         {/* Only the owner is offered the link: they are the only role that
             holds team.manage by definition, so this is the one place it
@@ -301,7 +307,9 @@ function Body({
         {state.i_am_owner && (
           <Button asChild variant="outline" size="sm">
             <Link href="/settings/team">
-              {state.backup_member_id ? "Manage succession" : "Name a backup owner"}
+              {state.backup_member_id
+                ? t("misc.ownershipManageSuccession")
+                : t("misc.ownershipNameBackup")}
             </Link>
           </Button>
         )}
@@ -314,6 +322,7 @@ function PromptCard({
   kind,
   state,
   busy,
+  t,
   onAccept,
   onCancel,
   onAskToClaim,
@@ -321,6 +330,7 @@ function PromptCard({
   kind: HandoverPromptKind;
   state: Ownership;
   busy: boolean;
+  t: Translate;
   onAccept: () => void;
   onCancel: () => void;
   onAskToClaim: () => void;
@@ -328,17 +338,19 @@ function PromptCard({
   const cancelLabel = handoverPromptCancelLabel(kind);
   const acceptLabel =
     kind === "accept_offer"
-      ? "Accept ownership"
+      ? t("misc.ownershipAcceptAction")
       : kind === "complete_claim"
-        ? "Complete the takeover"
+        ? t("misc.ownershipCompleteAction")
         : null;
 
   return (
-    <SettingsCard title="This is for you">
+    <SettingsCard title={t("misc.ownershipForYou")}>
       <div className="space-y-4">
         <Notice>
           <p className="text-sm font-medium">{handoverPromptHeadline(kind)}</p>
-          <p className="text-sm text-muted-foreground">{detailFor(state, kind)}</p>
+          <p className="text-sm text-muted-foreground">
+            {detailFor(state, t, kind)}
+          </p>
         </Notice>
         <div className="flex flex-wrap gap-2">
           {acceptLabel && (
@@ -348,7 +360,7 @@ function PromptCard({
           )}
           {kind === "backup_standing" && (
             <Button type="button" variant="outline" disabled={busy} onClick={onAskToClaim}>
-              Ask to take over
+              {t("misc.ownershipAskAction")}
             </Button>
           )}
           {cancelLabel && state.can_cancel && (
@@ -382,48 +394,41 @@ function Notice({ children }: { children: React.ReactNode }) {
 }
 
 /** What happens next, and by when. First-person when it is theirs. */
-function detailFor(state: Ownership, kind?: HandoverPromptKind): string {
+function detailFor(
+  state: Ownership,
+  t: Translate,
+  kind?: HandoverPromptKind,
+): string {
   const pending = state.pending;
   switch (kind) {
     case "accept_offer":
-      return (
-        "Accepting makes you responsible for billing, the spending cap and your " +
-        "numbers; the current owner stays on the team as an admin. Everyone is " +
-        "told either way. The offer expires " +
-        formatAbsoluteDateTime(pending?.expires_at ?? "") +
-        "."
-      );
+      return t("misc.ownershipDetailAcceptOffer", {
+        when: formatAbsoluteDateTime(pending?.expires_at ?? ""),
+      });
     case "complete_claim":
-      return (
-        "The waiting period is over and nobody stopped it. Completing this makes " +
-        "you the owner — billing, the spending cap and your numbers — and puts " +
-        "the previous owner on the team as an admin."
-      );
+      return t("misc.ownershipDetailCompleteClaim");
     case "claim_waiting":
-      return (
-        "The owner has been emailed and can stop this until " +
-        formatAbsoluteDateTime(pending?.ripens_at ?? "") +
-        ". If nobody stops it, you can complete the takeover after that."
-      );
+      return t("misc.ownershipDetailClaimWaiting", {
+        when: formatAbsoluteDateTime(pending?.ripens_at ?? ""),
+      });
     case "backup_standing":
       // Loss aversion, stated once and plainly — the same sentence the owner
       // read when they named this person, so both ends of the arrangement
       // understand it the same way.
-      return (
-        "If the owner ever can't get in — they leave, they lose access to their " +
-        "email, or worse — you're the one person who can ask to take over. They " +
-        "get a week to say no, and everyone on the team is told. Nothing " +
-        "changes until you ask."
-      );
+      return t("misc.ownershipDetailBackupStanding");
     default:
       break;
   }
   if (!pending) return "";
   if (pending.kind === "offer") {
-    return `Nothing changes until they accept. The offer expires ${formatAbsoluteDateTime(pending.expires_at)}.`;
+    return t("misc.ownershipDetailOfferPending", {
+      when: formatAbsoluteDateTime(pending.expires_at),
+    });
   }
   if (pending.ready) {
-    return "The waiting period is over. They can complete this at any time.";
+    return t("misc.ownershipDetailClaimReady");
   }
-  return `This completes ${formatAbsoluteDateTime(pending.ripens_at)} unless the owner stops it. Stopping it takes effect immediately.`;
+  return t("misc.ownershipDetailClaimPending", {
+    when: formatAbsoluteDateTime(pending.ripens_at),
+  });
 }

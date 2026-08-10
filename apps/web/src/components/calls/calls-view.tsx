@@ -27,20 +27,22 @@ import { SoftphoneStatus } from "@/components/calls/softphone-status";
 import { CalmEmptyState } from "@/components/settings/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT, type MessageKey } from "@/i18n/provider";
 import { useCalls, useRingMe, type CallOutcomeFilter } from "@/lib/api/calls";
 import { useSoftphone } from "@/lib/softphone/provider";
 import { cn } from "@/lib/utils";
 
-const FILTERS: { label: string; value: CallOutcomeFilter | undefined }[] = [
-  { label: "All", value: undefined },
-  { label: "Missed", value: "missed" },
+const FILTERS: { labelKey: MessageKey; value: CallOutcomeFilter | undefined }[] = [
+  { labelKey: "shell.filterAll", value: undefined },
+  { labelKey: "shell.filterMissed", value: "missed" },
   // Both phone apps have had this pill since the calls screen shipped. Without
   // it, finding the voicemails on web meant scrolling the whole log looking for
   // the ones with a recording on them.
-  { label: "Voicemail", value: "voicemail" },
+  { labelKey: "shell.filterVoicemail", value: "voicemail" },
 ];
 
 export function CallsView() {
+  const t = useT();
   const [outcome, setOutcome] = useState<CallOutcomeFilter | undefined>(
     undefined,
   );
@@ -100,7 +102,9 @@ export function CallsView() {
           group ran off the right edge with "Voicemail" cut in half. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <h1 className="text-[17px] font-semibold text-app-ink">Calls</h1>
+          <h1 className="text-[17px] font-semibold text-app-ink">
+            {t("shell.navCalls")}
+          </h1>
           <SoftphoneStatus />
           <Dialer
             trigger={
@@ -110,7 +114,7 @@ export function CallsView() {
                 className="h-7 gap-1.5 px-2.5 text-[12.5px]"
               >
                 <Grid3x3 className="size-3.5" strokeWidth={1.75} />
-                Dial
+                {t("shell.dial")}
               </Button>
             }
           />
@@ -119,14 +123,14 @@ export function CallsView() {
             track with the lifted active pill. */}
         <div
           role="radiogroup"
-          aria-label="Filter calls"
+          aria-label={t("shell.filterCalls")}
           className="flex gap-0.5 rounded-full bg-app-line-soft p-[3px] dark:bg-white/5"
         >
           {FILTERS.map((filter) => {
             const selected = outcome === filter.value;
             return (
               <button
-                key={filter.label}
+                key={filter.labelKey}
                 type="button"
                 role="radio"
                 aria-checked={selected}
@@ -138,7 +142,7 @@ export function CallsView() {
                     : "text-app-muted hover:text-app-ink",
                 )}
               >
-                {filter.label}
+                {t(filter.labelKey)}
               </button>
             );
           })}
@@ -150,7 +154,7 @@ export function CallsView() {
 
       <section>
         <h2 className="flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
-          Recent calls
+          {t("shell.recentCalls")}
         </h2>
         <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
           {calls.isPending ? (
@@ -171,11 +175,11 @@ export function CallsView() {
           ) : calls.isError ? (
             <CalmEmptyState
               icon={<PhoneIncoming className="size-7" strokeWidth={1.5} />}
-              title="Couldn't load your calls."
-              description="Check your connection and try again."
+              title={t("shell.callsLoadFailed")}
+              description={t("shell.checkConnection")}
               action={
                 <Button variant="outline" onClick={() => calls.refetch()}>
-                  Try again
+                  {t("common.retry")}
                 </Button>
               }
             />
@@ -184,22 +188,24 @@ export function CallsView() {
               icon={<PhoneIncoming className="size-7" strokeWidth={1.5} />}
               title={
                 outcome === "missed"
-                  ? "No missed calls. Nice."
+                  ? t("shell.emptyMissed")
                   : outcome === "voicemail"
-                    ? "No voicemails."
-                    : "Calls to your business number will show up here."
+                    ? t("shell.emptyVoicemail")
+                    : t("shell.emptyCalls")
               }
               description={
                 outcome !== undefined
                   ? undefined
                   : // D43: the browser is the phone — say what happens and
                     // where the voicemail/screening knobs live.
-                    "Calls ring right here in the app; unanswered ones go to your voicemail and land in this log. Your greeting, call screening, and the missed-call text-back live in Settings › Calling."
+                    t("shell.emptyCallsDescription")
               }
               action={
                 outcome !== undefined ? undefined : (
                   <Button asChild variant="outline">
-                    <Link href="/settings/missed-calls">Set up calls</Link>
+                    <Link href="/settings/missed-calls">
+                      {t("shell.setUpCalls")}
+                    </Link>
                   </Button>
                 )
               }
@@ -219,7 +225,9 @@ export function CallsView() {
               onClick={() => calls.fetchNextPage()}
               disabled={calls.isFetchingNextPage}
             >
-              {calls.isFetchingNextPage ? "Loading…" : "Load more"}
+              {calls.isFetchingNextPage
+                ? t("shell.loading")
+                : t("shell.loadMore")}
             </Button>
           </div>
         )}

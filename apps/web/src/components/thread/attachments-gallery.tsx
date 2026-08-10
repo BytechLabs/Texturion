@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useT } from "@/i18n/provider";
 import { useAttachmentGallery } from "@/lib/api/gallery";
 import { flattenPages } from "@/lib/api/pagination";
 import type { GalleryItem } from "@/lib/api/types";
@@ -45,6 +46,7 @@ export function AttachmentsGallery({
   onOpenChange: (open: boolean) => void;
   contactName: string;
 }) {
+  const t = useT();
   // Only fetch once the gallery is opened (one page of freshly-signed URLs).
   const gallery = useAttachmentGallery(conversationId, open);
   const items = useMemo(() => flattenPages(gallery.data), [gallery.data]);
@@ -69,10 +71,10 @@ export function AttachmentsGallery({
         <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
           <div className="border-b border-border px-5 pt-5 pb-3">
             <DialogTitle className="text-base font-semibold">
-              Attachments
+              {t("thread.attachments")}
             </DialogTitle>
             <DialogDescription className="sr-only">
-              Photos and files shared in the conversation with {contactName}.
+              {t("thread.galleryDescription", { name: contactName })}
             </DialogDescription>
 
             {/* Category tabs — quiet stone active pill, no petrol (§5.2). */}
@@ -83,7 +85,7 @@ export function AttachmentsGallery({
             >
               <TabsList>
                 <TabsTrigger value="images">
-                  Images
+                  {t("thread.tabImages")}
                   {imageCount > 0 && (
                     <span className="ml-1 tabular-nums text-muted-foreground">
                       {imageCount}
@@ -91,7 +93,7 @@ export function AttachmentsGallery({
                   )}
                 </TabsTrigger>
                 <TabsTrigger value="files">
-                  Files
+                  {t("thread.tabFiles")}
                   {fileCount > 0 && (
                     <span className="ml-1 tabular-nums text-muted-foreground">
                       {fileCount}
@@ -108,14 +110,14 @@ export function AttachmentsGallery({
             ) : gallery.isError ? (
               <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
                 <p className="text-sm text-muted-foreground">
-                  We couldn&apos;t load the attachments.
+                  {t("thread.galleryLoadFailed")}
                 </p>
                 <button
                   type="button"
                   onClick={() => gallery.refetch()}
                   className="text-[13px] font-medium text-primary underline-offset-2 hover:underline"
                 >
-                  Try again
+                  {t("common.retry")}
                 </button>
               </div>
             ) : tabItems.length === 0 && !hasNext ? (
@@ -158,7 +160,9 @@ export function AttachmentsGallery({
                       disabled={gallery.isFetchingNextPage}
                       className="rounded-md px-3 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground disabled:opacity-60"
                     >
-                      {gallery.isFetchingNextPage ? "Loading…" : "Load more"}
+                      {gallery.isFetchingNextPage
+                        ? t("thread.loadingMore")
+                        : t("thread.loadMore")}
                     </button>
                   </div>
                 )}
@@ -185,6 +189,7 @@ function GalleryThumb({
   item: GalleryItem;
   onOpen: () => void;
 }) {
+  const t = useT();
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const label = fileLabel(item);
@@ -203,7 +208,10 @@ function GalleryThumb({
       type="button"
       onClick={onOpen}
       disabled={!loaded}
-      aria-label={`Open ${sourceLabel(item.source).toLowerCase()} photo from ${captured}`}
+      aria-label={t("thread.openGalleryPhotoAria", {
+        source: sourceLabel(item.source).toLowerCase(),
+        when: captured,
+      })}
       className="group relative block aspect-square overflow-hidden rounded-lg border border-border bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       {!loaded && (
@@ -274,13 +282,14 @@ function Lightbox({
   item: GalleryItem | null;
   onClose: () => void;
 }) {
+  const t = useT();
   return (
     <Dialog open={item !== null} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
         className="max-w-[92vw] border-none bg-transparent p-0 shadow-none sm:max-w-3xl"
         showCloseButton
       >
-        <DialogTitle className="sr-only">Photo</DialogTitle>
+        <DialogTitle className="sr-only">{t("thread.photo")}</DialogTitle>
         {item && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -295,6 +304,7 @@ function Lightbox({
 }
 
 function GalleryEmpty({ tab }: { tab: GalleryTab }) {
+  const t = useT();
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
       <Images
@@ -304,8 +314,8 @@ function GalleryEmpty({ tab }: { tab: GalleryTab }) {
       />
       <p className="text-sm text-muted-foreground">
         {tab === "images"
-          ? "No photos shared in this conversation yet."
-          : "No files shared in this conversation yet."}
+          ? t("thread.noPhotosYet")
+          : t("thread.noFilesYet")}
       </p>
     </div>
   );
@@ -395,6 +405,7 @@ export function AttachmentsClump({
   onOpenGallery: () => void;
   enabled?: boolean;
 }) {
+  const t = useT();
   const gallery = useAttachmentGallery(conversationId, enabled);
   const items = useMemo(() => flattenPages(gallery.data), [gallery.data]);
   const hasMore = gallery.hasNextPage ?? false;
@@ -417,7 +428,7 @@ export function AttachmentsClump({
     <button
       type="button"
       onClick={onOpenGallery}
-      aria-label={`View all attachments (${countLabel})`}
+      aria-label={t("thread.viewAllAttachmentsAria", { count: countLabel })}
       className="block w-full rounded-app-card border border-app-line bg-app-paper p-3.5 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className="mb-2.5 flex items-center justify-between">
@@ -427,7 +438,7 @@ export function AttachmentsClump({
             strokeWidth={1.75}
             aria-hidden
           />
-          Attachments
+          {t("thread.attachments")}
         </h3>
         <span className="tabular-nums text-[12px] text-app-muted">
           {countLabel}

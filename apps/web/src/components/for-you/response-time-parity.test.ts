@@ -15,6 +15,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { inboxEn } from "@/i18n/sections/inbox";
+
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
 
 const SOURCES: Record<string, string> = {
@@ -25,6 +27,37 @@ const SOURCES: Record<string, string> = {
   ),
   ios: join(REPO_ROOT, "apps/ios/Loonext/Features/ForYou/ResponseTimeCard.swift"),
 };
+
+/**
+ * #228 moved web's ENGLISH out of the component and into the catalogue, so the
+ * roster below has to read the catalogue for web or it would be comparing the
+ * phones against a file that no longer contains a single sentence.
+ *
+ * The VALUES, not the section file's text. Reading the file was the first
+ * version and it is the decorative one: `satisfactionAsked:` contains the
+ * fragment "Asked", so a key whose sentence had been reworded still matched its
+ * own name. Found by breaking it. What a reader is shown is the values, so that
+ * is what a copy guard compares.
+ *
+ * The web card is still read as a FILE below — the structural checks (the
+ * `href`, the shared arc helper) are claims about its code, and only the
+ * wording moved.
+ */
+const WEB_COPY = Object.values(inboxEn).join("\n");
+
+/**
+ * What a platform's copy is compared against.
+ *
+ * For web that is the catalogue's values and NOTHING ELSE — deliberately not
+ * the card as well. Also found by breaking it: the card calls
+ * `t("inbox.responseDetails")`, and the key contains the fragment "Details", so
+ * appending the source made two fragments match an identifier rather than a
+ * sentence. The phones still get their whole file, because that is where their
+ * strings actually are.
+ */
+function copyOf(platform: string): string {
+  return platform === "web" ? WEB_COPY : readFileSync(SOURCES[platform], "utf8");
+}
 
 /**
  * The sentences, as the owner reads them.
@@ -58,12 +91,15 @@ describe("#239 response-time copy is the same on every client", () => {
       expect(text.length, platform).toBeGreaterThan(1000);
       expect(text, platform).toContain("median_seconds");
     }
+    // And web's words, which are a fourth source now — an emptied section would
+    // otherwise make every fragment below pass against nothing.
+    expect(WEB_COPY.length).toBeGreaterThan(1000);
   });
 
   it("carries every fragment on every platform, verbatim", () => {
     const missing: string[] = [];
-    for (const [platform, path] of Object.entries(SOURCES)) {
-      const text = readFileSync(path, "utf8");
+    for (const platform of Object.keys(SOURCES)) {
+      const text = copyOf(platform);
       for (const fragment of FRAGMENTS) {
         if (!text.includes(fragment)) missing.push(`${platform}: ${fragment}`);
       }
@@ -79,8 +115,8 @@ describe("#239 response-time copy is the same on every client", () => {
   it("names the unanswered leak in the singular on every platform", () => {
     // "1 leads nobody answered" is the kind of thing that makes a careful reader
     // stop trusting the rest of the panel.
-    for (const [platform, path] of Object.entries(SOURCES)) {
-      const text = readFileSync(path, "utf8");
+    for (const platform of Object.keys(SOURCES)) {
+      const text = copyOf(platform);
       expect(text, platform).toContain("lead nobody answered");
       expect(text, platform).toContain("leads nobody answered");
     }
@@ -224,9 +260,13 @@ describe("#239 response-time copy is the same on every client", () => {
     // direction itself is a client that can quietly stop reporting the bad one —
     // and both "Up from" and "Down from" come from this one answer.
     for (const [platform, path] of Object.entries(SOURCES)) {
-      const text = readFileSync(path, "utf8");
-      expect(text, platform).toMatch(/arcDirection|responseArcDirection/);
-      expect(text, platform).toContain("Up from ");
+      // The helper is a CODE claim — asserted on the component itself, so a
+      // client that decided the direction locally could not hide behind the
+      // catalogue. The sentence is a COPY claim, so it reads the words.
+      expect(readFileSync(path, "utf8"), platform).toMatch(
+        /arcDirection|responseArcDirection/,
+      );
+      expect(copyOf(platform), platform).toContain("Up from ");
     }
   });
 });

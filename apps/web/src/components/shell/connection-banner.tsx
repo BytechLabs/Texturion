@@ -3,6 +3,8 @@
 import { WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { useT } from "@/i18n/provider";
+
 /**
  * #299 — one honest explanation for a mid-session drop.
  *
@@ -52,6 +54,7 @@ import { useEffect, useState } from "react";
  * bug than the one it reports.
  */
 export function ConnectionBanner() {
+  const t = useT();
   const [offline, setOffline] = useState(false);
 
   useEffect(() => {
@@ -83,8 +86,7 @@ export function ConnectionBanner() {
         aria-hidden
       />
       <p className="min-w-0 flex-1 line-clamp-2 text-[13px] leading-snug text-foreground/80">
-        You&rsquo;re offline. What&rsquo;s already open stays readable, and
-        Loonext will catch up on its own once you&rsquo;re back.
+        {t("shell.offline")}
       </p>
     </div>
   );

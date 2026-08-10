@@ -7,6 +7,7 @@ import { PortDocumentsForm } from "@/components/settings/port-documents-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT, type MessageKey } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useResubmitPortRequest,
@@ -24,25 +25,47 @@ import type { Country, PortRequest, UpdatePortRequestInput } from "@/lib/api/typ
 
 interface FieldSpec {
   key: keyof UpdatePortRequestInput;
-  label: (country: Country) => string;
+  label: (country: Country) => MessageKey;
   autoComplete?: string;
   hint?: string;
 }
 
 const FIELDS: FieldSpec[] = [
-  { key: "entity_name", label: () => "Account holder name", autoComplete: "organization" },
-  { key: "auth_person_name", label: () => "Authorized person", autoComplete: "name" },
-  { key: "account_number", label: () => "Account number", autoComplete: "off" },
-  { key: "service_street", label: () => "Service street address", autoComplete: "street-address" },
-  { key: "service_locality", label: () => "City", autoComplete: "address-level2" },
+  {
+    key: "entity_name",
+    label: () => "settingsMore.portFixEntityName",
+    autoComplete: "organization",
+  },
+  {
+    key: "auth_person_name",
+    label: () => "settingsMore.portFixAuthPerson",
+    autoComplete: "name",
+  },
+  {
+    key: "account_number",
+    label: () => "settingsMore.portFixAccountNumber",
+    autoComplete: "off",
+  },
+  {
+    key: "service_street",
+    label: () => "settingsMore.portFixServiceStreet",
+    autoComplete: "street-address",
+  },
+  {
+    key: "service_locality",
+    label: () => "settingsMore.portFixCity",
+    autoComplete: "address-level2",
+  },
   {
     key: "service_admin_area",
-    label: (c) => (c === "US" ? "State" : "Province"),
+    label: (c) =>
+      c === "US" ? "settingsMore.portFixState" : "settingsMore.portFixProvince",
     autoComplete: "address-level1",
   },
   {
     key: "service_postal_code",
-    label: (c) => (c === "US" ? "ZIP code" : "Postal code"),
+    label: (c) =>
+      c === "US" ? "settingsMore.portFixZip" : "settingsMore.portFixPostalCode",
     autoComplete: "postal-code",
   },
 ];
@@ -66,6 +89,7 @@ export function PortFixForm({
   port: PortRequest;
   country: Country;
 }) {
+  const t = useT();
   const update = useUpdatePortRequest(port.id);
   const resubmit = useResubmitPortRequest(port.id);
   const [values, setValues] = useState<Record<string, string>>(() =>
@@ -99,7 +123,7 @@ export function PortFixForm({
     for (const field of FIELDS) {
       if (field.key === "account_number") continue;
       if (!values[field.key]?.trim()) {
-        setError("Every field except the account number needs a value.");
+        setError(t("settingsMore.portFixRequired"));
         return;
       }
     }
@@ -109,12 +133,12 @@ export function PortFixForm({
         await update.mutateAsync(patch);
       }
       await resubmit.mutateAsync();
-      toast.success("Resubmitted. We'll email you as it moves along.");
+      toast.success(t("settingsMore.portFixResubmitted"));
     } catch (cause) {
       setError(
         cause instanceof ApiError
           ? cause.message
-          : "Couldn't resubmit the transfer. Try again in a moment.",
+          : t("settingsMore.portFixResubmitFailed"),
       );
     }
   }
@@ -126,7 +150,7 @@ export function PortFixForm({
       <div className="grid gap-4 sm:grid-cols-2">
         {FIELDS.map((field) => (
           <div key={field.key} className="space-y-1.5">
-            <Label htmlFor={`fix-${field.key}`}>{field.label(country)}</Label>
+            <Label htmlFor={`fix-${field.key}`}>{t(field.label(country))}</Label>
             <Input
               id={`fix-${field.key}`}
               // #319: the rejection notice's "Take me to it" finds its input by
@@ -140,7 +164,7 @@ export function PortFixForm({
               autoComplete={field.autoComplete}
               placeholder={
                 field.key === "account_number" && port.has_account_number
-                  ? "On file, leave blank to keep it"
+                  ? t("settingsMore.portFixAccountOnFile")
                   : undefined
               }
             />
@@ -150,7 +174,9 @@ export function PortFixForm({
 
       {/* Re-upload a document the carrier flagged (§8.2). */}
       <div className="space-y-3 border-t border-border-subtle pt-4">
-        <p className="text-sm font-medium">Documents</p>
+        <p className="text-sm font-medium">
+          {t("settingsMore.portFixDocuments")}
+        </p>
         <PortDocumentsForm port={port} country={country} />
       </div>
 
@@ -161,12 +187,13 @@ export function PortFixForm({
       ) : null}
 
       <Button type="button" onClick={() => void onResubmit()} disabled={busy || !hasDocuments}>
-        {busy ? "Resubmitting…" : "Fix and resubmit"}
+        {busy
+          ? t("settingsMore.portFixResubmitting")
+          : t("settingsMore.portFixResubmitAction")}
       </Button>
       {!hasDocuments ? (
         <p className="text-[13px] text-muted-foreground">
-          Upload your signed authorization and a recent bill above before
-          resubmitting.
+          {t("settingsMore.portFixUploadFirst")}
         </p>
       ) : null}
     </div>

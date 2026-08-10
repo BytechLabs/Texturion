@@ -15,6 +15,7 @@ import type { NumberHoldState } from "@/components/settings/number-hold";
 import { NumberHoldNote } from "@/components/settings/number-hold-note";
 import { mayReleaseNumber } from "@/components/settings/release-number";
 import { ReleaseNumberDialog } from "@/components/settings/release-number-dialog";
+import { useT, type Translate } from "@/i18n/provider";
 import type { PhoneNumberSummary } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatPhone } from "@/lib/format/phone";
@@ -39,21 +40,24 @@ function needsNumberChoice(n: PhoneNumberSummary): boolean {
 }
 
 /** Honest, reason-driven copy for a provision_failed number. */
-function failedCopy(n: PhoneNumberSummary): string {
+function failedCopy(n: PhoneNumberSummary, t: Translate): string {
   if (!needsNumberChoice(n)) {
-    return "We're still setting up your number. This is taking a little longer than usual.";
+    return t("settingsMore.numberSetupSlow");
   }
   if (n.failure_reason === "timeout") {
     // A Telnyx order that stalled — nothing broke, and the paid slot is intact.
-    return "Setup is taking longer than expected. Choose a number to finish — you won't be charged again.";
+    return t("settingsMore.numberSetupStalled");
   }
   if (n.failure_reason === "no_inventory" && n.requested_area_code) {
-    return `Area code ${n.requested_area_code} is out of new numbers right now. Choose another number to finish setup.`;
+    return t("settingsMore.numberAreaCodeEmpty", {
+      code: n.requested_area_code,
+    });
   }
-  return "We couldn't finish setting up your number. Choose a number to try again.";
+  return t("settingsMore.numberSetupFailed");
 }
 
 function StatusBadge({ number }: { number: PhoneNumberSummary }) {
+  const t = useT();
   // Amber badge text is amber-800 in light (status-pill convention):
   // --warning (amber-600) misses the G11 4.5:1 bar as text on the tint.
   const amber = (label: string) => (
@@ -65,29 +69,34 @@ function StatusBadge({ number }: { number: PhoneNumberSummary }) {
     case "active":
       return (
         <Badge className="border-transparent bg-success/10 text-success">
-          Active
+          {t("settingsMore.numberStatusActive")}
         </Badge>
       );
     case "provisioning":
-      return amber("Setting up");
+      return amber(t("settingsMore.numberStatusSettingUp"));
     case "provision_failed":
       // The lie ends here: a stuck provision is a DISTINCT state, never the same
       // amber "Setting up" as a number actually still being set up. A 'timeout'
       // (a Telnyx order that stalled) is a calm amber "Action needed" — nothing
       // broke, just pick a number; a real failure (no inventory / out of
       // attempts) is the red "Couldn't set up".
-      if (!needsNumberChoice(number)) return amber("Setting up");
+      if (!needsNumberChoice(number))
+        return amber(t("settingsMore.numberStatusSettingUp"));
       return number.failure_reason === "timeout" ? (
-        amber("Action needed")
+        amber(t("settingsMore.numberStatusActionNeeded"))
       ) : (
         <Badge className="border-transparent bg-destructive/10 text-destructive">
-          Couldn&apos;t set up
+          {t("settingsMore.numberStatusSetupFailed")}
         </Badge>
       );
     case "suspended":
-      return amber("Suspended");
+      return amber(t("settingsMore.numberStatusSuspended"));
     case "released":
-      return <Badge variant="secondary">Released</Badge>;
+      return (
+        <Badge variant="secondary">
+          {t("settingsMore.numberStatusReleased")}
+        </Badge>
+      );
   }
 }
 
@@ -119,6 +128,7 @@ export function NumberCard({
    */
   subscriptionActive?: boolean;
 }) {
+  const t = useT();
   const { role } = useActiveCompany();
   const [releasing, setReleasing] = useState(false);
   const [choosing, setChoosing] = useState(false);
@@ -144,21 +154,23 @@ export function NumberCard({
         >
           {number.number_e164
             ? formatPhone(number.number_e164)
-            : `Area code ${number.requested_area_code ?? "–"}`}
+            : t("settingsMore.numberAreaCode", {
+                code: number.requested_area_code ?? "–",
+              })}
         </p>
         {number.number_e164 && !released && (
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="Copy number"
+            aria-label={t("settingsMore.numberCopyAria")}
             onClick={() => {
               // Only claim success once the write actually resolves — a denied
               // clipboard permission or an insecure context rejects, and a
               // false "copied" toast leaves the user pasting stale data.
               void navigator.clipboard
                 .writeText(number.number_e164 as string)
-                .then(() => toast.success("Number copied."))
-                .catch(() => toast.error("Couldn't copy the number."));
+                .then(() => toast.success(t("settingsMore.numberCopied")))
+                .catch(() => toast.error(t("settingsMore.numberCopyFailed")));
             }}
           >
             <Copy strokeWidth={1.75} />
@@ -174,9 +186,9 @@ export function NumberCard({
           the fan-out now rotating per call, the honest thing to say is about
           the workspace rather than about them.
           *Applying: G1.5 — every async state visible, named and honest.* */}
-      {ringCeilingLine(number) !== null && (
+      {ringCeilingLine(number, t) !== null && (
         <p className="mt-2 text-sm text-muted-foreground">
-          {ringCeilingLine(number)}
+          {ringCeilingLine(number, t)}
         </p>
       )}
       {number.status === "provisioning" && (
@@ -192,7 +204,7 @@ export function NumberCard({
               : "mt-2 text-sm text-muted-foreground"
           }
         >
-          {failedCopy(number)}
+          {failedCopy(number, t)}
         </p>
       )}
       {/* #235: a carrier is filtering this line. Only ever shown for the
@@ -213,19 +225,19 @@ export function NumberCard({
       )}
       {released && number.released_at && (
         <p className="mt-2 text-sm text-muted-foreground">
-          Released{" "}
-          {new Date(number.released_at).toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
+          {t("settingsMore.numberReleasedOn", {
+            date: new Date(number.released_at).toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            }),
           })}
-          .
         </p>
       )}
       {canManage && number.status === "provision_failed" && (
         <div className="mt-3 border-t pt-3">
           <Button size="sm" onClick={() => setChoosing(true)}>
-            Choose a number
+            {t("settingsMore.numberChooseAction")}
           </Button>
           <ChooseNumberDialog
             number={number}
@@ -243,7 +255,7 @@ export function NumberCard({
             className="px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
             onClick={() => setManagingAccess(true)}
           >
-            Who can use this number…
+            {t("settingsMore.numberWhoCanUseAction")}
           </Button>
           <NumberAccessDialog
             numberId={number.id}
@@ -261,7 +273,7 @@ export function NumberCard({
             className="px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
             onClick={() => setManagingIdentity(true)}
           >
-            How this line answers…
+            {t("settingsMore.numberHowItAnswersAction")}
           </Button>
           <NumberIdentityDialog
             numberId={number.id}
@@ -278,7 +290,7 @@ export function NumberCard({
             className="h-auto p-0 text-[13px]"
             onClick={() => setManagingHours(true)}
           >
-            When this line is open…
+            {t("settingsMore.numberWhenOpenAction")}
           </Button>
           <NumberHoursDialog
             numberId={number.id}
@@ -301,7 +313,7 @@ export function NumberCard({
             className="px-0 text-muted-foreground hover:bg-transparent hover:text-destructive"
             onClick={() => setReleasing(true)}
           >
-            Release this number…
+            {t("settingsMore.numberReleaseAction")}
           </Button>
           <ReleaseNumberDialog
             number={number}

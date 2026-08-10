@@ -137,6 +137,24 @@ const BANNERS: Record<string, string> = {
   ios: join(REPO_ROOT, "apps/ios/Loonext/Features/Thread/AlertBanner.swift"),
 };
 
+/**
+ * #228: the half of web's banner the CATALOGUE now owns.
+ *
+ * " · {name} was told first" moved out of `alert-banner.tsx` and into
+ * `i18n/sections/thread.ts`, so reading only the component reported web as
+ * having dropped a sentence it still says. The phones have no equivalent —
+ * their strings are still in the banner file — so this is web-only, exactly as
+ * EXTRA_VOCABULARY is shared-only.
+ *
+ * Adding a 10,000-line catalogue to one platform's text could have masked a
+ * real absence elsewhere, so it was checked first: "was told first" is the
+ * ONLY one of these 36 fragments that appears in `thread.ts`. Every other
+ * sentence still has to be found where it always was.
+ */
+const CATALOGUES: Record<string, string> = {
+  shared: join(REPO_ROOT, "apps/web/src/i18n/sections/thread.ts"),
+};
+
 describe("#244 on-call copy is the same on every client", () => {
   it("reads every source, so a passing run means something", () => {
     for (const [platform, path] of Object.entries(SOURCES)) {
@@ -153,6 +171,9 @@ describe("#244 on-call copy is the same on every client", () => {
       const text = joinLiterals(
         readFileSync(path, "utf8") +
         (BANNERS[platform] ? readFileSync(BANNERS[platform], "utf8") : "") +
+          (CATALOGUES[platform]
+            ? readFileSync(CATALOGUES[platform], "utf8")
+            : "") +
           (EXTRA_VOCABULARY[platform]
             ? readFileSync(EXTRA_VOCABULARY[platform], "utf8")
             : "") +

@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 
 import { apiFetch } from "@/lib/api/client";
@@ -25,6 +26,7 @@ import type { Message, Page, Task } from "@/lib/api/types";
  * `message.status` broadcast + refetch.
  */
 export function useTaskDone() {
+  const t = useT();
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
 
@@ -95,8 +97,8 @@ export function useTaskDone() {
       const denied = error instanceof ApiError && error.code === "not_found";
       toast.error(
         denied
-          ? "Marking this done needs access to the conversation it came from."
-          : "Couldn't move that task. Try again.",
+          ? t("tasks.doneNeedsAccessToast")
+          : t("tasks.moveFailed"),
       );
     },
     onSettled: (_data, _error, input) => {
@@ -130,6 +132,7 @@ export function useTaskDone() {
  * lands on the new day instantly; rolls back on error.
  */
 export function useTaskReschedule() {
+  const t = useT();
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
 
@@ -169,7 +172,7 @@ export function useTaskReschedule() {
         queryClient.setQueryData(key, data);
       }
       // The chip visibly jumps back to its old day — say why.
-      toast.error("Couldn't reschedule that task. Try again.");
+      toast.error(t("tasks.rescheduleFailed"));
     },
     onSettled: (_data, _error, input) => {
       void queryClient.invalidateQueries({ queryKey: keys.tasks.lists(companyId) });
@@ -190,6 +193,7 @@ export function useTaskReschedule() {
  * strip and the workspace list are right by the time this resolves.
  */
 export function useSetTaskReminders() {
+  const t = useT();
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
 
@@ -207,8 +211,8 @@ export function useSetTaskReminders() {
     onSuccess: (_task, input) => {
       toast.success(
         input.off
-          ? "Reminders off for this job. Anything queued has been cancelled."
-          : "Reminders back on for this job.",
+          ? t("tasks.remindersOffToast")
+          : t("tasks.remindersOnToast"),
       );
       void queryClient.invalidateQueries({ queryKey: keys.tasks.lists(companyId) });
       void queryClient.invalidateQueries({
@@ -221,7 +225,7 @@ export function useSetTaskReminders() {
       });
     },
     onError: () => {
-      toast.error("Couldn't change that. Try again.");
+      toast.error(t("tasks.remindersChangeFailed"));
     },
   });
 }

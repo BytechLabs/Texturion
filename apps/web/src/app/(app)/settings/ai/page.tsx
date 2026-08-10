@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/i18n/provider";
 import { useAiSettings, useUpdateAiSettings } from "@/lib/api/ai-settings";
 import { ApiError } from "@/lib/api/error";
 import type { CompanyAiSettings } from "@/lib/api/types";
@@ -42,6 +43,7 @@ function BusinessDescriptionField({
   disabled: boolean;
   onSave: (next: string) => void;
 }) {
+  const t = useT();
   const [draft, setDraft] = useState(value);
   // A save elsewhere (another tab, another admin) should win over stale text.
   useEffect(() => setDraft(value), [value]);
@@ -54,7 +56,7 @@ function BusinessDescriptionField({
         maxLength={BUSINESS_DESCRIPTION_MAX}
         rows={2}
         disabled={disabled}
-        placeholder="We paint houses and do small renovations in Calgary."
+        placeholder={t("appShell.aiDescriptionPlaceholder")}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={() => {
           const next = draft.trim();
@@ -69,6 +71,7 @@ function BusinessDescriptionField({
 }
 
 export default function AiSettingsPage() {
+  const t = useT();
   const settings = useAiSettings();
   const update = useUpdateAiSettings();
   const { role } = useActiveCompany();
@@ -83,7 +86,7 @@ export default function AiSettingsPage() {
           toast.error(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't save that. Try again.",
+              : t("appShell.saveThatFailed"),
           ),
       },
     );
@@ -91,29 +94,26 @@ export default function AiSettingsPage() {
 
   return (
     <SettingsPage
-      title="Lou"
-      description="Lou is the assistant built into Loonext. It drafts replies and fills in task details from what a customer already wrote. Every suggestion is yours to review and edit — Lou never sends anything, and never applies anything on its own."
+      title={t("appShell.aiTitle")}
+      description={t("appShell.aiDescription")}
     >
       {settings.isPending ? (
-        <div className="space-y-4" aria-label="Loading AI settings">
+        <div className="space-y-4" aria-label={t("appShell.aiLoading")}>
           <Skeleton className="h-40 w-full rounded-lg" />
         </div>
       ) : settings.isError ? (
         <LoadError onRetry={() => settings.refetch()} />
       ) : (
         <div className="space-y-6">
-          <SettingsCard title="When you make a task from a message">
+          <SettingsCard title={t("appShell.aiTaskCardTitle")}>
             <div className="space-y-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-0.5">
                   <Label htmlFor="ai-address" className="text-sm font-medium">
-                    Suggest an address
+                    {t("appShell.aiAddressLabel")}
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    Read a job location out of the message (or fall back to the
-                    contact&rsquo;s address) and pre-fill the task&rsquo;s
-                    address. It shows where each part came from; you can edit or
-                    clear it before saving.
+                    {t("appShell.aiAddressBody")}
                   </p>
                 </div>
                 <Switch
@@ -128,12 +128,10 @@ export default function AiSettingsPage() {
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-0.5">
                   <Label htmlFor="ai-due" className="text-sm font-medium">
-                    Suggest a due date &amp; time
+                    {t("appShell.aiDueLabel")}
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    Turn phrases like &ldquo;tomorrow at 2pm&rdquo; or
-                    &ldquo;next Tuesday&rdquo; into a due date in your
-                    workspace&rsquo;s timezone. Always editable before you save.
+                    {t("appShell.aiDueBody")}
                   </p>
                 </div>
                 <Switch
@@ -147,15 +145,13 @@ export default function AiSettingsPage() {
               </div>
             </div>
           </SettingsCard>
-          <SettingsCard title="What Lou knows about your business">
+          <SettingsCard title={t("appShell.aiBusinessCardTitle")}>
             <div className="space-y-2">
               <Label htmlFor="ai-description" className="text-sm font-medium">
-                What you do
+                {t("appShell.aiWhatYouDoLabel")}
               </Label>
               <p className="text-sm text-muted-foreground">
-                One sentence, in your words. Without it Lou will not say what
-                your business does, because anything it said would be guesswork.
-                With it, drafts can answer &ldquo;do you do X?&rdquo; honestly.
+                {t("appShell.aiWhatYouDoBody")}
               </p>
               <BusinessDescriptionField
                 value={settings.data.business_description ?? ""}
@@ -168,7 +164,7 @@ export default function AiSettingsPage() {
                         toast.error(
                           cause instanceof ApiError
                             ? cause.message
-                            : "Couldn't save that. Try again.",
+                            : t("appShell.saveThatFailed"),
                         ),
                     },
                   )
@@ -176,16 +172,14 @@ export default function AiSettingsPage() {
               />
             </div>
           </SettingsCard>
-          <SettingsCard title="When you reply to a customer">
+          <SettingsCard title={t("appShell.aiRepliesCardTitle")}>
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-0.5">
                 <Label htmlFor="ai-replies" className="text-sm font-medium">
-                  Let Lou draft replies
+                  {t("appShell.aiRepliesLabel")}
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Offer a few short replies you can edit before sending, drawn
-                  from the conversation so far. Start typing and they finish
-                  what you started instead.
+                  {t("appShell.aiRepliesBody")}
                 </p>
               </div>
               <Switch
@@ -198,16 +192,14 @@ export default function AiSettingsPage() {
               />
             </div>
           </SettingsCard>
-          <SettingsCard title="When someone leaves a voicemail">
+          <SettingsCard title={t("appShell.aiVoicemailCardTitle")}>
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-0.5">
                 <Label htmlFor="ai-voicemail" className="text-sm font-medium">
-                  Let Lou write voicemails down
+                  {t("appShell.aiVoicemailLabel")}
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Show what a voicemail says next to the recording, so you can
-                  read it when playing it isn&apos;t an option. The recording is
-                  always kept either way.
+                  {t("appShell.aiVoicemailBody")}
                 </p>
               </div>
               <Switch
@@ -227,14 +219,10 @@ export default function AiSettingsPage() {
             <div className="mt-4 flex items-start justify-between gap-4 border-t border-border pt-4">
               <div className="space-y-0.5">
                 <Label htmlFor="ai-intake" className="text-sm font-medium">
-                  Pull the job out of a voicemail
+                  {t("appShell.aiIntakeLabel")}
                 </Label>
                 <p className="text-sm text-muted-foreground">
-                  Lou reads the transcript and shows what the caller wanted and
-                  where, above the recording. Your greeting is untouched
-                  &mdash; if you want callers to say the address, ask them for
-                  it in your own greeting. Nothing books anything and nobody is
-                  put through a menu.
+                  {t("appShell.aiIntakeBody")}
                 </p>
               </div>
               <Switch
@@ -252,7 +240,7 @@ export default function AiSettingsPage() {
               claim we listen to calls — which is false.
               *Applying: Chunking — the call-adjacent toggles read as one group,
               and the group is where the distinction has to be legible.* */}
-          <SettingsCard title="After a call ends">
+          <SettingsCard title={t("appShell.aiWrapupCardTitle")}>
             <div className="flex items-start justify-between gap-4">
               {/* Two rungs, not one: the label and what it does are a heading
                   and its subheading (0.5), and the sentence about whose voice
@@ -263,23 +251,25 @@ export default function AiSettingsPage() {
               <div className="space-y-2">
                 <div className="space-y-0.5">
                   <Label htmlFor="ai-wrapup" className="text-sm font-medium">
-                    Let Lou write down your wrap-up
+                    {t("appShell.aiWrapupLabel")}
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    Press the mic in the note box and say what happened &mdash;
-                    &ldquo;quoted him $2,400 for the tank, parts Thursday,
-                    he&rsquo;s confirming with his wife&rdquo;. Lou writes your
-                    words down exactly as you said them, for you to check and
-                    post as an internal note.
+                    {t("appShell.aiWrapupBody")}
                   </p>
                 </div>
                 {/* Scoped, not absolute — voicemail does record a caller's
-                    voice, so "never records a customer" would be false. */}
+                    voice, so "never records a customer" would be false.
+
+                    Split into three keys rather than one because the emphasis
+                    is INSIDE the sentence: a single key would either lose the
+                    bold or ship markup through the catalogue. The emphasised
+                    word sits before its noun in both languages. */}
                 <p className="text-sm text-muted-foreground">
-                  It records <strong className="font-medium">your</strong>{" "}
-                  voice, after the call has ended. The call itself is never
-                  recorded — voicemail a caller leaves at the beep is a separate
-                  thing, covered in Privacy.
+                  {t("appShell.aiWrapupVoiceBefore")}{" "}
+                  <strong className="font-medium">
+                    {t("appShell.aiWrapupVoiceEmphasis")}
+                  </strong>{" "}
+                  {t("appShell.aiWrapupVoiceAfter")}
                 </p>
               </div>
               <Switch
@@ -298,18 +288,15 @@ export default function AiSettingsPage() {
               doubt.
               *Applying: Chunking — one card per moment, and this is a different
               moment from all four above it.* */}
-          <SettingsCard title="When you come back to a long thread">
+          <SettingsCard title={t("appShell.aiCatchupCardTitle")}>
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2">
                 <div className="space-y-0.5">
                   <Label htmlFor="ai-catchup" className="text-sm font-medium">
-                    Let Lou catch you up
+                    {t("appShell.aiCatchupLabel")}
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    On a long or long-quiet thread, Lou will read the recent
-                    messages and show what the customer asked, what your crew
-                    said, and what&rsquo;s still open. Only when someone asks
-                    for it &mdash; nothing runs on its own.
+                    {t("appShell.aiCatchupBody")}
                   </p>
                 </div>
                 {/* The two claims worth making about this one specifically,
@@ -319,9 +306,7 @@ export default function AiSettingsPage() {
                     statement — a boundary, not a feature.
                     *Applying: Relationship Strength.* */}
                 <p className="text-sm text-muted-foreground">
-                  Every line points at the message it came from, so you can
-                  check it in a tap. Your internal notes are never read, nothing
-                  is ever sent, and your inbox order never changes.
+                  {t("appShell.aiCatchupBoundary")}
                 </p>
               </div>
               <Switch
@@ -336,7 +321,7 @@ export default function AiSettingsPage() {
           </SettingsCard>
           {!canEdit && (
             <p className="text-sm text-muted-foreground">
-              Only owners and admins can change these.
+              {t("appShell.aiOwnersOnly")}
             </p>
           )}
         </div>

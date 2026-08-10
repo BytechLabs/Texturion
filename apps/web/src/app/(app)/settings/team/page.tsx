@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -55,6 +55,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { useT, type Translate } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { MemberAccessDialog } from "@/components/settings/member-access-dialog";
 import { ApiError } from "@/lib/api/error";
@@ -76,28 +77,31 @@ import {
   seatUsage,
 } from "@/lib/settings/seat-line";
 
-const ROLE_LABELS: Record<Member["role"], string> = {
-  owner: "Owner",
-  admin: "Admin",
-  member: "Member",
-  read_only: "View only",
-  bookkeeper: "Bookkeeper",
-};
+function roleLabels(t: Translate): Record<Member["role"], string> {
+  return {
+    owner: t("appShell.roleOwner"),
+    admin: t("appShell.roleAdmin"),
+    member: t("appShell.roleMember"),
+    read_only: t("appShell.roleReadOnly"),
+    bookkeeper: t("appShell.roleBookkeeper"),
+  };
+}
 
 /**
  * #315: what each role is FOR, in the words an owner picking one would use.
  * A checkbox grid is a correct model and a bad product for a crew of four, so
  * the roles ship as named presets and the picker says what each is for.
  */
-const ROLE_BLURBS: Record<
-  "admin" | "member" | "read_only" | "bookkeeper",
-  string
-> = {
-  admin: "Everything except transferring ownership and closing the workspace",
-  member: "Read and answer customers; no billing, team or settings",
-  read_only: "Can see conversations, cannot reply or change anything",
-  bookkeeper: "Billing and invoices only; no access to conversations",
-};
+function roleBlurbs(
+  t: Translate,
+): Record<"admin" | "member" | "read_only" | "bookkeeper", string> {
+  return {
+    admin: t("appShell.roleAdminBlurb"),
+    member: t("appShell.roleMemberBlurb"),
+    read_only: t("appShell.roleReadOnlyBlurb"),
+    bookkeeper: t("appShell.roleBookkeeperBlurb"),
+  };
+}
 
 function MemberRow({
   member,
@@ -111,6 +115,7 @@ function MemberRow({
   /** Active members this person's open work could be handed to (#276). */
   teammates?: Member[];
 }) {
+  const t = useT();
   const updateRole = useUpdateMemberRole();
   const [confirming, setConfirming] = useState(false);
   // #538: the role this person has asked to give themselves, held until they
@@ -118,7 +123,7 @@ function MemberRow({
   const [givingUp, setGivingUp] = useState<"admin" | "member" | null>(null);
   // #348: what this person actually reaches, on demand.
   const [showingAccess, setShowingAccess] = useState(false);
-  const name = member.display_name || "Teammate";
+  const name = member.display_name || t("appShell.teamFallbackName");
   const deactivated = member.deactivated_at !== null;
 
   function changeRole(role: "admin" | "member", acknowledged = false) {
@@ -133,7 +138,7 @@ function MemberRow({
           toast.error(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't change the role. Try again.",
+              : t("appShell.teamRoleChangeFailed"),
           ),
       },
     );
@@ -149,7 +154,12 @@ function MemberRow({
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">
           {name}
-          {isSelf && <span className="text-muted-foreground"> (you)</span>}
+          {isSelf && (
+            <span className="text-muted-foreground">
+              {" "}
+              {t("appShell.teamYouSuffix")}
+            </span>
+          )}
         </p>
         <p
           className="text-xs text-muted-foreground"
@@ -158,8 +168,12 @@ function MemberRow({
           )}
         >
           {deactivated
-            ? `Deactivated ${formatRelativeTime(member.deactivated_at as string)}`
-            : `Joined ${formatRelativeTime(member.created_at)}`}
+            ? t("appShell.teamDeactivatedAgo", {
+                when: formatRelativeTime(member.deactivated_at as string),
+              })
+            : t("appShell.teamJoinedAgo", {
+                when: formatRelativeTime(member.created_at),
+              })}
         </p>
       </div>
       {/* #348: the access model was complete and entirely invisible. Quiet and
@@ -173,7 +187,7 @@ function MemberRow({
             className="text-muted-foreground hover:text-foreground"
             onClick={() => setShowingAccess(true)}
           >
-            Numbers
+            {t("appShell.teamNumbersAction")}
           </Button>
           <MemberAccessDialog
             userId={member.user_id}
@@ -212,19 +226,23 @@ function MemberRow({
           <SelectTrigger
             size="sm"
             className="w-28"
-            aria-label={`Role for ${name}`}
+            aria-label={t("appShell.teamRoleForAria", { name })}
           >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="admin">Admin</SelectItem>
-            <SelectItem value="member">Member</SelectItem>
-            <SelectItem value="read_only">View only</SelectItem>
-            <SelectItem value="bookkeeper">Bookkeeper</SelectItem>
+            <SelectItem value="admin">{t("appShell.roleAdmin")}</SelectItem>
+            <SelectItem value="member">{t("appShell.roleMember")}</SelectItem>
+            <SelectItem value="read_only">
+              {t("appShell.roleReadOnly")}
+            </SelectItem>
+            <SelectItem value="bookkeeper">
+              {t("appShell.roleBookkeeper")}
+            </SelectItem>
           </SelectContent>
         </Select>
       ) : (
-        <Badge variant="secondary">{ROLE_LABELS[member.role]}</Badge>
+        <Badge variant="secondary">{roleLabels(t)[member.role]}</Badge>
       )}
       {/* #538: mounted OUTSIDE the offboard block, which is guarded on `!isSelf`
           — the one case this dialog exists for. It renders nothing until somebody
@@ -254,7 +272,9 @@ function MemberRow({
           >
             {/* #276: every workspace that has ever removed someone has work
                 still pointing at them — this is how an owner finds it. */}
-            {deactivated ? "Move their work" : "Deactivate"}
+            {deactivated
+              ? t("appShell.teamMoveTheirWork")
+              : t("appShell.teamDeactivate")}
           </Button>
           <OffboardDialog
             open={confirming}
@@ -323,6 +343,7 @@ function OffboardDialog({
   /** They left before this flow existed — this is only about their work. */
   alreadyGone?: boolean;
 }) {
+  const t = useT();
   const deactivate = useDeactivateMember();
   const holdings = useMemberHoldings(open ? member.id : null);
   const [destination, setDestination] = useState<string>(UNASSIGNED);
@@ -336,38 +357,58 @@ function OffboardDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {alreadyGone ? `Move ${name}'s work?` : `Remove ${name}?`}
+            {alreadyGone
+              ? t("appShell.teamMoveWorkTitle", { name })
+              : t("appShell.teamRemoveTitle", { name })}
           </DialogTitle>
           <DialogDescription>
             {alreadyGone
-              ? `${name} already left, but work was left pointing at them. Send it somewhere a person will look.`
-              : "They lose access right away — signed out everywhere, and notifications stop reaching their phone. Their past messages stay theirs."}
+              ? t("appShell.teamAlreadyLeftBody", { name })
+              : t("appShell.teamRemoveBody")}
           </DialogDescription>
         </DialogHeader>
 
         {holdings.isPending ? (
           <p className="text-sm text-muted-foreground">
-            Checking what {name} is working on…
+            {t("appShell.teamCheckingHoldings", { name })}
           </p>
         ) : hasWork ? (
           <div className="space-y-3">
+            {/* Three fragments: the two counts are bold inside the sentence,
+                so a single key would have to carry markup. */}
             <p className="text-sm">
-              {name} is still on{" "}
-              <strong>{plural(holdings.data?.conversations ?? 0, "conversation")}</strong>{" "}
-              and <strong>{plural(holdings.data?.tasks ?? 0, "task")}</strong>.
-              Where should that go?
+              {t("appShell.teamStillOnBefore", { name })}{" "}
+              <strong>
+                {plural(
+                  holdings.data?.conversations ?? 0,
+                  t("appShell.countConversationOne"),
+                  t("appShell.countConversationMany"),
+                )}
+              </strong>{" "}
+              {t("appShell.teamStillOnBetween")}{" "}
+              <strong>
+                {plural(
+                  holdings.data?.tasks ?? 0,
+                  t("appShell.countTaskOne"),
+                  t("appShell.countTaskMany"),
+                )}
+              </strong>
+              {t("appShell.teamStillOnAfter")}
             </p>
             <Select value={destination} onValueChange={setDestination}>
-              <SelectTrigger aria-label="Hand their work to">
+              <SelectTrigger aria-label={t("appShell.teamHandWorkToAria")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={UNASSIGNED}>
-                  Leave it unassigned for the crew
+                  {t("appShell.teamLeaveUnassigned")}
                 </SelectItem>
                 {teammates.map((mate) => (
                   <SelectItem key={mate.user_id} value={mate.user_id}>
-                    Hand it to {mate.display_name || "a teammate"}
+                    {t("appShell.teamHandItTo", {
+                      name:
+                        mate.display_name || t("appShell.teamATeammate"),
+                    })}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -375,13 +416,13 @@ function OffboardDialog({
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            {name} isn&apos;t holding any open conversations or tasks.
+            {t("appShell.teamHoldsNothing", { name })}
           </p>
         )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {alreadyGone ? "Cancel" : "Keep them"}
+            {alreadyGone ? t("common.cancel") : t("appShell.teamKeepThem")}
           </Button>
           <Button
             variant={alreadyGone ? "default" : "destructive"}
@@ -403,23 +444,31 @@ function OffboardDialog({
                     // Say what actually happened, not just that it did.
                     const moved =
                       result.conversations_moved + result.tasks_moved;
+                    const items = plural(
+                      moved,
+                      t("appShell.countItemOne"),
+                      t("appShell.countItemMany"),
+                    );
                     const where =
                       destination === UNASSIGNED
-                        ? `${plural(moved, "item")} left for the crew`
-                        : `${plural(moved, "item")} handed on`;
+                        ? t("appShell.teamItemsLeftForCrew", { items })
+                        : t("appShell.teamItemsHandedOn", { items });
                     toast.success(
                       alreadyGone
                         ? `${where.charAt(0).toUpperCase()}${where.slice(1)}.`
                         : moved === 0
-                          ? `${name} removed.`
-                          : `${name} removed. ${where}.`,
+                          ? t("appShell.teamMemberRemoved", { name })
+                          : t("appShell.teamMemberRemovedWithWork", {
+                              name,
+                              where,
+                            }),
                     );
                   },
                   onError: (cause) =>
                     toast.error(
                       cause instanceof ApiError
                         ? cause.message
-                        : "Couldn't remove them. Try again.",
+                        : t("appShell.teamRemoveFailed"),
                     ),
                 },
               )
@@ -427,11 +476,11 @@ function OffboardDialog({
           >
             {deactivate.isPending
               ? alreadyGone
-                ? "Moving…"
-                : "Removing…"
+                ? t("appShell.teamMoving")
+                : t("appShell.teamRemoving")
               : alreadyGone
-                ? "Move the work"
-                : "Remove"}
+                ? t("appShell.teamMoveTheWork")
+                : t("appShell.teamRemove")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -439,9 +488,14 @@ function OffboardDialog({
   );
 }
 
-/** "1 task" / "3 tasks" — the count belongs in the sentence, not beside it. */
-function plural(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+/**
+ * "1 task" / "3 tasks" — the count belongs in the sentence, not beside it.
+ *
+ * Both forms are passed IN rather than an "s" appended, because the plural of
+ * a French noun is not the singular plus a letter this function knows.
+ */
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
 }
 
 function isPendingInvite(invite: Invite, now: Date): boolean {
@@ -453,6 +507,7 @@ function isPendingInvite(invite: Invite, now: Date): boolean {
 }
 
 function InviteRow({ invite }: { invite: Invite }) {
+  const t = useT();
   const revoke = useRevokeInvite();
   const expired = new Date(invite.expires_at).getTime() <= Date.now();
 
@@ -461,10 +516,15 @@ function InviteRow({ invite }: { invite: Invite }) {
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm">{invite.email}</p>
         <p className="text-xs text-muted-foreground">
-          {ROLE_LABELS[invite.role]} ·{" "}
+          {roleLabels(t)[invite.role]} ·{" "}
           {expired
-            ? "Expired, doesn't hold a seat"
-            : `Expires ${new Date(invite.expires_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`}
+            ? t("appShell.teamInviteExpired")
+            : t("appShell.teamInviteExpires", {
+                date: new Date(invite.expires_at).toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                }),
+              })}
         </p>
         {/* #521: what this person will be told, still readable by the person
             who wrote it. There is no way to change a note once the invite
@@ -488,35 +548,35 @@ function InviteRow({ invite }: { invite: Invite }) {
         size="sm"
         className="text-muted-foreground"
         disabled={expired}
-        aria-label={`Copy invite link for ${invite.email}`}
+        aria-label={t("appShell.teamCopyInviteAria", { email: invite.email })}
         onClick={() => {
           void navigator.clipboard
             .writeText(`${window.location.origin}/invite/${invite.id}`)
-            .then(() => toast.success("Invite link copied."))
-            .catch(() => toast.error("Couldn't copy the link."));
+            .then(() => toast.success(t("appShell.teamInviteLinkCopied")))
+            .catch(() => toast.error(t("appShell.teamInviteLinkCopyFailed")));
         }}
       >
-        Copy link
+        {t("appShell.teamCopyLink")}
       </Button>
       <Button
         variant="ghost"
         size="sm"
         className="text-muted-foreground hover:text-destructive"
         disabled={revoke.isPending}
-        aria-label={`Revoke invite for ${invite.email}`}
+        aria-label={t("appShell.teamRevokeInviteAria", { email: invite.email })}
         onClick={() =>
           revoke.mutate(invite.id, {
-            onSuccess: () => toast.success("Invite revoked."),
+            onSuccess: () => toast.success(t("appShell.teamInviteRevoked")),
             onError: (cause) =>
               toast.error(
                 cause instanceof ApiError
                   ? cause.message
-                  : "Couldn't revoke the invite. Try again.",
+                  : t("appShell.teamInviteRevokeFailed"),
               ),
           })
         }
       >
-        Revoke
+        {t("appShell.teamRevoke")}
       </Button>
     </div>
   );
@@ -536,11 +596,12 @@ const NOTE_MAX = 500;
  */
 const NOTE_COUNTDOWN_FROM = 50;
 
-/**
- * What the field actually promises, kept as one literal because
- * `packages/shared/src/member-orientation-copy.test.ts` reads this file as text
- * to hold the three clients to the same sentence, and a wrapped JSX string is
- * not the sentence any more.
+/*
+ * #228: what the field promises now lives in `i18n/sections/appShell.ts` as
+ * `teamNoteDescription`, with the invite label beside it.
+ * `packages/shared/src/member-orientation-copy.test.ts` still holds the three
+ * clients to one sentence — it reads the catalogue alongside this file, because
+ * the words moved and the parity requirement did not.
  *
  * It says "when they join" and nothing about mail on purpose. A brand new
  * address is invited by Supabase Auth from a template this repo does not own,
@@ -548,47 +609,57 @@ const NOTE_COUNTDOWN_FROM = 50;
  * already has an account renders one. What is true of every invite is that the
  * note is read once, on the way in, and cannot be edited afterwards.
  */
-const NOTE_DESCRIPTION =
-  "They see this once, when they join. You cannot change it after the invite goes out.";
 
-// Mirrors the API invite schema (apps/api/src/routes/team.ts): a real email +
-// role admin|member (owner never assignable) + an optional note.
-const inviteSchema = z.object({
-  email: z.email("Enter a valid email address."),
-  role: z.enum(["admin", "member"]),
-  /**
-   * Optional the whole way down: no minimum, nothing required, and nothing
-   * here can hold up an invite that leaves it blank. The cap is the API's,
-   * restated so the only route to its 422 is defeating the field's own
-   * maxLength.
-   */
-  note: z
-    .string()
-    .max(NOTE_MAX, `Keep the note under ${NOTE_MAX} characters.`),
-});
-type InviteValues = z.infer<typeof inviteSchema>;
+/*
+ * Mirrors the API invite schema (apps/api/src/routes/team.ts): a real email +
+ * role admin|member (owner never assignable) + an optional note.
+ *
+ * A factory rather than a module-level constant, because both messages are
+ * COPY — the reader meets them under the field, in the same breath as every
+ * other sentence on this page. The cap message was the one that hid: the count
+ * is interpolated, so it was invisible to the guard's JSX-text rule for as long
+ * as that rule treated an interpolation as a wall.
+ */
+function makeInviteSchema(t: Translate) {
+  return z.object({
+    email: z.email(t("appShell.teamInviteEmailInvalid")),
+    role: z.enum(["admin", "member"]),
+    /**
+     * Optional the whole way down: no minimum, nothing required, and nothing
+     * here can hold up an invite that leaves it blank. The cap is the API's,
+     * restated so the only route to its 422 is defeating the field's own
+     * maxLength.
+     */
+    note: z
+      .string()
+      .max(NOTE_MAX, t("appShell.teamInviteNoteTooLong", { max: NOTE_MAX })),
+  });
+}
+type InviteValues = z.infer<ReturnType<typeof makeInviteSchema>>;
 
 /** Invite form + pending list — rendered for owners/admins only (the API 403s members). */
 function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
+  const t = useT();
   const company = useCompany();
   const invites = useInvites();
   const createInvite = useCreateInvite();
+  const schema = useMemo(() => makeInviteSchema(t), [t]);
   const form = useForm<InviteValues>({
-    resolver: zodResolver(inviteSchema),
+    resolver: zodResolver(schema),
     defaultValues: { email: "", role: "member", note: "" },
   });
   const noteLeft = NOTE_MAX - form.watch("note").length;
 
   if (invites.isPending || company.isPending) {
     return (
-      <SettingsCard title="Invites">
+      <SettingsCard title={t("appShell.teamInvitesTitle")}>
         <Skeleton className="h-16 w-full" />
       </SettingsCard>
     );
   }
   if (invites.isError || company.isError) {
     return (
-      <SettingsCard title="Invites">
+      <SettingsCard title={t("appShell.teamInvitesTitle")}>
         <LoadError
           onRetry={() => {
             void invites.refetch();
@@ -625,7 +696,9 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
         onSuccess: (created) => {
           form.reset({ email: "", role: "member", note: "" });
           if (created.email_sent) {
-            toast.success(`Invite sent to ${values.email}.`);
+            toast.success(
+              t("appShell.teamInviteSent", { email: values.email }),
+            );
           } else {
             // #109: every invite is emailed automatically now (new addresses
             // via Supabase Auth, existing accounts via a direct email).
@@ -633,7 +706,7 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
             // inviter at the shareable link so the teammate isn't silently
             // stranded.
             toast.warning(
-              `The invite is saved, but we couldn't email ${values.email} — use "Copy link" below to send it to them.`,
+              t("appShell.teamInviteEmailFailed", { email: values.email }),
               { duration: 8000 },
             );
           }
@@ -643,7 +716,7 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
             message:
               cause instanceof ApiError
                 ? cause.message
-                : "Couldn't send the invite. Try again.",
+                : t("appShell.teamInviteSendFailed"),
           }),
       },
     );
@@ -651,8 +724,8 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
 
   return (
     <SettingsCard
-      title="Invites"
-      description="Teammates get an email link that adds them to this workspace. If they already have a Loonext account, share their invite link instead."
+      title={t("appShell.teamInvitesTitle")}
+      description={t("appShell.teamInvitesDescription")}
       footer={
         seats.canUpgrade ? (
           // #392. At 3 of 3 the owner has a real person in front of them and a
@@ -663,12 +736,14 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
           // Paywalls (a CTA at the decision point, with a chevron, not prose).*
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">
-              {seats.used} of {seats.limit} seats. Upgrade to add more of your
-              crew.
+              {t("appShell.teamSeatsFull", {
+                used: seats.used,
+                limit: seats.limit,
+              })}
             </p>
             <Button asChild size="sm" variant="outline">
               <Link href="/settings/billing?reason=seats">
-                See plans
+                {t("appShell.teamSeePlans")}
                 <ChevronRight className="size-4" aria-hidden />
               </Link>
             </Button>
@@ -693,7 +768,7 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
               name="email"
               render={({ field }) => (
                 <FormItem className="flex-1">
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>{t("appShell.teamEmailLabel")}</FormLabel>
                   <FormControl>
                     <Input
                       type="email"
@@ -713,7 +788,7 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
               name="role"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Role</FormLabel>
+                  <FormLabel>{t("appShell.teamRoleLabel")}</FormLabel>
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
@@ -733,9 +808,9 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
                       ).map((value) => (
                         <SelectItem key={value} value={value}>
                           <span className="flex flex-col gap-0.5 py-0.5">
-                            <span>{ROLE_LABELS[value]}</span>
+                            <span>{roleLabels(t)[value]}</span>
                             <span className="text-xs text-muted-foreground whitespace-normal">
-                              {ROLE_BLURBS[value]}
+                              {roleBlurbs(t)[value]}
                             </span>
                           </span>
                         </SelectItem>
@@ -755,12 +830,12 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
             name="note"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>What to tell them (optional)</FormLabel>
+                <FormLabel>{t("appShell.teamNoteLabel")}</FormLabel>
                 <FormControl>
                   <Textarea
                     rows={2}
                     maxLength={NOTE_MAX}
-                    placeholder="What they'll be doing, or anything they should know on day one."
+                    placeholder={t("appShell.teamNotePlaceholder")}
                     disabled={seats.full}
                     {...field}
                   />
@@ -775,10 +850,16 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
                     case readers announce least reliably. Nothing else in here
                     ever changes, so the count is the only thing spoken. */}
                 <FormDescription aria-live="polite">
-                  {NOTE_DESCRIPTION}
+                  {t("appShell.teamNoteDescription")}
                   {noteLeft <= NOTE_COUNTDOWN_FROM && (
                     <span className="mt-1 block text-xs tabular-nums">
-                      {plural(noteLeft, "character")} left
+                      {t("appShell.teamNoteCharactersLeft", {
+                        characters: plural(
+                          noteLeft,
+                          t("appShell.countCharacterOne"),
+                          t("appShell.countCharacterMany"),
+                        ),
+                      })}
                     </span>
                   )}
                 </FormDescription>
@@ -791,7 +872,9 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
               type="submit"
               disabled={seats.full || createInvite.isPending}
             >
-              {createInvite.isPending ? "Sending…" : "Invite"}
+              {createInvite.isPending
+                ? t("appShell.teamSendingInvite")
+                : t("appShell.teamInviteAction")}
             </Button>
           </div>
         </form>
@@ -813,6 +896,7 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
 }
 
 export default function TeamSettingsPage() {
+  const t = useT();
   const { role, userId } = useActiveCompany();
   const members = useMembers();
   // #314: the workspace's two-factor policy lives on the company view, so the
@@ -832,12 +916,12 @@ export default function TeamSettingsPage() {
 
   return (
     <SettingsPage
-      title="Team"
-      description="Who can see and answer your customers' texts."
+      title={t("appShell.teamTitle")}
+      description={t("appShell.teamDescription")}
     >
       <div className="space-y-6">
         {members.isPending ? (
-          <div className="space-y-3" aria-label="Loading team">
+          <div className="space-y-3" aria-label={t("appShell.teamLoading")}>
             <Skeleton className="h-16 w-full rounded-lg" />
             <Skeleton className="h-16 w-full rounded-lg" />
           </div>
@@ -845,7 +929,7 @@ export default function TeamSettingsPage() {
           <LoadError onRetry={() => members.refetch()} />
         ) : (
           <>
-            <SettingsCard title="Members">
+            <SettingsCard title={t("appShell.teamMembersTitle")}>
               <div className="divide-y">
                 {active?.map((member) => (
                   <MemberRow
@@ -864,7 +948,7 @@ export default function TeamSettingsPage() {
               {deactivated && deactivated.length > 0 && (
                 <div className="mt-2 border-t pt-2">
                   <p className="pt-1 text-xs font-medium text-muted-foreground">
-                    Deactivated
+                    {t("appShell.teamDeactivatedHeading")}
                   </p>
                   <div className="divide-y opacity-60">
                     {deactivated.map((member) => (
@@ -898,7 +982,7 @@ export default function TeamSettingsPage() {
               <InvitesSection activeMemberCount={countActiveMembers(active ?? [])} />
             ) : (
               <p className="text-sm text-muted-foreground">
-                Only owners and admins can invite or deactivate teammates.
+                {t("appShell.teamOwnersOnly")}
               </p>
             )}
           </>

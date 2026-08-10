@@ -7,6 +7,7 @@ import { hostedReviewOnly } from "@/components/registration/registration-ui-stat
 import { Button } from "@/components/ui/button";
 import { NumberReveal } from "@/components/ui/number-reveal";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { useMeCompany } from "@/lib/api/me-company";
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatPhone } from "@/lib/format/phone";
@@ -24,6 +25,7 @@ export function FilteredEmptyState({
   snoozed,
   awaiting,
 }: { snoozed?: boolean; awaiting?: boolean } = {}) {
+  const t = useT();
   return (
     <div className="flex flex-1 items-center justify-center p-10">
       <p className="text-[15px] text-muted-foreground">
@@ -34,10 +36,10 @@ export function FilteredEmptyState({
             give, so it is said as the result it is. Same sentence on all three
             clients. */}
         {awaiting
-          ? "Everyone has been answered."
+          ? t("inbox.emptyEveryoneAnswered")
           : snoozed
-            ? "Nothing snoozed."
-            : "Nothing waiting on you."}
+            ? t("inbox.emptyNothingSnoozed")
+            : t("inbox.emptyNothingWaiting")}
       </p>
     </div>
   );
@@ -55,6 +57,7 @@ export function FilteredEmptyState({
  * and a canceled company is pointed at billing — never the provisioning line.
  */
 export function ActivationEmptyState() {
+  const t = useT();
   const me = useMeCompany();
   const { role } = useActiveCompany();
 
@@ -82,13 +85,13 @@ export function ActivationEmptyState() {
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
           <p className="max-w-xs text-sm text-muted-foreground">
             {canAct
-              ? "One step left: finish checkout to get your business number and start texting."
-              : "Checkout isn't finished yet. Ask your account owner to complete it, then your business number appears here."}
+              ? t("inbox.activationCheckoutOwner")
+              : t("inbox.activationCheckoutMember")}
           </p>
           {canAct && (
             <Button asChild size="sm">
               {/* /onboarding resumes at the exact step left off (G7). */}
-              <Link href="/onboarding">Finish setting up</Link>
+              <Link href="/onboarding">{t("inbox.activationFinishSetup")}</Link>
             </Button>
           )}
         </div>
@@ -100,12 +103,14 @@ export function ActivationEmptyState() {
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
           <p className="max-w-xs text-sm text-muted-foreground">
             {canAct
-              ? "Your subscription is canceled, so there's no active number. Restart it from billing to keep texting."
-              : "Your subscription is canceled, so there's no active number. Ask your account owner to restart it."}
+              ? t("inbox.activationCanceledOwner")
+              : t("inbox.activationCanceledMember")}
           </p>
           {canAct && (
             <Button asChild size="sm" variant="outline">
-              <Link href="/settings/billing">Go to billing</Link>
+              <Link href="/settings/billing">
+                {t("inbox.activationGoToBilling")}
+              </Link>
             </Button>
           )}
         </div>
@@ -124,7 +129,7 @@ export function ActivationEmptyState() {
             href="/settings/numbers"
             className="text-sm font-medium text-primary underline-offset-4 hover:underline"
           >
-            See progress in Settings
+            {t("inbox.activationSeeProgress")}
           </Link>
         </div>
       );
@@ -152,10 +157,10 @@ export function ActivationEmptyState() {
       <NumberReveal
         value={display}
         copyable
-        copyLabel="Copy your business number"
+        copyLabel={t("inbox.activationCopyNumber")}
         // Center the number+copy row; constrain the caption to a calm measure.
         className="flex flex-col items-center [&>div:first-child]:justify-center [&>p]:max-w-[280px] [&>p]:text-[15px] [&>p]:leading-relaxed"
-        caption="This is your business number. Text it from your phone right now, and your message will appear here."
+        caption={t("inbox.activationCaption")}
       />
     </div>
   );

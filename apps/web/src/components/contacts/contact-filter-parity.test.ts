@@ -15,9 +15,23 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { contactsEn } from "@/i18n/sections/contacts";
+
 import { parityCode } from "./parity-source";
 
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
+
+/**
+ * #228 — web's chip labels live in the catalogue now.
+ *
+ * THE KEYS ARE LISTED, not `Object.values(contactsEn)`. Joining the whole
+ * section makes every assertion below a substring search over ~200 unrelated
+ * sentences, and "Everyone" appears inside "Everyone in this file agreed to be
+ * texted by this business." — so this guard passed with the chip renamed to
+ * "All people". Found by making exactly that change. The two keys named here
+ * are the two chips this test is about.
+ */
+const WEB_WORDS = [contactsEn.filterEveryone, contactsEn.notSet].join("\n");
 
 const SOURCES: Record<string, string> = {
   web: join(REPO_ROOT, "apps/web/src/components/contacts/contact-filter.tsx"),
@@ -64,7 +78,8 @@ describe("#291 the contacts filter reads the same everywhere", () => {
   it("labels the chips the same way on every client", () => {
     for (const sentence of ["Everyone", "Not set"]) {
       for (const [platform, path] of Object.entries(SOURCES)) {
-        expect(code(path), `${platform}: ${sentence}`).toContain(sentence);
+        const text = platform === "web" ? WEB_WORDS : code(path);
+        expect(text, `${platform}: ${sentence}`).toContain(sentence);
       }
     }
   });
@@ -91,7 +106,9 @@ describe("#291 the contacts filter reads the same everywhere", () => {
       const reachesIt =
         text.includes("Nobody matches that yet") ||
         text.includes("CONTACT_FILTER_EMPTY_TITLE") ||
-        text.includes("contactFilterEmptyTitle");
+        text.includes("contactFilterEmptyTitle") ||
+        // #228: web reaches it through the catalogue key.
+        text.includes("contacts.filteredEmptyTitle");
       expect(reachesIt, `${platform}: no filtered-empty state`).toBe(true);
     }
   });

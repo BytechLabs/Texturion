@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { normalizeNanpInput } from "@/components/inbox/e164";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useCreateTextEnablement } from "@/lib/api/text-enablement";
 
@@ -28,6 +29,7 @@ import { useCreateTextEnablement } from "@/lib/api/text-enablement";
  * (US/CA local geographic, company country) and claims the plan slot.
  */
 export function StartTextEnableDialog() {
+  const t = useT();
   const create = useCreateTextEnablement();
 
   const [open, setOpen] = useState(false);
@@ -46,20 +48,18 @@ export function StartTextEnableDialog() {
     setError(null);
     const e164 = normalizeNanpInput(raw);
     if (!e164) {
-      setError("Enter your US or Canada business number, like +16135551234.");
+      setError(t("settingsMore.textEnableNumberInvalid"));
       return;
     }
     try {
       await create.mutateAsync(e164);
-      toast.success(
-        "Text-enablement started. Upload your signed authorization and a recent bill next.",
-      );
+      toast.success(t("settingsMore.textEnableStarted"));
       onOpenChange(false);
     } catch (cause) {
       setError(
         cause instanceof ApiError
           ? cause.message
-          : "Couldn't start text-enabling this number. Try again in a moment.",
+          : t("settingsMore.textEnableStartFailed"),
       );
     }
   }
@@ -67,23 +67,22 @@ export function StartTextEnableDialog() {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline">Text-enable a landline</Button>
+        <Button variant="outline">
+          {t("settingsMore.textEnableTrigger")}
+        </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Text-enable your existing landline</DialogTitle>
+          <DialogTitle>{t("settingsMore.textEnableDialogTitle")}</DialogTitle>
           <DialogDescription>
-            Your number and your carrier stay exactly as they are; calls
-            don&apos;t change. Loonext adds texting to the number; the carrier
-            review usually takes a few business days, and texting goes live
-            once it completes.
+            {t("settingsMore.textEnableDialogBody")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="start-text-enable-number">
-              Number to text-enable
+              {t("settingsMore.textEnableNumberLabel")}
             </Label>
             <Input
               id="start-text-enable-number"
@@ -98,8 +97,7 @@ export function StartTextEnableDialog() {
               className="tabular-nums"
             />
             <p className="text-[13px] text-muted-foreground">
-              A US or Canada local landline or VoIP number. You&apos;ll upload
-              a signed authorization and a recent bill for the carrier next.
+              {t("settingsMore.textEnableNumberHint")}
             </p>
           </div>
 
@@ -111,13 +109,15 @@ export function StartTextEnableDialog() {
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={() => void onStart()}
               disabled={create.isPending}
             >
-              {create.isPending ? "Starting…" : "Start text-enablement"}
+              {create.isPending
+                ? t("settingsMore.regStarting")
+                : t("settingsMore.textEnableStartAction")}
             </Button>
           </div>
         </div>

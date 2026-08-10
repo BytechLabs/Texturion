@@ -18,6 +18,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useT } from "@/i18n/provider";
 import {
   trackCheckoutStarted,
   trackPlanBuilderViewed,
@@ -63,6 +64,7 @@ const offerableModuleCards = PLAN_MODULE_CARDS.filter(
 );
 
 function PlanStep() {
+  const t = useT();
   const { state, ready } = useWizardStepGuard("plan");
   const searchParams = useSearchParams();
   const checkout = useOnboardingCheckout();
@@ -193,9 +195,12 @@ function PlanStep() {
       const message =
         cause instanceof ApiError
           ? cause.message
-          : "We couldn't open checkout. This is usually a brief connection hiccup. Check your connection and try again.";
+          : t("onboarding.checkoutOpenFailed");
       toast.error(message, {
-        action: { label: "Try again", onClick: () => void choose(plan) },
+        action: {
+          label: t("common.retry"),
+          onClick: () => void choose(plan),
+        },
       });
     }
   }
@@ -205,8 +210,8 @@ function PlanStep() {
       backHref={previousStepHref("plan", state.snapshot) ?? undefined}
       index={progress.index}
       total={progress.total}
-      title="Pick your plan"
-      subtitle="One flat price for your whole crew. No contracts. Cancel any time."
+      title={t("onboarding.planTitle")}
+      subtitle={t("onboarding.planSubtitle")}
     >
       <div className="space-y-6">
         {canceledReturn ? (
@@ -214,8 +219,7 @@ function PlanStep() {
             role="status"
             className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground"
           >
-            Checkout was canceled. You haven&apos;t been charged. Pick a plan
-            whenever you&apos;re ready.
+            {t("onboarding.checkoutCanceled")}
           </p>
         ) : null}
 
@@ -237,7 +241,7 @@ function PlanStep() {
             "Continue to checkout" button commits — plan isn't charged on tap. */}
         <div
           role="radiogroup"
-          aria-label="Plan"
+          aria-label={t("onboarding.planGroupAria")}
           className="grid gap-4 sm:grid-cols-2"
         >
           {PLANS.map((plan) => {
@@ -279,7 +283,9 @@ function PlanStep() {
                 <p className="mt-1 flex items-baseline gap-1.5">
                   {/* §3.4: the price in the tokens-track emotional-number scale. */}
                   <span className="app-emotional-number">{plan.price}</span>
-                  <span className="text-sm text-muted-foreground">/month</span>
+                  <span className="text-sm text-muted-foreground">
+                    {t("onboarding.perMonth")}
+                  </span>
                 </p>
                 {/* #381: the same price in the unit it is actually felt in.
                     *Applying: Contrast & Anchoring.* */}
@@ -298,8 +304,7 @@ function PlanStep() {
                 </ul>
                 {plan.id === "pro" && soleProp ? (
                   <p className="mt-3 text-[13px] text-muted-foreground">
-                    Sole proprietor registrations are limited to 1 number by
-                    carriers. Pro still adds teammates and texts.
+                    {t("onboarding.soleProp1Number")}
                   </p>
                 ) : null}
               </button>
@@ -316,10 +321,11 @@ function PlanStep() {
             render a heading over an empty list. */}
         {offerableModuleCards.length > 0 && (
           <div className="rounded-lg border border-border bg-card p-5">
-            <h2 className="text-[15px] font-medium">Add-ons</h2>
+            <h2 className="text-[15px] font-medium">
+              {t("onboarding.addOnsTitle")}
+            </h2>
             <p className="mt-1 text-[13px] text-muted-foreground">
-              Optional. Turn on only what you need. Add or remove them any
-              time.
+              {t("onboarding.addOnsHint")}
             </p>
             <div className="mt-4 space-y-2">
               {offerableModuleCards.map((mod) => (
@@ -339,18 +345,16 @@ function PlanStep() {
 
         {owesFee ? (
           <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            + {registrationFee} one-time carrier registration (US texting)
+            {t("onboarding.registrationFeeLine", { fee: registrationFee })}
             <Tooltip>
               <TooltipTrigger
-                aria-label="Why the registration fee?"
+                aria-label={t("onboarding.registrationFeeAria")}
                 className="rounded-full focus-visible:outline-2 focus-visible:outline-ring"
               >
                 <Info className="size-4" strokeWidth={1.75} aria-hidden />
               </TooltipTrigger>
               <TooltipContent className="max-w-64">
-                US carriers require every business to register before texting
-                customers. This covers their registration and vetting fees,
-                charged once, ever. We file the paperwork for you.
+                {t("onboarding.registrationFeeTooltip")}
               </TooltipContent>
             </Tooltip>
           </p>
@@ -361,7 +365,9 @@ function PlanStep() {
             language, no wall of compliance text. */}
         <div className="rounded-lg border border-border bg-card p-5">
           <h2 className="text-[15px] font-medium">
-            {porting ? "Bringing your number over" : "What happens after you pay"}
+            {porting
+              ? t("onboarding.portingTimelineTitle")
+              : t("onboarding.afterYouPayTitle")}
           </h2>
           <ul className="mt-3 space-y-2">
             {timeline.map((line) => (
@@ -387,13 +393,12 @@ function PlanStep() {
           disabled={choosing !== null}
         >
           {choosing !== null
-            ? "Sending you to checkout…"
-            : "Continue to checkout"}
+            ? t("onboarding.sendingToCheckout")
+            : t("onboarding.continueToCheckout")}
         </Button>
 
         <p className="text-[13px] text-muted-foreground">
-          A &ldquo;text&rdquo; is one 160-character message segment. Long
-          texts and emoji use more than one. Incoming texts never count.
+          {t("onboarding.textDefinition")}
         </p>
 
         {formError ? (

@@ -9,6 +9,7 @@ import { capabilitiesOf } from "@loonext/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useExportContactHistory } from "@/lib/api/exports";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -44,6 +45,7 @@ import { useActiveCompany } from "@/lib/company/provider";
  *   that has a consequence for the person acting.*
  */
 export function ExportHistory({ contactId }: { contactId: string }) {
+  const t = useT();
   const { role } = useActiveCompany();
   const request = useExportContactHistory(contactId);
   const [open, setOpen] = useState(false);
@@ -66,13 +68,17 @@ export function ExportHistory({ contactId }: { contactId: string }) {
       });
       setOpen(false);
       toast.success(
-        result.already_building
-          ? "One is already being put together. It will appear in Settings › Data export."
-          : "Being put together now. It will appear in Settings › Data export.",
+        t(
+          result.already_building
+            ? "contacts.exportAlreadyBuilding"
+            : "contacts.exportBuilding",
+        ),
       );
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "That could not be started.",
+        cause instanceof ApiError
+          ? cause.message
+          : t("contacts.exportStartFailed"),
       );
     }
   }
@@ -80,10 +86,12 @@ export function ExportHistory({ contactId }: { contactId: string }) {
   if (!open) {
     return (
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">{EXPORT_HISTORY_BLURB}</p>
+        <p className="text-sm text-muted-foreground">
+          {t("contacts.exportHistoryBlurb")}
+        </p>
         <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
           <FileText className="size-3.5" strokeWidth={1.75} aria-hidden />
-          {EXPORT_HISTORY_ACTION}
+          {t("contacts.exportHistoryAction")}
         </Button>
       </div>
     );
@@ -91,11 +99,13 @@ export function ExportHistory({ contactId }: { contactId: string }) {
 
   return (
     <div className="space-y-3 rounded-app-input border border-app-line bg-app-paper p-3">
-      <p className="text-sm text-muted-foreground">{EXPORT_HISTORY_BLURB}</p>
+      <p className="text-sm text-muted-foreground">
+        {t("contacts.exportHistoryBlurb")}
+      </p>
       <div className="flex flex-wrap items-end gap-2">
         <div className="space-y-1">
           <Label htmlFor="export-from" className="text-[12px]">
-            From
+            {t("contacts.exportFrom")}
           </Label>
           <Input
             id="export-from"
@@ -106,7 +116,7 @@ export function ExportHistory({ contactId }: { contactId: string }) {
         </div>
         <div className="space-y-1">
           <Label htmlFor="export-to" className="text-[12px]">
-            To
+            {t("contacts.exportTo")}
           </Label>
           <Input
             id="export-to"
@@ -117,24 +127,17 @@ export function ExportHistory({ contactId }: { contactId: string }) {
         </div>
       </div>
       {/* Both surprises, said before rather than after. */}
-      <p className="text-[12px] text-app-muted-2">{EXPORT_HISTORY_NOTE}</p>
+      <p className="text-[12px] text-app-muted-2">
+        {t("contacts.exportHistoryNote")}
+      </p>
       <div className="flex items-center gap-2">
         <Button size="sm" disabled={request.isPending} onClick={() => void submit()}>
-          Start it
+          {t("contacts.exportStart")}
         </Button>
         <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
-          Cancel
+          {t("common.cancel")}
         </Button>
       </div>
     </div>
   );
 }
-
-/** The words this surface owns, kept where the parity test can read them. */
-export const EXPORT_HISTORY_ACTION = "Export their messages";
-export const EXPORT_HISTORY_BLURB =
-  "A document of everything said with this customer, for an insurer, a lawyer " +
-  "or your own records.";
-export const EXPORT_HISTORY_NOTE =
-  "Leave the dates empty for the whole history. It is put together in the " +
-  "background, and the owner is told an export was taken.";

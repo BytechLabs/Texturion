@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { useCreateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
@@ -186,6 +187,7 @@ function asString(value: unknown): string {
 }
 
 export default function BusinessIdentityPage() {
+  const t = useT();
   const { state, ready } = useWizardStepGuard("business");
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -254,8 +256,10 @@ export default function BusinessIdentityPage() {
 
   const progress = stepProgress("business", state.snapshot);
   const hasEin = form.watch("hasEin");
-  const einName = country === "US" ? "EIN" : "Business Number";
-  const sinName = country === "US" ? "SSN" : "SIN";
+  const einName =
+    country === "US" ? t("onboarding.einNameUs") : t("onboarding.einNameCa");
+  const sinName =
+    country === "US" ? t("onboarding.sinNameUs") : t("onboarding.sinNameCa");
   const regions = country === "US" ? US_REGION_NAMES : CA_REGION_NAMES;
 
   // Already submitted to carriers → nothing to edit here (409 server-side).
@@ -265,19 +269,18 @@ export default function BusinessIdentityPage() {
         backHref={previousStepHref("business", state.snapshot) ?? undefined}
         index={progress.index}
         total={progress.total}
-        title="Tell us about your business"
+        title={t("onboarding.businessTitle")}
       >
         <div className="space-y-6">
           <p className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-            Your business details were already submitted to carriers. Nothing
-            more to do on this step.
+            {t("onboarding.businessLocked")}
           </p>
           <Button
             size="lg"
             className="w-full"
             onClick={() => router.push("/onboarding/texting")}
           >
-            Continue
+            {t("onboarding.continue")}
           </Button>
         </div>
       </StepShell>
@@ -363,7 +366,7 @@ export default function BusinessIdentityPage() {
       setFormError(
         cause instanceof ApiError
           ? cause.message
-          : "Something went wrong on our end. Try again in a moment.",
+          : t("onboarding.genericError"),
       );
     }
   }
@@ -375,8 +378,8 @@ export default function BusinessIdentityPage() {
       backHref={previousStepHref("business", state.snapshot) ?? undefined}
       index={progress.index}
       total={progress.total}
-      title="Tell us about your business"
-      subtitle="Carriers require this before a business can text customers. We file everything for you. It takes about 2 minutes."
+      title={t("onboarding.businessTitle")}
+      subtitle={t("onboarding.businessSubtitle")}
     >
       <Form {...form}>
         <form
@@ -390,7 +393,12 @@ export default function BusinessIdentityPage() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  Do you have an {country === "US" ? "EIN" : "EIN / Business Number"}?
+                  {t("onboarding.hasEinLabel", {
+                    idName:
+                      country === "US"
+                        ? t("onboarding.einNameUs")
+                        : t("onboarding.einQuestionCa"),
+                  })}
                 </FormLabel>
                 <FormControl>
                   <RadioGroup
@@ -400,8 +408,8 @@ export default function BusinessIdentityPage() {
                   >
                     {(
                       [
-                        ["yes", "Yes"],
-                        ["no", "No"],
+                        ["yes", t("onboarding.yes")],
+                        ["no", t("onboarding.no")],
                       ] as const
                     ).map(([value, label]) => (
                       <Label
@@ -421,8 +429,8 @@ export default function BusinessIdentityPage() {
                 </FormControl>
                 <FormDescription>
                   {country === "US"
-                    ? "An EIN is the 9-digit tax ID the IRS gave your business."
-                    : "The 9-digit number the CRA gave your business."}
+                    ? t("onboarding.einHintUs")
+                    : t("onboarding.einHintCa")}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -431,14 +439,9 @@ export default function BusinessIdentityPage() {
 
           {hasEin === "no" ? (
             <div className="space-y-4 rounded-lg border border-border bg-card p-4">
-              <p className="text-sm">
-                No problem. We&apos;ll register you as a sole proprietor.
-              </p>
+              <p className="text-sm">{t("onboarding.solePropLead")}</p>
               <p className="text-[13px] text-muted-foreground">
-                Same texting features. Carriers verify you with the last 4
-                digits of your {sinName} and a code texted to your phone. One
-                thing to know: sole proprietor registrations are limited to
-                one phone number.
+                {t("onboarding.solePropDetail", { idName: sinName })}
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <FormField
@@ -446,7 +449,7 @@ export default function BusinessIdentityPage() {
                   name="firstName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Legal first name</FormLabel>
+                      <FormLabel>{t("onboarding.legalFirstName")}</FormLabel>
                       <FormControl>
                         <Input autoComplete="given-name" {...field} />
                       </FormControl>
@@ -459,7 +462,7 @@ export default function BusinessIdentityPage() {
                   name="lastName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Legal last name</FormLabel>
+                      <FormLabel>{t("onboarding.legalLastName")}</FormLabel>
                       <FormControl>
                         <Input autoComplete="family-name" {...field} />
                       </FormControl>
@@ -473,7 +476,9 @@ export default function BusinessIdentityPage() {
                 name="last4"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Last 4 digits of your {sinName}</FormLabel>
+                    <FormLabel>
+                      {t("onboarding.last4Label", { idName: sinName })}
+                    </FormLabel>
                     <FormControl>
                       <Input
                         inputMode="numeric"
@@ -484,8 +489,7 @@ export default function BusinessIdentityPage() {
                       />
                     </FormControl>
                     <FormDescription>
-                      Carriers use it to confirm you&apos;re you. We only ever
-                      ask for, and store, the last 4.
+                      {t("onboarding.last4Hint")}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -496,7 +500,7 @@ export default function BusinessIdentityPage() {
                 name="mobilePhone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Your mobile number</FormLabel>
+                    <FormLabel>{t("onboarding.mobileLabel")}</FormLabel>
                     <FormControl>
                       <Input
                         type="tel"
@@ -506,8 +510,7 @@ export default function BusinessIdentityPage() {
                       />
                     </FormControl>
                     <FormDescription>
-                      We&apos;ll text a 6-digit verification code to this
-                      number after payment.
+                      {t("onboarding.mobileHint")}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -521,20 +524,20 @@ export default function BusinessIdentityPage() {
                 name="companyName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Legal business name</FormLabel>
+                    <FormLabel>{t("onboarding.legalBusinessName")}</FormLabel>
                     <FormControl>
                       <Input
                         autoComplete="organization"
                         placeholder={
                           country === "US"
-                            ? "Mike's Plumbing LLC"
-                            : "Mike's Plumbing Inc."
+                            ? t("onboarding.legalBusinessPlaceholderUs")
+                            : t("onboarding.legalBusinessPlaceholderCa")
                         }
                         {...field}
                       />
                     </FormControl>
                     <FormDescription>
-                      Carriers check this against government business records.
+                      {t("onboarding.legalBusinessNameHint")}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -555,8 +558,7 @@ export default function BusinessIdentityPage() {
                       />
                     </FormControl>
                     <FormDescription>
-                      Proves your business to carriers. It&apos;s never shown
-                      to customers.
+                      {t("onboarding.einHint")}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -570,13 +572,12 @@ export default function BusinessIdentityPage() {
             name="street"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Street address</FormLabel>
+                <FormLabel>{t("onboarding.streetLabel")}</FormLabel>
                 <FormControl>
                   <Input autoComplete="street-address" {...field} />
                 </FormControl>
                 <FormDescription>
-                  Carriers require a physical address on file. It&apos;s
-                  never shown to customers.
+                  {t("onboarding.streetHint")}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -588,7 +589,7 @@ export default function BusinessIdentityPage() {
               name="city"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>City</FormLabel>
+                  <FormLabel>{t("onboarding.cityLabel")}</FormLabel>
                   <FormControl>
                     <Input autoComplete="address-level2" {...field} />
                   </FormControl>
@@ -601,12 +602,20 @@ export default function BusinessIdentityPage() {
               name="state"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{country === "US" ? "State" : "Province"}</FormLabel>
+                  <FormLabel>
+                    {country === "US"
+                      ? t("onboarding.stateLabel")
+                      : t("onboarding.provinceLabel")}
+                  </FormLabel>
                   <Select value={field.value} onValueChange={field.onChange}>
                     <FormControl>
                       <SelectTrigger className="w-full">
                         <SelectValue
-                          placeholder={country === "US" ? "State" : "Province"}
+                          placeholder={
+                            country === "US"
+                              ? t("onboarding.stateLabel")
+                              : t("onboarding.provinceLabel")
+                          }
                         />
                       </SelectTrigger>
                     </FormControl>
@@ -628,7 +637,9 @@ export default function BusinessIdentityPage() {
               render={({ field }) => (
                 <FormItem className="col-span-2 sm:col-span-1">
                   <FormLabel>
-                    {country === "US" ? "ZIP code" : "Postal code"}
+                    {country === "US"
+                      ? t("onboarding.zipLabel")
+                      : t("onboarding.postalLabel")}
                   </FormLabel>
                   <FormControl>
                     <Input autoComplete="postal-code" {...field} />
@@ -644,7 +655,7 @@ export default function BusinessIdentityPage() {
             name="website"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Website (optional)</FormLabel>
+                <FormLabel>{t("onboarding.websiteLabel")}</FormLabel>
                 <FormControl>
                   <Input
                     type="url"
@@ -655,8 +666,7 @@ export default function BusinessIdentityPage() {
                   />
                 </FormControl>
                 <FormDescription>
-                  Carriers look for a real web presence. A Facebook or Google
-                  Business page counts.
+                  {t("onboarding.websiteHint")}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -669,12 +679,12 @@ export default function BusinessIdentityPage() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Contact email</FormLabel>
+                  <FormLabel>{t("onboarding.contactEmailLabel")}</FormLabel>
                   <FormControl>
                     <Input type="email" autoComplete="email" {...field} />
                   </FormControl>
                   <FormDescription>
-                    Where registration updates land.
+                    {t("onboarding.contactEmailHint")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -685,7 +695,7 @@ export default function BusinessIdentityPage() {
               name="phone"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Contact phone</FormLabel>
+                  <FormLabel>{t("onboarding.contactPhoneLabel")}</FormLabel>
                   <FormControl>
                     <Input
                       type="tel"
@@ -695,7 +705,7 @@ export default function BusinessIdentityPage() {
                     />
                   </FormControl>
                   <FormDescription>
-                    A number carriers can reach you at. Your cell is fine.
+                    {t("onboarding.contactPhoneHint")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -708,7 +718,7 @@ export default function BusinessIdentityPage() {
             name="vertical"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>What kind of work do you do?</FormLabel>
+                <FormLabel>{t("onboarding.verticalLabel")}</FormLabel>
                 <Select value={field.value} onValueChange={field.onChange}>
                   <FormControl>
                     <SelectTrigger className="w-full">
@@ -724,7 +734,7 @@ export default function BusinessIdentityPage() {
                   </SelectContent>
                 </Select>
                 <FormDescription>
-                  Tells carriers the kind of texts you&apos;ll send.
+                  {t("onboarding.verticalHint")}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -738,7 +748,7 @@ export default function BusinessIdentityPage() {
           ) : null}
 
           <Button type="submit" size="lg" className="w-full" disabled={saving}>
-            {saving ? "Saving…" : "Save and continue"}
+            {saving ? t("common.saving") : t("onboarding.saveAndContinue")}
           </Button>
         </form>
       </Form>

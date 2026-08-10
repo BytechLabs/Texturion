@@ -41,6 +41,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { useBillingPortal, usePauseOffer } from "@/lib/api/billing";
 import { useCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
@@ -59,14 +60,18 @@ function fullDate(iso: string | null): string | null {
 }
 
 function PortalButton({
-  label = "Manage payment & invoices",
+  label,
   variant = "outline",
 }: {
   label?: string;
   variant?: "outline" | "default";
 }) {
+  const t = useT();
   const portal = useBillingPortal();
   const [error, setError] = useState<string | null>(null);
+  // The default lives in the body rather than the signature: a default
+  // parameter is evaluated before any hook can run.
+  const text = label ?? t("appShell.billingManagePortal");
 
   return (
     <div className="space-y-2">
@@ -81,12 +86,12 @@ function PortalButton({
               setError(
                 cause instanceof ApiError
                   ? cause.message
-                  : "Couldn't open the billing portal. Try again.",
+                  : t("appShell.billingPortalFailed"),
               ),
           });
         }}
       >
-        {portal.isPending ? "Opening…" : label}
+        {portal.isPending ? t("appShell.billingOpening") : text}
         <ExternalLink strokeWidth={1.75} aria-hidden />
       </Button>
       {error && (
@@ -116,36 +121,40 @@ function PortalButton({
  *             skeleton exists to avoid.
  */
 function PlanStateBadge({ badge }: { badge: PlanBadge | null }) {
+  const t = useT();
   if (badge === "active") {
     return (
       <Badge className="border-transparent bg-success/10 text-success">
-        Active
+        {t("appShell.billingBadgeActive")}
       </Badge>
     );
   }
   if (badge === "paused") {
     return (
       <Badge className="border-transparent bg-warning/10 text-amber-800 dark:bg-warning/15 dark:text-warning">
-        Paused
+        {t("appShell.billingBadgePaused")}
       </Badge>
     );
   }
   if (badge === "checking") {
-    return <Badge variant="secondary">Checking…</Badge>;
+    return <Badge variant="secondary">{t("appShell.billingBadgeChecking")}</Badge>;
   }
   return null;
 }
 
 function StatusNotices({ company }: { company: CompanyView }) {
+  const t = useT();
   if (company.subscription_status === "past_due") {
     return (
       <div className="rounded-lg border border-warning/40 bg-warning/5 px-4 py-3">
         <p className="text-sm">
-          Your last payment didn&apos;t go through. Update your payment method
-          to keep sending messages.
+          {t("appShell.billingPastDue")}
         </p>
         <div className="mt-2">
-          <PortalButton label="Update payment method" variant="default" />
+          <PortalButton
+            label={t("appShell.billingUpdatePayment")}
+            variant="default"
+          />
         </div>
       </div>
     );
@@ -154,10 +163,13 @@ function StatusNotices({ company }: { company: CompanyView }) {
     return (
       <div className="rounded-lg border border-warning/40 bg-warning/5 px-4 py-3">
         <p className="text-sm">
-          Sending is paused until your payment method is updated.
+          {t("appShell.billingUnpaid")}
         </p>
         <div className="mt-2">
-          <PortalButton label="Update payment method" variant="default" />
+          <PortalButton
+            label={t("appShell.billingUpdatePayment")}
+            variant="default"
+          />
         </div>
       </div>
     );
@@ -189,18 +201,22 @@ function StatusNotices({ company }: { company: CompanyView }) {
             byte-for-byte identical whatever that read says. A sentence that
             reflows when a Stripe round trip lands is an exit that moves under
             somebody's thumb. PAGE-PAUSE-7 pins both halves. */}
+        {/* Head / when / tail rather than two whole sentences: the tail is the
+            qualified "texting stops" claim PAGE-PAUSE-7 pins, and two copies of
+            it is two chances for one of them to drift. */}
         <p className="text-sm">
-          Your plan is set to cancel
+          {t("appShell.billingCancelScheduled")}
           {company.current_period_end
-            ? ` on ${fullDate(company.current_period_end)}`
-            : " at the end of this period"}
-          . Texting stops then, if it has not stopped already. Your number is
-          held for {CANCELLATION_GRACE_DAYS} days from the day you cancelled —
-          not from that date — so it can be released soon afterwards. You can
-          undo this from the payment portal.
+            ? t("appShell.billingCancelOnDate", {
+                date: fullDate(company.current_period_end) ?? "",
+              })
+            : t("appShell.billingCancelAtPeriodEnd")}
+          {t("appShell.billingCancelTail", {
+            days: CANCELLATION_GRACE_DAYS,
+          })}
         </p>
         <div className="mt-2">
-          <PortalButton label="Keep my plan" />
+          <PortalButton label={t("appShell.billingKeepPlan")} />
         </div>
       </div>
     );
@@ -209,6 +225,7 @@ function StatusNotices({ company }: { company: CompanyView }) {
 }
 
 export default function BillingSettingsPage() {
+  const t = useT();
   const { role } = useActiveCompany();
   const company = useCompany();
   /**
@@ -287,9 +304,12 @@ export default function BillingSettingsPage() {
   const showsPlanTerms = readSaysRunning(pause) || pause.state === "unasked";
 
   return (
-    <SettingsPage title="Billing" description="Your plan and payment details.">
+    <SettingsPage
+      title={t("appShell.billingTitle")}
+      description={t("appShell.billingDescription")}
+    >
       {company.isPending ? (
-        <div className="space-y-4" aria-label="Loading billing">
+        <div className="space-y-4" aria-label={t("appShell.billingLoading")}>
           <Skeleton className="h-40 w-full rounded-lg" />
           <Skeleton className="h-20 w-full rounded-lg" />
         </div>
@@ -320,9 +340,9 @@ export default function BillingSettingsPage() {
           <OffRampCard />
 
           {company.data.subscription_status === "canceled" ? (
-            <SettingsCard title="Subscription">
+            <SettingsCard title={t("appShell.billingSubscription")}>
               <div className="space-y-3">
-                <p className="text-sm">Your subscription is canceled.</p>
+                <p className="text-sm">{t("appShell.billingCanceled")}</p>
 
                 {/* #277 follow-up: the answer to what they told us on the way
                     out, said once more while the number can still be saved.
@@ -342,13 +362,13 @@ export default function BillingSettingsPage() {
               </div>
             </SettingsCard>
           ) : company.data.plan === null ? (
-            <SettingsCard title="Plan">
+            <SettingsCard title={t("appShell.billingPlan")}>
               <p className="text-sm text-muted-foreground">
-                No plan yet. Finish setup to pick one and get your number.
+                {t("appShell.billingNoPlanYet")}
               </p>
             </SettingsCard>
           ) : (
-            <SettingsCard title="Plan">
+            <SettingsCard title={t("appShell.billingPlan")}>
               <div className="space-y-4">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   <p className="text-lg font-semibold">
@@ -378,12 +398,12 @@ export default function BillingSettingsPage() {
                     {/* #85: the exact allowances live in the fair-use policy,
                         not on the plan card. */}
                     <p className="text-xs text-muted-foreground">
-                      Allowances reflect fair use.{" "}
+                      {t("appShell.billingFairUse")}{" "}
                       <Link
                         href="/legal/fair-use"
                         className="underline underline-offset-2 hover:text-foreground"
                       >
-                        See the policy
+                        {t("appShell.billingSeePolicy")}
                       </Link>
                       .
                     </p>
@@ -401,14 +421,15 @@ export default function BillingSettingsPage() {
                       onClick={() => void pauseQuery.refetch()}
                       className="font-medium text-primary underline-offset-4 hover:underline"
                     >
-                      Try again
+                      {t("common.retry")}
                     </button>
                   </p>
                 )}
                 {company.data.current_period_end && (
                   <p className="text-xs text-muted-foreground">
-                    Current period ends{" "}
-                    {fullDate(company.data.current_period_end)}.
+                    {t("appShell.billingPeriodEnds", {
+                      date: fullDate(company.data.current_period_end) ?? "",
+                    })}
                   </p>
                 )}
                 {/* #400/D107: the prepaid year, below the plan it applies to. Gated
@@ -492,8 +513,8 @@ export default function BillingSettingsPage() {
           {canManage ? (
             <>
               <SettingsCard
-                title="Payment & invoices"
-                description="Cards, receipts, and billing details live in the secure Stripe portal."
+                title={t("appShell.billingPaymentTitle")}
+                description={t("appShell.billingPaymentDescription")}
               >
                 <PortalButton />
               </SettingsCard>
@@ -525,8 +546,7 @@ export default function BillingSettingsPage() {
                owner is named because the owner holds every capability by
                definition, so "ask the owner" cannot become wrong. */
             <p className="text-sm text-muted-foreground">
-              Billing isn&apos;t part of your role in this workspace. Ask the
-              owner if you need it.
+              {t("appShell.billingNotYourRole")}
             </p>
           )}
         </div>

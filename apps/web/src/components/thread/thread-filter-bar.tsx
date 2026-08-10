@@ -1,5 +1,7 @@
 "use client";
 
+import { useT } from "@/i18n/provider";
+
 import {
   THREAD_CATEGORIES,
   THREAD_CATEGORY_LABELS,
@@ -22,10 +24,11 @@ export function ThreadFilterBar({
   value: ThreadFilter;
   onChange: (next: ThreadFilter) => void;
 }) {
+  const t = useT();
   return (
     <div
       role="group"
-      aria-label="Show in conversation"
+      aria-label={t("thread.showInConversationAria")}
       // Calm app tokens only — the track + pressed pill carry their own dark
       // values (mirrors the inbox filter bar) so inactive labels never vanish
       // into a low-contrast dark blob.

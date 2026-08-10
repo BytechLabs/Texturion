@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { useMyInvites } from "@/lib/api/team";
 import type { MyInvite } from "@/lib/api/types";
 
@@ -24,6 +25,7 @@ const dismissKey = (inviteId: string) => `jt-invite-dismissed:${inviteId}`;
  * pending invite is dismissed — the banner is ambient, never blocking.
  */
 export function InviteBanner() {
+  const t = useT();
   const invites = useMyInvites();
   // Dismissals live in sessionStorage; mirror into state so dismissing hides
   // the card without a refetch.
@@ -54,7 +56,8 @@ export function InviteBanner() {
   const invite = pending.find((i) => !dismissed.has(i.id));
   if (!invite) return null;
 
-  const company = invite.company_name?.trim() || "a Loonext workspace";
+  const company =
+    invite.company_name?.trim() || t("onboarding.aLoonextWorkspace");
 
   const dismiss = () => {
     try {
@@ -68,20 +71,20 @@ export function InviteBanner() {
   return (
     <div
       role="status"
-      aria-label={`You've been invited to join ${company}`}
+      aria-label={t("onboarding.inviteBannerAria", { company })}
       className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+0.5rem)] z-50 mx-auto flex w-fit max-w-[calc(100vw-2rem)] items-center gap-3 rounded-app-card border border-app-line bg-app-paper px-4 py-3 shadow-lg lg:bottom-4"
       style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
     >
       <p className="min-w-0 text-sm text-app-ink">
-        You&apos;ve been invited to join{" "}
+        {t("onboarding.inviteBannerText")}{" "}
         <span className="font-semibold">{company}</span>
       </p>
       <Button asChild size="sm" className="shrink-0">
-        <Link href={`/invite/${invite.id}`}>Join</Link>
+        <Link href={`/invite/${invite.id}`}>{t("onboarding.join")}</Link>
       </Button>
       <button
         type="button"
-        aria-label="Dismiss invite"
+        aria-label={t("onboarding.dismissInvite")}
         onClick={dismiss}
         className="tap-target shrink-0 rounded-full p-1 text-app-muted-2 transition-colors hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >

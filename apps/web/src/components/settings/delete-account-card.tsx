@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import {
   useAccountDeletionPreview,
   useDeleteAccount,
@@ -42,6 +43,7 @@ const CONFIRM_WORD = "delete";
  * out afterwards would be a betrayal. So it is said first.
  */
 export function DeleteAccountCard() {
+  const t = useT();
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const [open, setOpen] = useState(false);
@@ -57,74 +59,63 @@ export function DeleteAccountCard() {
     remove.mutate(undefined, {
       onSuccess: async () => {
         await endSessionOnThisDevice(null);
-        toast.success("Your account is deleted.");
+        toast.success(t("settings.deleteAccountDone"));
         router.replace("/login");
       },
       onError: (cause) =>
         toast.error(
           cause instanceof ApiError
             ? cause.message
-            : "Couldn't delete your account. Try again in a moment.",
+            : t("settings.deleteAccountFailed"),
         ),
     });
   }
 
   return (
     <SettingsCard
-      title="Delete your account"
-      description="Removes you from Loonext entirely. This cannot be undone."
+      title={t("settings.deleteAccountTitle")}
+      description={t("settings.deleteAccountDescription")}
     >
       <div className="space-y-4 p-4 pt-0">
         {!expanded ? (
           <Button variant="outline" size="sm" onClick={() => setExpanded(true)}>
-            Delete my account
+            {t("settings.deleteAccountAction")}
           </Button>
         ) : preview.isPending ? (
           <Skeleton className="h-24 w-full" />
         ) : blocked ? (
           <div className="space-y-2 text-sm">
             <p>
-              You own{" "}
-              <strong>{owned.map((row) => row.name).join(", ")}</strong>. A
-              workspace cannot be left without an owner, so hand it to someone
-              else or close it first — then you can delete your account.
+              {t("settings.deleteAccountOwnerLead")}{" "}
+              <strong>{owned.map((row) => row.name).join(", ")}</strong>
+              {t("settings.deleteAccountOwnerTail")}
             </p>
             <p className="text-muted-foreground">
-              Closing a workspace is on its Workspace settings page.
+              {t("settings.deleteAccountOwnerWhere")}
             </p>
           </div>
         ) : (
           <div className="space-y-4">
             <ul className="space-y-1.5 text-sm text-muted-foreground">
-              <li>
-                You are signed out everywhere and cannot sign back in. Your
-                name comes off the app, and notifications stop.
-              </li>
+              <li>{t("settings.deleteAccountSignedOut")}</li>
               {preview.data && preview.data.memberships > 0 && (
                 <li>
-                  You leave{" "}
+                  {t("settings.deleteAccountLeaveLead")}{" "}
                   {preview.data.memberships === 1
-                    ? "your workspace"
-                    : `all ${preview.data.memberships} of your workspaces`}
+                    ? t("settings.deleteAccountLeaveOne")
+                    : t("settings.deleteAccountLeaveMany", {
+                        count: preview.data.memberships,
+                      })}
                   {preview.data.open_conversations + preview.data.open_tasks > 0
-                    ? ", and anything you are still working on goes back to the crew so nothing is lost."
+                    ? t("settings.deleteAccountLeaveHandoff")
                     : "."}
                 </li>
               )}
-              <li>
-                Texts you sent to customers, jobs you logged and notes you
-                wrote stay with the business. They have to — that record is
-                theirs, and some of it we are required by law to keep. They
-                will no longer carry your name.
-              </li>
+              <li>{t("settings.deleteAccountRecordStays")}</li>
               {/* #371: said here rather than in a toast, because the moment
                   this succeeds you are signed out and there is no screen left
                   to read one on. */}
-              <li>
-                We email you a confirmation before your address is removed. It
-                is the last thing you will get from us, and it is worth
-                keeping.
-              </li>
+              <li>{t("settings.deleteAccountEmailNote")}</li>
             </ul>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -132,14 +123,14 @@ export function DeleteAccountCard() {
                 size="sm"
                 onClick={() => setOpen(true)}
               >
-                Delete my account
+                {t("settings.deleteAccountAction")}
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setExpanded(false)}
               >
-                Never mind
+                {t("settings.neverMind")}
               </Button>
             </div>
           </div>
@@ -155,20 +146,20 @@ export function DeleteAccountCard() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete your account?</DialogTitle>
+            <DialogTitle>{t("settings.deleteAccountConfirmTitle")}</DialogTitle>
             <DialogDescription>
-              You will be signed out everywhere and will not be able to sign
-              back in. Your work stays with the business, without your name on
-              it. Nobody can undo this.
+              {t("settings.deleteAccountConfirmDescription")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <Label htmlFor="delete-account-confirm">
-              {"Type "}
+              {t("settings.typeToConfirmLead")}
+              {" "}
               <span className="font-medium text-foreground">
                 {CONFIRM_WORD}
               </span>
-              {" to confirm"}
+              {" "}
+              {t("settings.typeToConfirmTail")}
             </Label>
             <Input
               id="delete-account-confirm"
@@ -180,14 +171,16 @@ export function DeleteAccountCard() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
-              Keep my account
+              {t("settings.deleteAccountKeep")}
             </Button>
             <Button
               variant="destructive"
               disabled={!confirmed || remove.isPending}
               onClick={() => void confirm()}
             >
-              {remove.isPending ? "Deleting…" : "Delete my account"}
+              {remove.isPending
+                ? t("settings.deleteAccountDeleting")
+                : t("settings.deleteAccountAction")}
             </Button>
           </DialogFooter>
         </DialogContent>

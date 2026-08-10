@@ -23,13 +23,15 @@ import {
   type ContactFieldFilter,
 } from "@/lib/api/contacts";
 import { ContactFilter } from "@/components/contacts/contact-filter";
+import { useT } from "@/i18n/provider";
 import { flattenPages } from "@/lib/api/pagination";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
 
 function SkeletonRows() {
+  const t = useT();
   return (
-    <div className="space-y-2 p-4" aria-label="Loading contacts">
+    <div className="space-y-2 p-4" aria-label={t("contacts.loadingContacts")}>
       {Array.from({ length: 6 }).map((_, index) => (
         <Skeleton key={index} className="h-10 w-full" />
       ))}
@@ -54,6 +56,7 @@ export function ContactsTable({
    */
   onQueryChange?: (query: string) => void;
 }) {
+  const t = useT();
   const router = useRouter();
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
@@ -88,8 +91,8 @@ export function ContactsTable({
           type="search"
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          placeholder="Search name or number"
-          aria-label="Search contacts"
+          placeholder={t("contacts.searchPlaceholder")}
+          aria-label={t("contacts.searchLabel")}
           className="pl-9"
         />
       </div>
@@ -109,8 +112,8 @@ export function ContactsTable({
         ) : rows.length === 0 ? (
           searching ? (
             <CalmEmptyState
-              title={`No matches for "${query.trim()}"`}
-              description="Try a name or the last few digits of a number."
+              title={t("contacts.noMatchesFor", { query: query.trim() })}
+              description={t("contacts.noMatchesDetail")}
             />
           ) : filtering ? (
             // #291: NOT the brand-new empty state. "Your customers show up
@@ -118,16 +121,16 @@ export function ContactsTable({
             // customers", which is alarming and wrong — they are excluded, not
             // missing.
             <CalmEmptyState
-              title="Nobody matches that yet"
-              description="No customer has that answer on file. Clear the filter to see everyone."
+              title={t("contacts.filteredEmptyTitle")}
+              description={t("contacts.filteredEmptyDetail")}
             />
           ) : (
             // The §5 kind empty state (delight moment #2): one warm line, one
             // action, generous air — never a generic "No data".
             <CalmEmptyState
               icon={<Users strokeWidth={1.5} aria-hidden />}
-              title="Your customers show up here on their own"
-              description="Every person who texts your business number is added automatically, or bring your list over in one go."
+              title={t("contacts.emptyTitle")}
+              description={t("contacts.emptyDetail")}
               action={emptyAction ?? undefined}
             />
           )
@@ -136,9 +139,11 @@ export function ContactsTable({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Number</TableHead>
-                  <TableHead className="text-right">Last activity</TableHead>
+                  <TableHead>{t("contacts.fieldName")}</TableHead>
+                  <TableHead>{t("contacts.fieldNumber")}</TableHead>
+                  <TableHead className="text-right">
+                    {t("contacts.fieldLastActivity")}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -147,7 +152,9 @@ export function ContactsTable({
                     key={contact.id}
                     tabIndex={0}
                     role="link"
-                    aria-label={`Open ${contactDisplayName(contact)}`}
+                    aria-label={t("contacts.openContact", {
+                      name: contactDisplayName(contact),
+                    })}
                     className="cursor-pointer"
                     onClick={() => router.push(`/contacts/${contact.id}`)}
                     onKeyDown={(event) => {
@@ -164,7 +171,7 @@ export function ContactsTable({
                           // G6 opted-out badge — same treatment as the
                           // contact detail header.
                           <Badge className="border-transparent bg-destructive/10 text-destructive">
-                            Opted out
+                            {t("contacts.optedOut")}
                           </Badge>
                         )}
                       </span>
@@ -188,7 +195,9 @@ export function ContactsTable({
                       ) : (
                         <>
                           <span aria-hidden>–</span>
-                          <span className="sr-only">No texting activity yet</span>
+                          <span className="sr-only">
+                            {t("contacts.noTextingActivity")}
+                          </span>
                         </>
                       )}
                     </TableCell>
@@ -204,7 +213,9 @@ export function ContactsTable({
                   disabled={contacts.isFetchingNextPage}
                   onClick={() => void contacts.fetchNextPage()}
                 >
-                  {contacts.isFetchingNextPage ? "Loading…" : "Load more"}
+                  {contacts.isFetchingNextPage
+                    ? t("contacts.loading")
+                    : t("contacts.loadMore")}
                 </Button>
               </div>
             )}

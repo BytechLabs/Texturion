@@ -12,6 +12,7 @@ import { LoadError, SettingsPage } from "@/components/settings/section";
 import { TextEnableSection } from "@/components/settings/text-enable-section";
 import { splitHostedNumbers } from "@/components/settings/text-enable-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { useHeldNumbers } from "@/lib/api/billing";
 import { useCompany } from "@/lib/api/companies";
 import { useNumbers } from "@/lib/api/numbers";
@@ -26,6 +27,7 @@ import {
 const PLAN_NUMBER_LIMIT = { starter: 1, pro: 2 } as const;
 
 export default function NumbersSettingsPage() {
+  const t = useT();
   const { role } = useActiveCompany();
   const company = useCompany();
   const numbers = useNumbers();
@@ -62,11 +64,11 @@ export default function NumbersSettingsPage() {
 
   return (
     <SettingsPage
-      title="Numbers"
-      description="The numbers your customers text, and your carrier registration."
+      title={t("appShell.numbersTitle")}
+      description={t("appShell.numbersDescription")}
     >
       {pending ? (
-        <div className="space-y-4" aria-label="Loading numbers">
+        <div className="space-y-4" aria-label={t("appShell.numbersLoading")}>
           <Skeleton className="h-24 w-full rounded-lg" />
           <Skeleton className="h-40 w-full rounded-lg" />
         </div>
@@ -165,8 +167,7 @@ export default function NumbersSettingsPage() {
                 // No number AND no open slot to fill in-app (e.g. pre-checkout):
                 // the first number is created automatically once the plan starts.
                 <p className="rounded-lg border bg-card px-4 py-4 text-sm text-muted-foreground">
-                  No number yet. It&apos;s created automatically when your
-                  subscription starts.
+                  {t("appShell.numbersNoneYet")}
                 </p>
               )}
 
@@ -189,12 +190,15 @@ export default function NumbersSettingsPage() {
                     {paidExtra
                       ? // #105: an honest price BEFORE the picker opens, plus
                         // the shared-quota truth (an extra never adds messages).
-                        `An extra number is ${company.data.plan === "starter" ? "$5" : "$4"}/mo, billed to your subscription today. Your monthly message allowance is shared across all your numbers — an extra number doesn't add messages.`
+                        t("appShell.numbersExtraPaid", {
+                          price:
+                            company.data.plan === "starter" ? "$5" : "$4",
+                        })
                       : usedSlots === 0
                         ? // A released/first included number: getting one back is
                           // part of the plan they already pay for.
-                          "Choose the number your customers will text — it's included in your plan, at no extra cost."
-                        : "Pro includes a second number, handy for a second crew or service area."}
+                          t("appShell.numbersFirstIncluded")
+                        : t("appShell.numbersProSecond")}
                   </p>
                   <ProvisionNumberDialog country={company.data.country} />
                 </div>

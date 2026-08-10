@@ -11,6 +11,7 @@ import {
 } from "@loonext/shared";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 
 /**
  * #352 — what a rejected customer reads, and the one thing they do next.
@@ -63,11 +64,9 @@ export function RejectionNotice({
   /** Carried into the support mailto so a stuck customer does not retype it. */
   company: { id: string; name: string; plan: string | null };
 }) {
+  const t = useT();
   const guidance = explainRejection(domain, reason);
   const stuck = needsHumanHelp(submissionCount);
-  // Said whichever way round, because the same component serves both and
-  // "registration" on a port rejection would read as the wrong thing failing.
-  const subject = domain === "port" ? "transfer" : "registration";
 
   const goToField = useCallback(() => {
     const field = guidance?.field;
@@ -87,18 +86,22 @@ export function RejectionNotice({
       <p className="text-sm font-medium">
         {guidance
           ? guidance.what
-          : `The carrier turned down this ${subject} and did not say why in a way we can translate.`}
+          : /* Said whichever way round, because the same component serves both
+               and "registration" on a port rejection would read as the wrong
+               thing failing. Two keys rather than a noun dropped into one
+               sentence: French declines the article with the noun. */
+            domain === "port"
+            ? t("settingsMore.rejectionUnknownPort")
+            : t("settingsMore.rejectionUnknownRegistration")}
       </p>
       <p className="text-sm">
-        {guidance
-          ? guidance.fix
-          : "Check the details below against your official registration paperwork, and reply to us if nothing looks wrong."}
+        {guidance ? guidance.fix : t("settingsMore.rejectionUnknownFix")}
       </p>
 
       {/* Carrier-authored: unbounded, and frequently one long token. */}
       {reason ? (
         <p className="break-words text-xs text-muted-foreground">
-          The carrier said: {reason}
+          {t("settingsMore.rejectionCarrierSaid", { reason })}
         </p>
       ) : null}
 
@@ -110,7 +113,7 @@ export function RejectionNotice({
         <div className="flex flex-wrap gap-2 pt-1">
           {guidance?.field ? (
             <Button size="sm" variant="secondary" onClick={goToField}>
-              Take me to it
+              {t("settingsMore.rejectionTakeMeToIt")}
             </Button>
           ) : null}
           {stuck ? (
@@ -126,11 +129,11 @@ export function RejectionNotice({
                   platform: "web",
                   subject:
                     domain === "port"
-                      ? "My number transfer keeps getting rejected"
-                      : "My registration keeps getting rejected",
+                      ? t("settingsMore.rejectionMailSubjectPort")
+                      : t("settingsMore.rejectionMailSubjectRegistration"),
                 })}
               >
-                Get help from us
+                {t("settingsMore.rejectionGetHelp")}
               </a>
             </Button>
           ) : null}

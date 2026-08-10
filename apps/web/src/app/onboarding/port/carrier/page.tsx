@@ -12,6 +12,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useT } from "@/i18n/provider";
 import { formatPhone } from "@/lib/format/phone";
 
 import { writeOnboardingPortDraft } from "../../local-draft";
@@ -25,6 +26,7 @@ import { portStepProgress, usePortWizardGuard } from "../use-port-wizard";
  * with a plain "why we ask" and stored as last-4 only, never the full number.
  */
 export default function PortCarrierPage() {
+  const t = useT();
   const { onboarding, port, ready } = usePortWizardGuard("carrier");
   const router = useRouter();
 
@@ -55,21 +57,22 @@ export default function PortCarrierPage() {
 
   const country = onboarding.draft.country ?? "US";
   const isWireless = port.isWireless === true;
-  const ssnSinLabel = country === "US" ? "SSN" : "SIN";
+  const ssnSinLabel =
+    country === "US" ? t("onboarding.sinNameUs") : t("onboarding.sinNameCa");
   const progress = portStepProgress(onboarding.snapshot);
 
   function onContinue() {
     setError(null);
     if (!entityName.trim() || !authPersonName.trim() || !accountNumber.trim()) {
-      setError("Fill in the account holder, authorized person, and account number.");
+      setError(t("onboarding.portCarrierMissing"));
       return;
     }
     if (isWireless && !/^\d{4}$/.test(ssnSinLast4.trim())) {
-      setError(`Enter the last 4 digits of the account holder's ${ssnSinLabel}.`);
+      setError(t("onboarding.portLast4Error", { idName: ssnSinLabel }));
       return;
     }
     if (isWireless && !pinPasscode.trim()) {
-      setError("Enter the transfer PIN from your current carrier.");
+      setError(t("onboarding.portPinError"));
       return;
     }
     writeOnboardingPortDraft({
@@ -88,42 +91,48 @@ export default function PortCarrierPage() {
       backHref="/onboarding/port"
       index={progress.index}
       total={progress.total}
-      title="Your current carrier account"
-      subtitle="These come from your current provider. Matching them to your latest bill is the surest way to a smooth transfer."
+      title={t("onboarding.portCarrierTitle")}
+      subtitle={t("onboarding.portCarrierSubtitle")}
     >
       <div className="space-y-5">
         <div className="space-y-2">
-          <Label htmlFor="entity-name">Account holder name</Label>
+          <Label htmlFor="entity-name">
+            {t("onboarding.portEntityNameLabel")}
+          </Label>
           <Input
             id="entity-name"
             value={entityName}
             onChange={(e) => setEntityName(e.target.value)}
-            placeholder="The business or person on the bill"
+            placeholder={t("onboarding.portEntityNamePlaceholder")}
             autoComplete="organization"
           />
           <p className="text-[13px] text-muted-foreground">
-            Exactly as it appears on your current carrier bill.
+            {t("onboarding.portEntityNameHint")}
           </p>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="auth-person">Authorized person</Label>
+          <Label htmlFor="auth-person">
+            {t("onboarding.portAuthPersonLabel")}
+          </Label>
           <Input
             id="auth-person"
             value={authPersonName}
             onChange={(e) => setAuthPersonName(e.target.value)}
-            placeholder="Who's allowed to make account changes"
+            placeholder={t("onboarding.portAuthPersonPlaceholder")}
             autoComplete="name"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="account-number">Account number</Label>
+          <Label htmlFor="account-number">
+            {t("onboarding.portAccountNumberLabel")}
+          </Label>
           <Input
             id="account-number"
             value={accountNumber}
             onChange={(e) => setAccountNumber(e.target.value)}
-            placeholder="Your current carrier account number"
+            placeholder={t("onboarding.portAccountNumberPlaceholder")}
             autoComplete="off"
             inputMode="numeric"
           />
@@ -131,9 +140,9 @@ export default function PortCarrierPage() {
 
         <div className="space-y-2">
           <Label htmlFor="billing-phone">
-            Billing phone number{" "}
+            {t("onboarding.portBillingPhoneLabel")}{" "}
             <span className="font-normal text-muted-foreground">
-              (if different)
+              {t("onboarding.ifDifferent")}
             </span>
           </Label>
           <Input
@@ -148,8 +157,7 @@ export default function PortCarrierPage() {
             className="tabular-nums"
           />
           <p className="text-[13px] text-muted-foreground">
-            The main number on the account, if it isn&apos;t the one
-            you&apos;re transferring.
+            {t("onboarding.portBillingPhoneHint")}
           </p>
         </div>
 
@@ -162,18 +170,16 @@ export default function PortCarrierPage() {
                 aria-hidden
               />
               <p className="text-[13px] text-muted-foreground">
-                This is a mobile number, so your carrier needs two extra
-                details to release it. We only ever store the last 4 digits of
-                the {ssnSinLabel}, never the full number.
+                {t("onboarding.portWirelessNote", { idName: ssnSinLabel })}
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="pin">Transfer PIN / passcode</Label>
+              <Label htmlFor="pin">{t("onboarding.portPinLabel")}</Label>
               <Input
                 id="pin"
                 value={pinPasscode}
                 onChange={(e) => setPinPasscode(e.target.value)}
-                placeholder="Your carrier can give you this"
+                placeholder={t("onboarding.portPinPlaceholder")}
                 autoComplete="off"
                 inputMode="numeric"
               />
@@ -183,19 +189,18 @@ export default function PortCarrierPage() {
                 htmlFor="ssn-last4"
                 className="flex items-center gap-1.5"
               >
-                Last 4 of the account holder&apos;s {ssnSinLabel}
+                {t("onboarding.portLast4Label", { idName: ssnSinLabel })}
                 <Tooltip>
                   <TooltipTrigger
-                    aria-label={`Why we ask for the ${ssnSinLabel} last 4`}
+                    aria-label={t("onboarding.portLast4Aria", {
+                      idName: ssnSinLabel,
+                    })}
                     className="rounded-full focus-visible:outline-2 focus-visible:outline-ring"
                   >
                     <Info className="size-3.5" strokeWidth={1.75} aria-hidden />
                   </TooltipTrigger>
                   <TooltipContent className="max-w-64">
-                    Mobile carriers verify the account holder&apos;s identity
-                    before releasing a number. We pass only the last 4 digits to
-                    the carrier and store only those 4, never the full{" "}
-                    {ssnSinLabel}.
+                    {t("onboarding.portLast4Tooltip", { idName: ssnSinLabel })}
                   </TooltipContent>
                 </Tooltip>
               </Label>
@@ -222,7 +227,7 @@ export default function PortCarrierPage() {
         ) : null}
 
         <Button size="lg" className="w-full" onClick={onContinue}>
-          Continue
+          {t("onboarding.continue")}
           <ArrowRight className="size-4" aria-hidden />
         </Button>
       </div>

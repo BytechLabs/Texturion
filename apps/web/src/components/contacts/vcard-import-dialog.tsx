@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
+import { useT } from "@/i18n/provider";
 import { useImportVCard } from "@/lib/api/contacts-vcard";
 import { ApiError } from "@/lib/api/error";
 import type { ImportResult } from "@/lib/api/types";
@@ -40,9 +41,9 @@ import { ImportSummaryView } from "./import-summary-view";
 const MAX_SIZE_LABEL = `${VCARD_IMPORT_MAX_BYTES / (1024 * 1024)} MB`;
 
 /** The two answers a vCard property can have. See the shared docblock for why. */
-const PROPERTY_LABELS: Record<VCardPropertyAction, string> = {
-  ignore: "Skip it",
-  opted_out: "Never text these cards",
+const PROPERTY_LABEL_KEYS: Record<VCardPropertyAction, "contacts.vcardSkipIt" | "contacts.vcardNeverText"> = {
+  ignore: "contacts.vcardSkipIt",
+  opted_out: "contacts.vcardNeverText",
 };
 
 /** The empty option's value. Not a valid answer, so it cannot be posted. */
@@ -75,6 +76,7 @@ export function VCardImportDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const importVCard = useImportVCard();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -122,7 +124,7 @@ export function VCardImportDialog({
           setUploadError(
             cause instanceof ApiError
               ? cause.message
-              : "The import didn't go through. Try again.",
+              : t("contacts.importFailed"),
           ),
       },
     );
@@ -132,9 +134,7 @@ export function VCardImportDialog({
     setUploadError(null);
     setResult(null);
     if (file.size > VCARD_IMPORT_MAX_BYTES) {
-      setUploadError(
-        `That file is over ${MAX_SIZE_LABEL}. Export a smaller batch and retry.`,
-      );
+      setUploadError(t("contacts.vcardTooBig", { size: MAX_SIZE_LABEL }));
       return;
     }
     setFileName(file.name);
@@ -167,11 +167,11 @@ export function VCardImportDialog({
           <>
             <ImportSummaryView
               result={result}
-              errorsHeading="These rows couldn't be imported:"
+              errorsHeading={t("contacts.vcardErrorsHeading")}
               renderError={(error) => (
                 <>
                   <span className="tabular-nums text-muted-foreground">
-                    Card {error.row}:
+                    {t("contacts.vcardCardRow", { row: error.row })}
                   </span>{" "}
                   {error.reason}
                 </>
@@ -179,29 +179,31 @@ export function VCardImportDialog({
             />
             <DialogFooter>
               <Button variant="outline" onClick={reset}>
-                Import another
+                {t("contacts.importAnother")}
               </Button>
-              <Button onClick={() => close(false)}>Done</Button>
+              <Button onClick={() => close(false)}>{t("contacts.done")}</Button>
             </DialogFooter>
           </>
         ) : reviewing && pending ? (
           <>
             <DialogHeader>
-              <DialogTitle>What&apos;s on these cards?</DialogTitle>
+              <DialogTitle>{t("contacts.vcardCardsTitle")}</DialogTitle>
               <DialogDescription>
-                {fileName} · {pending.cards.toLocaleString()} cards.{" "}
+                {t("contacts.vcardCardsCount", {
+                  file: fileName,
+                  cards: pending.cards.toLocaleString(),
+                })}{" "}
                 {properties.length === 1
-                  ? "One thing on them isn't a name or a number."
-                  : `${properties.length} things on them aren't names or numbers.`}{" "}
-                A card can carry a note saying somebody asked you to stop, so we
-                won&apos;t guess what these are.
+                  ? t("contacts.vcardUnreadOne")
+                  : t("contacts.vcardUnreadMany", {
+                      count: properties.length,
+                    })}{" "}
+                {t("contacts.vcardNoGuess")}
               </DialogDescription>
             </DialogHeader>
             {hasParameter && (
               <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-                A name with a semicolon in it, like TEL;TYPE, is a label written
-                on a line rather than a line of its own. Phones write notes in
-                those too, so they get the same question.
+                {t("contacts.vcardParameterNote")}
               </p>
             )}
             <ul className="space-y-2">
@@ -222,11 +224,15 @@ export function VCardImportDialog({
                               name. A person who cannot see "DNC" cannot skip
                               it knowingly, and then the click is theatre. */}
                           {row.total === 0 ? (
-                            `On ${row.cards.toLocaleString()} cards, with nothing in it.`
+                            t("contacts.vcardPropertyEmpty", {
+                              cards: row.cards.toLocaleString(),
+                            })
                           ) : (
                             <>
-                              On {row.cards.toLocaleString()} of{" "}
-                              {pending.cards.toLocaleString()} cards. Says{" "}
+                              {t("contacts.vcardPropertyOn", {
+                                cards: row.cards.toLocaleString(),
+                                total: pending.cards.toLocaleString(),
+                              })}{" "}
                               <span className="font-medium break-words text-foreground">
                                 {(showAll.has(row.property)
                                   ? row.values
@@ -293,7 +299,9 @@ export function VCardImportDialog({
                       <div className="w-full sm:w-52">
                         <NativeSelect
                           id={id}
-                          aria-label={`What is ${row.property}?`}
+                          aria-label={t("contacts.vcardPropertyQuestion", {
+                            property: row.property,
+                          })}
                           value={row.answer ?? UNANSWERED}
                           onChange={(event) =>
                             setProperties((current) =>
@@ -310,14 +318,14 @@ export function VCardImportDialog({
                         >
                           {row.answer === null && (
                             <option value={UNANSWERED}>
-                              Choose what this is
+                              {t("contacts.chooseWhatThisIs")}
                             </option>
                           )}
                           <option value={CONTACT_IMPORT_IGNORE}>
-                            {PROPERTY_LABELS.ignore}
+                            {t(PROPERTY_LABEL_KEYS.ignore)}
                           </option>
                           <option value="opted_out">
-                            {PROPERTY_LABELS.opted_out}
+                            {t(PROPERTY_LABEL_KEYS.opted_out)}
                           </option>
                         </NativeSelect>
                       </div>
@@ -336,10 +344,11 @@ export function VCardImportDialog({
                 <div className="min-w-0 flex-1 space-y-2">
                   <p className="text-sm leading-snug text-muted-foreground">
                     {unanswered.length === 1
-                      ? "One of these still needs an answer."
-                      : `${unanswered.length} of these still need an answer.`}{" "}
-                    Skipping something that says do not text means this import
-                    texts somebody who asked you to stop.
+                      ? t("contacts.vcardUnansweredOne")
+                      : t("contacts.vcardUnansweredMany", {
+                          count: unanswered.length,
+                        })}{" "}
+                    {t("contacts.vcardUnansweredTail")}
                   </p>
                   {/* Under the list, as on the CSV wizard, and for the same
                       reason: this is only an informed click while every
@@ -355,9 +364,11 @@ export function VCardImportDialog({
                       )
                     }
                   >
-                    {unanswered.length === 1
-                      ? "It doesn't say who can be texted"
-                      : "None of these say who can be texted"}
+                    {t(
+                      unanswered.length === 1
+                        ? "contacts.vcardIgnoreOne"
+                        : "contacts.ignoreAllMany",
+                    )}
                   </Button>
                 </div>
               </div>
@@ -369,27 +380,25 @@ export function VCardImportDialog({
             )}
             <DialogFooter>
               <Button variant="outline" onClick={reset}>
-                Back
+                {t("common.back")}
               </Button>
               <Button
                 disabled={declarations === null || importVCard.isPending}
                 onClick={() => send(pending.file, declarations)}
               >
                 {importVCard.isPending
-                  ? "Importing…"
-                  : `Import ${pending.cards.toLocaleString()} cards`}
+                  ? t("contacts.importing")
+                  : t("contacts.vcardImportCards", {
+                      count: pending.cards.toLocaleString(),
+                    })}
               </Button>
             </DialogFooter>
           </>
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Import from a vCard</DialogTitle>
-              <DialogDescription>
-                Upload a .vcf file exported from your phone, Google Contacts, or
-                Apple Contacts. We&apos;ll add each contact with a valid US or
-                Canada number. Existing numbers are updated, not duplicated.
-              </DialogDescription>
+              <DialogTitle>{t("contacts.vcardTitle")}</DialogTitle>
+              <DialogDescription>{t("contacts.vcardBlurb")}</DialogDescription>
             </DialogHeader>
             <ImportConsentCheck
               source="file"
@@ -408,16 +417,18 @@ export function VCardImportDialog({
             >
               <FileUp className="size-6" strokeWidth={1.75} aria-hidden />
               {importVCard.isPending
-                ? `Importing ${fileName}…`
-                : "Choose a .vcf file"}
-              <span className="text-xs">Up to {MAX_SIZE_LABEL}</span>
+                ? t("contacts.vcardImportingFile", { file: fileName })
+                : t("contacts.vcardChooseFile")}
+              <span className="text-xs">
+                {t("contacts.vcardUpTo", { size: MAX_SIZE_LABEL })}
+              </span>
             </button>
             <input
               ref={fileInputRef}
               type="file"
               accept=".vcf,text/vcard,text/x-vcard"
               className="sr-only"
-              aria-label="vCard file"
+              aria-label={t("contacts.vcardFileInput")}
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (file) void handleFile(file);

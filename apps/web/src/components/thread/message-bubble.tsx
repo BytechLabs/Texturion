@@ -24,6 +24,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useT } from "@/i18n/provider";
 import { useRetryMessage } from "@/lib/api/messages";
 import type { Message, MessageTaskLink } from "@/lib/api/types";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
@@ -54,6 +55,7 @@ export function DeliveryState({
   message: Message;
   conversationId: string;
 }) {
+  const t = useT();
   const retry = useRetryMessage(conversationId);
 
   if (message.status === "failed") {
@@ -79,7 +81,7 @@ export function DeliveryState({
               // tap-target: ≥44px hit area on mobile (G11) without visual bloat.
               className="tap-target rounded-sm font-medium underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
-              {retry.isPending ? "Retrying…" : "Retry"}
+              {retry.isPending ? t("thread.retrying") : t("thread.retry")}
             </button>
           </>
         )}
@@ -91,23 +93,24 @@ export function DeliveryState({
   let state: React.ReactNode = null;
   let srState = "";
   if (message.status === "queued") {
-    state = "Sending…";
-    srState = "sending";
+    state = t("thread.deliverySending");
+    srState = t("thread.srSending");
   } else if (message.status === "sent") {
     state = (
       <>
-        Sent <Check aria-hidden className="inline size-3" strokeWidth={1.75} />
+        {t("thread.deliverySent")}{" "}
+        <Check aria-hidden className="inline size-3" strokeWidth={1.75} />
       </>
     );
-    srState = "sent";
+    srState = t("thread.srSent");
   } else if (message.status === "delivered") {
     state = (
       <>
-        Delivered{" "}
+        {t("thread.deliveryDelivered")}{" "}
         <CheckCheck aria-hidden className="inline size-3" strokeWidth={1.75} />
       </>
     );
-    srState = "delivered";
+    srState = t("thread.srDelivered");
   }
 
   return (
@@ -136,14 +139,15 @@ export function DeliveryState({
  * pin/unpin action itself lives in the message overflow (⋯) menu.
  */
 function PinnedBadge() {
+  const t = useT();
   return (
     <span
       className="inline-flex items-center gap-1 rounded-full bg-app-line-soft px-1.5 py-0.5 text-[11px] font-medium text-app-muted"
-      title="Pinned"
+      title={t("thread.pinned")}
     >
       <Pin aria-hidden className="size-3" strokeWidth={2} />
-      Pinned
-      <span className="sr-only">, pinned message</span>
+      {t("thread.pinned")}
+      <span className="sr-only">{t("thread.pinnedSrSuffix")}</span>
     </span>
   );
 }
@@ -153,6 +157,7 @@ function PinnedBadge() {
  * "Done · Sam · 2:14 PM" (and the same text for screen readers).
  */
 function DoneBadge({ message }: { message: Message }) {
+  const t = useT();
   const memberNames = useMemberNames();
   const label = doneBadgeLabel(message, (userId) => memberNames.get(userId));
 
@@ -167,7 +172,7 @@ function DoneBadge({ message }: { message: Message }) {
           tabIndex={0}
         >
           <CircleCheck aria-hidden className="size-3" strokeWidth={2.25} />
-          Done
+          {t("thread.done")}
           <span className="sr-only">, {label}</span>
         </span>
       </TooltipTrigger>
@@ -185,16 +190,17 @@ function DoneBadge({ message }: { message: Message }) {
  * no-op link back to the conversation you're already reading.
  */
 function TaskIndicator({ task }: { task: MessageTaskLink }) {
+  const t = useT();
   const { openTask } = useTaskDrawer();
   return (
     <button
       type="button"
       onClick={() => openTask(task.id)}
-      aria-label={`Open the task: ${task.title}`}
+      aria-label={t("thread.openTaskAria", { title: task.title })}
       className="tap-target inline-flex items-center gap-1 rounded-full bg-app-line-soft px-1.5 py-0.5 text-[11px] font-medium text-app-muted transition-colors duration-150 ease-out hover:bg-app-line hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <ListChecks aria-hidden className="size-3" strokeWidth={2} />
-      Task
+      {t("thread.task")}
     </button>
   );
 }
@@ -205,6 +211,7 @@ function TaskIndicator({ task }: { task: MessageTaskLink }) {
  * the same target every task line uses. Quiet stone chip on the amber note card.
  */
 function NoteTaskChip({ task }: { task: { id: string; title: string } }) {
+  const t = useT();
   const { openTask } = useTaskDrawer();
   return (
     <button
@@ -213,7 +220,9 @@ function NoteTaskChip({ task }: { task: { id: string; title: string } }) {
       className="tap-target mb-1 inline-flex max-w-full items-center gap-1 rounded-full border border-app-amber-line bg-app-paper/60 px-2 py-0.5 text-[11px] font-medium text-app-amber-ink transition-colors hover:bg-app-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <ListChecks className="size-3 shrink-0" strokeWidth={2} aria-hidden />
-      <span className="truncate">on: {task.title}</span>
+      <span className="truncate">
+        {t("thread.noteOnTask", { title: task.title })}
+      </span>
     </button>
   );
 }
@@ -247,6 +256,7 @@ export const MessageBubble = memo(function MessageBubble({
    * timeline's event lines already narrate those). */
   senderName?: string | null;
 }) {
+  const t = useT();
   const outbound = message.direction === "outbound";
   const note = message.direction === "note";
   const attachments = message.attachments ?? [];
@@ -300,7 +310,11 @@ export const MessageBubble = memo(function MessageBubble({
               <AttachmentImage
                 key={attachment.id}
                 attachment={attachment}
-                alt={`Photo ${outbound ? "sent to" : "from"} ${contactName}`}
+                alt={
+                  outbound
+                    ? t("thread.photoSentTo", { name: contactName })
+                    : t("thread.photoFrom", { name: contactName })
+                }
               />
             ))}
           </div>
@@ -318,7 +332,11 @@ export const MessageBubble = memo(function MessageBubble({
               <AttachmentAudio
                 key={attachment.id}
                 attachment={attachment}
-                fromLabel={outbound ? `sent to ${contactName}` : `from ${contactName}`}
+                fromLabel={
+                  outbound
+                    ? t("thread.audioSentToLabel", { name: contactName })
+                    : t("thread.audioFromLabel", { name: contactName })
+                }
               />
             ))}
           </div>
@@ -360,7 +378,8 @@ export const MessageBubble = memo(function MessageBubble({
               <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-app-amber">
                 <Lock className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />
                 <span className="truncate">
-                  Internal note{senderName ? ` · ${senderName}` : ""}
+                  {t("thread.internalNote")}
+                  {senderName ? ` · ${senderName}` : ""}
                 </span>
               </span>
             )}

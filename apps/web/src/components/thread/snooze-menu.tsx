@@ -34,6 +34,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/i18n/provider";
 
 /**
  * #293 — "needs attention, but on Thursday", in the overflow menu.
@@ -78,6 +79,7 @@ export function SnoozeMenuItems({
   /** Open the parent-owned custom-date dialog for this kind. */
   onPickCustom: (kind: DeferralKind) => void;
 }) {
+  const t = useT();
   // Resolved on every render rather than memoized. The ladder only changes when
   // the clock crosses a preset's hour, and on that render the NEW ladder is the
   // correct one — a memo would keep offering "This afternoon" at 3:05pm.
@@ -85,7 +87,9 @@ export function SnoozeMenuItems({
     return (
       <DropdownMenuItem onSelect={onUnsnooze}>
         <AlarmClockOff className="size-4" strokeWidth={1.75} />
-        {snoozeKind === "follow_up" ? "Cancel the reminder" : "Bring back now"}
+        {snoozeKind === "follow_up"
+          ? t("thread.cancelTheReminder")
+          : t("thread.bringBackNow")}
       </DropdownMenuItem>
     );
   }
@@ -94,7 +98,7 @@ export function SnoozeMenuItems({
     <>
       <DeferralSubmenu
         kind="snooze"
-        label="Snooze until…"
+        label={t("thread.snoozeUntilMenu")}
         icon={<AlarmClock className="size-4" strokeWidth={1.75} />}
         presets={snoozePresets()}
         onSnooze={onSnooze}
@@ -106,7 +110,7 @@ export function SnoozeMenuItems({
           three useless options in front of whichever job you were doing. */}
       <DeferralSubmenu
         kind="follow_up"
-        label="Remind me to chase…"
+        label={t("thread.remindMeToChaseMenu")}
         icon={<BellRing className="size-4" strokeWidth={1.75} />}
         presets={followUpPresets()}
         onSnooze={onSnooze}
@@ -131,6 +135,7 @@ function DeferralSubmenu({
   onSnooze: (until: string, kind: DeferralKind) => void;
   onPickCustom: (kind: DeferralKind) => void;
 }) {
+  const t = useT();
   return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger>
@@ -153,7 +158,7 @@ function DeferralSubmenu({
         ))}
         <DropdownMenuItem onSelect={() => onPickCustom(kind)}>
           <CalendarClock className="size-4" strokeWidth={1.75} />
-          Pick a date…
+          {t("thread.pickADate")}
         </DropdownMenuItem>
       </DropdownMenuSubContent>
     </DropdownMenuSub>
@@ -176,6 +181,7 @@ export function SnoozeDialog({
   onOpenChange: (open: boolean) => void;
   onConfirm: (untilIso: string, note?: string) => void;
 }) {
+  const t = useT();
   // Smart Defaults: the field starts on the next preset, so "pick a date" is an
   // adjustment rather than a blank form. Read at open time, not at mount, so a
   // dialog opened tomorrow does not still offer yesterday.
@@ -206,21 +212,23 @@ export function SnoozeDialog({
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>
-            {kind === "follow_up" ? "Remind me to chase" : "Snooze until"}
+            {kind === "follow_up"
+              ? t("thread.remindMeToChaseTitle")
+              : t("thread.snoozeUntilTitle")}
           </DialogTitle>
           <DialogDescription>
             {kind === "follow_up"
               ? // The cancellation is the reassuring half, and the half nobody
                 // believes until it is written down.
-                "It comes back then as something to chase — unless they reply first, in which case there is nothing to chase and the reminder disappears."
-              : "It comes back to your inbox then — and immediately if the customer replies before that."}
+                t("thread.followUpDescription")
+              : t("thread.snoozeDescription")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
           <Input
             type="datetime-local"
             value={value}
-            aria-label="Return date and time"
+            aria-label={t("thread.returnDateAria")}
             onChange={(event) => setValue(event.target.value)}
           />
           <Input
@@ -228,14 +236,14 @@ export function SnoozeDialog({
             // The column's CHECK, stated once in shared. Stopping here turns a
             // Postgres error into a field that simply stops taking characters.
             maxLength={SNOOZE_NOTE_MAX}
-            placeholder="Why? (optional)"
-            aria-label="Why you are snoozing this"
+            placeholder={t("thread.whyPlaceholder")}
+            aria-label={t("thread.whySnoozingAria")}
             onChange={(event) => setNote(event.target.value)}
           />
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             disabled={!valid}
@@ -248,7 +256,7 @@ export function SnoozeDialog({
               );
             }}
           >
-            {kind === "follow_up" ? "Remind me" : "Snooze"}
+            {kind === "follow_up" ? t("thread.remindMe") : t("thread.snooze")}
           </Button>
         </DialogFooter>
       </DialogContent>

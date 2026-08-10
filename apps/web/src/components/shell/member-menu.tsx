@@ -17,6 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useT } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
 import { endSessionOnThisDevice } from "@/lib/auth/end-session";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
@@ -38,6 +39,7 @@ export function MemberMenu({
   side?: "top" | "bottom";
   align?: "start" | "end";
 }) {
+  const t = useT();
   const { displayName, membership, companyId } = useActiveCompany();
   const { theme, setTheme } = useTheme();
   const router = useRouter();
@@ -54,7 +56,7 @@ export function MemberMenu({
       const { error } = await endSessionOnThisDevice(companyId);
       if (error) throw error;
     } catch {
-      toast.error("Couldn't sign out. Check your connection and try again.");
+      toast.error(t("shell.signOutFailed"));
       return;
     }
     queryClient.clear();
@@ -67,7 +69,7 @@ export function MemberMenu({
       <DropdownMenuContent align={align} side={side} className="w-56">
         <DropdownMenuLabel>
           <span className="block truncate text-sm font-medium">
-            {displayName || "You"}
+            {displayName || t("shell.you")}
           </span>
           <span className="block truncate text-xs font-normal text-muted-foreground">
             {membership.name}
@@ -77,29 +79,29 @@ export function MemberMenu({
         <DropdownMenuItem asChild>
           <Link href="/settings">
             <Settings className="size-4" strokeWidth={1.75} />
-            Settings
+            {t("shell.navSettings")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuLabel>Theme</DropdownMenuLabel>
+        <DropdownMenuLabel>{t("shell.theme")}</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={theme ?? "system"} onValueChange={setTheme}>
           <DropdownMenuRadioItem value="system">
             <Monitor className="size-4" strokeWidth={1.75} />
-            System
+            {t("shell.themeSystem")}
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="light">
             <Sun className="size-4" strokeWidth={1.75} />
-            Light
+            {t("shell.themeLight")}
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="dark">
             <Moon className="size-4" strokeWidth={1.75} />
-            Dark
+            {t("shell.themeDark")}
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => void signOut()}>
           <LogOut className="size-4" strokeWidth={1.75} />
-          Sign out
+          {t("shell.signOut")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

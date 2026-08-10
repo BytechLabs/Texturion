@@ -12,22 +12,29 @@ import {
 } from "lucide-react";
 
 import { mmsMediaKind, type MmsMediaKind } from "@loonext/shared";
+import { useT, type MessageKey } from "@/i18n/provider";
 import { useAttachmentUrl } from "@/lib/api/attachments";
 import type { AttachmentSummary } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 import { formatBytes } from "./gallery-grouping";
 
-/** Icon + human label per coarse media kind (#189 file chips). */
-const KIND_VIEW: Record<MmsMediaKind, { icon: LucideIcon; label: string }> = {
-  image: { icon: FileIcon, label: "Image" }, // images render elsewhere
-  audio: { icon: FileMusic, label: "Audio" },
-  video: { icon: FileVideoCamera, label: "Video" },
-  contact: { icon: Contact, label: "Contact card" },
-  calendar: { icon: Calendar, label: "Calendar invite" },
-  document: { icon: FileText, label: "PDF" },
-  text: { icon: FileText, label: "Text file" },
-  file: { icon: FileIcon, label: "File" },
+/**
+ * Icon + human label per coarse media kind (#189 file chips).
+ *
+ * #228: the label is a catalogue KEY rather than a sentence, because this table
+ * is module-level and a hook cannot be called here. The component resolves it,
+ * which is also what keeps the two languages in one place.
+ */
+const KIND_VIEW: Record<MmsMediaKind, { icon: LucideIcon; label: MessageKey }> = {
+  image: { icon: FileIcon, label: "thread.mediaImage" }, // images render elsewhere
+  audio: { icon: FileMusic, label: "thread.mediaAudio" },
+  video: { icon: FileVideoCamera, label: "thread.mediaVideo" },
+  contact: { icon: Contact, label: "thread.mediaContactCard" },
+  calendar: { icon: Calendar, label: "thread.mediaCalendarInvite" },
+  document: { icon: FileText, label: "thread.mediaPdf" },
+  text: { icon: FileText, label: "thread.mediaTextFile" },
+  file: { icon: FileIcon, label: "thread.mediaFile" },
 };
 
 /**
@@ -45,9 +52,11 @@ export function AttachmentFileChip({
   // #240: a file row is a download — it hands over the FILE. Nothing here ever
   // has a preview (they are PDFs and documents), but asking for the original
   // explicitly is what keeps a download from ever saving a thumbnail.
+  const t = useT();
   const url = useAttachmentUrl(attachment.id, true, "original");
   const kind = mmsMediaKind(attachment.content_type);
-  const { icon: Icon, label } = KIND_VIEW[kind];
+  const { icon: Icon, label: labelKey } = KIND_VIEW[kind];
+  const label = t(labelKey);
   const size = formatBytes(attachment.size_bytes);
 
   if (url.isError) {
@@ -60,7 +69,7 @@ export function AttachmentFileChip({
           onClick={() => url.refetch()}
           className="text-xs underline-offset-2 hover:underline"
         >
-          Didn&apos;t load. Retry
+          {t("thread.didntLoadRetry")}
         </button>
       </div>
     );
@@ -107,7 +116,9 @@ export function AttachmentFileChip({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      aria-label={`Open ${label.toLowerCase()}`}
+      aria-label={t("thread.openAttachmentAria", {
+        kind: label.toLowerCase(),
+      })}
       className={cn(className, "hover:bg-app-hover")}
     >
       {inner}

@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/i18n/provider";
 
 import { writeOnboardingPortDraft } from "../../local-draft";
 import { StepError, StepLoading, StepShell } from "../../step-shell";
@@ -18,6 +19,7 @@ import { portStepProgress, usePortWizardGuard } from "../use-port-wizard";
  * rejection cause, so the copy says so plainly.
  */
 export default function PortAddressPage() {
+  const t = useT();
   const { onboarding, port, ready } = usePortWizardGuard("address");
   const router = useRouter();
 
@@ -45,8 +47,12 @@ export default function PortAddressPage() {
   if (!ready || !onboarding.snapshot) return <StepLoading />;
 
   const country = onboarding.draft.country ?? "US";
-  const regionLabel = country === "US" ? "State" : "Province";
-  const postalLabel = country === "US" ? "ZIP code" : "Postal code";
+  const regionLabel =
+    country === "US"
+      ? t("onboarding.stateLabel")
+      : t("onboarding.provinceLabel");
+  const postalLabel =
+    country === "US" ? t("onboarding.zipLabel") : t("onboarding.postalLabel");
   const progress = portStepProgress(onboarding.snapshot);
 
   function onContinue() {
@@ -57,7 +63,12 @@ export default function PortAddressPage() {
       !adminArea.trim() ||
       !postalCode.trim()
     ) {
-      setError("Fill in the street, city, " + regionLabel.toLowerCase() + ", and " + postalLabel.toLowerCase() + ".");
+      setError(
+        t("onboarding.portAddressMissing", {
+          region: regionLabel.toLowerCase(),
+          postal: postalLabel.toLowerCase(),
+        }),
+      );
       return;
     }
     writeOnboardingPortDraft({
@@ -75,26 +86,26 @@ export default function PortAddressPage() {
       backHref="/onboarding/port/carrier"
       index={progress.index}
       total={progress.total}
-      title="Service address on file"
-      subtitle="The address your current carrier has for this number. A mismatch here is the most common reason a transfer gets held up. Copy it from your latest bill."
+      title={t("onboarding.portAddressTitle")}
+      subtitle={t("onboarding.portAddressSubtitle")}
     >
       <div className="space-y-5">
         <div className="space-y-2">
-          <Label htmlFor="street">Street address</Label>
+          <Label htmlFor="street">{t("onboarding.streetLabel")}</Label>
           <Input
             id="street"
             value={street}
             onChange={(e) => setStreet(e.target.value)}
             autoComplete="street-address"
-            placeholder="1 Main St"
+            placeholder={t("onboarding.streetPlaceholder")}
           />
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="extended">
-            Suite / unit{" "}
+            {t("onboarding.suiteLabel")}{" "}
             <span className="font-normal text-muted-foreground">
-              (optional)
+              {t("onboarding.optional")}
             </span>
           </Label>
           <Input
@@ -102,12 +113,12 @@ export default function PortAddressPage() {
             value={extended}
             onChange={(e) => setExtended(e.target.value)}
             autoComplete="address-line2"
-            placeholder="Unit 4"
+            placeholder={t("onboarding.suitePlaceholder")}
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="locality">City</Label>
+          <Label htmlFor="locality">{t("onboarding.cityLabel")}</Label>
           <Input
             id="locality"
             value={locality}
@@ -147,7 +158,7 @@ export default function PortAddressPage() {
         ) : null}
 
         <Button size="lg" className="w-full" onClick={onContinue}>
-          Continue
+          {t("onboarding.continue")}
           <ArrowRight className="size-4" aria-hidden />
         </Button>
       </div>

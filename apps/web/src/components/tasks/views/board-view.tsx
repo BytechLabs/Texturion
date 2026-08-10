@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { LoadError } from "@/components/settings/section";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { useAllTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,7 @@ export function BoardView({ state }: { state: TaskPageState }) {
   // Each drains every page (a card dropped past page 1 would leave a column
   // short); the derived `done` on each row still governs which column it lands
   // in (a row that raced across a status boundary self-corrects on the next read).
+  const t = useT();
   const base = toTaskFilters(state);
   const todoQuery = useAllTasks({ ...base, status: "open" });
   const doneQuery = useAllTasks({ ...base, status: "done" });
@@ -53,7 +55,7 @@ export function BoardView({ state }: { state: TaskPageState }) {
     return (
       <div className="px-1 py-8">
         <LoadError
-          message="We couldn't load your tasks. Check your connection and try again."
+          message={t("tasks.tasksLoadFailed")}
           onRetry={() => {
             void todoQuery.refetch();
             void doneQuery.refetch();
@@ -84,8 +86,8 @@ export function BoardView({ state }: { state: TaskPageState }) {
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Column title="To do" tasks={todo} target={false} />
-      <Column title="Done" tasks={done} target={true} />
+      <Column title={t("tasks.boardColumnToDo")} tasks={todo} target={false} />
+      <Column title={t("tasks.boardColumnDone")} tasks={done} target={true} />
     </div>
   );
 }
@@ -100,6 +102,7 @@ function Column({
   tasks: Task[];
   target: boolean;
 }) {
+  const t = useT();
   const done = useTaskDone();
   const [over, setOver] = useState(false);
 
@@ -137,7 +140,7 @@ function Column({
         // active/over state"); otherwise border-first, calm.
         over ? "border-primary bg-primary/5" : "border-border bg-secondary/20",
       )}
-      aria-label={`${title} column, ${tasks.length} tasks`}
+      aria-label={t("tasks.boardColumnAria", { title, count: tasks.length })}
     >
       <header className="flex items-center justify-between px-1 pb-1">
         <h2 className="text-[13px] font-semibold text-foreground">{title}</h2>
@@ -147,7 +150,9 @@ function Column({
       </header>
       {tasks.length === 0 ? (
         <p className="px-1 py-6 text-center text-[13px] text-muted-foreground">
-          {target ? "Nothing done yet." : "Nothing to do."}
+          {target
+            ? t("tasks.boardNothingDone")
+            : t("tasks.boardNothingToDo")}
         </p>
       ) : (
         tasks.map((task) => (
@@ -171,6 +176,7 @@ function Column({
 
 /** A calm draggable card + a keyboard-accessible "move" button. */
 function BoardCard({ task, onMove }: { task: Task; onMove: () => void }) {
+  const t = useT();
   return (
     <article
       draggable
@@ -195,7 +201,7 @@ function BoardCard({ task, onMove }: { task: Task; onMove: () => void }) {
         </Link>
         <Link
           href={taskThreadHref(task)}
-          aria-label="Open conversation"
+          aria-label={t("tasks.openConversation")}
           className="tap-target shrink-0 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
         >
           <ArrowUpRight className="size-3.5" strokeWidth={1.75} aria-hidden />
@@ -211,7 +217,9 @@ function BoardCard({ task, onMove }: { task: Task; onMove: () => void }) {
         onClick={onMove}
         className="mt-2 w-full rounded-md border border-dashed border-border py-1 text-[12px] font-medium text-muted-foreground transition-colors duration-150 ease-out hover:border-primary/50 hover:text-foreground"
       >
-        {task.done ? "Move to To do" : "Move to Done"}
+        {task.done
+          ? t("tasks.boardMoveToToDo")
+          : t("tasks.boardMoveToDone")}
       </button>
     </article>
   );

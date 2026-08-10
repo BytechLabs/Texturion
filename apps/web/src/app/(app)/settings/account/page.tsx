@@ -14,6 +14,7 @@ import {
   SettingsPage,
 } from "@/components/settings/section";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { useMe } from "@/lib/api/me";
 import { isOAuthOnly } from "@/lib/auth/identities";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
@@ -32,6 +33,7 @@ type LoadState =
  * there's no app-side mirror to reconcile after a change.
  */
 export default function AccountSettingsPage() {
+  const t = useT();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   // The password row cannot be read from the Supabase session (see
   // lib/auth/identities): the server is the only place that knows.
@@ -57,11 +59,11 @@ export default function AccountSettingsPage() {
 
   return (
     <SettingsPage
-      title="Account"
-      description="How you sign in to Loonext."
+      title={t("appShell.accountTitle")}
+      description={t("appShell.accountDescription")}
     >
       {state.status === "loading" && (
-        <div className="space-y-4" aria-label="Loading account settings">
+        <div className="space-y-4" aria-label={t("appShell.accountLoading")}>
           <Skeleton className="h-32 w-full rounded-lg" />
           <Skeleton className="h-32 w-full rounded-lg" />
           <Skeleton className="h-40 w-full rounded-lg" />
@@ -73,8 +75,8 @@ export default function AccountSettingsPage() {
       {state.status === "ready" && (
         <div className="space-y-6">
           <SettingsCard
-            title="Sign-in methods"
-            description="How you can log in. Same email across methods stays one account."
+            title={t("appShell.accountMethodsTitle")}
+            description={t("appShell.accountMethodsDescription")}
           >
             <AccountMethods
               identities={state.user.identities}

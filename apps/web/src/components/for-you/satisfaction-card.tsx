@@ -33,6 +33,7 @@ import { useState } from "react";
 
 import { ProportionRing } from "@/components/ui/proportion-ring";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT, type Translate } from "@/i18n/provider";
 import {
   useSatisfaction,
   type ResponseTimeWindow,
@@ -58,13 +59,16 @@ const WINDOWS: { days: ResponseTimeWindow; label: string }[] = [
  * Null when there is no arc to draw, so the caller says why rather than
  * printing a hedge about nothing.
  */
-export function satisfactionArc(report: SatisfactionReport): string | null {
+export function satisfactionArc(
+  report: SatisfactionReport,
+  t: Translate,
+): string | null {
   const direction = satisfactionArcDirection(report.improved_by);
   if (!direction || report.baseline === null) return null;
   const then = formatSatisfaction(report.baseline.average);
   return direction === "better"
-    ? `Up from ${then} the month before`
-    : `Down from ${then} the month before`;
+    ? t("inbox.satisfactionArcUp", { then })
+    : t("inbox.satisfactionArcDown", { then });
 }
 
 /**
@@ -73,10 +77,17 @@ export function satisfactionArc(report: SatisfactionReport): string | null {
  * Collapsing them into one "no data" message is what makes an owner think the
  * feature is broken when it is working exactly as intended.
  */
-export function satisfactionGap(report: SatisfactionReport): string {
+export function satisfactionGap(
+  report: SatisfactionReport,
+  t: Translate,
+): string {
   if (report.asked === 0) return SATISFACTION_COPY.none_asked;
   if (report.answered === 0) return SATISFACTION_COPY.none_answered;
-  return `${SATISFACTION_COPY.too_few} — ${report.answered} of ${report.minimum_sample}`;
+  return t("inbox.satisfactionGapTooFew", {
+    copy: SATISFACTION_COPY.too_few,
+    answered: report.answered,
+    minimum: report.minimum_sample,
+  });
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -89,6 +100,7 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 export function SatisfactionCard() {
+  const t = useT();
   const [days, setDays] = useState<ResponseTimeWindow>(30);
   const [open, setOpen] = useState(false);
   const report = useSatisfaction(days);
@@ -96,14 +108,16 @@ export function SatisfactionCard() {
   return (
     <section>
       <h2 className="flex items-baseline justify-between gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
-        <span className="flex items-baseline gap-2">Satisfaction</span>
+        <span className="flex items-baseline gap-2">
+          {t("inbox.satisfactionTitle")}
+        </span>
         {/* The same control, in the same place, as the card above it.
             *Applying: the Safety Principle — two panels on one surface that
             take the same input must take it the same way.* */}
         <span
           className="flex items-center gap-0.5"
           role="group"
-          aria-label="Window"
+          aria-label={t("inbox.responseWindowAria")}
         >
           {WINDOWS.map((w) => (
             <button
@@ -132,13 +146,13 @@ export function SatisfactionCard() {
           </div>
         ) : report.isError || !report.data ? (
           <div className="px-4 py-4 text-[13px] text-app-muted-2">
-            Could not load your ratings.{" "}
+            {t("inbox.satisfactionLoadFailed")}{" "}
             <button
               type="button"
               onClick={() => report.refetch()}
               className="underline underline-offset-2"
             >
-              Try again
+              {t("common.retry")}
             </button>
           </div>
         ) : report.data.average === null ? (
@@ -148,7 +162,7 @@ export function SatisfactionCard() {
           // be the panel choosing tidiness over the thing that matters.
           <div className="space-y-2 px-4 py-4">
             <p className="text-[13px] text-app-muted-2">
-              {satisfactionGap(report.data)}
+              {satisfactionGap(report.data, t)}
             </p>
             {report.data.poor > 0 ? (
               <Link
@@ -179,19 +193,24 @@ export function SatisfactionCard() {
                   // closed circle are indistinguishable, so the mark carried
                   // nothing — it read as an icon that happened to be round.
                   size={26}
-                  label={`${formatSatisfaction(report.data.average)} out of 5, from ${report.data.answered} answers`}
+                  label={t("inbox.satisfactionRingAria", {
+                    score: formatSatisfaction(report.data.average),
+                    count: report.data.answered,
+                  })}
                   className="shrink-0 translate-y-[5px] text-app-olive-deep"
                 />
                 <span className="text-2xl font-semibold tabular-nums tracking-tight text-app-ink">
                   {formatSatisfaction(report.data.average)}
                 </span>
                 <span className="text-[13px] text-app-muted-2">
-                  out of 5, from {report.data.answered} answers
+                  {t("inbox.satisfactionOutOfFive", {
+                    count: report.data.answered,
+                  })}
                 </span>
               </div>
 
               {(() => {
-                const sentence = satisfactionArc(report.data);
+                const sentence = satisfactionArc(report.data, t);
                 const direction = satisfactionArcDirection(
                   report.data.improved_by,
                 );
@@ -199,8 +218,8 @@ export function SatisfactionCard() {
                   return (
                     <p className="pt-1 text-[13px] text-app-muted-2">
                       {report.data.baseline === null
-                        ? "No month before this one to compare against yet"
-                        : "About the same as the month before"}
+                        ? t("inbox.satisfactionNoBaseline")
+                        : t("inbox.satisfactionSame")}
                     </p>
                   );
                 }
@@ -245,7 +264,9 @@ export function SatisfactionCard() {
                 aria-expanded={open}
                 className="tap-target flex w-full items-center justify-between px-4 py-2.5 text-[13px] text-app-muted-2 transition-colors hover:bg-app-hover"
               >
-                {open ? "Hide details" : "Details"}
+                {open
+                  ? t("inbox.responseHideDetails")
+                  : t("inbox.responseDetails")}
               </button>
 
               {open ? (
@@ -253,13 +274,20 @@ export function SatisfactionCard() {
                   {[5, 4, 3, 2, 1].map((score) => (
                     <Row
                       key={score}
-                      label={score === 1 ? "1 star" : `${score} stars`}
+                      label={
+                        score === 1
+                          ? t("inbox.satisfactionStarsOne")
+                          : t("inbox.satisfactionStarsMany", { count: score })
+                      }
                       value={String(report.data.distribution[String(score)] ?? 0)}
                     />
                   ))}
                   <Row
-                    label="Asked"
-                    value={`${report.data.asked} in ${days} days`}
+                    label={t("inbox.satisfactionAsked")}
+                    value={t("inbox.satisfactionAskedValue", {
+                      count: report.data.asked,
+                      days,
+                    })}
                   />
 
                   {/* Per person, and only when the owner asked for it. The copy
@@ -274,7 +302,12 @@ export function SatisfactionCard() {
                       {report.data.by_member.map((member) => (
                         <Row
                           key={member.user_id}
-                          label={`${member.name ?? "Member"} · ${member.answered} answered`}
+                          label={t("inbox.satisfactionByMember", {
+                            name:
+                              member.name ??
+                              t("inbox.satisfactionMemberFallback"),
+                            count: member.answered,
+                          })}
                           value={
                             member.average === null
                               ? SATISFACTION_COPY.too_few
@@ -287,7 +320,9 @@ export function SatisfactionCard() {
 
                   {report.data.truncated ? (
                     <p className="pt-1 text-[12px] text-app-muted-2">
-                      Showing the most recent {report.data.row_limit} ratings.
+                      {t("inbox.satisfactionTruncated", {
+                        count: report.data.row_limit,
+                      })}
                     </p>
                   ) : null}
                 </div>

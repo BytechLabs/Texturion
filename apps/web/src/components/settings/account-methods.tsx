@@ -2,13 +2,17 @@
 
 import { Check } from "lucide-react";
 
+import { useT, type Translate } from "@/i18n/provider";
 import { signInMethods, type IdentityLike } from "@/lib/auth/identities";
 
-const METHOD_LABEL: Record<string, string> = {
-  google: "Google",
-  apple: "Apple",
-  password: "Password",
-};
+/** Google and Apple are product names; only the third one is ours to translate. */
+function methodLabels(t: Translate): Record<string, string> {
+  return {
+    google: "Google",
+    apple: "Apple",
+    password: t("settings.signInPassword"),
+  };
+}
 
 /**
  * The "Sign-in methods" linked-methods list (D18 / APP-FEATURES-V2 §1.8): a
@@ -26,6 +30,8 @@ export function AccountMethods({
    *  password added after an OAuth signup. */
   hasPassword?: boolean;
 }) {
+  const t = useT();
+  const METHOD_LABEL = methodLabels(t);
   const methods = signInMethods(identities, hasPassword);
   return (
     <ul className="divide-y divide-border-subtle">
@@ -42,10 +48,12 @@ export function AccountMethods({
                 strokeWidth={2}
                 aria-hidden
               />
-              Linked
+              {t("settings.signInLinked")}
             </span>
           ) : (
-            <span className="text-sm text-muted-foreground">Not linked</span>
+            <span className="text-sm text-muted-foreground">
+              {t("settings.signInNotLinked")}
+            </span>
           )}
         </li>
       ))}

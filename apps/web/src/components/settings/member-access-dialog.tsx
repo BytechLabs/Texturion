@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useT } from "@/i18n/provider";
 import { useMemberNumberAccess } from "@/lib/api/numbers";
 import { formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
@@ -52,6 +53,7 @@ export function MemberAccessDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const access = useMemberNumberAccess(userId, open);
   const rows = sortNumberAccessExplanations(access.data?.numbers ?? []);
 
@@ -59,23 +61,23 @@ export function MemberAccessDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Numbers {name} can reach</DialogTitle>
+          <DialogTitle>{t("settings.memberAccessTitle", { name })}</DialogTitle>
           <DialogDescription>
-            What they can do on each number, and the rule that decided it.
+            {t("settings.memberAccessDescription")}
           </DialogDescription>
         </DialogHeader>
 
         {access.isPending ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
-            Checking…
+            {t("settings.memberAccessChecking")}
           </p>
         ) : access.isError ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
-            Couldn&apos;t load their access. Try again.
+            {t("settings.memberAccessLoadFailed")}
           </p>
         ) : rows.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
-            This workspace has no numbers yet.
+            {t("settings.memberAccessNoNumbers")}
           </p>
         ) : (
           <ul className="divide-y">
@@ -86,7 +88,9 @@ export function MemberAccessDialog({
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium tabular-nums">
-                    {row.number_e164 ? formatPhone(row.number_e164) : "Number"}
+                    {row.number_e164
+                      ? formatPhone(row.number_e164)
+                      : t("settings.memberAccessUnnamedNumber")}
                   </p>
                   {/* The reason, quiet and directly under the number it
                       explains — a strong relationship gets tight spacing. */}

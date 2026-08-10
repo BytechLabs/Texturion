@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   isGatedOwnershipAction,
@@ -50,6 +51,7 @@ import { useActionConfirmation } from "@/lib/hooks/use-action-confirmation";
  * client never works out for itself whether somebody may claim a business.
  */
 export function OwnershipCard({ members }: { members: Member[] }) {
+  const t = useT();
   const ownership = useOwnership();
   const act = useOwnershipAction();
   // #581/#7: handing a business over is refused until the server knows who is
@@ -62,7 +64,7 @@ export function OwnershipCard({ members }: { members: Member[] }) {
 
   const nameOf = (memberId: string | null) =>
     members.find((m) => m.id === memberId)?.display_name?.trim() ||
-    "a teammate";
+    t("settingsMore.ownershipTeammateFallback");
 
   if (ownership.isPending) {
     return <Skeleton className="h-40 w-full rounded-lg" />;
@@ -111,7 +113,7 @@ export function OwnershipCard({ members }: { members: Member[] }) {
         toast.error(
           error instanceof ApiError
             ? error.message
-            : "That didn't go through. Try again.",
+            : t("settingsMore.ownershipActionFailed"),
         );
       },
     });
@@ -119,8 +121,8 @@ export function OwnershipCard({ members }: { members: Member[] }) {
 
   return (
     <SettingsCard
-      title="Ownership"
-      description="The owner controls billing, the spending cap, and your numbers. Only they can hand that on."
+      title={t("settingsMore.ownershipTitle")}
+      description={t("settingsMore.ownershipDescription")}
     >
       <div className="space-y-5">
         {state.pending && (
@@ -133,22 +135,27 @@ export function OwnershipCard({ members }: { members: Member[] }) {
             <div className="min-w-0 flex-1 space-y-2">
               <p className="text-sm font-medium">
                 {state.pending.kind === "offer"
-                  ? `Ownership has been offered to ${nameOf(state.pending.to_member_id)}.`
-                  : `${nameOf(state.pending.to_member_id)} has asked to take over this workspace.`}
+                  ? t("settingsMore.ownershipOffered", {
+                      name: nameOf(state.pending.to_member_id),
+                    })
+                  : t("settingsMore.ownershipAskedToTakeOver", {
+                      name: nameOf(state.pending.to_member_id),
+                    })}
               </p>
               <p className="text-sm text-muted-foreground">
                 {state.pending.kind === "offer" ? (
                   <>
-                    Nothing changes until they accept. The offer expires{" "}
-                    {formatAbsoluteDateTime(state.pending.expires_at)}.
+                    {t("settingsMore.ownershipOfferExpires", {
+                      when: formatAbsoluteDateTime(state.pending.expires_at),
+                    })}
                   </>
                 ) : state.pending.ready ? (
-                  <>The waiting period is over. They can complete this at any time.</>
+                  <>{t("settingsMore.ownershipWaitOver")}</>
                 ) : (
                   <>
-                    This completes{" "}
-                    {formatAbsoluteDateTime(state.pending.ripens_at)} unless the
-                    owner stops it. Stopping it takes effect immediately.
+                    {t("settingsMore.ownershipCompletesAt", {
+                      when: formatAbsoluteDateTime(state.pending.ripens_at),
+                    })}
                   </>
                 )}
               </p>
@@ -159,12 +166,15 @@ export function OwnershipCard({ members }: { members: Member[] }) {
                     size="sm"
                     disabled={act.isPending}
                     onClick={() =>
-                      run({ action: "accept" }, "You now own this workspace.")
+                      run(
+                        { action: "accept" },
+                        t("settingsMore.ownershipNowYours"),
+                      )
                     }
                   >
                     {state.pending.kind === "offer"
-                      ? "Accept ownership"
-                      : "Complete the takeover"}
+                      ? t("settingsMore.ownershipAccept")
+                      : t("settingsMore.ownershipCompleteTakeover")}
                   </Button>
                 )}
                 {state.can_cancel && (
@@ -176,7 +186,7 @@ export function OwnershipCard({ members }: { members: Member[] }) {
                     onClick={() =>
                       run(
                         { action: "cancel" },
-                        "Stopped. Nothing changed hands.",
+                        t("settingsMore.ownershipStopped"),
                       )
                     }
                   >
@@ -184,8 +194,8 @@ export function OwnershipCard({ members }: { members: Member[] }) {
                         same button, because they are the same act: this is
                         not going ahead. */}
                     {state.i_am_owner && !state.pending?.mine
-                      ? "Stop this"
-                      : "Decline"}
+                      ? t("settingsMore.ownershipStopThis")
+                      : t("settingsMore.ownershipDecline")}
                   </Button>
                 )}
               </div>
@@ -194,9 +204,13 @@ export function OwnershipCard({ members }: { members: Member[] }) {
         )}
 
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <span className="text-sm text-muted-foreground">Owner</span>
+          <span className="text-sm text-muted-foreground">
+            {t("settingsMore.ownershipOwnerLabel")}
+          </span>
           <span className="text-sm font-medium">
-            {state.i_am_owner ? "You" : nameOf(state.owner_member_id)}
+            {state.i_am_owner
+              ? t("settingsMore.ownershipYou")
+              : nameOf(state.owner_member_id)}
           </span>
         </div>
 
@@ -204,10 +218,12 @@ export function OwnershipCard({ members }: { members: Member[] }) {
           <>
             <div className="space-y-2 border-t pt-4">
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <span className="text-sm font-medium">Backup owner</span>
+                <span className="text-sm font-medium">
+                  {t("settingsMore.ownershipBackupOwner")}
+                </span>
                 {state.backup_member_id === null && (
                   <span className="text-xs text-amber-600 dark:text-amber-500">
-                    Nobody named
+                    {t("settingsMore.ownershipNobodyNamed")}
                   </span>
                 )}
               </div>
@@ -215,10 +231,7 @@ export function OwnershipCard({ members }: { members: Member[] }) {
                 {/* Loss aversion, stated once and plainly: this is the
                     difference between a bad week and a business nobody can
                     run. */}
-                If you ever can&apos;t get in — you lose your email, or worse —
-                this is the one person who can ask to take over. They wait a
-                week, you can stop it with one click, and everyone gets told.
-                Nothing changes today.
+                {t("settingsMore.ownershipBackupBody")}
               </p>
               <Select
                 value={state.backup_member_id ?? "none"}
@@ -227,26 +240,33 @@ export function OwnershipCard({ members }: { members: Member[] }) {
                   run(
                     { action: "backup", memberId: value === "none" ? null : value },
                     value === "none"
-                      ? "Backup owner cleared."
-                      : `${nameOf(value)} is your backup owner.`,
+                      ? t("settingsMore.ownershipBackupCleared")
+                      : t("settingsMore.ownershipBackupSet", {
+                          name: nameOf(value),
+                        }),
                   )
                 }
               >
                 <SelectTrigger className="w-full sm:w-72">
-                  <SelectValue placeholder="Choose a teammate" />
+                  <SelectValue
+                    placeholder={t("settingsMore.ownershipChooseTeammate")}
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Nobody</SelectItem>
+                  <SelectItem value="none">
+                    {t("settingsMore.ownershipNobody")}
+                  </SelectItem>
                   {others.map((member) => (
                     <SelectItem key={member.id} value={member.id}>
-                      {member.display_name?.trim() || "A teammate"}
+                      {member.display_name?.trim() ||
+                        t("settingsMore.ownershipTeammateOption")}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {others.length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  Invite someone first — a backup has to be on the team.
+                  {t("settingsMore.ownershipInviteFirst")}
                 </p>
               )}
             </div>
@@ -254,10 +274,10 @@ export function OwnershipCard({ members }: { members: Member[] }) {
             {state.can_offer && others.length > 0 && (
               <div className="space-y-2 border-t pt-4">
                 <span className="text-sm font-medium">
-                  Hand the workspace over
+                  {t("settingsMore.ownershipHandOverTitle")}
                 </span>
                 <p className="text-sm text-muted-foreground">
-                  They have to accept. You stay on the team as an admin.
+                  {t("settingsMore.ownershipHandOverBody")}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Select
@@ -266,12 +286,15 @@ export function OwnershipCard({ members }: { members: Member[] }) {
                     onValueChange={setOfferTo}
                   >
                     <SelectTrigger className="w-full sm:w-72">
-                      <SelectValue placeholder="Choose a teammate" />
+                      <SelectValue
+                        placeholder={t("settingsMore.ownershipChooseTeammate")}
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {others.map((member) => (
                         <SelectItem key={member.id} value={member.id}>
-                          {member.display_name?.trim() || "A teammate"}
+                          {member.display_name?.trim() ||
+                            t("settingsMore.ownershipTeammateOption")}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -282,7 +305,7 @@ export function OwnershipCard({ members }: { members: Member[] }) {
                     disabled={!offerTo || act.isPending}
                     onClick={() => setConfirming("offer")}
                   >
-                    Hand it over
+                    {t("settingsMore.ownershipHandItOver")}
                   </Button>
                 </div>
               </div>
@@ -292,10 +315,11 @@ export function OwnershipCard({ members }: { members: Member[] }) {
 
         {state.can_claim && (
           <div className="space-y-2 border-t pt-4">
-            <span className="text-sm font-medium">You are the backup owner</span>
+            <span className="text-sm font-medium">
+              {t("settingsMore.ownershipYouAreBackup")}
+            </span>
             <p className="text-sm text-muted-foreground">
-              If the owner can&apos;t act, you can ask to take over. They get a
-              week to stop it, and everyone on the team is told straight away.
+              {t("settingsMore.ownershipClaimBody")}
             </p>
             <Button
               type="button"
@@ -303,7 +327,7 @@ export function OwnershipCard({ members }: { members: Member[] }) {
               disabled={act.isPending}
               onClick={() => setConfirming("claim")}
             >
-              Ask to take over
+              {t("settingsMore.ownershipAskToTakeOver")}
             </Button>
           </div>
         )}
@@ -320,24 +344,16 @@ export function OwnershipCard({ members }: { members: Member[] }) {
           <DialogHeader>
             <DialogTitle>
               {confirming === "offer"
-                ? `Hand this workspace to ${nameOf(offerTo)}?`
-                : "Ask to take over this workspace?"}
+                ? t("settingsMore.ownershipOfferDialogTitle", {
+                    name: nameOf(offerTo),
+                  })
+                : t("settingsMore.ownershipClaimDialogTitle")}
             </DialogTitle>
             <DialogDescription>
               {confirming === "offer" ? (
-                <>
-                  Nothing changes until they accept. When they do, they control
-                  billing, the spending cap, and your numbers — and you stay on
-                  the team as an admin. You can cancel any time before they
-                  accept, and everyone will be told either way.
-                </>
+                <>{t("settingsMore.ownershipOfferDialogBody")}</>
               ) : (
-                <>
-                  The owner will be emailed straight away and can stop this
-                  with one click for the next 7 days. Everyone on the team is
-                  told too. If nobody stops it, you can complete the takeover
-                  after 7 days. Only do this if the owner genuinely cannot act.
-                </>
+                <>{t("settingsMore.ownershipClaimDialogBody")}</>
               )}
             </DialogDescription>
           </DialogHeader>
@@ -347,7 +363,7 @@ export function OwnershipCard({ members }: { members: Member[] }) {
               variant="outline"
               onClick={() => setConfirming(null)}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -356,15 +372,19 @@ export function OwnershipCard({ members }: { members: Member[] }) {
                 confirming === "offer"
                   ? run(
                       { action: "offer", memberId: offerTo },
-                      `Offered to ${nameOf(offerTo)}. They have 7 days to accept.`,
+                      t("settingsMore.ownershipOfferSent", {
+                        name: nameOf(offerTo),
+                      }),
                     )
                   : run(
                       { action: "claim" },
-                      "Asked. The owner has 7 days to stop it.",
+                      t("settingsMore.ownershipClaimSent"),
                     )
               }
             >
-              {confirming === "offer" ? "Offer it" : "Ask to take over"}
+              {confirming === "offer"
+                ? t("settingsMore.ownershipOfferIt")
+                : t("settingsMore.ownershipAskToTakeOver")}
             </Button>
           </DialogFooter>
         </DialogContent>

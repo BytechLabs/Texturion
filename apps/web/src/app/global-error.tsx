@@ -3,6 +3,8 @@
 import type { CSSProperties } from "react";
 import { useEffect } from "react";
 
+import { useT } from "@/i18n/provider";
+
 import { reportBoundaryError } from "./error";
 
 /**
@@ -107,6 +109,7 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const t = useT();
   useEffect(() => {
     console.error("Global boundary error", error);
     void reportBoundaryError(error);
@@ -119,27 +122,26 @@ export default function GlobalError({
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages --
               the root layout (and with it the router tree) just crashed; a
               plain full-document navigation is deliberate here. */}
-          <a href="/" style={styles.wordmark} aria-label="Loonext home">
+          <a href="/" style={styles.wordmark} aria-label={t("misc.homeAria")}>
             Lo<span style={styles.wordmarkO}>o</span>next
           </a>
           <div>
-            <h1 style={styles.heading}>Something broke on our side.</h1>
-            <p style={styles.bodyText}>
-              It was nothing you did. Try again; if it keeps failing, come back
-              in a few minutes.
-            </p>
+            <h1 style={styles.heading}>{t("misc.errorHeading")}</h1>
+            <p style={styles.bodyText}>{t("misc.globalErrorBody")}</p>
             {error.digest ? (
-              <p style={styles.digest}>Reference: {error.digest}</p>
+              <p style={styles.digest}>
+                {t("misc.errorReference", { digest: error.digest })}
+              </p>
             ) : null}
           </div>
           <div style={styles.actions}>
             <button type="button" onClick={reset} style={styles.retry}>
-              Try again
+              {t("common.retry")}
             </button>
             {/* eslint-disable-next-line @next/next/no-html-link-for-pages --
                 deliberate full-document navigation, see the wordmark note. */}
             <a href="/" style={styles.secondary}>
-              Back to the home page
+              {t("misc.backToHome")}
             </a>
           </div>
         </main>

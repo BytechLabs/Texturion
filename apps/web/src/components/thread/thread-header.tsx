@@ -56,6 +56,7 @@ import {
   DropdownMenuToggleItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useT } from "@/i18n/provider";
 import { useOptOutContact, useRevokeOptOut } from "@/lib/api/contacts";
 import {
   useMarkConversationUnread,
@@ -129,6 +130,7 @@ export function ThreadHeader({
   filter: ThreadFilter;
   onFilterChange: (next: ThreadFilter) => void;
 }) {
+  const t = useT();
   const update = useUpdateConversation(conversation.id);
   const unread = useMarkConversationUnread();
   const snooze = useSnoozeConversation();
@@ -152,7 +154,7 @@ export function ThreadHeader({
 
   const name = contactDisplayName(conversation.contact);
   const assigneeName = conversation.assigned_user_id
-    ? memberNames.get(conversation.assigned_user_id) ?? "Teammate"
+    ? memberNames.get(conversation.assigned_user_id) ?? t("thread.teammate")
     : null;
   const phone = conversation.contact.phone_e164;
   // #505: the repeat-customer signal, on the surface the person mid-reply is
@@ -174,9 +176,9 @@ export function ThreadHeader({
   const copyPhone = async () => {
     try {
       await navigator.clipboard.writeText(phone);
-      toast.success("Number copied.");
+      toast.success(t("thread.numberCopied"));
     } catch {
-      toast.error("Couldn't copy. Your browser blocked clipboard access.");
+      toast.error(t("thread.copyFailed"));
     }
   };
 
@@ -193,15 +195,15 @@ export function ThreadHeader({
     update.mutate(
       { status },
       {
-        onError: (e) => onApiError(e, "Couldn't update the status."),
+        onError: (e) => onApiError(e, t("thread.statusUpdateFailed")),
         onSuccess: closing
           ? () =>
               undoableToast({
-                message: "Conversation closed",
+                message: t("thread.conversationClosed"),
                 onUndo: () =>
                   update.mutate(
                     { status: previous },
-                    { onError: (e) => onApiError(e, "Couldn't undo.") },
+                    { onError: (e) => onApiError(e, t("thread.undoFailed")) },
                   ),
               })
           : undefined,
@@ -214,14 +216,16 @@ export function ThreadHeader({
     update.mutate(
       { is_spam: !wasSpam },
       {
-        onError: (e) => onApiError(e, "Couldn't update spam."),
+        onError: (e) => onApiError(e, t("thread.spamUpdateFailed")),
         onSuccess: () =>
           undoableToast({
-            message: wasSpam ? "Marked as not spam" : "Marked as spam",
+            message: wasSpam
+              ? t("thread.markedAsNotSpam")
+              : t("thread.markedAsSpam"),
             onUndo: () =>
               update.mutate(
                 { is_spam: wasSpam },
-                { onError: (e) => onApiError(e, "Couldn't undo.") },
+                { onError: (e) => onApiError(e, t("thread.undoFailed")) },
               ),
           }),
       },
@@ -233,8 +237,8 @@ export function ThreadHeader({
   const pinned = conversation.pinned_at !== null;
   const markUnread = () => {
     unread.mutate(conversation.id, {
-      onError: (e) => onApiError(e, "Couldn't mark this unread."),
-      onSuccess: () => toast.success("Marked unread"),
+      onError: (e) => onApiError(e, t("thread.markUnreadFailed")),
+      onSuccess: () => toast.success(t("thread.markedUnread")),
     });
   };
 
@@ -256,8 +260,8 @@ export function ThreadHeader({
           onApiError(
             e,
             kind === "follow_up"
-              ? "Couldn't set that reminder."
-              : "Couldn't snooze this conversation.",
+              ? t("thread.reminderSetFailed")
+              : t("thread.snoozeFailed"),
           ),
         onSuccess: () => toastSnoozed(until, kind),
       },
@@ -265,10 +269,12 @@ export function ThreadHeader({
   };
   const bringBack = () => {
     unsnooze.mutate(conversation.id, {
-      onError: (e) => onApiError(e, "Couldn't bring this back."),
+      onError: (e) => onApiError(e, t("thread.bringBackFailed")),
       onSuccess: () =>
         toast.success(
-          snoozeKind === "follow_up" ? "Reminder cancelled" : "Back in your inbox",
+          snoozeKind === "follow_up"
+            ? t("thread.reminderCancelled")
+            : t("thread.backInYourInbox"),
         ),
     });
   };
@@ -277,9 +283,13 @@ export function ThreadHeader({
     update.mutate(
       { pinned: !pinned },
       {
-        onError: (e) => onApiError(e, "Couldn't update pin."),
+        onError: (e) => onApiError(e, t("thread.pinUpdateFailed")),
         onSuccess: () =>
-          toast.success(pinned ? "Conversation unpinned" : "Conversation pinned"),
+          toast.success(
+            pinned
+              ? t("thread.conversationUnpinned")
+              : t("thread.conversationPinned"),
+          ),
       },
     );
   };
@@ -292,7 +302,10 @@ export function ThreadHeader({
       type="button"
       onClick={onToggleContactPanel}
       aria-pressed={panelOpen}
-      aria-label={`View contact details for ${name}, ${formatPhone(phone)}`}
+      aria-label={t("thread.viewContactAria", {
+        name,
+        phone: formatPhone(phone),
+      })}
       className="block max-w-full truncate rounded-md px-1 text-left text-[15px] font-bold leading-tight text-app-ink transition-colors duration-150 ease-out hover:bg-app-hover md:leading-normal"
     >
       {name}
@@ -304,19 +317,21 @@ export function ThreadHeader({
     if (assignId === prev) return;
     const label =
       assignId === null
-        ? "Unassigned"
-        : `Assigned to ${memberNames.get(assignId) ?? "teammate"}`;
+        ? t("thread.unassigned")
+        : t("thread.assignedTo", {
+            name: memberNames.get(assignId) ?? t("thread.teammateLower"),
+          });
     update.mutate(
       { assigned_user_id: assignId },
       {
-        onError: (e) => onApiError(e, "Couldn't assign."),
+        onError: (e) => onApiError(e, t("thread.assignFailed")),
         onSuccess: () =>
           undoableToast({
             message: label,
             onUndo: () =>
               update.mutate(
                 { assigned_user_id: prev },
-                { onError: (e) => onApiError(e, "Couldn't undo.") },
+                { onError: (e) => onApiError(e, t("thread.undoFailed")) },
               ),
           }),
       },
@@ -346,7 +361,7 @@ export function ThreadHeader({
         variant="ghost"
         size="icon-sm"
         className="md:hidden"
-        aria-label="Back to inbox"
+        aria-label={t("thread.backToInbox")}
       >
         <Link href="/inbox">
           <ArrowLeft className="size-4" strokeWidth={1.75} />
@@ -448,7 +463,7 @@ export function ThreadHeader({
               onClick={onToggleContactPanel}
               className="truncate text-[12.5px] text-app-muted-2 transition-colors duration-150 ease-out hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              Add a name
+              {t("thread.addAName")}
             </button>
           ) : (
             <span className="truncate text-[12.5px] tabular-nums text-app-muted">
@@ -458,7 +473,7 @@ export function ThreadHeader({
           <button
             type="button"
             onClick={copyPhone}
-            aria-label="Copy phone number"
+            aria-label={t("thread.copyPhoneAria")}
             className="tap-target shrink-0 rounded p-0.5 text-app-muted-2 transition-colors duration-150 ease-out hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Copy className="size-3.5" strokeWidth={1.75} aria-hidden />
@@ -470,7 +485,7 @@ export function ThreadHeader({
         <button
           type="button"
           onClick={bringBack}
-          title="Bring this back to your inbox now"
+          title={t("thread.bringBackTitle")}
           className="tap-target mr-1 hidden shrink-0 items-center gap-1.5 rounded-full border border-app-line bg-app-ground px-2.5 py-1 text-[11.5px] font-semibold leading-none text-app-muted transition-colors duration-150 ease-out hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex"
         >
           <AlarmClock className="size-3.5" strokeWidth={1.75} aria-hidden />
@@ -498,7 +513,9 @@ export function ThreadHeader({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label={`Status: ${conversation.status}. Change status`}
+              aria-label={t("thread.statusAria", {
+                status: conversation.status,
+              })}
               className="flex min-h-11 items-center gap-0.5 rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring md:min-h-0"
               disabled={update.isPending}
             >
@@ -535,7 +552,9 @@ export function ThreadHeader({
             <button
               type="button"
               aria-label={
-                assigneeName ? `Assigned to ${assigneeName}. Reassign` : "Assign"
+                assigneeName
+                  ? t("thread.assignedToAria", { name: assigneeName })
+                  : t("thread.assignAria")
               }
               className="flex min-h-11 min-w-11 items-center justify-center rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring md:min-h-0 md:min-w-0"
               disabled={update.isPending}
@@ -550,7 +569,7 @@ export function ThreadHeader({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Assign to</DropdownMenuLabel>
+            <DropdownMenuLabel>{t("thread.assignTo")}</DropdownMenuLabel>
             {/* #465: this menu gave NO sign of who was already assigned — every
                 teammate looked identical, so the one answer it exists to give
                 was the one it withheld. It is a choice, so it is drawn as one.
@@ -563,7 +582,7 @@ export function ThreadHeader({
               }
             >
               <DropdownMenuChoiceItem value={UNASSIGNED_VALUE}>
-                Unassigned
+                {t("thread.unassigned")}
               </DropdownMenuChoiceItem>
               {(members.data?.data ?? [])
                 .filter((m) => m.deactivated_at === null)
@@ -573,11 +592,11 @@ export function ThreadHeader({
                     value={member.user_id}
                   >
                     <MemberAvatar
-                      name={member.display_name || "Teammate"}
+                      name={member.display_name || t("thread.teammate")}
                       className="size-5"
                     />
-                    {member.display_name || "Teammate"}
-                    {member.user_id === userId ? " (you)" : ""}
+                    {member.display_name || t("thread.teammate")}
+                    {member.user_id === userId ? t("thread.youSuffix") : ""}
                   </DropdownMenuChoiceItem>
                 ))}
             </DropdownMenuRadioGroup>
@@ -590,7 +609,7 @@ export function ThreadHeader({
           size="icon-sm"
           onClick={onToggleContactPanel}
           aria-label={
-            panelOpen ? "Hide conversation info" : "Show conversation info"
+            panelOpen ? t("thread.hideInfoAria") : t("thread.showInfoAria")
           }
           aria-pressed={panelOpen}
           className={cn("hidden md:inline-flex", panelOpen && "bg-secondary")}
@@ -601,7 +620,11 @@ export function ThreadHeader({
         {/* Overflow — spam / attachments / opt-out. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" aria-label="More actions">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("thread.moreActions")}
+            >
               <MoreHorizontal className="size-4" strokeWidth={1.75} />
             </Button>
           </DropdownMenuTrigger>
@@ -617,10 +640,10 @@ export function ThreadHeader({
                     panel (bottom sheet) lives here at the top of the menu. */}
                 <DropdownMenuItem onSelect={onToggleContactPanel}>
                   <Info className="size-4" strokeWidth={1.75} aria-hidden />
-                  Conversation info
+                  {t("thread.conversationInfo")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel>Show</DropdownMenuLabel>
+                <DropdownMenuLabel>{t("thread.showLabel")}</DropdownMenuLabel>
                 {/* #89: each kind is an independent toggle (mix-and-match), all
                     on by default. `onSelect`-preventDefault keeps the menu open
                     so several can be flipped in one pass. */}
@@ -644,7 +667,7 @@ export function ThreadHeader({
                 phone apps have had this as an inbox swipe since #185. */}
             <DropdownMenuItem onSelect={markUnread}>
               <MailOpen className="size-4" strokeWidth={1.75} />
-              Mark unread
+              {t("thread.markUnread")}
             </DropdownMenuItem>
             <SnoozeMenuItems
               snoozedUntil={snoozedUntil}
@@ -662,7 +685,7 @@ export function ThreadHeader({
               onCheckedChange={togglePin}
             >
               <Pin className="size-4" strokeWidth={1.75} />
-              Pinned
+              {t("thread.pinned")}
             </DropdownMenuToggleItem>
             <DropdownMenuToggleItem
               checked={conversation.is_spam}
@@ -670,12 +693,12 @@ export function ThreadHeader({
               onCheckedChange={toggleSpam}
             >
               <OctagonAlert className="size-4" strokeWidth={1.75} />
-              Spam
+              {t("thread.spam")}
             </DropdownMenuToggleItem>
             {/* §5.2: the gallery's single entry point. */}
             <DropdownMenuItem onSelect={onOpenGallery}>
               <Images className="size-4" strokeWidth={1.75} />
-              View attachments
+              {t("thread.viewAttachments")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {contact?.opted_out ? (
@@ -684,20 +707,21 @@ export function ThreadHeader({
               // send would immediately contradict.
               isCarrierEnforcedOptOut(contact.opt_out_source) ? (
                 <DropdownMenuLabel className="max-w-64 whitespace-normal text-xs font-normal text-muted-foreground">
-                  This customer texted STOP. Only they can undo it, by texting
-                  START to your number.
+                  {t("thread.carrierStopNote")}
                 </DropdownMenuLabel>
               ) : (
                 <DropdownMenuItem
                   onSelect={() =>
                     revokeOptOut.mutate(conversation.contact_id, {
-                      onSuccess: () => toast.success("Marked opted in again."),
-                      onError: (e) => onApiError(e, "Couldn't update opt-out."),
+                      onSuccess: () =>
+                        toast.success(t("thread.markedOptedInAgain")),
+                      onError: (e) =>
+                        onApiError(e, t("thread.optOutUpdateFailed")),
                     })
                   }
                 >
                   <Undo2 className="size-4" strokeWidth={1.75} />
-                  Mark opted in again
+                  {t("thread.markOptedInAgain")}
                 </DropdownMenuItem>
               )
             ) : (
@@ -706,7 +730,7 @@ export function ThreadHeader({
                 onSelect={() => setConfirmOptOut(true)}
               >
                 <Ban className="size-4" strokeWidth={1.75} />
-                Opt out contact
+                {t("thread.optOutContact")}
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
@@ -725,15 +749,14 @@ export function ThreadHeader({
       <Dialog open={confirmOptOut} onOpenChange={setConfirmOptOut}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Opt out {name}?</DialogTitle>
+            <DialogTitle>{t("thread.optOutTitle", { name })}</DialogTitle>
             <DialogDescription>
-              They won&apos;t receive texts from you anymore. Use this when a
-              customer asks to stop hearing from you in any words.
+              {t("thread.optOutDescription")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmOptOut(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -742,13 +765,13 @@ export function ThreadHeader({
                 optOut.mutate(conversation.contact_id, {
                   onSuccess: () => {
                     setConfirmOptOut(false);
-                    toast.success("Contact opted out.");
+                    toast.success(t("thread.contactOptedOut"));
                   },
-                  onError: (e) => onApiError(e, "Couldn't opt out the contact."),
+                  onError: (e) => onApiError(e, t("thread.optOutFailed")),
                 })
               }
             >
-              {optOut.isPending ? "Opting out…" : "Opt out"}
+              {optOut.isPending ? t("thread.optingOut") : t("thread.optOut")}
             </Button>
           </DialogFooter>
         </DialogContent>

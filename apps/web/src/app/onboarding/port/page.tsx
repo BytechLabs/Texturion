@@ -9,6 +9,7 @@ import { portabilityFailCopy, portabilityOkCopy } from "@/components/porting/cop
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/i18n/provider";
 import { useCreateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
@@ -41,6 +42,7 @@ import { portStepProgress, usePortWizardGuard } from "./use-port-wizard";
  * fallback.
  */
 export default function PortNumberPage() {
+  const t = useT();
   const { onboarding, port, ready } = usePortWizardGuard("number");
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -77,7 +79,7 @@ export default function PortNumberPage() {
     setError(null);
     setResult(null);
     if (!e164) {
-      setError("Enter your 10-digit US or Canadian number.");
+      setError(t("onboarding.portEnterNumberError"));
       return;
     }
     setBusy(true);
@@ -123,8 +125,7 @@ export default function PortNumberPage() {
       // Actionable validation messages (e.g. not-portable, bad number) pass
       // through; a server/upstream outage (internal_error) gets a plain, calm
       // retry line instead of the raw "Something went wrong."
-      const friendly =
-        "We couldn't check this number just now. Try again in a moment.";
+      const friendly = t("onboarding.portCheckFailed");
       setError(
         cause instanceof ApiError && cause.code !== "internal_error"
           ? cause.message
@@ -140,12 +141,14 @@ export default function PortNumberPage() {
       backHref="/onboarding/number"
       index={progress.index}
       total={progress.total}
-      title="Which number do you want to bring?"
-      subtitle="Enter the number your customers already text. We'll check it can move to Loonext. No commitment yet."
+      title={t("onboarding.portNumberTitle")}
+      subtitle={t("onboarding.portNumberSubtitle")}
     >
       <div className="space-y-6">
         <div className="space-y-2">
-          <Label htmlFor="port-number">Your current business number</Label>
+          <Label htmlFor="port-number">
+            {t("onboarding.portCurrentNumberLabel")}
+          </Label>
           <Input
             id="port-number"
             value={raw}
@@ -160,8 +163,7 @@ export default function PortNumberPage() {
             className="h-12 text-base tabular-nums"
           />
           <p className="text-[13px] text-muted-foreground">
-            US or Canadian local numbers only. Toll-free numbers can&apos;t be
-            transferred here.
+            {t("onboarding.portTollFreeNote")}
           </p>
         </div>
 
@@ -189,7 +191,9 @@ export default function PortNumberPage() {
               <p className="text-sm">{portabilityFailCopy(result.reason)}</p>
             </div>
             <Button asChild variant="outline" size="sm">
-              <a href="/onboarding/number">Get a new number instead</a>
+              <a href="/onboarding/number">
+                {t("onboarding.portGetNewInstead")}
+              </a>
             </Button>
           </div>
         ) : null}
@@ -206,7 +210,7 @@ export default function PortNumberPage() {
             className="w-full"
             onClick={() => router.push("/onboarding/port/carrier")}
           >
-            Continue
+            {t("onboarding.continue")}
             <ArrowRight className="size-4" aria-hidden />
           </Button>
         ) : (
@@ -216,7 +220,9 @@ export default function PortNumberPage() {
             onClick={() => void checkAndContinue()}
             disabled={busy}
           >
-            {busy ? "Checking your number…" : "Check this number"}
+            {busy
+              ? t("onboarding.portChecking")
+              : t("onboarding.portCheckAction")}
           </Button>
         )}
       </div>

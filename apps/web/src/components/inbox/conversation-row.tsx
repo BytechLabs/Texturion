@@ -13,6 +13,7 @@ import {
   avatarInitials,
 } from "@loonext/shared";
 import { attachmentLabel, sharedMediaKind } from "@/lib/attachments/media-label";
+import { useT } from "@/i18n/provider";
 import type { ThreadData } from "@/lib/api/cache";
 import { keys } from "@/lib/api/keys";
 import type {
@@ -149,6 +150,7 @@ export const ConversationRow = memo(function ConversationRow({
   active: boolean;
   spamView: boolean;
 }) {
+  const t = useT();
   const memberNames = useMemberNames();
   const snippet = useSnippet(conversation);
   const unread = conversation.unread;
@@ -171,7 +173,7 @@ export const ConversationRow = memo(function ConversationRow({
     : null;
 
   const previewText = snippet
-    ? `${snippet.direction === "outbound" ? "You: " : ""}${snippetText(snippet)}`
+    ? `${snippet.direction === "outbound" ? t("inbox.rowPreviewYou") : ""}${snippetText(snippet)}`
     : conversation.contact.name
       ? formatPhone(conversation.contact.phone_e164)
       : "";
@@ -180,7 +182,12 @@ export const ConversationRow = memo(function ConversationRow({
   // never see the icon.
   const attachmentNote =
     snippet?.hasAttachments && snippet.body.trim() !== ""
-      ? `, with ${attachmentLabel(snippet.attachmentKind, snippet.attachmentCount).toLowerCase()}`
+      ? t("inbox.rowAriaWithAttachment", {
+          label: attachmentLabel(
+            snippet.attachmentKind,
+            snippet.attachmentCount,
+          ).toLowerCase(),
+        })
       : "";
 
   return (
@@ -192,13 +199,19 @@ export const ConversationRow = memo(function ConversationRow({
       // note, assignee, spam) plus the latest message must be folded in here —
       // otherwise those indicators (and the sr-only assignee span below) are
       // silent for AT.
-      aria-label={`Conversation with ${name}${unread ? ", unread" : ""}${
-        pinned ? ", pinned" : ""
-      }${snippet?.direction === "note" ? ", internal note" : ""}${
-        assigneeName ? `, assigned to ${assigneeName}` : ""
-      }${spamView ? ", spam" : ""}${
+      aria-label={`${t("inbox.rowAriaConversationWith", { name })}${
+        unread ? t("inbox.rowAriaUnread") : ""
+      }${pinned ? t("inbox.rowAriaPinned") : ""}${
+        snippet?.direction === "note" ? t("inbox.rowAriaInternalNote") : ""
+      }${
+        assigneeName
+          ? t("inbox.rowAriaAssignedTo", { name: assigneeName })
+          : ""
+      }${spamView ? t("inbox.rowAriaSpam") : ""}${
         snoozedUntil
-          ? `, snoozed, ${snoozeReturnLabel(snoozedUntil)}${
+          ? `${t("inbox.rowAriaSnoozed", {
+              until: snoozeReturnLabel(snoozedUntil),
+            })}${
               conversation.snooze_note ? `, ${conversation.snooze_note}` : ""
             }`
           : ""
@@ -250,7 +263,7 @@ export const ConversationRow = memo(function ConversationRow({
               <Pin
                 className="size-3 text-app-muted-2"
                 strokeWidth={2}
-                aria-label="Pinned"
+                aria-label={t("inbox.rowPinnedAria")}
               />
             )}
             <span
@@ -272,7 +285,7 @@ export const ConversationRow = memo(function ConversationRow({
             <Lock
               className="mt-0.5 size-3 shrink-0 text-app-amber"
               strokeWidth={1.75}
-              aria-label="Note"
+              aria-label={t("inbox.rowNoteAria")}
             />
           )}
           {/* A message carrying media reads differently at a glance from one
@@ -312,7 +325,7 @@ export const ConversationRow = memo(function ConversationRow({
             )}
             {spamView && (
               <span className="inline-flex items-center rounded-full border border-app-line px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-clay">
-                Spam
+                {t("inbox.spamLabel")}
               </span>
             )}
             {tags.map((tag, i) => (
@@ -320,7 +333,7 @@ export const ConversationRow = memo(function ConversationRow({
             ))}
             {assigneeName && (
               <span
-                title={`Assigned to ${assigneeName}`}
+                title={t("inbox.rowAssignedToTitle", { name: assigneeName })}
                 className="inline-flex items-center gap-1 rounded-full border border-app-line bg-app-ground px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted dark:text-app-muted"
               >
                 {/* The chip shows only initials (title tooltip for pointer

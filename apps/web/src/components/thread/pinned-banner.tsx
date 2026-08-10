@@ -4,6 +4,7 @@ import { ChevronDown, Pin } from "lucide-react";
 import { useState } from "react";
 import { mmsMediaKind } from "@loonext/shared";
 
+import { useT } from "@/i18n/provider";
 import type { Message } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
@@ -60,15 +61,17 @@ export function PinnedBanner({
   messages: Message[];
   onJump: (messageId: string) => void;
 }) {
+  const t = useT();
   if (messages.length === 0) return null;
   return (
     <section
-      aria-label="Pinned messages"
+      aria-label={t("thread.pinnedMessagesAria")}
       className="overflow-hidden rounded-app-card border border-app-line bg-app-paper"
     >
       <h3 className="flex items-center gap-1.5 px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
         <Pin className="size-3" strokeWidth={2} aria-hidden />
-        Pinned{messages.length > 1 ? ` · ${messages.length}` : ""}
+        {t("thread.pinned")}
+        {messages.length > 1 ? ` · ${messages.length}` : ""}
       </h3>
       <ul className="max-h-32 overflow-y-auto pb-1">
         {messages.map((message) => (
@@ -76,14 +79,16 @@ export function PinnedBanner({
             <button
               type="button"
               onClick={() => onJump(message.id)}
-              aria-label={`Jump to pinned message: ${pinnedSnippet(message)}`}
+              aria-label={t("thread.jumpToPinnedAria", {
+                snippet: pinnedSnippet(message),
+              })}
               className="flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             >
               <span className="min-w-0 flex-1 truncate text-[13px] text-app-ink">
                 {pinnedSnippet(message)}
               </span>
               <span className="shrink-0 text-[11px] font-medium text-app-muted">
-                Jump
+                {t("thread.jump")}
               </span>
             </button>
           </li>
@@ -107,11 +112,12 @@ export function MobilePinnedDisclosure({
   messages: Message[];
   onJump: (messageId: string) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   if (messages.length === 0) return null;
   return (
     <section
-      aria-label="Pinned messages"
+      aria-label={t("thread.pinnedMessagesAria")}
       className="overflow-hidden rounded-app-card border border-app-line bg-app-paper"
     >
       <button
@@ -122,7 +128,8 @@ export function MobilePinnedDisclosure({
       >
         <Pin className="size-3" strokeWidth={2} aria-hidden />
         <span className="text-[11px] font-semibold uppercase tracking-wide text-app-muted-2">
-          Pinned{messages.length > 1 ? ` · ${messages.length}` : ""}
+          {t("thread.pinned")}
+          {messages.length > 1 ? ` · ${messages.length}` : ""}
         </span>
         <ChevronDown
           className={cn(
@@ -140,14 +147,16 @@ export function MobilePinnedDisclosure({
               <button
                 type="button"
                 onClick={() => onJump(message.id)}
-                aria-label={`Jump to pinned message: ${pinnedSnippet(message)}`}
+                aria-label={t("thread.jumpToPinnedAria", {
+                  snippet: pinnedSnippet(message),
+                })}
                 className="tap-target flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 <span className="min-w-0 flex-1 truncate text-[13px] text-app-ink">
                   {pinnedSnippet(message)}
                 </span>
                 <span className="shrink-0 text-[11px] font-medium text-app-muted">
-                  Jump
+                  {t("thread.jump")}
                 </span>
               </button>
             </li>

@@ -8,6 +8,7 @@ import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { LoadError } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { useCall } from "@/lib/api/calls";
 import { outcomeLine, transcriptState } from "./call-detail-copy";
 import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
@@ -40,11 +41,12 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 export function CallDetail({ sessionId }: { sessionId: string }) {
+  const t = useT();
   const call = useCall(sessionId);
 
   if (call.isPending) {
     return (
-      <div className="space-y-3" aria-label="Loading call">
+      <div className="space-y-3" aria-label={t("shell.loadingCall")}>
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-40 w-full rounded-lg" />
       </div>
@@ -61,22 +63,22 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
   const who =
     row.contact_name?.trim() ||
     row.caller_name?.trim() ||
-    (row.caller_e164 ? formatPhone(row.caller_e164) : "Unknown caller");
-  const transcript = transcriptState(row);
+    (row.caller_e164 ? formatPhone(row.caller_e164) : t("shell.unknownCaller"));
+  const transcript = transcriptState(row, t);
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-5 px-4 py-6 sm:px-6">
       <Button variant="ghost" size="sm" asChild className="-ml-2">
         <Link href="/calls">
           <ArrowLeft strokeWidth={1.75} aria-hidden />
-          All calls
+          {t("shell.allCalls")}
         </Link>
       </Button>
 
       <header className="space-y-1">
         <h1 className="text-xl font-semibold">{who}</h1>
         <p className="text-sm text-muted-foreground">
-          {outcomeLine(row)} ·{" "}
+          {outcomeLine(row, t)} ·{" "}
           <span title={formatAbsoluteDateTime(row.started_at)}>
             {formatRelativeTime(row.started_at)}
           </span>
@@ -88,7 +90,7 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
           to reach the one thing they came for is the wrong order.
           *Applying: Prioritize Intent.* */}
       <section className="rounded-lg border bg-card p-4">
-        <h2 className="mb-2 text-[13px] font-bold">Voicemail</h2>
+        <h2 className="mb-2 text-[13px] font-bold">{t("shell.voicemail")}</h2>
         {/* #566: only REAL words get a copy control. `muted` means this is one
             of the four honest not-transcribed sentences (call-detail-copy.ts) —
             the page talking, not the caller — and offering to copy one would be
@@ -109,29 +111,45 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
       </section>
 
       <section className="rounded-lg border bg-card px-4 py-2">
-        <Row label="Direction">
-          {row.direction === "outbound" ? "Outgoing" : "Incoming"}
+        <Row label={t("shell.directionLabel")}>
+          {row.direction === "outbound"
+            ? t("shell.directionOutgoing")
+            : t("shell.directionIncoming")}
         </Row>
-        {row.caller_e164 && <Row label="Number">{formatPhone(row.caller_e164)}</Row>}
+        {row.caller_e164 && (
+          <Row label={t("shell.numberLabel")}>{formatPhone(row.caller_e164)}</Row>
+        )}
         {row.answered_by_name && (
-          <Row label={row.direction === "outbound" ? "Placed by" : "Answered by"}>
+          <Row
+            label={
+              row.direction === "outbound"
+                ? t("shell.placedBy")
+                : t("shell.answeredBy")
+            }
+          >
             {row.answered_by_name}
           </Row>
         )}
-        <Row label="Started">
+        <Row label={t("shell.startedLabel")}>
           <span title={formatAbsoluteDateTime(row.started_at)}>
             {formatAbsoluteDateTime(row.started_at)}
           </span>
         </Row>
         {row.ended_at && (
-          <Row label="Ended">{formatAbsoluteDateTime(row.ended_at)}</Row>
+          <Row label={t("shell.endedLabel")}>
+            {formatAbsoluteDateTime(row.ended_at)}
+          </Row>
         )}
         {row.stir_attestation && (
           /* Carrier attestation of who the caller says they are. Shown because
              a spoofed number is the one thing a person cannot judge from the
              digits, and this is the only place with room to say it. */
-          <Row label="Caller verified">
-            {row.stir_attestation === "A" ? "Yes" : `Partly (${row.stir_attestation})`}
+          <Row label={t("shell.callerVerified")}>
+            {row.stir_attestation === "A"
+              ? t("shell.callerVerifiedYes")
+              : t("shell.callerVerifiedPartly", {
+                  attestation: row.stir_attestation,
+                })}
           </Row>
         )}
       </section>
@@ -143,7 +161,7 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
           <Button variant="outline" size="sm" asChild>
             <Link href={`/inbox/${row.conversation_id}`}>
               <MessageSquare strokeWidth={1.75} aria-hidden />
-              Open the conversation
+              {t("shell.openConversation")}
             </Link>
           </Button>
         )}
@@ -151,7 +169,7 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
           <Button variant="outline" size="sm" asChild>
             <Link href={`/contacts/${row.contact_id}`}>
               <User strokeWidth={1.75} aria-hidden />
-              View contact
+              {t("shell.viewContact")}
             </Link>
           </Button>
         )}

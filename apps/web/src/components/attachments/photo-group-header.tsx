@@ -2,6 +2,7 @@
 
 import { WORK_PHASE_LABELS, type WorkPhase } from "@loonext/shared";
 
+import { useT } from "@/i18n/provider";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
 
 /**
@@ -41,9 +42,11 @@ export function PhotoGroupHeader({
   fromCustomer: boolean;
   names?: Map<string, string>;
 }) {
+  const t = useT();
   const who = fromCustomer
-    ? "From the customer"
-    : (addedByUserId ? names?.get(addedByUserId) : null) ?? "Added by the crew";
+    ? t("misc.photosFromCustomer")
+    : (addedByUserId ? names?.get(addedByUserId) : null) ??
+      t("misc.photosFromCrew");
 
   return (
     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">

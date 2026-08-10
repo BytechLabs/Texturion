@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 
 import type { NumberHoldState } from "@/components/settings/number-hold";
+import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -44,34 +47,38 @@ export function NumberHoldNote({
   hold: NumberHoldState | null | undefined;
   className?: string;
 }) {
+  const t = useT();
   return (
     <p className={cn("text-sm text-muted-foreground", className)}>
       {hold?.kind === "over_allowance" ? (
         <>
-          On hold —{" "}
           {hold.allowance === null
-            ? "your plan covers fewer numbers than you have"
-            : `your plan covers ${hold.allowance} ${hold.allowance === 1 ? "number" : "numbers"} and you have more`}
-          . Texts and calls still come through and nothing has been given up; you
-          just can&apos;t send or answer from it.{" "}
+            ? t("settingsMore.numberHoldOverAllowanceUnknown")
+            : hold.allowance === 1
+              ? t("settingsMore.numberHoldOverAllowanceOne", {
+                  count: hold.allowance,
+                })
+              : t("settingsMore.numberHoldOverAllowanceMany", {
+                  count: hold.allowance,
+                })}{" "}
           <Link
             href="/settings/billing"
             className="font-medium text-primary underline-offset-4 hover:underline"
           >
-            See how to bring it back
+            {t("settingsMore.numberHoldBringBackLink")}
           </Link>
           .
         </>
       ) : hold?.kind === "subscription_inactive" ? (
         <>
-          Texting is paused.{" "}
+          {t("settingsMore.numberHoldPaused")}{" "}
           <Link
             href="/settings/billing"
             className="font-medium text-primary underline-offset-4 hover:underline"
           >
-            Update your payment method
+            {t("settingsMore.numberHoldUpdatePaymentLink")}
           </Link>{" "}
-          to turn it back on.
+          {t("settingsMore.numberHoldTurnBackOn")}
         </>
       ) : (
         // Suspended on a live subscription, and this reader could not ask why
@@ -81,14 +88,14 @@ export function NumberHoldNote({
         // working. A caller that has not been taught the difference lands here
         // too, for the same reason: no answer beats the wrong one.
         <>
-          Texting is paused on this number.{" "}
+          {t("settingsMore.numberHoldPausedHere")}{" "}
           <Link
             href="/settings/billing"
             className="font-medium text-primary underline-offset-4 hover:underline"
           >
-            Check billing
+            {t("settingsMore.numberHoldCheckBillingLink")}
           </Link>{" "}
-          to see why.
+          {t("settingsMore.numberHoldToSeeWhy")}
         </>
       )}
     </p>

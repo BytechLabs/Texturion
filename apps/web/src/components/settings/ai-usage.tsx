@@ -1,3 +1,4 @@
+import { useT } from "@/i18n/provider";
 import type { AiFeatureUsage } from "@/lib/api/types";
 
 /**
@@ -26,6 +27,7 @@ import type { AiFeatureUsage } from "@/lib/api/types";
  * pretending to a precision they do not have.
  */
 export function AiUsage({ features }: { features: AiFeatureUsage[] }) {
+  const t = useT();
   if (features.length === 0) return null;
 
   return (
@@ -45,14 +47,12 @@ export function AiUsage({ features }: { features: AiFeatureUsage[] }) {
                 {feature.label}
               </span>
               <span className="shrink-0 text-[13px] tabular-nums text-muted-foreground">
-                {feature.enabled ? (
-                  <>
-                    {feature.used.toLocaleString()} of{" "}
-                    {feature.cap.toLocaleString()}
-                  </>
-                ) : (
-                  "Off"
-                )}
+                {feature.enabled
+                  ? t("settings.aiUsageUsedOfCap", {
+                      used: feature.used.toLocaleString(),
+                      cap: feature.cap.toLocaleString(),
+                    })
+                  : t("settings.aiUsageOff")}
               </span>
             </div>
             <div
@@ -60,8 +60,12 @@ export function AiUsage({ features }: { features: AiFeatureUsage[] }) {
               role="img"
               aria-label={
                 feature.enabled
-                  ? `${feature.label}: ${feature.used} of ${feature.cap} used this month`
-                  : `${feature.label}: turned off`
+                  ? t("settings.aiUsageBarAria", {
+                      label: feature.label,
+                      used: feature.used,
+                      cap: feature.cap,
+                    })
+                  : t("settings.aiUsageBarAriaOff", { label: feature.label })
               }
             >
               <div
@@ -75,7 +79,7 @@ export function AiUsage({ features }: { features: AiFeatureUsage[] }) {
             </div>
             {nearCap && (
               <p className="mt-1 text-[12px] text-app-amber-ink">
-                Close to this month&rsquo;s limit. It resets on the 1st.
+                {t("settings.aiUsageNearCap")}
               </p>
             )}
             {/* An empty list is NOT three zeroes. A feature used 40 times with
@@ -95,7 +99,7 @@ export function AiUsage({ features }: { features: AiFeatureUsage[] }) {
               </p>
             ) : feature.enabled && feature.used > 0 ? (
               <p className="mt-1 text-[12px] text-muted-foreground">
-                Nothing recorded yet about whether these got used.
+                {t("settings.aiUsageNoOutcomes")}
               </p>
             ) : null}
           </li>

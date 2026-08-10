@@ -71,7 +71,11 @@ const SPEC_RULES: readonly {
   {
     rule: "§7 — filter chips say what removing them does",
     file: "components/inbox/filter-bar.tsx",
-    code: "aria-label={`Remove ${label} filter`}",
+    // #228: the sentence moved to the catalogue, so the rule is now satisfied
+    // by the LOOKUP that still names the chip. The label is interpolated the
+    // same way and `MessageKey` is typed, so this cannot be satisfied by a
+    // constant that says nothing.
+    code: 'aria-label={t("inbox.removeFilterAria", { label })}',
     why:
       "The visible label is the filter's name; the button is an X. Without " +
       "this, a row of active filters reads as a row of identical buttons.",
@@ -79,7 +83,10 @@ const SPEC_RULES: readonly {
   {
     rule: "§7 — filter chips say what removing them does (tasks)",
     file: "components/tasks/task-filter-bar.tsx",
-    code: "aria-label={`Remove ${label} filter`}",
+    // #228: the same move as its sibling above — and this guard caught the one
+    // of the pair that had been updated a moment later than the other, which is
+    // exactly the drift its own `why` was written about.
+    code: 'aria-label={t("tasks.removeFilterAria", { label })}',
     why: "The same control on the other filter bar, which drifted apart once already.",
   },
   {

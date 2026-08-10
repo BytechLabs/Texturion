@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useProvisionNumber } from "@/lib/api/numbers";
 import type { Country } from "@/lib/api/types";
@@ -27,6 +28,7 @@ import type { Country } from "@/lib/api/types";
  * mirrors the choose-your-number remediation dialog.
  */
 export function ProvisionNumberDialog({ country }: { country: Country }) {
+  const t = useT();
   const provision = useProvisionNumber();
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
@@ -50,13 +52,13 @@ export function ProvisionNumberDialog({ country }: { country: Country }) {
       {
         onSuccess: () => {
           reset(false);
-          toast.success("Number on the way, usually under a minute.");
+          toast.success(t("settingsMore.provisionStarted"));
         },
         onError: (cause) =>
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't start the number setup. Try again.",
+              : t("settingsMore.provisionFailed"),
           ),
       },
     );
@@ -65,14 +67,13 @@ export function ProvisionNumberDialog({ country }: { country: Country }) {
   return (
     <Dialog open={open} onOpenChange={reset}>
       <DialogTrigger asChild>
-        <Button variant="outline">Add a number</Button>
+        <Button variant="outline">{t("settingsMore.provisionAddNumber")}</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add a number</DialogTitle>
+          <DialogTitle>{t("settingsMore.provisionAddNumber")}</DialogTitle>
           <DialogDescription>
-            Choose the number your customers will see. It&apos;s ready in about a
-            minute.
+            {t("settingsMore.provisionDescription")}
           </DialogDescription>
         </DialogHeader>
         <NumberPicker country={country} selected={picked} onSelect={setPicked} />
@@ -83,10 +84,12 @@ export function ProvisionNumberDialog({ country }: { country: Country }) {
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => reset(false)}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button disabled={!picked || provision.isPending} onClick={submit}>
-            {provision.isPending ? "Setting up…" : "Add number"}
+            {provision.isPending
+              ? t("settingsMore.provisionSettingUp")
+              : t("settingsMore.provisionAddAction")}
           </Button>
         </DialogFooter>
       </DialogContent>

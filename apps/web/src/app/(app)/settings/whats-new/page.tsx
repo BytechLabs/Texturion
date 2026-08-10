@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { SettingsCard, SettingsPage } from "@/components/settings/section";
+import { useT } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { markWhatsNewSeen, readWhatsNewSeen } from "@/lib/whats-new/seen";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,7 @@ import { cn } from "@/lib/utils";
  * way to make the feature actively misleading.
  */
 export default function WhatsNewSettingsPage() {
+  const t = useT();
   const company = useCompany();
   const joinedAt = company.data?.created_at ?? null;
 
@@ -55,8 +57,8 @@ export default function WhatsNewSettingsPage() {
 
   return (
     <SettingsPage
-      title="What's new"
-      description="What has shipped recently. Everything here is in the product now."
+      title={t("appShell.whatsNewTitle")}
+      description={t("appShell.whatsNewDescription")}
     >
       {WHATS_NEW.map((entry) => (
         <SettingsCard key={`${entry.date}-${entry.title}`} title={entry.title}>
@@ -80,7 +82,7 @@ export default function WhatsNewSettingsPage() {
                     "font-medium text-primary",
                   )}
                 >
-                  New
+                  {t("appShell.whatsNewBadge")}
                 </span>
               )}
             </div>
@@ -90,15 +92,14 @@ export default function WhatsNewSettingsPage() {
                 href={entry.href}
                 className="inline-block text-sm font-medium text-primary hover:underline"
               >
-                Go and have a look
+                {t("appShell.whatsNewGoLook")}
               </Link>
             )}
           </div>
         </SettingsCard>
       ))}
       <p className="text-[13px] text-muted-foreground">
-        Smaller repairs ship most days and are not listed. If you reported
-        something and want to know where it got to, ask us on the Help page.
+        {t("appShell.whatsNewFootnote")}
       </p>
     </SettingsPage>
   );

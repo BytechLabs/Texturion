@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useT, type Translate } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { MERGE_FIELD_VARIABLES } from "@loonext/shared";
 import { ApiError } from "@/lib/api/error";
@@ -34,27 +35,60 @@ import type { Template } from "@/lib/api/types";
 import { previewTemplate, SAMPLE_FIRST_NAME } from "@/lib/settings/away-preview";
 import { cn } from "@/lib/utils";
 
-// Mirrors the API template schema (apps/api/src/routes/templates.ts):
-// name 1–120, body 1–2000 after trim.
-const schema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "Give it a name.")
-    .max(120, "Keep the name under 120 characters."),
-  body: z
-    .string()
-    .trim()
-    .min(1, "Add the message text.")
-    .max(2000, "Keep it under 2,000 characters."),
-  /**
-   * #274: the crew's own grouping. Optional, and blank is how it is cleared —
-   * a category is worth typing at thirty templates and friction at five.
-   */
-  category: z.string().trim().max(40, "Keep it under 40 characters."),
-});
+/*
+ * Mirrors the API template schema (apps/api/src/routes/templates.ts):
+ * name 1–120, body 1–2000 after trim.
+ *
+ * The caps are named rather than typed twice, because each one used to appear
+ * both as a zod bound and as a digit inside the sentence that reports it —
+ * two places to edit, and the sentence is the half nobody remembers. Now the
+ * number reaches the copy by interpolation, already grouped for the reader's
+ * locale ("2,000" / "2 000").
+ */
+const NAME_MAX = 120;
+const BODY_MAX = 2000;
+const CATEGORY_MAX = 40;
 
-type FormValues = z.infer<typeof schema>;
+/*
+ * A factory rather than a module-level constant: these messages sit under the
+ * field, in the reader's own language, so they belong in the catalogue like
+ * every other sentence in the dialog.
+ */
+function makeSchema(t: Translate) {
+  return z.object({
+    name: z
+      .string()
+      .trim()
+      .min(1, t("appShell.templateNameRequired"))
+      .max(
+        NAME_MAX,
+        t("appShell.templateNameTooLong", { max: NAME_MAX.toLocaleString() }),
+      ),
+    body: z
+      .string()
+      .trim()
+      .min(1, t("appShell.templateBodyRequired"))
+      .max(
+        BODY_MAX,
+        t("appShell.templateBodyTooLong", { max: BODY_MAX.toLocaleString() }),
+      ),
+    /**
+     * #274: the crew's own grouping. Optional, and blank is how it is cleared —
+     * a category is worth typing at thirty templates and friction at five.
+     */
+    category: z
+      .string()
+      .trim()
+      .max(
+        CATEGORY_MAX,
+        t("appShell.templateCategoryTooLong", {
+          max: CATEGORY_MAX.toLocaleString(),
+        }),
+      ),
+  });
+}
+
+type FormValues = z.infer<ReturnType<typeof makeSchema>>;
 
 /**
  * The merge variables offered in the editor come from @loonext/shared (#274).
@@ -78,6 +112,7 @@ export function TemplateDialog({
   /** null = create a new template. */
   template: Template | null;
 }) {
+  const t = useT();
   // #274: read for the category chips only — the same alphabetical list the
   // page behind this dialog already has cached, so no extra request.
   const templates = useTemplates();
@@ -85,6 +120,7 @@ export function TemplateDialog({
   const update = useUpdateTemplate();
   const company = useCompany();
 
+  const schema = useMemo(() => makeSchema(t), [t]);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", body: "", category: "" },
@@ -138,7 +174,7 @@ export function TemplateDialog({
   // broken in the same way a token with no value does.
   const preview = previewTemplate(
     body,
-    company.data?.name ?? "your business",
+    company.data?.name ?? t("appShell.templateYourBusiness"),
     company.data?.numbers?.find((n) => n.status === "active")?.number_e164 ?? null,
   );
 
@@ -148,11 +184,15 @@ export function TemplateDialog({
         message:
           cause instanceof ApiError
             ? cause.message
-            : "Couldn't save the template. Try again.",
+            : t("appShell.templateSaveFailed"),
       });
     const onSuccess = () => {
       onOpenChange(false);
-      toast.success(template ? "Template saved." : "Template created.");
+      toast.success(
+        template
+          ? t("appShell.templateSaved")
+          : t("appShell.templateCreated"),
+      );
     };
     // #274: an empty box means "no category". The API normalises "" to null,
     // so sending it plainly is how a clear travels.
@@ -172,10 +212,12 @@ export function TemplateDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {template ? "Edit template" : "New template"}
+            {template
+              ? t("appShell.templateDialogEditTitle")
+              : t("appShell.templateNew")}
           </DialogTitle>
           <DialogDescription>
-            Type / in the composer to insert it while replying.
+            {t("appShell.templateDialogDescription")}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -189,9 +231,13 @@ export function TemplateDialog({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>{t("appShell.templateNameLabel")}</FormLabel>
                   <FormControl>
-                    <Input maxLength={120} placeholder="On my way" {...field} />
+                    <Input
+                      maxLength={120}
+                      placeholder={t("appShell.templateNamePlaceholder")}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -208,15 +254,15 @@ export function TemplateDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Category{" "}
+                    {t("appShell.templateCategoryLabel")}{" "}
                     <span className="font-normal text-muted-foreground">
-                      (optional)
+                      {t("appShell.templateCategoryOptional")}
                     </span>
                   </FormLabel>
                   <FormControl>
                     <Input
                       maxLength={40}
-                      placeholder="Quoting"
+                      placeholder={t("appShell.templateCategoryPlaceholder")}
                       list="template-categories"
                       {...field}
                     />
@@ -249,12 +295,12 @@ export function TemplateDialog({
               name="body"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Message</FormLabel>
+                  <FormLabel>{t("appShell.templateMessageLabel")}</FormLabel>
                   <FormControl>
                     <Textarea
                       rows={4}
                       maxLength={2000}
-                      placeholder="On our way. See you in about 20 minutes."
+                      placeholder={t("appShell.templateMessagePlaceholder")}
                       {...field}
                     />
                   </FormControl>
@@ -268,9 +314,14 @@ export function TemplateDialog({
                           : "text-muted-foreground",
                       )}
                     >
-                      {body.length.toLocaleString()} characters ·{" "}
-                      {estimate.segments}{" "}
-                      {estimate.segments === 1 ? "segment" : "segments"} per send
+                      {t("appShell.templateSegmentCount", {
+                        characters: body.length.toLocaleString(),
+                        segments: estimate.segments,
+                        unit:
+                          estimate.segments === 1
+                            ? t("appShell.templateSegmentOne")
+                            : t("appShell.templateSegmentMany"),
+                      })}
                     </p>
                   )}
                   <FormMessage />
@@ -282,7 +333,7 @@ export function TemplateDialog({
                 send time. */}
             <div className="space-y-1.5">
               <p className="text-xs font-medium text-muted-foreground">
-                Variables: tap to insert
+                {t("appShell.templateVariablesHeading")}
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {TEMPLATE_VARIABLES.map((v) => (
@@ -291,7 +342,9 @@ export function TemplateDialog({
                     type="button"
                     onClick={() => insertVariable(v.token)}
                     className="rounded-md border border-border bg-secondary px-2 py-1 text-xs transition-colors hover:bg-secondary/70 focus-visible:outline-2 focus-visible:outline-ring"
-                    title={`Insert {${v.token}}`}
+                    title={t("appShell.templateInsertToken", {
+                      token: `{${v.token}}`,
+                    })}
                   >
                     <code className="text-foreground">{`{${v.token}}`}</code>
                     <span className="ml-1.5 text-muted-foreground">{v.label}</span>
@@ -305,7 +358,9 @@ export function TemplateDialog({
             {body.trim() !== "" && (
               <div className="space-y-1.5">
                 <p className="text-xs font-medium text-muted-foreground">
-                  Preview (for {SAMPLE_FIRST_NAME})
+                  {t("appShell.templatePreviewFor", {
+                    name: SAMPLE_FIRST_NAME,
+                  })}
                 </p>
                 <div
                   aria-live="polite"
@@ -327,10 +382,14 @@ export function TemplateDialog({
                 variant="outline"
                 onClick={() => onOpenChange(false)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button type="submit" disabled={busy}>
-                {busy ? "Saving…" : template ? "Save" : "Create template"}
+                {busy
+                  ? t("common.saving")
+                  : template
+                    ? t("common.save")
+                    : t("appShell.templateCreateAction")}
               </Button>
             </DialogFooter>
           </form>

@@ -16,6 +16,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useT, type MessageKey } from "@/i18n/provider";
 import {
   useJoiningNote,
   useMarkOriented,
@@ -63,8 +64,8 @@ import { cn } from "@/lib/utils";
  */
 
 interface StepCopy {
-  title: string;
-  body: string;
+  titleKey: MessageKey;
+  bodyKey: MessageKey;
   icon: ComponentType<{ className?: string; strokeWidth?: number }>;
 }
 
@@ -72,31 +73,37 @@ interface StepCopy {
  * Web owns the wording; Android and iOS hand-port it, and
  * `packages/shared/src/member-orientation-copy.test.ts` reads all three files
  * so the ports cannot drift (the technique #476 established).
+ *
+ * #228 moved the words themselves into `i18n/sections/onboarding.ts` so a
+ * French member reads them in French. What stays here is the ORDER and the
+ * icons — the two things this file still decides. The parity guard follows the
+ * words to the catalogue; it reads both files for web.
  */
 const COPY: Record<OrientationStep, StepCopy> = {
   inbox: {
-    title: "One inbox, the whole crew",
-    body: "Every text your customers send lands here, and everyone on the crew can see it. Nothing sits unanswered in one person's phone.",
+    titleKey: "onboarding.orientationInboxTitle",
+    bodyKey: "onboarding.orientationInboxBody",
     icon: Inbox,
   },
   number: {
-    title: "You answer as the business",
-    body: "Your replies go out from the workspace's number, so customers never get your personal one. If a number isn't shared with you, Settings tells you which and why.",
+    titleKey: "onboarding.orientationNumberTitle",
+    bodyKey: "onboarding.orientationNumberBody",
     icon: Phone,
   },
   notes: {
-    title: "Notes stay inside",
-    body: "Switch the composer to Note and only the crew sees it — the customer never does. Mention a teammate in one and it lands on their For you.",
+    titleKey: "onboarding.orientationNotesTitle",
+    bodyKey: "onboarding.orientationNotesBody",
     icon: NotebookPen,
   },
   notifications: {
-    title: "You choose when we buzz you",
-    body: "You're joining a workspace that already has traffic. Turn on notifications for the work meant for you, and change them any time in Settings.",
+    titleKey: "onboarding.orientationNotificationsTitle",
+    bodyKey: "onboarding.orientationNotificationsBody",
     icon: BellRing,
   },
 };
 
 export function MemberOrientation() {
+  const t = useT();
   const { role } = useActiveCompany();
   // The read the first-run card already makes. Asked only of roles the flow
   // could ever be for — "if the answer came back `not oriented`, would this
@@ -153,9 +160,9 @@ export function MemberOrientation() {
             <Icon className="size-5" strokeWidth={1.75} />
           </div>
           <div className="space-y-2">
-            <DialogTitle className="text-xl">{copy.title}</DialogTitle>
+            <DialogTitle className="text-xl">{t(copy.titleKey)}</DialogTitle>
             <DialogDescription className="text-base leading-relaxed">
-              {copy.body}
+              {t(copy.bodyKey)}
             </DialogDescription>
           </div>
           {last ? (
@@ -163,9 +170,11 @@ export function MemberOrientation() {
           ) : (
             <div className="flex items-center justify-between pt-1">
               <Button variant="ghost" onClick={finish}>
-                Skip
+                {t("onboarding.skip")}
               </Button>
-              <Button onClick={() => setIndex(index + 1)}>Next</Button>
+              <Button onClick={() => setIndex(index + 1)}>
+                {t("onboarding.next")}
+              </Button>
             </div>
           )}
         </div>
@@ -200,10 +209,13 @@ export function MemberOrientation() {
  * carries visual weight the right edge does not.*
  */
 function JoiningNote({ note, from }: { note: string; from: string | null }) {
+  const t = useT();
   return (
     <figure className="space-y-1.5 rounded-lg border-l-2 border-primary bg-muted/50 py-3 pl-4 pr-3">
       <figcaption className="text-sm text-muted-foreground">
-        {from ? `${from} says` : "They said"}
+        {from
+          ? t("onboarding.saysAttribution", { name: from })
+          : t("onboarding.theySaid")}
       </figcaption>
       <blockquote className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-base leading-relaxed">
         {note}
@@ -220,6 +232,7 @@ function JoiningNote({ note, from }: { note: string; from: string | null }) {
  * *Applying: Goal Gradient Effect.*
  */
 function ProgressRail({ index }: { index: number }) {
+  const t = useT();
   const filled = orientationProgress(index) * ORIENTATION_STEPS.length;
   return (
     <div
@@ -228,7 +241,10 @@ function ProgressRail({ index }: { index: number }) {
       aria-valuenow={index + 1}
       aria-valuemin={1}
       aria-valuemax={ORIENTATION_STEPS.length}
-      aria-label={`Step ${index + 1} of ${ORIENTATION_STEPS.length}`}
+      aria-label={t("onboarding.stepXofY", {
+        current: index + 1,
+        total: ORIENTATION_STEPS.length,
+      })}
     >
       {ORIENTATION_STEPS.map((step, position) => (
         <span
@@ -252,6 +268,7 @@ function ProgressRail({ index }: { index: number }) {
  * button out — asking again is either impossible or rude.
  */
 export function NotificationStep({ onDone }: { onDone: () => void }) {
+  const t = useT();
   const push = usePushSubscription();
   const askable =
     push.supported && push.permission === "default" && !push.subscribed;
@@ -274,15 +291,17 @@ export function NotificationStep({ onDone }: { onDone: () => void }) {
         {askable ? (
           <>
             <Button variant="ghost" onClick={onDone}>
-              Not now
+              {t("onboarding.notNow")}
             </Button>
             <Button onClick={enable} disabled={push.pending}>
-              {push.pending ? "Turning on…" : "Turn on notifications"}
+              {push.pending
+                ? t("onboarding.turningOn")
+                : t("onboarding.turnOnNotifications")}
             </Button>
           </>
         ) : (
           <Button className="ml-auto" onClick={onDone}>
-            Start working
+            {t("onboarding.startWorking")}
           </Button>
         )}
       </div>

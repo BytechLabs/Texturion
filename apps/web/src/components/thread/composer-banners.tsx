@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import { CallButton } from "@/components/calls/call-button";
 import { Button } from "@/components/ui/button";
+import { useT, type Translate } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useBillingPortal } from "@/lib/api/billing";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
@@ -33,6 +34,7 @@ export function ComposerBannerCard({
    */
   thread?: { conversationId: string; contactName: string; canCall: boolean };
 }) {
+  const t = useT();
   const { role } = useActiveCompany();
   const isOwner = role === "owner";
   const isAdminUp = role === "owner" || role === "admin";
@@ -45,7 +47,11 @@ export function ComposerBannerCard({
     portal.mutate(undefined, {
       onSuccess: ({ url }) => window.location.assign(url),
       onError: (error) =>
-        toast.error(error instanceof ApiError ? error.message : "Couldn't open billing."),
+        toast.error(
+          error instanceof ApiError
+            ? error.message
+            : t("thread.billingOpenFailed"),
+        ),
     });
 
   const raiseCap = () => {
@@ -58,9 +64,13 @@ export function ComposerBannerCard({
       { overage_cap_multiplier: next },
       {
         onSuccess: () =>
-          toast.success(`Cap raised to ${next}× your included messages.`),
+          toast.success(t("thread.capRaised", { count: next })),
         onError: (error) =>
-          toast.error(error instanceof ApiError ? error.message : "Couldn't raise the cap."),
+          toast.error(
+            error instanceof ApiError
+              ? error.message
+              : t("thread.capRaiseFailed"),
+          ),
       },
     );
   };
@@ -83,36 +93,36 @@ export function ComposerBannerCard({
     // conversation with a person, and a control that only navigates somewhere
     // they also cannot change would be a second dead end.
     case "read_only":
-      sentence =
-        "You have view-only access to this workspace, so you can read the conversation but not reply or leave notes. An owner or admin can change your access.";
+      sentence = t("thread.bannerReadOnly");
       break;
     case "number_access":
-      sentence =
-        "You can add internal notes here, but not text this customer from this number. Calls to it won't ring you either. Ask an owner or admin for access.";
+      sentence = t("thread.bannerNumberAccess");
       break;
     case "opted_out":
       // Say what can actually be done about it. A STOP is the customer's to
       // undo; a hand-recorded opt-out is the crew's.
       sentence = banner.carrierBlocked
-        ? "This customer texted STOP, so their carrier is blocking your texts. Only they can undo it, by texting START to your number."
-        : "This customer is marked opted out. You can undo that on their contact.";
+        ? t("thread.bannerOptedOutCarrier")
+        : t("thread.bannerOptedOut");
       break;
     case "subscription":
       if (banner.status === "past_due" || banner.status === "unpaid") {
-        sentence = "Update your payment method to send messages.";
+        sentence = t("thread.bannerPastDue");
         if (isAdminUp) {
           action = (
             <Button size="sm" onClick={openPortal} disabled={portal.isPending}>
-              {portal.isPending ? "Opening…" : "Update payment"}
+              {portal.isPending
+                ? t("thread.opening")
+                : t("thread.updatePayment")}
             </Button>
           );
         }
       } else {
-        sentence = "Your subscription isn't active, so sending is off.";
+        sentence = t("thread.bannerSubscriptionInactive");
         if (isAdminUp) {
           action = (
             <Button size="sm" asChild>
-              <a href="/settings/billing">Go to billing</a>
+              <a href="/settings/billing">{t("thread.goToBilling")}</a>
             </Button>
           );
         }
@@ -122,12 +132,12 @@ export function ComposerBannerCard({
       // No registration is pending here, so promising an approval would be a
       // wait that never ends. Name the switch that is actually off.
       sentence = isAdminUp
-        ? "This is a US number, and US texting isn't on for this workspace."
-        : "This is a US number, and US texting isn't on for this workspace. An owner can add it.";
+        ? t("thread.bannerUsTextingOffAdmin")
+        : t("thread.bannerUsTextingOffMember");
       if (isAdminUp) {
         action = (
           <Button size="sm" asChild>
-            <a href="/settings/numbers">Add US texting</a>
+            <a href="/settings/numbers">{t("thread.addUsTexting")}</a>
           </Button>
         );
       } else if (thread?.canCall) {
@@ -135,7 +145,7 @@ export function ComposerBannerCard({
           <CallButton
             conversationId={thread.conversationId}
             contactName={thread.contactName}
-            label="Call them instead"
+            label={t("thread.callThemInstead")}
           />
         );
       }
@@ -146,8 +156,7 @@ export function ComposerBannerCard({
       // them hunting for a form to fill in. Say what happened, say who is
       // acting on it, and say what still works — the same three things the
       // email says, so the two never contradict each other.
-      sentence =
-        "The carrier paused your US registration, so US texts won't send. We've been told and we're on it — you'll get an email when it's back. Canadian texts and calls still work.";
+      sentence = t("thread.bannerRegistrationSuspended");
       // Registration gates TEXTING only, so the call still connects — and for
       // a suspension it is the only thing the reader can actually do now.
       if (thread?.canCall) {
@@ -155,14 +164,13 @@ export function ComposerBannerCard({
           <CallButton
             conversationId={thread.conversationId}
             contactName={thread.contactName}
-            label="Call them instead"
+            label={t("thread.callThemInstead")}
           />
         );
       }
       break;
     case "registration_pending":
-      sentence =
-        "US texting activates once your registration is approved. Usually 3 to 7 business days.";
+      sentence = t("thread.bannerRegistrationPending");
       // Carrier registration gates TEXTING only: calling this customer works
       // today, on every plan. Without this the banner is a dead end for the
       // whole 3-to-7-day wait, next to a Call button in the header that the
@@ -172,7 +180,7 @@ export function ComposerBannerCard({
           <CallButton
             conversationId={thread.conversationId}
             contactName={thread.contactName}
-            label="Call them instead"
+            label={t("thread.callThemInstead")}
           />
         );
       }
@@ -180,12 +188,14 @@ export function ComposerBannerCard({
     case "usage_cap":
       // #178: the cap is the owner's protection, not a quota — name it that way.
       sentence = isOwner
-        ? "Sending is paused at the spending cap you set. Nothing bills past it."
-        : "Sending is paused at this workspace's spending cap. Ask your account owner to raise it.";
+        ? t("thread.bannerUsageCapOwner")
+        : t("thread.bannerUsageCapMember");
       if (isOwner) {
         action = (
           <Button size="sm" onClick={raiseCap} disabled={updateCompany.isPending}>
-            {updateCompany.isPending ? "Raising…" : "Raise cap"}
+            {updateCompany.isPending
+              ? t("thread.raising")
+              : t("thread.raiseCap")}
           </Button>
         );
       }
@@ -194,8 +204,7 @@ export function ComposerBannerCard({
       // #396: says what was seen and who decides. It does NOT opt anyone out —
       // only the customer can, and only they can lift it, so a wrong guess
       // would silence a real lead for good.
-      sentence =
-        "Someone on this thread asked not to be contacted. That request is binding however it is worded, so don't reply unless you are sure it wasn't one. To stop texts for good, they need to text STOP.";
+      sentence = t("thread.bannerOptOutHint");
       break;
   }
 
@@ -211,7 +220,7 @@ export function ComposerBannerCard({
       <p className="text-sm">{sentence}</p>
       <div className="flex items-center gap-3">
         {action}
-        <ReportThis kind={banner.kind} company={company.data ?? null} />
+        <ReportThis kind={banner.kind} company={company.data ?? null} t={t} />
       </div>
     </div>
   );
@@ -242,9 +251,11 @@ export function ComposerBannerCard({
 function ReportThis({
   kind,
   company,
+  t,
 }: {
   kind: string;
   company: { id: string; name: string; plan: string | null } | null;
+  t: Translate;
 }) {
   // A situation we have no sentence for would send a support email that says
   // nothing the customer did not already have to type — worse than no link.
@@ -265,7 +276,7 @@ function ReportThis({
         recentErrors: recentClientErrors(),
       })}
     >
-      Report this
+      {t("thread.reportThis")}
     </a>
   );
 }

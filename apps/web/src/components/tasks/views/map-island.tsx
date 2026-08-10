@@ -17,6 +17,7 @@ import {
 } from "react-leaflet";
 
 import { publicEnv } from "@/env";
+import { useT } from "@/i18n/provider";
 import {
   NO_BASEMAP_NOTICE,
   readBasemap,
@@ -117,6 +118,7 @@ export function MapIsland({
   tasks: LocatedTask[];
   nearMe: { lat: number; lng: number } | null;
 }) {
+  const t = useT();
   // Fit the initial view to all pins; a single pin gets a sensible zoom.
   const bounds = useMemo<L.LatLngBoundsExpression | null>(() => {
     if (tasks.length === 0) return null;
@@ -184,7 +186,7 @@ export function MapIsland({
         <Clusters tasks={tasks} />
         {nearMe && (
           <Marker position={[nearMe.lat, nearMe.lng]} icon={meIcon}>
-            <Popup>You are here</Popup>
+            <Popup>{t("tasks.mapYouAreHere")}</Popup>
           </Marker>
         )}
       </MapContainer>
@@ -200,8 +202,7 @@ export function MapIsland({
         // Configured but not serving us: a different sentence, because the fix is
         // ours and not the owner's.
         <p className="text-[13px] leading-relaxed text-app-muted" role="status">
-          The street background isn&apos;t loading right now. Job pins are still
-          exact, and we&apos;re looking at it.
+          {t("tasks.mapTilesFailing")}
         </p>
       )}
     </div>
@@ -296,6 +297,7 @@ function Clusters({ tasks }: { tasks: LocatedTask[] }) {
 
 /** The single-pin peek card → the task's source message + conversation. */
 function TaskPeek({ task }: { task: LocatedTask }) {
+  const t = useT();
   return (
     <div className="min-w-[180px] space-y-1">
       <p className="text-[13px] font-medium text-foreground">{task.title}</p>
@@ -307,7 +309,7 @@ function TaskPeek({ task }: { task: LocatedTask }) {
           href={taskThreadHref(task)}
           className="text-[12px] font-medium text-primary hover:underline"
         >
-          Open task
+          {t("tasks.mapOpenTask")}
         </Link>
         {/* Field-crew convenience: navigate straight to the job site. Opens the
             device's Maps app (native on a phone) — a keyless, cost-free Maps
@@ -318,7 +320,7 @@ function TaskPeek({ task }: { task: LocatedTask }) {
           rel="noopener noreferrer"
           className="text-[12px] font-medium text-primary hover:underline"
         >
-          Directions
+          {t("tasks.mapDirections")}
         </a>
       </div>
     </div>
@@ -333,10 +335,11 @@ function ClusterPeek({
   tasks: LocatedTask[];
   onZoom: () => void;
 }) {
+  const t = useT();
   return (
     <div className="min-w-[200px] space-y-1.5">
       <p className="text-[12px] font-semibold text-foreground">
-        {tasks.length} tasks here
+        {t("tasks.mapTasksHere", { count: tasks.length })}
       </p>
       <ul className="space-y-1">
         {tasks.slice(0, 6).map((task) => (
@@ -356,7 +359,7 @@ function ClusterPeek({
               onClick={onZoom}
               className="text-[12px] font-medium text-primary underline-offset-4 hover:underline"
             >
-              +{tasks.length - 6} more, zoom in
+              {t("tasks.mapMoreZoomIn", { count: tasks.length - 6 })}
             </button>
           </li>
         )}
@@ -367,7 +370,7 @@ function ClusterPeek({
           onClick={onZoom}
           className="text-[12px] font-medium text-primary underline-offset-4 hover:underline"
         >
-          Zoom in
+          {t("tasks.mapZoomIn")}
         </button>
       )}
     </div>

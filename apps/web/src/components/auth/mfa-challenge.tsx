@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/i18n/provider";
 import { apiFetch } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/error";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
@@ -42,6 +43,7 @@ export function MfaChallenge({
   onVerified: () => void;
   footer?: React.ReactNode;
 }) {
+  const t = useT();
   const [mode, setMode] = useState<Mode>("code");
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
@@ -66,9 +68,7 @@ export function MfaChallenge({
       if (!factor) {
         // Nothing to challenge against. Rather than spin, say so and let them
         // out — this is the state a factor removed on another device leaves.
-        setError(
-          "We couldn't find an authenticator on this account. Sign out and back in.",
-        );
+        setError(t("onboarding.mfaNoFactor"));
         return;
       }
       const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
@@ -81,7 +81,7 @@ export function MfaChallenge({
       // Deliberately one message for every failure mode. Telling a wrong code
       // apart from an expired one helps an attacker more than the owner of the
       // phone, who tries the next code either way.
-      setError("That code didn't match. Check your app and try the next one.");
+      setError(t("onboarding.mfaCodeMismatch"));
       submittedRef.current = null;
     } finally {
       setBusy(false);
@@ -103,10 +103,10 @@ export function MfaChallenge({
     } catch (cause) {
       setError(
         cause instanceof ApiError && cause.code === "rate_limited"
-          ? "Too many wrong codes. Try again in an hour."
+          ? t("onboarding.mfaRateLimited")
           : cause instanceof ApiError
-            ? "That code is not valid."
-            : "We couldn't reach the server. Check your connection.",
+            ? t("onboarding.mfaCodeInvalid")
+            : t("onboarding.mfaNetwork"),
       );
     } finally {
       setBusy(false);
@@ -129,12 +129,14 @@ export function MfaChallenge({
           aria-hidden
         />
         <h1 className="text-2xl font-semibold tracking-tight">
-          {mode === "code" ? "Enter your code" : "Use a recovery code"}
+          {mode === "code"
+            ? t("onboarding.mfaCodeTitle")
+            : t("onboarding.mfaRecoveryTitle")}
         </h1>
         <p className="text-sm text-muted-foreground">
           {mode === "code"
-            ? "Open your authenticator app and type the six digits it shows."
-            : "One of the ten codes you saved when you set two-factor up. Using one turns two-factor OFF so you can get in and set it up again."}
+            ? t("onboarding.mfaCodeBody")
+            : t("onboarding.mfaRecoveryBody")}
         </p>
       </div>
 
@@ -169,7 +171,11 @@ export function MfaChallenge({
           inputMode={mode === "code" ? "numeric" : "text"}
           maxLength={mode === "code" ? TOTP_LENGTH : 20}
           placeholder={mode === "code" ? "123456" : "ABCDE-FGHJK"}
-          aria-label={mode === "code" ? "Six-digit code" : "Recovery code"}
+          aria-label={
+            mode === "code"
+              ? t("onboarding.mfaCodeAria")
+              : t("onboarding.mfaRecoveryAria")
+          }
           aria-invalid={error ? true : undefined}
           disabled={busy}
           className={mode === "code" ? "text-center text-lg tracking-[0.4em]" : ""}
@@ -180,7 +186,11 @@ export function MfaChallenge({
           </p>
         ) : null}
         <Button type="submit" className="w-full" disabled={busy || !value.trim()}>
-          {busy ? "Checking…" : mode === "code" ? "Continue" : "Use this code"}
+          {busy
+            ? t("onboarding.checking")
+            : mode === "code"
+              ? t("onboarding.continue")
+              : t("onboarding.mfaUseThisCode")}
         </Button>
       </form>
 
@@ -197,8 +207,8 @@ export function MfaChallenge({
         >
           <KeyRound className="size-3.5" aria-hidden />
           {mode === "code"
-            ? "I don't have my authenticator"
-            : "I have my authenticator after all"}
+            ? t("onboarding.mfaNoAuthenticator")
+            : t("onboarding.mfaHaveAuthenticator")}
         </button>
         {footer}
       </div>

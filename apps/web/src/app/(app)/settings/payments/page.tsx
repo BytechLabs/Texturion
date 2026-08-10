@@ -2,6 +2,7 @@
 
 import { PaymentsCard } from "@/components/settings/payments-card";
 import { SettingsPage } from "@/components/settings/section";
+import { useT } from "@/i18n/provider";
 
 /**
  * #224 — Settings → Getting paid.
@@ -14,10 +15,11 @@ import { SettingsPage } from "@/components/settings/section";
  * subject is unambiguous is one somebody trusts.*
  */
 export default function PaymentsSettingsPage() {
+  const t = useT();
   return (
     <SettingsPage
-      title="Getting paid"
-      description="Ask a customer for a deposit or a final payment, right in the thread."
+      title={t("payments.settingsTitle")}
+      description={t("payments.settingsDescription")}
     >
       <PaymentsCard />
     </SettingsPage>

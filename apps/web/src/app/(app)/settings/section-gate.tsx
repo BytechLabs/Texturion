@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 import { SettingsPage } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
 
 import { settingsAccessFor, type SettingsAccess } from "./section-access";
@@ -46,22 +47,27 @@ export function SettingsSectionGate({
 }
 
 function NoAccess({ section }: { section: SettingsSection | null }) {
+  const t = useT();
   return (
     <SettingsPage
       title={
         section
-          ? `You don't have access to ${section.label}`
-          : "You don't have access to this page"
+          ? // #228: `label` is a catalogue KEY, not a display string — the nav
+            // resolves it the same way. Interpolating it raw would name the
+            // section "settingsMore.navBilling" to the one reader who most
+            // needs to know which section they were refused.
+            t("appShell.gateNoAccessToSection", { section: t(section.label) })
+          : t("appShell.gateNoAccessToPage")
       }
       // Names the people who can actually fix it. That is not the rank check
       // #315 removed — owner and admin are the roles holding `team.manage`,
       // and changing what somebody's role reaches IS team.manage. Sending a
       // member to a bookkeeper because the page said "billing" would be
       // technically about billing and practically a dead end.
-      description="Ask an owner or an admin if you need it — they're the ones who can change what your role reaches."
+      description={t("appShell.gateNoAccessBody")}
     >
       <Button asChild variant="outline">
-        <Link href="/settings">Back to your settings</Link>
+        <Link href="/settings">{t("appShell.gateBackToSettings")}</Link>
       </Button>
     </SettingsPage>
   );

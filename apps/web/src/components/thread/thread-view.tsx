@@ -15,6 +15,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { useActiveCompany } from "@/lib/company/provider";
 import { useMe } from "@/lib/api/me";
@@ -101,6 +102,7 @@ function persistPanelWidth(px: number): void {
  * not_found and network errors are distinct, designed states.
  */
 export function ThreadView({ conversationId }: { conversationId: string }) {
+  const t = useT();
   const detail = useConversation(conversationId);
 
   if (detail.isPending) {
@@ -135,16 +137,16 @@ export function ThreadView({ conversationId }: { conversationId: string }) {
       <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
         <p className="text-sm text-muted-foreground">
           {notFound
-            ? "This conversation doesn't exist or was removed."
-            : "We couldn't load this conversation."}
+            ? t("thread.conversationNotFound")
+            : t("thread.conversationLoadFailed")}
         </p>
         {notFound ? (
           <Button asChild variant="outline" size="sm">
-            <Link href="/inbox">Back to inbox</Link>
+            <Link href="/inbox">{t("thread.backToInbox")}</Link>
           </Button>
         ) : (
           <Button variant="outline" size="sm" onClick={() => detail.refetch()}>
-            Try again
+            {t("common.retry")}
           </Button>
         )}
       </div>
@@ -155,6 +157,7 @@ export function ThreadView({ conversationId }: { conversationId: string }) {
 }
 
 function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
+  const t = useT();
   const conversationId = conversation.id;
 
   // #302: who else is on this thread, and whether they are replying. The hook
@@ -408,7 +411,9 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           ~1100px to the header toggle so the thread keeps a comfortable measure. */}
       {panelOpen && (
         <aside
-          aria-label={`Conversation info for ${contactDisplayName(conversation.contact)}`}
+          aria-label={t("thread.conversationInfoForAria", {
+            name: contactDisplayName(conversation.contact),
+          })}
           style={{ width: panelWidth }}
           className="relative hidden shrink-0 border-l border-app-line bg-app-paper xl:block"
         >
@@ -417,13 +422,15 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           <div
             role="separator"
             aria-orientation="vertical"
-            aria-label="Resize contact panel"
+            aria-label={t("thread.resizePanelAria")}
             // A focusable, arrow-key-operable separator behaves like a slider —
             // expose its current/min/max width so screen readers announce it.
             aria-valuenow={Math.round(panelWidth)}
             aria-valuemin={PANEL_MIN_WIDTH}
             aria-valuemax={PANEL_MAX_WIDTH}
-            aria-valuetext={`${Math.round(panelWidth)} pixels`}
+            aria-valuetext={t("thread.panelWidthAria", {
+              pixels: Math.round(panelWidth),
+            })}
             tabIndex={0}
             onPointerDown={startResize}
             onDoubleClick={() => {
@@ -472,7 +479,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             <SheetTitle>
               {contactDisplayName(conversation.contact)}
             </SheetTitle>
-            <SheetDescription>Conversation info</SheetDescription>
+            <SheetDescription>{t("thread.conversationInfo")}</SheetDescription>
           </SheetHeader>
           <ContactPanel
             conversation={conversation}

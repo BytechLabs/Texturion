@@ -10,6 +10,7 @@ import {
 } from "@loonext/shared";
 
 import { SettingsCard } from "@/components/settings/section";
+import { useT } from "@/i18n/provider";
 import { apiFetch } from "@/lib/api/client";
 import { useCompanyId } from "@/lib/company/provider";
 import { formatPhone } from "@/lib/format/phone";
@@ -48,6 +49,7 @@ import { formatPhone } from "@/lib/format/phone";
  * wording of one security rule.
  */
 export function MyAccessCard() {
+  const t = useT();
   const companyId = useCompanyId();
   const access = useQuery({
     queryKey: ["my-number-access", companyId],
@@ -68,8 +70,8 @@ export function MyAccessCard() {
 
   return (
     <SettingsCard
-      title="What you can reach"
-      description="Some of this workspace's numbers are not shared with you. Here is which, and what decided it."
+      title={t("settings.myAccessTitle")}
+      description={t("settings.myAccessDescription")}
     >
       <div className="space-y-3">
         <p role="status" className="text-sm">
@@ -82,7 +84,9 @@ export function MyAccessCard() {
               className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-b border-border-subtle pb-2 last:border-b-0 last:pb-0"
             >
               <span className="min-w-[9rem] text-sm tabular-nums">
-                {row.number_e164 ? formatPhone(row.number_e164) : "A number"}
+                {row.number_e164
+                  ? formatPhone(row.number_e164)
+                  : t("settings.myAccessUnnamedNumber")}
               </span>
               <span className="text-sm text-muted-foreground">
                 {numberAccessLevelLabel(row.level)}

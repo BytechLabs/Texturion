@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { useAuditLog, type AuditLogFilters } from "@/lib/api/audit-log";
 import { getApiBaseUrl } from "@/lib/api/client";
 import { useMembers } from "@/lib/api/team";
@@ -70,6 +71,7 @@ function toIsoEnd(day: string): string | undefined {
  * Owner/admin only — the API enforces it, and a member's request 403s.
  */
 export default function HistorySettingsPage() {
+  const t = useT();
   const companyId = useCompanyId();
   const members = useMembers();
   const [actor, setActor] = useState<string>(ANY);
@@ -118,7 +120,7 @@ export default function HistorySettingsPage() {
       anchor.click();
       URL.revokeObjectURL(href);
     } catch {
-      toast.error("Couldn't export the history. Try again in a moment.");
+      toast.error(t("appShell.historyExportFailed"));
     } finally {
       setExporting(false);
     }
@@ -126,20 +128,24 @@ export default function HistorySettingsPage() {
 
   return (
     <SettingsPage
-      title="History"
-      description="Every change to your workspace — who made it, and when."
+      title={t("appShell.historyTitle")}
+      description={t("appShell.historyDescription")}
     >
       <SettingsCard>
         {/* Filters: tightly grouped (one job), separated from the list below. */}
         <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-1.5">
-            <Label htmlFor="history-actor">Person</Label>
+            <Label htmlFor="history-actor">
+              {t("appShell.historyFilterPerson")}
+            </Label>
             <Select value={actor} onValueChange={setActor}>
               <SelectTrigger id="history-actor">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ANY}>Everyone</SelectItem>
+                <SelectItem value={ANY}>
+                  {t("appShell.historyFilterEveryone")}
+                </SelectItem>
                 {(members.data?.data ?? []).map((member) => (
                   <SelectItem key={member.user_id} value={member.user_id}>
                     {member.display_name}
@@ -149,13 +155,17 @@ export default function HistorySettingsPage() {
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="history-action">Change</Label>
+            <Label htmlFor="history-action">
+              {t("appShell.historyFilterChange")}
+            </Label>
             <Select value={action} onValueChange={setAction}>
               <SelectTrigger id="history-action">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ANY}>Everything</SelectItem>
+                <SelectItem value={ANY}>
+                  {t("appShell.historyFilterEverything")}
+                </SelectItem>
                 {Object.entries(AUDIT_ACTION_LABELS).map(([key, label]) => (
                   <SelectItem key={key} value={key}>
                     {label}
@@ -165,7 +175,9 @@ export default function HistorySettingsPage() {
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="history-since">From</Label>
+            <Label htmlFor="history-since">
+              {t("appShell.historyFilterFrom")}
+            </Label>
             <Input
               id="history-since"
               type="date"
@@ -174,7 +186,9 @@ export default function HistorySettingsPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="history-until">To</Label>
+            <Label htmlFor="history-until">
+              {t("appShell.historyFilterTo")}
+            </Label>
             <Input
               id="history-until"
               type="date"
@@ -186,7 +200,7 @@ export default function HistorySettingsPage() {
 
         <div className="flex items-center justify-between gap-3 border-t px-4 py-3">
           <p className="text-xs text-muted-foreground">
-            Kept for 12 months. This record cannot be edited, by anyone.
+            {t("appShell.historyRetention")}
           </p>
           <Button
             variant="outline"
@@ -195,7 +209,9 @@ export default function HistorySettingsPage() {
             disabled={exporting || entries.length === 0}
           >
             <Download className="size-4" strokeWidth={1.75} aria-hidden />
-            {exporting ? "Exporting…" : "Export CSV"}
+            {exporting
+              ? t("appShell.historyExporting")
+              : t("appShell.historyExportCsv")}
           </Button>
         </div>
       </SettingsCard>
@@ -218,10 +234,11 @@ export default function HistorySettingsPage() {
               strokeWidth={1.5}
               aria-hidden
             />
-            <p className="text-sm font-medium">Nothing in this window</p>
+            <p className="text-sm font-medium">
+              {t("appShell.historyEmptyTitle")}
+            </p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              Changes to your team, your numbers and your settings show up here
-              as they happen. Widen the dates to look further back.
+              {t("appShell.historyEmptyBody")}
             </p>
           </div>
         </SettingsCard>
@@ -240,7 +257,9 @@ export default function HistorySettingsPage() {
                 onClick={() => void log.fetchNextPage()}
                 disabled={log.isFetchingNextPage}
               >
-                {log.isFetchingNextPage ? "Loading…" : "Show older"}
+                {log.isFetchingNextPage
+                  ? t("appShell.historyLoadingMore")
+                  : t("appShell.historyShowOlder")}
               </Button>
             </div>
           )}
@@ -256,6 +275,7 @@ export default function HistorySettingsPage() {
  * the field held.
  */
 function HistoryRow({ entry }: { entry: AuditEntry }) {
+  const t = useT();
   const hasDetail =
     Object.keys(entry.before).length > 0 || Object.keys(entry.after).length > 0;
 
@@ -274,11 +294,11 @@ function HistoryRow({ entry }: { entry: AuditEntry }) {
       {hasDetail && (
         <details className="mt-1.5">
           <summary className="cursor-pointer list-none text-xs text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground">
-            Details
+            {t("appShell.historyDetails")}
           </summary>
           <dl className="mt-2 grid gap-1 text-xs text-muted-foreground">
             <div className="flex gap-2">
-              <dt className="w-16 shrink-0">By</dt>
+              <dt className="w-16 shrink-0">{t("appShell.historyDetailBy")}</dt>
               <dd>
                 {auditActor(entry)}
                 {entry.actor_ip ? ` · ${entry.actor_ip}` : ""}
@@ -286,7 +306,9 @@ function HistoryRow({ entry }: { entry: AuditEntry }) {
             </div>
             {Object.keys(entry.before).length > 0 && (
               <div className="flex gap-2">
-                <dt className="w-16 shrink-0">Was</dt>
+                <dt className="w-16 shrink-0">
+                  {t("appShell.historyDetailWas")}
+                </dt>
                 <dd className="break-all font-mono">
                   {JSON.stringify(entry.before)}
                 </dd>
@@ -294,7 +316,9 @@ function HistoryRow({ entry }: { entry: AuditEntry }) {
             )}
             {Object.keys(entry.after).length > 0 && (
               <div className="flex gap-2">
-                <dt className="w-16 shrink-0">Now</dt>
+                <dt className="w-16 shrink-0">
+                  {t("appShell.historyDetailNow")}
+                </dt>
                 <dd className="break-all font-mono">
                   {JSON.stringify(entry.after)}
                 </dd>

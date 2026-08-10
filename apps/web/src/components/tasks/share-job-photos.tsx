@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useRevokeJobPhotos, useShareJobPhotos } from "@/lib/api/tasks";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
@@ -46,6 +47,7 @@ export function ShareJobPhotos({
   taskId: string;
   photoCount: number;
 }) {
+  const t = useT();
   const share = useShareJobPhotos(taskId);
   const revoke = useRevokeJobPhotos(taskId);
   const [link, setLink] = useState<{ url: string; expiresAt: string } | null>(null);
@@ -64,7 +66,7 @@ export function ShareJobPhotos({
         toast.error(
           error instanceof ApiError
             ? error.message
-            : "Couldn't make that link. Try again.",
+            : t("tasks.shareLinkFailed"),
         ),
     });
   };
@@ -74,11 +76,11 @@ export function ShareJobPhotos({
     try {
       await navigator.clipboard.writeText(link.url);
       setCopied(true);
-      toast.success("Link copied. Paste it into the thread.");
+      toast.success(t("tasks.shareLinkCopied"));
     } catch {
       // A blocked clipboard is not an error worth a red toast: the link is on
       // screen and selectable, which is the fallback every browser still has.
-      toast.message("Select the link and copy it.");
+      toast.message(t("tasks.shareLinkSelectToCopy"));
     }
   };
 
@@ -86,9 +88,9 @@ export function ShareJobPhotos({
     revoke.mutate(undefined, {
       onSuccess: () => {
         setLink(null);
-        toast.success("That link no longer opens.");
+        toast.success(t("tasks.shareLinkOff"));
       },
-      onError: () => toast.error("Couldn't turn that link off. Try again."),
+      onError: () => toast.error(t("tasks.shareLinkOffFailed")),
     });
   };
 
@@ -102,7 +104,9 @@ export function ShareJobPhotos({
         className="gap-1.5"
       >
         <Link2 className="size-3.5" aria-hidden />
-        {share.isPending ? "Making a link…" : "Share these photos"}
+        {share.isPending
+          ? t("tasks.shareMakingLink")
+          : t("tasks.sharePhotos")}
       </Button>
     );
   }
@@ -110,8 +114,9 @@ export function ShareJobPhotos({
   return (
     <div className="space-y-1.5 rounded-lg border bg-app-hover/40 p-2.5">
       <p className="text-[12.5px] text-app-muted">
-        Anyone with this link can see the photos until{" "}
-        {formatAbsoluteDateTime(link.expiresAt)}.
+        {t("tasks.shareExpiryNote", {
+          when: formatAbsoluteDateTime(link.expiresAt),
+        })}
       </p>
       <div className="flex items-center gap-1.5">
         {/* Selectable text rather than an input: it is not editable, and an
@@ -125,7 +130,7 @@ export function ShareJobPhotos({
           ) : (
             <Copy className="size-3.5" aria-hidden />
           )}
-          {copied ? "Copied" : "Copy"}
+          {copied ? t("tasks.shareCopied") : t("tasks.shareCopy")}
         </Button>
       </div>
       <Button
@@ -135,7 +140,9 @@ export function ShareJobPhotos({
         disabled={revoke.isPending}
         className="h-auto px-1 py-0.5 text-[12px] text-app-muted"
       >
-        {revoke.isPending ? "Turning it off…" : "Turn this link off"}
+        {revoke.isPending
+          ? t("tasks.shareTurningOff")
+          : t("tasks.shareTurnOff")}
       </Button>
     </div>
   );

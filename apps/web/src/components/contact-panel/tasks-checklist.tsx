@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { undoableToast } from "@/components/ui/optimistic-undo";
 import { InlineAssignee, InlineDue } from "@/components/tasks/task-inline-edit";
 import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useConversationTasks,
@@ -42,6 +43,7 @@ export function TasksChecklist({
   conversationId: string;
   active?: boolean;
 }) {
+  const t = useT();
   const tasks = useConversationTasks(conversationId, { enabled: active });
 
   if (tasks.isPending) {
@@ -56,7 +58,7 @@ export function TasksChecklist({
   if (tasks.isError) {
     return (
       <p className="px-2 text-[13px] text-muted-foreground">
-        Couldn&apos;t load tasks for this conversation.
+        {t("contacts.tasksLoadFailed")}
       </p>
     );
   }
@@ -66,10 +68,17 @@ export function TasksChecklist({
   if (rows.length === 0) {
     // First-run empty state teaches promotion (T5.3 discoverability) — the
     // checklist has no standalone add affordance by design.
+    //
+    // #228: the ⋯ is INTERPOLATED rather than wrapped in its own
+    // `<span aria-hidden>`, because the glyph does not sit in the same place in
+    // every language — French puts it after "menu", English before — and a
+    // sentence split around a fixed element can only ever be rendered in the
+    // word order of the language it was split in. The cost is that a screen
+    // reader now reaches the glyph; the alternative was French that reads
+    // backwards.
     return (
       <p className="px-2 text-[13px] leading-relaxed text-muted-foreground">
-        No tasks yet. Promote a message from its{" "}
-        <span aria-hidden>⋯</span> menu to track it here.
+        {t("contacts.tasksEmpty", { menu: "⋯" })}
       </p>
     );
   }
@@ -94,6 +103,7 @@ function TaskRow({
   task: ChecklistTask;
   conversationId: string;
 }) {
+  const t = useT();
   const toggle = useToggleTaskDone(conversationId);
   const { openTask } = useTaskDrawer();
   // Reflect the toggle optimistically at the row so the checkbox + strikethrough
@@ -111,7 +121,7 @@ function TaskRow({
           toast.error(
             error instanceof ApiError
               ? error.message
-              : "Couldn't update this task. Try again.",
+              : t("contacts.taskUpdateFailed"),
           );
         },
         // The hook already patched the caches with the server row; drop the
@@ -125,7 +135,7 @@ function TaskRow({
           // toggle actually failed.
           if (next) {
             undoableToast({
-              message: "Task marked done",
+              message: t("contacts.taskMarkedDone"),
               onUndo: () => runToggle(false),
             });
           }
@@ -147,7 +157,7 @@ function TaskRow({
         <Checkbox
           checked={done}
           onCheckedChange={(value) => runToggle(value === true)}
-          aria-label={done ? "Mark not done" : "Mark done"}
+          aria-label={t(done ? "contacts.markNotDone" : "contacts.markDone")}
           // tap-target: ≥44px mobile hit area (G11 / §7). The Radix Checkbox is
           // a button and hosts the utility's centered ::after with no layout
           // shift.
@@ -186,14 +196,16 @@ function TaskRow({
           {task.attachment_count > 0 && (
             <span
               className="inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums text-muted-foreground"
-              title="Open the task to see its files"
+              title={t("contacts.taskFilesTitle")}
             >
               <Paperclip className="size-3" strokeWidth={1.75} aria-hidden />
               {task.attachment_count}
               <span className="sr-only">
-                {task.attachment_count === 1
-                  ? "file on this task"
-                  : "files on this task"}
+                {t(
+                  task.attachment_count === 1
+                    ? "contacts.fileOnTask"
+                    : "contacts.filesOnTask",
+                )}
               </span>
             </span>
           )}

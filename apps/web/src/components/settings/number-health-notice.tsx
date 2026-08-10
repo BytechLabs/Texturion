@@ -2,6 +2,7 @@
 
 import { AlertTriangle } from "lucide-react";
 
+import { useT, type Translate } from "@/i18n/provider";
 import type { NumberHealth } from "@/lib/api/types";
 
 /**
@@ -30,6 +31,7 @@ import type { NumberHealth } from "@/lib/api/types";
  * as information, not as an upsell or an accusation.
  */
 export function NumberHealthNotice({ health }: { health: NumberHealth }) {
+  const t = useT();
   return (
     <div
       className="mt-3 flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/5 px-3 py-3"
@@ -40,15 +42,15 @@ export function NumberHealthNotice({ health }: { health: NumberHealth }) {
         aria-hidden
       />
       <div className="min-w-0 text-sm">
-        <p className="font-medium">Messages from this number aren&apos;t arriving reliably</p>
+        <p className="font-medium">{t("settingsMore.numberHealthTitle")}</p>
         <p className="mt-1 text-muted-foreground">
-          {deliveryLine(health)} Carriers sometimes start filtering a number —
-          often one that was reused from a previous business. We&apos;ve been
-          alerted and we&apos;re on it; you don&apos;t need to do anything yet.
+          {deliveryLine(health, t)} {t("settingsMore.numberHealthBody")}
         </p>
         {health.degraded_since && (
           <p className="mt-1 text-xs text-muted-foreground">
-            Since {new Date(health.degraded_since).toLocaleDateString()}
+            {t("settingsMore.numberHealthSince", {
+              date: new Date(health.degraded_since).toLocaleDateString(),
+            })}
           </p>
         )}
       </div>
@@ -63,9 +65,11 @@ export function NumberHealthNotice({ health }: { health: NumberHealth }) {
  * when the sample supported a verdict — so an absent rate says less rather
  * than inventing precision.
  */
-function deliveryLine(health: NumberHealth): string {
+function deliveryLine(health: NumberHealth, t: Translate): string {
   if (health.delivery_rate === null) {
-    return "Fewer of your texts are getting through than usual.";
+    return t("settingsMore.numberHealthRateUnknown");
   }
-  return `About ${Math.round(health.delivery_rate * 100)}% of your recent texts were delivered, which is below normal for this number.`;
+  return t("settingsMore.numberHealthRate", {
+    percent: Math.round(health.delivery_rate * 100),
+  });
 }

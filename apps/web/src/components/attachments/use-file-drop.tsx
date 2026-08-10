@@ -2,6 +2,8 @@
 
 import { useCallback, useRef, useState } from "react";
 
+import { useT } from "@/i18n/provider";
+
 /**
  * Native drag-and-drop file intake (D28 — no new dependency, just
  * DataTransfer events). Spread `handlers` on a container and render
@@ -78,13 +80,16 @@ export function DropOverlay({
   active: boolean;
   pending?: boolean;
 }) {
+  // Above the early return: the overlay is absent on every render but the one
+  // where a file is being dragged, and a hook cannot sit behind that.
+  const t = useT();
   if (!active) return null;
   return (
     <div
       aria-hidden
       className="pointer-events-none absolute inset-1 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-border bg-background/90 text-[13px] font-medium text-muted-foreground"
     >
-      {pending ? "Uploading, wait to add more" : "Drop to attach"}
+      {pending ? t("misc.dropWhileUploading") : t("misc.dropToAttach")}
     </div>
   );
 }

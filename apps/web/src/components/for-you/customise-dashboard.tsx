@@ -15,6 +15,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
+import { useT } from "@/i18n/provider";
 import { useHiddenPanels, useSetHiddenPanels } from "@/lib/api/me-company";
 
 /**
@@ -59,6 +60,7 @@ import { useHiddenPanels, useSetHiddenPanels } from "@/lib/api/me-company";
  * related switches rather than one list of five.*
  */
 export function CustomiseDashboard() {
+  const t = useT();
   const hidden = useHiddenPanels();
   const save = useSetHiddenPanels();
 
@@ -88,8 +90,13 @@ export function CustomiseDashboard() {
           // a screen reader gets the number rather than "a dot".
           aria-label={
             hidden.length > 0
-              ? `Customise this screen — ${hidden.length} ${hidden.length === 1 ? "panel" : "panels"} put away`
-              : "Customise this screen"
+              ? t(
+                  hidden.length === 1
+                    ? "inbox.customiseAriaPutAwayOne"
+                    : "inbox.customiseAriaPutAwayMany",
+                  { count: hidden.length },
+                )
+              : t("inbox.customiseAria")
           }
           className="relative grid size-8 place-items-center rounded-[9px] border border-app-line bg-app-paper text-app-muted transition-colors hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
@@ -105,23 +112,23 @@ export function CustomiseDashboard() {
       <PopoverContent align="end" className="w-[19rem] p-0">
         <div className="border-b border-app-line px-4 py-3">
           <p className="text-[13px] font-semibold text-app-ink">
-            What&apos;s on this screen
+            {t("inbox.customiseTitle")}
           </p>
           {/* Says what is NOT on offer, once, here — rather than leaving
               somebody to hunt for a switch that does not exist. */}
           <p className="mt-0.5 text-[12px] leading-snug text-app-muted">
-            The queue always stays. Work isn&apos;t something you can switch off.
+            {t("inbox.customiseQueueStays")}
           </p>
         </div>
         <div className="px-4 py-3">
           <PanelGroup
-            heading="Measures"
+            heading={t("inbox.customiseGroupMeasures")}
             panels={measures}
             hidden={hidden}
             onToggle={toggle}
           />
           <PanelGroup
-            heading="History"
+            heading={t("inbox.customiseGroupHistory")}
             panels={history}
             hidden={hidden}
             onToggle={toggle}
@@ -137,8 +144,7 @@ export function CustomiseDashboard() {
             role="status"
             className="border-t border-app-line px-4 py-2 text-[12px] text-app-clay"
           >
-            We couldn&apos;t save that — it&apos;s back the way it was. Try again
-            in a moment.
+            {t("inbox.customiseSaveFailed")}
           </p>
         )}
       </PopoverContent>

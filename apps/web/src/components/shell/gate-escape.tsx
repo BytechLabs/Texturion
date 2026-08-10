@@ -12,6 +12,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useT } from "@/i18n/provider";
 import { useMe } from "@/lib/api/me";
 import { useSessionReady } from "@/lib/auth/use-session-ready";
 import {
@@ -68,6 +69,7 @@ export function switchWorkspaceFromGate(
  * screen (G7).
  */
 export function GateSignOut() {
+  const t = useT();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
@@ -95,7 +97,7 @@ export function GateSignOut() {
       className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-[13px] text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60"
     >
       <LogOut className="size-3.5" strokeWidth={1.75} aria-hidden />
-      {busy ? "Signing out…" : "Sign out"}
+      {busy ? t("shell.signingOut") : t("shell.signOut")}
     </button>
   );
 }
@@ -108,6 +110,7 @@ export function GateSignOut() {
  * onboarding wizard does (useMe + cookie), so both always agree.
  */
 export function GateEscape({ className }: { className?: string }) {
+  const t = useT();
   const router = useRouter();
   const sessionReady = useSessionReady();
   const me = useMe(sessionReady);
@@ -125,7 +128,7 @@ export function GateEscape({ className }: { className?: string }) {
       {active && memberships.length > 1 ? (
         <DropdownMenu>
           <DropdownMenuTrigger
-            aria-label="Switch workspace"
+            aria-label={t("shell.switchWorkspace")}
             className="inline-flex h-8 max-w-[200px] items-center gap-1.5 rounded-md px-2 text-[13px] font-medium text-muted-foreground outline-none transition-colors duration-150 ease-out hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring data-[state=open]:text-foreground"
           >
             <span className="min-w-0 truncate">{active.name}</span>
@@ -136,7 +139,7 @@ export function GateEscape({ className }: { className?: string }) {
             />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
+            <DropdownMenuLabel>{t("shell.workspaces")}</DropdownMenuLabel>
             {memberships.map((m) => (
               <DropdownMenuItem
                 key={m.company_id}

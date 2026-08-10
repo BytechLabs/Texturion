@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useMySessions,
@@ -43,13 +44,14 @@ import { useActiveCompany } from "@/lib/company/provider";
  * (only an owner or admin does).
  */
 export default function DevicesSettingsPage() {
+  const t = useT();
   const { role } = useActiveCompany();
   const isAdmin = role === "owner" || role === "admin";
 
   return (
     <SettingsPage
-      title="Signed-in devices"
-      description="Every browser and phone with access right now. Signing one out takes effect immediately."
+      title={t("appShell.devicesTitle")}
+      description={t("appShell.devicesDescription")}
     >
       <div className="space-y-6">
         <MyDevices />
@@ -60,6 +62,7 @@ export default function DevicesSettingsPage() {
 }
 
 function MyDevices() {
+  const t = useT();
   const sessions = useMySessions();
   const revoke = useRevokeMySession();
   const [confirmAll, setConfirmAll] = useState(false);
@@ -76,12 +79,12 @@ function MyDevices() {
     revoke.mutate(
       { sessionId },
       {
-        onSuccess: () => toast.success("Signed that device out."),
+        onSuccess: () => toast.success(t("appShell.devicesSignedOutOne")),
         onError: (error) =>
           toast.error(
             error instanceof ApiError
               ? error.message
-              : "Couldn't sign that device out. Try again.",
+              : t("appShell.devicesSignOutOneFailed"),
           ),
       },
     );
@@ -95,17 +98,21 @@ function MyDevices() {
           setConfirmAll(false);
           toast.success(
             result.sessions === 0
-              ? "Nothing else was signed in."
-              : `Signed out ${result.sessions} other ${
-                  result.sessions === 1 ? "device" : "devices"
-                }.`,
+              ? t("appShell.devicesNothingElseSignedIn")
+              : t("appShell.devicesSignedOutOthers", {
+                  count: result.sessions,
+                  devices:
+                    result.sessions === 1
+                      ? t("appShell.deviceSingular")
+                      : t("appShell.devicePlural"),
+                }),
           );
         },
         onError: (error) =>
           toast.error(
             error instanceof ApiError
               ? error.message
-              : "Couldn't sign the other devices out. Try again.",
+              : t("appShell.devicesSignOutOthersFailed"),
           ),
       },
     );
@@ -113,13 +120,13 @@ function MyDevices() {
 
   return (
     <SettingsCard
-      title="Your devices"
-      description="Anything signed in as you, in any workspace."
+      title={t("appShell.devicesMineTitle")}
+      description={t("appShell.devicesMineDescription")}
       footer={
         others > 0 ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm text-muted-foreground">
-              Lost a phone, or not sure about one of these?
+              {t("appShell.devicesLostPhone")}
             </span>
             <Button
               type="button"
@@ -127,14 +134,14 @@ function MyDevices() {
               size="sm"
               onClick={() => setConfirmAll(true)}
             >
-              Sign out everywhere else
+              {t("appShell.devicesSignOutEverywhereElse")}
             </Button>
           </div>
         ) : undefined
       }
     >
       {sessions.isPending && (
-        <div className="space-y-3" aria-label="Loading your devices">
+        <div className="space-y-3" aria-label={t("appShell.devicesMineLoading")}>
           <Skeleton className="h-14 w-full rounded-md" />
           <Skeleton className="h-14 w-full rounded-md" />
         </div>
@@ -144,8 +151,7 @@ function MyDevices() {
 
       {sessions.isSuccess && ordered.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          Nothing is signed in — which cannot be true, since you are reading
-          this. Refresh and check again.
+          {t("appShell.devicesNoneSignedIn")}
         </p>
       )}
 
@@ -169,7 +175,7 @@ function MyDevices() {
                     disabled={revoke.isPending}
                     onClick={() => signOut(row.id)}
                   >
-                    Sign out
+                    {t("appShell.devicesSignOut")}
                   </Button>
                 )
               }
@@ -184,12 +190,16 @@ function MyDevices() {
       <Dialog open={confirmAll} onOpenChange={setConfirmAll}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Sign out everywhere else?</DialogTitle>
+            <DialogTitle>
+              {t("appShell.devicesSignOutEverywhereElseTitle")}
+            </DialogTitle>
             <DialogDescription>
-              {others === 1 ? "One other device" : `${others} other devices`}{" "}
-              will stop working on their next tap, and stop receiving your
-              customers&apos; messages. You stay signed in here. Anyone who
-              should still have access can sign back in with their password.
+              {t("appShell.devicesSignOutEverywhereElseBody", {
+                subject:
+                  others === 1
+                    ? t("appShell.devicesOneOther")
+                    : t("appShell.devicesNOthers", { count: others }),
+              })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -198,7 +208,7 @@ function MyDevices() {
               variant="outline"
               onClick={() => setConfirmAll(false)}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -206,7 +216,7 @@ function MyDevices() {
               disabled={revoke.isPending}
               onClick={signOutEverywhereElse}
             >
-              Sign them out
+              {t("appShell.devicesSignThemOut")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -216,6 +226,7 @@ function MyDevices() {
 }
 
 function CrewDevices() {
+  const t = useT();
   const sessions = useWorkspaceSessions(true);
   const members = useMembers();
   const revoke = useRevokeMemberSessions();
@@ -226,7 +237,7 @@ function CrewDevices() {
   const nameByMember = new Map(
     (members.data?.data ?? []).map((member) => [
       member.id,
-      member.display_name?.trim() || "A crew member",
+      member.display_name?.trim() || t("appShell.devicesACrewMember"),
     ]),
   );
   const rows = sessions.data?.data ?? [];
@@ -244,17 +255,22 @@ function CrewDevices() {
         setTarget(null);
         toast.success(
           result.sessions === 0
-            ? "They had nothing signed in."
-            : `Signed ${target.name} out of ${result.sessions} ${
-                result.sessions === 1 ? "device" : "devices"
-              }.`,
+            ? t("appShell.devicesTheyHadNothing")
+            : t("appShell.devicesSignedMemberOut", {
+                name: target.name,
+                count: result.sessions,
+                devices:
+                  result.sessions === 1
+                    ? t("appShell.deviceSingular")
+                    : t("appShell.devicePlural"),
+              }),
         );
       },
       onError: (error) => {
         toast.error(
           error instanceof ApiError
             ? error.message
-            : "Couldn't sign them out. Try again.",
+            : t("appShell.devicesSignThemOutFailed"),
         );
       },
     });
@@ -262,11 +278,11 @@ function CrewDevices() {
 
   return (
     <SettingsCard
-      title="The crew's devices"
-      description="Everything signed in to this workspace. Removing someone already ends their access — this is for a phone that went missing while they are still on the team."
+      title={t("appShell.devicesCrewTitle")}
+      description={t("appShell.devicesCrewDescription")}
     >
       {(sessions.isPending || members.isPending) && (
-        <div className="space-y-3" aria-label="Loading the crew's devices">
+        <div className="space-y-3" aria-label={t("appShell.devicesCrewLoading")}>
           <Skeleton className="h-14 w-full rounded-md" />
           <Skeleton className="h-14 w-full rounded-md" />
         </div>
@@ -276,7 +292,7 @@ function CrewDevices() {
 
       {sessions.isSuccess && rows.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          Nobody on the crew has anything signed in right now.
+          {t("appShell.devicesCrewNoneSignedIn")}
         </p>
       )}
 
@@ -284,8 +300,9 @@ function CrewDevices() {
         <div className="divide-y divide-border-subtle">
           {rows.map((row) => {
             const name = row.member_id
-              ? (nameByMember.get(row.member_id) ?? "A crew member")
-              : "A crew member";
+              ? (nameByMember.get(row.member_id) ??
+                t("appShell.devicesACrewMember"))
+              : t("appShell.devicesACrewMember");
             return (
               <DeviceRow
                 key={row.id}
@@ -307,7 +324,7 @@ function CrewDevices() {
                         setTarget({ id: row.member_id as string, name })
                       }
                     >
-                      Sign out
+                      {t("appShell.devicesSignOut")}
                     </Button>
                   ) : undefined
                 }
@@ -320,13 +337,15 @@ function CrewDevices() {
       <Dialog open={target !== null} onOpenChange={() => setTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Sign {target?.name} out?</DialogTitle>
+            <DialogTitle>
+              {t("appShell.devicesSignMemberOutTitle", {
+                name: target?.name ?? "",
+              })}
+            </DialogTitle>
             <DialogDescription>
-              Every device they are signed in on —{" "}
-              {target ? (countByMember.get(target.id) ?? 0) : 0} right now —
-              stops working on its next tap and stops receiving this
-              workspace&apos;s messages. They keep their seat and can sign back
-              in; a call they are on right now is not cut off.
+              {t("appShell.devicesSignMemberOutBody", {
+                count: target ? (countByMember.get(target.id) ?? 0) : 0,
+              })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -335,7 +354,7 @@ function CrewDevices() {
               variant="outline"
               onClick={() => setTarget(null)}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"
@@ -343,7 +362,7 @@ function CrewDevices() {
               disabled={revoke.isPending}
               onClick={signOutMember}
             >
-              Sign them out
+              {t("appShell.devicesSignThemOut")}
             </Button>
           </DialogFooter>
         </DialogContent>

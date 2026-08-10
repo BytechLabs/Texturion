@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { CalmEmptyState } from "@/components/settings/empty-state";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT, type Translate } from "@/i18n/provider";
 import {
   useContactTimeline,
   type TimelineEntry,
@@ -39,6 +40,7 @@ import { useMembers } from "@/lib/api/team";
  * widget: it sets one bound and the existing paging does the rest.
  */
 export function ContactTimeline({ contactId }: { contactId: string }) {
+  const t = useT();
   const timeline = useContactTimeline(contactId);
   // #517: the roster, so an answered call can say who took it. Read here and
   // passed down rather than per row — one query for the page, not one per
@@ -57,7 +59,7 @@ export function ContactTimeline({ contactId }: { contactId: string }) {
   if (timeline.isPending) {
     return (
       <Section>
-        <div className="space-y-0" aria-label="Loading their history">
+        <div className="space-y-0" aria-label={t("contacts.historyLoading")}>
           {Array.from({ length: 4 }, (_, i) => (
             <div
               key={i}
@@ -81,8 +83,8 @@ export function ContactTimeline({ contactId }: { contactId: string }) {
         <CalmEmptyState
           className="py-10"
           icon={<MessageSquare className="size-7" strokeWidth={1.5} />}
-          title="Couldn't load their history."
-          description="Try again in a moment."
+          title={t("contacts.historyLoadFailed")}
+          description={t("contacts.historyLoadFailedDetail")}
         />
       </Section>
     );
@@ -94,8 +96,8 @@ export function ContactTimeline({ contactId }: { contactId: string }) {
         <CalmEmptyState
           className="py-10"
           icon={<MessageSquare className="size-7" strokeWidth={1.5} />}
-          title="Nothing yet."
-          description="Texts, calls and jobs for this customer will collect here."
+          title={t("contacts.historyEmpty")}
+          description={t("contacts.historyEmptyDetail")}
         />
       </Section>
     );
@@ -134,7 +136,9 @@ export function ContactTimeline({ contactId }: { contactId: string }) {
             onClick={() => void timeline.fetchNextPage()}
             disabled={timeline.isFetchingNextPage}
           >
-            {timeline.isFetchingNextPage ? "Loading…" : "Show earlier"}
+            {timeline.isFetchingNextPage
+              ? t("contacts.loading")
+              : t("contacts.showEarlier")}
           </Button>
         </div>
       ) : null}
@@ -150,10 +154,11 @@ function Section({
   /** Only with entries on screen: a date picker over nothing is furniture. */
   showJump?: boolean;
 }) {
+  const t = useT();
   return (
     <section>
       <h2 className="flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
-        History
+        {t("contacts.historyHeading")}
         {showJump ? <JumpToDate /> : null}
       </h2>
       <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
@@ -169,10 +174,11 @@ function Section({
  * discards it would make going back cost another round trip.
  */
 function JumpToDate() {
+  const t = useT();
   const [value, setValue] = useState("");
   return (
     <label className="ml-auto flex items-center gap-1.5 text-[11px] font-normal normal-case tracking-normal text-app-muted-2">
-      <span className="sr-only">Jump to a date in this history</span>
+      <span className="sr-only">{t("contacts.jumpToDate")}</span>
       <input
         type="date"
         value={value}
@@ -198,6 +204,7 @@ function TimelineRow({
   entry: TimelineEntry;
   memberName: (userId: string | null) => string | null;
 }) {
+  const t = useT();
   const body = (
     <div className="flex items-center gap-[11px] p-[11px]">
       <span className="grid size-[38px] shrink-0 place-items-center rounded-xl bg-app-tint text-app-muted-2">
@@ -205,9 +212,11 @@ function TimelineRow({
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm text-app-ink">
-          {rowTitle(entry, memberName)}
+          {rowTitle(entry, memberName, t)}
         </p>
-        <p className="truncate text-xs text-app-muted-2">{rowDetail(entry)}</p>
+        <p className="truncate text-xs text-app-muted-2">
+          {rowDetail(entry, t)}
+        </p>
       </div>
       <time
         className="shrink-0 text-xs tabular-nums text-app-muted-2"
@@ -253,8 +262,9 @@ function RowIcon({ entry }: { entry: TimelineEntry }) {
 function rowTitle(
   entry: TimelineEntry,
   memberName: (userId: string | null) => string | null,
+  t: Translate,
 ): string {
-  if (entry.kind === "task") return entry.detail ?? "Job";
+  if (entry.kind === "task") return entry.detail ?? t("contacts.timelineJob");
   if (entry.kind === "call") {
     if (entry.status === "answered") {
       // #517: the same line the thread shows, so the two surfaces describing
@@ -262,26 +272,34 @@ function rowTitle(
       // answerer is unknown or has left the crew — "Call answered by " with
       // nothing after it is worse than the label it replaced.
       const who = memberName(entry.answered_by_user_id ?? null);
-      return who ? `Call answered by ${who}` : "Call answered";
+      return who
+        ? t("contacts.timelineCallAnsweredBy", { name: who })
+        : t("contacts.timelineCallAnswered");
     }
-    if (entry.status === "voicemail") return "Voicemail";
-    return "Missed call";
+    if (entry.status === "voicemail") return t("contacts.timelineVoicemail");
+    return t("contacts.timelineMissedCall");
   }
-  return "Conversation";
+  return t("contacts.timelineConversation");
 }
 
-function rowDetail(entry: TimelineEntry): string {
+function rowDetail(entry: TimelineEntry, t: Translate): string {
   if (entry.kind === "task") {
-    if (entry.done) return "Done";
-    return entry.due_at ? `Due ${dayOf(entry.due_at)}` : "Open";
+    if (entry.done) return t("contacts.timelineDone");
+    return entry.due_at
+      ? t("contacts.timelineDue", { date: dayOf(entry.due_at) })
+      : t("contacts.timelineOpen");
   }
   if (entry.kind === "call") {
     const seconds = entry.talk_seconds ?? 0;
     // Talk time only, and only when there was any: "0:00" on a missed call
     // reads as a fault rather than as an absence.
-    return seconds > 0 ? `Talked for ${minutes(seconds)}` : "No answer";
+    return seconds > 0
+      ? t("contacts.timelineTalkedFor", { duration: minutes(seconds) })
+      : t("contacts.timelineNoAnswer");
   }
-  return entry.status === "closed" ? "Closed" : "Open";
+  return t(
+    entry.status === "closed" ? "contacts.timelineClosed" : "contacts.timelineOpen",
+  );
 }
 
 function minutes(seconds: number): string {

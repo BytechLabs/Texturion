@@ -8,6 +8,7 @@ import {
   SheetDescription,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { useT } from "@/i18n/provider";
 
 import { TaskDetailPanel } from "./task-detail-panel";
 import { useTaskDrawer } from "./use-task-drawer";
@@ -33,6 +34,7 @@ export function TaskDrawerHost() {
 }
 
 function TaskDrawerHostInner() {
+  const t = useT();
   const { openTaskId, closeTask } = useTaskDrawer();
   const open = openTaskId !== null;
 
@@ -52,9 +54,9 @@ function TaskDrawerHostInner() {
       >
         {/* Accessible title/description for the dialog; the visible header lives
             inside the panel, so keep these screen-reader-only. */}
-        <SheetTitle className="sr-only">Task details</SheetTitle>
+        <SheetTitle className="sr-only">{t("tasks.drawerTitle")}</SheetTitle>
         <SheetDescription className="sr-only">
-          Edit the task, review its activity, and add a note.
+          {t("tasks.drawerDescription")}
         </SheetDescription>
         {openTaskId && (
           <TaskDetailPanel taskId={openTaskId} onClose={closeTask} />

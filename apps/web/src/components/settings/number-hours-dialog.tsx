@@ -15,6 +15,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { TimezoneSelect } from "@/components/settings/timezone-select";
 import { WeeklyHoursGrid } from "@/components/settings/weekly-hours-grid";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useNumberIdentity, useSetNumberIdentity } from "@/lib/api/numbers";
 import type { BusinessHours, NumberIdentity } from "@/lib/api/types";
@@ -61,6 +62,7 @@ export function NumberHoursDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const identity = useNumberIdentity(numberId, open);
   const save = useSetNumberIdentity(numberId);
 
@@ -92,10 +94,12 @@ export function NumberHoursDialog({
     try {
       await save.mutateAsync(patchFrom(identity.data, zone, days, initialDays));
       onOpenChange(false);
-      toast.success("Saved. This line keeps these hours from now on.");
+      toast.success(t("settingsMore.numberHoursSaved"));
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "That could not be saved.",
+        cause instanceof ApiError
+          ? cause.message
+          : t("settingsMore.saveFailedGeneric"),
       );
     }
   }
@@ -103,10 +107,12 @@ export function NumberHoursDialog({
   async function restore(field: "timezone" | "business_hours") {
     try {
       await save.mutateAsync({ [field]: null });
-      toast.success("Back to your workspace's.");
+      toast.success(t("settingsMore.backToWorkspace"));
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "That could not be changed.",
+        cause instanceof ApiError
+          ? cause.message
+          : t("settingsMore.changeFailedGeneric"),
       );
     }
   }
@@ -115,23 +121,24 @@ export function NumberHoursDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>When this line is open</DialogTitle>
+          <DialogTitle>{t("settingsMore.numberHoursTitle")}</DialogTitle>
           <DialogDescription>
-            The after-hours reply on this number follows this clock. Leave it
-            alone and it follows your workspace.
+            {t("settingsMore.numberHoursDescription")}
           </DialogDescription>
         </DialogHeader>
 
         {identity.isPending ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-sm text-muted-foreground">
+            {t("settingsMore.loading")}
+          </p>
         ) : identity.data ? (
           <div className="space-y-5">
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <Label>Timezone</Label>
+                <Label>{t("settingsMore.timezoneLabel")}</Label>
                 {identity.data.timezone.inherited ? (
                   <span className="text-[12px] text-app-muted-2">
-                    Same as your workspace
+                    {t("settingsMore.sameAsWorkspace")}
                   </span>
                 ) : (
                   <Button
@@ -141,7 +148,7 @@ export function NumberHoursDialog({
                     disabled={save.isPending}
                     onClick={() => void restore("timezone")}
                   >
-                    Use the workspace&apos;s
+                    {t("settingsMore.useWorkspaces")}
                   </Button>
                 )}
               </div>
@@ -154,10 +161,10 @@ export function NumberHoursDialog({
 
             <div className="space-y-2">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <Label>Open hours</Label>
+                <Label>{t("settingsMore.numberOpenHoursLabel")}</Label>
                 {identity.data.business_hours.inherited ? (
                   <span className="text-[12px] text-app-muted-2">
-                    Same as your workspace
+                    {t("settingsMore.sameAsWorkspace")}
                   </span>
                 ) : (
                   <Button
@@ -167,7 +174,7 @@ export function NumberHoursDialog({
                     disabled={save.isPending}
                     onClick={() => void restore("business_hours")}
                   >
-                    Use the workspace&apos;s
+                    {t("settingsMore.useWorkspaces")}
                   </Button>
                 )}
               </div>
@@ -181,19 +188,19 @@ export function NumberHoursDialog({
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            That number could not be loaded.
+            {t("settingsMore.numberNotLoaded")}
           </p>
         )}
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             disabled={save.isPending || !identity.data}
             onClick={() => void submit()}
           >
-            Save
+            {t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

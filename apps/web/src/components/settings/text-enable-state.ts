@@ -1,4 +1,16 @@
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
 import type { PhoneNumberSummary, TextEnablement } from "@/lib/api/types";
+
+/**
+ * #228: English is the DEFAULT, not the only option.
+ *
+ * Every sentence below is asserted by `text-enable-state.test.ts`, which runs
+ * with no provider — that is the point of the copy living in a pure module. The
+ * card passes the reader's own `t`, so a French owner reads French.
+ */
+const EN = makeTranslate(DEFAULT_LOCALE);
 
 /**
  * Keep-your-number text-enablement UI state + copy (FEATURE-GAPS voice wave,
@@ -17,32 +29,29 @@ import type { PhoneNumberSummary, TextEnablement } from "@/lib/api/types";
 
 /** Per-state status sentences (plain, no jargon beyond the LOA field label). */
 export const TEXT_ENABLE_STATE_COPY = {
-  pending:
-    "Waiting on carrier review, typically a few business days. Calls keep working with your current carrier the whole time.",
-  actionRequired:
-    "The carrier needs your signed authorization (LOA) and a recent bill before it can continue.",
-  inProgress:
-    "Your documents are with the carrier for review. Nothing to do; texting turns on here the moment it completes.",
-  completed:
-    "Texting is live on this number. Calls are unchanged; they stay with your current carrier.",
-  cancelled:
-    "Text-enablement cancelled. Your number is untouched with your current carrier.",
-  failedFallback:
-    "The carrier couldn't complete this. Check your documents and resubmit.",
+  pending: EN("settingsMore.hostedStatePending"),
+  actionRequired: EN("settingsMore.hostedStateActionRequired"),
+  inProgress: EN("settingsMore.hostedStateInProgress"),
+  completed: EN("settingsMore.hostedStateCompleted"),
+  cancelled: EN("settingsMore.hostedStateCancelled"),
+  failedFallback: EN("settingsMore.hostedStateFailedFallback"),
 } as const;
 
 /** Plain one-liners for the two required documents (PDF only — carrier rule). */
 export const HOSTED_DOCUMENT_HINTS = {
-  loa: "A signed letter authorizing texting on this number. PDF only, under 5 MB, signed within the last 90 days, listing this number.",
-  bill: "A recent bill from your current carrier, less than 30 days old, showing this number. PDF only, under 5 MB.",
+  loa: EN("settingsMore.hostedLoaHint"),
+  bill: EN("settingsMore.hostedBillHint"),
 } as const;
 
 /** The failed banner: the carrier's reason plainly, or a calm fallback. */
-export function textEnableFailedLine(lastError: string | null): string {
+export function textEnableFailedLine(
+  lastError: string | null,
+  t: Translate = EN,
+): string {
   const reason = lastError?.trim();
   return reason && reason.length > 0
     ? reason
-    : TEXT_ENABLE_STATE_COPY.failedFallback;
+    : t("settingsMore.hostedStateFailedFallback");
 }
 
 export interface TextEnableUiState {
@@ -74,6 +83,7 @@ export interface TextEnableUiState {
 /** Fold an order row into the card state (one honest sentence per status). */
 export function deriveTextEnableUiState(
   order: TextEnablement,
+  t: Translate = EN,
 ): TextEnableUiState {
   const { status } = order;
   const live = status === "completed";
@@ -89,16 +99,16 @@ export function deriveTextEnableUiState(
 
   const statusLine =
     status === "pending"
-      ? TEXT_ENABLE_STATE_COPY.pending
+      ? t("settingsMore.hostedStatePending")
       : status === "action-required"
-        ? TEXT_ENABLE_STATE_COPY.actionRequired
+        ? t("settingsMore.hostedStateActionRequired")
         : status === "in-progress"
-          ? TEXT_ENABLE_STATE_COPY.inProgress
+          ? t("settingsMore.hostedStateInProgress")
           : status === "completed"
-            ? TEXT_ENABLE_STATE_COPY.completed
+            ? t("settingsMore.hostedStateCompleted")
             : status === "failed"
-              ? textEnableFailedLine(order.last_error)
-              : TEXT_ENABLE_STATE_COPY.cancelled;
+              ? textEnableFailedLine(order.last_error, t)
+              : t("settingsMore.hostedStateCancelled");
 
   return {
     statusLine,
@@ -140,19 +150,22 @@ export const MAX_HOSTED_DOCUMENT_BYTES = 5 * 1024 * 1024;
  * never need a real File. Returns the error sentence, or null when the file
  * is acceptable.
  */
-export function validateHostedDocument(file: {
-  size: number;
-  type: string;
-  name: string;
-}): string | null {
+export function validateHostedDocument(
+  file: {
+    size: number;
+    type: string;
+    name: string;
+  },
+  t: Translate = EN,
+): string | null {
   if (file.size === 0 || file.size > MAX_HOSTED_DOCUMENT_BYTES) {
-    return "Each file must be a non-empty PDF under 5 MB (the carrier's limit for these documents).";
+    return t("settingsMore.hostedDocSizeError");
   }
   const isPdf =
     file.type === "application/pdf" ||
     (file.type === "" && file.name.toLowerCase().endsWith(".pdf"));
   if (!isPdf) {
-    return "The carrier accepts only PDF files for these documents.";
+    return t("settingsMore.hostedDocTypeError");
   }
   return null;
 }

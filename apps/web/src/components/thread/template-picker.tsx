@@ -23,6 +23,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { useT } from "@/i18n/provider";
 import { useTemplates } from "@/lib/api/templates";
 import { usePointerCoarse } from "@/lib/use-pointer-coarse";
 
@@ -58,24 +59,28 @@ export function TemplatePicker({
 }) {
   // #274: most-used first. Somebody opening this is about to send, and the
   // reply they send twenty times a day should not be wherever its name falls.
+  const t = useT();
   const templates = useTemplates("use");
   const rows = templates.data?.data ?? [];
   const coarse = usePointerCoarse();
 
   const list = (autoFocus: boolean) => (
     <Command>
-      <CommandInput placeholder="Search saved replies…" autoFocus={autoFocus} />
+      <CommandInput
+        placeholder={t("thread.searchSavedReplies")}
+        autoFocus={autoFocus}
+      />
       <CommandList>
         <CommandEmpty>
           {templates.isPending ? (
-            "Loading saved replies…"
+            t("thread.loadingSavedReplies")
           ) : templates.isError ? (
-            "Couldn't load saved replies."
+            t("thread.savedRepliesLoadFailed")
           ) : rows.length === 0 ? (
             // #66: templates live under Settings now — one human line plus
             // the actual door, never a dead end (APP-UI-ELEVATION §5).
             <span className="flex flex-col items-center gap-1.5">
-              No saved replies yet.
+              {t("thread.noSavedRepliesYet")}
               {/* #515: the door only for somebody who can walk through it.
                   This empty state is the link plus one line, so a member who
                   cannot make templates is told who can rather than left with
@@ -84,7 +89,7 @@ export function TemplatePicker({
                 section="templates"
                 fallback={
                   <span className="text-muted-foreground">
-                    An owner or admin can add them in Settings.
+                    {t("thread.ownerCanAddTemplates")}
                   </span>
                 }
               >
@@ -93,17 +98,17 @@ export function TemplatePicker({
                   onClick={() => onOpenChange(false)}
                   className="font-medium text-primary underline-offset-4 hover:underline"
                 >
-                  Create one in Settings › Templates
+                  {t("thread.createOneInSettings")}
                 </Link>
               </SettingsLink>
             </span>
           ) : (
             // Rows exist but the search matched none.
-            "No saved replies match."
+            t("thread.noSavedRepliesMatch")
           )}
         </CommandEmpty>
         {rows.length > 0 && (
-          <CommandGroup heading="Saved replies">
+          <CommandGroup heading={t("thread.savedReplies")}>
             {rows.map((template) => (
               <CommandItem
                 key={template.id}
@@ -143,9 +148,11 @@ export function TemplatePicker({
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <SheetHeader className="border-b border-app-line-soft px-4 py-3">
-            <SheetTitle className="text-[15px]">Saved replies</SheetTitle>
+            <SheetTitle className="text-[15px]">
+              {t("thread.savedReplies")}
+            </SheetTitle>
             <SheetDescription className="sr-only">
-              Pick a saved reply to insert into your message.
+              {t("thread.pickASavedReply")}
             </SheetDescription>
           </SheetHeader>
           {list(false)}

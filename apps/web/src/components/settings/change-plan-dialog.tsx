@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { useT, type Translate } from "@/i18n/provider";
 import {
   Dialog,
   DialogContent,
@@ -69,6 +70,7 @@ function DowngradeBody({
   company: CompanyView;
   onBlockedChange: (blocked: boolean) => void;
 }) {
+  const t = useT();
   const members = useMembers();
 
   const activeNumbers = company.numbers.filter(
@@ -96,15 +98,20 @@ function DowngradeBody({
       <ul className="space-y-2">
         <Requirement met={numbersOk}>
           {numbersOk ? (
-            <>1 phone number. You&apos;re set.</>
+            t("settings.planNumbersOk")
           ) : (
             <>
-              Starter includes 1 phone number; you have {activeNumbers}.{" "}
+              {t("settings.planNumbersOver", { count: activeNumbers })}{" "}
               <Link
                 href="/settings/numbers"
                 className="font-medium text-primary underline-offset-4 hover:underline"
               >
-                Release {activeNumbers - STARTER_LIMITS.numbers === 1 ? "one" : `${activeNumbers - STARTER_LIMITS.numbers}`} first
+                {t("settings.planReleaseFirst", {
+                  count:
+                    activeNumbers - STARTER_LIMITS.numbers === 1
+                      ? t("settings.planReleaseOne")
+                      : `${activeNumbers - STARTER_LIMITS.numbers}`,
+                })}
               </Link>
               .
             </>
@@ -113,35 +120,41 @@ function DowngradeBody({
         <Requirement met={seatsOk}>
           {activeMembers === null ? (
             <>
-              Couldn&apos;t check your member count.{" "}
+              {t("settings.planSeatsUnknown")}{" "}
               <button
                 type="button"
                 onClick={() => void members.refetch()}
                 className="font-medium text-primary underline-offset-4 hover:underline"
               >
-                Try again
+                {t("common.retry")}
               </button>
             </>
           ) : seatsOk ? (
-            <>Up to {STARTER_LIMITS.seats} members; you have {activeMembers}.</>
+            t("settings.planSeatsOk", {
+              seats: STARTER_LIMITS.seats,
+              count: activeMembers,
+            })
           ) : (
             <>
-              Starter includes {STARTER_LIMITS.seats} members; you have{" "}
-              {activeMembers} active.{" "}
+              {t("settings.planSeatsOver", {
+                seats: STARTER_LIMITS.seats,
+                count: activeMembers,
+              })}{" "}
               <Link
                 href="/settings/team"
                 className="font-medium text-primary underline-offset-4 hover:underline"
               >
-                Deactivate {activeMembers - STARTER_LIMITS.seats}
+                {t("settings.planDeactivate", {
+                  count: activeMembers - STARTER_LIMITS.seats,
+                })}
               </Link>{" "}
-              first.
+              {t("settings.planFirstWord")}
             </>
           )}
         </Requirement>
       </ul>
       <p className="text-sm text-muted-foreground">
-        The change happens at the end of your current period. You keep Pro
-        until then, and nothing is refunded mid-period.
+        {t("settings.planDowngradeTiming")}
       </p>
     </div>
   );
@@ -163,9 +176,10 @@ function DowngradeBody({
  */
 export function upgradeToast(
   reinstated: readonly { number_e164: string | null }[],
+  t: Translate,
 ): string {
   if (reinstated.length === 0) {
-    return "You're on Pro. The extra allowance starts now.";
+    return t("settings.planUpgradedPlain");
   }
   const named = reinstated
     .map((row) => row.number_e164)
@@ -174,9 +188,11 @@ export function upgradeToast(
   // "(415) 555-0102 is back" is a fact the reader can verify at a glance. Past
   // one, the list stops being readable in a toast and the count carries it.
   if (reinstated.length === 1 && named.length === 1) {
-    return `You're on Pro, and ${formatPhone(named[0])} is back.`;
+    return t("settings.planUpgradedOneBack", {
+      number: formatPhone(named[0]),
+    });
   }
-  return `You're on Pro, and ${reinstated.length} numbers are back.`;
+  return t("settings.planUpgradedManyBack", { count: reinstated.length });
 }
 
 
@@ -220,6 +236,7 @@ function PrepaidYearNotice({
   // The currency the year was COLLECTED in, which is what any figure drawn from
   // this row must be printed in — a year bought before the CAD option was filed is
   // genuinely USD even on a workspace that bills CAD today.
+  const t = useT();
   const paid = billingCurrencyOf(open.currency);
   const credit = open.conversion
     ? formatMoney(open.conversion.credit_cents, paid)
@@ -235,18 +252,24 @@ function PrepaidYearNotice({
       <p className="text-sm font-medium">{copy.heading}</p>
       <dl className="space-y-1.5 text-sm">
         <div className="flex justify-between gap-4">
-          <dt className="text-muted-foreground">Paid up front</dt>
+          <dt className="text-muted-foreground">
+            {t("settings.planPrepaidPaid")}
+          </dt>
           <dd className="tabular-nums">{formatMoney(open.amount_cents, paid)}</dd>
         </div>
         {used !== null && (
           <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Months used</dt>
-            <dd className="tabular-nums">{used} of 12</dd>
+            <dt className="text-muted-foreground">
+              {t("settings.planPrepaidMonthsUsed")}
+            </dt>
+            <dd className="tabular-nums">
+              {t("settings.planPrepaidOfTwelve", { used })}
+            </dd>
           </div>
         )}
         {credit && (
           <div className="flex justify-between gap-4 font-medium">
-            <dt>Back on your account</dt>
+            <dt>{t("settings.planPrepaidCredit")}</dt>
             <dd className="tabular-nums">{credit}</dd>
           </div>
         )}
@@ -272,6 +295,7 @@ function PrepaidYearNotice({
  * disagrees.
  */
 export function ChangePlanDialog({ company }: { company: CompanyView }) {
+  const t = useT();
   const changePlan = useChangePlan();
   const [open, setOpen] = useState(false);
   // Downgrades stay blocked until the seat/number check confirms they fit.
@@ -311,26 +335,31 @@ export function ChangePlanDialog({ company }: { company: CompanyView }) {
     <Dialog open={open} onOpenChange={reset}>
       <DialogTrigger asChild>
         <Button variant="outline">
-          {upgrading ? "Upgrade to Pro" : "Switch to Starter"}
+          {upgrading
+            ? t("settings.planUpgradeAction")
+            : t("settings.planSwitchAction")}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {upgrading ? "Upgrade to Pro?" : "Switch to Starter?"}
+            {upgrading
+              ? t("settings.planUpgradeTitle")
+              : t("settings.planSwitchTitle")}
           </DialogTitle>
           {upgrading ? (
             <DialogDescription>
-              Pro is {targetPrice}/mo: a bigger fair-use texting allowance,{" "}
-              {PLAN_PRICING.pro.seats} seats, and a second phone number.
-              You&apos;re charged the prorated difference for the rest of this
-              period today.
+              {t("settings.planUpgradeBody", {
+                price: targetPrice,
+                seats: PLAN_PRICING.pro.seats,
+              })}
             </DialogDescription>
           ) : (
             <DialogDescription>
-              Starter is {targetPrice}/mo: texting for a small crew under fair
-              use,{" "}
-              {STARTER_LIMITS.seats} seats, 1 number.
+              {t("settings.planSwitchBody", {
+                price: targetPrice,
+                seats: STARTER_LIMITS.seats,
+              })}
             </DialogDescription>
           )}
         </DialogHeader>
@@ -356,7 +385,7 @@ export function ChangePlanDialog({ company }: { company: CompanyView }) {
 
         <DialogFooter>
           <Button variant="outline" onClick={() => reset(false)}>
-            Never mind
+            {t("settings.neverMind")}
           </Button>
           <Button
             disabled={
@@ -374,24 +403,31 @@ export function ChangePlanDialog({ company }: { company: CompanyView }) {
                   reset(false);
                   toast.success(
                     result.effective === "now"
-                      ? upgradeToast(result.reinstated ?? [])
-                      : `Starter starts ${new Date(result.effective_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}. You keep Pro until then.`,
+                      ? upgradeToast(result.reinstated ?? [], t)
+                      : t("settings.planStarterStarts", {
+                          date: new Date(
+                            result.effective_at,
+                          ).toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                          }),
+                        }),
                   );
                 },
                 onError: (cause) =>
                   setError(
                     cause instanceof ApiError
                       ? cause.message
-                      : "Couldn't change the plan. Try again.",
+                      : t("settings.planChangeFailed"),
                   ),
               });
             }}
           >
             {changePlan.isPending
-              ? "Changing…"
+              ? t("settings.planChanging")
               : upgrading
-                ? "Upgrade to Pro"
-                : "Switch at period end"}
+                ? t("settings.planUpgradeAction")
+                : t("settings.planSwitchAtPeriodEnd")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { capabilitiesOf } from "@loonext/shared";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -32,25 +32,42 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { useT, type Translate } from "@/i18n/provider";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useRegistration } from "@/lib/api/registration";
 import type { CompanyView, RegistrationRow } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 
-// Mirrors the API company schema (apps/api/src/routes/companies.ts): name 1–200.
-const companyNameSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "Enter your company name.")
-    .max(200, "Keep it under 200 characters."),
-});
-type CompanyNameValues = z.infer<typeof companyNameSchema>;
+/*
+ * Mirrors the API company schema (apps/api/src/routes/companies.ts): name 1–200.
+ *
+ * A factory rather than a module-level constant: both messages are drawn under
+ * the field, so they are copy and belong in the catalogue with the rest of the
+ * page.
+ */
+const COMPANY_NAME_MAX = 200;
+
+function makeCompanyNameSchema(t: Translate) {
+  return z.object({
+    name: z
+      .string()
+      .trim()
+      .min(1, t("appShell.workspaceNameRequired"))
+      .max(
+        COMPANY_NAME_MAX,
+        t("appShell.workspaceNameTooLong", {
+          max: COMPANY_NAME_MAX.toLocaleString(),
+        }),
+      ),
+  });
+}
+type CompanyNameValues = z.infer<ReturnType<typeof makeCompanyNameSchema>>;
 
 function WorkspaceSkeleton() {
+  const t = useT();
   return (
-    <div className="space-y-4" aria-label="Loading workspace settings">
+    <div className="space-y-4" aria-label={t("appShell.workspaceLoading")}>
       <Skeleton className="h-40 w-full rounded-lg" />
       <Skeleton className="h-32 w-full rounded-lg" />
       <Skeleton className="h-16 w-full rounded-lg" />
@@ -59,12 +76,14 @@ function WorkspaceSkeleton() {
 }
 
 function CompanyNameCard({ company }: { company: CompanyView }) {
+  const t = useT();
   const { role } = useActiveCompany();
   const canEdit = role === "owner" || role === "admin";
   const update = useUpdateCompany();
 
+  const schema = useMemo(() => makeCompanyNameSchema(t), [t]);
   const form = useForm<CompanyNameValues>({
-    resolver: zodResolver(companyNameSchema),
+    resolver: zodResolver(schema),
     defaultValues: { name: company.name },
   });
 
@@ -81,13 +100,13 @@ function CompanyNameCard({ company }: { company: CompanyView }) {
     update.mutate(
       { name: values.name },
       {
-        onSuccess: () => toast.success("Company name saved."),
+        onSuccess: () => toast.success(t("appShell.workspaceNameSaved")),
         onError: (cause) =>
           form.setError("root", {
             message:
               cause instanceof ApiError
                 ? cause.message
-                : "Couldn't save the name. Try again.",
+                : t("appShell.workspaceNameSaveFailed"),
           }),
       },
     );
@@ -95,8 +114,8 @@ function CompanyNameCard({ company }: { company: CompanyView }) {
 
   return (
     <SettingsCard
-      title="Company name"
-      description="The name your customers know you by, used on your carrier registration and available as a {business_name} field in your texts."
+      title={t("appShell.workspaceNameTitle")}
+      description={t("appShell.workspaceNameDescription")}
     >
       <div className="space-y-4">
         {canEdit ? (
@@ -111,7 +130,9 @@ function CompanyNameCard({ company }: { company: CompanyView }) {
                 name="name"
                 render={({ field }) => (
                   <FormItem className="flex-1">
-                    <FormLabel className="sr-only">Company name</FormLabel>
+                    <FormLabel className="sr-only">
+                      {t("appShell.workspaceNameTitle")}
+                    </FormLabel>
                     <FormControl>
                       <Input
                         maxLength={200}
@@ -128,7 +149,7 @@ function CompanyNameCard({ company }: { company: CompanyView }) {
                 disabled={!dirty || update.isPending}
                 className="sm:self-start"
               >
-                {update.isPending ? "Saving…" : "Save"}
+                {update.isPending ? t("common.saving") : t("common.save")}
               </Button>
             </form>
           </Form>
@@ -136,7 +157,7 @@ function CompanyNameCard({ company }: { company: CompanyView }) {
           <p className="text-sm">
             {company.name}
             <span className="block text-xs text-muted-foreground">
-              Only owners and admins can rename the workspace.
+              {t("appShell.workspaceRenameOwnersOnly")}
             </span>
           </p>
         )}
@@ -151,13 +172,18 @@ function CompanyNameCard({ company }: { company: CompanyView }) {
 }
 
 function identifierLabel(
+  t: Translate,
   brand: RegistrationRow,
   country: "US" | "CA",
 ): string {
   if (brand.sole_proprietor) {
-    return country === "US" ? "SSN (last 4)" : "SIN (last 4)";
+    return country === "US"
+      ? t("appShell.workspaceIdSsn")
+      : t("appShell.workspaceIdSin");
   }
-  return country === "US" ? "EIN" : "Business number";
+  return country === "US"
+    ? t("appShell.workspaceIdEin")
+    : t("appShell.workspaceIdBusinessNumber");
 }
 
 function field(data: Record<string, unknown> | undefined, key: string): string {
@@ -166,22 +192,23 @@ function field(data: Record<string, unknown> | undefined, key: string): string {
 }
 
 function BusinessIdentityCard({ company }: { company: CompanyView }) {
+  const t = useT();
   const { role } = useActiveCompany();
   const registration = useRegistration();
 
-  const description =
-    "What carriers have on file for your business. It comes from your texting registration.";
+  const title = t("appShell.workspaceIdentityTitle");
+  const description = t("appShell.workspaceIdentityDescription");
 
   if (registration.isPending) {
     return (
-      <SettingsCard title="Business identification" description={description}>
+      <SettingsCard title={title} description={description}>
         <Skeleton className="h-20 w-full" />
       </SettingsCard>
     );
   }
   if (registration.isError) {
     return (
-      <SettingsCard title="Business identification" description={description}>
+      <SettingsCard title={title} description={description}>
         <LoadError onRetry={() => registration.refetch()} />
       </SettingsCard>
     );
@@ -190,16 +217,16 @@ function BusinessIdentityCard({ company }: { company: CompanyView }) {
   const brand = registration.data.brand;
   if (!brand) {
     return (
-      <SettingsCard title="Business identification" description={description}>
+      <SettingsCard title={title} description={description}>
         <p className="text-sm text-muted-foreground">
           {company.country === "CA" && !company.us_texting_enabled
-            ? "No registration needed. Canadian texting works without one. Enabling US texting adds it."
-            : "No registration details on file yet."}{" "}
+            ? t("appShell.workspaceNoRegistrationNeeded")
+            : t("appShell.workspaceNoRegistrationYet")}{" "}
           <Link
             href="/settings/numbers"
             className="font-medium text-primary underline-offset-4 hover:underline"
           >
-            See registration
+            {t("appShell.workspaceSeeRegistration")}
           </Link>
         </p>
       </SettingsCard>
@@ -222,16 +249,16 @@ function BusinessIdentityCard({ company }: { company: CompanyView }) {
   const rows: [string, string][] =
     role === "owner" || role === "admin"
       ? [
-          ["Legal name", legalName],
-          [identifierLabel(brand, company.country), field(data, "ein")],
-          ["Address", address],
-          ["Website", field(data, "website")],
-          ["Contact", field(data, "email")],
+          [t("appShell.workspaceLegalName"), legalName],
+          [identifierLabel(t, brand, company.country), field(data, "ein")],
+          [t("appShell.workspaceAddress"), address],
+          [t("appShell.workspaceWebsite"), field(data, "website")],
+          [t("appShell.workspaceContact"), field(data, "email")],
         ]
       : [];
 
   return (
-    <SettingsCard title="Business identification" description={description}>
+    <SettingsCard title={title} description={description}>
       <div className="space-y-3">
         {rows.length > 0 ? (
           <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[10rem_1fr]">
@@ -246,17 +273,21 @@ function BusinessIdentityCard({ company }: { company: CompanyView }) {
           </dl>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Registration is {brand.status === "approved" ? "approved" : "on file"}.
-            Owners and admins can see the full details.
+            {t("appShell.workspaceRegistrationSummary", {
+              status:
+                brand.status === "approved"
+                  ? t("appShell.workspaceRegistrationApproved")
+                  : t("appShell.workspaceRegistrationOnFile"),
+            })}
           </p>
         )}
         <p className="text-xs text-muted-foreground">
-          Need to change something?{" "}
+          {t("appShell.workspaceNeedChange")}{" "}
           <Link
             href="/settings/numbers"
             className="font-medium text-primary underline-offset-4 hover:underline"
           >
-            Manage registration
+            {t("appShell.workspaceManageRegistration")}
           </Link>
         </p>
       </div>
@@ -265,6 +296,7 @@ function BusinessIdentityCard({ company }: { company: CompanyView }) {
 }
 
 function TimezoneCard({ company }: { company: CompanyView }) {
+  const t = useT();
   const { role } = useActiveCompany();
   const canEdit = role === "owner" || role === "admin";
   const update = useUpdateCompany();
@@ -282,12 +314,12 @@ function TimezoneCard({ company }: { company: CompanyView }) {
     update.mutate(
       { timezone: zone },
       {
-        onSuccess: () => toast.success("Timezone saved."),
+        onSuccess: () => toast.success(t("appShell.workspaceTimezoneSaved")),
         onError: (cause) =>
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't save the timezone. Try again.",
+              : t("appShell.workspaceTimezoneSaveFailed"),
           ),
       },
     );
@@ -295,8 +327,8 @@ function TimezoneCard({ company }: { company: CompanyView }) {
 
   return (
     <SettingsCard
-      title="Timezone"
-      description="Dates in emails about your workspace are framed in your business's local time."
+      title={t("appShell.workspaceTimezoneTitle")}
+      description={t("appShell.workspaceTimezoneDescription")}
     >
       <div className="space-y-2">
         {canEdit ? (
@@ -309,13 +341,14 @@ function TimezoneCard({ company }: { company: CompanyView }) {
           <p className="text-sm">{timezone.replace(/_/g, " ")}</p>
         )}
         <p className="text-xs text-muted-foreground">
-          It&apos;s {localTime} in {timezone.replace(/_/g, " ")} right now.
-          Texting quiet hours always use each customer&apos;s local time, not
-          this one.
+          {t("appShell.workspaceLocalTimeNote", {
+            time: localTime,
+            timezone: timezone.replace(/_/g, " "),
+          })}
         </p>
         {!canEdit && (
           <p className="text-xs text-muted-foreground">
-            Only owners and admins can change the timezone.
+            {t("appShell.workspaceTimezoneOwnersOnly")}
           </p>
         )}
         {error && (
@@ -337,6 +370,7 @@ function TimezoneCard({ company }: { company: CompanyView }) {
  * text into a second part, and the customer pays for parts.
  */
 function SignTextsCard({ company }: { company: CompanyView }) {
+  const t = useT();
   const { role } = useActiveCompany();
   const canEdit = role === "owner" || role === "admin";
   const update = useUpdateCompany();
@@ -359,7 +393,7 @@ function SignTextsCard({ company }: { company: CompanyView }) {
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't save. Try again.",
+              : t("appShell.saveFailed"),
           );
         },
       },
@@ -372,17 +406,17 @@ function SignTextsCard({ company }: { company: CompanyView }) {
 
   return (
     <SettingsCard
-      title="Sign your texts"
-      description="Add your business name to the first text you send someone, so a message from an unknown number says who it is from."
+      title={t("appShell.workspaceSignTitle")}
+      description={t("appShell.workspaceSignDescription")}
     >
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-0.5">
             <Label htmlFor="sign-texts" className="text-sm font-medium">
-              Sign the first text to a new customer
+              {t("appShell.workspaceSignLabel")}
             </Label>
             <p className="text-sm text-muted-foreground">
-              Once per customer. Replies and later texts are never signed.
+              {t("appShell.workspaceSignBody")}
             </p>
           </div>
           <Switch
@@ -396,7 +430,7 @@ function SignTextsCard({ company }: { company: CompanyView }) {
         {enabled && suffix ? (
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">
-              What gets added
+              {t("appShell.workspaceSignPreviewLabel")}
             </p>
             <div
               aria-live="polite"
@@ -405,8 +439,9 @@ function SignTextsCard({ company }: { company: CompanyView }) {
               {suffix.trim()}
             </div>
             <p className="text-xs text-muted-foreground">
-              That is {suffix.trim().length} characters, so a long first text can
-              be sent in two parts instead of one.
+              {t("appShell.workspaceSignLengthNote", {
+                length: suffix.trim().length,
+              })}
             </p>
           </div>
         ) : null}
@@ -419,7 +454,7 @@ function SignTextsCard({ company }: { company: CompanyView }) {
 
         {!canEdit ? (
           <p className="text-sm text-muted-foreground">
-            Only owners and admins can change how texts are signed.
+            {t("appShell.workspaceSignOwnersOnly")}
           </p>
         ) : null}
       </div>
@@ -437,6 +472,7 @@ function SignTextsCard({ company }: { company: CompanyView }) {
  * consequence line says out loud what the switch does not do.
  */
 function QuietHoursCard({ company }: { company: CompanyView }) {
+  const t = useT();
   const { role } = useActiveCompany();
   const canEdit = role === "owner" || role === "admin";
   const update = useUpdateCompany();
@@ -458,7 +494,7 @@ function QuietHoursCard({ company }: { company: CompanyView }) {
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't save. Try again.",
+              : t("appShell.saveFailed"),
           );
         },
       },
@@ -467,18 +503,17 @@ function QuietHoursCard({ company }: { company: CompanyView }) {
 
   return (
     <SettingsCard
-      title="Texting a new customer at night"
-      description="Starting a brand-new conversation between 8pm and 8am the customer's time asks you to confirm first."
+      title={t("appShell.workspaceNightTitle")}
+      description={t("appShell.workspaceNightDescription")}
     >
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-0.5">
             <Label htmlFor="quiet-hours-confirm" className="text-sm font-medium">
-              Ask me to confirm
+              {t("appShell.workspaceNightLabel")}
             </Label>
             <p className="text-sm text-muted-foreground">
-              Only when you start the conversation. Replying to a customer who
-              texted or called you is never interrupted.
+              {t("appShell.workspaceNightBody")}
             </p>
           </div>
           <Switch
@@ -497,14 +532,9 @@ function QuietHoursCard({ company }: { company: CompanyView }) {
             aria-live="polite"
             className="space-y-2 rounded-md border border-border-subtle bg-accent/40 px-3 py-2.5 text-sm"
           >
-            <p>
-              You will not be asked. A text you start at 2am goes straight out,
-              and it is on you that the customer wanted to hear from you then.
-            </p>
+            <p>{t("appShell.workspaceNightOffConsequence")}</p>
             <p className="text-muted-foreground">
-              This does not change automated texts. Reminders and anything else
-              we send on your behalf still wait for the customer&apos;s morning,
-              whatever this is set to.
+              {t("appShell.workspaceNightOffBoundary")}
             </p>
           </div>
         ) : null}
@@ -517,7 +547,7 @@ function QuietHoursCard({ company }: { company: CompanyView }) {
 
         {!canEdit ? (
           <p className="text-sm text-muted-foreground">
-            Only owners and admins can change this.
+            {t("appShell.workspaceNightOwnersOnly")}
           </p>
         ) : null}
       </div>
@@ -526,6 +556,7 @@ function QuietHoursCard({ company }: { company: CompanyView }) {
 }
 
 export default function WorkspaceSettingsPage() {
+  const t = useT();
   const company = useCompany();
   const { role } = useActiveCompany();
 
@@ -554,8 +585,8 @@ export default function WorkspaceSettingsPage() {
 
   return (
     <SettingsPage
-      title="Workspace"
-      description="Your company as customers and carriers see it."
+      title={t("appShell.workspaceTitle")}
+      description={t("appShell.workspaceDescription")}
     >
       {company.isPending ? (
         <WorkspaceSkeleton />

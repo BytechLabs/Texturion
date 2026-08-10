@@ -39,6 +39,7 @@ import { useState } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProportionRing } from "@/components/ui/proportion-ring";
+import { useT, type Translate } from "@/i18n/provider";
 import {
   useResponseTime,
   type ResponseTimeReport,
@@ -59,13 +60,16 @@ const WINDOWS: { days: ResponseTimeWindow; label: string }[] = [
  * Returns null when there is no arc to draw, so the caller renders the honest
  * fallback rather than a hedged sentence about nothing.
  */
-export function arcSentence(report: ResponseTimeReport): string | null {
+export function arcSentence(
+  report: ResponseTimeReport,
+  t: Translate,
+): string | null {
   const direction = responseArcDirection(report.improved_by_seconds);
   if (!direction || report.baseline?.median_seconds == null) return null;
   const then = formatResponseTime(report.baseline.median_seconds);
   return direction === "faster"
-    ? `Down from ${then} when you started`
-    : `Up from ${then} when you started`;
+    ? t("inbox.responseArcDown", { then })
+    : t("inbox.responseArcUp", { then });
 }
 
 /**
@@ -75,21 +79,23 @@ export function arcSentence(report: ResponseTimeReport): string | null {
  * space ships, and it also put the copy out of reach of the parity guard that
  * keeps this sentence identical on Android and iOS.
  */
-export function unansweredLine(count: number): string {
-  return count === 1 ? "1 lead nobody answered" : `${count} leads nobody answered`;
+export function unansweredLine(count: number, t: Translate): string {
+  return count === 1
+    ? t("inbox.responseUnansweredOne")
+    : t("inbox.responseUnansweredMany", { count });
 }
 
 /** Why there is no arc yet, said plainly rather than left blank. */
-export function noArcReason(report: ResponseTimeReport): string {
+export function noArcReason(report: ResponseTimeReport, t: Translate): string {
   if (report.baseline_unavailable === "too_new") {
-    return "Your starting point lands once you have been here a fortnight";
+    return t("inbox.responseNoArcTooNew");
   }
   if (report.baseline_unavailable === "no_answered_leads") {
-    return "No answered leads in your first two weeks, so there is nothing to compare";
+    return t("inbox.responseNoArcNoLeads");
   }
   // A baseline exists and the change is under a minute: the same performance
   // measured twice, which is not a story.
-  return "About the same as when you started";
+  return t("inbox.responseNoArcSame");
 }
 
 function Row({
@@ -108,6 +114,7 @@ function Row({
 }
 
 export function ResponseTimeCard() {
+  const t = useT();
   const [days, setDays] = useState<ResponseTimeWindow>(30);
   const [open, setOpen] = useState(false);
   const report = useResponseTime(days);
@@ -116,13 +123,17 @@ export function ResponseTimeCard() {
     <section>
       <h2 className="flex items-baseline justify-between gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
         <span className="flex items-baseline gap-2">
-          Response time
+          {t("inbox.responseTimeTitle")}
         </span>
         {/* Segmented, not a dropdown: three choices are faster to hit than a
             menu, and the current window stays readable at a glance.
             *Applying: the Safety Principle — a familiar control in a
             conventional place.* */}
-        <span className="flex items-center gap-0.5" role="group" aria-label="Window">
+        <span
+          className="flex items-center gap-0.5"
+          role="group"
+          aria-label={t("inbox.responseWindowAria")}
+        >
           {WINDOWS.map((w) => (
             <button
               key={w.days}
@@ -152,13 +163,13 @@ export function ResponseTimeCard() {
           </div>
         ) : report.isError || !report.data ? (
           <div className="px-4 py-4 text-[13px] text-app-muted-2">
-            Could not load your response time.{" "}
+            {t("inbox.responseLoadFailed")}{" "}
             <button
               type="button"
               onClick={() => report.refetch()}
               className="underline underline-offset-2"
             >
-              Try again
+              {t("common.retry")}
             </button>
           </div>
         ) : report.data.leads === 0 ? (
@@ -166,8 +177,7 @@ export function ResponseTimeCard() {
           // response time, and "0 sec" would read as instant service.
           <div className="px-4 py-4">
             <p className="text-[13px] text-app-muted-2">
-              No new customers texted you in the last {days} days, so there is
-              nothing to measure yet.
+              {t("inbox.responseNoLeads", { days })}
             </p>
           </div>
         ) : (
@@ -186,7 +196,10 @@ export function ResponseTimeCard() {
                     value={report.data.answered}
                     total={report.data.leads}
                     centre={`${report.data.answered}`}
-                    label={`${report.data.answered} of ${report.data.leads} new customers answered`}
+                    label={t("inbox.responseRingAria", {
+                      answered: report.data.answered,
+                      leads: report.data.leads,
+                    })}
                     className="shrink-0 self-center text-app-olive-deep"
                     size={40}
                   />
@@ -203,7 +216,7 @@ export function ResponseTimeCard() {
                   {formatResponseTime(report.data.median_seconds)}
                 </span>
                 <span className="text-[13px] text-app-muted-2">
-                  to answer a new customer
+                  {t("inbox.responseToAnswer")}
                 </span>
               </div>
 
@@ -211,14 +224,14 @@ export function ResponseTimeCard() {
                   repeated. Direction-coloured, never hidden when it is the
                   wrong direction. */}
               {(() => {
-                const sentence = arcSentence(report.data);
+                const sentence = arcSentence(report.data, t);
                 const direction = responseArcDirection(
                   report.data.improved_by_seconds,
                 );
                 if (!sentence) {
                   return (
                     <p className="pt-1 text-[13px] text-app-muted-2">
-                      {noArcReason(report.data)}
+                      {noArcReason(report.data, t)}
                     </p>
                   );
                 }
@@ -247,7 +260,7 @@ export function ResponseTimeCard() {
                 className="flex items-center gap-2 border-t border-app-line-soft px-4 py-2.5 text-[13px] transition-colors duration-150 ease-out hover:bg-app-hover"
               >
                 <span className="flex-1 text-app-ink">
-                  {unansweredLine(report.data.unanswered)}
+                  {unansweredLine(report.data.unanswered, t)}
                 </span>
                 <ArrowRight
                   className="size-4 shrink-0 text-app-muted-2"
@@ -264,22 +277,28 @@ export function ResponseTimeCard() {
                 aria-expanded={open}
                 className="w-full px-4 py-2 text-left text-[12px] font-medium text-app-muted-2 transition-colors duration-150 ease-out hover:bg-app-hover"
               >
-                {open ? "Hide details" : "Details"}
+                {open
+                  ? t("inbox.responseHideDetails")
+                  : t("inbox.responseDetails")}
               </button>
               {open && (
                 <div className="border-t border-app-line-soft px-4 py-2">
                   <Row
-                    label="Slowest 10% of answers"
+                    label={t("inbox.responseSlowest")}
                     value={formatResponseTime(report.data.p90_seconds)}
                   />
                   <Row
-                    label={`During hours (${report.data.business_hours.leads})`}
+                    label={t("inbox.responseDuringHours", {
+                      count: report.data.business_hours.leads,
+                    })}
                     value={formatResponseTime(
                       report.data.business_hours.median_seconds,
                     )}
                   />
                   <Row
-                    label={`After hours (${report.data.after_hours.leads})`}
+                    label={t("inbox.responseAfterHours", {
+                      count: report.data.after_hours.leads,
+                    })}
                     value={formatResponseTime(
                       report.data.after_hours.median_seconds,
                     )}
@@ -291,16 +310,19 @@ export function ResponseTimeCard() {
                   {report.data.by_number.map((number) => (
                     <Row
                       key={number.phone_number_id}
-                      label={`${formatPhone(number.number_e164)} · ${
-                        number.leads - number.answered
-                      } unanswered`}
+                      label={t("inbox.responseByNumber", {
+                        number: formatPhone(number.number_e164),
+                        count: number.leads - number.answered,
+                      })}
                       value={formatResponseTime(number.median_seconds)}
                     />
                   ))}
                   {report.data.by_member?.map((member) => (
                     <Row
                       key={member.user_id}
-                      label={`Member · ${member.answered} answered`}
+                      label={t("inbox.responseByMember", {
+                        count: member.answered,
+                      })}
                       value={formatResponseTime(member.median_seconds)}
                     />
                   ))}
@@ -308,9 +330,10 @@ export function ResponseTimeCard() {
                     // Said out loud. A cap that reports nothing reads as "we
                     // looked at everything".
                     <p className="pt-1.5 text-[11px] text-app-muted-2">
-                      The hours split covers your most recent{" "}
-                      {report.data.split_row_limit} leads; the numbers above it
-                      cover all {report.data.leads}.
+                      {t("inbox.responseSplitTruncated", {
+                        limit: report.data.split_row_limit,
+                        total: report.data.leads,
+                      })}
                     </p>
                   )}
                 </div>

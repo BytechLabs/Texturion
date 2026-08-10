@@ -3,6 +3,7 @@
 import { ShieldAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { csvDownloadBlob, triggerBlobDownload } from "@/lib/api/contacts-export";
 import type { ImportResult } from "@/lib/api/types";
 import {
@@ -30,6 +31,7 @@ import {
  * while the CSV route refused every import for want of one.
  */
 export function ImportConsentRefused({ result }: { result: ImportResult }) {
+  const t = useT();
   const refusals = summarizeConsentRefusals(result);
   // Nothing refused is the ordinary case, and it gets no chrome: a callout that
   // renders empty-but-present would teach people to skip the one that matters.
@@ -55,12 +57,17 @@ export function ImportConsentRefused({ result }: { result: ImportResult }) {
               evidence and the action below are separate ones and are pushed
               away from them rather than every gap being the same. */}
           <div className="space-y-1">
+            {/* #228: the only sentence in this slice split across two keys.
+                The count carries its own `tabular-nums` span, so a single
+                interpolated key could only be had by deleting the element —
+                and the count sits in the same place in both languages, which
+                is what makes the split safe HERE and nowhere it would not. */}
             <p className="text-sm font-medium">
-              Consent not recorded for{" "}
+              {t("contacts.consentNotRecordedLead")}{" "}
               <span className="tabular-nums">
                 {refusals.count.toLocaleString()}
               </span>{" "}
-              of these contacts
+              {t("contacts.consentNotRecordedTail")}
             </p>
             {/* The server's own sentence, printed rather than paraphrased. A
                 second wording of a compliance fact is a second thing to keep
@@ -85,7 +92,9 @@ export function ImportConsentRefused({ result }: { result: ImportResult }) {
               ))}
               {refusals.hiddenCount > 0 && (
                 <li className="text-muted-foreground">
-                  …and {refusals.hiddenCount.toLocaleString()} more.
+                  {t("contacts.andMore", {
+                    count: refusals.hiddenCount.toLocaleString(),
+                  })}
                 </li>
               )}
             </ul>
@@ -116,7 +125,7 @@ export function ImportConsentRefused({ result }: { result: ImportResult }) {
                 )
               }
             >
-              Download the refused rows
+              {t("contacts.downloadRefusedRows")}
             </Button>
           )}
         </div>

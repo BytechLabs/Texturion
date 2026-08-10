@@ -10,6 +10,7 @@ import {
 
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import type { NotificationPrefs } from "@/lib/api/types";
 
@@ -46,6 +47,7 @@ export function QuietHoursRow({
   onSave: (next: NotificationPrefs) => Promise<unknown>;
   saving: boolean;
 }) {
+  const t = useT();
   const on = Boolean(prefs.quiet_from && prefs.quiet_to);
 
   async function save(next: Partial<NotificationPrefs>) {
@@ -53,7 +55,9 @@ export function QuietHoursRow({
       await onSave({ ...prefs, ...next });
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "Couldn't save that.",
+        cause instanceof ApiError
+          ? cause.message
+          : t("settingsMore.saveThatFailed"),
       );
     }
   }
@@ -95,16 +99,18 @@ export function QuietHoursRow({
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <input
             type="time"
-            aria-label="Quiet from"
+            aria-label={t("settingsMore.quietFromAria")}
             value={prefs.quiet_from ?? ""}
             disabled={saving}
             onChange={(event) => save({ quiet_from: event.target.value })}
             className="h-9 rounded-app-input border border-app-line bg-app-paper px-2 text-[13px] tabular-nums text-app-ink"
           />
-          <span className="text-[13px] text-app-muted-2">to</span>
+          <span className="text-[13px] text-app-muted-2">
+            {t("settingsMore.quietTo")}
+          </span>
           <input
             type="time"
-            aria-label="Quiet until"
+            aria-label={t("settingsMore.quietUntilAria")}
             value={prefs.quiet_to ?? ""}
             disabled={saving}
             onChange={(event) => save({ quiet_to: event.target.value })}

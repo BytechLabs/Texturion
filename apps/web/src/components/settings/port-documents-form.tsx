@@ -10,6 +10,7 @@ import {
 } from "@/components/porting/copy";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useUploadPortDocuments } from "@/lib/api/porting";
 import type { Country, PortRequest } from "@/lib/api/types";
@@ -45,6 +46,7 @@ export function FileField({
   /** Input accept filter; defaults to the porting PDF/PNG/JPEG set. */
   accept?: string;
 }) {
+  const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
   return (
     <div className="space-y-2">
@@ -68,9 +70,11 @@ export function FileField({
           {filename ? (
             filename
           ) : uploaded ? (
-            "On file"
+            t("settingsMore.portDocOnFile")
           ) : (
-            <span className="text-muted-foreground">No file chosen</span>
+            <span className="text-muted-foreground">
+              {t("settingsMore.portDocNoFile")}
+            </span>
           )}
         </span>
         <Button
@@ -79,11 +83,17 @@ export function FileField({
           size="sm"
           // Name the field the button belongs to — a form has two otherwise
           // identical "Choose"/"Replace" buttons (LOA + bill).
-          aria-label={`${filename || uploaded ? "Replace" : "Choose"} file: ${label}`}
+          aria-label={
+            filename || uploaded
+              ? t("settingsMore.portDocReplaceAria", { label })
+              : t("settingsMore.portDocChooseAria", { label })
+          }
           onClick={() => inputRef.current?.click()}
         >
           <Upload className="size-4" aria-hidden />
-          {filename || uploaded ? "Replace" : "Choose"}
+          {filename || uploaded
+            ? t("settingsMore.portDocReplace")
+            : t("settingsMore.portDocChoose")}
         </Button>
         <input
           ref={inputRef}
@@ -106,6 +116,7 @@ export function PortDocumentsForm({
   port: PortRequest;
   country: Country;
 }) {
+  const t = useT();
   const upload = useUploadPortDocuments(port.id);
   const [loa, setLoa] = useState<File | null>(null);
   const [invoice, setInvoice] = useState<File | null>(null);
@@ -114,7 +125,7 @@ export function PortDocumentsForm({
   function validate(file: File | null): string | null {
     if (!file) return null;
     if (file.size === 0 || file.size > MAX_BYTES) {
-      return "Each file must be a non-empty document under 10 MB.";
+      return t("settingsMore.portDocSizeError");
     }
     return null;
   }
@@ -122,7 +133,7 @@ export function PortDocumentsForm({
   async function onUpload() {
     setError(null);
     if (!loa && !invoice) {
-      setError("Choose your signed authorization and/or a recent bill to upload.");
+      setError(t("settingsMore.portDocNothingChosen"));
       return;
     }
     const sizeError = validate(loa) ?? validate(invoice);
@@ -137,12 +148,12 @@ export function PortDocumentsForm({
       });
       setLoa(null);
       setInvoice(null);
-      toast.success("Documents uploaded.");
+      toast.success(t("settingsMore.portDocUploaded"));
     } catch (cause) {
       setError(
         cause instanceof ApiError
           ? cause.message
-          : "Couldn't upload your documents. Try again in a moment.",
+          : t("settingsMore.portDocUploadFailed"),
       );
     }
   }
@@ -151,7 +162,7 @@ export function PortDocumentsForm({
     <div className="space-y-4">
       <FileField
         id={`loa-${port.id}`}
-        label="Signed authorization (LOA)"
+        label={t("settingsMore.portDocLoaLabel")}
         hint={country === "CA" ? PORT_DOCUMENT_HINTS.loaCa : PORT_DOCUMENT_HINTS.loa}
         filename={loa?.name ?? null}
         uploaded={port.has_loa && !loa}
@@ -164,12 +175,12 @@ export function PortDocumentsForm({
           rel="noopener noreferrer"
           className="inline-block text-[13px] font-medium text-primary underline-offset-4 hover:underline"
         >
-          Download the Canadian authorization template
+          {t("settingsMore.portDocCaTemplate")}
         </a>
       ) : null}
       <FileField
         id={`invoice-${port.id}`}
-        label="Recent bill"
+        label={t("settingsMore.portDocInvoiceLabel")}
         hint={PORT_DOCUMENT_HINTS.invoice}
         filename={invoice?.name ?? null}
         uploaded={port.has_invoice && !invoice}
@@ -187,7 +198,9 @@ export function PortDocumentsForm({
         onClick={() => void onUpload()}
         disabled={upload.isPending || (!loa && !invoice)}
       >
-        {upload.isPending ? "Uploading…" : "Upload documents"}
+        {upload.isPending
+          ? t("settingsMore.portDocUploading")
+          : t("settingsMore.portDocUploadAction")}
       </Button>
     </div>
   );

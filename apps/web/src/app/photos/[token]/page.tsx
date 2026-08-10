@@ -40,12 +40,14 @@ export default async function Page({
   if (!response.ok) return <JobPhotoPage notAvailable />;
 
   const data = (await response.json()) as {
+    locale?: string;
     business_name: string;
     photos: { id: string; work_phase: "before" | "after" | null; url: string }[];
     truncated?: boolean;
   };
   return (
     <JobPhotoPage
+      locale={data.locale}
       businessName={data.business_name}
       photos={data.photos}
       // #581/9: the API bounds a very long job. Optional here so a Worker running

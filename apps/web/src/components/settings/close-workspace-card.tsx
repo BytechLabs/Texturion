@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/i18n/provider";
 import { useCloseWorkspace } from "@/lib/api/companies";
 import { useActionConfirmation } from "@/lib/hooks/use-action-confirmation";
 import { HandoverConfirmDialog } from "@/components/ownership/handover-confirm-dialog";
@@ -42,6 +43,7 @@ import { getSupabaseBrowser } from "@/lib/supabase/browser";
  * number for good, and after 30 days nobody can undo it.
  */
 export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
+  const t = useT();
   const router = useRouter();
   const close = useCloseWorkspace();
   // #537 audit: this file's own copy calls the closure irreversible after 30 days,
@@ -72,15 +74,15 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
         await endSessionOnThisDevice(company.id);
         const when = result.purge_after
           ? formatAbsoluteDateTime(result.purge_after)
-          : "in 30 days";
+          : t("settings.closeWorkspaceInThirtyDays");
         // #371: the toast is the last thing they see before being signed out,
         // so it has to say where the details went. Only claimed when the send
         // actually landed — pointing someone at an inbox with nothing in it is
         // worse than saying nothing.
         toast.success(
-          `Workspace closed. Everything is erased on ${when}.`,
+          t("settings.closeWorkspaceDone", { when }),
           result.receipt_emailed
-            ? { description: "We've emailed you the details and the date." }
+            ? { description: t("settings.closeWorkspaceReceipt") }
             : undefined,
         );
         router.replace("/login");
@@ -93,7 +95,7 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
         toast.error(
           cause instanceof ApiError
             ? cause.message
-            : "Couldn't close the workspace. Try again in a moment.",
+            : t("settings.closeWorkspaceFailed"),
         );
       },
     });
@@ -101,8 +103,8 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
 
   return (
     <SettingsCard
-      title="Close this workspace"
-      description="Ends the account for everyone on it. This is not reversible after 30 days."
+      title={t("settings.closeWorkspaceTitle")}
+      description={t("settings.closeWorkspaceDescription")}
     >
       <div className="space-y-4 p-4 pt-0">
         <ul className="space-y-1.5 text-sm text-muted-foreground">
@@ -111,25 +113,17 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
               customers who have it saved end up texting a stranger. Saying so is
               the same standard DELETION.md sets for data, applied to numbers, and
               it is the only version of this sentence somebody can act on. */}
+          <li>{t("settings.closeWorkspaceNumberReleased")}</li>
           <li>
-            Everyone loses access straight away, and your number is released. It
-            goes back to the phone company and can be given to another business,
-            so anyone who still texts it will reach someone else. We cannot get it
-            back for you.
-          </li>
-          <li>
-            If you want to keep the number,{" "}
+            {t("settings.closeWorkspacePortLead")}{" "}
             <span className="font-medium text-foreground">
-              port it out to another carrier before you close
+              {t("settings.closeWorkspacePortEmphasis")}
             </span>
-            . Afterwards it is too late.
+            {t("settings.closeWorkspacePortTail")}
           </li>
+          <li>{t("settings.closeWorkspaceBilling")}</li>
           <li>
-            Billing stops today. Everything in the workspace — messages, photos,
-            voicemails, contacts, tasks — is erased 30 days from now.
-          </li>
-          <li>
-            Until then,{" "}
+            {t("settings.closeWorkspaceUndoLead")}{" "}
             {/* #382: this sentence promised a human on the one screen with no
                 route to one. A high-stakes irreversible action has to offer a
                 genuine way back, not the description of one. */}
@@ -143,23 +137,15 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
                 subject: `Please undo the closure of ${company.name}`,
               })}
             >
-              email us
+              {t("settings.closeWorkspaceEmailUs")}
             </a>{" "}
-            and we can put the workspace back — every message, contact and job
-            exactly as you left it. Not the number, though: that one is already
-            gone. After 30 days nobody can undo any of it.
+            {t("settings.closeWorkspaceUndoTail")}
           </li>
-          <li>
-            Anyone who replied STOP stays on the do-not-text list. That record
-            is theirs, not ours, and it protects them.
-          </li>
-          <li>
-            A record that consent existed is kept for three years, with names
-            and message contents removed. That is the law we operate under.
-          </li>
+          <li>{t("settings.closeWorkspaceStopKept")}</li>
+          <li>{t("settings.closeWorkspaceConsentRecord")}</li>
         </ul>
         <Button variant="destructive" size="sm" onClick={() => setOpen(true)}>
-          Close this workspace
+          {t("settings.closeWorkspaceAction")}
         </Button>
       </div>
 
@@ -172,19 +158,20 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Close {company.name}?</DialogTitle>
+            <DialogTitle>
+              {t("settings.closeWorkspaceConfirmTitle", { name: company.name })}
+            </DialogTitle>
             <DialogDescription>
-              Everyone is signed out now, and the number goes back to the phone
-              company now, where it can be given to another business. We cannot
-              get it back. The rest is erased in 30 days, and after that it cannot
-              be undone by anyone, including us.
+              {t("settings.closeWorkspaceConfirmDescription")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <Label htmlFor="close-confirm">
-              {"Type "}
+              {t("settings.typeToConfirmLead")}
+              {" "}
               <span className="font-medium text-foreground">{company.name}</span>
-              {" to confirm"}
+              {" "}
+              {t("settings.typeToConfirmTail")}
             </Label>
             <Input
               id="close-confirm"
@@ -196,14 +183,16 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
-              Keep it
+              {t("settings.closeWorkspaceKeep")}
             </Button>
             <Button
               variant="destructive"
               disabled={!confirmed || close.isPending}
               onClick={() => void confirm()}
             >
-              {close.isPending ? "Closing…" : "Close workspace"}
+              {close.isPending
+                ? t("settings.closeWorkspaceClosing")
+                : t("settings.closeWorkspaceConfirmAction")}
             </Button>
           </DialogFooter>
         </DialogContent>

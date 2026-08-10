@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { isIosBrowserTab, permissionRecoverySteps } from "@/lib/push/support";
 import { usePushSubscription } from "@/lib/push/use-push-subscription";
 
@@ -18,6 +19,7 @@ import { usePushSubscription } from "@/lib/push/use-push-subscription";
  * turning on/off (busy button), on, and inline error sentences.
  */
 export function PermissionCard() {
+  const t = useT();
   const push = usePushSubscription();
 
   // navigator/matchMedia are read after mount so server and client render
@@ -37,7 +39,9 @@ export function PermissionCard() {
   }, []);
 
   const blocked = push.permission === "denied";
-  const busyLabel = push.subscribed ? "Turning off…" : "Turning on…";
+  const busyLabel = push.subscribed
+    ? t("misc.pushTurningOff")
+    : t("misc.pushTurningOn");
   const checking = push.phase === "initializing";
 
   return (
@@ -51,30 +55,29 @@ export function PermissionCard() {
           )}
         </div>
         <div className="min-w-0 flex-1 space-y-1">
-          <p className="text-sm font-medium">Push on this device</p>
+          <p className="text-sm font-medium">{t("misc.pushOnThisDevice")}</p>
           {checking ? (
-            <div className="space-y-2 pt-1" aria-label="Checking push status">
+            <div className="space-y-2 pt-1" aria-label={t("misc.pushCheckingAria")}>
               <Skeleton className="h-4 w-56" />
             </div>
           ) : !push.supported ? (
             <p className="text-sm text-muted-foreground">
               {environment.iosTab
-                ? "On iPhone, push needs Loonext on your home screen: tap Share, choose “Add to Home Screen”, then turn notifications on from there."
-                : "This browser doesn't support push notifications. Email notifications still work."}
+                ? t("misc.pushIosInstall")
+                : t("misc.pushUnsupported")}
             </p>
           ) : blocked ? (
             <p className="text-sm text-muted-foreground">
-              Notifications are blocked for Loonext in this browser.{" "}
+              {t("misc.pushBlockedInBrowser")}{" "}
               {environment.recovery}
             </p>
           ) : push.subscribed ? (
             <p className="text-sm text-muted-foreground">
-              This device gets a notification when a customer texts you.
+              {t("misc.pushSubscribedBody")}
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Get a notification on this device when a customer texts you,
-              even with Loonext closed.
+              {t("misc.pushOfferBody")}
             </p>
           )}
           {push.error && (
@@ -92,7 +95,11 @@ export function PermissionCard() {
               void (push.subscribed ? push.unsubscribe() : push.subscribe())
             }
           >
-            {push.pending ? busyLabel : push.subscribed ? "Turn off" : "Turn on"}
+            {push.pending
+              ? busyLabel
+              : push.subscribed
+                ? t("misc.pushTurnOff")
+                : t("misc.turnOn")}
           </Button>
         )}
       </div>

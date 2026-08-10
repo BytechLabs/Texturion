@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/i18n/provider";
 import { useCreateContact } from "@/lib/api/contacts";
 import { ApiError } from "@/lib/api/error";
 import { normalizeNanpPhone } from "@/lib/contacts/csv-import";
@@ -48,6 +49,7 @@ export function NewContactDialog({
    */
   prefillPhone?: string;
 }) {
+  const t = useT();
   const router = useRouter();
   const create = useCreateContact();
   const [phone, setPhone] = useState(prefillPhone);
@@ -80,7 +82,7 @@ export function NewContactDialog({
 
   const submit = () => {
     if (normalized === null) {
-      setError("Enter a 10-digit US or Canada number.");
+      setError(t("contacts.phoneInvalid"));
       return;
     }
     setError(null);
@@ -93,7 +95,7 @@ export function NewContactDialog({
       },
       {
         onSuccess: (contact) => {
-          toast.success("Contact added");
+          toast.success(t("contacts.contactAdded"));
           close(false);
           router.push(`/contacts/${contact.id}`);
         },
@@ -101,7 +103,7 @@ export function NewContactDialog({
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't add that contact. Try again.",
+              : t("contacts.addContactFailed"),
           ),
       },
     );
@@ -111,10 +113,9 @@ export function NewContactDialog({
     <Dialog open={open} onOpenChange={close}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New contact</DialogTitle>
+          <DialogTitle>{t("contacts.newContact")}</DialogTitle>
           <DialogDescription>
-            A number already on file updates that contact instead of adding a
-            second one.
+            {t("contacts.newContactBlurb")}
           </DialogDescription>
         </DialogHeader>
 
@@ -126,7 +127,7 @@ export function NewContactDialog({
           }}
         >
           <div className="space-y-1.5">
-            <Label htmlFor="new-contact-phone">Phone</Label>
+            <Label htmlFor="new-contact-phone">{t("contacts.fieldPhone")}</Label>
             <Input
               id="new-contact-phone"
               inputMode="tel"
@@ -140,17 +141,17 @@ export function NewContactDialog({
             />
             {phoneLooksWrong && (
               <p className="text-xs text-destructive">
-                Enter a 10-digit US or Canada number.
+                {t("contacts.phoneInvalid")}
               </p>
             )}
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="new-contact-name">Name</Label>
+            <Label htmlFor="new-contact-name">{t("contacts.fieldName")}</Label>
             <Input
               id="new-contact-name"
               autoComplete="name"
-              placeholder="Optional"
+              placeholder={t("contacts.optional")}
               maxLength={NAME_MAX}
               value={name}
               onChange={(event) => setName(event.target.value)}
@@ -158,10 +159,12 @@ export function NewContactDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="new-contact-address">Address</Label>
+            <Label htmlFor="new-contact-address">
+              {t("contacts.fieldAddress")}
+            </Label>
             <Input
               id="new-contact-address"
-              placeholder="Optional"
+              placeholder={t("contacts.optional")}
               maxLength={ADDRESS_MAX}
               value={address}
               onChange={(event) => setAddress(event.target.value)}
@@ -169,10 +172,10 @@ export function NewContactDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="new-contact-notes">Notes</Label>
+            <Label htmlFor="new-contact-notes">{t("contacts.fieldNotes")}</Label>
             <Textarea
               id="new-contact-notes"
-              placeholder="Optional"
+              placeholder={t("contacts.optional")}
               maxLength={NOTES_MAX}
               rows={3}
               value={notes}
@@ -193,13 +196,15 @@ export function NewContactDialog({
               onClick={() => close(false)}
               disabled={create.isPending}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
               disabled={normalized === null || create.isPending}
             >
-              {create.isPending ? "Adding…" : "Add contact"}
+              {create.isPending
+                ? t("contacts.adding")
+                : t("contacts.addContact")}
             </Button>
           </DialogFooter>
         </form>

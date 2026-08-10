@@ -15,6 +15,7 @@ import {
   readSaysPaused,
 } from "@/components/settings/pause-read";
 import { SettingsCard } from "@/components/settings/section";
+import { useT } from "@/i18n/provider";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -230,6 +231,7 @@ export function CancelSubscriptionCard({
   isOwner: boolean;
   company: CompanyView;
 }) {
+  const t = useT();
   const portal = useBillingPortal();
   const record = useRecordCancellationReason();
   const exportContacts = useExportContacts();
@@ -341,7 +343,7 @@ export function CancelSubscriptionCard({
         setError(
           cause instanceof ApiError
             ? cause.message
-            : "Couldn't open the billing portal. Try again.",
+            : t("settings.cancelPortalFailed"),
         ),
     });
     // Then the note, in the same tick and never awaited. It races a portal
@@ -366,14 +368,14 @@ export function CancelSubscriptionCard({
         setExportError(
           cause instanceof ApiError
             ? cause.message
-            : "The export didn't go through. Try again.",
+            : t("settings.cancelExportFailed"),
         ),
     });
   }
 
   if (!isOwner) {
     return (
-      <SettingsCard title="Cancel">
+      <SettingsCard title={t("settings.cancelTitle")}>
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
             {CANCEL_ADMIN_CONSEQUENCE}
@@ -385,7 +387,7 @@ export function CancelSubscriptionCard({
   }
 
   return (
-    <SettingsCard title="Cancel">
+    <SettingsCard title={t("settings.cancelTitle")}>
       {/* Four groups, told apart by spacing rather than by a box or a rule:
           the card edge is already the container, and a panel inside a panel
           reads as a thing that opened. */}
@@ -406,7 +408,7 @@ export function CancelSubscriptionCard({
             value={reason ?? ""}
             onValueChange={(next) => setReason(next as CancellationReasonCode)}
             className="gap-2.5"
-            aria-label="Why you are cancelling"
+            aria-label={t("settings.cancelReasonGroupAria")}
           >
             {CANCELLATION_REASONS.map(({ code, label }) => (
               <div key={code} className="flex items-center gap-2">
@@ -425,7 +427,7 @@ export function CancelSubscriptionCard({
             // A radio cannot be un-picked, and an answer given by accident
             // would otherwise be recorded as a considered one.
             <Button variant="ghost" size="sm" onClick={() => setReason(null)}>
-              Clear
+              {t("settings.clearAction")}
             </Button>
           )}
 
@@ -436,12 +438,14 @@ export function CancelSubscriptionCard({
                 setDetail(event.target.value.slice(0, DETAIL_MAX))
               }
               rows={3}
-              placeholder="Anything else worth telling us?"
-              aria-label="Anything else worth telling us (optional)"
+              placeholder={t("settings.cancelDetailPlaceholder")}
+              aria-label={t("settings.cancelDetailAria")}
             />
             {detail.length > DETAIL_MAX - DETAIL_COUNTDOWN_FROM && (
               <p className="text-xs text-muted-foreground">
-                {DETAIL_MAX - detail.length} characters left.
+                {t("settings.cancelCharactersLeft", {
+                  count: DETAIL_MAX - detail.length,
+                })}
               </p>
             )}
           </div>
@@ -456,7 +460,9 @@ export function CancelSubscriptionCard({
             disabled={exportContacts.isPending}
           >
             <Download strokeWidth={1.75} aria-hidden />
-            {exportContacts.isPending ? "Exporting…" : CANCEL_EXPORT_ACTION}
+            {exportContacts.isPending
+              ? t("settings.cancelExporting")
+              : CANCEL_EXPORT_ACTION}
           </Button>
           {exportError && (
             <p role="alert" className="text-sm text-destructive">
@@ -471,7 +477,7 @@ export function CancelSubscriptionCard({
               Disabled by the in-flight request and by nothing else: an
               unanswered question must never hold the door shut. */}
           <Button disabled={portal.isPending} onClick={leave}>
-            {portal.isPending ? "Opening…" : CANCEL_ACTION}
+            {portal.isPending ? t("settings.opening") : CANCEL_ACTION}
             <ExternalLink strokeWidth={1.75} aria-hidden />
           </Button>
           {error && (

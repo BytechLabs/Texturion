@@ -3,6 +3,7 @@ import {
   type InboxFilterState,
 } from "@loonext/shared";
 
+import type { MessageKey } from "@/i18n/provider";
 import type { ConversationFilters } from "@/lib/api/filters";
 import type { ConversationStatus } from "@/lib/api/types";
 
@@ -99,11 +100,22 @@ export function serializeInboxFilters(filters: InboxUrlFilters): string {
 
 export type InboxSegment = "open" | "mine" | "all" | "closed";
 
-export const INBOX_SEGMENTS: readonly { id: InboxSegment; label: string }[] = [
-  { id: "open", label: "Open" },
-  { id: "mine", label: "Mine" },
-  { id: "all", label: "All" },
-  { id: "closed", label: "Closed" },
+/**
+ * #228: the segment's NAME is a catalogue key, not a string.
+ *
+ * The ids are the state and travel in the URL; the words are the reader's and
+ * live in `i18n/sections/inbox.ts`. Keeping the key here rather than a lookup
+ * inside the bar means a fifth segment cannot be added without naming it in
+ * both languages — `MessageKey` is typed, so an unknown key does not compile.
+ */
+export const INBOX_SEGMENTS: readonly {
+  id: InboxSegment;
+  labelKey: MessageKey;
+}[] = [
+  { id: "open", labelKey: "inbox.segmentOpen" },
+  { id: "mine", labelKey: "inbox.segmentMine" },
+  { id: "all", labelKey: "inbox.segmentAll" },
+  { id: "closed", labelKey: "inbox.segmentClosed" },
 ];
 
 /** Which segment the current URL filters light up. */
@@ -326,12 +338,18 @@ export function activeChips(filters: InboxUrlFilters): ActiveChip[] {
   return chips;
 }
 
-/** What each status is called when it has to be shown as a chip (#548). */
-export const STATUS_CHIP_LABELS: Record<ConversationStatus, string> = {
-  new: "New",
-  open: "Open",
-  waiting: "Waiting on them",
-  closed: "Closed",
+/**
+ * What each status is called when it has to be shown as a chip (#548).
+ *
+ * #228: the key rather than the word, for the reason above — and because this
+ * map is total over `ConversationStatus`, a fifth status fails to compile until
+ * it has a name in both languages rather than rendering "Status: undefined".
+ */
+export const STATUS_CHIP_KEYS: Record<ConversationStatus, MessageKey> = {
+  new: "inbox.statusNew",
+  open: "inbox.statusOpen",
+  waiting: "inbox.statusWaitingOnThem",
+  closed: "inbox.statusClosed",
 };
 
 /**

@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useCreateSavedView,
@@ -79,6 +80,7 @@ export function SavedViewsBar({
   filters: InboxUrlFilters;
   onApply: (next: InboxUrlFilters) => void;
 }) {
+  const t = useT();
   const { role } = useActiveCompany();
   const views = useSavedViews("conversations");
   const rows = useMemo(() => views.data?.data ?? [], [views.data]);
@@ -106,7 +108,7 @@ export function SavedViewsBar({
         <div
           className="flex items-center gap-1.5 overflow-x-auto px-4 pb-2"
           role="list"
-          aria-label="Saved views"
+          aria-label={t("inbox.viewsAria")}
         >
           {rows.map((view) => (
             <ViewChip
@@ -133,7 +135,7 @@ export function SavedViewsBar({
           onClick={() => setSaving(true)}
         >
           <Plus className="size-3.5" strokeWidth={1.75} aria-hidden />
-          Save this view
+          {t("inbox.viewsSave")}
         </Button>
       </div>
 
@@ -172,6 +174,7 @@ function ViewChip({
   /** Shared views route through the parent's confirmation instead of deleting. */
   onConfirmDelete: () => void;
 }) {
+  const t = useT();
   const setDefault = useSetDefaultSavedView();
   const update = useUpdateSavedView();
   const remove = useDeleteSavedView();
@@ -192,7 +195,11 @@ function ViewChip({
         {view.shared && (
           // The one piece of state worth a permanent icon: whether the whole
           // crew sees this. Everything else is behind the menu.
-          <Users className="size-3 shrink-0" strokeWidth={1.75} aria-label="Shared" />
+          <Users
+            className="size-3 shrink-0"
+            strokeWidth={1.75}
+            aria-label={t("inbox.viewSharedAria")}
+          />
         )}
         <span className="max-w-40 truncate font-medium">{view.name}</span>
         {count !== undefined && count > 0 && (
@@ -205,7 +212,7 @@ function ViewChip({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            aria-label={`Options for ${view.name}`}
+            aria-label={t("inbox.viewOptionsAria", { name: view.name })}
             className="ml-0.5 rounded-full p-1 text-muted-foreground hover:bg-accent"
           >
             <MoreHorizontal className="size-3.5" strokeWidth={1.75} aria-hidden />
@@ -223,17 +230,19 @@ function ViewChip({
             {isDefault ? (
               <>
                 <Check strokeWidth={1.75} aria-hidden />
-                Stop opening here
+                {t("inbox.viewStopOpeningHere")}
               </>
             ) : (
               <>
                 <Bookmark strokeWidth={1.75} aria-hidden />
-                Open here by default
+                {t("inbox.viewOpenHereByDefault")}
               </>
             )}
           </DropdownMenuItem>
           {canManage && (
-            <DropdownMenuItem onSelect={onRename}>Rename</DropdownMenuItem>
+            <DropdownMenuItem onSelect={onRename}>
+              {t("inbox.viewRename")}
+            </DropdownMenuItem>
           )}
           {canManage && canShare && (
             <DropdownMenuItem
@@ -245,7 +254,9 @@ function ViewChip({
                 })
               }
             >
-              {view.shared ? "Make it just mine" : "Share with the crew"}
+              {view.shared
+                ? t("inbox.viewMakeMine")
+                : t("inbox.viewShareWithCrew")}
             </DropdownMenuItem>
           )}
           {canManage && (
@@ -265,7 +276,7 @@ function ViewChip({
                   });
                 }}
               >
-                Delete
+                {t("common.delete")}
               </DropdownMenuItem>
             </>
           )}
@@ -286,6 +297,7 @@ function SaveViewDialog({
   filters: InboxUrlFilters;
   canShare: boolean;
 }) {
+  const t = useT();
   const create = useCreateSavedView();
   // Smart Defaults: the field is never empty. Recomputed each time the dialog
   // opens, so it describes what is on screen NOW rather than the last time.
@@ -308,21 +320,21 @@ function SaveViewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Save this view</DialogTitle>
+          <DialogTitle>{t("inbox.viewsSave")}</DialogTitle>
           <DialogDescription>
-            The filters you have on now, under a name, one tap away tomorrow.
+            {t("inbox.viewSaveDescription")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="saved-view-name">Name</Label>
+            <Label htmlFor="saved-view-name">{t("inbox.viewNameLabel")}</Label>
             <Input
               id="saved-view-name"
               autoFocus
               maxLength={60}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Monday morning"
+              placeholder={t("inbox.viewNamePlaceholder")}
             />
           </div>
           {canShare && (
@@ -334,10 +346,11 @@ function SaveViewDialog({
                 onChange={(e) => setShared(e.target.checked)}
               />
               <span className="text-sm">
-                <span className="font-medium">Share it with the crew</span>
+                <span className="font-medium">
+                  {t("inbox.viewShareToggle")}
+                </span>
                 <span className="mt-0.5 block text-[13px] text-muted-foreground">
-                  Everyone gets the same view, and each person sees only the
-                  numbers they already have access to.
+                  {t("inbox.viewShareNote")}
                 </span>
               </span>
             </label>
@@ -350,7 +363,7 @@ function SaveViewDialog({
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             disabled={name.trim() === "" || create.isPending}
@@ -368,12 +381,12 @@ function SaveViewDialog({
                   setError(
                     cause instanceof ApiError
                       ? cause.message
-                      : "Could not save that. Try again in a moment.",
+                      : t("inbox.viewSaveFailed"),
                   );
                 });
             }}
           >
-            {create.isPending ? "Saving…" : "Save"}
+            {create.isPending ? t("common.saving") : t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -388,6 +401,7 @@ function RenameViewDialog({
   view: SavedView | null;
   onClose: () => void;
 }) {
+  const t = useT();
   const update = useUpdateSavedView();
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -403,10 +417,10 @@ function RenameViewDialog({
     <Dialog open={view !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Rename view</DialogTitle>
+          <DialogTitle>{t("inbox.viewRenameTitle")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-2">
-          <Label htmlFor="rename-view">Name</Label>
+          <Label htmlFor="rename-view">{t("inbox.viewNameLabel")}</Label>
           <Input
             id="rename-view"
             autoFocus
@@ -422,7 +436,7 @@ function RenameViewDialog({
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             disabled={name.trim() === "" || update.isPending}
@@ -440,12 +454,12 @@ function RenameViewDialog({
                   setError(
                     cause instanceof ApiError
                       ? cause.message
-                      : "Could not rename that. Try again in a moment.",
+                      : t("inbox.viewRenameFailed"),
                   );
                 });
             }}
           >
-            Save
+            {t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -468,20 +482,20 @@ function DeleteSharedViewDialog({
   view: SavedView | null;
   onClose: () => void;
 }) {
+  const t = useT();
   const remove = useDeleteSavedView();
   return (
     <Dialog open={view !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete &ldquo;{view?.name}&rdquo;?</DialogTitle>
-          <DialogDescription>
-            The whole crew uses this one. Anyone who opens the app here will
-            land on the ordinary inbox instead.
-          </DialogDescription>
+          <DialogTitle>
+            {t("inbox.viewDeleteTitle", { name: view?.name ?? "" })}
+          </DialogTitle>
+          <DialogDescription>{t("inbox.viewDeleteBody")}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>
-            Keep it
+            {t("inbox.viewDeleteKeep")}
           </Button>
           <Button
             variant="destructive"
@@ -494,7 +508,7 @@ function DeleteSharedViewDialog({
                 .catch(onClose);
             }}
           >
-            Delete for everyone
+            {t("inbox.viewDeleteConfirm")}
           </Button>
         </DialogFooter>
       </DialogContent>

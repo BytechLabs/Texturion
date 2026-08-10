@@ -29,6 +29,16 @@ const CLIENTS = {
   ios: "apps/ios/Loonext/Features/Onboarding/MemberOrientation.swift",
 } as const;
 
+/**
+ * #228 moved web's English out of the component and into the catalogue, so the
+ * web "source" for this guard is now both files. Reading only the component
+ * would make every assertion below fail on a change that lost nothing; reading
+ * only the catalogue would stop noticing if the component quietly rendered
+ * something else. Android and iOS still hold their words inline and are read
+ * unchanged.
+ */
+const WEB_CATALOG = "apps/web/src/i18n/sections/onboarding.ts";
+
 /** Where each client keeps the standalone notification primer. */
 const PRIMERS = {
   android:
@@ -49,7 +59,10 @@ function rejoin(text: string): string {
 const sources = Object.fromEntries(
   Object.entries(CLIENTS).map(([client, path]) => [
     client,
-    rejoin(readFileSync(join(REPO, path), "utf8")),
+    rejoin(
+      readFileSync(join(REPO, path), "utf8") +
+        (client === "web" ? readFileSync(join(REPO, WEB_CATALOG), "utf8") : ""),
+    ),
   ]),
 ) as Record<keyof typeof CLIENTS, string>;
 
@@ -108,12 +121,28 @@ const INVITE_NOTE_COPY = [
   "They see this once, when they join. You cannot change it after the invite goes out.",
 ];
 
-/** Where each client puts the invite form. */
+/**
+ * Where each client puts the invite form.
+ *
+ * A LIST PER CLIENT, because #228 moved web's words out of the screen and into
+ * the catalogue: the label and the description are now `appShell.teamNoteLabel`
+ * and `appShell.teamNoteDescription`, and the screen holds the keys. Reading
+ * both files keeps this guard asking the same question it always asked — do all
+ * three clients say the same sentence — rather than quietly passing because the
+ * English left the file it used to be measured in.
+ *
+ * The phones are unchanged: they hand-port, so their literal still lives in the
+ * screen.
+ */
 const TEAM_SOURCES = {
-  web: "apps/web/src/app/(app)/settings/team/page.tsx",
-  android:
+  web: [
+    "apps/web/src/app/(app)/settings/team/page.tsx",
+    "apps/web/src/i18n/sections/appShell.ts",
+  ],
+  android: [
     "apps/android/app/src/main/kotlin/com/loonext/android/features/settings/TeamSection.kt",
-  ios: "apps/ios/Loonext/Features/Settings/TeamSection.swift",
+  ],
+  ios: ["apps/ios/Loonext/Features/Settings/TeamSection.swift"],
 } as const;
 
 /** The buttons. A skip labelled three different ways is three flows. */
@@ -219,9 +248,9 @@ describe("#286 the standalone primer reads the same on both phones", () => {
 
 describe("#521 the invite note asks for the same thing on all three clients", () => {
   const teamSources = Object.fromEntries(
-    Object.entries(TEAM_SOURCES).map(([client, path]) => [
+    Object.entries(TEAM_SOURCES).map(([client, paths]) => [
       client,
-      readFileSync(join(REPO, path), "utf8"),
+      paths.map((path) => readFileSync(join(REPO, path), "utf8")).join("\n"),
     ]),
   );
 

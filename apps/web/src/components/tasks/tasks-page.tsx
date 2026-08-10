@@ -4,6 +4,7 @@ import { CalendarDays, LayoutGrid, List, MapPin } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useRef } from "react";
 
+import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
 import { TaskFilterBar } from "./task-filter-bar";
@@ -37,6 +38,7 @@ const VIEW_ICONS: Record<TaskView, typeof List> = {
  * deep-links back to its source message + conversation.
  */
 export function TasksPage() {
+  const t = useT();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -57,7 +59,9 @@ export function TasksPage() {
     <div className="mx-auto w-full max-w-5xl space-y-5 px-4 py-6 md:px-6 md:py-8">
       <header className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">Tasks</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {t("tasks.pageTitle")}
+          </h1>
           <ViewSwitcher
             view={state.view}
             onChange={(view) =>
@@ -93,6 +97,7 @@ function ViewSwitcher({
   view: TaskView;
   onChange: (view: TaskView) => void;
 }) {
+  const t = useT();
   // WAI-ARIA tablist keyboard contract: Arrow/Home/End move focus AND selection
   // with a roving tabindex (one Tab stop) — the role="tab" markup promised it
   // but the arrows were dead.
@@ -126,13 +131,14 @@ function ViewSwitcher({
   return (
     <div
       role="tablist"
-      aria-label="Task view"
+      aria-label={t("tasks.viewAria")}
       onKeyDown={onKeyDown}
       className="flex rounded-lg bg-muted p-0.5"
     >
-      {TASK_VIEWS.map(({ id, label }, i) => {
+      {TASK_VIEWS.map(({ id, labelKey }, i) => {
         const Icon = VIEW_ICONS[id];
         const selected = view === id;
+        const label = t(labelKey);
         return (
           <button
             key={id}

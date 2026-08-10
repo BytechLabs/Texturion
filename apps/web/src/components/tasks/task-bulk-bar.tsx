@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useT } from "@/i18n/provider";
 import {
   canEscalate,
   selectionLabel,
@@ -60,6 +61,7 @@ export function TaskBulkBar({
   onAssign: (userId: string | null) => void;
   onDelete: () => void;
 }) {
+  const t = useT();
   const memberNames = useMemberNames();
   const showEscalate = canEscalate(selection, loadedIds, hasMore);
 
@@ -71,26 +73,26 @@ export function TaskBulkBar({
           deliberate tap rather than the first thing the bar offers. */}
       {selection.mode === "ids" && loadedIds.length > selection.ids.size && (
         <Button size="sm" variant="ghost" onClick={onSelectLoaded} disabled={pending}>
-          Select these {loadedIds.length}
+          {t("tasks.bulkSelectThese", { count: loadedIds.length })}
         </Button>
       )}
       {showEscalate && (
         <Button size="sm" variant="ghost" onClick={onSelectAllMatching} disabled={pending}>
-          Select all matching
+          {t("tasks.bulkSelectAllMatching")}
         </Button>
       )}
 
       <div className="ml-auto flex flex-wrap items-center gap-2">
         <Button size="sm" onClick={onMarkDone} disabled={pending}>
           <Check className="size-3.5" aria-hidden />
-          Done
+          {t("tasks.markDoneAction")}
         </Button>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="sm" variant="outline" disabled={pending}>
               <UserPlus className="size-3.5" aria-hidden />
-              Assign
+              {t("tasks.bulkAssign")}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -110,23 +112,23 @@ export function TaskBulkBar({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="sm" variant="ghost" disabled={pending}>
-              More
+              {t("tasks.bulkMore")}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onSelect={onMarkUndone}>
               <Undo2 className="size-3.5" aria-hidden />
-              Mark not done
+              {t("tasks.markNotDone")}
             </DropdownMenuItem>
             <DropdownMenuItem variant="destructive" onSelect={onDelete}>
               <Trash2 className="size-3.5" aria-hidden />
-              Delete
+              {t("common.delete")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
         <Button size="sm" variant="ghost" onClick={onClear} disabled={pending}>
-          Cancel
+          {t("common.cancel")}
         </Button>
       </div>
     </div>

@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useT, type MessageKey, type Translate } from "@/i18n/provider";
 import { useImportContacts } from "@/lib/api/contacts";
 import { csvDownloadBlob } from "@/lib/api/contacts-export";
 import { ApiError } from "@/lib/api/error";
@@ -67,15 +68,15 @@ import { decideWizardDismissal } from "./import-wizard-dismissal";
  * would be this product nudging somebody toward the one choice that can end in
  * a text to a person who asked not to get one.
  */
-const ANSWER_LABELS: Record<ImportField | "ignore", string> = {
-  phone: "Phone number",
-  name: "Full name",
-  first_name: "First name",
-  last_name: "Last name",
-  address: "Address",
-  notes: "Notes",
-  opted_out: "Do not text (opted out)",
-  ignore: "Skip this column",
+const ANSWER_LABEL_KEYS: Record<ImportField | "ignore", MessageKey> = {
+  phone: "contacts.answerPhone",
+  name: "contacts.answerName",
+  first_name: "contacts.answerFirstName",
+  last_name: "contacts.answerLastName",
+  address: "contacts.answerAddress",
+  notes: "contacts.answerNotes",
+  opted_out: "contacts.answerOptedOut",
+  ignore: "contacts.answerIgnore",
 };
 
 /** The empty option's value. Not a valid answer, so it cannot be posted. */
@@ -116,10 +117,13 @@ const FLAG_FALSE_SPELLINGS = ["false", "no", "n", "0"].filter(
  * name to quote, so it gets its position — which is also how the API names it
  * in a refusal, so the two screens cannot describe the same column differently.
  */
-function columnLabel(column: { header: string; index: number }): string {
+function columnLabel(
+  column: { header: string; index: number },
+  t: Translate,
+): string {
   return column.header === ""
-    ? `Column ${column.index + 1} (no header)`
-    : `“${column.header}”`;
+    ? t("contacts.columnNoHeader", { number: column.index + 1 })
+    : t("contacts.columnQuoted", { header: column.header });
 }
 
 type Step = "upload" | "map" | "preview" | "done";
@@ -162,6 +166,7 @@ function ColumnRow({
   column: ImportColumn;
   onAnswer: (answer: ColumnAnswer) => void;
 }) {
+  const t = useT();
   const id = `column-${column.index}`;
   const [showAll, setShowAll] = useState(false);
   const hidden = column.total - column.samples.length;
@@ -172,16 +177,20 @@ function ColumnRow({
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1 basis-48 space-y-1">
           <p className="text-sm leading-snug font-medium">
-            {columnLabel(column)}
+            {columnLabel(column, t)}
           </p>
           <p className="text-xs leading-snug text-muted-foreground">
             {column.total === 0 ? (
-              "Every row leaves this blank."
+              t("contacts.columnAllBlank")
             ) : (
               <>
-                Says{" "}
+                {t("contacts.columnSays")}{" "}
                 <span className="font-medium break-words text-foreground">
-                  {listed.map((value) => `“${value}”`).join(", ")}
+                  {listed
+                    .map((value) =>
+                      t("contacts.columnQuoted", { header: value }),
+                    )
+                    .join(", ")}
                 </span>
                 {!showAll && hidden > 0 && (
                   <>
@@ -223,7 +232,9 @@ function ColumnRow({
         <div className="w-full sm:w-52">
           <NativeSelect
             id={id}
-            aria-label={`What is ${columnLabel(column)}?`}
+            aria-label={t("contacts.columnQuestion", {
+              column: columnLabel(column, t),
+            })}
             value={column.answer ?? UNANSWERED}
             onChange={(event) =>
               onAnswer(
@@ -237,15 +248,17 @@ function ColumnRow({
                 answer would offer "un-answer" as a choice that looks like the
                 others, and there is no such column state to post. */}
             {column.answer === null && (
-              <option value={UNANSWERED}>Choose what this is</option>
+              <option value={UNANSWERED}>
+                {t("contacts.chooseWhatThisIs")}
+              </option>
             )}
             {IMPORT_FIELDS.map((field) => (
               <option key={field} value={field}>
-                {ANSWER_LABELS[field]}
+                {t(ANSWER_LABEL_KEYS[field])}
               </option>
             ))}
             <option value={CONTACT_IMPORT_IGNORE}>
-              {ANSWER_LABELS.ignore}
+              {t(ANSWER_LABEL_KEYS.ignore)}
             </option>
           </NativeSelect>
         </div>
@@ -303,6 +316,7 @@ export function ImportWizard({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const importContacts = useImportContacts();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -387,9 +401,7 @@ export function ImportWizard({
   async function handleFile(chosen: File) {
     setUploadError(null);
     if (chosen.size > CONTACT_IMPORT_MAX_BYTES) {
-      setUploadError(
-        `That file is over ${MAX_SIZE_LABEL}. Split it and import in parts.`,
-      );
+      setUploadError(t("contacts.csvTooBig", { size: MAX_SIZE_LABEL }));
       return;
     }
     // Lazy-load papaparse (~45KB) only when a CSV is actually chosen — it stays
@@ -405,16 +417,16 @@ export function ImportWizard({
       complete: (parsed) => {
         const all = csvRows(parsed.data);
         if (all.length < 2) {
-          setUploadError(
-            "That file needs a header row and at least one contact row.",
-          );
+          setUploadError(t("contacts.csvNeedsHeader"));
           return;
         }
         const headers = all[0].cells;
         const dataRows = all.slice(1);
         if (dataRows.length > CONTACT_IMPORT_MAX_ROWS) {
           setUploadError(
-            `That's over ${CONTACT_IMPORT_MAX_ROWS.toLocaleString()} rows. Split the file and import in parts.`,
+            t("contacts.csvTooManyRows", {
+              rows: CONTACT_IMPORT_MAX_ROWS.toLocaleString(),
+            }),
           );
           return;
         }
@@ -424,7 +436,7 @@ export function ImportWizard({
         setStep("map");
       },
       error: () => {
-        setUploadError("Couldn't read that file. Save it as a CSV and retry.");
+        setUploadError(t("contacts.csvUnreadable"));
       },
     });
   }
@@ -449,7 +461,7 @@ export function ImportWizard({
           setImportError(
             cause instanceof ApiError
               ? cause.message
-              : "The import didn't go through. Try again.",
+              : t("contacts.importFailed"),
           ),
       },
     );
@@ -470,12 +482,8 @@ export function ImportWizard({
         {step === "upload" && (
           <>
             <DialogHeader>
-              <DialogTitle>Import contacts</DialogTitle>
-              <DialogDescription>
-                Upload a CSV with a header row. You&apos;ll say what every
-                column is and see exactly what happens before anything is
-                imported.
-              </DialogDescription>
+              <DialogTitle>{t("contacts.csvTitle")}</DialogTitle>
+              <DialogDescription>{t("contacts.csvBlurb")}</DialogDescription>
             </DialogHeader>
             <button
               type="button"
@@ -483,10 +491,12 @@ export function ImportWizard({
               className="flex min-h-32 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-4 py-8 text-sm text-muted-foreground transition-colors duration-150 ease-out hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <FileUp className="size-6" strokeWidth={1.75} aria-hidden />
-              Choose a CSV file
+              {t("contacts.csvChooseFile")}
               <span className="text-xs">
-                Up to {CONTACT_IMPORT_MAX_ROWS.toLocaleString()} rows /{" "}
-                {MAX_SIZE_LABEL}
+                {t("contacts.csvUpTo", {
+                  rows: CONTACT_IMPORT_MAX_ROWS.toLocaleString(),
+                  size: MAX_SIZE_LABEL,
+                })}
               </span>
             </button>
             <input
@@ -494,7 +504,7 @@ export function ImportWizard({
               type="file"
               accept=".csv,text/csv"
               className="sr-only"
-              aria-label="CSV file"
+              aria-label={t("contacts.csvFileInput")}
               onChange={(event) => {
                 const chosen = event.target.files?.[0];
                 if (chosen) handleFile(chosen);
@@ -512,13 +522,14 @@ export function ImportWizard({
         {step === "map" && (
           <>
             <DialogHeader>
-              <DialogTitle>What&apos;s in your columns?</DialogTitle>
+              <DialogTitle>{t("contacts.csvColumnsTitle")}</DialogTitle>
               <DialogDescription>
-                {file?.name} · {rows.length.toLocaleString()} rows ·{" "}
-                {answered.toLocaleString()} of {columns.length.toLocaleString()}{" "}
-                columns answered. Nothing gets skipped unless you say so: a
-                do-not-text column we drop by mistake texts somebody who asked
-                you to stop.
+                {t("contacts.csvColumnsBlurb", {
+                  file: file?.name ?? "",
+                  rows: rows.length.toLocaleString(),
+                  answered: answered.toLocaleString(),
+                  columns: columns.length.toLocaleString(),
+                })}
               </DialogDescription>
             </DialogHeader>
 
@@ -539,14 +550,13 @@ export function ImportWizard({
                   <div className="min-w-0 flex-1 space-y-1">
                     <p className="text-sm font-medium">
                       {decision.unanswered.length === 1
-                        ? "One column we don't recognise"
-                        : `${decision.unanswered.length} columns we don't recognise`}
+                        ? t("contacts.unrecognisedOne")
+                        : t("contacts.unrecognisedMany", {
+                            count: decision.unanswered.length,
+                          })}
                     </p>
                     <p className="text-sm leading-snug text-muted-foreground">
-                      We won&apos;t guess what these mean. Read what each one
-                      says below, then tell us. If one of them is a do-not-text
-                      column and we skip it, this import texts somebody who
-                      asked you to stop.
+                      {t("contacts.unrecognisedBlurb")}
                     </p>
                   </div>
                 </div>
@@ -580,9 +590,11 @@ export function ImportWizard({
                     )
                   }
                 >
-                  {decision.unanswered.length === 1
-                    ? "None of this says who can be texted"
-                    : "None of these say who can be texted"}
+                  {t(
+                    decision.unanswered.length === 1
+                      ? "contacts.ignoreAllOne"
+                      : "contacts.ignoreAllMany",
+                  )}
                 </Button>
               </div>
             )}
@@ -603,9 +615,11 @@ export function ImportWizard({
             {answered > 0 && (
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">
-                  {decision.unanswered.length > 0
-                    ? "Answered. Read what these say, and change anything that's wrong."
-                    : "Every column in your file, and what it says. Read them before you continue, and change anything that's wrong."}
+                  {t(
+                    decision.unanswered.length > 0
+                      ? "contacts.answeredSome"
+                      : "contacts.answeredAll",
+                  )}
                 </p>
                 <ul className="space-y-2">
                   {columns
@@ -642,20 +656,22 @@ export function ImportWizard({
                   />
                   <div className="min-w-0 flex-1 space-y-1">
                     <p className="text-sm font-medium">
-                      Two columns can&apos;t be the same thing
+                      {t("contacts.conflictTitle")}
                     </p>
                     {decision.conflicts.map((conflict) => (
                       <p
                         key={conflict.field}
                         className="text-sm leading-snug text-muted-foreground"
                       >
-                        {conflict.columns.map(columnLabel).join(" and ")} are
-                        both set to{" "}
+                        {t("contacts.conflictSetTo", {
+                          columns: conflict.columns
+                            .map((column) => columnLabel(column, t))
+                            .join(t("contacts.joinAnd")),
+                        })}{" "}
                         <span className="font-medium text-foreground">
-                          {ANSWER_LABELS[conflict.field]}
+                          {t(ANSWER_LABEL_KEYS[conflict.field])}
                         </span>
-                        . A contact has one. Pick a different answer for one of
-                        them.
+                        {t("contacts.conflictOnePerContact")}
                       </p>
                     ))}
                   </div>
@@ -670,10 +686,7 @@ export function ImportWizard({
             {(decision.mapping.first_name !== undefined ||
               decision.mapping.last_name !== undefined) && (
               <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-                First name and Last name are saved as one name. When a file has
-                those and a Full name column, the first and last win: a
-                &quot;Full name&quot; column is usually the business, not the
-                person.
+                {t("contacts.splitNameNote")}
               </p>
             )}
 
@@ -692,28 +705,35 @@ export function ImportWizard({
                   />
                   <div className="min-w-0 flex-1 space-y-1">
                     <p className="text-sm font-medium">
-                      We can&apos;t read{" "}
-                      {columnLabel({
-                        header: columns[unreadableFlag.index]?.header ?? "",
-                        index: unreadableFlag.index,
+                      {t("contacts.unreadableTitle", {
+                        column: columnLabel(
+                          {
+                            header: columns[unreadableFlag.index]?.header ?? "",
+                            index: unreadableFlag.index,
+                          },
+                          t,
+                        ),
                       })}
                     </p>
                     <p className="text-sm leading-snug text-muted-foreground">
-                      You set it to &quot;Do not text&quot;, and it carries
-                      values that aren&apos;t yes or no:{" "}
+                      {t("contacts.unreadableLead")}{" "}
                       <span className="font-medium text-foreground">
                         {unreadableFlag.values
                           .slice(0, SAMPLE_VALUE_LIMIT)
-                          .map((value) => `“${value}”`)
+                          .map((value) =>
+                            t("contacts.columnQuoted", { header: value }),
+                          )
                           .join(", ")}
                         {unreadableFlag.values.length > SAMPLE_VALUE_LIMIT &&
-                          `, and ${unreadableFlag.values.length - SAMPLE_VALUE_LIMIT} more`}
+                          t("contacts.unreadableOverflow", {
+                            count:
+                              unreadableFlag.values.length - SAMPLE_VALUE_LIMIT,
+                          })}
                       </span>
-                      . Reading those as blank would text somebody who asked you
-                      to stop. Put {FLAG_TRUE_SPELLINGS.join(", ")} on the rows
-                      to block and {FLAG_FALSE_SPELLINGS.join(", ")} or nothing
-                      on the rest, or set a different column to &quot;Do not
-                      text&quot;.
+                      {t("contacts.unreadableTail", {
+                        trueValues: FLAG_TRUE_SPELLINGS.join(", "),
+                        falseValues: FLAG_FALSE_SPELLINGS.join(", "),
+                      })}
                     </p>
                   </div>
                 </div>
@@ -721,33 +741,32 @@ export function ImportWizard({
             )}
 
             <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-              About &quot;Do not text&quot;: rows marked{" "}
-              {FLAG_TRUE_SPELLINGS.join(", ")} in that column are blocked from
-              texting the moment they&apos;re imported. Use it for customers who
-              already asked not to be texted.{" "}
-              {FLAG_FALSE_SPELLINGS.join(", ")} or a blank cell leaves texting
-              on, and anything else stops the import rather than being guessed
-              at.
+              {t("contacts.doNotTextNote", {
+                trueValues: FLAG_TRUE_SPELLINGS.join(", "),
+                falseValues: FLAG_FALSE_SPELLINGS.join(", "),
+              })}
             </p>
             <DialogFooter>
               <Button variant="outline" onClick={reset}>
-                Back
+                {t("common.back")}
               </Button>
               <Button disabled={!ready} onClick={() => setStep("preview")}>
-                Preview import
+                {t("contacts.previewAction")}
               </Button>
             </DialogFooter>
             {/* One reason at a time, in the order they have to be fixed. Three
                 at once reads as a wall and none of them gets acted on. */}
             {!ready && (
               <p className="text-xs text-muted-foreground">
-                {decision.unanswered.length > 0
-                  ? "Answer every column to continue."
-                  : decision.conflicts.length > 0
-                    ? "Two columns are set to the same thing. Change one to continue."
-                    : unreadableFlag !== null
-                      ? "Fix the do-not-text column to continue."
-                      : "Set one column to Phone number to continue. It's the one field every contact needs."}
+                {t(
+                  decision.unanswered.length > 0
+                    ? "contacts.gateAnswerEvery"
+                    : decision.conflicts.length > 0
+                      ? "contacts.gateConflict"
+                      : unreadableFlag !== null
+                        ? "contacts.gateUnreadable"
+                        : "contacts.gatePhone",
+                )}
               </p>
             )}
           </>
@@ -756,24 +775,29 @@ export function ImportWizard({
         {step === "preview" && (
           <>
             <DialogHeader>
-              <DialogTitle>Check before importing</DialogTitle>
+              <DialogTitle>{t("contacts.previewTitle")}</DialogTitle>
               <DialogDescription>
-                {summary.ready.toLocaleString()} will import
+                {t("contacts.previewWillImport", {
+                  count: summary.ready.toLocaleString(),
+                })}
                 {summary.optedOut > 0 &&
-                  ` (${summary.optedOut.toLocaleString()} marked opted out)`}
+                  t("contacts.previewOptedOut", {
+                    count: summary.optedOut.toLocaleString(),
+                  })}
                 {summary.skipped > 0 &&
-                  ` · ${summary.skipped.toLocaleString()} will be skipped`}
-                . Existing contacts with the same number are updated, not
-                duplicated.
+                  t("contacts.previewSkipped", {
+                    count: summary.skipped.toLocaleString(),
+                  })}
+                {t("contacts.previewDedupeNote")}
               </DialogDescription>
             </DialogHeader>
             <div className="max-h-72 overflow-y-auto rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Result</TableHead>
+                    <TableHead>{t("contacts.fieldPhone")}</TableHead>
+                    <TableHead>{t("contacts.fieldName")}</TableHead>
+                    <TableHead>{t("contacts.fieldResult")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -790,16 +814,18 @@ export function ImportWizard({
                         {row.status === "ready" ? (
                           row.optedOut ? (
                             <Badge className="border-transparent bg-warning/10 text-amber-800 dark:bg-warning/15 dark:text-warning">
-                              Imports, opted out
+                              {t("contacts.resultImportsOptedOut")}
                             </Badge>
                           ) : (
                             <Badge className="border-transparent bg-success/10 text-success">
-                              Imports
+                              {t("contacts.resultImports")}
                             </Badge>
                           )
                         ) : (
                           <span className="text-xs text-muted-foreground">
-                            Skipped: {row.reason}
+                            {t("contacts.resultSkipped", {
+                              reason: row.reason ?? "",
+                            })}
                           </span>
                         )}
                       </TableCell>
@@ -809,8 +835,10 @@ export function ImportWizard({
               </Table>
               {preview.length > PREVIEW_ROW_LIMIT && (
                 <p className="border-t px-3 py-2 text-xs text-muted-foreground">
-                  Showing the first {PREVIEW_ROW_LIMIT} of{" "}
-                  {preview.length.toLocaleString()} rows.
+                  {t("contacts.previewShowingFirst", {
+                    shown: PREVIEW_ROW_LIMIT,
+                    total: preview.length.toLocaleString(),
+                  })}
                 </p>
               )}
             </div>
@@ -831,7 +859,7 @@ export function ImportWizard({
                 disabled={importContacts.isPending}
                 onClick={() => setStep("map")}
               >
-                Back
+                {t("common.back")}
               </Button>
               {/* The attestation gates the button rather than warning after the
                   click: the server refuses an unattested import anyway (#226),
@@ -856,14 +884,15 @@ export function ImportWizard({
                 onClick={runImport}
               >
                 {importContacts.isPending
-                  ? "Importing…"
-                  : `Import ${summary.ready.toLocaleString()} contacts`}
+                  ? t("contacts.importing")
+                  : t("contacts.importCount", {
+                      count: summary.ready.toLocaleString(),
+                    })}
               </Button>
             </DialogFooter>
             {importContacts.isPending && (
               <p role="status" className="text-xs text-muted-foreground">
-                Importing your contacts. This window stays open until it
-                finishes so the summary and skipped rows aren&apos;t lost.
+                {t("contacts.importingNow")}
               </p>
             )}
           </>
@@ -872,11 +901,13 @@ export function ImportWizard({
         {step === "done" && result && (
           <>
             <DialogHeader>
-              <DialogTitle>Import finished</DialogTitle>
+              <DialogTitle>{t("contacts.importFinished")}</DialogTitle>
               <DialogDescription>
-                {result.imported.toLocaleString()} new,{" "}
-                {result.updated.toLocaleString()} updated,{" "}
-                {result.skipped.toLocaleString()} skipped.
+                {t("contacts.doneSummary", {
+                  imported: result.imported.toLocaleString(),
+                  updated: result.updated.toLocaleString(),
+                  skipped: result.skipped.toLocaleString(),
+                })}
               </DialogDescription>
             </DialogHeader>
             {/* The same block the .vcf and phone-picker summaries render, from
@@ -889,8 +920,7 @@ export function ImportWizard({
             {result.errors.length > 0 && (
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">
-                  Skipped rows kept their reasons. Download them, fix the
-                  numbers, and import just that file again.
+                  {t("contacts.skippedRowsBlurb")}
                 </p>
                 <Button
                   variant="outline"
@@ -904,12 +934,12 @@ export function ImportWizard({
                     )
                   }
                 >
-                  Download skipped rows
+                  {t("contacts.downloadSkippedRows")}
                 </Button>
               </div>
             )}
             <DialogFooter>
-              <Button onClick={() => close(false)}>Done</Button>
+              <Button onClick={() => close(false)}>{t("contacts.done")}</Button>
             </DialogFooter>
           </>
         )}

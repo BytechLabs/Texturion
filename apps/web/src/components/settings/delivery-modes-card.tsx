@@ -15,6 +15,7 @@ import {
 
 import { SettingsCard } from "@/components/settings/section";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import type { NotificationPrefs } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
@@ -61,6 +62,7 @@ export function DeliveryModesCard({
   onSave: (next: NotificationPrefs) => Promise<unknown>;
   saving: boolean;
 }) {
+  const t = useT();
   const delivery = (prefs.delivery ?? {}) as Partial<
     Record<NotificationCategory, DeliveryMode>
   >;
@@ -81,7 +83,9 @@ export function DeliveryModesCard({
       await onSave({ ...prefs, ...next });
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "Couldn't save that.",
+        cause instanceof ApiError
+          ? cause.message
+          : t("settings.deliveryModesSaveFailed"),
       );
     }
   }
@@ -156,7 +160,7 @@ export function DeliveryModesCard({
       {anyBatched ? (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-app-line pt-3">
           <Label htmlFor="batch-window" className="text-[13px]">
-            Group them every
+            {t("settings.deliveryBatchEvery")}
           </Label>
           <select
             id="batch-window"
@@ -169,7 +173,7 @@ export function DeliveryModesCard({
           >
             {BATCH_WINDOW_CHOICES.map((minutes) => (
               <option key={minutes} value={minutes}>
-                {minutes} minutes
+                {t("settings.deliveryBatchMinutes", { minutes })}
               </option>
             ))}
           </select>
@@ -178,7 +182,7 @@ export function DeliveryModesCard({
 
       <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-app-line pt-3">
         <Label htmlFor="summary-at" className="text-[13px]">
-          Daily summary at
+          {t("settings.deliverySummaryAt")}
         </Label>
         <input
           id="summary-at"
@@ -192,8 +196,8 @@ export function DeliveryModesCard({
         />
         <span className="text-[12px] text-app-muted-2">
           {prefs.summary_at
-            ? "Who is waiting and what is due, once a day."
-            : "Off. Leave it blank for no summary."}
+            ? t("settings.deliverySummaryOn")
+            : t("settings.deliverySummaryOff")}
         </span>
       </div>
     </SettingsCard>

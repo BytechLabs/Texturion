@@ -8,6 +8,8 @@ import {
   type Ref,
 } from "react";
 
+import { useT } from "@/i18n/provider";
+
 /**
  * Cloudflare Turnstile widget (SPEC §10 front door). Rendered on the auth
  * screens only when NEXT_PUBLIC_TURNSTILE_SITE_KEY is configured; Supabase
@@ -78,6 +80,7 @@ export function Turnstile({
   onToken: (token: string | null) => void;
   ref?: Ref<TurnstileHandle>;
 }) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -135,13 +138,12 @@ export function Turnstile({
       <div
         ref={containerRef}
         role="group"
-        aria-label="Security check"
+        aria-label={t("onboarding.securityCheckAria")}
         className="min-h-[65px]"
       />
       {failed && (
         <p role="alert" className="text-sm text-destructive">
-          We couldn&apos;t load the security check. Refresh the page and try
-          again.
+          {t("onboarding.securityCheckFailed")}
         </p>
       )}
     </div>

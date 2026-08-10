@@ -3,14 +3,18 @@
 import { FileDown } from "lucide-react";
 import { toast } from "sonner";
 
-import { capabilitiesOf } from "@loonext/shared";
+import { capabilitiesOf, DEFAULT_LOCALE } from "@loonext/shared";
 
 import { Button } from "@/components/ui/button";
+import { makeTranslate, useT, type Translate } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useExportTasks } from "@/lib/api/exports";
 import { useActiveCompany } from "@/lib/company/provider";
 
 import type { TaskTab } from "./task-view-url";
+
+/** English, for the pure helpers below when nobody hands them a `t`. */
+const EN = makeTranslate(DEFAULT_LOCALE);
 
 /**
  * #304 — the work, as a file.
@@ -33,6 +37,7 @@ import type { TaskTab } from "./task-view-url";
  *   task names a customer. A task list looks like internal admin and is not.
  */
 export function ExportTasks({ tab }: { tab: TaskTab }) {
+  const t = useT();
   const { role } = useActiveCompany();
   const request = useExportTasks();
 
@@ -44,12 +49,12 @@ export function ExportTasks({ tab }: { tab: TaskTab }) {
       const result = await request.mutateAsync({ state: stateForTab(tab) });
       toast.success(
         result.already_building
-          ? "One is already being put together. It will appear in Settings › Data export."
-          : "Being put together now. It will appear in Settings › Data export.",
+          ? t("tasks.exportAlreadyBuilding")
+          : t("tasks.exportStarted"),
       );
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "That could not be started.",
+        cause instanceof ApiError ? cause.message : t("tasks.exportFailed"),
       );
     }
   }
@@ -60,10 +65,10 @@ export function ExportTasks({ tab }: { tab: TaskTab }) {
       size="sm"
       disabled={request.isPending}
       onClick={() => void submit()}
-      title={EXPORT_TASKS_NOTE}
+      title={t("tasks.exportNote")}
     >
       <FileDown className="size-3.5" strokeWidth={1.75} aria-hidden />
-      {exportTasksLabel(tab)}
+      {exportTasksLabel(tab, t)}
     </Button>
   );
 }
@@ -76,10 +81,10 @@ export function ExportTasks({ tab }: { tab: TaskTab }) {
  * that promised one person's work and delivered the workspace's would be found
  * out only after the file arrived.
  */
-export function exportTasksLabel(tab: TaskTab): string {
-  if (tab === "open") return "Export outstanding work";
-  if (tab === "done") return "Export finished work";
-  return "Export all work";
+export function exportTasksLabel(tab: TaskTab, t: Translate = EN): string {
+  if (tab === "open") return t("tasks.exportOutstanding");
+  if (tab === "done") return t("tasks.exportFinished");
+  return t("tasks.exportAll");
 }
 
 /** The tab, as the API's state filter. Absent means both. */
@@ -89,6 +94,11 @@ export function stateForTab(tab: TaskTab): "open" | "done" | undefined {
   return undefined;
 }
 
-export const EXPORT_TASKS_NOTE =
-  "A file of this work for your records. It covers the whole workspace, not " +
-  "just your own jobs, and it is put together in the background.";
+/**
+ * The button's hover note, in English.
+ *
+ * #228 moved the sentence itself into the catalogue — the button renders the
+ * READER's language via `t("tasks.exportNote")`. This constant survives as the
+ * English rendering of that same key, which is what the tests query the DOM by.
+ */
+export const EXPORT_TASKS_NOTE = EN("tasks.exportNote");

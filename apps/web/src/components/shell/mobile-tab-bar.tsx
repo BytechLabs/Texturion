@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 
+import { useT } from "@/i18n/provider";
 import { useNotificationsUnreadCount } from "@/lib/api/notifications";
 import { useActiveCompany } from "@/lib/company/provider";
 import { useForYouNotificationsRealtime } from "@/lib/realtime/for-you-notifications";
@@ -31,6 +32,7 @@ function cap(n: number): string {
  * NOTIFICATIONS surface as a dot on the avatar (#100).
  */
 export function MobileTabBar() {
+  const t = useT();
   const pathname = usePathname();
   const counts = useNavCounts();
   const { membership, displayName } = useActiveCompany();
@@ -45,7 +47,7 @@ export function MobileTabBar() {
   return (
     <>
       <nav
-        aria-label="Primary"
+        aria-label={t("shell.primaryNav")}
         className="fixed inset-x-0 bottom-0 z-40 border-t border-app-line bg-app-paper pb-[env(safe-area-inset-bottom)] lg:hidden"
       >
         <div className="grid grid-cols-5">
@@ -59,13 +61,14 @@ export function MobileTabBar() {
                 ? counts.inbox
                 : 0;
             const showCount = count > 0;
+            const label = t(item.labelKey);
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 aria-label={
-                  showCount ? `${item.label}, ${count}` : undefined
+                  showCount ? t("shell.navCount", { label, count }) : undefined
                 }
                 className={cn(
                   "flex min-h-12 flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium transition-colors duration-150 ease-out",
@@ -83,7 +86,7 @@ export function MobileTabBar() {
                     </span>
                   )}
                 </span>
-                {item.label}
+                {label}
               </Link>
             );
           })}
@@ -94,8 +97,8 @@ export function MobileTabBar() {
             type="button"
             aria-label={
               unreadCount > 0
-                ? `Account and settings, ${unreadCount} unread notifications`
-                : "Account and settings"
+                ? t("shell.accountAndSettingsUnread", { count: unreadCount })
+                : t("shell.accountAndSettings")
             }
             aria-haspopup="dialog"
             aria-expanded={sheetOpen}
@@ -116,7 +119,7 @@ export function MobileTabBar() {
                 />
               )}
             </span>
-            You
+            {t("shell.you")}
           </button>
         </div>
       </nav>

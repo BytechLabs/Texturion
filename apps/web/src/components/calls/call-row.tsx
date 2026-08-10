@@ -18,6 +18,7 @@ import {
 import { VoicemailIntakeSummary } from "@/components/calls/voicemail-intake-summary";
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { avatarColorClass } from "@/components/shell/avatar-color";
+import { useT, type Translate } from "@/i18n/provider";
 import type { Call } from "@/lib/api/types";
 import { callOutcomeLabel } from "@/lib/format/call";
 import { formatPhone } from "@/lib/format/phone";
@@ -27,12 +28,12 @@ import { avatarInitials } from "@loonext/shared";
 
 /** The one caller-identity resolution (#210 reuses it on the Ongoing card):
  *  linked contact name, else the CNAM dip, else the formatted number. */
-export function callerName(call: Call): string {
+export function callerName(call: Call, t: Translate): string {
   if (call.contact_name) return call.contact_name;
   // D43: the CNAM-dipped carrier name, when the owner enabled the lookup.
   if (call.caller_name) return call.caller_name;
   if (call.caller_e164) return formatPhone(call.caller_e164);
-  return "Unknown caller";
+  return t("shell.unknownCaller");
 }
 
 /** #133: a small muted direction glyph on the meta line — at a glance,
@@ -86,7 +87,9 @@ function OutcomePill({ call }: { call: Call }) {
 }
 
 export function CallRow({ call }: { call: Call }) {
-  const name = callerName(call);
+  const t = useT();
+  const name = callerName(call, t);
+  const screening = screeningLabel(call.screening_result, t);
   const body = (
     <>
       <span
@@ -124,9 +127,9 @@ export function CallRow({ call }: { call: Call }) {
               stop reading. It is also a judgement about the CALLER, not about how
               the call went, so it belongs before the outcome rather than after
               it: it tells you whether the rest of the line is worth reading. */}
-          {screeningLabel(call.screening_result) && (
+          {screening && (
             <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-app-inset px-2 py-0.5 text-[11px] font-medium text-app-muted dark:bg-white/5">
-              {screeningLabel(call.screening_result)}
+              {screening}
             </span>
           )}
           <OutcomePill call={call} />
@@ -140,12 +143,14 @@ export function CallRow({ call }: { call: Call }) {
               is the reader most likely to be asking why a row does nothing. */}
           {!call.conversation_id && (
             <>
-              <span className="sr-only">Not linked to a conversation</span>
+              <span className="sr-only">
+                {t("shell.notLinkedToConversation")}
+              </span>
               <span
                 aria-hidden
                 className="ml-auto hidden shrink-0 text-[12px] text-app-muted-2 sm:inline"
               >
-                Not linked to a conversation
+                {t("shell.notLinkedToConversation")}
               </span>
             </>
           )}
@@ -191,7 +196,10 @@ export function CallRow({ call }: { call: Call }) {
     return (
       <Link
         href={`/inbox/${call.conversation_id}`}
-        aria-label={`Call from ${name}, ${callOutcomeLabel(call).toLowerCase()}`}
+        aria-label={t("shell.callFromAria", {
+          name,
+          outcome: callOutcomeLabel(call).toLowerCase(),
+        })}
         className={cn(
           rowClass,
           "transition-colors duration-150 hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",

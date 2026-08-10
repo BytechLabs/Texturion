@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import { FileField } from "@/components/settings/port-documents-form";
 import {
   deriveTextEnableUiState,
-  HOSTED_DOCUMENT_HINTS,
   validateHostedDocument,
 } from "@/components/settings/text-enable-state";
 import { Button } from "@/components/ui/button";
@@ -22,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
 import { useReleaseNumber } from "@/lib/api/numbers";
@@ -60,6 +60,7 @@ const ACCEPT = ".pdf,application/pdf";
 
 /** LOA + bill upload (PUT /v1/text-enablements/:id/documents). */
 function TextEnableDocumentsForm({ order }: { order: TextEnablement }) {
+  const t = useT();
   const upload = useUploadTextEnablementDocs(order.id);
   const [loa, setLoa] = useState<File | null>(null);
   const [bill, setBill] = useState<File | null>(null);
@@ -68,14 +69,12 @@ function TextEnableDocumentsForm({ order }: { order: TextEnablement }) {
   async function onUpload() {
     setError(null);
     if (!loa && !bill) {
-      setError(
-        "Choose your signed authorization and/or a recent bill to upload.",
-      );
+      setError(t("settingsMore.portDocNothingChosen"));
       return;
     }
     const fileError =
-      (loa ? validateHostedDocument(loa) : null) ??
-      (bill ? validateHostedDocument(bill) : null);
+      (loa ? validateHostedDocument(loa, t) : null) ??
+      (bill ? validateHostedDocument(bill, t) : null);
     if (fileError) {
       setError(fileError);
       return;
@@ -87,12 +86,12 @@ function TextEnableDocumentsForm({ order }: { order: TextEnablement }) {
       });
       setLoa(null);
       setBill(null);
-      toast.success("Documents uploaded.");
+      toast.success(t("settingsMore.portDocUploaded"));
     } catch (cause) {
       setError(
         cause instanceof ApiError
           ? cause.message
-          : "Couldn't upload your documents. Try again in a moment.",
+          : t("settingsMore.portDocUploadFailed"),
       );
     }
   }
@@ -101,8 +100,8 @@ function TextEnableDocumentsForm({ order }: { order: TextEnablement }) {
     <div className="space-y-4">
       <FileField
         id={`te-loa-${order.id}`}
-        label="Signed authorization (LOA)"
-        hint={HOSTED_DOCUMENT_HINTS.loa}
+        label={t("settingsMore.portDocLoaLabel")}
+        hint={t("settingsMore.hostedLoaHint")}
         filename={loa?.name ?? null}
         uploaded={order.has_loa && !loa}
         onFile={setLoa}
@@ -110,8 +109,8 @@ function TextEnableDocumentsForm({ order }: { order: TextEnablement }) {
       />
       <FileField
         id={`te-bill-${order.id}`}
-        label="Recent bill"
-        hint={HOSTED_DOCUMENT_HINTS.bill}
+        label={t("settingsMore.portDocInvoiceLabel")}
+        hint={t("settingsMore.hostedBillHint")}
         filename={bill?.name ?? null}
         uploaded={order.has_bill && !bill}
         onFile={setBill}
@@ -129,7 +128,9 @@ function TextEnableDocumentsForm({ order }: { order: TextEnablement }) {
         onClick={() => void onUpload()}
         disabled={upload.isPending || (!loa && !bill)}
       >
-        {upload.isPending ? "Uploading…" : "Upload documents"}
+        {upload.isPending
+          ? t("settingsMore.portDocUploading")
+          : t("settingsMore.portDocUploadAction")}
       </Button>
     </div>
   );
@@ -143,6 +144,7 @@ function TextEnableDocumentsForm({ order }: { order: TextEnablement }) {
  * quiet two-control block, no invented "verified" badge on the card.
  */
 function TextEnableVerification({ order }: { order: TextEnablement }) {
+  const t = useT();
   const requestCode = useRequestTextEnablementCode(order.id);
   const verify = useVerifyTextEnablementCode(order.id);
   const [code, setCode] = useState("");
@@ -153,7 +155,7 @@ function TextEnableVerification({ order }: { order: TextEnablement }) {
   if (verified) {
     return (
       <p className="text-sm text-muted-foreground">
-        Number ownership verified. Nothing else to do for this step.
+        {t("settingsMore.hostedVerified")}
       </p>
     );
   }
@@ -164,14 +166,14 @@ function TextEnableVerification({ order }: { order: TextEnablement }) {
       onSuccess: () =>
         toast.success(
           method === "sms"
-            ? `Code texted to ${display}.`
-            : `Calling ${display} with your code.`,
+            ? t("settingsMore.hostedCodeTexted", { number: display })
+            : t("settingsMore.hostedCodeCalling", { number: display }),
         ),
       onError: (cause) =>
         setError(
           cause instanceof ApiError
             ? cause.message
-            : "Couldn't send a code. Try again in a moment.",
+            : t("settingsMore.hostedCodeSendFailed"),
         ),
     });
   }
@@ -182,13 +184,13 @@ function TextEnableVerification({ order }: { order: TextEnablement }) {
       onSuccess: () => {
         setVerified(true);
         setCode("");
-        toast.success("Number verified.");
+        toast.success(t("settingsMore.hostedNumberVerified"));
       },
       onError: (cause) =>
         setError(
           cause instanceof ApiError
             ? cause.message
-            : "Couldn't check that code. Try again in a moment.",
+            : t("settingsMore.hostedCodeCheckFailed"),
         ),
     });
   }
@@ -196,11 +198,11 @@ function TextEnableVerification({ order }: { order: TextEnablement }) {
   return (
     <div className="space-y-3 rounded-md border border-border-subtle px-3 py-3">
       <div>
-        <p className="text-sm font-medium">Verify you own this number</p>
+        <p className="text-sm font-medium">
+          {t("settingsMore.hostedVerifyTitle")}
+        </p>
         <p className="mt-1 text-sm text-muted-foreground">
-          If the carrier asks for proof, get a one-time code at {display} (by
-          text, or an automated call if it can&apos;t receive texts) and enter
-          it below.
+          {t("settingsMore.hostedVerifyBody", { number: display })}
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -211,7 +213,7 @@ function TextEnableVerification({ order }: { order: TextEnablement }) {
           disabled={requestCode.isPending}
           onClick={() => onRequest("sms")}
         >
-          Text a code
+          {t("settingsMore.hostedTextACode")}
         </Button>
         <Button
           type="button"
@@ -220,18 +222,18 @@ function TextEnableVerification({ order }: { order: TextEnablement }) {
           disabled={requestCode.isPending}
           onClick={() => onRequest("call")}
         >
-          Call with a code
+          {t("settingsMore.hostedCallWithCode")}
         </Button>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Label htmlFor={`te-code-${order.id}`} className="sr-only">
-          Verification code
+          {t("settingsMore.regOtpLabel")}
         </Label>
         <Input
           id={`te-code-${order.id}`}
           value={code}
           onChange={(event) => setCode(event.target.value)}
-          placeholder="Verification code"
+          placeholder={t("settingsMore.regOtpLabel")}
           className="h-8 w-44"
           inputMode="numeric"
           autoComplete="one-time-code"
@@ -242,7 +244,9 @@ function TextEnableVerification({ order }: { order: TextEnablement }) {
           disabled={verify.isPending || code.trim() === ""}
           onClick={onVerify}
         >
-          {verify.isPending ? "Verifying…" : "Verify"}
+          {verify.isPending
+            ? t("settingsMore.hostedVerifying")
+            : t("settingsMore.regOtpVerify")}
         </Button>
       </div>
       {error ? (
@@ -268,6 +272,7 @@ function ReleaseHostedNumberDialog({
   order: TextEnablement;
   hostedNumber: PhoneNumberSummary;
 }) {
+  const t = useT();
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   const release = useReleaseNumber();
@@ -296,7 +301,9 @@ function ReleaseHostedNumberDialog({
           });
           gate.dismiss();
           close(false);
-          toast.success(`Texting removed from ${display}.`);
+          toast.success(
+            t("settingsMore.hostedTextingRemoved", { number: display }),
+          );
         },
         onError: (cause) => {
           if (gate.demanded(cause, "release_number", (digits) => attempt(digits))) {
@@ -306,7 +313,7 @@ function ReleaseHostedNumberDialog({
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't release the number. Try again.",
+              : t("settingsMore.releaseFailed"),
           );
         },
       },
@@ -339,22 +346,21 @@ function ReleaseHostedNumberDialog({
         className="px-0 text-muted-foreground hover:bg-transparent hover:text-destructive"
         onClick={() => setOpen(true)}
       >
-        Release this number…
+        {t("settingsMore.numberReleaseAction")}
       </Button>
       <Dialog open={open} onOpenChange={close}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove texting from {display}?</DialogTitle>
+            <DialogTitle>
+              {t("settingsMore.hostedRemoveTitle", { number: display })}
+            </DialogTitle>
             <DialogDescription>
-              This releases the number from Loonext: texting stops and its plan
-              slot frees up. Calls aren&apos;t affected; the number itself
-              stays with your current carrier. Text-enabling it again later
-              means a fresh carrier review. Type the number to confirm.
+              {t("settingsMore.hostedRemoveBody")}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
             <Label htmlFor={`te-release-${order.id}`}>
-              Type {display} to confirm
+              {t("settingsMore.releaseTypeToConfirm", { number: display })}
             </Label>
             <Input
               id={`te-release-${order.id}`}
@@ -372,14 +378,16 @@ function ReleaseHostedNumberDialog({
           ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => close(false)}>
-              Keep texting
+              {t("settingsMore.hostedKeepTexting")}
             </Button>
             <Button
               variant="destructive"
               disabled={!matches || release.isPending}
               onClick={() => attempt()}
             >
-              {release.isPending ? "Releasing…" : "Remove texting"}
+              {release.isPending
+                ? t("settingsMore.releasing")
+                : t("settingsMore.hostedRemoveTexting")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -401,6 +409,7 @@ function ReleaseHostedNumberDialog({
 
 /** Owner-only cancel — abandon a non-terminal order; the number never moved. */
 function CancelTextEnableDialog({ order }: { order: TextEnablement }) {
+  const t = useT();
   const cancel = useCancelTextEnablement(order.id);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -414,15 +423,16 @@ function CancelTextEnableDialog({ order }: { order: TextEnablement }) {
         className="px-0 text-muted-foreground hover:bg-transparent hover:text-destructive"
         onClick={() => setOpen(true)}
       >
-        Cancel text-enablement…
+        {t("settingsMore.hostedCancelAction")}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Stop adding texting to {display}?</DialogTitle>
+            <DialogTitle>
+              {t("settingsMore.hostedCancelTitle", { number: display })}
+            </DialogTitle>
             <DialogDescription>
-              Your number is untouched; calls and service stay with your
-              current carrier. You can start again any time.
+              {t("settingsMore.hostedCancelBody")}
             </DialogDescription>
           </DialogHeader>
           {error ? (
@@ -432,7 +442,7 @@ function CancelTextEnableDialog({ order }: { order: TextEnablement }) {
           ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
-              Keep going
+              {t("settingsMore.hostedKeepGoing")}
             </Button>
             <Button
               variant="destructive"
@@ -442,18 +452,20 @@ function CancelTextEnableDialog({ order }: { order: TextEnablement }) {
                 cancel.mutate(undefined, {
                   onSuccess: () => {
                     setOpen(false);
-                    toast.success("Text-enablement cancelled.");
+                    toast.success(t("settingsMore.hostedCancelled"));
                   },
                   onError: (cause) =>
                     setError(
                       cause instanceof ApiError
                         ? cause.message
-                        : "Couldn't cancel this. Try again.",
+                        : t("settingsMore.hostedCancelFailed"),
                     ),
                 });
               }}
             >
-              {cancel.isPending ? "Cancelling…" : "Cancel text-enablement"}
+              {cancel.isPending
+                ? t("settingsMore.portCancelling")
+                : t("settingsMore.hostedCancelConfirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -474,22 +486,25 @@ export function TextEnableCard({
    */
   hostedNumber?: PhoneNumberSummary | null;
 }) {
+  const t = useT();
   const { role } = useActiveCompany();
   const resubmit = useResubmitTextEnablement(order.id);
   const [resubmitError, setResubmitError] = useState<string | null>(null);
 
-  const ui = deriveTextEnableUiState(order);
+  const ui = deriveTextEnableUiState(order, t);
   const canEdit = role === "owner" || role === "admin";
   const display = formatPhone(order.phone_e164);
   // Honest elapsed-time context while the carrier reviews (created_at is on
   // the wire; guarded for stale caches that predate it).
   const startedLine =
     !ui.live && order.created_at
-      ? `Started ${new Date(order.created_at).toLocaleDateString(undefined, {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        })}.`
+      ? t("settingsMore.hostedStartedOn", {
+          date: new Date(order.created_at).toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          }),
+        })
       : null;
 
   // A cancelled order collapses to a quiet released-style note.
@@ -501,7 +516,7 @@ export function TextEnableCard({
             {display}
           </p>
           <span className="text-[13px] text-muted-foreground">
-            Text-enablement cancelled
+            {t("settingsMore.hostedCancelledPill")}
           </span>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">{ui.statusLine}</p>
@@ -513,12 +528,12 @@ export function TextEnableCard({
     setResubmitError(null);
     resubmit.mutate(undefined, {
       onSuccess: () =>
-        toast.success("Resubmitted. We'll run it past the carrier again."),
+        toast.success(t("settingsMore.hostedResubmitted")),
       onError: (cause) =>
         setResubmitError(
           cause instanceof ApiError
             ? cause.message
-            : "Couldn't resubmit. Try again in a moment.",
+            : t("settingsMore.regResubmitFailed"),
         ),
     });
   }
@@ -536,7 +551,9 @@ export function TextEnableCard({
           {display}
         </p>
         <span className="text-[13px] text-muted-foreground">
-          {ui.live ? "Texting live, calls unchanged" : "Adding texting"}
+          {ui.live
+            ? t("settingsMore.hostedLive")
+            : t("settingsMore.hostedAdding")}
         </span>
       </div>
       {startedLine ? (
@@ -570,7 +587,7 @@ export function TextEnableCard({
           <TextEnableDocumentsForm order={order} />
         ) : ui.showDocumentsForm && ui.documentsPending && !canEdit ? (
           <p className="text-sm text-muted-foreground">
-            An owner or admin uploads the authorization and bill.
+            {t("settingsMore.hostedOwnerUploads")}
           </p>
         ) : null}
 
@@ -592,12 +609,14 @@ export function TextEnableCard({
               onClick={onResubmit}
               disabled={resubmit.isPending}
             >
-              {resubmit.isPending ? "Resubmitting…" : "Resubmit"}
+              {resubmit.isPending
+                ? t("settingsMore.portFixResubmitting")
+                : t("settingsMore.hostedResubmit")}
             </Button>
           </div>
         ) : order.status === "failed" && !canEdit ? (
           <p className="text-sm text-muted-foreground">
-            Ask an owner or admin to fix the documents and resubmit.
+            {t("settingsMore.hostedAskOwnerToFix")}
           </p>
         ) : null}
 

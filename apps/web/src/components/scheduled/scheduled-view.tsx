@@ -37,6 +37,7 @@ import { SCHEDULED_SEND_COPY, scheduledClockProvenance } from "@loonext/shared";
 import { CalmEmptyState } from "@/components/settings/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { sendAtLabel } from "@/components/thread/scheduled-strip";
+import { useT } from "@/i18n/provider";
 import {
   scheduledRecipient,
   useCancelScheduledMessage,
@@ -46,6 +47,7 @@ import {
 import { cn } from "@/lib/utils";
 
 export function ScheduledView() {
+  const t = useT();
   const scheduled = useScheduledMessages();
   const cancel = useCancelScheduledMessage();
 
@@ -56,10 +58,14 @@ export function ScheduledView() {
   return (
     <div className="mx-auto w-full max-w-2xl space-y-6 px-4 py-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="text-[17px] font-semibold text-app-ink">Scheduled</h1>
+        <h1 className="text-[17px] font-semibold text-app-ink">
+          {t("tasks.scheduledTitle")}
+        </h1>
         {rows.length > 0 && (
           <p className="text-[12.5px] text-app-muted">
-            {rows.length === 1 ? "1 text waiting" : `${rows.length} texts waiting`}
+            {rows.length === 1
+              ? t("tasks.scheduledOneWaiting")
+              : t("tasks.scheduledManyWaiting", { count: rows.length })}
           </p>
         )}
       </div>
@@ -79,8 +85,8 @@ export function ScheduledView() {
       ) : scheduled.isError ? (
         <CalmEmptyState
           icon={<CalendarClock className="size-7" strokeWidth={1.5} />}
-          title="Couldn't load what's scheduled."
-          description="Check your connection and try again."
+          title={t("tasks.scheduledLoadFailed")}
+          description={t("tasks.scheduledLoadFailedHint")}
         />
       ) : rows.length === 0 ? (
         // The two halves of the shared `nothing_scheduled` sentence, split
@@ -100,7 +106,7 @@ export function ScheduledView() {
               *Applying: Chunking.* */}
           {held.length > 0 && (
             <ScheduledGroup
-              title="Needs you"
+              title={t("tasks.scheduledNeedsYou")}
               rows={held}
               onCancel={(id) => cancel.mutate(id)}
               cancelling={cancel.isPending ? String(cancel.variables) : null}
@@ -108,7 +114,7 @@ export function ScheduledView() {
           )}
           {pending.length > 0 && (
             <ScheduledGroup
-              title="Going out"
+              title={t("tasks.scheduledGoingOut")}
               rows={pending}
               onCancel={(id) => cancel.mutate(id)}
               cancelling={cancel.isPending ? String(cancel.variables) : null}
@@ -159,6 +165,7 @@ function ScheduledListRow({
   onCancel: () => void;
   cancelling: boolean;
 }) {
+  const t = useT();
   const held = row.status === "held";
   return (
     <li className="flex items-start gap-[11px] border-b border-app-line-soft p-[11px] last:border-b-0">
@@ -191,7 +198,7 @@ function ScheduledListRow({
               held ? "text-app-amber" : "text-app-muted",
             )}
           >
-            {held ? "Waiting" : sendAtLabel(row)}
+            {held ? t("tasks.scheduledWaiting") : sendAtLabel(row)}
           </span>
         </div>
         <p className="mt-0.5 truncate text-[12.5px] text-app-muted">{row.body}</p>
@@ -212,7 +219,7 @@ function ScheduledListRow({
         disabled={cancelling}
         className="tap-target shrink-0 rounded-app-ctrl px-2 py-1 text-[12px] font-medium text-app-muted transition-colors duration-150 ease-out hover:bg-app-line-soft hover:text-app-ink disabled:opacity-45"
       >
-        Cancel
+        {t("common.cancel")}
       </button>
     </li>
   );

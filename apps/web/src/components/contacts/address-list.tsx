@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useAddContactAddress,
@@ -42,6 +43,7 @@ import { cn } from "@/lib/utils";
  *   irreversible edge only.*
  */
 export function AddressList({ contact }: { contact: ContactDetail }) {
+  const t = useT();
   const addresses = contact.addresses ?? [];
   const add = useAddContactAddress(contact.id);
   const update = useUpdateContactAddress(contact.id);
@@ -64,7 +66,9 @@ export function AddressList({ contact }: { contact: ContactDetail }) {
       setAdding(false);
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "Couldn't add that address.",
+        cause instanceof ApiError
+          ? cause.message
+          : t("contacts.addressAddFailed"),
       );
     }
   }
@@ -96,7 +100,7 @@ export function AddressList({ contact }: { contact: ContactDetail }) {
               </span>
               {entry.is_primary ? (
                 <span className="rounded-full bg-app-tint px-2 py-0.5 text-[11px] font-semibold text-app-olive-deep">
-                  Where the van goes
+                  {t("contacts.addressPrimary")}
                 </span>
               ) : (
                 <button
@@ -107,12 +111,14 @@ export function AddressList({ contact }: { contact: ContactDetail }) {
                   }
                   className="tap-target text-[12px] text-app-muted-2 underline-offset-2 hover:text-app-ink hover:underline"
                 >
-                  Make it the main one
+                  {t("contacts.addressMakePrimary")}
                 </button>
               )}
               <button
                 type="button"
-                aria-label={`Remove ${entry.address}`}
+                aria-label={t("contacts.addressRemove", {
+                  address: entry.address,
+                })}
                 disabled={remove.isPending}
                 onClick={() => remove.mutate(entry.id)}
                 className="tap-target text-app-muted-2 hover:text-app-ink"
@@ -128,26 +134,26 @@ export function AddressList({ contact }: { contact: ContactDetail }) {
         <div className="space-y-2 rounded-app-input border border-app-line bg-app-paper p-3">
           <div className="space-y-1">
             <Label htmlFor="new-address-label" className="text-[12px]">
-              Label
+              {t("contacts.fieldLabel")}
             </Label>
             <Input
               id="new-address-label"
               value={draftLabel}
               maxLength={80}
-              placeholder="Unit 4, Billing, the rooftop…"
+              placeholder={t("contacts.addressLabelPlaceholder")}
               autoComplete="off"
               onChange={(event) => setDraftLabel(event.target.value)}
             />
           </div>
           <div className="space-y-1">
             <Label htmlFor="new-address" className="text-[12px]">
-              Address
+              {t("contacts.fieldAddress")}
             </Label>
             <Input
               id="new-address"
               value={draftAddress}
               maxLength={500}
-              placeholder="Where the job is"
+              placeholder={t("contacts.addressPlaceholder")}
               autoComplete="off"
               onChange={(event) => setDraftAddress(event.target.value)}
             />
@@ -158,7 +164,7 @@ export function AddressList({ contact }: { contact: ContactDetail }) {
               disabled={add.isPending || draftAddress.trim().length === 0}
               onClick={submit}
             >
-              Add
+              {t("contacts.add")}
             </Button>
             <Button
               size="sm"
@@ -169,7 +175,7 @@ export function AddressList({ contact }: { contact: ContactDetail }) {
                 setDraftAddress("");
               }}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
           </div>
         </div>
@@ -180,7 +186,7 @@ export function AddressList({ contact }: { contact: ContactDetail }) {
           className="tap-target flex items-center gap-1 text-[13px] text-app-muted-2 underline-offset-2 hover:text-app-ink hover:underline"
         >
           <Plus className="size-3.5" strokeWidth={1.75} aria-hidden />
-          Add another address
+          {t("contacts.addressAddAnother")}
         </button>
       )}
     </div>

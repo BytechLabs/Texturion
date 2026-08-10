@@ -36,6 +36,7 @@ import Link from "next/link";
 
 import { ShareBar } from "@/components/ui/share-bar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { usePipelineReport } from "@/lib/api/reports";
 import { cn } from "@/lib/utils";
 
@@ -55,6 +56,7 @@ export function rateDelta(
 }
 
 export function PipelineCard() {
+  const t = useT();
   const report = usePipelineReport(30);
 
   if (report.isLoading) {
@@ -84,9 +86,11 @@ export function PipelineCard() {
     // four, presented as one.*
     <section>
       <h2 className="flex items-baseline justify-between gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
-        <span className="flex items-baseline gap-2">Quotes</span>
+        <span className="flex items-baseline gap-2">
+          {t("inbox.pipelineTitle")}
+        </span>
         <span className="text-[11px] font-normal normal-case tracking-normal">
-          last 30 days
+          {t("inbox.pipelineWindow")}
         </span>
       </h2>
       <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper p-4">
@@ -96,7 +100,12 @@ export function PipelineCard() {
               repeats, and the part they can act on. */}
           <p className="mt-1 text-[15px] font-medium text-app-ink">
             {insight ??
-              `${current.quoted} ${current.quoted === 1 ? "quote" : "quotes"} sent. Too early to call a win rate.`}
+              t(
+                current.quoted === 1
+                  ? "inbox.pipelineTooEarlyOne"
+                  : "inbox.pipelineTooEarlyMany",
+                { count: current.quoted },
+              )}
           </p>
         </div>
         {rate !== null && (
@@ -116,8 +125,9 @@ export function PipelineCard() {
                 ) : (
                   <TrendingDown className="size-3" strokeWidth={1.75} aria-hidden />
                 )}
-                {delta > 0 ? "+" : ""}
-                {delta} pts
+                {t("inbox.pipelineDeltaPoints", {
+                  delta: delta > 0 ? `+${delta}` : String(delta),
+                })}
               </div>
             )}
           </div>
@@ -127,12 +137,12 @@ export function PipelineCard() {
       <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-border pt-3">
         {(
           [
-            ["Quoted", current.quoted],
-            ["Won", current.won],
-            ["Still out", current.open],
+            ["quoted", t("inbox.pipelineQuoted"), current.quoted],
+            ["won", t("inbox.pipelineWon"), current.won],
+            ["open", t("inbox.pipelineStillOut"), current.open],
           ] as const
-        ).map(([label, value]) => (
-          <div key={label}>
+        ).map(([id, label, value]) => (
+          <div key={id}>
             <dt className="text-xs text-muted-foreground">{label}</dt>
             <dd className="text-lg font-semibold tabular-nums text-app-ink">
               {value}
@@ -153,10 +163,22 @@ export function PipelineCard() {
         className="mt-3"
         total={current.quoted}
         segments={[
-          { label: "Won", value: current.won, className: "bg-app-olive-deep" },
-          { label: "Still out", value: current.open, className: "bg-app-olive/45" },
+          {
+            label: t("inbox.pipelineWon"),
+            value: current.won,
+            className: "bg-app-olive-deep",
+          },
+          {
+            label: t("inbox.pipelineStillOut"),
+            value: current.open,
+            className: "bg-app-olive/45",
+          },
         ]}
-        label={`Of ${current.quoted} quoted, ${current.won} won and ${current.open} still out`}
+        label={t("inbox.pipelineShareAria", {
+          quoted: current.quoted,
+          won: current.won,
+          open: current.open,
+        })}
       />
 
       {/* Loss Aversion, and the only action on the card: the outstanding work,
@@ -167,7 +189,7 @@ export function PipelineCard() {
           href={`/inbox?status=open&tag=${quoteStage.tag_id}`}
           className="mt-3 flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
         >
-          Chase the {current.open} still waiting
+          {t("inbox.pipelineChase", { count: current.open })}
           <ArrowRight className="size-3.5" strokeWidth={1.75} aria-hidden />
         </Link>
       )}

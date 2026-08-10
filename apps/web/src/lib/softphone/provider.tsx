@@ -30,6 +30,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 
+import { useT, type Translate } from "@/i18n/provider";
 import {
   useAuthorizeBrowserCall,
   useResolveLiveSession,
@@ -107,7 +108,7 @@ const MAX_CONCURRENT_CALLS = 2;
  * came up. Distinct from a registration that is merely slow, which is what the
  * status indicator shows while `error` is still null.
  */
-const REGISTRATION_FAILED = "Your browser can't receive calls right now.";
+const REGISTRATION_FAILED_KEY = "shell.registrationFailed" as const;
 
 /** #213: how long to wait for the server-dialed placer (op) INVITE after
  *  authorize before giving up on a placement. Set just PAST the server's 45s ring
@@ -140,11 +141,9 @@ export class MicPermissionError extends Error {}
  * tracks are released immediately; the SDK re-acquires with the now-granted
  * permission, so there is no second prompt.
  */
-async function acquireMicOrThrow(): Promise<void> {
+async function acquireMicOrThrow(t: Translate): Promise<void> {
   if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-    throw new MicPermissionError(
-      "This browser can't access a microphone. Try a recent Chrome, Edge, or Safari.",
-    );
+    throw new MicPermissionError(t("shell.micNoBrowserSupport"));
   }
   let stream: MediaStream;
   try {
@@ -153,10 +152,10 @@ async function acquireMicOrThrow(): Promise<void> {
     const name = cause instanceof DOMException ? cause.name : "";
     throw new MicPermissionError(
       name === "NotFoundError" || name === "DevicesNotFoundError"
-        ? "No microphone found. Connect or enable a mic, then try the call again."
+        ? t("shell.micNotFound")
         : name === "NotAllowedError" || name === "SecurityError"
-          ? "Microphone access is blocked. Click the 🎤 or 🔒 icon in your browser's address bar, choose Allow, then try the call again."
-          : "Couldn't access your microphone. Check your browser's mic permission and try again.",
+          ? t("shell.micBlocked")
+          : t("shell.micFailed"),
     );
   }
   for (const track of stream.getTracks()) track.stop();
@@ -171,6 +170,7 @@ function showRingNotification(
   id: string,
   name: string,
   number: string,
+  t: Translate,
 ): void {
   if (
     typeof Notification === "undefined" ||
@@ -179,7 +179,7 @@ function showRingNotification(
     return;
   }
   try {
-    const note = new Notification("Incoming call", {
+    const note = new Notification(t("shell.incomingCall"), {
       body: number && number !== name ? `${name} · ${number}` : name,
       tag: `call-${id}`, // collapse re-fires for the same call
     });
@@ -240,6 +240,10 @@ interface SoftphoneContextValue extends SoftphoneState {
 const SoftphoneContext = createContext<SoftphoneContextValue | null>(null);
 
 export function SoftphoneProvider({ children }: { children: ReactNode }) {
+  // #228: the reader's words. Referentially stable per locale (the provider
+  // memoises it), so it can sit in a dependency array without re-arming the
+  // SDK client on every render.
+  const t = useT();
   const [state, dispatch] = useReducer(
     softphoneReducer,
     INITIAL_SOFTPHONE_STATE,
@@ -414,7 +418,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         readyRef.current = false;
         dispatch({
           type: "error",
-          message: "Calling is temporarily unavailable.",
+          message: t("shell.callingTemporarilyUnavailable"),
         });
         // An error is often an auth/token failure — a fresh token + registration
         // is the recovery. The SDK's own reconnect can't fix a bad token.
@@ -504,14 +508,22 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
             callsRef.current.set(call.id, call);
             const number = call.options?.remoteCallerNumber ?? "";
             const name =
-              call.options?.remoteCallerName || number || "Unknown caller";
+              call.options?.remoteCallerName ||
+              number ||
+              t("shell.unknownCaller");
             dispatch({
               type: "incoming",
               id: call.id,
               sessionId: call.telnyxIDs?.telnyxSessionId ?? null,
               peer: { name, number },
             });
-            showRingNotification(ringNotesRef.current, call.id, name, number);
+            showRingNotification(
+              ringNotesRef.current,
+              call.id,
+              name,
+              number,
+              t,
+            );
           }
           return;
         }
@@ -583,7 +595,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     } finally {
       connectingRef.current = null;
     }
-  }, [attachActiveAudio, mintToken, hasLiveCall, resolveSessionWithRetry]);
+  }, [attachActiveAudio, mintToken, hasLiveCall, resolveSessionWithRetry, t]);
 
   /** Tear a dead client down and build a fresh one — re-mints the token, so a
    *  NEW SIP registration is established (that's what makes the phone ring
@@ -606,9 +618,9 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     void ensureClient().catch(() => {
       // Stays down until the next visibility/online tick retries. Recording it
       // is what stops the indicator claiming the phone is still connecting.
-      dispatch({ type: "error", message: REGISTRATION_FAILED });
+      dispatch({ type: "error", message: t(REGISTRATION_FAILED_KEY) });
     });
-  }, [ensureClient, hasLiveCall]);
+  }, [ensureClient, hasLiveCall, t]);
 
   /** If the phone can't currently ring, rebuild it — after a short delay so the
    *  SDK's OWN backoff reconnect wins for transient drops and we only step in
@@ -652,7 +664,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       // failure is still RECORDED, because the status indicator otherwise reads
       // "Connecting…" for the rest of the session and a member is left believing
       // their browser will ring when it never will.
-      dispatch({ type: "error", message: REGISTRATION_FAILED });
+      dispatch({ type: "error", message: t(REGISTRATION_FAILED_KEY) });
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once on mount
@@ -713,14 +725,14 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         // and reported a call it never placed — the ceiling was invisible and
         // the customer was never dialled. The callers' existing catch turns
         // this into a visible message with the digits still in the dialog.
-        throw new Error("You're already on two calls. Hang up one first.");
+        throw new Error(t("shell.tooManyCalls"));
       }
       try {
         // Mic FIRST — before we reserve the line. A denial here never strands a
         // reservation (no "on another call" phantom), never bills, and surfaces
         // an actionable message instead of a silent "ended". It also pre-grants
         // the mic so the AUTO-answer of the op INVITE below never re-prompts.
-        await acquireMicOrThrow();
+        await acquireMicOrThrow(t);
         // #213: the SERVER now dials the customer (a real, controllable
         // Call-Control leg) and rings THIS member's own softphone as the placer
         // (op) leg — the browser NO LONGER dials the customer (that only ever
@@ -749,7 +761,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
           // fail honestly rather than leave a silent dead chip.
           throw new ApiError(
             "conflict",
-            "Couldn't start the call. Please try again.",
+            t("shell.callStartFailedPleaseRetry"),
             409,
           );
         }
@@ -759,7 +771,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         // failed after the 200, or the ring window lapsed), drop the chip + warn.
         const timer = setTimeout(() => {
           pendingPlacementsRef.current.delete(sessionId);
-          const message = "Couldn't reach the line. Please try again.";
+          const message = t("shell.lineUnreachable");
           dispatch({ type: "placement_failed", placementId, message });
           // The dispatch alone is invisible: nothing renders `state.error`, so
           // an outbound call that never connected simply vanished after the
@@ -788,12 +800,12 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
           message:
             cause instanceof MicPermissionError || cause instanceof ApiError
               ? cause.message
-              : "Couldn't start the call.",
+              : t("shell.callStartFailed"),
         });
         throw cause;
       }
     },
-    [authorize, ensureClient],
+    [authorize, ensureClient, t],
   );
 
   const answer = useCallback(
@@ -804,12 +816,12 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       // chip) if it's blocked, and don't hold the active call for an answer
       // that can't capture audio.
       try {
-        await acquireMicOrThrow();
+        await acquireMicOrThrow(t);
       } catch (cause) {
         const message =
           cause instanceof MicPermissionError
             ? cause.message
-            : "Couldn't answer the call.";
+            : t("shell.answerFailed");
         dispatch({ type: "error", message });
         // Reject so the Answer click can surface the reason. state.error is not
         // rendered anywhere, so without this the ring chip just keeps ringing
@@ -823,7 +835,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         /* the caller hung up in the same instant — the chip clears itself */
       }
     },
-    [holdActive],
+    [holdActive, t],
   );
 
   const hangup = useCallback((id?: string) => {

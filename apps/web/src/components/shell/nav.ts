@@ -8,8 +8,15 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import type { MessageKey } from "@/i18n/provider";
+
 export interface NavItem {
-  label: string;
+  /**
+   * #228: the CATALOGUE key, not the word. A registry is a module constant and
+   * cannot call a hook, so the destination carries its name as a key and each
+   * surface resolves it with its own reader's `t`.
+   */
+  labelKey: MessageKey;
   href: string;
   icon: LucideIcon;
   /**
@@ -20,9 +27,13 @@ export interface NavItem {
   countsUnread?: boolean;
 }
 
-const FOR_YOU_NAV: NavItem = { label: "For You", href: "/for-you", icon: Home };
+const FOR_YOU_NAV: NavItem = {
+  labelKey: "shell.navForYouTitleCase",
+  href: "/for-you",
+  icon: Home,
+};
 const INBOX_NAV: NavItem = {
-  label: "Inbox",
+  labelKey: "shell.navInbox",
   href: "/inbox",
   icon: Inbox,
   countsUnread: true,
@@ -31,13 +42,17 @@ const INBOX_NAV: NavItem = {
  *  in the account sheet because the tab bar is locked at four links + the
  *  avatar (#100), and every call also reaches the inbox as a timeline line. */
 const CALLS_NAV: NavItem = {
-  label: "Calls",
+  labelKey: "shell.navCalls",
   href: "/calls",
   icon: PhoneIncoming,
 };
-const TASKS_NAV: NavItem = { label: "Tasks", href: "/tasks", icon: ListChecks };
+const TASKS_NAV: NavItem = {
+  labelKey: "shell.navTasks",
+  href: "/tasks",
+  icon: ListChecks,
+};
 const CONTACTS_NAV: NavItem = {
-  label: "Contacts",
+  labelKey: "shell.navContacts",
   href: "/contacts",
   icon: Users,
 };
@@ -59,7 +74,7 @@ export const PRIMARY_NAV: NavItem[] = [
 ];
 
 export const SETTINGS_NAV: NavItem = {
-  label: "Settings",
+  labelKey: "shell.navSettings",
   href: "/settings",
   icon: Settings,
 };

@@ -255,7 +255,7 @@ publicJobPhotoRoutes.get("/photos/:token", publicLinkGuard(), async (c) => {
 
   const { data: company, error: companyError } = await db
     .from("companies")
-    .select("name")
+    .select("name,locale")
     .eq("id", resolved.company_id)
     .maybeSingle();
   if (companyError) throw new Error(`company lookup failed: ${companyError.message}`);
@@ -298,6 +298,15 @@ publicJobPhotoRoutes.get("/photos/:token", publicLinkGuard(), async (c) => {
     // The page appears under the BUSINESS's name, not ours. It is the only thing
     // many homeowners will ever see of this product.
     business_name: (company as { name?: string } | null)?.name ?? "Your contractor",
+    /**
+     * #228: the language the BUSINESS works in — the one this page is drawn in.
+     *
+     * Not the reader's device and not ours. The person opening this has a
+     * relationship with the tradesperson, not with us, so it is the business's
+     * own choice that decides. A Quebec crew's customer meeting an English page
+     * is the Bill 96 problem in miniature.
+     */
+    locale: (company as { locale?: string | null } | null)?.locale ?? "en",
     photos: loaded.photos,
     // Said out loud rather than quietly dropping the rest. Somebody looking at
     // "everything we did" has to know when it is not everything.

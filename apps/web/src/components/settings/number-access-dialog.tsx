@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useT, type MessageKey } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useNumberAccess, useSetNumberAccess } from "@/lib/api/numbers";
 import { useMembers } from "@/lib/api/team";
@@ -37,16 +38,28 @@ import type { NumberAccess } from "@/lib/api/types";
  */
 type Mode = "everyone" | "members_view" | "admins" | "users";
 
-const PRESETS: { value: Mode; label: string; hint: string }[] = [
-  ["everyone", "Everyone", "The whole team can text, like today."],
-  [
-    "members_view",
-    "Members: view & notes only",
-    "Members can read and add notes, but not text. Admins still text.",
-  ],
-  ["admins", "Admins only", "Members can't see this number at all."],
-  ["users", "Specific people", "Only the people you pick. Admins still text."],
-].map(([value, label, hint]) => ({ value: value as Mode, label, hint }));
+const PRESETS: { value: Mode; label: MessageKey; hint: MessageKey }[] = [
+  {
+    value: "everyone",
+    label: "settingsMore.numberAccessEveryone",
+    hint: "settingsMore.numberAccessEveryoneHint",
+  },
+  {
+    value: "members_view",
+    label: "settingsMore.numberAccessMembersView",
+    hint: "settingsMore.numberAccessMembersViewHint",
+  },
+  {
+    value: "admins",
+    label: "settingsMore.numberAccessAdmins",
+    hint: "settingsMore.numberAccessAdminsHint",
+  },
+  {
+    value: "users",
+    label: "settingsMore.numberAccessUsers",
+    hint: "settingsMore.numberAccessUsersHint",
+  },
+];
 
 export function NumberAccessDialog({
   numberId,
@@ -59,6 +72,7 @@ export function NumberAccessDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const access = useNumberAccess(numberId, open);
   const save = useSetNumberAccess(numberId);
   const members = useMembers();
@@ -105,7 +119,7 @@ export function NumberAccessDialog({
       const activeIds = new Set(activeMembers.map((m) => m.user_id));
       const picked = [...userIds].filter((id) => activeIds.has(id));
       if (picked.length === 0) {
-        toast.error("Pick at least one person, or choose Everyone.");
+        toast.error(t("settingsMore.numberAccessPickSomeone"));
         return;
       }
       body = { access: "users", user_ids: picked, level };
@@ -113,13 +127,13 @@ export function NumberAccessDialog({
     save.mutate(body, {
       onSuccess: () => {
         onOpenChange(false);
-        toast.success("Saved who can use this number.");
+        toast.success(t("settingsMore.numberAccessSaved"));
       },
       onError: (cause) =>
         toast.error(
           cause instanceof ApiError
             ? cause.message
-            : "Couldn't save. Try again.",
+            : t("settingsMore.saveFailed"),
         ),
     });
   }
@@ -128,17 +142,18 @@ export function NumberAccessDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Who can use {numberLabel}?</DialogTitle>
+          <DialogTitle>
+            {t("settingsMore.numberAccessTitle", { number: numberLabel })}
+          </DialogTitle>
           <DialogDescription>
-            Owners and admins can always use every number. Limiting a number
-            hides its conversations from everyone else you don&apos;t include.
+            {t("settingsMore.numberAccessDescription")}
           </DialogDescription>
         </DialogHeader>
 
         <div
           className="space-y-3"
           role="radiogroup"
-          aria-label="Who can use this number"
+          aria-label={t("settingsMore.numberAccessGroupAria")}
         >
           {PRESETS.map(({ value, label, hint }) => (
             <label
@@ -154,9 +169,9 @@ export function NumberAccessDialog({
                 className="mt-1"
               />
               <span>
-                <span className="block text-sm font-medium">{label}</span>
+                <span className="block text-sm font-medium">{t(label)}</span>
                 <span className="block text-xs text-muted-foreground">
-                  {hint}
+                  {t(hint)}
                 </span>
               </span>
             </label>
@@ -168,7 +183,7 @@ export function NumberAccessDialog({
             <div className="space-y-2">
               {activeMembers.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No teammates yet — invite them from Settings › Team.
+                  {t("settingsMore.numberAccessNoTeammates")}
                 </p>
               ) : (
                 activeMembers.map((member) => (
@@ -187,7 +202,7 @@ export function NumberAccessDialog({
                         });
                       }}
                     />
-                    {member.display_name || "Teammate"}
+                    {member.display_name || t("settingsMore.teammate")}
                   </label>
                 ))
               )}
@@ -198,12 +213,12 @@ export function NumberAccessDialog({
             <div
               className="flex gap-2 border-t pt-3"
               role="radiogroup"
-              aria-label="What the picked people can do"
+              aria-label={t("settingsMore.numberAccessLevelAria")}
             >
               {(
                 [
-                  ["text", "Can text"],
-                  ["note", "View & notes only"],
+                  ["text", "settingsMore.numberAccessCanText"],
+                  ["note", "settingsMore.numberAccessNoteOnly"],
                 ] as const
               ).map(([value, label]) => (
                 <label
@@ -221,7 +236,7 @@ export function NumberAccessDialog({
                     onChange={() => setLevel(value)}
                     className="sr-only"
                   />
-                  {label}
+                  {t(label)}
                 </label>
               ))}
             </div>
@@ -234,10 +249,10 @@ export function NumberAccessDialog({
             onClick={() => onOpenChange(false)}
             disabled={save.isPending}
           >
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button onClick={submit} disabled={save.isPending || access.isPending}>
-            {save.isPending ? "Saving…" : "Save"}
+            {save.isPending ? t("common.saving") : t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

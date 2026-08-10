@@ -19,6 +19,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { inboxEn } from "@/i18n/sections/inbox";
+
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
 
 /** Where each client turns its own filter state into the request parameter. */
@@ -40,6 +42,16 @@ const CONTROLS: Record<string, string> = {
   ),
   ios: join(REPO_ROOT, "apps/ios/Loonext/Features/Inbox/InboxTab.swift"),
 };
+
+/**
+ * #228: web's WORDS moved out of the control and the empty state into the
+ * catalogue, so the two copy checks below read them from there. The two
+ * BEHAVIOUR checks (`value="awaiting"`, the request parameter) still read the
+ * component — those are claims about code, and moving them to the catalogue
+ * would be how a control quietly stops sending the filter while the word for it
+ * stays put.
+ */
+const WEB_COPY = Object.values(inboxEn).join("\n");
 
 /** Every .swift file under apps/ios — the APP and the TEST target. */
 function swiftSources(): string[] {
@@ -78,6 +90,9 @@ describe("#508 the unanswered filter is one predicate, three clients", () => {
     ]) {
       expect(readFileSync(path, "utf8").length).toBeGreaterThan(1000);
     }
+    // Web's words are a fourth source. An emptied catalogue would make both
+    // copy checks below pass against nothing.
+    expect(WEB_COPY.length).toBeGreaterThan(1000);
   });
 
   it("sends the same `awaiting` parameter from every client", () => {
@@ -107,8 +122,12 @@ describe("#508 the unanswered filter is one predicate, three clients", () => {
   it("calls it the same thing on every client", () => {
     // "Unanswered", not "Needs reply" on one and "No reply" on another. The
     // word travels between a crew's phone and the office laptop out loud.
+    // Web is the catalogue's values ALONE. Including filter-bar.tsx as well was
+    // the first version and it could not fail: the item calls
+    // `t("inbox.chipUnanswered")`, and the key contains the word, so renaming
+    // the label to "No reply yet" still matched. An identifier is not copy.
     for (const [platform, path] of Object.entries(CONTROLS)) {
-      const text = readFileSync(path, "utf8");
+      const text = platform === "web" ? WEB_COPY : readFileSync(path, "utf8");
       expect(text, platform).toContain("Unanswered");
     }
   });
@@ -129,13 +148,14 @@ describe("#508 the unanswered filter is one predicate, three clients", () => {
     // "Nothing matches these filters" reports the best news this screen can
     // give as an absence. Three clients saying it three ways is the #273
     // failure in miniature.
+    // #228: web's copy of the sentence lives in the catalogue now; the
+    // component that renders it is `components/inbox/empty-states.tsx`.
     const EMPTY_STATES: Record<string, string> = {
-      web: join(REPO_ROOT, "apps/web/src/components/inbox/empty-states.tsx"),
-      android: CONTROLS.android,
-      ios: CONTROLS.ios,
+      web: WEB_COPY,
+      android: readFileSync(CONTROLS.android, "utf8"),
+      ios: readFileSync(CONTROLS.ios, "utf8"),
     };
-    for (const [platform, path] of Object.entries(EMPTY_STATES)) {
-      const text = readFileSync(path, "utf8");
+    for (const [platform, text] of Object.entries(EMPTY_STATES)) {
       expect(text, platform).toContain("Everyone has been answered.");
     }
   });

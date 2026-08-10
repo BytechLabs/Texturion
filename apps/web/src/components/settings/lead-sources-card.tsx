@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SettingsCard } from "@/components/settings/section";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useCreateLeadSource,
@@ -41,10 +42,12 @@ import {
  *   last quarter's report.
  */
 export function LeadSourcesCard({ canEdit }: { canEdit: boolean }) {
+  const t = useT();
   const sources = useLeadSources();
   const create = useCreateLeadSource();
   const update = useUpdateLeadSource();
-  const [name, setName] = useState(DEFAULT_NAME);
+  const defaultName = t("settings.leadSourceDefaultName");
+  const [name, setName] = useState(defaultName);
 
   const rows = sources.data?.data ?? [];
   const active = rows.filter((row) => row.archived_at === null);
@@ -55,11 +58,13 @@ export function LeadSourcesCard({ canEdit }: { canEdit: boolean }) {
     if (trimmed.length === 0) return;
     try {
       await create.mutateAsync(trimmed);
-      setName(DEFAULT_NAME);
-      toast.success(`"${trimmed}" added. Put it on a number to start counting.`);
+      setName(defaultName);
+      toast.success(t("settings.leadSourceAdded", { name: trimmed }));
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "That could not be added.",
+        cause instanceof ApiError
+          ? cause.message
+          : t("settings.leadSourceAddFailed"),
       );
     }
   }
@@ -67,25 +72,29 @@ export function LeadSourcesCard({ canEdit }: { canEdit: boolean }) {
   async function setArchived(id: string, archived: boolean) {
     try {
       await update.mutateAsync({ id, archived });
-      toast.success(archived ? "Archived." : "Back in the list.");
+      toast.success(
+        archived
+          ? t("settings.leadSourceArchived")
+          : t("settings.leadSourceRestored"),
+      );
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "That could not be saved.",
+        cause instanceof ApiError
+          ? cause.message
+          : t("settings.leadSourceSaveFailed"),
       );
     }
   }
 
   return (
     <SettingsCard
-      title="Where customers come from"
-      description="Your own list — the truck, the yard sign, the ad, a neighbour. Put one on a number and every call and text to that line is counted automatically."
+      title={t("settings.leadSourcesTitle")}
+      description={t("settings.leadSourcesDescription")}
     >
       <div className="space-y-4">
         {rows.length === 0 && (
           <p className="text-xs text-muted-foreground">
-            Nothing yet, so every conversation reads as &quot;don&apos;t
-            know&quot;. The cheapest way to start is to name the number you
-            advertise — attribution then costs the crew nothing at all.
+            {t("settings.leadSourcesEmpty")}
           </p>
         )}
 
@@ -106,7 +115,7 @@ export function LeadSourcesCard({ canEdit }: { canEdit: boolean }) {
                     onClick={() => void setArchived(row.id, true)}
                   >
                     <Archive className="mr-1 size-3.5" />
-                    Archive
+                    {t("settings.leadSourceArchiveAction")}
                   </Button>
                 )}
               </li>
@@ -117,8 +126,7 @@ export function LeadSourcesCard({ canEdit }: { canEdit: boolean }) {
         {archived.length > 0 && (
           <div className="space-y-2">
             <p className="text-[12px] text-app-muted-2">
-              Archived — off the pickers, still named in reports about the
-              period they ran.
+              {t("settings.leadSourcesArchivedNote")}
             </p>
             <ul className="space-y-2">
               {archived.map((row) => (
@@ -135,7 +143,7 @@ export function LeadSourcesCard({ canEdit }: { canEdit: boolean }) {
                       onClick={() => void setArchived(row.id, false)}
                     >
                       <RotateCcw className="mr-1 size-3.5" />
-                      Bring back
+                      {t("settings.leadSourceRestoreAction")}
                     </Button>
                   )}
                 </li>
@@ -147,7 +155,9 @@ export function LeadSourcesCard({ canEdit }: { canEdit: boolean }) {
         {canEdit && (
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-[12rem] flex-1 space-y-1.5">
-              <Label htmlFor="lead-source-name">Add one</Label>
+              <Label htmlFor="lead-source-name">
+                {t("settings.leadSourceAddLabel")}
+              </Label>
               <Input
                 id="lead-source-name"
                 value={name}
@@ -160,15 +170,16 @@ export function LeadSourcesCard({ canEdit }: { canEdit: boolean }) {
               disabled={create.isPending || name.trim().length === 0}
             >
               <Plus className="mr-1.5 size-4" />
-              {create.isPending ? "Adding…" : "Add"}
+              {create.isPending
+                ? t("settings.leadSourceAdding")
+                : t("settings.addAction")}
             </Button>
           </div>
         )}
 
         {!canEdit && (
           <p className="text-xs text-muted-foreground">
-            Only owners and admins can change this list. Anyone can tag a
-            conversation with one.
+            {t("settings.leadSourcesAdminOnly")}
           </p>
         )}
       </div>
@@ -176,10 +187,9 @@ export function LeadSourcesCard({ canEdit }: { canEdit: boolean }) {
   );
 }
 
-/**
- * The fastest first source for most of this trade, so the box is never blank.
- *
- * Editable, obviously — but somebody who has never thought about attribution
- * should not have to invent a vocabulary before they can add the first entry.
+/*
+ * The suggestion in the box — `settings.leadSourceDefaultName` — is the fastest
+ * first source for most of this trade, so the field is never blank. Editable,
+ * obviously, but somebody who has never thought about attribution should not
+ * have to invent a vocabulary before they can add the first entry.
  */
-const DEFAULT_NAME = "Truck";

@@ -9,6 +9,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { useOwnership } from "@/lib/api/ownership";
 
 /**
@@ -31,6 +32,7 @@ import { useOwnership } from "@/lib/api/ownership";
  * It disappears when the state does.
  */
 export function HandoverBanner() {
+  const t = useT();
   const ownership = useOwnership();
   const pathname = usePathname();
   // Already there: a "Review" button pointing at the page you are reading is
@@ -59,7 +61,7 @@ export function HandoverBanner() {
         {handoverPromptHeadline(prompt)}
       </p>
       <Button asChild size="sm" className="shrink-0">
-        <Link href="/ownership">Review</Link>
+        <Link href="/ownership">{t("misc.ownershipReview")}</Link>
       </Button>
     </div>
   );

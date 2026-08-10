@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -32,6 +33,7 @@ import { useActiveCompany } from "@/lib/company/provider";
  * before it is touched, not after.*
  */
 export function PushContentRow() {
+  const t = useT();
   const company = useCompany();
   const update = useUpdateCompany();
   const { role } = useActiveCompany();
@@ -49,7 +51,7 @@ export function PushContentRow() {
           const message =
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't save that. Try again.";
+              : t("settingsMore.saveThatFailedRetry");
           setError(message);
           toast.error(message);
         },
@@ -62,18 +64,16 @@ export function PushContentRow() {
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-0.5">
           <Label htmlFor="push-content" className="text-sm font-medium">
-            Show message text on lock screens
+            {t("settingsMore.pushContentLabel")}
           </Label>
           <p className="text-sm text-muted-foreground">
-            Notifications show who texted and the first line of what they said,
-            so the crew can tell a lead from a &ldquo;thanks&rdquo; without
-            unlocking. Turn this off and they&apos;ll still see who it was, but
-            never what a customer wrote — useful if phones are out on the job,
-            in other people&apos;s homes.{" "}
+            {t("settingsMore.pushContentBody")}{" "}
             <span className="font-medium text-foreground">
-              This one is for the whole workspace, not just you
+              {t("settingsMore.pushContentScope")}
             </span>
-            {canEdit ? "." : " — only owners and admins can change it."}
+            {canEdit
+              ? t("settingsMore.pushContentScopeEnd")
+              : t("settingsMore.pushContentScopeOwnersOnly")}
           </p>
         </div>
         <Switch

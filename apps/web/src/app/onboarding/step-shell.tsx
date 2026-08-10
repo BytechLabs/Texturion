@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 
 import { ProgressDots } from "./progress-dots";
 
@@ -30,6 +31,7 @@ export function StepShell({
   subtitle?: string;
   children: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="space-y-8">
       <div className="flex min-h-9 items-center justify-between">
@@ -39,7 +41,7 @@ export function StepShell({
             className="inline-flex h-9 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
           >
             <ArrowLeft className="size-4" strokeWidth={1.75} aria-hidden />
-            Back
+            {t("common.back")}
           </Link>
         ) : (
           <span />
@@ -64,6 +66,7 @@ export function StepShell({
 
 /** Named skeleton while resume state loads (never a bare spinner — G1). */
 export function StepLoading() {
+  const t = useT();
   return (
     <div className="space-y-8" aria-busy="true">
       <div className="flex items-center justify-end">
@@ -77,21 +80,21 @@ export function StepLoading() {
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-10 w-full" />
       </div>
-      <p className="text-sm text-muted-foreground">Picking up where you left off…</p>
+      <p className="text-sm text-muted-foreground">{t("onboarding.resuming")}</p>
     </div>
   );
 }
 
 /** Shared retryable error state (G10: what happened + what to do). */
 export function StepError({ onRetry }: { onRetry: () => void }) {
+  const t = useT();
   return (
     <div className="flex flex-col items-center gap-4 py-16 text-center">
       <p className="text-sm text-muted-foreground">
-        We couldn&apos;t load your setup progress. Check your connection and
-        try again.
+        {t("onboarding.loadProgressFailed")}
       </p>
       <Button variant="outline" size="sm" onClick={onRetry}>
-        Try again
+        {t("common.retry")}
       </Button>
     </div>
   );

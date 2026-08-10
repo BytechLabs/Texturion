@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useT, type Translate } from "@/i18n/provider";
 import { enrichmentOutcome } from "@/lib/ai/outcome";
 import { enrichTaskFromMessage, useAiSettings } from "@/lib/api/ai-settings";
 import { reportAiOutcome } from "@/lib/api/conversations";
@@ -59,14 +60,17 @@ const EMPTY_ADDRESS: AddressFields = {
 };
 
 /** #214 provenance badge copy — only shown for AI sources (not manual/null). */
-function provenanceLabel(p: AddressProvenance | null): string | null {
+function provenanceLabel(
+  p: AddressProvenance | null,
+  t: Translate,
+): string | null {
   switch (p) {
     case "message":
-      return "From the message";
+      return t("thread.provenanceFromMessage");
     case "contact":
-      return "From the contact";
+      return t("thread.provenanceFromContact");
     case "company":
-      return "Inferred from area code";
+      return t("thread.provenanceFromAreaCode");
     default:
       return null;
   }
@@ -100,6 +104,7 @@ export function MakeTaskForm({
   conversationId: string;
   onDone: () => void;
 }) {
+  const t = useT();
   const me = useMe();
   const members = useMembers();
   const companyId = useCompanyId();
@@ -208,9 +213,9 @@ export function MakeTaskForm({
     const previousProvenance = addrProvenance;
     setAddr(EMPTY_ADDRESS);
     setAddrProvenance(null);
-    toast("Address cleared", {
+    toast(t("thread.addressCleared"), {
       action: {
-        label: "Undo",
+        label: t("thread.undo"),
         onClick: () => {
           setAddr(previousAddr);
           setAddrProvenance(previousProvenance);
@@ -223,7 +228,7 @@ export function MakeTaskForm({
   const submit = async () => {
     const trimmed = title.trim();
     if (trimmed === "") {
-      toast.error("Give the task a title.");
+      toast.error(t("thread.taskTitleRequired"));
       return;
     }
     const hasAddress = Object.values(addr).some((v) => v.trim() !== "");
@@ -260,19 +265,19 @@ export function MakeTaskForm({
         dueCleared: due === "",
       });
       if (outcome) reportAiOutcome(companyId, "enrich", outcome);
-      toast.success("Made a task from this message.");
+      toast.success(t("thread.taskCreated"));
       onDone();
     } catch (error) {
       toast.error(
         error instanceof ApiError && error.code === "conflict"
-          ? "This message is already a task."
-          : "Couldn't make a task. Try again.",
+          ? t("thread.alreadyATask")
+          : t("thread.taskCreateFailed"),
       );
     }
   };
 
   const memberOptions = members.data?.data ?? [];
-  const provLabel = provenanceLabel(addrProvenance);
+  const provLabel = provenanceLabel(addrProvenance, t);
 
   return (
     <form
@@ -283,29 +288,31 @@ export function MakeTaskForm({
       }}
     >
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="make-task-title">Task</Label>
+        <Label htmlFor="make-task-title">{t("thread.taskTitleLabel")}</Label>
         <Input
           id="make-task-title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           autoFocus
           maxLength={500}
-          placeholder="What needs doing?"
+          placeholder={t("thread.taskTitlePlaceholder")}
         />
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="make-task-assignee">Assignee</Label>
+        <Label htmlFor="make-task-assignee">{t("thread.assigneeLabel")}</Label>
         <Select value={assignee} onValueChange={setAssigneeOverride}>
           <SelectTrigger id="make-task-assignee" className="w-full">
-            <SelectValue placeholder="Unassigned" />
+            <SelectValue placeholder={t("thread.unassigned")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+            <SelectItem value={UNASSIGNED}>{t("thread.unassigned")}</SelectItem>
             {memberOptions.map((member) => (
               <SelectItem key={member.id} value={member.user_id}>
                 {member.display_name}
-                {me.data?.user_id === member.user_id ? " (you)" : ""}
+                {me.data?.user_id === member.user_id
+                  ? t("thread.youSuffix")
+                  : ""}
               </SelectItem>
             ))}
           </SelectContent>
@@ -314,10 +321,10 @@ export function MakeTaskForm({
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
-          <Label htmlFor="make-task-due">Due (optional)</Label>
+          <Label htmlFor="make-task-due">{t("thread.dueLabel")}</Label>
           {dueSuggested && (
             <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-              <AiOrb state="done" size={12} /> Suggested
+              <AiOrb state="done" size={12} /> {t("thread.suggested")}
             </span>
           )}
         </div>
@@ -343,7 +350,7 @@ export function MakeTaskForm({
             aria-expanded={addrOpen}
           >
             <MapPin className="size-4 text-muted-foreground" strokeWidth={1.75} />
-            Address
+            {t("thread.addressLabel")}
             {enriching && (
               <AiOrb state="thinking" size={14} />
             )}
@@ -365,40 +372,40 @@ export function MakeTaskForm({
         {addrOpen && (
           <div className="grid grid-cols-2 gap-2">
             <Input
-              aria-label="Street"
+              aria-label={t("thread.addrStreet")}
               className="col-span-2"
-              placeholder="Street"
+              placeholder={t("thread.addrStreet")}
               value={addr.street}
               onChange={(e) => editAddr("street", e.target.value)}
             />
             <Input
-              aria-label="Unit or suite"
-              placeholder="Unit / suite"
+              aria-label={t("thread.addrUnitAria")}
+              placeholder={t("thread.addrUnit")}
               value={addr.unit}
               onChange={(e) => editAddr("unit", e.target.value)}
             />
             <Input
-              aria-label="City"
-              placeholder="City"
+              aria-label={t("thread.addrCity")}
+              placeholder={t("thread.addrCity")}
               value={addr.city}
               onChange={(e) => editAddr("city", e.target.value)}
             />
             <Input
-              aria-label="State or province"
-              placeholder="State / province"
+              aria-label={t("thread.addrStateAria")}
+              placeholder={t("thread.addrState")}
               value={addr.state}
               onChange={(e) => editAddr("state", e.target.value)}
             />
             <Input
-              aria-label="Postal code"
-              placeholder="Postal code"
+              aria-label={t("thread.addrPostalCode")}
+              placeholder={t("thread.addrPostalCode")}
               value={addr.postal_code}
               onChange={(e) => editAddr("postal_code", e.target.value)}
             />
             <Input
-              aria-label="Country"
+              aria-label={t("thread.addrCountry")}
               className="col-span-2"
-              placeholder="Country"
+              placeholder={t("thread.addrCountry")}
               list="make-task-countries"
               autoComplete="country-name"
               value={addr.country}
@@ -416,10 +423,10 @@ export function MakeTaskForm({
                 <button
                   type="button"
                   onClick={clearAddress}
-                  aria-label="Clear address"
+                  aria-label={t("thread.clearAddress")}
                   className="rounded-md px-1.5 py-0.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  Clear address
+                  {t("thread.clearAddress")}
                 </button>
               </div>
             )}
@@ -435,10 +442,10 @@ export function MakeTaskForm({
           onClick={onDone}
           disabled={createTask.isPending}
         >
-          Cancel
+          {t("common.cancel")}
         </Button>
         <Button type="submit" size="sm" disabled={createTask.isPending}>
-          {createTask.isPending ? "Creating…" : "Create"}
+          {createTask.isPending ? t("thread.creating") : t("thread.create")}
         </Button>
       </div>
     </form>

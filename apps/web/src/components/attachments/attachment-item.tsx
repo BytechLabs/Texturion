@@ -18,6 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useT } from "@/i18n/provider";
 import {
   useAttachmentUrl,
   useReportAttachment,
@@ -145,6 +146,7 @@ function AttachmentActions({
   onRemove?: () => void;
   removing: boolean;
 }) {
+  const t = useT();
   const [confirming, setConfirming] = useState(false);
   const report = useReportAttachment();
   const label = attachmentLabel(attachment);
@@ -155,7 +157,7 @@ function AttachmentActions({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            aria-label={`Actions for ${label}`}
+            aria-label={t("misc.attachmentActionsAria", { name: label })}
             className="tap-target flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-foreground"
           >
             {removing || report.isPending ? (
@@ -168,12 +170,12 @@ function AttachmentActions({
         <DropdownMenuContent align="end">
           <DropdownMenuItem onSelect={() => setConfirming(true)}>
             <ShieldAlert className="size-4" strokeWidth={1.75} aria-hidden />
-            Report this file
+            {t("misc.reportFile")}
           </DropdownMenuItem>
           {onRemove && (
             <DropdownMenuItem onSelect={onRemove} disabled={removing}>
               <Trash2 className="size-4" strokeWidth={1.75} aria-hidden />
-              Delete
+              {t("common.delete")}
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>
@@ -181,11 +183,11 @@ function AttachmentActions({
 
       <Dialog open={confirming} onOpenChange={setConfirming}>
         <DialogContent className="max-w-md">
-          <DialogTitle>Report this file?</DialogTitle>
+          <DialogTitle>{t("misc.reportFileTitle")}</DialogTitle>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Nobody on your team will be able to open{" "}
-            <span className="text-foreground">{label}</span> until an owner or
-            admin releases it. Nothing is deleted.
+            {t("misc.reportFileBodyBefore")}{" "}
+            <span className="text-foreground">{label}</span>{" "}
+            {t("misc.reportFileBodyAfter")}
           </p>
           {report.isError && (
             <p className="text-sm text-destructive">{report.error.message}</p>
@@ -196,7 +198,7 @@ function AttachmentActions({
               onClick={() => setConfirming(false)}
               className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="button"
@@ -209,7 +211,9 @@ function AttachmentActions({
               }
               className="rounded-md bg-destructive px-3 py-2 text-sm font-medium text-white transition-colors duration-150 ease-out hover:opacity-90 disabled:opacity-50"
             >
-              {report.isPending ? "Reporting…" : "Report file"}
+              {report.isPending
+                ? t("misc.reportingFile")
+                : t("misc.reportFileAction")}
             </button>
           </div>
         </DialogContent>
@@ -233,6 +237,7 @@ function ImageAttachmentRow({
   // #240: the 40px chip gets the preview; the lightbox gets the original, and
   // only once it is opened. `size` below stays the ORIGINAL's — it is what
   // "12.4 MB" means to somebody deciding whether to open it on mobile data.
+  const t = useT();
   const url = useAttachmentUrl(attachment.id);
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
@@ -255,7 +260,7 @@ function ImageAttachmentRow({
           onClick={() => url.refetch()}
           className="text-xs underline-offset-2 hover:underline"
         >
-          Retry
+          {t("misc.retry")}
         </button>
       </div>
     );
@@ -267,7 +272,7 @@ function ImageAttachmentRow({
         type="button"
         onClick={() => setOpen(true)}
         disabled={!loaded}
-        aria-label={`Open ${label}`}
+        aria-label={t("misc.attachmentOpenAria", { name: label })}
         className="flex w-full items-center gap-3 rounded-lg border border-border bg-background px-3 py-2 text-left transition-colors duration-150 ease-out hover:bg-app-hover disabled:cursor-default"
       >
         <span className="relative size-10 shrink-0 overflow-hidden rounded-md border border-border bg-muted">
@@ -294,7 +299,7 @@ function ImageAttachmentRow({
             className="block text-[11px] tabular-nums text-muted-foreground"
             title={formatAbsoluteDateTime(attachment.created_at)}
           >
-            {subLine(["Image", size, meta])}
+            {subLine([t("misc.attachmentKindImage"), size, meta])}
           </span>
         </span>
       </button>
@@ -331,11 +336,13 @@ function FileAttachmentRow({
   // this row is PDFs and documents, which never get one — but asking for the
   // original explicitly is what keeps that true if the rule ever widens: a
   // download that quietly saved a thumbnail would be a silent data loss.
+  const t = useT();
   const url = useAttachmentUrl(attachment.id, true, "original");
   const label = attachmentLabel(attachment);
   const size = formatBytes(attachment.size_bytes);
   const typeLabel =
-    attachment.content_type?.split("/").pop()?.toUpperCase() ?? "File";
+    attachment.content_type?.split("/").pop()?.toUpperCase() ??
+    t("misc.attachmentKindFile");
 
   const fileHeld = heldReason(url.error);
   if (fileHeld) return <HeldRow label={label} reason={fileHeld} />;
@@ -352,7 +359,7 @@ function FileAttachmentRow({
           onClick={() => url.refetch()}
           className="text-xs underline-offset-2 hover:underline"
         >
-          Retry
+          {t("misc.retry")}
         </button>
       </div>
     );
@@ -403,7 +410,7 @@ function FileAttachmentRow({
       target="_blank"
       rel="noopener noreferrer"
       download={attachment.file_name ?? undefined}
-      aria-label={`Download ${label}`}
+      aria-label={t("misc.attachmentDownloadAria", { name: label })}
       className={cn(className, "hover:bg-app-hover")}
     >
       {inner}

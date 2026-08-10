@@ -34,6 +34,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useT, type Translate } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import {
@@ -50,8 +51,8 @@ import { formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
 
 /** Human date for the confirmed switch-over (no time-of-day noise). */
-function switchDate(iso: string | null): string {
-  if (!iso) return "your switch-over date";
+function switchDate(iso: string | null, t: Translate): string {
+  if (!iso) return t("settingsMore.portSwitchDateUnknown");
   return new Date(iso).toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
@@ -70,6 +71,7 @@ function StepRow({
   last: boolean;
   describe?: boolean;
 }) {
+  const t = useT();
   const { label, meaning } = PORT_STEP_COPY[step.key];
   return (
     <li className="flex gap-3">
@@ -105,10 +107,10 @@ function StepRow({
           {label}
           <span className="sr-only">
             {step.state === "done"
-              ? ", done"
+              ? t("settingsMore.portStepDone")
               : step.state === "active"
-                ? ", in progress"
-                : ", upcoming"}
+                ? t("settingsMore.portStepInProgress")
+                : t("settingsMore.portStepUpcoming")}
           </span>
         </p>
         {describe ? (
@@ -156,6 +158,7 @@ function PreCutoverChecklist() {
 
 /** Owner-only cancel (PORTING.md §3.8) — abandon a pre-completion transfer. */
 function CancelPortDialog({ port }: { port: PortRequest }) {
+  const t = useT();
   const cancel = useCancelPortRequest(port.id);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -169,15 +172,16 @@ function CancelPortDialog({ port }: { port: PortRequest }) {
         className="px-0 text-muted-foreground hover:bg-transparent hover:text-destructive"
         onClick={() => setOpen(true)}
       >
-        Cancel this transfer…
+        {t("settingsMore.portCancelAction")}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cancel the transfer of {display}?</DialogTitle>
+            <DialogTitle>
+              {t("settingsMore.portCancelTitle", { number: display })}
+            </DialogTitle>
             <DialogDescription>
-              Your number stays with your current carrier and nothing changes.
-              You can start the transfer again later.
+              {t("settingsMore.portCancelDescription")}
             </DialogDescription>
           </DialogHeader>
           {error ? (
@@ -187,7 +191,7 @@ function CancelPortDialog({ port }: { port: PortRequest }) {
           ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
-              Keep transferring
+              {t("settingsMore.portKeepTransferring")}
             </Button>
             <Button
               variant="destructive"
@@ -197,18 +201,20 @@ function CancelPortDialog({ port }: { port: PortRequest }) {
                 cancel.mutate(undefined, {
                   onSuccess: () => {
                     setOpen(false);
-                    toast.success("Transfer cancelled.");
+                    toast.success(t("settingsMore.portCancelled"));
                   },
                   onError: (cause) =>
                     setError(
                       cause instanceof ApiError
                         ? cause.message
-                        : "Couldn't cancel the transfer. Try again.",
+                        : t("settingsMore.portCancelFailed"),
                     ),
                 });
               }}
             >
-              {cancel.isPending ? "Cancelling…" : "Cancel transfer"}
+              {cancel.isPending
+                ? t("settingsMore.portCancelling")
+                : t("settingsMore.portCancelConfirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -253,6 +259,7 @@ export function PortCard({
    */
   hold?: NumberHoldState | null;
 }) {
+  const t = useT();
   const { role, companyId, membership } = useActiveCompany();
   const company = useCompany().data;
   const submit = useSubmitPortRequest(port.id);
@@ -298,12 +305,11 @@ export function PortCard({
             {display}
           </p>
           <span className="text-[13px] text-muted-foreground">
-            Transfer cancelled
+            {t("settingsMore.portCancelledPill")}
           </span>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
-          This number stayed with your previous carrier. You can start a new
-          transfer any time.
+          {t("settingsMore.portCancelledBody")}
         </p>
       </div>
     );
@@ -312,13 +318,12 @@ export function PortCard({
   function onSubmitPort() {
     setSubmitError(null);
     submit.mutate(undefined, {
-      onSuccess: () =>
-        toast.success("Transfer sent to your carrier. We'll keep you posted."),
+      onSuccess: () => toast.success(t("settingsMore.portSubmitted")),
       onError: (cause) =>
         setSubmitError(
           cause instanceof ApiError
             ? cause.message
-            : "Couldn't send the transfer. Try again in a moment.",
+            : t("settingsMore.portSubmitFailed"),
         ),
     });
   }
@@ -341,10 +346,10 @@ export function PortCard({
         </p>
         <span className="text-[13px] text-muted-foreground">
           {hold
-            ? "On hold"
+            ? t("settingsMore.portOnHold")
             : ui.live
-              ? "Live on Loonext"
-              : "Transferring to Loonext"}
+              ? t("settingsMore.portLive")
+              : t("settingsMore.portTransferring")}
         </span>
       </div>
 
@@ -430,7 +435,7 @@ export function PortCard({
         ) : port.status === "foc-date-confirmed" ||
           port.status === "activation-in-progress" ? (
           <p className="rounded-md bg-primary/5 px-3 py-2 text-sm text-muted-foreground">
-            {PORT_STATE_COPY.focConfirmed(switchDate(port.foc_date))}
+            {PORT_STATE_COPY.focConfirmed(switchDate(port.foc_date, t))}
           </p>
         ) : port.status === "in-process" || port.status === "submitted" ? (
           <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
@@ -504,18 +509,19 @@ export function PortCard({
               onClick={onSubmitPort}
               disabled={!ui.canSubmit || submit.isPending}
             >
-              {submit.isPending ? "Sending…" : "Submit transfer"}
+              {submit.isPending
+                ? t("settingsMore.portSending")
+                : t("settingsMore.portSubmitAction")}
             </Button>
             {ui.documentsPending ? (
               <p className="text-[13px] text-muted-foreground">
-                Upload your signed authorization and a recent bill above, then
-                submit the transfer.
+                {t("settingsMore.portUploadThenSubmit")}
               </p>
             ) : null}
           </div>
         ) : port.status === "draft" && !canEdit ? (
           <p className="text-sm text-muted-foreground">
-            An owner or admin uploads the documents and submits the transfer.
+            {t("settingsMore.portOwnerSubmits")}
           </p>
         ) : null}
 
@@ -526,7 +532,7 @@ export function PortCard({
           </div>
         ) : ui.exception === "voice" && !canEdit ? (
           <p className="text-sm text-muted-foreground">
-            Ask an owner or admin to fix the flagged details and resubmit.
+            {t("settingsMore.portAskOwnerToFix")}
           </p>
         ) : null}
 
@@ -558,7 +564,7 @@ export function PortCard({
               className="px-0 text-muted-foreground hover:bg-transparent hover:text-destructive"
               onClick={() => setReleasing(true)}
             >
-              Release this number…
+              {t("settingsMore.numberReleaseAction")}
             </Button>
             <ReleaseNumberDialog
               number={number}

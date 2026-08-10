@@ -5,6 +5,8 @@ import { join } from "node:path";
 
 import { INBOX_FILTER_DIMENSIONS } from "@loonext/shared";
 
+import { makeTranslate } from "@/i18n/provider";
+
 import {
   activeChips,
   applySegment,
@@ -18,7 +20,7 @@ import {
   parseInboxSearchParams,
   segmentOf,
   serializeInboxFilters,
-  STATUS_CHIP_LABELS,
+  STATUS_CHIP_KEYS,
   toConversationFilters,
   toInboxFilterState,
   unrepresentedStatus,
@@ -321,10 +323,21 @@ describe("unrepresentedStatus", () => {
   });
 
   it("has a label for every status it can return", () => {
-    // The chip renders STATUS_CHIP_LABELS[value]; a status with no entry there
+    // The chip renders t(STATUS_CHIP_KEYS[value]); a status with no entry there
     // would read "Status: undefined" on screen.
+    //
+    // #228: asserted through the CATALOGUE rather than on the map, because the
+    // map now holds keys. A key present but unnamed in the catalogue resolves
+    // to the key itself — "inbox.statusWaitingOnThem" on a chip — which is the
+    // same defect wearing a different string, so both languages are checked.
     for (const status of ["new", "open", "waiting", "closed"] as const) {
-      expect(STATUS_CHIP_LABELS[status]).toBeTruthy();
+      const key = STATUS_CHIP_KEYS[status];
+      expect(key).toBeTruthy();
+      for (const locale of ["en", "fr-CA"] as const) {
+        const label = makeTranslate(locale)(key);
+        expect(label, `${locale} ${status}`).toBeTruthy();
+        expect(label, `${locale} ${status}`).not.toBe(key);
+      }
     }
   });
 });

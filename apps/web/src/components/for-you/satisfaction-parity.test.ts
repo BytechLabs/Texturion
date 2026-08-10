@@ -15,6 +15,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { inboxEn } from "@/i18n/sections/inbox";
 import { stripComments } from "@/test/source-tree";
 
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
@@ -28,6 +29,18 @@ const SOURCES: Record<string, string> = {
   ),
   ios: join(REPO_ROOT, "apps/ios/Loonext/Features/ForYou/SatisfactionCard.swift"),
 };
+
+/**
+ * #228: web's own sentences (the ones NOT coming from `SATISFACTION_COPY`) now
+ * live in the catalogue, so web is checked against its card + the shared module
+ * + these values. The phones are unchanged — they are still the two hand-ports
+ * the guard exists for.
+ *
+ * The VALUES, not the section file's text, and found by breaking it: the key
+ * `satisfactionAsked:` contains the fragment "Asked", so a reworded label
+ * matched its own identifier and this stayed green. A copy guard reads copy.
+ */
+const WEB_COPY = Object.values(inboxEn).join("\n");
 
 /** Sentences that live on the CARD in all three clients. */
 const CARD_FRAGMENTS: readonly string[] = [
@@ -90,6 +103,7 @@ describe("#313 satisfaction copy is the same on every client", () => {
       const text = readFileSync(path, "utf8");
       expect(text.length, platform).toBeGreaterThan(1000);
     }
+    expect(WEB_COPY.length).toBeGreaterThan(1000);
   });
 
   it("carries every card sentence on every client, verbatim", () => {
@@ -99,11 +113,24 @@ describe("#313 satisfaction copy is the same on every client", () => {
     // working rather than a hole in it: web has no hand-port, so a sentence it
     // renders from `SATISFACTION_COPY` is by construction the canonical one.
     // What this guard is actually for is the two ports that could drift.
-    const shared = readFileSync(SOURCES.shared, "utf8");
+    //
+    // COMMENTS ARE STRIPPED, and that is not tidiness. Found by breaking this:
+    // web's "Asked" was satisfied by a docblock in the shared module — *"Asked,
+    // nobody answered yet"* — so renaming the card's label to "Requested" left
+    // this green. Before #228 the card ALSO held the literal, so the hole was
+    // covered by accident; moving the word to the catalogue made the comment
+    // the only thing holding it up. It is the same defect #519 found across
+    // this file's siblings, on the copy half rather than the code half.
+    const shared = codeOnly(SOURCES.shared);
     for (const platform of CLIENTS) {
+      // Web is the shared module + the catalogue's values, and NOT its own
+      // source: the card calls `t("inbox.satisfactionAsked")`, whose key
+      // contains the fragment "Asked", so including the file made a reworded
+      // label match its own identifier. The phones keep their whole file.
       const text =
-        readFileSync(SOURCES[platform], "utf8") +
-        (platform === "web" ? shared : "");
+        platform === "web"
+          ? `${shared}\n${WEB_COPY}`
+          : codeOnly(SOURCES[platform]);
       for (const fragment of [...CARD_FRAGMENTS, ...GAP_FRAGMENTS]) {
         if (!text.includes(fragment)) missing.push(`${platform}: ${fragment}`);
       }

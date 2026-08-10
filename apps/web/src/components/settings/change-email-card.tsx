@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -17,15 +17,24 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { useT, type Translate } from "@/i18n/provider";
 import { authErrorMessage } from "@/lib/auth/messages";
 import { isApplePrivateRelay } from "@/lib/auth/identities";
 import { isEmailChanged } from "@/lib/auth/reauth";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
-const schema = z.object({
-  email: z.email("Enter a valid email address."),
-});
-type Values = z.infer<typeof schema>;
+/*
+ * A factory rather than a module-level constant, because the validation message
+ * is copy: the reader sees it under the field, so it belongs in the catalogue
+ * like every other sentence. The type comes from the factory's return, so
+ * nothing about the form's typing depends on which locale built it.
+ */
+function makeSchema(t: Translate) {
+  return z.object({
+    email: z.email(t("settings.emailInvalid")),
+  });
+}
+type Values = z.infer<ReturnType<typeof makeSchema>>;
 
 /**
  * Change email (D18 / APP-FEATURES-V2 §1.5). supabase.auth.updateUser({ email })
@@ -39,9 +48,11 @@ type Values = z.infer<typeof schema>;
  * password" in the card below).
  */
 export function ChangeEmailCard({ email }: { email: string | null }) {
+  const t = useT();
   const relay = isApplePrivateRelay(email);
   const [sent, setSent] = useState(false);
 
+  const schema = useMemo(() => makeSchema(t), [t]);
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: { email: "" },
@@ -56,7 +67,7 @@ export function ChangeEmailCard({ email }: { email: string | null }) {
 
   async function onSubmit(values: Values) {
     if (!isEmailChanged(email, values.email)) {
-      form.setError("email", { message: "That's already your email address." });
+      form.setError("email", { message: t("settings.emailAlreadyYours") });
       return;
     }
     const { error } = await getSupabaseBrowser().auth.updateUser({
@@ -72,15 +83,14 @@ export function ChangeEmailCard({ email }: { email: string | null }) {
   if (relay) {
     return (
       <SettingsCard
-        title="Email"
-        description="The address we use to reach you."
+        title={t("settings.emailCardTitle")}
+        description={t("settings.emailCardDescription")}
       >
         <p className="text-sm">
           <span className="font-medium">{email}</span>
         </p>
         <p className="mt-1 text-sm text-muted-foreground">
-          Email is routed through Apple. To sign in on another device, set a
-          password below.
+          {t("settings.emailRelayNote")}
         </p>
       </SettingsCard>
     );
@@ -88,17 +98,16 @@ export function ChangeEmailCard({ email }: { email: string | null }) {
 
   return (
     <SettingsCard
-      title="Email"
+      title={t("settings.emailCardTitle")}
       description={
-        email ? `You're signed in as ${email}.` : "Add an email to your account."
+        email
+          ? t("settings.emailSignedInAs", { email })
+          : t("settings.emailAddOne")
       }
     >
       {sent ? (
         <div className="space-y-2" role="status" aria-live="polite">
-          <p className="text-sm">
-            We&apos;ve emailed both your old and new address. Confirm from each
-            to finish the change.
-          </p>
+          <p className="text-sm">{t("settings.emailChangeSent")}</p>
           <Button
             variant="outline"
             size="sm"
@@ -107,7 +116,7 @@ export function ChangeEmailCard({ email }: { email: string | null }) {
               form.reset({ email: "" });
             }}
           >
-            Change a different address
+            {t("settings.emailChangeAnother")}
           </Button>
         </div>
       ) : (
@@ -125,7 +134,9 @@ export function ChangeEmailCard({ email }: { email: string | null }) {
               name="email"
               render={({ field }) => (
                 <FormItem className="flex-1">
-                  <FormLabel className="sr-only">New email</FormLabel>
+                  <FormLabel className="sr-only">
+                    {t("settings.emailNewLabel")}
+                  </FormLabel>
                   <FormControl>
                     <Input
                       type="email"
@@ -136,8 +147,7 @@ export function ChangeEmailCard({ email }: { email: string | null }) {
                     />
                   </FormControl>
                   <FormDescription>
-                    We&apos;ll ask you to confirm from both your old and new
-                    inbox.
+                    {t("settings.emailConfirmBoth")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -148,7 +158,9 @@ export function ChangeEmailCard({ email }: { email: string | null }) {
               disabled={form.formState.isSubmitting}
               className="sm:self-start"
             >
-              {form.formState.isSubmitting ? "Sending…" : "Change email"}
+              {form.formState.isSubmitting
+                ? t("settings.emailSending")
+                : t("settings.emailChangeAction")}
             </Button>
           </form>
         </Form>

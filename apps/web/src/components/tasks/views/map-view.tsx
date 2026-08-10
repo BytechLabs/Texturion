@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/settings/section";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { useGeocodeProgress, useAllTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
 import type { Task } from "@/lib/api/types";
@@ -42,6 +43,7 @@ const MapIsland = dynamic(() => import("./map-island").then((m) => m.MapIsland),
  * quiet "N without a location" count instead of blocking the view.
  */
 export function MapView({ state }: { state: TaskPageState }) {
+  const t = useT();
   // `has_location=true` narrows to tasks whose contact has cached coords (the
   // frozen route uses the geocode to filter; `taskCoords` plots whatever
   // coordinates the row actually carries and counts the rest as unlocated).
@@ -61,7 +63,7 @@ export function MapView({ state }: { state: TaskPageState }) {
 
   const requestNearMe = () => {
     if (!("geolocation" in navigator)) {
-      setGeoError("Your browser can't share a location.");
+      setGeoError(t("tasks.mapGeoUnsupported"));
       return;
     }
     setLocating(true);
@@ -73,7 +75,7 @@ export function MapView({ state }: { state: TaskPageState }) {
         setLocating(false);
       },
       () => {
-        setGeoError("We couldn't get your location. Check your browser's permission.");
+        setGeoError(t("tasks.mapGeoFailed"));
         setLocating(false);
       },
       { enableHighAccuracy: false, timeout: 10_000 },
@@ -92,7 +94,7 @@ export function MapView({ state }: { state: TaskPageState }) {
     return (
       <div className="px-1 py-8">
         <LoadError
-          message="We couldn't load the map. Check your connection and try again."
+          message={t("tasks.mapLoadFailed")}
           onRetry={() => void query.refetch()}
         />
       </div>
@@ -112,10 +114,10 @@ export function MapView({ state }: { state: TaskPageState }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
           <MapPin className="size-3.5" strokeWidth={1.75} aria-hidden />
-          <span className="tabular-nums">{located.length}</span> on the map
+          <span className="tabular-nums">{located.length}</span> {t("tasks.mapOnTheMap")}
           {missing > 0 && (
             <span className="text-muted-foreground/80">
-              · <span className="tabular-nums">{missing}</span> without a location
+              · <span className="tabular-nums">{missing}</span> {t("tasks.mapWithoutLocation")}
             </span>
           )}
         </p>
@@ -128,15 +130,17 @@ export function MapView({ state }: { state: TaskPageState }) {
             role="status"
             className="basis-full text-[13px] leading-relaxed text-muted-foreground"
           >
-            Still locating <span className="tabular-nums">{pendingGeocodes}</span>{" "}
-            {pendingGeocodes === 1 ? "address" : "addresses"}. Addresses are looked
-            up a few hundred at a time, so a big import can take a few hours to
-            finish plotting.
+            {t("tasks.mapStillLocating")}{" "}
+            <span className="tabular-nums">{pendingGeocodes}</span>{" "}
+            {pendingGeocodes === 1
+              ? t("tasks.mapAddressOne")
+              : t("tasks.mapAddressMany")}
+            . {t("tasks.mapGeocodeBacklogNote")}
           </p>
         )}
         <Button variant="outline" size="sm" onClick={requestNearMe} disabled={locating}>
           <Navigation className="size-3.5" strokeWidth={1.75} aria-hidden />
-          {locating ? "Locating…" : "Near me"}
+          {locating ? t("tasks.mapLocating") : t("tasks.mapNearMe")}
         </Button>
       </div>
       {geoError && (
@@ -148,8 +152,7 @@ export function MapView({ state }: { state: TaskPageState }) {
         <div className="flex h-[320px] flex-col items-center justify-center gap-2 rounded-xl border border-border bg-secondary/20 text-center">
           <MapPin className="size-6 text-muted-foreground" strokeWidth={1.75} aria-hidden />
           <p className="max-w-xs text-[13px] text-muted-foreground">
-            None of these tasks have a mapped address yet. Add an address to a
-            contact and it appears here once geocoded.
+            {t("tasks.mapNoMappedAddress")}
           </p>
         </div>
       ) : (

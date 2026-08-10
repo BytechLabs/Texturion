@@ -2,6 +2,7 @@
 
 import { X } from "lucide-react";
 
+import { useT } from "@/i18n/provider";
 import { useContactFields } from "@/lib/api/contact-fields";
 import type { ContactFieldFilter } from "@/lib/api/contacts";
 
@@ -36,6 +37,7 @@ export function ContactFilter({
   value?: ContactFieldFilter;
   onChange: (next: ContactFieldFilter | undefined) => void;
 }) {
+  const t = useT();
   const fields = useContactFields();
 
   // Only the kinds with a closed set of answers. A text or number field would
@@ -52,7 +54,7 @@ export function ContactFilter({
   return (
     <div className="flex flex-wrap items-center gap-2">
       <label className="sr-only" htmlFor="contact-filter-field">
-        Narrow by
+        {t("contacts.filterNarrowBy")}
       </label>
       <select
         id="contact-filter-field"
@@ -70,7 +72,7 @@ export function ContactFilter({
         }}
         className="h-9 rounded-app-ctrl border border-app-line bg-app-paper px-2 text-[13px] text-app-ink"
       >
-        <option value="">Everyone</option>
+        <option value="">{t("contacts.filterEveryone")}</option>
         {filterable.map((field) => (
           <option key={field.key} value={field.key}>
             {field.label}
@@ -93,14 +95,14 @@ export function ContactFilter({
           >
             {/* The most useful filter of the lot: exactly the customers
                 somebody still has to ask. */}
-            <option value="">Not set</option>
+            <option value="">{t("contacts.notSet")}</option>
             {active.kind === "checkbox"
               ? [
                   <option key="yes" value="yes">
-                    Yes
+                    {t("contacts.yes")}
                   </option>,
                   <option key="no" value="no">
-                    No
+                    {t("contacts.no")}
                   </option>,
                 ]
               : (active.options ?? []).map((choice) => (
@@ -111,7 +113,7 @@ export function ContactFilter({
           </select>
           <button
             type="button"
-            aria-label="Show everyone again"
+            aria-label={t("contacts.filterShowEveryone")}
             onClick={() => onChange(undefined)}
             className="tap-target rounded-app-ctrl px-2 py-1 text-[12px] text-app-muted-2 transition-colors duration-150 hover:bg-app-line-soft hover:text-app-ink"
           >

@@ -1,6 +1,8 @@
 import { ChevronRight, Lock } from "lucide-react";
 
-import { type PaymentRequestState } from "@loonext/shared";
+import { DEFAULT_LOCALE, isLocale, type PaymentRequestState } from "@loonext/shared";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
 
 /**
  * #224 — the page a homeowner opens after a text asking them to pay.
@@ -45,6 +47,7 @@ export function PaymentPage({
   description,
   state,
   payUrl,
+  locale,
   notAvailable = false,
 }: {
   businessName?: string;
@@ -53,17 +56,27 @@ export function PaymentPage({
   description?: string;
   state?: PaymentRequestState;
   payUrl?: string | null;
+  /**
+   * #228: the BUSINESS's language, sent by the API.
+   *
+   * Not the reader's device and not ours. The person opening this has a
+   * relationship with the tradesperson, and a Quebec crew's customer meeting an
+   * English payment page is the Bill 96 problem in miniature. There is no
+   * provider here — this renders outside the app shell, for somebody with no
+   * account — so the lookup is built directly rather than taken from context.
+   */
+  locale?: string;
   notAvailable?: boolean;
 }) {
+  const t = makeTranslate(isLocale(locale) ? locale : DEFAULT_LOCALE);
   if (notAvailable || !state || !amount) {
     return (
       <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
         <h1 className="text-xl font-semibold tracking-tight">
-          This link isn&apos;t available
+          {t("payments.linkUnavailableTitle")}
         </h1>
         <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
-          It may have expired, or already been paid. Ask the business for a new
-          one — and never send money to a link you were not expecting.
+          {t("payments.linkUnavailableDetail")}
         </p>
       </main>
     );
@@ -73,10 +86,10 @@ export function PaymentPage({
     return (
       <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
         <h1 className="text-xl font-semibold tracking-tight">
-          {settledHeading(state)}
+          {settledHeading(state, t)}
         </h1>
         <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
-          {settledDetail(state, businessName ?? "the business", amount)}
+          {settledDetail(state, businessName ?? t("payments.theBusiness"), amount, t)}
         </p>
       </main>
     );
@@ -86,7 +99,9 @@ export function PaymentPage({
     <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
       {/* WHO is asking, first and largest of the three facts — a payment
           request from an unnamed sender is a phishing text. */}
-      <p className="text-[15px] text-muted-foreground">{businessName} asks for</p>
+      <p className="text-[15px] text-muted-foreground">
+        {t("payments.asksFor", { business: businessName ?? "" })}
+      </p>
       {/* HOW MUCH. The one number on the page, at the one size nobody can
           mistake. Optical, not mathematical: tracking is tightened because
           large numerals read loose at this weight. */}
@@ -102,7 +117,7 @@ export function PaymentPage({
         href={payUrl}
         className="mt-8 inline-flex min-h-[52px] items-center justify-center gap-1 rounded-app-ctrl bg-primary px-6 text-[16px] font-medium text-primary-foreground transition-colors duration-150 ease-out hover:opacity-90"
       >
-        Pay {amount}
+        {t("payments.payAmount", { amount })}
         {/* A right chevron: the action continues somewhere, and saying so
             before the tap is what stops the next page feeling like a redirect
             they did not agree to. */}
@@ -112,8 +127,7 @@ export function PaymentPage({
       <p className="mt-4 flex items-start gap-1.5 text-[13px] leading-relaxed text-muted-foreground">
         <Lock className="mt-0.5 size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
         <span>
-          Card details are handled by Stripe. {businessName} receives the
-          payment directly — nobody else holds your card.
+          {t("payments.cardHandledByStripe", { business: businessName ?? "" })}
         </span>
       </p>
     </main>
@@ -121,18 +135,21 @@ export function PaymentPage({
 }
 
 /** The heading for a request that is no longer payable. */
-export function settledHeading(state: PaymentRequestState): string {
+export function settledHeading(
+  state: PaymentRequestState,
+  t: Translate,
+): string {
   switch (state) {
     case "paid":
     case "refunded":
     case "disputed":
-      return "This has been paid";
+      return t("payments.settledPaidTitle");
     case "cancelled":
-      return "This request was cancelled";
+      return t("payments.settledCancelledTitle");
     case "expired":
-      return "This request has expired";
+      return t("payments.settledExpiredTitle");
     case "requested":
-      return "This link isn't available";
+      return t("payments.linkUnavailableTitle");
   }
 }
 
@@ -141,17 +158,18 @@ export function settledDetail(
   state: PaymentRequestState,
   businessName: string,
   amount: string,
+  t: Translate,
 ): string {
   switch (state) {
     case "paid":
     case "refunded":
     case "disputed":
-      return `${businessName} has received ${amount}. Your receipt was emailed to you by Stripe. Nothing else is needed.`;
+      return t("payments.settledPaidDetail", { business: businessName, amount });
     case "cancelled":
-      return `${businessName} called this request off. If you were expecting to pay, message them and they can send a new one.`;
+      return t("payments.settledCancelledDetail", { business: businessName });
     case "expired":
-      return `This request was for ${amount} and is no longer open. Ask ${businessName} for a new link.`;
+      return t("payments.settledExpiredDetail", { business: businessName, amount });
     case "requested":
-      return "Ask the business to send you a new one.";
+      return t("payments.askForANewOne");
   }
 }

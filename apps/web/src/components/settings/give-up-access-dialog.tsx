@@ -6,6 +6,7 @@ import {
   selfDowngradeWarning,
 } from "@loonext/shared";
 
+import { useT } from "@/i18n/provider";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -51,6 +52,7 @@ export function GiveUpAccessDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const t = useT();
   // The warning comes from the shared rule, so the three clients and the server
   // agree about what a role costs — see packages/shared/src/self-downgrade.ts.
   const warning = to ? selfDowngradeWarning(from, to) : null;
@@ -59,15 +61,22 @@ export function GiveUpAccessDialog({
     <Dialog open={to !== null} onOpenChange={(open) => !open && onCancel()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Give up your own access?</DialogTitle>
+          <DialogTitle>{t("settings.giveUpAccessTitle")}</DialogTitle>
           <DialogDescription>{warning}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="ghost" onClick={onCancel} disabled={pending}>
-            Keep my access
+            {t("settings.giveUpAccessKeep")}
           </Button>
           <Button variant="destructive" onClick={onConfirm} disabled={pending}>
-            {pending ? "Changing…" : `Make me a ${to}`}
+            {pending
+              ? t("settings.giveUpAccessChanging")
+              : t("settings.giveUpAccessMakeMe", {
+                  role:
+                    to === "admin"
+                      ? t("settings.roleAdminWord")
+                      : t("settings.roleMemberWord"),
+                })}
           </Button>
         </DialogFooter>
       </DialogContent>

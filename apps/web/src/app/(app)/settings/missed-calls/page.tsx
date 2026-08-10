@@ -32,6 +32,7 @@ import {
   usTextingOff,
 } from "@/components/thread/composer-banner";
 import { Textarea } from "@/components/ui/textarea";
+import { useT, type Translate } from "@/i18n/provider";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useUsage } from "@/lib/api/usage";
@@ -52,8 +53,9 @@ function defaultGreeting(businessName: string): string {
 const CNAM_RE = /^[A-Za-z0-9 ]{1,15}$/;
 
 function CallingSkeleton() {
+  const t = useT();
   return (
-    <div className="space-y-4" aria-label="Loading calling settings">
+    <div className="space-y-4" aria-label={t("appShell.callingLoading")}>
       <Skeleton className="h-72 w-full rounded-lg" />
       <Skeleton className="h-40 w-full rounded-lg" />
       <Skeleton className="h-40 w-full rounded-lg" />
@@ -75,6 +77,7 @@ function TextBackCard({
   company: CompanyView;
   canEdit: boolean;
 }) {
+  const t = useT();
   const update = useUpdateCompany();
   const [enabled, setEnabled] = useState(company.mctb_enabled);
   const [message, setMessage] = useState(company.mctb_message ?? "");
@@ -129,7 +132,7 @@ function TextBackCard({
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't save. Try again.",
+              : t("appShell.saveFailed"),
           );
         },
       },
@@ -155,7 +158,7 @@ function TextBackCard({
             setError(
               cause instanceof ApiError
                 ? cause.message
-                : "Couldn't save. Try again.",
+                : t("appShell.saveFailed"),
             ),
         },
       );
@@ -174,19 +177,17 @@ function TextBackCard({
 
   return (
     <SettingsCard
-      title="Text back a missed call"
-      description="When a call to your business number goes unanswered, we send the caller one text so they can book by reply, instead of calling the next number on their list."
+      title={t("appShell.mctbTitle")}
+      description={t("appShell.mctbDescription")}
     >
       <div className="space-y-5">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-0.5">
             <Label htmlFor="mctb-enabled" className="text-sm font-medium">
-              Text back missed calls
+              {t("appShell.mctbEnabledLabel")}
             </Label>
             <p className="text-sm text-muted-foreground">
-              Fires once per caller when a call goes unanswered. A caller who
-              dials you started the conversation, so this reply is always
-              allowed. Opted-out numbers are never texted.
+              {t("appShell.mctbEnabledBody")}
             </p>
           </div>
           <Switch
@@ -204,8 +205,8 @@ function TextBackCard({
         {enabled && !usSendApproved(company) ? (
           <p className="rounded-md bg-warning/10 px-3 py-2 text-sm">
             {usTextingOff(company)
-              ? "Callers with US numbers won't get this text: US texting isn't on for this workspace. Canadian callers get it now."
-              : "Callers with US numbers won't get this text until your registration is approved. Canadian callers get it now."}
+              ? t("appShell.mctbUsTextingOff")
+              : t("appShell.mctbUsPendingApproval")}
           </p>
         ) : null}
 
@@ -214,7 +215,7 @@ function TextBackCard({
             <div className="space-y-2">
               <div className="flex items-baseline justify-between gap-3">
                 <Label htmlFor="mctb-message" className="text-sm font-medium">
-                  Your text-back message
+                  {t("appShell.mctbMessageLabel")}
                 </Label>
                 <p
                   aria-live="polite"
@@ -223,7 +224,11 @@ function TextBackCard({
                     (update.isPending || saved ? "opacity-100" : "opacity-0")
                   }
                 >
-                  {update.isPending ? "Saving…" : saved ? "Saved" : ""}
+                  {update.isPending
+                    ? t("common.saving")
+                    : saved
+                      ? t("common.saved")
+                      : ""}
                 </p>
               </div>
               <Textarea
@@ -236,18 +241,17 @@ function TextBackCard({
                 onChange={(e) => onChangeMessage(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Saves as you type. Leave it empty to send the default, or
-                write your own with{" "}
+                {t("appShell.mctbMergeHintBefore")}{" "}
                 <code className="rounded bg-secondary px-1 py-0.5">
                   {"{business_name}"}
                 </code>
-                .
+                {t("appShell.mctbMergeHintAfter")}
               </p>
             </div>
 
             <div className="space-y-1.5">
               <p className="text-xs font-medium text-muted-foreground">
-                What the caller gets
+                {t("appShell.mctbPreviewLabel")}
               </p>
               <div
                 aria-live="polite"
@@ -266,7 +270,7 @@ function TextBackCard({
         )}
         {!canEdit && (
           <p className="text-xs text-muted-foreground">
-            Only owners and admins can change the missed-call text-back.
+            {t("appShell.mctbOwnersOnly")}
           </p>
         )}
       </div>
@@ -282,6 +286,7 @@ function VoicemailCard({
   company: CompanyView;
   canEdit: boolean;
 }) {
+  const t = useT();
   const update = useUpdateCompany();
   const [greeting, setGreeting] = useState(company.voicemail_greeting ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -300,12 +305,12 @@ function VoicemailCard({
     update.mutate(
       { voicemail_greeting: trimmed.length > 0 ? trimmed : null },
       {
-        onSuccess: () => toast.success("Voicemail greeting saved."),
+        onSuccess: () => toast.success(t("appShell.voicemailGreetingSaved")),
         onError: (cause) =>
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't save. Try again.",
+              : t("appShell.saveFailed"),
           ),
       },
     );
@@ -313,13 +318,15 @@ function VoicemailCard({
 
   return (
     <SettingsCard
-      title="Voicemail"
-      description="When nobody answers in the app, the caller hears this greeting and can leave a message up to two minutes. Voicemails land in the call log and the caller's conversation, ready to play."
+      title={t("appShell.voicemailTitle")}
+      description={t("appShell.voicemailDescription")}
       footer={
         canEdit ? (
           <div className="flex items-center justify-end">
             <Button onClick={save} disabled={!dirty || update.isPending}>
-              {update.isPending ? "Saving…" : "Save greeting"}
+              {update.isPending
+                ? t("common.saving")
+                : t("appShell.voicemailSaveAction")}
             </Button>
           </div>
         ) : undefined
@@ -328,7 +335,7 @@ function VoicemailCard({
       <div className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="vm-greeting" className="text-sm font-medium">
-            Your greeting
+            {t("appShell.voicemailGreetingLabel")}
           </Label>
           <Textarea
             id="vm-greeting"
@@ -340,12 +347,12 @@ function VoicemailCard({
             onChange={(e) => setGreeting(e.target.value)}
           />
           <p className="text-xs text-muted-foreground">
-            Spoken aloud to the caller. Leave it empty to use the default.
+            {t("appShell.voicemailGreetingHint")}
           </p>
         </div>
         <div className="space-y-1.5">
           <p className="text-xs font-medium text-muted-foreground">
-            What callers hear
+            {t("appShell.voicemailPreviewLabel")}
           </p>
           <div
             aria-live="polite"
@@ -361,7 +368,7 @@ function VoicemailCard({
         )}
         {!canEdit && (
           <p className="text-xs text-muted-foreground">
-            Only owners and admins can change the voicemail greeting.
+            {t("appShell.voicemailOwnersOnly")}
           </p>
         )}
       </div>
@@ -369,29 +376,34 @@ function VoicemailCard({
   );
 }
 
-const SCREENING_CHOICES: {
+/**
+ * A function of `t` rather than a module constant: the three options are read
+ * by a person, so they belong to the reader's language and cannot be resolved
+ * before a component is mounted. The VALUES are the wire's and never move.
+ */
+function screeningChoices(t: Translate): {
   value: CompanyView["call_screening"];
   label: string;
   detail: string;
-}[] = [
-  {
-    value: "off",
-    label: "Off",
-    detail: "Every call rings the team, no labels.",
-  },
-  {
-    value: "flag",
-    label: "Label suspicious calls",
-    detail:
-      "The carrier's verdict shows on the call — “Spam likely” — but every call still rings the team.",
-  },
-  {
-    value: "divert",
-    label: "Send suspicious calls to voicemail",
-    detail:
-      "Flagged callers skip the ring and go straight to voicemail. A real customer who gets misflagged can still leave a message.",
-  },
-];
+}[] {
+  return [
+    {
+      value: "off",
+      label: t("appShell.screeningOffLabel"),
+      detail: t("appShell.screeningOffDetail"),
+    },
+    {
+      value: "flag",
+      label: t("appShell.screeningFlagLabel"),
+      detail: t("appShell.screeningFlagDetail"),
+    },
+    {
+      value: "divert",
+      label: t("appShell.screeningDivertLabel"),
+      detail: t("appShell.screeningDivertDetail"),
+    },
+  ];
+}
 
 /** D43: carrier call screening — off / flag (label) / divert (voicemail). */
 function ScreeningCard({
@@ -401,6 +413,8 @@ function ScreeningCard({
   company: CompanyView;
   canEdit: boolean;
 }) {
+  const t = useT();
+  const choices = screeningChoices(t);
   const update = useUpdateCompany();
   const [error, setError] = useState<string | null>(null);
   const radioRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -422,13 +436,13 @@ function ScreeningCard({
     update.mutate(
       { call_screening: value },
       {
-        onSuccess: () => toast.success("Call screening updated."),
+        onSuccess: () => toast.success(t("appShell.screeningUpdated")),
         onError: (cause) => {
           setPending(null); // revert the optimistic selection
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't save. Try again.",
+              : t("appShell.saveFailed"),
           );
         },
       },
@@ -437,7 +451,7 @@ function ScreeningCard({
 
   // WAI-ARIA radiogroup keyboard contract: Arrow keys move focus AND selection
   // across the options (with roving tabindex, one Tab stop for the whole group).
-  const currentIndex = SCREENING_CHOICES.findIndex(
+  const currentIndex = choices.findIndex(
     (choice) => choice.value === activeScreening,
   );
   function onKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
@@ -447,32 +461,32 @@ function ScreeningCard({
     switch (event.key) {
       case "ArrowDown":
       case "ArrowRight":
-        next = (from + 1) % SCREENING_CHOICES.length;
+        next = (from + 1) % choices.length;
         break;
       case "ArrowUp":
       case "ArrowLeft":
-        next = (from - 1 + SCREENING_CHOICES.length) % SCREENING_CHOICES.length;
+        next = (from - 1 + choices.length) % choices.length;
         break;
       default:
         return;
     }
     event.preventDefault();
     radioRefs.current[next]?.focus();
-    choose(SCREENING_CHOICES[next].value);
+    choose(choices[next].value);
   }
 
   return (
     <SettingsCard
-      title="Call screening"
-      description="The phone network scores incoming calls for spam and fraud. Choose what happens with that verdict."
+      title={t("appShell.screeningTitle")}
+      description={t("appShell.screeningDescription")}
     >
       <div
         role="radiogroup"
-        aria-label="Call screening"
+        aria-label={t("appShell.screeningTitle")}
         onKeyDown={onKeyDown}
         className="space-y-2"
       >
-        {SCREENING_CHOICES.map((choice, i) => {
+        {choices.map((choice, i) => {
           const selected = activeScreening === choice.value;
           return (
             <button
@@ -508,7 +522,7 @@ function ScreeningCard({
       )}
       {!canEdit && (
         <p className="mt-3 text-xs text-muted-foreground">
-          Only owners and admins can change call screening.
+          {t("appShell.screeningOwnersOnly")}
         </p>
       )}
     </SettingsCard>
@@ -550,6 +564,7 @@ function CallerIdCard({
   company: CompanyView;
   canEdit: boolean;
 }) {
+  const t = useT();
   const update = useUpdateCompany();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -577,9 +592,7 @@ function CallerIdCard({
   function review(next: string | null) {
     setError(null);
     if (next !== null && !CNAM_RE.test(next)) {
-      setError(
-        "The display name can use letters, digits, and spaces, 15 characters max (a carrier rule).",
-      );
+      setError(t("appShell.cnamInvalid"));
       return;
     }
     if (next === company.cnam_display_name) {
@@ -597,13 +610,13 @@ function CallerIdCard({
         onSuccess: () => {
           setEditing(false);
           setConfirming(undefined);
-          toast.success("Caller ID update submitted to carriers.");
+          toast.success(t("appShell.cnamSubmitted"));
         },
         onError: (cause) =>
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't save. Try again.",
+              : t("appShell.saveFailed"),
           ),
       },
     );
@@ -618,7 +631,7 @@ function CallerIdCard({
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't save. Try again.",
+              : t("appShell.saveFailed"),
           ),
       },
     );
@@ -626,34 +639,36 @@ function CallerIdCard({
 
   return (
     <SettingsCard
-      title="Caller ID"
-      description="What people see when you call them, and what you see when they call you."
+      title={t("appShell.cnamTitle")}
+      description={t("appShell.cnamDescription")}
     >
       <div className="space-y-5">
         <div className="space-y-2">
-          <p className="text-sm font-medium">Your outbound display name</p>
+          <p className="text-sm font-medium">
+            {t("appShell.cnamOutboundHeading")}
+          </p>
           <div className="flex items-center justify-between gap-4 rounded-md border border-border-subtle bg-accent/40 px-3 py-2.5">
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">
-                {company.caller_id_effective ?? "No display name"}
+                {company.caller_id_effective ?? t("appShell.cnamNoDisplayName")}
               </p>
               <p className="text-xs text-muted-foreground">
                 {usingCompanyName
-                  ? "Using your company name"
-                  : "Custom display name"}
+                  ? t("appShell.cnamUsingCompanyName")
+                  : t("appShell.cnamCustomName")}
               </p>
             </div>
             {canEdit && !editing && (
               <Button variant="outline" size="sm" onClick={beginEdit}>
-                Change
+                {t("appShell.cnamChange")}
               </Button>
             )}
           </div>
           {pending && company.cnam_submitted_at && (
             <p className="text-xs text-muted-foreground" aria-live="polite">
-              Update submitted{" "}
-              {formatAbsoluteDateTime(company.cnam_submitted_at)}. Carriers
-              usually show the new name within 1 to 3 days.
+              {t("appShell.cnamPendingNotice", {
+                when: formatAbsoluteDateTime(company.cnam_submitted_at),
+              })}
             </p>
           )}
         </div>
@@ -661,7 +676,7 @@ function CallerIdCard({
         {editing && confirming === undefined && (
           <div className="space-y-2">
             <Label htmlFor="cnam-name" className="text-sm font-medium">
-              New display name
+              {t("appShell.cnamNewNameLabel")}
             </Label>
             <Input
               id="cnam-name"
@@ -672,9 +687,7 @@ function CallerIdCard({
               onChange={(e) => setDraft(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Shown on US caller ID when you call customers. Letters, digits,
-              and spaces, 15 characters max. Canadian display names are set by
-              the receiving carrier, so this mainly helps your US calls.
+              {t("appShell.cnamNewNameHint")}
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -682,7 +695,7 @@ function CallerIdCard({
                 disabled={update.isPending || draft.trim().length === 0}
                 onClick={() => review(draft.trim())}
               >
-                Review change
+                {t("appShell.cnamReviewChange")}
               </Button>
               {!usingCompanyName && (
                 <Button
@@ -691,7 +704,7 @@ function CallerIdCard({
                   disabled={update.isPending}
                   onClick={() => review(null)}
                 >
-                  Use company name instead
+                  {t("appShell.cnamUseCompanyName")}
                 </Button>
               )}
               <Button
@@ -700,7 +713,7 @@ function CallerIdCard({
                 disabled={update.isPending}
                 onClick={() => setEditing(false)}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
             </div>
           </div>
@@ -709,21 +722,25 @@ function CallerIdCard({
         {confirming !== undefined && (
           <div
             role="alertdialog"
-            aria-label="Confirm caller ID change"
+            aria-label={t("appShell.cnamConfirmAria")}
             className="space-y-3 rounded-md border border-border-subtle px-3 py-2.5"
           >
             <p className="text-sm">
-              Update your caller ID to{" "}
+              {t("appShell.cnamConfirmBefore")}{" "}
               <span className="font-medium">&quot;{confirmTarget}&quot;</span>
-              {confirming === null ? " (your company name)" : ""}?
+              {confirming === null
+                ? t("appShell.cnamConfirmCompanyNameAside")
+                : ""}
+              {t("appShell.cnamConfirmAfter")}
             </p>
             <p className="text-xs text-muted-foreground">
-              Carriers refresh their name databases on their own schedule, so
-              the new name can take a few days to show on calls.
+              {t("appShell.cnamConfirmHint")}
             </p>
             <div className="flex items-center gap-2">
               <Button size="sm" disabled={update.isPending} onClick={confirmChange}>
-                {update.isPending ? "Submitting…" : "Update caller ID"}
+                {update.isPending
+                  ? t("appShell.cnamSubmitting")
+                  : t("appShell.cnamUpdateAction")}
               </Button>
               <Button
                 variant="ghost"
@@ -731,7 +748,7 @@ function CallerIdCard({
                 disabled={update.isPending}
                 onClick={() => setConfirming(undefined)}
               >
-                Go back
+                {t("appShell.cnamGoBack")}
               </Button>
             </div>
           </div>
@@ -740,11 +757,10 @@ function CallerIdCard({
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-0.5">
             <Label htmlFor="cnam-lookup" className="text-sm font-medium">
-              Look up who&apos;s calling
+              {t("appShell.cnamLookupLabel")}
             </Label>
             <p className="text-sm text-muted-foreground">
-              Shows the caller&apos;s network-registered name on incoming
-              calls when they aren&apos;t in your contacts yet.
+              {t("appShell.cnamLookupBody")}
             </p>
           </div>
           <Switch
@@ -762,7 +778,7 @@ function CallerIdCard({
         )}
         {!canEdit && (
           <p className="text-xs text-muted-foreground">
-            Only owners and admins can change caller ID settings.
+            {t("appShell.cnamOwnersOnly")}
           </p>
         )}
       </div>
@@ -771,6 +787,7 @@ function CallerIdCard({
 }
 
 export default function CallingSettingsPage() {
+  const t = useT();
   const company = useCompany();
   const usage = useUsage();
   const { role } = useActiveCompany();
@@ -778,8 +795,8 @@ export default function CallingSettingsPage() {
 
   return (
     <SettingsPage
-      title="Calling"
-      description="Calls ring right in the app for your whole team. Unanswered calls take a voicemail, and the caller gets your text-back."
+      title={t("appShell.callingTitle")}
+      description={t("appShell.callingDescription")}
     >
       {company.isPending || usage.isPending ? (
         <CallingSkeleton />
@@ -796,10 +813,7 @@ export default function CallingSettingsPage() {
               carrier, so there is no Loonext call to answer or voicemail. */}
           {onlyHostedNumbers(company.data.numbers) && (
             <p className="text-sm text-muted-foreground">
-              In-app calling needs a number whose calls come through Loonext.
-              Calls to your text-enabled landline stay with your existing
-              carrier, so these settings won&apos;t apply until you add or
-              transfer a Loonext number.
+              {t("appShell.callingHostedOnly")}
             </p>
           )}
           <TextBackCard company={company.data} canEdit={canEdit} />
@@ -819,12 +833,13 @@ export default function CallingSettingsPage() {
           <CallerIdCard company={company.data} canEdit={canEdit} />
           {/* D36/D38 fair use, one quiet line — the detail lives in Usage. */}
           <p className="px-1 text-xs text-muted-foreground">
-            Your plan includes {usage.data.voice.included_minutes.toLocaleString()}{" "}
-            calling minutes a month, both directions.
+            {t("appShell.callingMinutesIncluded", {
+              minutes: usage.data.voice.included_minutes.toLocaleString(),
+            })}
             {usage.data.voice.overage_billed
-              ? " Past that, extra minutes bill at 1¢ each up to your spending cap."
+              ? t("appShell.callingMinutesOverage")
               : ""}{" "}
-            Details live in Settings › Usage.
+            {t("appShell.callingMinutesDetails")}
           </p>
         </div>
       )}

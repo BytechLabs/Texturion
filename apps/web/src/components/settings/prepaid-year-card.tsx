@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { useBuyPrepaidYear, usePrepayOffer } from "@/lib/api/billing";
 import { ApiError } from "@/lib/api/error";
 
@@ -81,6 +82,7 @@ export function PrepaidYearCard({
   /** The caller's gate: an owner or admin, on an active subscription. */
   show: boolean;
 }) {
+  const t = useT();
   const offer = usePrepayOffer(show);
   const buy = useBuyPrepaidYear();
   const [error, setError] = useState<string | null>(null);
@@ -110,10 +112,9 @@ export function PrepaidYearCard({
   // they paid is already on the receipt Stripe sent them.
   if (open) {
     return (
-      <SettingsCard title="Your year">
+      <SettingsCard title={t("settingsMore.prepaidYearOpenTitle")}>
         <p className="text-sm text-muted-foreground">
-          You paid for a year on this plan. Your monthly plan fee is covered
-          until{" "}
+          {t("settingsMore.prepaidYearOpenLead")}{" "}
           <span className="font-medium text-foreground">
             {new Date(open.granted_through).toLocaleDateString("en-US", {
               year: "numeric",
@@ -121,7 +122,7 @@ export function PrepaidYearCard({
               day: "numeric",
             })}
           </span>
-          . Texts beyond your included allowance are still billed each month.
+          {t("settingsMore.prepaidYearOpenTail")}
         </p>
       </SettingsCard>
     );
@@ -145,7 +146,7 @@ export function PrepaidYearCard({
   const money = (cents: number) => formatMoney(cents, currency);
 
   return (
-    <SettingsCard title="Pay for a year">
+    <SettingsCard title={t("settingsMore.prepaidYearTitle")}>
       <div className="flex items-start gap-3">
         <CalendarCheck
           className="mt-0.5 size-4 shrink-0 text-muted-foreground"
@@ -155,15 +156,19 @@ export function PrepaidYearCard({
         <div className="min-w-0 flex-1 space-y-3">
           <p className="text-sm text-muted-foreground">
             <span className="font-medium text-foreground">
-              {money(priceCents)} for {months} months
+              {t("settingsMore.prepaidYearPriceLead", {
+                price: money(priceCents),
+                months,
+              })}
             </span>{" "}
-            instead of {money(twelveMonthsCents)} — that&apos;s{" "}
-            {money(savingCents)} saved, about {perDayCents}&cent; a day.
+            {t("settingsMore.prepaidYearComparison", {
+              twelve: money(twelveMonthsCents),
+              saving: money(savingCents),
+              perDay: perDayCents,
+            })}
           </p>
           <p className="text-sm text-muted-foreground">
-            One charge today. Your plan fee is covered for {months} months;
-            texts beyond your included allowance are still billed each month, as
-            now. Nothing else about your account changes.
+            {t("settingsMore.prepaidYearOneCharge", { months })}
           </p>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -176,13 +181,17 @@ export function PrepaidYearCard({
                     setError(
                       cause instanceof ApiError
                         ? cause.message
-                        : "That didn't go through. Try again in a moment.",
+                        : t("settingsMore.didNotGoThrough"),
                     ),
                 });
               }}
               disabled={buy.isPending}
             >
-              {buy.isPending ? "Opening checkout..." : `Pay ${money(priceCents)}`}
+              {buy.isPending
+                ? t("settingsMore.prepaidYearOpeningCheckout")
+                : t("settingsMore.prepaidYearPayAction", {
+                    price: money(priceCents),
+                  })}
             </Button>
           </div>
 

@@ -8,6 +8,7 @@ import { UnreadTitleManager } from "@/components/notifications/unread-title-mana
 import { ConnectionBanner } from "@/components/shell/connection-banner";
 import { WorkspaceStatusBanner } from "@/components/registration/status-banner";
 import { SoftphoneProvider } from "@/lib/softphone/provider";
+import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
 import { TaskDrawerHost } from "@/components/tasks/task-drawer-host";
@@ -48,6 +49,7 @@ function readSidebarCollapsed(): boolean {
  * The ground is flat calm paper (app-ground; no wash).
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const pathname = usePathname();
   // The inbox is the fixed 3-pane frame (inner panes own the scroll); every
   // other destination is a calm scrolling document.
@@ -82,7 +84,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-app-paper focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-app-ink focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring"
         >
-          Skip to content
+          {t("shell.skipToContent")}
         </a>
         {/* Full-height sidebar on the left is the whole desktop shell; the content
           column (status banner + destination) fills the rest. */}

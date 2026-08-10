@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/i18n/provider";
 import { useCreatePortRequestForCompany } from "@/lib/api/porting";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
@@ -35,6 +36,7 @@ import { portStepProgress, usePortWizardGuard } from "../use-port-wizard";
  * registration (or straight to the plan for CA-no-US).
  */
 export default function PortTimingPage() {
+  const t = useT();
   const { onboarding, port, ready } = usePortWizardGuard("timing");
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -72,7 +74,7 @@ export default function PortTimingPage() {
   async function onSubmit() {
     setError(null);
     if (!companyId) {
-      setError("Something went wrong setting up your workspace. Go back a step and try again.");
+      setError(t("onboarding.portWorkspaceError"));
       return;
     }
     if (
@@ -85,7 +87,7 @@ export default function PortTimingPage() {
       !port.serviceAdminArea ||
       !port.servicePostalCode
     ) {
-      setError("Some transfer details are missing. Go back and complete them.");
+      setError(t("onboarding.portDetailsMissing"));
       return;
     }
 
@@ -131,27 +133,29 @@ export default function PortTimingPage() {
       setError(
         cause instanceof ApiError
           ? cause.message
-          : "We couldn't save your transfer just now. Try again in a moment.",
+          : t("onboarding.portSaveFailed"),
       );
     }
   }
 
-  const display = port.phoneE164 ? formatPhone(port.phoneE164) : "your number";
+  const display = port.phoneE164
+    ? formatPhone(port.phoneE164)
+    : t("onboarding.yourNumberFallback");
 
   return (
     <StepShell
       backHref="/onboarding/port/address"
       index={progress.index}
       total={progress.total}
-      title="When should the switch happen?"
-      subtitle="Pick a target date if you have one, or leave it to us to move it as soon as your carrier confirms."
+      title={t("onboarding.portTimingTitle")}
+      subtitle={t("onboarding.portTimingSubtitle")}
     >
       <div className="space-y-6">
         <div className="space-y-2">
           <Label htmlFor="foc-date">
-            Preferred switch-over date{" "}
+            {t("onboarding.portFocDateLabel")}{" "}
             <span className="font-normal text-muted-foreground">
-              (optional)
+              {t("onboarding.optional")}
             </span>
           </Label>
           <Input
@@ -168,7 +172,9 @@ export default function PortTimingPage() {
 
         {/* The honest window (PORTING.md §8.1 / §9), before payment. */}
         <div className="rounded-lg border border-border bg-card p-5">
-          <h2 className="text-[15px] font-medium">How the transfer works</h2>
+          <h2 className="text-[15px] font-medium">
+            {t("onboarding.portHowItWorks")}
+          </h2>
           <p className="mt-1.5 text-sm text-muted-foreground">
             {PORT_HONEST_WINDOW}
           </p>
@@ -198,9 +204,7 @@ export default function PortTimingPage() {
             aria-hidden
           />
           <p className="text-[13px] text-muted-foreground">
-            After you pay, you&apos;ll upload a signed authorization and a recent
-            bill. Then we send the transfer to your carrier. We&apos;ll walk you
-            through it.
+            {t("onboarding.portDocumentsNote")}
           </p>
         </div>
 
@@ -210,15 +214,14 @@ export default function PortTimingPage() {
             checked={wantsBridge}
             onCheckedChange={(checked) => setWantsBridge(checked === true)}
             className="mt-0.5"
-            aria-label="Give me a temporary number while my number transfers"
+            aria-label={t("onboarding.portBridgeAria")}
           />
           <span className="space-y-0.5">
             <span className="block font-medium">
-              Give me a temporary number to text from now
+              {t("onboarding.portBridgeLabel")}
             </span>
             <span className="block text-[13px] text-muted-foreground">
-              Text customers today while {display} transfers. You can release it
-              once your number arrives.
+              {t("onboarding.portBridgeHint", { number: display })}
             </span>
           </span>
         </label>
@@ -236,10 +239,10 @@ export default function PortTimingPage() {
           disabled={createPort.isPending}
         >
           {createPort.isPending ? (
-            "Saving your transfer…"
+            t("onboarding.portSavingTransfer")
           ) : (
             <>
-              Save and continue
+              {t("onboarding.saveAndContinue")}
               <ArrowRight className="size-4" aria-hidden />
             </>
           )}

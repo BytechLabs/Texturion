@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useExportUsage } from "@/lib/api/exports";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -51,6 +52,7 @@ import { useActiveCompany } from "@/lib/company/provider";
  *   the decision is made, not where the disappointment is.*
  */
 export function ExportUsage() {
+  const t = useT();
   const { role } = useActiveCompany();
   const request = useExportUsage();
   const [open, setOpen] = useState(false);
@@ -78,12 +80,14 @@ export function ExportUsage() {
       setOpen(false);
       toast.success(
         result.already_building
-          ? "One is already being put together. It will appear under Data export."
-          : "Being put together now. It will appear under Data export.",
+          ? t("settings.exportUsageAlready")
+          : t("settings.exportUsageStarted"),
       );
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "That could not be started.",
+        cause instanceof ApiError
+          ? cause.message
+          : t("settings.exportUsageFailed"),
       );
     }
   }
@@ -106,7 +110,7 @@ export function ExportUsage() {
       <div className="flex flex-wrap items-end gap-2">
         <div className="space-y-1">
           <Label htmlFor="usage-export-from" className="text-[12px]">
-            From
+            {t("settings.exportUsageFrom")}
           </Label>
           <Input
             id="usage-export-from"
@@ -117,7 +121,7 @@ export function ExportUsage() {
         </div>
         <div className="space-y-1">
           <Label htmlFor="usage-export-to" className="text-[12px]">
-            To
+            {t("settings.exportUsageTo")}
           </Label>
           <Input
             id="usage-export-to"
@@ -135,10 +139,10 @@ export function ExportUsage() {
           disabled={request.isPending || from === ""}
           onClick={() => void submit()}
         >
-          Start it
+          {t("settings.exportUsageStart")}
         </Button>
         <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
-          Cancel
+          {t("common.cancel")}
         </Button>
       </div>
     </div>

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 
 import { GateSignOut } from "./gate-escape";
 
@@ -21,14 +22,15 @@ import { GateSignOut } from "./gate-escape";
  * `GateEscape` hides itself without one, so this is the only escape left.
  */
 export function SessionExpiredCard() {
+  const t = useT();
   const router = useRouter();
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
       <p className="text-sm text-muted-foreground">
-        Your session has expired. Sign in again to continue.
+        {t("shell.sessionExpired")}
       </p>
       <Button onClick={() => router.replace("/login")} size="sm">
-        Go to sign in
+        {t("shell.goToSignIn")}
       </Button>
       <GateSignOut />
     </div>

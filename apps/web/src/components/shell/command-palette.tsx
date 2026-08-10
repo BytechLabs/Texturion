@@ -31,6 +31,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
+import { useT, type MessageKey } from "@/i18n/provider";
 import { useConversation, useUpdateConversation } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
 import { useSearch } from "@/lib/api/search";
@@ -58,24 +59,24 @@ function Chip({ children }: { children: React.ReactNode }) {
 }
 
 const NAV_ACTIONS = [
-  { label: "For you", href: "/for-you", icon: Home },
-  { label: "Inbox", href: "/inbox", icon: Inbox },
-  { label: "Calls", href: "/calls", icon: PhoneIncoming },
-  { label: "Tasks", href: "/tasks", icon: ListChecks },
-  { label: "Contacts", href: "/contacts", icon: Users },
+  { labelKey: "shell.navForYou", href: "/for-you", icon: Home },
+  { labelKey: "shell.navInbox", href: "/inbox", icon: Inbox },
+  { labelKey: "shell.navCalls", href: "/calls", icon: PhoneIncoming },
+  { labelKey: "shell.navTasks", href: "/tasks", icon: ListChecks },
+  { labelKey: "shell.navContacts", href: "/contacts", icon: Users },
   // #233: reachable here as well as from the inbox header, because "what is
   // queued to go out" is a question somebody has while looking at something
   // else. It takes no rail slot — a page opened a few times a month does not
   // earn permanent furniture. *Applying: Zen of Clarity.*
-  { label: "Scheduled", href: "/scheduled", icon: CalendarClock },
-  { label: "Settings", href: "/settings", icon: Settings },
+  { labelKey: "shell.navScheduled", href: "/scheduled", icon: CalendarClock },
+  { labelKey: "shell.navSettings", href: "/settings", icon: Settings },
 ] as const;
 
-const STATUS_LABELS: Record<ConversationStatus, string> = {
-  new: "New",
-  open: "Open",
-  waiting: "Waiting",
-  closed: "Closed",
+const STATUS_LABEL_KEYS: Record<ConversationStatus, MessageKey> = {
+  new: "shell.statusNew",
+  open: "shell.statusOpen",
+  waiting: "shell.statusWaiting",
+  closed: "shell.statusClosed",
 };
 
 /** The `/inbox/:id` conversation id currently on the stage, or null. */
@@ -104,10 +105,13 @@ export function ConversationActions({
   conversationId: string;
   onDone: () => void;
 }) {
+  const t = useT();
   const detail = useConversation(conversationId);
   const update = useUpdateConversation(conversationId);
   const members = useMembers();
-  const name = detail.data ? contactDisplayName(detail.data.contact) : "this conversation";
+  const name = detail.data
+    ? contactDisplayName(detail.data.contact)
+    : t("shell.thisConversation");
 
   const patch = (
     body: Parameters<typeof update.mutate>[0],
@@ -115,7 +119,7 @@ export function ConversationActions({
   ) => {
     update.mutate(body, {
       onError: (e) =>
-        toast.error(e instanceof ApiError ? e.message : "Couldn't update."),
+        toast.error(e instanceof ApiError ? e.message : t("shell.updateFailed")),
       onSuccess: () => toast.success(label),
     });
     onDone();
@@ -126,16 +130,18 @@ export function ConversationActions({
       <div className="flex items-center gap-2 px-3 pb-1 pt-2">
         <CircleDot className="size-3 text-app-olive" strokeWidth={2} aria-hidden />
         <span className="truncate text-[11px] font-medium text-app-muted">
-          {name} · actions apply to this conversation
+          {t("shell.conversationActionsContext", { name })}
         </span>
       </div>
-      <CommandGroup heading="Actions on this conversation">
+      <CommandGroup heading={t("shell.actionsOnConversation")}>
         <CommandItem
           value="mark done conversation"
-          onSelect={() => patch({ status: "closed" }, "Conversation closed")}
+          onSelect={() =>
+            patch({ status: "closed" }, t("shell.conversationClosed"))
+          }
         >
           <ListChecks className="size-4" strokeWidth={1.75} />
-          Mark done
+          {t("shell.markDone")}
         </CommandItem>
         {/* "Make a task" (T) and "Send template" (R) used to live here, but the
             palette can't perform either from outside the thread: make-a-task is
@@ -149,10 +155,10 @@ export function ConversationActions({
             invoke. */}
         <CommandItem
           value="unassign conversation"
-          onSelect={() => patch({ assigned_user_id: null }, "Unassigned")}
+          onSelect={() => patch({ assigned_user_id: null }, t("shell.unassigned"))}
         >
           <Ban className="size-4" strokeWidth={1.75} />
-          Unassign
+          {t("shell.unassign")}
         </CommandItem>
         {(members.data?.data ?? [])
           .filter((m) => m.deactivated_at === null)
@@ -163,27 +169,36 @@ export function ConversationActions({
               onSelect={() =>
                 patch(
                   { assigned_user_id: member.user_id },
-                  `Assigned to ${member.display_name || "teammate"}`,
+                  t("shell.assignedTo", {
+                    name: member.display_name || t("shell.teammateInline"),
+                  }),
                 )
               }
             >
               <UserRoundPlus className="size-4" strokeWidth={1.75} />
-              Assign to {member.display_name || "Teammate"}
+              {t("shell.assignTo", {
+                name: member.display_name || t("shell.teammate"),
+              })}
             </CommandItem>
           ))}
       </CommandGroup>
-      <CommandGroup heading="Change status">
+      <CommandGroup heading={t("shell.changeStatus")}>
         {(["new", "open", "waiting", "closed"] as ConversationStatus[]).map(
           (status) => (
             <CommandItem
               key={status}
               value={`change status ${status}`}
               onSelect={() =>
-                patch({ status }, `Marked ${STATUS_LABELS[status]}`)
+                patch(
+                  { status },
+                  t("shell.markedStatus", {
+                    status: t(STATUS_LABEL_KEYS[status]),
+                  }),
+                )
               }
             >
               <CircleDot className="size-4" strokeWidth={1.75} />
-              {STATUS_LABELS[status]}
+              {t(STATUS_LABEL_KEYS[status])}
             </CommandItem>
           ),
         )}
@@ -203,6 +218,7 @@ export function ConversationActions({
  * the dialog surface).
  */
 export function CommandPalette() {
+  const t = useT();
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -283,13 +299,13 @@ export function CommandPalette() {
         setOpen(next);
         if (!next) reset();
       }}
-      title="Command palette"
-      description="Jump to a conversation, contact, task, file, template, or page, or act on the open conversation"
+      title={t("shell.paletteTitle")}
+      description={t("shell.paletteDescription")}
       // The API search already ranked results; don't re-filter them away.
       commandProps={{ shouldFilter: !searching }}
     >
       <CommandInput
-        placeholder="Search conversations, contacts, tasks, files…"
+        placeholder={t("shell.paletteSearchPlaceholder")}
         value={input}
         onValueChange={setInput}
       />
@@ -297,7 +313,7 @@ export function CommandPalette() {
         {/* Local-filter mode (nav + actions): cmdk's own filtered count drives
             this. In search mode shouldFilter is off, so it never fires — the
             explicit row below owns that state instead. */}
-        {!searching && <CommandEmpty>No matches.</CommandEmpty>}
+        {!searching && <CommandEmpty>{t("shell.noMatches")}</CommandEmpty>}
         {searchStatus && (
           <div
             role="status"
@@ -305,10 +321,10 @@ export function CommandPalette() {
             className="py-6 text-center text-sm text-app-muted"
           >
             {searchStatus === "searching"
-              ? "Searching…"
+              ? t("shell.searching")
               : searchStatus === "error"
-                ? "Couldn't search — check your connection and try again."
-                : "No matches."}
+                ? t("shell.searchFailed")
+                : t("shell.noMatches")}
           </div>
         )}
 
@@ -318,7 +334,7 @@ export function CommandPalette() {
         )}
 
         {searching && search.data && search.data.conversations.length > 0 && (
-          <CommandGroup heading="Conversations">
+          <CommandGroup heading={t("shell.groupConversations")}>
             {search.data.conversations.map((hit) => (
               <CommandItem
                 key={hit.id}
@@ -335,14 +351,14 @@ export function CommandPalette() {
                   </span>
                 </span>
                 {/* The matched message is an internal note, not the customer. */}
-                {hit.direction === "note" && <Chip>Note</Chip>}
+                {hit.direction === "note" && <Chip>{t("shell.chipNote")}</Chip>}
               </CommandItem>
             ))}
           </CommandGroup>
         )}
 
         {searching && search.data && search.data.contacts.length > 0 && (
-          <CommandGroup heading="Contacts">
+          <CommandGroup heading={t("shell.navContacts")}>
             {search.data.contacts.map((contact) => (
               <CommandItem
                 key={contact.id}
@@ -366,7 +382,7 @@ export function CommandPalette() {
         )}
 
         {searching && search.data && search.data.tasks.length > 0 && (
-          <CommandGroup heading="Tasks">
+          <CommandGroup heading={t("shell.navTasks")}>
             {search.data.tasks.map((task) => (
               <CommandItem
                 key={task.id}
@@ -379,14 +395,14 @@ export function CommandPalette() {
                 <span className="min-w-0 flex-1 truncate font-medium">
                   {task.title}
                 </span>
-                {task.done && <Chip>Done</Chip>}
+                {task.done && <Chip>{t("shell.chipDone")}</Chip>}
               </CommandItem>
             ))}
           </CommandGroup>
         )}
 
         {searching && search.data && search.data.attachments.length > 0 && (
-          <CommandGroup heading="Attachments">
+          <CommandGroup heading={t("shell.groupAttachments")}>
             {search.data.attachments.map((hit) => (
               <CommandItem
                 key={hit.id}
@@ -405,7 +421,11 @@ export function CommandPalette() {
                 <span className="min-w-0 flex-1 truncate font-medium">
                   {hit.file_name}
                 </span>
-                <Chip>{hit.owner_type === "note" ? "Note" : "Task"}</Chip>
+                <Chip>
+                  {hit.owner_type === "note"
+                    ? t("shell.chipNote")
+                    : t("shell.chipTask")}
+                </Chip>
               </CommandItem>
             ))}
           </CommandGroup>
@@ -417,7 +437,7 @@ export function CommandPalette() {
             *Applying: Chunking — arms are grouped and ordered by how likely
             the reader is to have meant them.* */}
         {searching && search.data && search.data.voicemails.length > 0 && (
-          <CommandGroup heading="Voicemails">
+          <CommandGroup heading={t("shell.groupVoicemails")}>
             {search.data.voicemails.map((hit) => (
               <CommandItem
                 key={hit.id}
@@ -427,7 +447,9 @@ export function CommandPalette() {
                 <Voicemail className="size-4" strokeWidth={1.75} />
                 <span className="min-w-0 flex-1 truncate">
                   <span className="font-medium">
-                    {hit.caller_e164 ? formatPhone(hit.caller_e164) : "Voicemail"}
+                    {hit.caller_e164
+                      ? formatPhone(hit.caller_e164)
+                      : t("shell.voicemail")}
                   </span>
                   <span className="ml-2 text-muted-foreground">{hit.snippet}</span>
                 </span>
@@ -443,7 +465,7 @@ export function CommandPalette() {
           search.data &&
           search.data.templates.length > 0 &&
           canOpen("templates") && (
-          <CommandGroup heading="Templates">
+          <CommandGroup heading={t("shell.groupTemplates")}>
             {search.data.templates.map((template) => (
               <CommandItem
                 key={template.id}
@@ -462,25 +484,25 @@ export function CommandPalette() {
           </CommandGroup>
         )}
 
-        <CommandGroup heading="Actions">
+        <CommandGroup heading={t("shell.groupActions")}>
           <CommandItem
             value="new conversation"
             onSelect={() => go("/inbox/new")}
           >
             <PenSquare className="size-4" strokeWidth={1.75} />
-            New conversation
+            {t("shell.newConversation")}
           </CommandItem>
         </CommandGroup>
         <CommandSeparator />
-        <CommandGroup heading="Go to">
+        <CommandGroup heading={t("shell.groupGoTo")}>
           {NAV_ACTIONS.map((action) => (
             <CommandItem
               key={action.href}
-              value={`go to ${action.label}`}
+              value={`go to ${t(action.labelKey)}`}
               onSelect={() => go(action.href)}
             >
               <action.icon className="size-4" strokeWidth={1.75} />
-              {action.label}
+              {t(action.labelKey)}
             </CommandItem>
           ))}
         </CommandGroup>

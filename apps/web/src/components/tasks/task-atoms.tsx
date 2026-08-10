@@ -3,6 +3,7 @@
 import { Check } from "lucide-react";
 
 import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
+import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
 
@@ -23,13 +24,14 @@ export function TaskDoneCheckbox({
   task: Task;
   className?: string;
 }) {
+  const t = useT();
   const done = useTaskDone();
   return (
     <button
       type="button"
       role="checkbox"
       aria-checked={task.done}
-      aria-label={task.done ? "Mark not done" : "Mark done"}
+      aria-label={task.done ? t("tasks.markNotDone") : t("tasks.markDone")}
       // Guard against a double-submit while the derived PATCH is in flight —
       // matching the for-you TaskRow checkbox, the same message-done write (#4).
       disabled={done.isPending}
@@ -58,6 +60,7 @@ export function TaskDoneCheckbox({
 
 /** The derived-status pill (T6.1): quiet stone for open, success tint for done. */
 export function TaskStatusPill({ task }: { task: Task }) {
+  const t = useT();
   return (
     <span
       className={cn(
@@ -67,7 +70,7 @@ export function TaskStatusPill({ task }: { task: Task }) {
           : "bg-secondary text-stone-600 dark:text-muted-foreground",
       )}
     >
-      {task.done ? "Done" : "Open"}
+      {task.done ? t("tasks.statusDone") : t("tasks.statusOpen")}
     </span>
   );
 }
@@ -83,6 +86,9 @@ export function TaskDue({
   task: Task;
   className?: string;
 }) {
+  // Before the early return: a hook cannot be called conditionally, and the
+  // `due_at === null` guard below returns first for an undated task.
+  const t = useT();
   if (task.due_at === null) return null;
   const overdue = isOverdue(task);
   return (
@@ -92,12 +98,14 @@ export function TaskDue({
         overdue ? "font-medium text-warning" : "text-muted-foreground",
         className,
       )}
-      title={overdue ? "Overdue" : undefined}
+      title={overdue ? t("tasks.overdue") : undefined}
     >
       {/* Overdue is otherwise color-only (WCAG 1.4.1) — give SR/color-blind
           users a text signal without changing the visual. */}
-      {overdue && <span className="sr-only">Overdue: </span>}
-      {formatDue(task.due_at)}
+      {overdue && (
+        <span className="sr-only">{t("tasks.overdueSrPrefix")}</span>
+      )}
+      {formatDue(task.due_at, t)}
     </span>
   );
 }
@@ -110,13 +118,16 @@ export function TaskAssignee({
   task: Task;
   showName?: boolean;
 }) {
+  const t = useT();
   const names = useMemberNames();
   if (task.assigned_user_id === null) {
     return showName ? (
-      <span className="text-[13px] text-muted-foreground">Unassigned</span>
+      <span className="text-[13px] text-muted-foreground">
+        {t("tasks.unassigned")}
+      </span>
     ) : null;
   }
-  const name = names.get(task.assigned_user_id) ?? "Teammate";
+  const name = names.get(task.assigned_user_id) ?? t("tasks.teammate");
   return (
     <span className="flex min-w-0 items-center gap-1.5">
       <MemberAvatar name={name} />

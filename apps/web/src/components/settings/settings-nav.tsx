@@ -29,6 +29,7 @@ import {
   type SettingsSectionId,
 } from "@loonext/shared";
 
+import { useT, type MessageKey } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
 import { shouldShowWhatsNewMarker } from "@/lib/whats-new/seen";
 import { useCompany } from "@/lib/api/companies";
@@ -42,8 +43,9 @@ export interface SettingsSection {
    */
   id: SettingsSectionId;
   slug: string;
-  label: string;
-  description: string;
+  /** #228: a catalogue key, resolved at render — see `SettingsNav` below. */
+  label: MessageKey;
+  description: MessageKey;
   icon: LucideIcon;
   /** Absolute href override for sections that live outside `/settings/*`
    * (e.g. Templates keeps its top-level `/templates` route). Defaults to
@@ -69,15 +71,15 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "workspace",
     slug: "workspace",
-    label: "Workspace",
-    description: "Company name, business identity, timezone",
+    label: "settingsMore.navWorkspace",
+    description: "settingsMore.navWorkspaceDesc",
     icon: Building2,
   },
   {
     id: "team",
     slug: "team",
-    label: "Team",
-    description: "Members, roles, and invites",
+    label: "settingsMore.navTeam",
+    description: "settingsMore.navTeamDesc",
     icon: Users,
     // #286: every role can READ this list — it is how a new member finds out
     // who owns the workspace without asking. Landing on it is another matter:
@@ -87,19 +89,19 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "numbers",
     slug: "numbers",
-    label: "Numbers",
-    description: "Your business numbers and US registration",
+    label: "settingsMore.navNumbers",
+    description: "settingsMore.navNumbersDesc",
     icon: Phone,
   },
   {
     // FEATURE-GAPS Step 1 — after-hours away reply.
     id: "hours",
     slug: "away-reply",
-    label: "Hours, away reply & reminders",
+    label: "settingsMore.navHours",
     // #237: "reminders" is in the LABEL, not only the description. This section
     // is where the appointment-reminder rules live, and a flagship feature
     // findable only by opening a row called "Business hours" is not findable.
-    description: "Auto-replies and appointment reminders, in your own words",
+    description: "settingsMore.navHoursDesc",
     icon: Clock,
   },
   {
@@ -108,26 +110,26 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     // working.
     id: "calling",
     slug: "missed-calls",
-    label: "Calling",
-    description: "Voicemail, screening, caller ID, text-back",
+    label: "settingsMore.navCalling",
+    description: "settingsMore.navCallingDesc",
     icon: PhoneMissed,
   },
   {
     id: "templates",
     slug: "templates",
-    label: "Templates & tags",
+    label: "settingsMore.navTemplates",
     // #298: tags are curated here too. The marketing already pairs them at
     // /features/templates-and-tags, so this is the product's own vocabulary
     // rather than a new one invented for a settings row.
-    description: "Saved replies, and the tags your work is filed under",
+    description: "settingsMore.navTemplatesDesc",
     icon: MessageSquareText,
   },
   {
     // #214 — opt-in AI enrichment (task address + due date from message text).
     id: "ai",
     slug: "ai",
-    label: "Lou",
-    description: "Pre-fill task address and due date from messages",
+    label: "settingsMore.navAi",
+    description: "settingsMore.navAiDesc",
     icon: Sparkles,
   },
   {
@@ -135,15 +137,15 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     // owner's protection, same words as marketing.
     id: "usage",
     slug: "usage",
-    label: "Usage",
-    description: "Fair use and the spending cap you control",
+    label: "settingsMore.navUsage",
+    description: "settingsMore.navUsageDesc",
     icon: Gauge,
   },
   {
     id: "billing",
     slug: "billing",
-    label: "Billing",
-    description: "Plan, payment method, and invoices",
+    label: "settingsMore.navBilling",
+    description: "settingsMore.navBillingDesc",
     icon: CreditCard,
   },
   {
@@ -153,30 +155,30 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     // distinction is legible; separate so neither screen has to explain it.
     id: "payments",
     slug: "payments",
-    label: "Getting paid",
-    description: "Take a deposit or a final payment over the thread",
+    label: "settingsMore.navPayments",
+    description: "settingsMore.navPaymentsDesc",
     icon: HandCoins,
   },
   {
     id: "notifications",
     slug: "notifications",
-    label: "Notifications",
-    description: "Email and push, per person",
+    label: "settingsMore.navNotifications",
+    description: "settingsMore.navNotificationsDesc",
     icon: Bell,
   },
   {
     id: "profile",
     slug: "profile",
-    label: "Profile",
-    description: "Your name, theme, and sign out",
+    label: "settingsMore.navProfile",
+    description: "settingsMore.navProfileDesc",
     icon: UserRound,
   },
   {
     // D18 / APP-FEATURES-V2 §1.8 — email, password, and linked sign-in methods.
     id: "account",
     slug: "account",
-    label: "Account",
-    description: "Email, password, and sign-in methods",
+    label: "settingsMore.navAccount",
+    description: "settingsMore.navAccountDesc",
     icon: ShieldCheck,
   },
   {
@@ -185,8 +187,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     // and what is currently in.
     id: "devices",
     slug: "devices",
-    label: "Devices",
-    description: "What's signed in, and signing it out",
+    label: "settingsMore.navDevices",
+    description: "settingsMore.navDevicesDesc",
     icon: MonitorSmartphone,
   },
   {
@@ -194,8 +196,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     // page you go looking for, not one you pass through.
     id: "history",
     slug: "history",
-    label: "History",
-    description: "Who changed what, and when",
+    label: "settingsMore.navHistory",
+    description: "settingsMore.navHistoryDesc",
     icon: ScrollText,
   },
   {
@@ -205,8 +207,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     // because it is what you go looking for when something is wrong.
     id: "help",
     slug: "help",
-    label: "Help",
-    description: "Get in touch when something isn't right",
+    label: "settingsMore.navHelp",
+    description: "settingsMore.navHelpDesc",
     icon: LifeBuoy,
   },
   {
@@ -218,8 +220,8 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     // person scans while trying to change their hours.
     id: "whatsNew",
     slug: "whats-new",
-    label: "What's new",
-    description: "What shipped recently, and where to find it",
+    label: "settingsMore.navWhatsNew",
+    description: "settingsMore.navWhatsNewDesc",
     icon: Sparkles,
   },
 ];
@@ -229,6 +231,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
  * the /settings index renders it as a tappable stacked list → detail pages.
  */
 export function SettingsNav({ asList = false }: { asList?: boolean }) {
+  const t = useT();
   const pathname = usePathname();
   // #461: a member saw every section and could act on almost none of them —
   // a plan they cannot change, a registration they cannot file, roles they
@@ -258,7 +261,10 @@ export function SettingsNav({ asList = false }: { asList?: boolean }) {
 
   if (asList) {
     return (
-      <nav aria-label="Settings sections" className="divide-y rounded-lg border bg-card">
+      <nav
+        aria-label={t("settingsMore.navSectionsAria")}
+        className="divide-y rounded-lg border bg-card"
+      >
         {sections.map((section) => {
           const Icon = section.icon;
           return (
@@ -273,15 +279,15 @@ export function SettingsNav({ asList = false }: { asList?: boolean }) {
               />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">
-                  {section.label}
+                  {t(section.label)}
                 </span>
                 <span className="block truncate text-xs text-muted-foreground">
-                  {section.description}
+                  {t(section.description)}
                 </span>
               </span>
               {section.id === "whatsNew" && showWhatsNew && (
                 <span
-                  aria-label="Something new"
+                  aria-label={t("settingsMore.navSomethingNew")}
                   className="size-2 shrink-0 rounded-full bg-primary"
                 />
               )}
@@ -298,7 +304,10 @@ export function SettingsNav({ asList = false }: { asList?: boolean }) {
   }
 
   return (
-    <nav aria-label="Settings sections" className="flex flex-col gap-0.5">
+    <nav
+      aria-label={t("settingsMore.navSectionsAria")}
+      className="flex flex-col gap-0.5"
+    >
       {sections.map((section) => {
         const href = section.href ?? `/settings/${section.slug}`;
         const active = pathname === href || pathname.startsWith(`${href}/`);
@@ -316,10 +325,10 @@ export function SettingsNav({ asList = false }: { asList?: boolean }) {
             )}
           >
             <Icon className="size-4 shrink-0" strokeWidth={1.75} />
-            {section.label}
+            {t(section.label)}
             {section.id === "whatsNew" && showWhatsNew && (
               <span
-                aria-label="Something new"
+                aria-label={t("settingsMore.navSomethingNew")}
                 className="size-2 shrink-0 rounded-full bg-primary"
               />
             )}

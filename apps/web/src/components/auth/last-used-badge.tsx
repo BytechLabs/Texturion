@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { useT } from "@/i18n/provider";
 import type { LastUsedMethod } from "@/lib/auth/last-used";
 import { readSignInMethod } from "@/lib/auth/last-used";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,7 @@ export function useLastUsedMethod(): LastUsedMethod | null {
 
 /** The quiet "Last used" marker. Never a control, never the only signal. */
 export function LastUsedBadge({ className }: { className?: string }) {
+  const t = useT();
   return (
     <span
       className={cn(
@@ -29,7 +31,7 @@ export function LastUsedBadge({ className }: { className?: string }) {
         className,
       )}
     >
-      Last used
+      {t("onboarding.lastUsed")}
     </span>
   );
 }

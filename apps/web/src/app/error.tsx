@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 
 import { publicEnv } from "@/env";
+import { useT } from "@/i18n/provider";
 
 /**
  * Root error boundary: catches any render throw outside the (app) group's own
@@ -122,6 +123,7 @@ export default function RootError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const t = useT();
   useEffect(() => {
     // Console for local debugging; Sentry (when configured) for production.
     console.error("Root boundary error", error);
@@ -130,28 +132,30 @@ export default function RootError({
 
   return (
     <main style={styles.main}>
-      <Link href="/" style={styles.wordmark} aria-label="Loonext home">
+      <Link href="/" style={styles.wordmark} aria-label={t("misc.homeAria")}>
         Lo<span style={styles.wordmarkO}>o</span>next
       </Link>
       <div>
-        <h1 style={styles.heading}>Something broke on our side.</h1>
+        <h1 style={styles.heading}>{t("misc.errorHeading")}</h1>
         <p style={styles.body}>
-          It was nothing you did. Try the page again; if it keeps failing,{" "}
+          {t("misc.errorBodyBefore")}{" "}
           <Link href="/contact" style={styles.secondary}>
-            tell us what you were doing
+            {t("misc.errorContactLink")}
           </Link>{" "}
-          and we will look into it.
+          {t("misc.errorBodyAfter")}
         </p>
         {error.digest ? (
-          <p style={styles.digest}>Reference: {error.digest}</p>
+          <p style={styles.digest}>
+            {t("misc.errorReference", { digest: error.digest })}
+          </p>
         ) : null}
       </div>
       <div style={styles.actions}>
         <button type="button" onClick={reset} style={styles.retry}>
-          Try again
+          {t("common.retry")}
         </button>
         <Link href="/" style={styles.secondary}>
-          Back to the home page
+          {t("misc.backToHome")}
         </Link>
       </div>
     </main>

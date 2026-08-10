@@ -23,7 +23,12 @@ import { describe, expect, it } from "vitest";
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 const CLIENTS = {
-  web: "apps/web/src/components/inbox/getting-started-card.tsx",
+  // #228: web owns the wording and web's wording now lives in the catalogue —
+  // `components/inbox/getting-started-card.tsx` reads every line below through
+  // `t("inbox.started…")`. Pointing at the component would compare the two
+  // hand-ports against a file with no sentences left in it, which is a guard
+  // that passes because it is looking at nothing.
+  web: "apps/web/src/i18n/sections/inbox.ts",
   android:
     "apps/android/app/src/main/kotlin/com/loonext/android/features/inbox/GettingStartedLogic.kt",
   ios: "apps/ios/Loonext/Features/Inbox/GettingStartedCard.swift",

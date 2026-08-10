@@ -11,7 +11,31 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { contactsEn } from "@/i18n/sections/contacts";
+
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
+
+/**
+ * #228 — where each client's WORDS live.
+ *
+ * Web's moved into the catalogue, so scanning `address-list.tsx` for English
+ * would now find nothing and this whole file would pass by measuring an empty
+ * set. The phones still spell theirs inline, so they are still read from
+ * source; web is read from the catalogue that actually feeds the component.
+ * The sentence is pinned on all three either way — only web's address changed.
+ *
+ * The KEYS are listed rather than `Object.values(contactsEn)`. A join of the
+ * whole section makes every assertion a substring search over ~200 unrelated
+ * sentences, which is how the sibling contact-filter guard passed with its
+ * chip renamed to "All people".
+ */
+const WEB_WORDS = [
+  contactsEn.addressPrimary,
+  contactsEn.addressMakePrimary,
+  contactsEn.addressAddAnother,
+  contactsEn.addressLabelPlaceholder,
+  contactsEn.addressPlaceholder,
+].join("\n");
 
 const SOURCES: Record<string, string> = {
   web: join(REPO_ROOT, "apps/web/src/components/contacts/address-list.tsx"),
@@ -40,7 +64,8 @@ describe("#291 the address list reads the same everywhere", () => {
   it("carries every sentence on every client, verbatim", () => {
     const missing: string[] = [];
     for (const [platform, path] of Object.entries(SOURCES)) {
-      const text = readFileSync(path, "utf8");
+      const text =
+        platform === "web" ? WEB_WORDS : readFileSync(path, "utf8");
       for (const fragment of FRAGMENTS) {
         if (!text.includes(fragment)) missing.push(`${platform}: ${fragment}`);
       }
@@ -56,10 +81,12 @@ describe("#291 the address list reads the same everywhere", () => {
     // Ordering communicates "which one" only to somebody who already knows the
     // ordering means something. Every client has to say it.
     for (const [platform, path] of Object.entries(SOURCES)) {
-      const text = readFileSync(path, "utf8");
-      expect(text, platform).toContain("Where the van goes");
-      // And it is conditional on the flag, not printed on every row.
-      expect(text, platform).toMatch(/is_primary/);
+      const source = readFileSync(path, "utf8");
+      const words = platform === "web" ? WEB_WORDS : source;
+      expect(words, platform).toContain("Where the van goes");
+      // And it is conditional on the flag, not printed on every row. Always
+      // read from the SOURCE — this half is about the branch, not the words.
+      expect(source, platform).toMatch(/is_primary/);
     }
   });
 });

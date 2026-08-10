@@ -21,6 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { publicEnv } from "@/env";
+import { useT } from "@/i18n/provider";
 import {
   trackSignupCompleted,
   trackSignupStarted,
@@ -42,6 +43,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export default function SignupPage() {
+  const t = useT();
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
   const [confirmationEmail, setConfirmationEmail] = useState<string | null>(
@@ -116,23 +118,23 @@ export default function SignupPage() {
     return (
       <div className="space-y-4">
         <h1 className="text-2xl font-semibold tracking-tight">
-          Check your email
+          {t("onboarding.checkYourEmail")}
         </h1>
         <p className="text-sm text-muted-foreground">
-          We sent a confirmation link to{" "}
+          {t("onboarding.confirmationSentPrefix")}{" "}
           <span className="font-medium text-foreground">
             {confirmationEmail}
           </span>
-          . Open it to finish creating your account.
+          {t("onboarding.confirmationSentSuffix")}
         </p>
         <p className="text-sm text-muted-foreground">
-          Wrong address?{" "}
+          {t("onboarding.wrongAddress")}{" "}
           <button
             type="button"
             onClick={() => setConfirmationEmail(null)}
             className="font-medium text-primary underline-offset-4 hover:underline"
           >
-            Start over
+            {t("onboarding.startOver")}
           </button>
         </p>
       </div>
@@ -143,10 +145,10 @@ export default function SignupPage() {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">
-          Create your account
+          {t("onboarding.createYourAccount")}
         </h1>
         <p className="text-sm text-muted-foreground">
-          A business number for your whole crew. Set up in minutes.
+          {t("onboarding.signupSubtitle")}
         </p>
       </div>
       {/* SSO stacked above the email form (§1.7). A first-time OAuth user with
@@ -173,9 +175,13 @@ export default function SignupPage() {
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Your name</FormLabel>
+                <FormLabel>{t("onboarding.yourNameLabel")}</FormLabel>
                 <FormControl>
-                  <Input autoComplete="name" placeholder="Sam Rivera" {...field} />
+                  <Input
+                    autoComplete="name"
+                    placeholder={t("onboarding.yourNamePlaceholder")}
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -186,7 +192,7 @@ export default function SignupPage() {
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>{t("onboarding.emailLabel")}</FormLabel>
                 <FormControl>
                   <Input
                     type="email"
@@ -205,7 +211,7 @@ export default function SignupPage() {
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Password</FormLabel>
+                <FormLabel>{t("onboarding.passwordLabel")}</FormLabel>
                 <FormControl>
                   <PasswordInput
                     autoComplete="new-password"
@@ -237,18 +243,18 @@ export default function SignupPage() {
             }
           >
             {form.formState.isSubmitting
-              ? "Creating your account…"
-              : "Create account"}
+              ? t("onboarding.creatingAccount")
+              : t("onboarding.createAccountAction")}
           </Button>
         </form>
       </Form>
       <p className="text-center text-sm text-muted-foreground">
-        Already have an account?{" "}
+        {t("onboarding.alreadyHaveAccount")}{" "}
         <Link
           href="/login"
           className="font-medium text-primary underline-offset-4 hover:underline"
         >
-          Log in
+          {t("onboarding.logIn")}
         </Link>
       </p>
     </div>

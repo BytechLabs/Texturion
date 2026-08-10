@@ -28,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -79,6 +80,7 @@ export function PhotoMarkupDialog({
   onDone: (marked: File) => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [tool, setTool] = useState<MarkupTool>("arrow");
   const [marks, setMarks] = useState<Mark[]>([]);
@@ -171,7 +173,7 @@ export function PhotoMarkupDialog({
     <Dialog open={file !== null} onOpenChange={(open) => !open && onCancel()}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Point at something</DialogTitle>
+          <DialogTitle>{t("misc.markupTitle")}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-2">
@@ -257,10 +259,10 @@ export function PhotoMarkupDialog({
 
         <DialogFooter>
           <Button variant="ghost" onClick={onCancel} disabled={saving}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button onClick={save} disabled={saving || marks.length === 0}>
-            {saving ? "Saving…" : MARKUP_SAVE}
+            {saving ? t("common.saving") : MARKUP_SAVE}
           </Button>
         </DialogFooter>
       </DialogContent>

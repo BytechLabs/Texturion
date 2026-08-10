@@ -18,6 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useT } from "@/i18n/provider";
 import { useExportContacts } from "@/lib/api/contacts-export-hook";
 import { ApiError } from "@/lib/api/error";
 import { contactsPickerSupported } from "@/lib/contacts/contacts-picker";
@@ -55,6 +56,7 @@ export function ContactsActions({
   importSource: ImportSource;
   onImportSourceChange: (source: ImportSource) => void;
 }) {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   // #459 ?new=<digits>: the dialer's "Add contact", which lands here rather
@@ -81,7 +83,7 @@ export function ContactsActions({
         setExportError(
           cause instanceof ApiError
             ? cause.message
-            : "The export didn't go through. Try again.",
+            : t("contacts.exportFailed"),
         ),
     });
   }
@@ -94,7 +96,7 @@ export function ContactsActions({
             phone apps; import stays owner/admin. */}
         <Button variant="outline" onClick={() => setCreating(true)}>
           <UserPlus strokeWidth={1.75} aria-hidden />
-          New contact
+          {t("contacts.newContact")}
         </Button>
 
         <Button
@@ -103,7 +105,9 @@ export function ContactsActions({
           disabled={exportContacts.isPending}
         >
           <Download strokeWidth={1.75} aria-hidden />
-          {exportContacts.isPending ? "Exporting…" : "Export"}
+          {exportContacts.isPending
+            ? t("contacts.exporting")
+            : t("contacts.exportAction")}
         </Button>
 
         {canImport && (
@@ -111,23 +115,23 @@ export function ContactsActions({
             <DropdownMenuTrigger asChild>
               <Button>
                 <Upload strokeWidth={1.75} aria-hidden />
-                Import
+                {t("contacts.importAction")}
                 <ChevronDown strokeWidth={1.75} aria-hidden />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuItem onSelect={() => setImportSource("csv")}>
                 <FileText strokeWidth={1.75} aria-hidden />
-                CSV file
+                {t("contacts.importCsv")}
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setImportSource("vcard")}>
                 <FileText strokeWidth={1.75} aria-hidden />
-                vCard file (.vcf)
+                {t("contacts.importVcard")}
               </DropdownMenuItem>
               {pickerSupported && (
                 <DropdownMenuItem onSelect={() => setImportSource("phone")}>
                   <Smartphone strokeWidth={1.75} aria-hidden />
-                  Pick from phone
+                  {t("contacts.importFromPhone")}
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>

@@ -1,3 +1,6 @@
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
 import type { PauseOffer } from "@/lib/api/billing";
 
 /**
@@ -169,11 +172,15 @@ export function planBadge(
  * Android's `planStateUnknownNote` shows, so the two clients do not describe the
  * same failure two ways.
  */
-export function planStateUnknownNote(read: PauseRead): string | null {
-  return read.state === "failed"
-    ? "We couldn't check this plan's status just now, so nothing here is " +
-        "claimed either way. Your plan and your number are untouched."
-    : null;
+export function planStateUnknownNote(
+  read: PauseRead,
+  /**
+   * #228: defaulted to English so `pause-read.test.ts` — which has no provider
+   * and asserts the shipped sentence — keeps reading exactly what it read.
+   */
+  t: Translate = makeTranslate(DEFAULT_LOCALE),
+): string | null {
+  return read.state === "failed" ? t("settingsMore.planStateUnknown") : null;
 }
 
 /**

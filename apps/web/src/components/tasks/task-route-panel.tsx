@@ -3,6 +3,8 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
+import { useT } from "@/i18n/provider";
+
 import { TaskDetailPanel } from "./task-detail-panel";
 
 /**
@@ -11,6 +13,7 @@ import { TaskDetailPanel } from "./task-detail-panel";
  * link. On delete the panel calls onClose; here that navigates back to /tasks.
  */
 export function TaskRoutePanel({ taskId }: { taskId: string }) {
+  const t = useT();
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8">
       <Link
@@ -18,7 +21,7 @@ export function TaskRoutePanel({ taskId }: { taskId: string }) {
         className="mb-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-app-muted transition-colors hover:text-app-ink"
       >
         <ArrowLeft className="size-4" strokeWidth={1.75} aria-hidden />
-        Back to tasks
+        {t("tasks.backToTasks")}
       </Link>
       <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
         <div className="h-[calc(100svh-11rem)] min-h-[420px]">

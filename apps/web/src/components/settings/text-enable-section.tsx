@@ -5,6 +5,7 @@ import { StartTextEnableDialog } from "@/components/settings/start-text-enable-d
 import { TextEnableCard } from "@/components/settings/text-enable-card";
 import { splitHostedNumbers } from "@/components/settings/text-enable-state";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { useTextEnablements } from "@/lib/api/text-enablement";
 import type { CompanyView, PhoneNumberSummary } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -24,6 +25,7 @@ import { useActiveCompany } from "@/lib/company/provider";
  * completed enablement.
  */
 export function TextEnableSection({ company }: { company: CompanyView }) {
+  const t = useT();
   const { role } = useActiveCompany();
   const enablements = useTextEnablements();
 
@@ -41,14 +43,14 @@ export function TextEnableSection({ company }: { company: CompanyView }) {
 
   if (enablements.isPending) {
     return (
-      <SettingsCard title="Text-enabled numbers">
+      <SettingsCard title={t("settingsMore.hostedSectionTitle")}>
         <Skeleton className="h-32 w-full" />
       </SettingsCard>
     );
   }
   if (enablements.isError) {
     return (
-      <SettingsCard title="Text-enabled numbers">
+      <SettingsCard title={t("settingsMore.hostedSectionTitle")}>
         <LoadError onRetry={() => enablements.refetch()} />
       </SettingsCard>
     );
@@ -62,8 +64,8 @@ export function TextEnableSection({ company }: { company: CompanyView }) {
     if (!canStart || !active) return null;
     return (
       <SettingsCard
-        title="Text-enable your existing landline"
-        description="Keep the number and the carrier you have; Loonext adds texting to it. Calls don't change; the carrier review takes a few business days, and texting goes live once it completes."
+        title={t("settingsMore.textEnableDialogTitle")}
+        description={t("settingsMore.hostedStartDescription")}
       >
         <StartTextEnableDialog />
       </SettingsCard>
@@ -72,8 +74,8 @@ export function TextEnableSection({ company }: { company: CompanyView }) {
 
   return (
     <SettingsCard
-      title="Text-enabled numbers"
-      description="Adding texting to numbers that keep their current carrier."
+      title={t("settingsMore.hostedSectionTitle")}
+      description={t("settingsMore.hostedSectionDescription")}
     >
       <div className="space-y-5">
         {rows.map((order) => (

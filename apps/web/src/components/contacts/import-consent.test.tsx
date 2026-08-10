@@ -97,7 +97,13 @@ import { CONSENT_REFUSALS_FILENAME } from "@/lib/contacts/import-summary";
 import { ImportWizard } from "./import-wizard";
 import { PhonePickerDialog } from "./phone-picker-dialog";
 import { VCardImportDialog } from "./vcard-import-dialog";
-import { IMPORT_CONSENT_LABEL } from "./import-consent-check";
+// #228: the attestation sentence moved into the catalogue, keyed by door.
+import { contactsEn } from "@/i18n/sections/contacts";
+
+const IMPORT_CONSENT_LABEL = {
+  file: contactsEn.consentLabelFile,
+  picked: contactsEn.consentLabelPicked,
+} as const;
 
 afterEach(cleanup);
 beforeEach(() => {

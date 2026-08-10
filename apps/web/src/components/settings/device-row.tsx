@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { useT, type Translate } from "@/i18n/provider";
 import type { SessionClient } from "@/lib/api/sessions";
 import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
@@ -33,15 +34,17 @@ const CLIENT_ICON: Record<SessionClient, LucideIcon> = {
   unknown: MonitorSmartphone,
 };
 
-const CLIENT_LABEL: Record<SessionClient, string> = {
-  web: "Web browser",
-  android: "Android app",
-  ios: "iPhone or iPad",
-  unknown: "Unrecognised device",
-};
+/** The catalogue key for each client, so the row is named in the reader's own
+ *  language rather than in the one this file happened to be written in. */
+const CLIENT_LABEL = {
+  web: "deviceWeb",
+  android: "deviceAndroid",
+  ios: "deviceIos",
+  unknown: "deviceUnknown",
+} as const satisfies Record<SessionClient, string>;
 
-export function deviceLabel(client: SessionClient): string {
-  return CLIENT_LABEL[client] ?? CLIENT_LABEL.unknown;
+export function deviceLabel(client: SessionClient, t: Translate): string {
+  return t(`settings.${CLIENT_LABEL[client] ?? CLIENT_LABEL.unknown}`);
 }
 
 export function DeviceRow({
@@ -64,6 +67,7 @@ export function DeviceRow({
   secondary?: string;
   action?: React.ReactNode;
 }) {
+  const t = useT();
   const Icon = CLIENT_ICON[client] ?? CLIENT_ICON.unknown;
   return (
     <div className="flex items-start gap-3 py-3.5 first:pt-0 last:pb-0">
@@ -77,25 +81,29 @@ export function DeviceRow({
       />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="text-sm font-medium">{deviceLabel(client)}</span>
+          <span className="text-sm font-medium">{deviceLabel(client, t)}</span>
           {current && (
             // The one row nobody should worry about, said before they read
             // any further.
             <Badge variant="secondary" className="font-normal">
-              This device
+              {t("settings.deviceThisOne")}
             </Badge>
           )}
         </div>
         <p className="mt-0.5 truncate text-sm text-muted-foreground">
-          {secondary ?? location ?? "Location not available"}
+          {secondary ?? location ?? t("settings.deviceNoLocation")}
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">
           <span title={formatAbsoluteDateTime(lastActiveAt)}>
-            Last active {formatRelativeTime(lastActiveAt)}
+            {t("settings.deviceLastActive", {
+              when: formatRelativeTime(lastActiveAt),
+            })}
           </span>
           {" · "}
           <span title={formatAbsoluteDateTime(signedInAt)}>
-            signed in {formatRelativeTime(signedInAt)}
+            {t("settings.deviceSignedIn", {
+              when: formatRelativeTime(signedInAt),
+            })}
           </span>
         </p>
         {userAgent && (

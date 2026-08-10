@@ -8,6 +8,7 @@ import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useUpdateCompany } from "@/lib/api/companies";
 import type { CompanyView } from "@/lib/api/types";
@@ -74,6 +75,7 @@ export function ClosedDatesCard({
   company: CompanyView;
   canEdit: boolean;
 }) {
+  const t = useT();
   const update = useUpdateCompany();
   const existing = company.business_hours_exceptions ?? [];
   const [draft, setDraft] = useState<DraftRow>(EMPTY);
@@ -89,7 +91,7 @@ export function ClosedDatesCard({
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't save those dates. Try again.",
+              : t("settings.closedDatesSaveFailed"),
           ),
       },
     );
@@ -101,11 +103,11 @@ export function ClosedDatesCard({
     // to type the same date twice would be busywork on the common case.
     const to = draft.to.trim() || from;
     if (from === "") {
-      setError("Pick the date you're closed.");
+      setError(t("settings.closedDatesPickDate"));
       return;
     }
     if (to < from) {
-      setError("The last day can't be before the first day.");
+      setError(t("settings.closedDatesBadRange"));
       return;
     }
     commit(
@@ -121,7 +123,7 @@ export function ClosedDatesCard({
           ...(draft.note.trim() ? { note: draft.note.trim() } : {}),
         },
       ],
-      "Closed date added.",
+      t("settings.closedDatesAdded"),
     );
     setDraft(EMPTY);
   }
@@ -129,19 +131,19 @@ export function ClosedDatesCard({
   function remove(index: number) {
     commit(
       existing.filter((_, i) => i !== index),
-      "Closed date removed.",
+      t("settings.closedDatesRemoved"),
     );
   }
 
   return (
     <SettingsCard
-      title="Closed dates"
-      description="Holidays, a week off, a day for a funeral. On these dates your away reply goes out even if the weekly schedule says you're open — so a customer texting on Christmas morning hears something back instead of nothing."
+      title={t("settings.closedDatesTitle")}
+      description={t("settings.closedDatesDescription")}
     >
       <div className="space-y-3">
         {existing.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No closed dates yet. Your weekly hours apply every week.
+            {t("settings.closedDatesEmpty")}
           </p>
         ) : (
           <ul className="space-y-2">
@@ -162,7 +164,9 @@ export function ClosedDatesCard({
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    aria-label={`Remove ${rangeLabel(entry)}`}
+                    aria-label={t("settings.closedDatesRemoveAria", {
+                      range: rangeLabel(entry),
+                    })}
                     disabled={update.isPending}
                     onClick={() => remove(index)}
                   >
@@ -178,7 +182,7 @@ export function ClosedDatesCard({
           <div className="flex flex-wrap items-end gap-3 pt-1">
             <div className="space-y-1">
               <Label htmlFor="closed-from" className="text-xs">
-                First day
+                {t("settings.closedDatesFirstDay")}
               </Label>
               <Input
                 id="closed-from"
@@ -192,14 +196,14 @@ export function ClosedDatesCard({
             </div>
             <div className="space-y-1">
               <Label htmlFor="closed-to" className="text-xs">
-                Last day
+                {t("settings.closedDatesLastDay")}
               </Label>
               <Input
                 id="closed-to"
                 type="date"
                 className="w-40"
                 // Empty means one day, which is what most of these are.
-                placeholder="Same day"
+                placeholder={t("settings.closedDatesSameDay")}
                 value={draft.to}
                 onChange={(event) =>
                   setDraft((d) => ({ ...d, to: event.target.value }))
@@ -208,12 +212,12 @@ export function ClosedDatesCard({
             </div>
             <div className="min-w-[12rem] flex-1 space-y-1">
               <Label htmlFor="closed-note" className="text-xs">
-                What to tell customers (optional)
+                {t("settings.closedDatesNoteLabel")}
               </Label>
               <Input
                 id="closed-note"
                 maxLength={200}
-                placeholder="Closed for the holiday, back Monday"
+                placeholder={t("settings.closedDatesNotePlaceholder")}
                 value={draft.note}
                 onChange={(event) =>
                   setDraft((d) => ({ ...d, note: event.target.value }))
@@ -222,7 +226,7 @@ export function ClosedDatesCard({
             </div>
             <Button onClick={add} disabled={update.isPending}>
               <Plus strokeWidth={1.75} aria-hidden />
-              Add
+              {t("settings.addAction")}
             </Button>
           </div>
         ) : null}

@@ -17,9 +17,30 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { contactsEn } from "@/i18n/sections/contacts";
+
 import { parityCode } from "./parity-source";
 
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
+
+/**
+ * #228 — web's words moved into the catalogue, so they are read from there
+ * rather than from `phone-list.tsx`. Scanning the component for English would
+ * now match nothing and this file would pass by checking an empty set. The
+ * phones still spell theirs inline. What is asserted is unchanged: every
+ * client says the same sentences, and web's copy still has to exist somewhere.
+ *
+ * The KEYS are listed rather than `Object.values(contactsEn)`. A join of the
+ * whole section makes every assertion a substring search over ~200 unrelated
+ * sentences, which is how the sibling contact-filter guard passed with its
+ * chip renamed to "All people".
+ */
+const WEB_WORDS = [
+  contactsEn.phoneAddLabel,
+  contactsEn.phoneLabelPlaceholder,
+  contactsEn.phonePlaceholder,
+  contactsEn.phoneMatchNote,
+].join("\n");
 
 const SOURCES: Record<string, string> = {
   web: join(REPO_ROOT, "apps/web/src/components/contacts/phone-list.tsx"),
@@ -52,7 +73,7 @@ describe("#291 the other-numbers list reads the same everywhere", () => {
   it("carries every sentence on every client, verbatim", () => {
     const missing: string[] = [];
     for (const [platform, path] of Object.entries(SOURCES)) {
-      const text = code(path);
+      const text = platform === "web" ? WEB_WORDS : code(path);
       for (const sentence of SENTENCES) {
         if (!text.includes(sentence)) missing.push(`${platform}: ${sentence}`);
       }
@@ -68,10 +89,22 @@ describe("#291 the other-numbers list reads the same everywhere", () => {
     // A row of numbers with a bare "Remove" beside each is a control somebody
     // taps by position. On a screen where two of a customer's lines differ by
     // one digit, that is a number deleted by accident.
-    for (const [platform, path] of Object.entries(SOURCES)) {
-      expect(code(path), `${platform}: remove names the number`).toMatch(
-        /Remove \$?\{?entry\.phone_e164\}?|Remove \\\(entry\.phone_e164\)/,
-      );
+    //
+    // #228: web now builds this label from the catalogue, so it takes BOTH
+    // halves — the sentence has a slot for the number, and the component fills
+    // that slot with the row's own number. Asserting only the first would pass
+    // for a component that never passed the number in.
+    expect(contactsEn.phoneRemove, "web: the label has a slot").toContain(
+      "{number}",
+    );
+    expect(code(SOURCES.web), "web: remove names the number").toMatch(
+      /contacts\.phoneRemove"[\s,{]*number:\s*entry\.phone_e164/,
+    );
+    for (const platform of ["android", "ios"] as const) {
+      expect(
+        code(SOURCES[platform]),
+        `${platform}: remove names the number`,
+      ).toMatch(/Remove \$?\{?entry\.phone_e164\}?|Remove \\\(entry\.phone_e164\)/);
     }
   });
 
@@ -83,8 +116,13 @@ describe("#291 the other-numbers list reads the same everywhere", () => {
    * whole assertion vacuous.
    */
   const NOTE = {
+    // #228: web reaches the note through its catalogue key, so the key IS the
+    // identifier. There is no declaration in the file any more, which `body()`
+    // already handles — a needle it cannot find leaves the whole source in
+    // play, and the key appears exactly once, inside the adding branch. Both
+    // assertions below therefore still bite; only the spelling moved.
     web: {
-      identifier: "PHONE_MATCH_NOTE",
+      identifier: "contacts\\.phoneMatchNote",
       branch: "{adding ? (",
       declaration: "export const PHONE_MATCH_NOTE",
     },

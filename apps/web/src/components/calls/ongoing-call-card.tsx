@@ -26,6 +26,7 @@ import { useEffect, useState } from "react";
 
 import { callerName } from "@/components/calls/call-row";
 import { avatarColorClass } from "@/components/shell/avatar-color";
+import { useT, type Translate } from "@/i18n/provider";
 import { useNumbers } from "@/lib/api/numbers";
 import { useMembers } from "@/lib/api/team";
 import type { Call } from "@/lib/api/types";
@@ -94,12 +95,14 @@ function OngoingCallRow({
   call,
   memberName,
   line,
+  t,
 }: {
   call: Call;
   memberName: string | null;
   line: string | null;
+  t: Translate;
 }) {
-  const name = callerName(call);
+  const name = callerName(call, t);
   const phase = ongoingPhase(call);
   // #210: the duration anchors on the answer stamp; until the api_list_calls
   // projection carries answered_at, started_at keeps the ticker honest-ish
@@ -138,25 +141,28 @@ function OngoingCallRow({
             )}
           />
           {phase === "ringing" ? (
-            <span>Ringing…</span>
+            <span>{t("shell.ringing")}</span>
           ) : phase === "voicemail" ? (
-            <span>Going to voicemail</span>
+            <span>{t("shell.goingToVoicemail")}</span>
           ) : phase === "outbound" ? (
             <span>
-              Outgoing call · <LiveOngoingDuration since={since} />
+              {t("shell.outgoingCall")} · <LiveOngoingDuration since={since} />
             </span>
           ) : (
             // #566: the one element here that can be long, so it is the one that
             // truncates. The duration rides inside it and is short by
             // construction, so it is never what overflows.
             <span className="min-w-0 truncate">
-              With {memberName ?? "a teammate"} ·{" "}
+              {t("shell.withMember", {
+                name: memberName ?? t("shell.aTeammate"),
+              })}{" "}
+              ·{" "}
               <LiveOngoingDuration since={since} />
             </span>
           )}
           {line && (
             <span className="ml-auto shrink-0 text-[12px] text-app-muted-2">
-              on {line}
+              {t("shell.onLine", { number: line })}
             </span>
           )}
         </span>
@@ -170,6 +176,7 @@ function OngoingCallRow({
  * occupies space at rest — the call bar's posture).
  */
 export function OngoingCalls({ calls }: { calls: Call[] }) {
+  const t = useT();
   const members = useMembers();
   const numbers = useNumbers();
   if (calls.length === 0) return null;
@@ -192,9 +199,9 @@ export function OngoingCalls({ calls }: { calls: Call[] }) {
   };
 
   return (
-    <section aria-label="Ongoing calls">
+    <section aria-label={t("shell.ongoingCalls")}>
       <h2 className="flex items-baseline gap-2 px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-app-muted-2">
-        Ongoing
+        {t("shell.ongoing")}
       </h2>
       <div className="overflow-hidden rounded-app-card border border-app-line bg-app-paper">
         {calls.map((call) => (
@@ -203,6 +210,7 @@ export function OngoingCalls({ calls }: { calls: Call[] }) {
             call={call}
             memberName={memberName(call.answered_by_user_id)}
             line={lineLabel(call.phone_number_id)}
+            t={t}
           />
         ))}
       </div>

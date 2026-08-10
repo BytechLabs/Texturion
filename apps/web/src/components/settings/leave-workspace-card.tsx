@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useT } from "@/i18n/provider";
 import { useLeaveWorkspace } from "@/lib/api/team";
 import { ApiError } from "@/lib/api/error";
 import { endSessionOnThisDevice } from "@/lib/auth/end-session";
@@ -40,6 +41,7 @@ import type { CompanyView } from "@/lib/api/types";
  * in.*
  */
 export function LeaveWorkspaceCard({ company }: { company: CompanyView }) {
+  const t = useT();
   const router = useRouter();
   const leave = useLeaveWorkspace();
   const [open, setOpen] = useState(false);
@@ -52,45 +54,36 @@ export function LeaveWorkspaceCard({ company }: { company: CompanyView }) {
       await endSessionOnThisDevice(company.id);
       toast.success(
         result.conversations_released + result.tasks_released > 0
-          ? "You've left. Your open work went back to the team."
-          : "You've left the workspace.",
+          ? t("settings.leaveWorkspaceDoneHandoff")
+          : t("settings.leaveWorkspaceDone"),
       );
       router.replace("/login");
     } catch (cause) {
       setOpen(false);
       toast.error(
-        cause instanceof ApiError ? cause.message : "Couldn't leave. Try again.",
+        cause instanceof ApiError
+          ? cause.message
+          : t("settings.leaveWorkspaceFailed"),
       );
     }
   }
 
   return (
     <SettingsCard
-      title="Leave this workspace"
-      description="End your own access to this workspace. You can do this yourself — you don't need to ask an owner."
+      title={t("settings.leaveWorkspaceTitle")}
+      description={t("settings.leaveWorkspaceDescription")}
     >
       <div className="space-y-4">
         <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
-          <li>
-            Your access ends straight away, on every device you&rsquo;re signed
-            in on.
-          </li>
-          <li>
-            Anything you were working on goes back to the team, so nothing is
-            left pointing at someone who has gone.
-          </li>
-          <li>
-            Messages you sent stay on the record under your name. Leaving
-            doesn&rsquo;t erase your work, and isn&rsquo;t meant to.
-          </li>
-          <li>
-            To come back, someone in the workspace has to invite you again.
-          </li>
+          <li>{t("settings.leaveWorkspaceAccessEnds")}</li>
+          <li>{t("settings.leaveWorkspaceHandoff")}</li>
+          <li>{t("settings.leaveWorkspaceRecordStays")}</li>
+          <li>{t("settings.leaveWorkspaceComeBack")}</li>
         </ul>
 
         <div className="flex justify-end">
           <Button variant="outline" onClick={() => setOpen(true)}>
-            Leave workspace
+            {t("settings.leaveWorkspaceAction")}
           </Button>
         </div>
       </div>
@@ -98,10 +91,11 @@ export function LeaveWorkspaceCard({ company }: { company: CompanyView }) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Leave {company.name}?</DialogTitle>
+            <DialogTitle>
+              {t("settings.leaveWorkspaceConfirmTitle", { name: company.name })}
+            </DialogTitle>
             <DialogDescription>
-              Your access ends now and your open work goes back to the team. To
-              come back, someone will need to invite you again.
+              {t("settings.leaveWorkspaceConfirmDescription")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -110,10 +104,12 @@ export function LeaveWorkspaceCard({ company }: { company: CompanyView }) {
               onClick={() => setOpen(false)}
               disabled={leave.isPending}
             >
-              Stay
+              {t("settings.leaveWorkspaceStay")}
             </Button>
             <Button onClick={confirm} disabled={leave.isPending}>
-              {leave.isPending ? "Leaving…" : "Leave workspace"}
+              {leave.isPending
+                ? t("settings.leaveWorkspaceLeaving")
+                : t("settings.leaveWorkspaceAction")}
             </Button>
           </DialogFooter>
         </DialogContent>

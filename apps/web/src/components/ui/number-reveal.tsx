@@ -4,6 +4,7 @@ import { Check, Copy } from "lucide-react";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { prefersReducedMotion } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -59,6 +60,7 @@ export function NumberReveal({
   copyLabel,
   className,
 }: NumberRevealProps) {
+  const t = useT();
   const [copied, setCopied] = React.useState(false);
 
   React.useEffect(() => {
@@ -88,15 +90,15 @@ export function NumberReveal({
             variant="outline"
             size="sm"
             onClick={onCopy}
-            aria-label={copyLabel ?? `Copy ${value}`}
+            aria-label={copyLabel ?? t("misc.copyAria", { value })}
           >
             {copied ? (
               <>
-                <Check className="size-4" aria-hidden /> Copied
+                <Check className="size-4" aria-hidden /> {t("misc.copied")}
               </>
             ) : (
               <>
-                <Copy className="size-4" aria-hidden /> Copy
+                <Copy className="size-4" aria-hidden /> {t("misc.copy")}
               </>
             )}
           </Button>

@@ -12,6 +12,7 @@ import {
 } from "@loonext/shared";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useSendMessage } from "@/lib/api/messages";
 import { useTasks } from "@/lib/api/tasks";
@@ -48,6 +49,7 @@ import { flattenPages } from "@/lib/api/pagination";
  * is not a reason for an exemption.
  */
 export function OnMyWay({ conversationId }: { conversationId: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const send = useSendMessage(conversationId);
 
@@ -80,7 +82,7 @@ export function OnMyWay({ conversationId }: { conversationId: string }) {
       // it is outside quiet hours — and "couldn't send" would read as the
       // button being broken rather than as the rule working.
       toast.error(
-        cause instanceof ApiError ? cause.message : "That didn't send.",
+        cause instanceof ApiError ? cause.message : t("thread.sendFailed"),
       );
     }
   }
@@ -122,7 +124,7 @@ export function OnMyWay({ conversationId }: { conversationId: string }) {
         variant="ghost"
         onClick={() => setOpen(false)}
       >
-        Cancel
+        {t("common.cancel")}
       </Button>
       <p className="w-full text-[12px] text-app-muted-2">
         {ON_MY_WAY_COPY.gated_note}

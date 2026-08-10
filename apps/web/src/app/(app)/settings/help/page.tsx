@@ -18,6 +18,7 @@ import {
 } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { recentClientErrors } from "@/lib/observability/recent-errors";
 
@@ -36,12 +37,13 @@ import { recentClientErrors } from "@/lib/observability/recent-errors";
  * cannot keep.
  */
 export default function HelpPage() {
+  const t = useT();
   const company = useCompany();
 
   return (
     <SettingsPage
-      title="Help"
-      description="Tell us what's happening and we'll look at it. Email is the fastest way to reach a person."
+      title={t("appShell.helpTitle")}
+      description={t("appShell.helpDescription")}
     >
       {company.isPending ? (
         <div className="space-y-4">
@@ -52,8 +54,8 @@ export default function HelpPage() {
       ) : (
         <div className="space-y-6">
           <SettingsCard
-            title="Email us"
-            description="Opens your mail app with your workspace details already filled in, so we can look it up without asking you first."
+            title={t("appShell.helpEmailUs")}
+            description={t("appShell.helpEmailUsDescription")}
           >
             <div className="space-y-4">
               <Button asChild className="w-full sm:w-auto">
@@ -70,14 +72,12 @@ export default function HelpPage() {
                   })}
                 >
                   <Mail aria-hidden className="size-4" />
-                  Email {SUPPORT_EMAIL}
+                  {t("appShell.helpEmailAddress", { email: SUPPORT_EMAIL })}
                 </a>
               </Button>
 
               <p className="text-sm text-muted-foreground">
-                Say what you expected and what happened instead. If it&rsquo;s
-                about a specific text or call, the customer&rsquo;s phone number
-                and roughly when it happened is usually all we need.
+                {t("appShell.helpWhatToSay")}
               </p>
             </div>
           </SettingsCard>
@@ -86,8 +86,10 @@ export default function HelpPage() {
               holding — a shared work tablet often does not. The same details
               are readable here so the email can be sent from anywhere. */}
           <SettingsCard
-            title="If that button doesn't open anything"
-            description={`Write to ${SUPPORT_EMAIL} from any email app and paste this in.`}
+            title={t("appShell.helpNoMailApp")}
+            description={t("appShell.helpNoMailAppDescription", {
+              email: SUPPORT_EMAIL,
+            })}
           >
             <pre className="overflow-x-auto whitespace-pre-wrap rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
               {supportBody({
@@ -107,8 +109,8 @@ export default function HelpPage() {
               not write to an address labelled support: they read that,
               correctly, as being for things that are broken. */}
           <SettingsCard
-            title="Got an idea?"
-            description="Something we don't do yet, or do in a way that doesn't fit how you work."
+            title={t("appShell.helpIdeaTitle")}
+            description={t("appShell.helpIdeaDescription")}
           >
             <div className="space-y-3">
               <Button asChild variant="outline" className="w-full sm:w-auto">
@@ -121,13 +123,11 @@ export default function HelpPage() {
                   })}
                 >
                   <Lightbulb aria-hidden className="size-4" />
-                  Send an idea
+                  {t("appShell.helpSendIdea")}
                 </a>
               </Button>
               <p className="text-sm text-muted-foreground">
-                This goes to the same place, under its own subject so it
-                doesn&rsquo;t get triaged as a fault. Half of what&rsquo;s in
-                the product came from someone describing their day.
+                {t("appShell.helpIdeaFootnote")}
               </p>
             </div>
           </SettingsCard>
@@ -137,8 +137,8 @@ export default function HelpPage() {
               reachable by somebody who has the question and is not currently
               staring at the failure. The gap was the index, not the answers. */}
           <SettingsCard
-            title="Common questions"
-            description="The things that confuse people most, answered straight."
+            title={t("appShell.helpCommonQuestions")}
+            description={t("appShell.helpCommonQuestionsDescription")}
           >
             <dl className="divide-y divide-border">
               {SUPPORT_TOPICS.map((topic) => (
@@ -153,8 +153,8 @@ export default function HelpPage() {
           </SettingsCard>
 
           <SettingsCard
-            title="What to expect"
-            description="An honest answer rather than a promise we'd have to break."
+            title={t("appShell.helpWhatToExpect")}
+            description={t("appShell.helpWhatToExpectDescription")}
           >
             <p className="flex items-start gap-2.5 text-sm text-muted-foreground">
               <LifeBuoy aria-hidden className="mt-0.5 size-4 shrink-0" />
@@ -163,10 +163,9 @@ export default function HelpPage() {
                     constant. Two business days is what survives a bad week —
                     an unanswered promise is worse than a vague one, and the
                     good weeks beat it at no cost. */}
-                We reply {SUPPORT_RESPONSE_TIME}. We&rsquo;re a small team, so
-                this is email rather than a chat window, and we read everything
-                that comes in. If your texts have stopped arriving, say so in
-                the subject line and we&rsquo;ll start there.
+                {t("appShell.helpReplyPromise", {
+                  time: SUPPORT_RESPONSE_TIME,
+                })}
                 {/* #321: the loop, stated. The reason to bother writing in is
                     knowing you will hear back — which makes the release step
                     in docs/RELEASING.md load-bearing, not optional. */}

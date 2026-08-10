@@ -19,6 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useT } from "@/i18n/provider";
 import { useTags } from "@/lib/api/tags";
 import {
   canEscalate,
@@ -80,6 +81,7 @@ export function BulkBar({
   onAssign: (userId: string | null) => void;
   onTag: (tagId: string) => void;
 }) {
+  const t = useT();
   const memberNames = useMemberNames();
   const tags = useTags();
   const showEscalate = canEscalate(selection, loadedIds, hasMore);
@@ -102,7 +104,7 @@ export function BulkBar({
         type="button"
         variant="ghost"
         size="icon-sm"
-        aria-label="Clear selection"
+        aria-label={t("inbox.bulkClearSelectionAria")}
         onClick={onClear}
         disabled={pending}
       >
@@ -122,7 +124,7 @@ export function BulkBar({
           onClick={onSelectLoaded}
           disabled={pending}
         >
-          Select all {loadedIds.length} loaded
+          {t("inbox.bulkSelectAllLoaded", { count: loadedIds.length })}
         </Button>
       )}
 
@@ -136,7 +138,7 @@ export function BulkBar({
           onClick={onSelectAllMatching}
           disabled={pending}
         >
-          Select all matching this filter
+          {t("inbox.bulkSelectAllMatching")}
         </Button>
       )}
 
@@ -157,7 +159,7 @@ export function BulkBar({
         disabled={pending}
       >
         <MailOpen className="size-4" strokeWidth={1.75} aria-hidden />
-        Mark read
+        {t("inbox.bulkMarkRead")}
       </Button>
       <Button
         type="button"
@@ -167,7 +169,7 @@ export function BulkBar({
         disabled={pending}
       >
         <Check className="size-4" strokeWidth={1.75} aria-hidden />
-        Close
+        {t("inbox.bulkClose")}
       </Button>
       <Button
         type="button"
@@ -177,18 +179,18 @@ export function BulkBar({
         disabled={pending}
       >
         <ShieldAlert className="size-4" strokeWidth={1.75} aria-hidden />
-        Spam
+        {t("inbox.bulkSpam")}
       </Button>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button type="button" variant="outline" size="sm" disabled={pending}>
-            More
+            {t("inbox.bulkMore")}
             <ChevronDown className="size-4" strokeWidth={1.75} aria-hidden />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>Assign to</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("inbox.bulkAssignTo")}</DropdownMenuLabel>
           {[...memberNames.entries()].map(([userId, name]) => (
             <DropdownMenuItem key={userId} onSelect={() => onAssign(userId)}>
               <MemberAvatar name={name} />
@@ -196,12 +198,12 @@ export function BulkBar({
             </DropdownMenuItem>
           ))}
           <DropdownMenuItem onSelect={() => onAssign(null)}>
-            Nobody
+            {t("inbox.bulkNobody")}
           </DropdownMenuItem>
           {(tags.data?.data.length ?? 0) > 0 && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuLabel>Add tag</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("inbox.bulkAddTag")}</DropdownMenuLabel>
               {tags.data?.data.map((tag) => (
                 <DropdownMenuItem key={tag.id} onSelect={() => onTag(tag.id)}>
                   {tag.name}

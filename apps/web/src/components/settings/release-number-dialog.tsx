@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useReleaseNumber } from "@/lib/api/numbers";
 import { useActionConfirmation } from "@/lib/hooks/use-action-confirmation";
@@ -54,6 +55,7 @@ export function ReleaseNumberDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const release = useReleaseNumber();
   // #537 audit: permanent, and whoever holds this number next receives the texts
   // this business's customers send it. Typing the number guards against a slip; it
@@ -71,7 +73,7 @@ export function ReleaseNumberDialog({
         onSuccess: () => {
           gate.dismiss();
           close(false);
-          toast.success(`${display} released.`);
+          toast.success(t("settingsMore.releaseDone", { number: display }));
         },
         onError: (cause) => {
           if (gate.demanded(cause, "release_number", (digits) => attempt(digits))) {
@@ -81,7 +83,7 @@ export function ReleaseNumberDialog({
           setError(
             cause instanceof ApiError
               ? cause.message
-              : "Couldn't release the number. Try again.",
+              : t("settingsMore.releaseFailed"),
           );
         },
       },
@@ -108,11 +110,15 @@ export function ReleaseNumberDialog({
     <Dialog open={open} onOpenChange={close}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Release {display}?</DialogTitle>
-          <DialogDescription>{releaseNumberBody(hold)}</DialogDescription>
+          <DialogTitle>
+            {t("settingsMore.releaseTitle", { number: display })}
+          </DialogTitle>
+          <DialogDescription>{releaseNumberBody(hold, t)}</DialogDescription>
         </DialogHeader>
         <div className="space-y-1.5">
-          <Label htmlFor="release-confirm">Type {display} to confirm</Label>
+          <Label htmlFor="release-confirm">
+            {t("settingsMore.releaseTypeToConfirm", { number: display })}
+          </Label>
           <Input
             id="release-confirm"
             value={typed}
@@ -129,14 +135,16 @@ export function ReleaseNumberDialog({
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => close(false)}>
-            Keep the number
+            {t("settingsMore.releaseKeep")}
           </Button>
           <Button
             variant="destructive"
             disabled={!matches || release.isPending}
             onClick={() => attempt()}
           >
-            {release.isPending ? "Releasing…" : "Release number"}
+            {release.isPending
+              ? t("settingsMore.releasing")
+              : t("settingsMore.releaseConfirm")}
           </Button>
         </DialogFooter>
       </DialogContent>

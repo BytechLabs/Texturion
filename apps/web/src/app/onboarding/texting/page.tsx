@@ -17,6 +17,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { ApiError } from "@/lib/api/error";
 import { useSaveOnboardingRegistration } from "@/lib/api/onboarding";
@@ -71,6 +72,7 @@ function asString(value: unknown): string {
 }
 
 export default function TextingDetailsPage() {
+  const t = useT();
   const { state, ready } = useWizardStepGuard("texting");
   const router = useRouter();
   const saveRegistration = useSaveOnboardingRegistration();
@@ -111,19 +113,18 @@ export default function TextingDetailsPage() {
         backHref={previousStepHref("texting", state.snapshot) ?? undefined}
         index={progress.index}
         total={progress.total}
-        title="How customers hear from you"
+        title={t("onboarding.textingTitle")}
       >
         <div className="space-y-6">
           <p className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-            These details were already submitted to carriers. Nothing more to
-            do on this step.
+            {t("onboarding.textingLocked")}
           </p>
           <Button
             size="lg"
             className="w-full"
             onClick={() => router.push("/onboarding/plan")}
           >
-            Continue
+            {t("onboarding.continue")}
           </Button>
         </div>
       </StepShell>
@@ -144,7 +145,7 @@ export default function TextingDetailsPage() {
       setFormError(
         cause instanceof ApiError
           ? cause.message
-          : "Something went wrong on our end. Try again in a moment.",
+          : t("onboarding.genericError"),
       );
     }
   }
@@ -154,8 +155,8 @@ export default function TextingDetailsPage() {
       backHref={previousStepHref("texting", state.snapshot) ?? undefined}
       index={progress.index}
       total={progress.total}
-      title="How customers hear from you"
-      subtitle="Carriers review these before approving business texting. We've written honest defaults. Edit them if they don't fit."
+      title={t("onboarding.textingTitle")}
+      subtitle={t("onboarding.textingSubtitle")}
     >
       <Form {...form}>
         <form
@@ -168,13 +169,12 @@ export default function TextingDetailsPage() {
             name="messageFlow"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>How do customers say yes to texts?</FormLabel>
+                <FormLabel>{t("onboarding.messageFlowLabel")}</FormLabel>
                 <FormControl>
                   <Textarea rows={3} {...field} />
                 </FormControl>
                 <FormDescription>
-                  Plain truth works best. Carriers reject marketing-blast
-                  language.
+                  {t("onboarding.messageFlowHint")}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -185,7 +185,7 @@ export default function TextingDetailsPage() {
             name="sample1"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>A text you&apos;d actually send</FormLabel>
+                <FormLabel>{t("onboarding.sample1Label")}</FormLabel>
                 <FormControl>
                   <Textarea rows={2} {...field} />
                 </FormControl>
@@ -198,12 +198,12 @@ export default function TextingDetailsPage() {
             name="sample2"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>One more example</FormLabel>
+                <FormLabel>{t("onboarding.sample2Label")}</FormLabel>
                 <FormControl>
                   <Textarea rows={2} {...field} />
                 </FormControl>
                 <FormDescription>
-                  Carriers just want to see everyday customer conversations.
+                  {t("onboarding.sample2Hint")}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -220,7 +220,9 @@ export default function TextingDetailsPage() {
             className="w-full"
             disabled={saveRegistration.isPending}
           >
-            {saveRegistration.isPending ? "Saving…" : "Save and continue"}
+            {saveRegistration.isPending
+              ? t("common.saving")
+              : t("onboarding.saveAndContinue")}
           </Button>
         </form>
       </Form>

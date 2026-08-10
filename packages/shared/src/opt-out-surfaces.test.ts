@@ -82,12 +82,41 @@ function flat(source: string): string {
  * `revokeOptOut` with no idea what kind of opt-out it is — that is the point of
  * a transport. The question is only asked of the files that put a control in
  * front of a person, which is what the label text identifies.
+ *
+ * #228 BROKE THE ORIGINAL SPELLING OF THIS, and the break is worth recording
+ * because the guard caught itself. Web moved its labels into the i18n
+ * catalogue, so the three web surfaces stopped containing the English sentence
+ * and the discovery silently fell from seven files to four — with web missing
+ * entirely. The "a passing test that greps nothing is a lie" assertion below is
+ * the only reason that surfaced rather than becoming three unprotected screens.
+ *
+ * So the pattern now matches the KEY as well as the sentence. A surface is
+ * identified by the label it renders, however it reaches it.
  */
-const OFFERS_REVOKE = /Mark opted in again|Remove opt-out/;
+const OFFERS_REVOKE =
+  /Mark opted in again|Remove opt-out|contactMarkOptedIn|markOptedInAgain|markOptedIn/;
+
+/**
+ * #228: the CATALOGUE is not a surface.
+ *
+ * `apps/web/src/i18n/sections/*.ts` holds the words every screen says, so it
+ * now contains "Mark opted in again" — and it will never call
+ * `isCarrierEnforcedOptOut`, because it puts no control in front of anybody.
+ * The surfaces that offer the revoke still read the answer; they just read the
+ * label from here now.
+ *
+ * Excluded by PATH rather than by content: a content rule would have to guess
+ * what a catalogue looks like, and the whole point of this file is that the
+ * question gets asked wherever a person can press something.
+ */
+const IS_CATALOGUE = (file: string) =>
+  file.replaceAll("\\", "/").includes("/i18n/");
 
 describe("#407 — every surface offering a revoke asks which kind it is", () => {
-  const offering = CLIENT_ROOTS.flatMap(walk).filter((file) =>
-    OFFERS_REVOKE.test(code(readFileSync(file, "utf8"))),
+  const offering = CLIENT_ROOTS.flatMap(walk).filter(
+    (file) =>
+      !IS_CATALOGUE(file) &&
+      OFFERS_REVOKE.test(code(readFileSync(file, "utf8"))),
   );
 
   it("finds the surfaces at all (a passing test that greps nothing is a lie)", () => {
@@ -113,6 +142,33 @@ describe("#407 — every surface offering a revoke asks which kind it is", () =>
     },
   );
 
+  /**
+   * #228: what a WEB surface says now lives in the catalogue, so read it there.
+   *
+   * Deliberately NOT "search the whole catalogue" — that would pass every web
+   * file the moment any entry anywhere mentioned START, which is a check that
+   * cannot fail. Instead the keys THIS FILE uses are resolved to their English
+   * values, and only those are searched. A surface that stops naming START
+   * still fails, because its own key no longer carries the word.
+   */
+  function resolvedCopy(file: string, source: string): string {
+    if (!file.replaceAll("\\", "/").includes("/apps/web/")) return source;
+    const sections = join(REPO, "apps", "web", "src", "i18n", "sections");
+    let catalogue = "";
+    for (const entry of readdirSync(sections)) {
+      catalogue += readFileSync(join(sections, entry), "utf8");
+    }
+    let resolved = source;
+    for (const use of source.matchAll(/t\(\s*"[\w]+\.(\w+)"/g)) {
+      // A fixed window after the key rather than a lazy match to the next
+      // comma: a catalogue value is often a concatenation across several lines,
+      // and the first comma-newline inside one would cut the sentence in half.
+      const at = catalogue.indexOf(`${use[1]}:`);
+      if (at !== -1) resolved += ` ${catalogue.slice(at, at + 400)}`;
+    }
+    return resolved;
+  }
+
   it("names START as the customer's route back wherever it refuses", () => {
     // Ask 2: the owner will speak to this customer on the phone. "You can't do
     // that" is a dead end; "tell them to text START to your number" is a thing
@@ -120,7 +176,10 @@ describe("#407 — every surface offering a revoke asks which kind it is", () =>
     for (const file of offering) {
       const source = readFileSync(file, "utf8");
       if (!code(source).includes("isCarrierEnforcedOptOut")) continue;
-      expect(flat(source), `${file.slice(REPO.length + 1)} refuses without naming START`)
+      expect(
+        flat(resolvedCopy(file, source)),
+        `${file.slice(REPO.length + 1)} refuses without naming START`,
+      )
         .toMatch(/texting START|text START/);
     }
   });

@@ -28,6 +28,13 @@ import {
   LeadSourcesCard,
   visibleRows,
 } from "./lead-sources-card";
+import { makeTranslate } from "@/i18n/provider";
+
+/**
+ * #228: both helpers now compose their sentence through the catalogue, so the
+ * test reads it the same way rather than pinning a literal that has moved.
+ */
+const t = makeTranslate("en");
 
 afterEach(cleanup);
 beforeEach(() => {
@@ -119,7 +126,7 @@ describe("#301 where your customers come from", () => {
       coverage: 1,
       note: null,
     } as never;
-    expect(leadingSentence(spread)).toBeNull();
+    expect(leadingSentence(spread, t)).toBeNull();
   });
 
   it("LC-7: a long tail is folded into one row rather than listed", () => {
@@ -139,7 +146,7 @@ describe("#301 where your customers come from", () => {
       coverage: 1,
       note: null,
     } as never;
-    const rows = visibleRows(many);
+    const rows = visibleRows(many, t);
     expect(rows).toHaveLength(5);
     expect(rows[4]).toEqual({ name: "2 more", total: 11 });
   });

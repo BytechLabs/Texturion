@@ -6,6 +6,7 @@ import Link from "next/link";
 import { MfaChallenge } from "@/components/auth/mfa-challenge";
 import { GateSignOut } from "@/components/shell/gate-escape";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useQueryClient } from "@tanstack/react-query";
@@ -63,6 +64,7 @@ function useSatisfied() {
  * a person who can satisfy neither must still be able to get out.
  */
 export function MfaGate({ children }: { children: React.ReactNode }) {
+  const t = useT();
   const { company, onSatisfied } = useSatisfied();
   const code =
     company.isError && company.error instanceof ApiError
@@ -93,12 +95,10 @@ export function MfaGate({ children }: { children: React.ReactNode }) {
       />
       <div className="max-w-md space-y-2">
         <h1 className="text-lg font-semibold">
-          This workspace needs two-factor authentication
+          {t("shell.mfaRequiredTitle")}
         </h1>
         <p className="text-sm text-muted-foreground">
-          The owner turned it on, and the grace period has ended. Set it up
-          once and you&apos;re back in — it takes about a minute and needs an
-          authenticator app on your phone.
+          {t("shell.mfaRequiredBody")}
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
@@ -106,10 +106,10 @@ export function MfaGate({ children }: { children: React.ReactNode }) {
           {/* Settings → Account is reachable: every route that gets somebody
               OUT of this state is company-exempt server-side, precisely so
               this link cannot lead to another wall. */}
-          <Link href="/settings/account">Set up two-factor</Link>
+          <Link href="/settings/account">{t("shell.mfaSetUp")}</Link>
         </Button>
         <Button variant="outline" onClick={onSatisfied}>
-          I&apos;ve done it
+          {t("shell.mfaDone")}
         </Button>
       </div>
       <GateSignOut />

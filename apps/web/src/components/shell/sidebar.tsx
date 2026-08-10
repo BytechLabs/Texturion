@@ -37,6 +37,7 @@ import {
   avatarInitials,
 } from "@loonext/shared";
 
+import { useT, type MessageKey, type Translate } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
@@ -58,7 +59,8 @@ function openCommand() {
 }
 
 interface NavRow {
-  label: string;
+  /** #228: the catalogue key — a module-level registry cannot call the hook. */
+  labelKey: MessageKey;
   href: string;
   icon: typeof InboxIcon;
   /**
@@ -75,17 +77,17 @@ interface NavRow {
 // (+ the #129 call log — quiet row, no count: the accent budget stays on
 // compose and the unread numeral).
 const FOCUS: NavRow[] = [
-  { label: "For you", href: "/for-you", icon: Zap, needs: "conversations.read" },
-  { label: "Inbox", href: "/inbox", icon: InboxIcon, needs: "conversations.read" },
-  { label: "Calls", href: "/calls", icon: PhoneIncoming, needs: "conversations.read" },
-  { label: "Tasks", href: "/tasks", icon: CheckSquare, needs: "conversations.read" },
-  { label: "Contacts", href: "/contacts", icon: Users, needs: "conversations.read" },
+  { labelKey: "shell.navForYou", href: "/for-you", icon: Zap, needs: "conversations.read" },
+  { labelKey: "shell.navInbox", href: "/inbox", icon: InboxIcon, needs: "conversations.read" },
+  { labelKey: "shell.navCalls", href: "/calls", icon: PhoneIncoming, needs: "conversations.read" },
+  { labelKey: "shell.navTasks", href: "/tasks", icon: CheckSquare, needs: "conversations.read" },
+  { labelKey: "shell.navContacts", href: "/contacts", icon: Users, needs: "conversations.read" },
   // #233: what the workspace has queued to go out. A quiet row like Calls and
   // for the same reason — it is a real surface that is not one of the four
   // tabs, and a page nobody can find is worse than a rail one row longer. No
   // count: the accent budget stays on compose and the unread numeral, and
   // "six texts waiting" is not a number anybody has to act on today.
-  { label: "Scheduled", href: "/scheduled", icon: CalendarClock, needs: "conversations.read" },
+  { labelKey: "shell.navScheduled", href: "/scheduled", icon: CalendarClock, needs: "conversations.read" },
 ];
 
 /**
@@ -97,19 +99,19 @@ const FOCUS: NavRow[] = [
  * left buried in the account menu.
  */
 const BILLING_ROW: NavRow = {
-  label: "Billing",
+  labelKey: "shell.navBilling",
   href: "/settings/billing",
   icon: CreditCard,
   needs: "billing.manage",
 };
 
 /** Role names as a person would read them. */
-const ROLE_LABELS: Partial<Record<MemberRole, string>> = {
-  owner: "Owner",
-  admin: "Admin",
-  member: "Member",
-  read_only: "View only",
-  bookkeeper: "Bookkeeper",
+const ROLE_LABEL_KEYS: Partial<Record<MemberRole, MessageKey>> = {
+  owner: "shell.roleOwner",
+  admin: "shell.roleAdmin",
+  member: "shell.roleMember",
+  read_only: "shell.roleReadOnly",
+  bookkeeper: "shell.roleBookkeeper",
 };
 
 /** The rows this role can actually use, never an empty list. */
@@ -136,14 +138,17 @@ function NavItem({
   active,
   count,
   collapsed,
+  t,
 }: {
   row: NavRow;
   active: boolean;
   count?: number;
   collapsed?: boolean;
+  t: Translate;
 }) {
   const Icon = row.icon;
   const showCount = typeof count === "number" && count > 0;
+  const label = t(row.labelKey);
 
   if (collapsed) {
     return (
@@ -152,7 +157,11 @@ function NavItem({
           <Link
             href={row.href}
             aria-current={active ? "page" : undefined}
-            aria-label={showCount ? `${row.label}, ${cap(count!)}` : row.label}
+            aria-label={
+              showCount
+                ? t("shell.navCount", { label, count: cap(count!) })
+                : label
+            }
             className={cn(
               "relative flex h-9 items-center justify-center rounded-[9px] transition-colors duration-150 ease-out",
               active
@@ -177,7 +186,7 @@ function NavItem({
           </Link>
         </TooltipTrigger>
         <TooltipContent side="right">
-          {row.label}
+          {label}
           {showCount ? ` · ${cap(count!)}` : ""}
         </TooltipContent>
       </Tooltip>
@@ -203,7 +212,7 @@ function NavItem({
         strokeWidth={1.8}
         aria-hidden
       />
-      <span className="min-w-0 flex-1 truncate">{row.label}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
       {showCount && (
         <span
           className={cn(
@@ -241,6 +250,7 @@ export function Sidebar({
   collapsed?: boolean;
   onToggleSidebar: () => void;
 }) {
+  const t = useT();
   const pathname = usePathname();
   const { membership, memberships, switchCompany, displayName, role } =
     useActiveCompany();
@@ -251,7 +261,8 @@ export function Sidebar({
   // #315: was `role.charAt(0).toUpperCase() + role.slice(1)`, which renders
   // "read_only" as "Read_only". A role name is a thing we chose to show
   // somebody; it should read like one.
-  const roleLabel = ROLE_LABELS[role] ?? role;
+  const roleLabelKey = ROLE_LABEL_KEYS[role];
+  const roleLabel = roleLabelKey ? t(roleLabelKey) : role;
   const navRows = navRowsFor(role);
 
   const logo = (
@@ -289,7 +300,7 @@ export function Sidebar({
 
   const workspaceMenu = (
     <DropdownMenuContent align="start" className="w-56">
-      <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
+      <DropdownMenuLabel>{t("shell.workspaces")}</DropdownMenuLabel>
       {memberships.map((m) => (
         <DropdownMenuItem
           key={m.company_id}
@@ -308,7 +319,9 @@ export function Sidebar({
     <button
       type="button"
       onClick={onToggleSidebar}
-      aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      aria-label={
+        collapsed ? t("shell.expandSidebar") : t("shell.collapseSidebar")
+      }
       aria-pressed={collapsed}
       className="grid size-8 shrink-0 place-items-center rounded-[8px] text-app-muted outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring"
     >
@@ -320,7 +333,7 @@ export function Sidebar({
     <MemberMenu>
       <button
         type="button"
-        aria-label="Account and settings"
+        aria-label={t("shell.accountAndSettings")}
         className={cn(
           "flex items-center rounded-[9px] outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring",
           collapsed ? "size-10 justify-center" : "w-full gap-2.5 px-1.5 py-1 text-left",
@@ -335,7 +348,7 @@ export function Sidebar({
         {!collapsed && (
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[12.5px] font-semibold text-app-ink">
-              {displayName || "You"}
+              {displayName || t("shell.you")}
             </span>
             <span className="block truncate text-[11px] text-app-muted-2">
               {roleLabel}
@@ -364,7 +377,7 @@ export function Sidebar({
           {multi ? (
             <DropdownMenu>
               <DropdownMenuTrigger
-                aria-label="Switch workspace"
+                aria-label={t("shell.switchWorkspace")}
                 className={cn(
                   "flex items-center rounded-[10px] outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring",
                   collapsed
@@ -382,7 +395,7 @@ export function Sidebar({
                 "flex items-center",
                 collapsed ? "" : "gap-2.5 px-2",
               )}
-              aria-label={`Workspace: ${membership.name}`}
+              aria-label={t("shell.workspaceNamed", { name: membership.name })}
             >
               {collapsed ? logo : companyTileExpanded}
             </div>
@@ -405,25 +418,29 @@ export function Sidebar({
                 <button
                   type="button"
                   onClick={openCommand}
-                  aria-label="Search"
+                  aria-label={t("shell.search")}
                   aria-keyshortcuts="Meta+K Control+K"
                   className="mb-1 flex h-9 items-center justify-center rounded-[9px] text-app-muted outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <Search className="size-[18px]" strokeWidth={1.8} aria-hidden />
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="right">Search · ⌘K</TooltipContent>
+              <TooltipContent side="right">
+                {t("shell.searchShortcut")}
+              </TooltipContent>
             </Tooltip>
           ) : (
             <button
               type="button"
               onClick={openCommand}
-              aria-label="Search"
+              aria-label={t("shell.search")}
               aria-keyshortcuts="Meta+K Control+K"
               className="mb-1 flex h-9 items-center gap-[11px] rounded-[9px] px-[11px] text-[13.5px] font-medium text-app-muted outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Search className="size-[17px] shrink-0" strokeWidth={1.8} aria-hidden />
-              <span className="min-w-0 flex-1 truncate text-left">Search</span>
+              <span className="min-w-0 flex-1 truncate text-left">
+                {t("shell.search")}
+              </span>
               <kbd className="shrink-0 rounded border border-app-line bg-app-inset px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-app-muted-2">
                 ⌘K
               </kbd>
@@ -431,7 +448,7 @@ export function Sidebar({
           )}
 
           {/* FOCUS group. */}
-          <nav aria-label="Primary" className="flex flex-col gap-px">
+          <nav aria-label={t("shell.primaryNav")} className="flex flex-col gap-px">
             {navRows.map((row) => (
               <NavItem
                 key={row.href}
@@ -447,6 +464,7 @@ export function Sidebar({
                         : undefined
                 }
                 collapsed={collapsed}
+                t={t}
               />
             ))}
           </nav>

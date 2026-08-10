@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   formatDuration,
@@ -65,6 +66,15 @@ import {
  * - **Icons from Lucide**, never emoji.
  */
 export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
+  const t = useT();
+  /**
+   * What most owners are recording, so the field is never empty.
+   *
+   * It is still editable — a workspace with a holiday greeting and a truck
+   * greeting needs to say which is which — but nobody should have to think of
+   * a name before they can hear their first take.
+   */
+  const defaultName = t("settingsMore.greetingDefaultName");
   const [capture, setCapture] = useState<CaptureState | null>(null);
   // Polled ONLY while a capture call is out. The owner is on the phone and away
   // from this screen; the greeting appearing in the list below is the only
@@ -77,7 +87,7 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
   const [take, setTake] = useState<{ blob: Blob; url: string; ms: number } | null>(
     null,
   );
-  const [name, setName] = useState(DEFAULT_NAME);
+  const [name, setName] = useState(defaultName);
   const [recording, setRecording] = useState(false);
   const [micError, setMicError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{
@@ -123,9 +133,7 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
     } catch {
       // The overwhelmingly common cause is a denied prompt, and the fix is not
       // in this app — so say where it is rather than "recording failed".
-      setMicError(
-        "Your browser did not give us the microphone. Allow it in the address bar, then try again.",
-      );
+      setMicError(t("settingsMore.greetingMicDenied"));
     }
   }
 
@@ -141,19 +149,19 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
   async function save() {
     if (!take) return;
     if (take.ms > MAX_GREETING_MS) {
-      toast.error(
-        "That is longer than two minutes. A caller waiting for the beep will hang up first.",
-      );
+      toast.error(t("settingsMore.greetingTooLong"));
       return;
     }
     try {
       await record.mutateAsync({ name: name.trim(), blob: take.blob, durationMs: take.ms });
       discard();
-      setName(DEFAULT_NAME);
-      toast.success("Saved. Choose it on a number to use it.");
+      setName(defaultName);
+      toast.success(t("settingsMore.greetingSaved"));
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "That could not be saved.",
+        cause instanceof ApiError
+          ? cause.message
+          : t("settingsMore.saveFailedGeneric"),
       );
     }
   }
@@ -171,10 +179,12 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
     setPendingDelete(null);
     try {
       await remove.mutateAsync(target.id);
-      toast.success("Deleted.");
+      toast.success(t("settingsMore.greetingDeleted"));
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "That could not be deleted.",
+        cause instanceof ApiError
+          ? cause.message
+          : t("settingsMore.greetingDeleteFailed"),
       );
     }
   }
@@ -193,8 +203,10 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
     if (capture?.phase !== "calling") return;
     if (!rows.some((row) => row.name === capture.name)) return;
     setCapture(null);
-    toast.success(`"${capture.name}" saved. Choose it on a number to use it.`);
-  }, [capture, rows]);
+    toast.success(
+      t("settingsMore.greetingNamedSaved", { name: capture.name }),
+    );
+  }, [capture, rows, t]);
 
   async function startCaptureCall() {
     if (!capture || capture.phase === "calling") return;
@@ -203,21 +215,23 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
       setCapture({ ...capture, phase: "calling" });
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "We could not start that call.",
+        cause instanceof ApiError
+          ? cause.message
+          : t("settingsMore.greetingCallFailed"),
       );
     }
   }
 
   return (
     <SettingsCard
-      title="Your own voice"
-      description="Record the greeting yourself instead of having it read aloud. Callers hear a person, which is the thing you are actually selling."
+      title={t("settingsMore.greetingTitle")}
+      description={t("settingsMore.greetingDescription")}
     >
       <div className="space-y-4">
         <p className="text-xs text-muted-foreground">
           {rows.length === 0
-            ? "Nothing recorded yet — callers hear the written greeting, read aloud."
-            : "Pick one on a number under Settings → Numbers to use it. Anything you have not chosen stays unused."}
+            ? t("settingsMore.greetingNoneYet")
+            : t("settingsMore.greetingPickOne")}
         </p>
 
         {rows.length > 0 && (
@@ -236,7 +250,9 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
                     variant="ghost"
                     size="sm"
                     className="ml-auto h-auto px-1.5 py-0.5"
-                    aria-label={`Delete ${row.name}`}
+                    aria-label={t("settingsMore.greetingDeleteAria", {
+                      name: row.name,
+                    })}
                     disabled={remove.isPending}
                     onClick={() => setPendingDelete({ id: row.id, name: row.name })}
                   >
@@ -253,18 +269,23 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
             {take ? (
               <>
                 <div className="space-y-1.5">
-                  <p className="text-sm font-medium">Hear it back</p>
+                  <p className="text-sm font-medium">
+                    {t("settingsMore.greetingHearItBack")}
+                  </p>
                   {/* eslint-disable-next-line jsx-a11y/media-has-caption -- the
                       audio IS the content; a caption would be a transcript of
                       the owner's own recording, which they just spoke. */}
                   <audio src={take.url} controls className="w-full" />
                   <p className="text-[12px] text-app-muted-2">
-                    {formatDuration(take.ms)} · this is exactly what a caller
-                    gets.
+                    {t("settingsMore.greetingTakeLength", {
+                      length: formatDuration(take.ms),
+                    })}
                   </p>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="greeting-name">Name it</Label>
+                  <Label htmlFor="greeting-name">
+                    {t("settingsMore.greetingNameIt")}
+                  </Label>
                   <Input
                     id="greeting-name"
                     value={name}
@@ -274,32 +295,36 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
                   <Button variant="ghost" onClick={discard} disabled={record.isPending}>
-                    Record again
+                    {t("settingsMore.greetingRecordAgain")}
                   </Button>
                   <Button
                     onClick={() => void save()}
                     disabled={record.isPending || name.trim().length === 0}
                   >
-                    {record.isPending ? "Saving…" : "Save greeting"}
+                    {record.isPending
+                      ? t("common.saving")
+                      : t("settingsMore.greetingSaveAction")}
                   </Button>
                 </div>
               </>
             ) : recording ? (
               <div className="flex items-center justify-between gap-3">
-                <span className="text-sm">Recording… speak now.</span>
+                <span className="text-sm">
+                  {t("settingsMore.greetingRecordingNow")}
+                </span>
                 <Button onClick={stop} variant="destructive">
                   <Square className="mr-1.5 size-4" />
-                  Stop
+                  {t("settingsMore.greetingStop")}
                 </Button>
               </div>
             ) : (
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm text-muted-foreground">
-                  Up to two minutes.
+                  {t("settingsMore.greetingUpToTwoMinutes")}
                 </span>
                 <Button onClick={() => void start()}>
                   <Mic className="mr-1.5 size-4" />
-                  Record
+                  {t("settingsMore.greetingRecord")}
                 </Button>
               </div>
             )}
@@ -312,12 +337,14 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
               <Button
                 variant="link"
                 className="h-auto p-0 text-sm"
-                onClick={() => setCapture({ phase: "form", name: DEFAULT_NAME, to: "" })}
+                onClick={() =>
+                  setCapture({ phase: "form", name: defaultName, to: "" })
+                }
               >
                 <PhoneOutgoing className="mr-1.5 size-4" />
                 {micError
-                  ? "Have us call you instead"
-                  : "Rather do it on the phone?"}
+                  ? t("settingsMore.greetingCallMeInstead")
+                  : t("settingsMore.greetingRatherPhone")}
               </Button>
             )}
           </div>
@@ -337,38 +364,46 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
           {capture?.phase === "calling" ? (
             <>
               <DialogHeader>
-                <DialogTitle>Calling {capture.to} now</DialogTitle>
+                <DialogTitle>
+                  {t("settingsMore.greetingCallingNow", {
+                    number: capture.to,
+                  })}
+                </DialogTitle>
                 <DialogDescription>
-                  Answer, and you&apos;ll hear what to do.
+                  {t("settingsMore.greetingAnswerAndListen")}
                 </DialogDescription>
               </DialogHeader>
               <ol className="ml-4 list-decimal space-y-1.5 text-sm text-muted-foreground">
-                <li>Wait for the beep.</li>
-                <li>Say what you want your callers to hear.</li>
-                <li>Hang up. It saves itself.</li>
+                <li>{t("settingsMore.greetingStepBeep")}</li>
+                <li>{t("settingsMore.greetingStepSpeak")}</li>
+                <li>{t("settingsMore.greetingStepHangUp")}</li>
               </ol>
               <p className="text-[12px] text-app-muted-2">
-                It&apos;ll appear below as &quot;{capture.name}&quot; when it
-                lands. You can close this.
+                {t("settingsMore.greetingWillAppear", {
+                  name: capture.name,
+                })}
               </p>
               <DialogFooter>
                 <Button variant="ghost" onClick={() => setCapture(null)}>
-                  Close
+                  {t("common.close")}
                 </Button>
               </DialogFooter>
             </>
           ) : (
             <>
               <DialogHeader>
-                <DialogTitle>Record it on the phone</DialogTitle>
+                <DialogTitle>
+                  {t("settingsMore.greetingPhoneTitle")}
+                </DialogTitle>
                 <DialogDescription>
-                  We&apos;ll ring you, you speak after the beep, and you hang up.
-                  No microphone permission, nothing to hold.
+                  {t("settingsMore.greetingPhoneBody")}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="capture-to">Your number</Label>
+                  <Label htmlFor="capture-to">
+                    {t("settingsMore.greetingYourNumber")}
+                  </Label>
                   <Input
                     id="capture-to"
                     type="tel"
@@ -384,7 +419,9 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="capture-name">Name it</Label>
+                  <Label htmlFor="capture-name">
+                    {t("settingsMore.greetingNameIt")}
+                  </Label>
                   <Input
                     id="capture-name"
                     value={capture?.name ?? ""}
@@ -399,7 +436,7 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
               </div>
               <DialogFooter>
                 <Button variant="ghost" onClick={() => setCapture(null)}>
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button
                   onClick={() => void startCaptureCall()}
@@ -410,7 +447,9 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
                   }
                 >
                   <PhoneOutgoing className="mr-1.5 size-4" />
-                  {captureCall.isPending ? "Calling…" : "Call me"}
+                  {captureCall.isPending
+                    ? t("settingsMore.greetingCalling")
+                    : t("settingsMore.greetingCallMe")}
                 </Button>
               </DialogFooter>
             </>
@@ -426,22 +465,25 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete &quot;{pendingDelete?.name}&quot;?</DialogTitle>
+            <DialogTitle>
+              {t("settingsMore.greetingDeleteTitle", {
+                name: pendingDelete?.name ?? "",
+              })}
+            </DialogTitle>
             <DialogDescription>
-              Any number using it goes back to the written words, read aloud.
-              Callers hear the change on the next call.
+              {t("settingsMore.greetingDeleteBody")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setPendingDelete(null)}>
-              Keep it
+              {t("settingsMore.greetingKeepIt")}
             </Button>
             <Button
               variant="destructive"
               disabled={remove.isPending}
               onClick={() => void runDelete()}
             >
-              Delete
+              {t("common.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -449,15 +491,6 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
     </SettingsCard>
   );
 }
-
-/**
- * What most owners are recording, so the field is never empty.
- *
- * It is still editable — a workspace with a holiday greeting and a truck
- * greeting needs to say which is which — but nobody should have to think of a
- * name before they can hear their first take.
- */
-const DEFAULT_NAME = "After hours";
 
 /**
  * The phone flow's two states.

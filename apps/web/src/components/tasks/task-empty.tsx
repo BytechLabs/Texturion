@@ -1,5 +1,7 @@
 import { ListChecks } from "lucide-react";
 
+import { useT } from "@/i18n/provider";
+
 import { hasActiveChips, type TaskPageState } from "./task-view-url";
 
 /**
@@ -12,6 +14,7 @@ import { hasActiveChips, type TaskPageState } from "./task-view-url";
  * No illustration, generous air (per APP-UI-ELEVATION §3.1 calm empty states).
  */
 export function EmptyTasks({ state }: { state: TaskPageState }) {
+  const t = useT();
   const filtered = hasActiveChips(state) || state.tab !== "open";
   return (
     <div className="mx-auto flex max-w-sm flex-col items-center gap-3 px-6 py-20 text-center">
@@ -23,13 +26,16 @@ export function EmptyTasks({ state }: { state: TaskPageState }) {
         />
       </span>
       {filtered ? (
-        <p className="text-[15px] text-muted-foreground">Nothing on this list.</p>
+        <p className="text-[15px] text-muted-foreground">
+          {t("tasks.emptyFiltered")}
+        </p>
       ) : (
         <div className="space-y-1">
-          <p className="text-[15px] font-medium text-foreground">No tasks yet.</p>
+          <p className="text-[15px] font-medium text-foreground">
+            {t("tasks.emptyTitle")}
+          </p>
           <p className="text-[13px] leading-relaxed text-muted-foreground">
-            Promote a message from its ⋯ menu in a conversation to track it as a
-            task here.
+            {t("tasks.emptyBody")}
           </p>
         </div>
       )}

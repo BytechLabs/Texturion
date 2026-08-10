@@ -4,6 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import {
   useConversations,
   usePinnedConversations,
@@ -144,6 +145,7 @@ export function ConversationList({
   hasUrlFilters: boolean;
   activeConversationId: string | null;
 }) {
+  const t = useT();
   const query = useConversations(filters);
   // #13: pinned threads come complete + server-ordered (pinned_at desc) from
   // their own query, so a pin past the loaded pages still shows at the top. We
@@ -198,8 +200,7 @@ export function ConversationList({
           },
         });
       },
-      onError: () =>
-        toast.error("That bulk action didn't go through. Nothing changed."),
+      onError: () => toast.error(t("inbox.bulkActionFailed")),
     });
   };
 
@@ -254,11 +255,10 @@ export function ConversationList({
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
         <p className="text-sm text-muted-foreground">
-          We couldn&apos;t load your conversations. Check your connection and
-          try again.
+          {t("inbox.listLoadFailed")}
         </p>
         <Button variant="outline" size="sm" onClick={() => query.refetch()}>
-          Try again
+          {t("common.retry")}
         </Button>
       </div>
     );
@@ -309,7 +309,7 @@ export function ConversationList({
     >
       <div
         role="list"
-        aria-label="Conversations"
+        aria-label={t("inbox.listAria")}
         className="relative w-full"
         style={{ height: virtualizer.getTotalSize() }}
       >
@@ -353,9 +353,9 @@ export function ConversationList({
               >
                 <Checkbox
                   checked={isRowSelected(selection, row.id)}
-                  aria-label={`Select conversation with ${
-                    row.contact.name ?? row.contact.phone_e164
-                  }`}
+                  aria-label={t("inbox.listSelectRowAria", {
+                    name: row.contact.name ?? row.contact.phone_e164,
+                  })}
                   onCheckedChange={() =>
                     setSelection((current) =>
                       toggleRow(current, row.id, loadedIds),
@@ -392,7 +392,7 @@ export function ConversationList({
           aria-live="polite"
           className="p-3 text-center text-xs text-muted-foreground"
         >
-          Loading more…
+          {t("inbox.listLoadingMore")}
         </p>
       )}
     </div>

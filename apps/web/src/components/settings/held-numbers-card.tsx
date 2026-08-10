@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { SettingsCard } from "@/components/settings/section";
+import { useT } from "@/i18n/provider";
 import {
   type HeldNumber,
   type HeldNumbersView,
@@ -130,11 +131,12 @@ function ReinstateDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const reinstate = useReinstateHeldNumber();
   const [error, setError] = useState<string | null>(null);
   const display = number.number_e164
     ? formatPhone(number.number_e164)
-    : "this number";
+    : t("settings.heldThisNumber");
 
   function close(next: boolean) {
     if (!next) setError(null);
@@ -145,16 +147,19 @@ function ReinstateDialog({
     <Dialog open={open} onOpenChange={close}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Bring {display} back?</DialogTitle>
+          <DialogTitle>
+            {t("settings.heldConfirmTitle", { number: display })}
+          </DialogTitle>
           {/* The amount and WHEN it is charged, both stated before anything is
               pressed. The server prorates with `always_invoice`, so this lands
               on the card today rather than surfacing on a later invoice — and a
               charge somebody did not read first is the shape of dishonesty this
               whole issue exists to prevent. *Applying: Ethical Friction.* */}
           <DialogDescription>
-            This adds an extra number to your plan at {priceLabel}/mo, charged
-            today for the rest of this billing period. {display} starts sending
-            and answering again straight away, with everything it already has.
+            {t("settings.heldConfirmBody", {
+              price: priceLabel,
+              number: display,
+            })}
           </DialogDescription>
         </DialogHeader>
         {error && (
@@ -164,7 +169,7 @@ function ReinstateDialog({
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => close(false)}>
-            Never mind
+            {t("settings.neverMind")}
           </Button>
           <Button
             disabled={reinstate.isPending}
@@ -183,21 +188,23 @@ function ReinstateDialog({
                       // same happy ending, worded so nobody goes looking for a
                       // charge that never happened.
                       result.already_active
-                        ? `${display} is already back.`
-                        : `${display} is back. You can send and answer from it again.`,
+                        ? t("settings.heldAlreadyBack", { number: display })
+                        : t("settings.heldIsBack", { number: display }),
                     );
                   },
                   onError: (cause) =>
                     setError(
                       cause instanceof ApiError
                         ? cause.message
-                        : "Couldn't bring the number back. Try again.",
+                        : t("settings.heldReinstateFailed"),
                     ),
                 },
               );
             }}
           >
-            {reinstate.isPending ? "Bringing it back…" : `Add it for ${priceLabel}/mo`}
+            {reinstate.isPending
+              ? t("settings.heldBringingBack")
+              : t("settings.heldAddFor", { price: priceLabel })}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -218,6 +225,7 @@ function HeldNumberRow({
   idempotencyKey: () => string;
   onDone: () => void;
 }) {
+  const t = useT();
   const [confirming, setConfirming] = useState(false);
   const since = heldSince(number.suspended_at);
 
@@ -225,16 +233,20 @@ function HeldNumberRow({
     <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border bg-background px-4 py-3">
       <div className="space-y-0.5">
         <p className="text-base font-medium tabular-nums">
-          {number.number_e164 ? formatPhone(number.number_e164) : "Your number"}
+          {number.number_e164
+            ? formatPhone(number.number_e164)
+            : t("settings.heldYourNumber")}
         </p>
         {since && (
-          <p className="text-xs text-muted-foreground">On hold since {since}.</p>
+          <p className="text-xs text-muted-foreground">
+            {t("settings.heldSince", { since })}
+          </p>
         )}
       </div>
       {routes.canBuy && priceLabel && (
         <>
           <Button size="sm" onClick={() => setConfirming(true)}>
-            Bring it back — {priceLabel}/mo
+            {t("settings.heldBringBack", { price: priceLabel })}
           </Button>
           <ReinstateDialog
             number={number}
@@ -251,6 +263,7 @@ function HeldNumberRow({
 }
 
 export function HeldNumbersCard({ show }: { show: boolean }) {
+  const t = useT();
   const held = useHeldNumbers(show);
   /**
    * One idempotency key per NUMBER, minted on first press and kept until that
@@ -291,7 +304,13 @@ export function HeldNumbersCard({ show }: { show: boolean }) {
   const many = view.held.length > 1;
 
   return (
-    <SettingsCard title={many ? "Numbers on hold" : "One number is on hold"}>
+    <SettingsCard
+      title={
+        many
+          ? t("settings.heldNumbersTitleMany")
+          : t("settings.heldNumbersTitleOne")
+      }
+    >
       <div className="space-y-4">
         <div className="flex items-start gap-3">
           {/* The icon carries the reassurance the sentence below spends words
@@ -305,28 +324,36 @@ export function HeldNumbersCard({ show }: { show: boolean }) {
           />
           <div className="space-y-1.5">
             <p className="text-sm">
-              {allowance === null ? (
-                <>
-                  Your {planName} plan covers fewer numbers than you have, so{" "}
-                  {many ? "these are" : "this one is"} on hold.
-                </>
-              ) : (
-                <>
-                  Your {planName} plan covers {allowance}{" "}
-                  {allowance === 1 ? "number" : "numbers"}, and you have more
-                  than that — so {many ? "these are" : "this one is"} on hold.
-                </>
-              )}
+              {allowance === null
+                ? t(
+                    many
+                      ? "settings.heldCoversFewerMany"
+                      : "settings.heldCoversFewerOne",
+                    { plan: planName },
+                  )
+                : t(
+                    many
+                      ? "settings.heldCoversCountMany"
+                      : "settings.heldCoversCountOne",
+                    {
+                      plan: planName,
+                      count: allowance,
+                      noun:
+                        allowance === 1
+                          ? t("settings.heldNumberNoun")
+                          : t("settings.heldNumbersNoun"),
+                    },
+                  )}
             </p>
             {/* The three facts that make a hold different from a release, in
                 the order somebody worries about them. "Not given up" first,
                 because that is the fear. */}
             <p className="text-sm text-muted-foreground">
-              Nothing has been given up. We&apos;re still holding{" "}
-              {many ? "them" : "it"} for you, texts and calls still come through,
-              and the history is untouched — you just can&apos;t send or answer
-              from {many ? "them" : "it"} while {many ? "they're" : "it's"} on
-              hold.
+              {t(
+                many
+                  ? "settings.heldReassuranceMany"
+                  : "settings.heldReassuranceOne",
+              )}
             </p>
           </div>
         </div>
@@ -351,8 +378,10 @@ export function HeldNumbersCard({ show }: { show: boolean }) {
             opening the same dialog is two doors onto one room. */}
         {routes.canUpgrade && (
           <p className="text-sm text-muted-foreground">
-            Moving to Pro brings {many ? "them" : "it"} back too — Pro includes{" "}
-            {PLAN_PRICING.pro.numbers} numbers, at no extra charge per number.
+            {t(
+              many ? "settings.heldUpgradeMany" : "settings.heldUpgradeOne",
+              { count: PLAN_PRICING.pro.numbers },
+            )}
           </p>
         )}
         {!routes.canBuy && !routes.canUpgrade && (
@@ -361,8 +390,9 @@ export function HeldNumbersCard({ show }: { show: boolean }) {
           // unavailable — but a dead number with no stated way back is the one
           // outcome this card must never produce.
           <p className="text-sm text-muted-foreground">
-            To bring {many ? "them" : "it"} back, get in touch and we&apos;ll
-            sort it out with you.
+            {t(
+              many ? "settings.heldNoRouteMany" : "settings.heldNoRouteOne",
+            )}
           </p>
         )}
         {routes.canBuy && view.max_total !== null && (
@@ -370,7 +400,10 @@ export function HeldNumbersCard({ show }: { show: boolean }) {
           // Said here so the owner of three held numbers on Starter learns the
           // cap BEFORE buying one back and discovering the second is refused.
           <p className="text-xs text-muted-foreground">
-            {planName} tops out at {view.max_total} numbers in total.
+            {t("settings.heldMaxTotal", {
+              plan: planName,
+              count: view.max_total,
+            })}
           </p>
         )}
       </div>

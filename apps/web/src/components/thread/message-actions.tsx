@@ -28,6 +28,7 @@ import {
   PopoverHeader,
   PopoverTitle,
 } from "@/components/ui/popover";
+import { useT } from "@/i18n/provider";
 import {
   useRetryMessage,
   useSetMessageDone,
@@ -149,6 +150,7 @@ function MessageOverflow({
   message: Message;
   conversationId: string;
 }) {
+  const t = useT();
   const retry = useRetryMessage(conversationId);
   const setPinned = useSetMessagePinned(conversationId);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -167,9 +169,9 @@ function MessageOverflow({
   const copyText = async () => {
     try {
       await navigator.clipboard.writeText(message.body);
-      toast.success("Copied to clipboard.");
+      toast.success(t("thread.copied"));
     } catch {
-      toast.error("Couldn't copy. Your browser blocked clipboard access.");
+      toast.error(t("thread.copyFailed"));
     }
   };
 
@@ -186,7 +188,7 @@ function MessageOverflow({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label="More actions"
+              aria-label={t("thread.moreActions")}
               className={cn(
                 "tap-target shrink-0 rounded-full p-1 text-foreground-tertiary transition-[color,opacity] duration-150 ease-out",
                 "hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -219,7 +221,7 @@ function MessageOverflow({
             }
           >
             <Pin className="size-4" strokeWidth={1.75} aria-hidden />
-            Pinned
+            {t("thread.pinned")}
           </DropdownMenuToggleItem>
           {promotable && (
             <DropdownMenuItem
@@ -234,13 +236,13 @@ function MessageOverflow({
               }}
             >
               <ListChecks className="size-4" strokeWidth={1.75} aria-hidden />
-              Make a task
+              {t("thread.makeATask")}
             </DropdownMenuItem>
           )}
           {hasBody && (
             <DropdownMenuItem onSelect={() => void copyText()}>
               <Copy className="size-4" strokeWidth={1.75} aria-hidden />
-              Copy text
+              {t("thread.copyText")}
             </DropdownMenuItem>
           )}
           {retryable && (
@@ -249,14 +251,14 @@ function MessageOverflow({
               disabled={retry.isPending}
             >
               <RotateCw className="size-4" strokeWidth={1.75} aria-hidden />
-              Retry send
+              {t("thread.retrySend")}
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
       <PopoverContent align="end" className="w-80">
         <PopoverHeader className="mb-3">
-          <PopoverTitle>Make a task</PopoverTitle>
+          <PopoverTitle>{t("thread.makeATask")}</PopoverTitle>
         </PopoverHeader>
         <MakeTaskForm
           message={message}

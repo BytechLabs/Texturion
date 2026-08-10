@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { Label } from "@/components/ui/label";
 import { SettingsCard } from "@/components/settings/section";
+import { useT, type Translate } from "@/i18n/provider";
 import {
   Select,
   SelectContent,
@@ -60,6 +61,8 @@ export function AfterHoursCallsCard({
   company: CompanyView;
   canEdit: boolean;
 }) {
+  const t = useT();
+  const AFTER_HOURS_CHOICES = afterHoursChoices(t);
   const update = useUpdateCompany();
   const [error, setError] = useState<string | null>(null);
   const radioRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -87,11 +90,11 @@ export function AfterHoursCallsCard({
     update.mutate(
       { after_hours_calls: value },
       {
-        onSuccess: () => toast.success("After-hours calling updated."),
+        onSuccess: () => toast.success(t("settings.afterHoursSaved")),
         onError: (cause) => {
           setPending(null);
           setError(
-            cause instanceof ApiError ? cause.message : "Couldn't save. Try again.",
+            cause instanceof ApiError ? cause.message : t("settings.saveFailed"),
           );
         },
       },
@@ -103,10 +106,10 @@ export function AfterHoursCallsCard({
     update.mutate(
       { after_hours_greeting_id: next === ORDINARY ? null : next },
       {
-        onSuccess: () => toast.success("After-hours greeting updated."),
+        onSuccess: () => toast.success(t("settings.afterHoursGreetingSaved")),
         onError: (cause) =>
           setError(
-            cause instanceof ApiError ? cause.message : "Couldn't save. Try again.",
+            cause instanceof ApiError ? cause.message : t("settings.saveFailed"),
           ),
       },
     );
@@ -139,23 +142,21 @@ export function AfterHoursCallsCard({
 
   return (
     <SettingsCard
-      title="After hours"
-      description="Outside your business hours a call can ring everyone, ring only whoever's on call, or go straight to a message. Most small crews are best on the first one."
+      title={t("settings.afterHoursTitle")}
+      description={t("settings.afterHoursDescription")}
     >
       {!hoursSet && (
         <p
           role="status"
           className="mb-3 rounded-md border border-border-subtle bg-accent/40 px-3 py-2.5 text-xs"
         >
-          You haven&apos;t set business hours yet, so nothing here can happen —
-          every hour is a working hour until you do. Set them under Settings →
-          Hours.
+          {t("settings.afterHoursNoHours")}
         </p>
       )}
 
       <div
         role="radiogroup"
-        aria-label="After-hours calling"
+        aria-label={t("settings.afterHoursGroupAria")}
         onKeyDown={onKeyDown}
         className="space-y-2"
       >
@@ -191,7 +192,9 @@ export function AfterHoursCallsCard({
 
       {active !== "ring_everyone" && (greetings.data?.data.length ?? 0) > 0 && (
         <div className="mt-4 space-y-1.5">
-          <Label htmlFor="after-hours-greeting">After-hours voice</Label>
+          <Label htmlFor="after-hours-greeting">
+            {t("settings.afterHoursVoiceLabel")}
+          </Label>
           <Select
             disabled={!canEdit || update.isPending}
             value={company.after_hours_greeting_id ?? ORDINARY}
@@ -202,7 +205,7 @@ export function AfterHoursCallsCard({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ORDINARY}>
-                The same greeting as always
+                {t("settings.afterHoursSameGreeting")}
               </SelectItem>
               {greetings.data?.data.map((row) => (
                 <SelectItem key={row.id} value={row.id}>
@@ -212,9 +215,7 @@ export function AfterHoursCallsCard({
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Played only outside your hours. &quot;We&apos;re closed until
-            Monday&quot; and &quot;we&apos;re on another job&quot; are different
-            messages, and one greeting cannot be both.
+            {t("settings.afterHoursGreetingNote")}
           </p>
         </div>
       )}
@@ -226,7 +227,7 @@ export function AfterHoursCallsCard({
       )}
       {!canEdit && (
         <p className="mt-3 text-xs text-muted-foreground">
-          Only owners and admins can change after-hours calling.
+          {t("settings.afterHoursAdminOnly")}
         </p>
       )}
     </SettingsCard>
@@ -244,27 +245,26 @@ const ORDINARY = "__ordinary__";
  * decision. The middle option's second sentence is the one that stops somebody
  * choosing it by mistake: with nobody on call it behaves like the first.
  */
-const AFTER_HOURS_CHOICES: {
+function afterHoursChoices(t: Translate): {
   value: CompanyView["after_hours_calls"];
   label: string;
   detail: string;
-}[] = [
-  {
-    value: "ring_everyone",
-    label: "Ring everyone, day or night",
-    detail:
-      "What happens today. Every call rings the whole crew whatever the clock says.",
-  },
-  {
-    value: "on_call_only",
-    label: "Ring only whoever's on call",
-    detail:
-      "After hours, the phone rings for the person holding the on-call shift and nobody else. With no shift set, everyone rings — we never leave a call reaching nobody.",
-  },
-  {
-    value: "voicemail",
-    label: "Take a message",
-    detail:
-      "After hours, the caller goes straight to your greeting instead of ringing out first — unless somebody is on call, who still rings.",
-  },
-];
+}[] {
+  return [
+    {
+      value: "ring_everyone",
+      label: t("settings.afterHoursRingEveryone"),
+      detail: t("settings.afterHoursRingEveryoneDetail"),
+    },
+    {
+      value: "on_call_only",
+      label: t("settings.afterHoursOnCallOnly"),
+      detail: t("settings.afterHoursOnCallOnlyDetail"),
+    },
+    {
+      value: "voicemail",
+      label: t("settings.afterHoursVoicemail"),
+      detail: t("settings.afterHoursVoicemailDetail"),
+    },
+  ];
+}

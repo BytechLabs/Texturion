@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import {
   useOwnerAttachments,
   useUploadAttachment,
@@ -55,6 +56,7 @@ export function AttachmentsSection({
   compact?: boolean;
   className?: string;
 }) {
+  const t = useT();
   const list = useOwnerAttachments("note", noteId, enabled);
   const upload = useUploadAttachment(noteId);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -78,7 +80,7 @@ export function AttachmentsSection({
       // One batch at a time keeps the running count honest — but say so instead
       // of dropping the files silently (the picker input has already reset, so
       // there'd be no other trace). They can re-drop once the spinner clears.
-      setError("A file is still uploading. Drop these again when it finishes.");
+      setError(t("misc.uploadStillRunning"));
       return;
     }
     setError(null);
@@ -96,12 +98,16 @@ export function AttachmentsSection({
         uploaded += 1;
       } catch (err) {
         failures.push(
-          err instanceof Error ? err.message : "That file didn't upload. Try again.",
+          err instanceof Error ? err.message : t("misc.uploadFailed"),
         );
       }
     }
     if (uploaded > 0) {
-      toast.success(uploaded === 1 ? "File attached." : `${uploaded} files attached.`);
+      toast.success(
+        uploaded === 1
+          ? t("misc.fileAttached")
+          : t("misc.filesAttached", { count: uploaded }),
+      );
     }
     if (failures.length > 0) {
       setError([...new Set(failures)].join(" "));
@@ -140,20 +146,20 @@ export function AttachmentsSection({
 
       {list.isError && (
         <p className="text-[13px] text-muted-foreground">
-          Couldn&apos;t load attachments.{" "}
+          {t("misc.attachmentsLoadFailed")}{" "}
           <button
             type="button"
             onClick={() => list.refetch()}
             className="underline-offset-2 hover:underline"
           >
-            Retry
+            {t("misc.retry")}
           </button>
         </p>
       )}
 
       {atCap ? (
         <p className="text-[11px] text-muted-foreground">
-          Up to {MAX_ATTACHMENTS_PER_OWNER} files. Remove one to add another.
+          {t("misc.attachmentsAtCap", { count: MAX_ATTACHMENTS_PER_OWNER })}
         </p>
       ) : (
         <>
@@ -178,7 +184,7 @@ export function AttachmentsSection({
             ) : (
               <Paperclip strokeWidth={1.75} aria-hidden />
             )}
-            {upload.isPending ? "Attaching…" : "Attach files"}
+            {upload.isPending ? t("misc.attaching") : t("misc.attachFiles")}
           </Button>
         </>
       )}
@@ -191,7 +197,7 @@ export function AttachmentsSection({
 
       {!compact && attachments.length === 0 && !list.isPending && !error && (
         <p className="text-[11px] text-muted-foreground">
-          Images, PDFs, and documents up to 25 MB, or drop files here.
+          {t("misc.attachHint")}
         </p>
       )}
     </div>

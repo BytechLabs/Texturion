@@ -8,6 +8,7 @@ import { contactFieldValueError, type ContactFieldKind } from "@loonext/shared";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useContactFields } from "@/lib/api/contact-fields";
 import { useUpdateContact } from "@/lib/api/contacts";
@@ -36,6 +37,7 @@ import type { ContactDetail } from "@/lib/api/types";
  *   somebody just made.
  */
 export function ContactCustomFields({ contact }: { contact: ContactDetail }) {
+  const t = useT();
   const fields = useContactFields();
   const update = useUpdateContact(contact.id);
 
@@ -79,7 +81,7 @@ export function ContactCustomFields({ contact }: { contact: ContactDetail }) {
       toast.error(
         cause instanceof ApiError
           ? cause.message
-          : `Couldn't save ${def.label}.`,
+          : t("contacts.customFieldSaveFailed", { label: def.label }),
       );
     }
   }
@@ -105,7 +107,13 @@ export function ContactCustomFields({ contact }: { contact: ContactDetail }) {
                   onCheckedChange={(on) => void commit(def, on ? "yes" : "no")}
                 />
                 <span className="text-[13px] text-app-ink">
-                  {value === "yes" ? "Yes" : value === "no" ? "No" : "Not asked"}
+                  {t(
+                    value === "yes"
+                      ? "contacts.yes"
+                      : value === "no"
+                        ? "contacts.no"
+                        : "contacts.notAsked",
+                  )}
                 </span>
               </div>
             ) : def.kind === "select" ? (
@@ -117,7 +125,7 @@ export function ContactCustomFields({ contact }: { contact: ContactDetail }) {
               >
                 {/* Empty is an ANSWER, and it has to stay reachable: "we asked,
                     there is no gate code" is a fact worth recording. */}
-                <option value="">Not set</option>
+                <option value="">{t("contacts.notSet")}</option>
                 {(def.options ?? []).map((choice) => (
                   <option key={choice} value={choice}>
                     {choice}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { useT } from "@/i18n/provider";
 import type { PhoneNumberSummary } from "@/lib/api/types";
 import { formatPhone } from "@/lib/format/phone";
 
@@ -25,16 +26,17 @@ export function companyInitials(name: string): string {
  * handle more than one number the same way.
  */
 export function CopyableNumberRow({ e164 }: { e164: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const label = formatPhone(e164);
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(e164);
       setCopied(true);
-      toast.success("Number copied.");
+      toast.success(t("shell.numberCopied"));
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      toast.error("Couldn't copy. Your browser blocked clipboard access.");
+      toast.error(t("shell.copyBlocked"));
     }
   };
   return (
@@ -49,7 +51,7 @@ export function CopyableNumberRow({ e164 }: { e164: string }) {
       <button
         type="button"
         onClick={() => void copy()}
-        aria-label={`Copy ${label}`}
+        aria-label={t("shell.copyNumber", { number: label })}
         className="grid size-6 shrink-0 place-items-center rounded-[6px] text-app-muted-2 outline-none transition-colors duration-150 ease-out hover:bg-app-line-soft hover:text-app-ink focus-visible:ring-2 focus-visible:ring-ring"
       >
         {copied ? (
@@ -85,6 +87,7 @@ export function WorkspaceNumbers({
 }: {
   numbers: PhoneNumberSummary[];
 }) {
+  const t = useT();
   const active = numbers.filter(
     (n): n is PhoneNumberSummary & { number_e164: string } =>
       n.status === "active" && Boolean(n.number_e164),
@@ -105,14 +108,14 @@ export function WorkspaceNumbers({
         className="flex items-center gap-1.5 text-[11.5px] font-medium text-destructive underline-offset-2 hover:underline"
       >
         <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-destructive" />
-        Couldn&apos;t set up — choose a number
+        {t("shell.numberSetupFailed")}
       </Link>
     );
   }
   return (
     <span className="flex items-center gap-1.5 text-[11.5px] text-app-muted-2">
       <span aria-hidden className="size-1.5 rounded-full bg-app-muted-2" />
-      Setting up your number…
+      {t("shell.numberSettingUp")}
     </span>
   );
 }

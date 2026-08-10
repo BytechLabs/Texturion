@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -19,24 +19,33 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
+import { useT, type Translate } from "@/i18n/provider";
 import { authErrorMessage } from "@/lib/auth/messages";
 import { needsReauth, planPasswordSubmit } from "@/lib/auth/reauth";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
-const schema = z
-  .object({
-    password: z.string().min(8, "Use at least 8 characters."),
-    confirm: z.string(),
-    // Only consulted once a reauth is required (§1.6). Always seeded to "" by
-    // the form's defaultValues, so a plain string keeps input/output types
-    // aligned for the resolver.
-    nonce: z.string(),
-  })
-  .refine((values) => values.password === values.confirm, {
-    path: ["confirm"],
-    message: "The passwords don't match.",
-  });
-type Values = z.infer<typeof schema>;
+/*
+ * A factory rather than a module-level constant: both messages below are read
+ * under the field by the person filling it in, so they are copy and belong in
+ * the catalogue. The type comes from the factory's return, so the form's typing
+ * does not depend on which locale built the schema.
+ */
+function makeSchema(t: Translate) {
+  return z
+    .object({
+      password: z.string().min(8, t("settings.passwordTooShort")),
+      confirm: z.string(),
+      // Only consulted once a reauth is required (§1.6). Always seeded to "" by
+      // the form's defaultValues, so a plain string keeps input/output types
+      // aligned for the resolver.
+      nonce: z.string(),
+    })
+    .refine((values) => values.password === values.confirm, {
+      path: ["confirm"],
+      message: t("settings.passwordMismatch"),
+    });
+}
+type Values = z.infer<ReturnType<typeof makeSchema>>;
 
 /**
  * Change / set password (D18 / APP-FEATURES-V2 §1.6, §1.8).
@@ -54,9 +63,11 @@ type Values = z.infer<typeof schema>;
  * Supabase's leaked-password + min-strength checks (D8 posture) surface inline.
  */
 export function ChangePasswordCard({ oauthOnly }: { oauthOnly: boolean }) {
+  const t = useT();
   // Once true, the nonce field is shown and required (stale-session path).
   const [reauthRequested, setReauthRequested] = useState(false);
 
+  const schema = useMemo(() => makeSchema(t), [t]);
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: { password: "", confirm: "", nonce: "" },
@@ -70,7 +81,7 @@ export function ChangePasswordCard({ oauthOnly }: { oauthOnly: boolean }) {
     });
     if (!plan) {
       form.setError("nonce", {
-        message: "Enter the 6-digit code from your email.",
+        message: t("settings.passwordNonceRequired"),
       });
       return;
     }
@@ -92,8 +103,7 @@ export function ChangePasswordCard({ oauthOnly }: { oauthOnly: boolean }) {
         }
         setReauthRequested(true);
         form.setError("root", {
-          message:
-            "For your security, enter the 6-digit code we just emailed you.",
+          message: t("settings.passwordReauthSent"),
         });
         return;
       }
@@ -114,21 +124,25 @@ export function ChangePasswordCard({ oauthOnly }: { oauthOnly: boolean }) {
   }
 
   function finishSuccess() {
-    toast.success(oauthOnly ? "Password set." : "Password updated.");
+    toast.success(
+      oauthOnly ? t("settings.passwordSet") : t("settings.passwordUpdated"),
+    );
     form.reset({ password: "", confirm: "", nonce: "" });
     setReauthRequested(false);
   }
 
-  const cta = oauthOnly ? "Set a password" : "Change password";
-  const busyCta = oauthOnly ? "Setting…" : "Saving…";
+  const cta = oauthOnly
+    ? t("settings.passwordSetAction")
+    : t("settings.passwordChangeAction");
+  const busyCta = oauthOnly ? t("settings.passwordSetting") : t("common.saving");
 
   return (
     <SettingsCard
-      title={oauthOnly ? "Set a password" : "Change password"}
+      title={cta}
       description={
         oauthOnly
-          ? "Add a password so you can sign in on any device, not just with Google or Apple."
-          : "Pick a new password. We may ask you to confirm it's you."
+          ? t("settings.passwordSetDescription")
+          : t("settings.passwordChangeDescription")
       }
     >
       <Form {...form}>
@@ -145,7 +159,7 @@ export function ChangePasswordCard({ oauthOnly }: { oauthOnly: boolean }) {
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>New password</FormLabel>
+                <FormLabel>{t("settings.passwordNewLabel")}</FormLabel>
                 <FormControl>
                   <PasswordInput autoComplete="new-password" {...field} />
                 </FormControl>
@@ -158,7 +172,7 @@ export function ChangePasswordCard({ oauthOnly }: { oauthOnly: boolean }) {
             name="confirm"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Confirm password</FormLabel>
+                <FormLabel>{t("settings.passwordConfirmLabel")}</FormLabel>
                 <FormControl>
                   <PasswordInput autoComplete="new-password" {...field} />
                 </FormControl>
@@ -172,7 +186,7 @@ export function ChangePasswordCard({ oauthOnly }: { oauthOnly: boolean }) {
               name="nonce"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Confirmation code</FormLabel>
+                  <FormLabel>{t("settings.passwordCodeLabel")}</FormLabel>
                   <FormControl>
                     <Input
                       inputMode="numeric"
@@ -182,7 +196,7 @@ export function ChangePasswordCard({ oauthOnly }: { oauthOnly: boolean }) {
                     />
                   </FormControl>
                   <FormDescription>
-                    Enter the 6-digit code we emailed you.
+                    {t("settings.passwordCodeHelp")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

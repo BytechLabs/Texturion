@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { AiStatus } from "@/components/ui/ai-orb";
+import { useT } from "@/i18n/provider";
 
 /**
  * AI-drafted replies, offered above the pill. Each is a full message: tapping
@@ -25,12 +26,13 @@ export function ReplySuggestionChips({
   onUse: (suggestion: string) => void;
   onDismiss: () => void;
 }) {
+  const t = useT();
   return (
     <div className="mx-auto max-w-[42rem] px-1 pb-2">
       <div className="mb-1 flex items-center gap-2">
         <AiStatus
           state={loading ? "thinking" : "done"}
-          label={loading ? "Drafting…" : "Lou's drafts"}
+          label={loading ? t("thread.drafting") : t("thread.lousDrafts")}
         />
         <div className="ml-auto flex items-center gap-1">
           {/* No re-ask. Every ask is a real AI call, and re-rolling until a
@@ -42,14 +44,14 @@ export function ReplySuggestionChips({
             onClick={onDismiss}
             className="rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
           >
-            Dismiss
+            {t("thread.dismiss")}
           </button>
         </div>
       </div>
       <div
         className="flex flex-col gap-1.5"
         role="group"
-        aria-label="Suggested replies"
+        aria-label={t("thread.suggestedRepliesAria")}
       >
         {loading
           ? // Three placeholders, because three is what comes back: the strip
@@ -78,12 +80,12 @@ export function ReplySuggestionChips({
           looking for it. */}
       {!loading && businessUnknown ? (
         <p className="mt-1.5 px-0.5 text-[11px] text-muted-foreground">
-          Lou doesn&rsquo;t know what you do yet.{" "}
+          {t("thread.louDoesntKnowYou")}{" "}
           <Link
             href="/settings/ai"
             className="font-medium text-app-olive underline-offset-4 hover:underline"
           >
-            Tell it, and drafts get specific
+            {t("thread.tellLouLink")}
           </Link>
           .
         </p>

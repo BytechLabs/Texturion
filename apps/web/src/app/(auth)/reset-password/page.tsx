@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { publicEnv } from "@/env";
+import { useT } from "@/i18n/provider";
 import { authErrorMessage } from "@/lib/auth/messages";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
@@ -28,6 +29,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export default function ResetPasswordPage() {
+  const t = useT();
   const [serverError, setServerError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
 
@@ -65,15 +67,15 @@ export default function ResetPasswordPage() {
     return (
       <div className="space-y-4">
         <h1 className="text-2xl font-semibold tracking-tight">
-          Check your email
+          {t("onboarding.checkYourEmail")}
         </h1>
         <p className="text-sm text-muted-foreground">
-          If an account exists for{" "}
-          <span className="font-medium text-foreground">{sentTo}</span>, we
-          sent it a link to set a new password.
+          {t("onboarding.resetSentPrefix")}{" "}
+          <span className="font-medium text-foreground">{sentTo}</span>
+          {t("onboarding.resetSentSuffix")}
         </p>
         <Button asChild variant="outline" className="w-full">
-          <Link href="/login">Back to log in</Link>
+          <Link href="/login">{t("onboarding.backToLogin")}</Link>
         </Button>
       </div>
     );
@@ -83,10 +85,10 @@ export default function ResetPasswordPage() {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">
-          Reset your password
+          {t("onboarding.resetTitle")}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Enter your email and we&apos;ll send you a link to set a new one.
+          {t("onboarding.resetSubtitle")}
         </p>
       </div>
       <Form {...form}>
@@ -103,7 +105,7 @@ export default function ResetPasswordPage() {
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email</FormLabel>
+                <FormLabel>{t("onboarding.emailLabel")}</FormLabel>
                 <FormControl>
                   <Input
                     type="email"
@@ -137,17 +139,19 @@ export default function ResetPasswordPage() {
               (siteKey !== undefined && captchaToken === null)
             }
           >
-            {form.formState.isSubmitting ? "Sending…" : "Send reset link"}
+            {form.formState.isSubmitting
+              ? t("onboarding.sending")
+              : t("onboarding.sendResetLink")}
           </Button>
         </form>
       </Form>
       <p className="text-center text-sm text-muted-foreground">
-        Remembered it?{" "}
+        {t("onboarding.rememberedIt")}{" "}
         <Link
           href="/login"
           className="font-medium text-primary underline-offset-4 hover:underline"
         >
-          Log in
+          {t("onboarding.logIn")}
         </Link>
       </p>
     </div>

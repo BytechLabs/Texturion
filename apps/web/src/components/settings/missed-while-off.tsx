@@ -2,6 +2,7 @@
 
 import { PhoneMissed } from "lucide-react";
 
+import { useT, type Translate } from "@/i18n/provider";
 import { useMissedWhileOff } from "@/lib/api/billing";
 
 /**
@@ -27,6 +28,7 @@ import { useMissedWhileOff } from "@/lib/api/billing";
  * nobody needed to build.
  */
 export function MissedWhileOff({ show }: { show: boolean }) {
+  const t = useT();
   const missed = useMissedWhileOff(show);
 
   // Never a skeleton or an error: this is a supporting fact on somebody else's
@@ -48,13 +50,13 @@ export function MissedWhileOff({ show }: { show: boolean }) {
         <div className="space-y-1">
           <p className="text-sm font-medium">
             {count === 1
-              ? "1 customer called while your number was off"
-              : `${count} customers called while your number was off`}
+              ? t("settings.missedWhileOffOne")
+              : t("settings.missedWhileOffMany", { count })}
           </p>
           <p className="text-sm text-muted-foreground">
             {last
-              ? `They heard that the number isn't taking calls. The most recent was ${relativeDay(last)}.`
-              : "They heard that the number isn't taking calls."}
+              ? t("settings.missedWhileOffLast", { when: relativeDay(last, t) })
+              : t("settings.missedWhileOffHeard")}
           </p>
         </div>
       </div>
@@ -71,13 +73,15 @@ export function MissedWhileOff({ show }: { show: boolean }) {
  * answer, because by then the question has become "how long has this been
  * going on".
  */
-function relativeDay(when: Date): string {
+function relativeDay(when: Date, t: Translate): string {
   const startOfDay = (d: Date) =>
     new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const days = Math.round(
     (startOfDay(new Date()) - startOfDay(when)) / 86_400_000,
   );
-  if (days <= 0) return "today";
-  if (days === 1) return "yesterday";
-  return `on ${when.toLocaleDateString(undefined, { day: "numeric", month: "long" })}`;
+  if (days <= 0) return t("settings.dayToday");
+  if (days === 1) return t("settings.dayYesterday");
+  return t("settings.dayOn", {
+    date: when.toLocaleDateString(undefined, { day: "numeric", month: "long" }),
+  });
 }

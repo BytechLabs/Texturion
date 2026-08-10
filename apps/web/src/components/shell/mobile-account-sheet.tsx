@@ -27,6 +27,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { useT } from "@/i18n/provider";
 import {
   useMarkAllNotificationsRead,
   useNotificationsUnreadCount,
@@ -46,10 +47,12 @@ function cap(n: number): string {
   return n > 9 ? "9+" : `${n}`;
 }
 
+/** #228: the catalogue key rather than the word — a module constant cannot
+ *  call the hook, so each option carries its name and the sheet resolves it. */
 const THEME_OPTIONS = [
-  { value: "system", label: "System", icon: Monitor },
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
+  { value: "system", labelKey: "shell.themeSystem", icon: Monitor },
+  { value: "light", labelKey: "shell.themeLight", icon: Sun },
+  { value: "dark", labelKey: "shell.themeDark", icon: Moon },
 ] as const;
 
 /**
@@ -77,6 +80,7 @@ export function MobileAccountSheetBody({
   /** The notifications feed was expanded — the host arms dismiss-marks-read. */
   onFeedOpened: () => void;
 }) {
+  const t = useT();
   const { membership, memberships, switchCompany, displayName, companyId } =
     useActiveCompany();
   const numbers = useNumbers();
@@ -112,7 +116,7 @@ export function MobileAccountSheetBody({
       if (error) throw error;
     } catch {
       setSigningOut(false);
-      toast.error("Couldn't sign out. Check your connection and try again.");
+      toast.error(t("shell.signOutFailed"));
       return;
     }
     queryClient.clear();
@@ -143,7 +147,7 @@ export function MobileAccountSheetBody({
           </span>
           <div className="min-w-0">
             <p className="truncate text-[15px] font-semibold text-app-ink">
-              {displayName || "You"}
+              {displayName || t("shell.you")}
             </p>
             <p className="truncate text-[12px] text-app-muted">
               {membership.name}
@@ -155,8 +159,8 @@ export function MobileAccountSheetBody({
       <div className="space-y-5 px-4 py-4">
         {/* Workspace switcher — only when the account belongs to several. */}
         {multi && (
-          <section aria-label="Workspaces">
-            <h2 className={labelClass}>Workspaces</h2>
+          <section aria-label={t("shell.workspaces")}>
+            <h2 className={labelClass}>{t("shell.workspaces")}</h2>
             <div className={cardClass}>
               {memberships.map((m) => (
                 <button
@@ -192,13 +196,13 @@ export function MobileAccountSheetBody({
             number(s), the notifications row (+ inline feed), and Settings. */}
         <div className={cardClass}>
           <section
-            aria-label="Business numbers"
+            aria-label={t("shell.businessNumbers")}
             className="px-4 py-3"
           >
             <WorkspaceNumbers numbers={numbers.data?.data ?? []} />
           </section>
 
-          <section aria-label="Notifications">
+          <section aria-label={t("shell.notifications")}>
             <button
               type="button"
               className={rowClass}
@@ -210,10 +214,10 @@ export function MobileAccountSheetBody({
                 strokeWidth={1.75}
                 aria-hidden
               />
-              <span className="min-w-0 flex-1">Notifications</span>
+              <span className="min-w-0 flex-1">{t("shell.notifications")}</span>
               {count > 0 && (
                 <span
-                  aria-label={`${count} unread`}
+                  aria-label={t("shell.unreadCount", { count })}
                   // The quiet STONE count of the tab bar and filter segments —
                   // the main UI never spends teal on counts (accent budget).
                   className="grid h-4 min-w-4 place-items-center rounded-full bg-app-line-soft px-1 text-[10.5px] font-semibold tabular-nums text-app-muted"
@@ -248,7 +252,7 @@ export function MobileAccountSheetBody({
               strokeWidth={1.75}
               aria-hidden
             />
-            Calls
+            {t("shell.navCalls")}
           </Link>
 
           {/* #233: the same reasoning as Calls above — the tab bar is a shipped
@@ -261,7 +265,7 @@ export function MobileAccountSheetBody({
               strokeWidth={1.75}
               aria-hidden
             />
-            Scheduled
+            {t("shell.navScheduled")}
           </Link>
 
           <Link href="/settings" className={rowClass} onClick={onClose}>
@@ -270,17 +274,17 @@ export function MobileAccountSheetBody({
               strokeWidth={1.75}
               aria-hidden
             />
-            Settings
+            {t("shell.navSettings")}
           </Link>
         </div>
 
         {/* Theme — the inbox filter-bar segmented control, verbatim: a stone
             track with the lifted white active pill (never bordered boxes). */}
-        <section aria-label="Theme">
-          <h2 className={labelClass}>Theme</h2>
+        <section aria-label={t("shell.theme")}>
+          <h2 className={labelClass}>{t("shell.theme")}</h2>
           <div
             role="radiogroup"
-            aria-label="Theme"
+            aria-label={t("shell.theme")}
             className="flex gap-0.5 rounded-full bg-app-line-soft p-[3px] dark:bg-white/5"
           >
             {THEME_OPTIONS.map((option) => {
@@ -301,7 +305,7 @@ export function MobileAccountSheetBody({
                   )}
                 >
                   <Icon className="size-3.5" strokeWidth={1.75} aria-hidden />
-                  {option.label}
+                  {t(option.labelKey)}
                 </button>
               );
             })}
@@ -321,7 +325,7 @@ export function MobileAccountSheetBody({
               strokeWidth={1.75}
               aria-hidden
             />
-            {signingOut ? "Signing out…" : "Sign out"}
+            {signingOut ? t("shell.signingOut") : t("shell.signOut")}
           </button>
         </div>
       </div>
@@ -343,6 +347,7 @@ export function MobileAccountSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useT();
   const unread = useNotificationsUnreadCount();
   const markAllRead = useMarkAllNotificationsRead();
   const count = unread.data?.count ?? 0;
@@ -370,9 +375,9 @@ export function MobileAccountSheet({
         {/* The visible header lives in the body; these give the Radix dialog
             its accessible name without duplicating the visual row. */}
         <SheetHeader className="sr-only">
-          <SheetTitle>Account and settings</SheetTitle>
+          <SheetTitle>{t("shell.accountAndSettings")}</SheetTitle>
           <SheetDescription>
-            Workspace, business numbers, notifications, theme, and sign out.
+            {t("shell.accountSheetDescription")}
           </SheetDescription>
         </SheetHeader>
         <MobileAccountSheetBody

@@ -7,6 +7,7 @@ import {
   type WorkPhase,
 } from "@loonext/shared";
 
+import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -43,11 +44,12 @@ export function WorkPhasePicker({
   value: WorkPhase | null;
   onChange: (next: WorkPhase | null) => void;
 }) {
+  const t = useT();
   return (
     <div
       className="mx-auto flex max-w-[42rem] flex-wrap items-center gap-1.5 px-1 pb-2"
       role="group"
-      aria-label="What these photos show"
+      aria-label={t("thread.whatPhotosShowAria")}
     >
       {WORK_PHASES.map((phase) => {
         const on = value === phase;

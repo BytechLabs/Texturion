@@ -2,6 +2,7 @@
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { useT, type Translate } from "@/i18n/provider";
 
 /**
  * The one question every bulk-contact door has to ask (#226 / #248).
@@ -28,10 +29,16 @@ export type ImportConsentSource = "file" | "picked";
  * (CONTACT_IMPORT_CONSENT_REQUIRED) so somebody who manages to hit the gate
  * reads the same claim twice rather than two paraphrases of it.
  */
-export const IMPORT_CONSENT_LABEL: Record<ImportConsentSource, string> = {
-  file: "Everyone in this file agreed to be texted by this business.",
-  picked: "Everyone I pick agreed to be texted by this business.",
-};
+export function importConsentLabel(
+  t: Translate,
+  source: ImportConsentSource,
+): string {
+  return t(
+    source === "file"
+      ? "contacts.consentLabelFile"
+      : "contacts.consentLabelPicked",
+  );
+}
 
 /**
  * The three facts that make ticking the box an informed act rather than a
@@ -45,10 +52,10 @@ export const IMPORT_CONSENT_LABEL: Record<ImportConsentSource, string> = {
  * short list; a long one is skipped entirely, which is worse than not printing
  * it.
  */
-export const IMPORT_CONSENT_FACTS = [
-  "Importing texts nobody.",
-  "Anyone who has replied STOP stays blocked.",
-  "Contacts who already have a consent record keep the one they have.",
+export const IMPORT_CONSENT_FACT_KEYS = [
+  "contacts.consentFactNoTexts",
+  "contacts.consentFactStop",
+  "contacts.consentFactExisting",
 ] as const;
 
 export function ImportConsentCheck({
@@ -64,6 +71,7 @@ export function ImportConsentCheck({
   disabled?: boolean;
   id?: string;
 }) {
+  const t = useT();
   return (
     <div className="rounded-lg border border-dashed bg-muted/40 px-3 py-3">
       <div className="flex items-start gap-3">
@@ -79,11 +87,11 @@ export function ImportConsentCheck({
         />
         <div className="space-y-2">
           <Label htmlFor={id} className="block text-sm leading-snug">
-            {IMPORT_CONSENT_LABEL[source]}
+            {importConsentLabel(t, source)}
           </Label>
           <ul className="space-y-1 text-xs leading-snug text-muted-foreground">
-            {IMPORT_CONSENT_FACTS.map((fact) => (
-              <li key={fact}>{fact}</li>
+            {IMPORT_CONSENT_FACT_KEYS.map((key) => (
+              <li key={key}>{t(key)}</li>
             ))}
           </ul>
         </div>

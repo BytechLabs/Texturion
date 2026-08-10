@@ -1,4 +1,7 @@
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
 import type { NumberHoldState } from "@/components/settings/number-hold";
+import { makeTranslate, type Translate } from "@/i18n/provider";
 import type { NumberStatus } from "@/lib/api/types";
 
 /**
@@ -110,31 +113,18 @@ export function mayReleaseNumber(
  */
 export function releaseNumberBody(
   hold: NumberHoldState | null | undefined,
+  /**
+   * #228: the reader's words. Defaulted to English so `release-number.test.ts`
+   * — which has no provider and asserts the shipped sentence rather than a
+   * paraphrase of it — keeps reading exactly what it read before.
+   */
+  t: Translate = makeTranslate(DEFAULT_LOCALE),
 ): string {
   if (!hold) {
-    return (
-      "This gives the number up for good. Customers who text it won't reach " +
-      "you, and you can't get the same number back. It doesn't change your " +
-      "plan or what you pay — a number is included, so you can set up a new " +
-      "one here afterward. Type the number to confirm."
-    );
+    return t("settingsMore.releaseBodyPlain");
   }
   if (hold.kind === "over_allowance") {
-    return (
-      "This is a number your plan doesn't cover, and releasing it is the other " +
-      "way out of that hold — it ends the hold by giving the number up rather " +
-      "than by bringing it back. Customers who text it won't reach you " +
-      "afterward, and you can't get the same number back. Your plan stops " +
-      "being over its allowance, and what you pay doesn't change. Type the " +
-      "number to confirm."
-    );
+    return t("settingsMore.releaseBodyOverAllowance");
   }
-  return (
-    "This number is already on hold, and releasing it ends the hold by giving " +
-    "the number up rather than by bringing it back. Customers who text it " +
-    "won't reach you afterward, and you can't get the same number back. What " +
-    "you pay doesn't change. We can't tell from here whether your plan has " +
-    "room for a replacement — check Billing before you give this one up. Type " +
-    "the number to confirm."
-  );
+  return t("settingsMore.releaseBodyUnknownHold");
 }

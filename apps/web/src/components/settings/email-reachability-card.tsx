@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { apiFetch } from "@/lib/api/client";
 import { keys } from "@/lib/api/keys";
@@ -31,6 +32,7 @@ import { useQueryClient } from "@tanstack/react-query";
  * explains already is.*
  */
 export function EmailReachabilityCard() {
+  const t = useT();
   const me = useMe();
   const queryClient = useQueryClient();
   const [retrying, setRetrying] = useState(false);
@@ -43,10 +45,12 @@ export function EmailReachabilityCard() {
     try {
       await apiFetch("/v1/me/email/retry", { method: "POST" });
       await queryClient.invalidateQueries({ queryKey: keys.me });
-      toast.success("We'll try that address again on your next notification.");
+      toast.success(t("settings.emailRetryQueued"));
     } catch (cause) {
       toast.error(
-        cause instanceof ApiError ? cause.message : "Couldn't do that. Try again.",
+        cause instanceof ApiError
+          ? cause.message
+          : t("settings.emailRetryFailed"),
       );
     } finally {
       setRetrying(false);
@@ -61,19 +65,19 @@ export function EmailReachabilityCard() {
     // thing that needs action.*
     <div className="rounded-app-card border border-app-amber-line bg-app-amber-bg px-5 py-4">
       <p className="text-sm font-semibold text-app-ink">
-        We can&apos;t email you at {state.email}
+        {t("settings.emailUnreachable", { email: state.email })}
       </p>
 
       {state.fixable ? (
         <>
           <p className="mt-1 text-sm text-app-muted">
-            Emails to this address are bouncing, so we&apos;ve stopped sending
-            them. Push notifications still work. If the address was mistyped,
-            fix it in your account first, then tell us to try again.
+            {t("settings.emailBouncing")}
           </p>
           <div className="mt-3 flex justify-end">
             <Button size="sm" variant="outline" onClick={retry} disabled={retrying}>
-              {retrying ? "Trying…" : "Try this address again"}
+              {retrying
+                ? t("settings.emailRetrying")
+                : t("settings.emailRetryAction")}
             </Button>
           </div>
         </>
@@ -83,9 +87,7 @@ export function EmailReachabilityCard() {
         // *Applying: Ethical Friction, inverted — the friction here is the
         // absence of a shortcut we are not entitled to offer.*
         <p className="mt-1 text-sm text-app-muted">
-          This address reported our email as spam, so we&apos;ve stopped sending
-          to it for good. Push notifications still work. To get email again,
-          change your account to a different address.
+          {t("settings.emailComplained")}
         </p>
       )}
     </div>

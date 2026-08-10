@@ -14,7 +14,12 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { makeTranslate } from "@/i18n/provider";
+
 import { movedDueAt, RESCHEDULE_MOVES } from "./calendar-view";
+
+/** #228: the moves carry catalogue keys now, so CR-6 reads the words from it. */
+const en = makeTranslate("en");
 
 const NOW = new Date("2026-07-15T09:00:00.000Z");
 
@@ -74,8 +79,9 @@ describe("#238 rescheduling from the calendar without a drag", () => {
 
   it("CR-6: every move is labelled in plain words, not a signed number", () => {
     for (const move of RESCHEDULE_MOVES) {
-      expect(move.label).not.toMatch(/^[+-]?\d/);
-      expect(move.label.length).toBeGreaterThan(3);
+      const label = en(move.labelKey);
+      expect(label).not.toMatch(/^[+-]?\d/);
+      expect(label.length).toBeGreaterThan(3);
     }
   });
 
@@ -89,8 +95,14 @@ describe("#238 rescheduling from the calendar without a drag", () => {
     // focusable, so the keyboard path disappears, and there is no hover on a
     // touch screen at all. Dimming is fine — it stays focusable and stays hit-
     // testable. Removing it from the box tree is not.
+    // #228: the label moved into the catalogue, so this anchors on the t() call
+    // rather than the template literal it replaced. It still has to FIND the
+    // trigger — a needle that misses would make every assertion below vacuous,
+    // which is what the `toContain("className=")` check immediately proves.
+    const anchor = SOURCE.indexOf('aria-label={t("tasks.rescheduleAria"');
+    expect(anchor, "the reschedule trigger's aria-label is where this test thinks").toBeGreaterThan(-1);
     const trigger = SOURCE.slice(
-      SOURCE.indexOf("aria-label={`Reschedule "),
+      anchor,
       SOURCE.indexOf("CalendarClock className"),
     );
     expect(trigger, "the reschedule trigger is where this test thinks").toContain(

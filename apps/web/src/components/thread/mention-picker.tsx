@@ -20,6 +20,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { useT } from "@/i18n/provider";
 import { useMentionableMembers } from "@/lib/api/conversations";
 import type { MentionableMember } from "@/lib/api/types";
 import { usePointerCoarse } from "@/lib/use-pointer-coarse";
@@ -52,12 +53,13 @@ export function MentionPicker({
 }) {
   // Only fetched while the picker is open: a thread that never mentions anyone
   // should not cost a request.
+  const t = useT();
   const members = useMentionableMembers(conversationId, open);
   const rows = members.data?.data ?? [];
   const coarse = usePointerCoarse();
 
   const label = (member: MentionableMember) =>
-    member.display_name.trim() || "Teammate";
+    member.display_name.trim() || t("thread.teammate");
   const labels = new Map(rows.map((member) => [member.user_id, label(member)]));
 
   const list = (autoFocus: boolean) => (
@@ -70,19 +72,22 @@ export function MentionPicker({
         return name.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
       }}
     >
-      <CommandInput placeholder="Search teammates…" autoFocus={autoFocus} />
+      <CommandInput
+        placeholder={t("thread.searchTeammates")}
+        autoFocus={autoFocus}
+      />
       <CommandList>
         <CommandEmpty>
           {members.isPending
-            ? "Loading teammates…"
+            ? t("thread.loadingTeammates")
             : members.isError
-              ? "Couldn't load teammates."
+              ? t("thread.teammatesLoadFailed")
               : rows.length === 0
-                ? "No teammates can see this conversation."
-                : "No teammates match."}
+                ? t("thread.noTeammatesCanSee")
+                : t("thread.noTeammatesMatch")}
         </CommandEmpty>
         {rows.length > 0 && (
-          <CommandGroup heading="Mention">
+          <CommandGroup heading={t("thread.mention")}>
             {rows.map((member) => (
               <CommandItem
                 key={member.user_id}
@@ -112,9 +117,11 @@ export function MentionPicker({
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <SheetHeader className="border-b border-app-line-soft px-4 py-3">
-            <SheetTitle className="text-[15px]">Mention a teammate</SheetTitle>
+            <SheetTitle className="text-[15px]">
+              {t("thread.mentionATeammate")}
+            </SheetTitle>
             <SheetDescription className="sr-only">
-              Pick a teammate to name on this note. They will be notified.
+              {t("thread.mentionSheetDescription")}
             </SheetDescription>
           </SheetHeader>
           {list(false)}

@@ -10,6 +10,7 @@ import {
 import { ContactsTable } from "@/components/contacts/contacts-table";
 import { Button } from "@/components/ui/button";
 import { DuplicateContactsCard } from "@/components/contacts/duplicate-contacts-card";
+import { useT } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
 
 /**
@@ -19,6 +20,7 @@ import { useActiveCompany } from "@/lib/company/provider";
  * and the open import dialog so the empty state can open the CSV wizard too.
  */
 export default function ContactsPage() {
+  const t = useT();
   const { role } = useActiveCompany();
   const canImport = role === "owner" || role === "admin";
   const [query, setQuery] = useState("");
@@ -31,14 +33,16 @@ export default function ContactsPage() {
   const emptyImportButton = canImport ? (
     <Button onClick={() => setImportSource("csv")}>
       <Upload strokeWidth={1.75} aria-hidden />
-      Import CSV
+      {t("appShell.contactsImportCsv")}
     </Button>
   ) : null;
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 px-4 py-8 md:px-6">
       <div className="flex items-start justify-between gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Contacts</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {t("appShell.contactsTitle")}
+        </h1>
         <ContactsActions
           canImport={canImport}
           query={query}

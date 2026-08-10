@@ -6,6 +6,7 @@ import { Fragment } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT } from "@/i18n/provider";
 import { useSearch } from "@/lib/api/search";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
@@ -38,6 +39,7 @@ export function renderSnippet(snippet: string): React.ReactNode[] {
  * the compose flow pre-filled.
  */
 export function SearchResults({ q }: { q: string }) {
+  const t = useT();
   const search = useSearch(q);
 
   if (search.isPending) {
@@ -47,10 +49,10 @@ export function SearchResults({ q }: { q: string }) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
         <p className="text-sm text-muted-foreground">
-          Search isn&apos;t responding. Try again in a moment.
+          {t("inbox.searchFailed")}
         </p>
         <Button variant="outline" size="sm" onClick={() => search.refetch()}>
-          Try again
+          {t("common.retry")}
         </Button>
       </div>
     );
@@ -62,7 +64,7 @@ export function SearchResults({ q }: { q: string }) {
     return (
       <div className="flex flex-1 items-center justify-center p-8">
         <p className="text-sm text-muted-foreground">
-          No matches for “{q.trim()}”.
+          {t("inbox.searchNoMatches", { query: q.trim() })}
         </p>
       </div>
     );
@@ -71,9 +73,9 @@ export function SearchResults({ q }: { q: string }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       {conversations.length > 0 && (
-        <section aria-label="Matching conversations">
+        <section aria-label={t("inbox.searchConversationsAria")}>
           <h3 className="px-4 pb-1 pt-3 text-xs font-medium text-muted-foreground">
-            Conversations
+            {t("inbox.searchConversationsHeading")}
           </h3>
           {conversations.map((hit) => (
             <Link
@@ -92,7 +94,7 @@ export function SearchResults({ q }: { q: string }) {
                     <Lock
                       className="size-3 shrink-0 text-app-amber"
                       strokeWidth={1.75}
-                      aria-label="Note"
+                      aria-label={t("inbox.rowNoteAria")}
                     />
                   )}
                   <span className="min-w-0 truncate">
@@ -114,9 +116,9 @@ export function SearchResults({ q }: { q: string }) {
         </section>
       )}
       {contacts.length > 0 && (
-        <section aria-label="Matching contacts">
+        <section aria-label={t("inbox.searchContactsAria")}>
           <h3 className="px-4 pb-1 pt-3 text-xs font-medium text-muted-foreground">
-            Contacts
+            {t("inbox.searchContactsHeading")}
           </h3>
           {contacts.map((contact) => (
             <Link

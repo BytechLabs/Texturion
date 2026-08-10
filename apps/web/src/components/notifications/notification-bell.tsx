@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useT, type Translate } from "@/i18n/provider";
 import {
   useMarkAllNotificationsRead,
   useMarkNotificationReadItem,
@@ -49,20 +50,20 @@ const TYPE_ICON: Record<NotificationType, typeof MessageSquareText> = {
 };
 
 /** One-line, past-tense summary of a notification (calm — the name is the hero). */
-function describe(item: NotificationItem, name: string): string {
+function describe(item: NotificationItem, name: string, t: Translate): string {
   switch (item.type) {
     case "inbound_message":
-      return `New message from ${name}`;
+      return t("misc.notifInboundMessage", { name });
     case "assigned":
-      return `${name} assigned to you`;
+      return t("misc.notifAssigned", { name });
     case "task_assigned":
-      return `Task assigned · ${name}`;
+      return t("misc.notifTaskAssigned", { name });
     case "missed_call":
-      return `Missed call from ${name}`;
+      return t("misc.notifMissedCall", { name });
     case "mention":
       // The thread is the customer's; what changed is that someone needs THIS
       // reader specifically.
-      return `You were mentioned · ${name}`;
+      return t("misc.notifMention", { name });
     default:
       return name;
   }
@@ -85,6 +86,7 @@ function NotificationRow({
   item: NotificationItem;
   onSelect: (item: NotificationItem) => void;
 }) {
+  const t = useT();
   const Icon = TYPE_ICON[item.type] ?? Bell;
   const name = contactDisplayName(item.contact);
   const href = deepLink(item);
@@ -112,7 +114,7 @@ function NotificationRow({
               : "text-muted-foreground",
           )}
         >
-          {describe(item, name)}
+          {describe(item, name, t)}
         </span>
         <span className="mt-0.5 block text-xs text-muted-foreground">
           {formatRelativeTime(item.created_at)}
@@ -162,16 +164,17 @@ function NotificationRow({
  * the moment that gap is felt.
  */
 function PushOffer() {
+  const t = useT();
   const push = usePushSubscription();
 
   if (push.phase === "idle") {
     return (
       <div className="flex items-center justify-between gap-3 border-b border-border bg-accent/40 px-4 py-2.5">
         <p className="text-xs text-muted-foreground">
-          Get these when Loonext isn&rsquo;t open.
+          {t("misc.pushOfferInFeed")}
         </p>
         <Button size="xs" onClick={() => void push.subscribe()}>
-          Turn on
+          {t("misc.turnOn")}
         </Button>
       </div>
     );
@@ -182,8 +185,7 @@ function PushOffer() {
   if (push.phase === "denied") {
     return (
       <p className="border-b border-border bg-accent/40 px-4 py-2.5 text-xs text-muted-foreground">
-        Notifications are blocked for this site. Your browser&rsquo;s site
-        settings can allow them again.
+        {t("misc.pushBlockedForSite")}
       </p>
     );
   }
@@ -198,6 +200,7 @@ export function NotificationFeed({
   active: boolean;
   onNavigate: () => void;
 }) {
+  const t = useT();
   const router = useRouter();
   const unread = useNotificationsUnreadCount();
   const feed = useNotificationsFeed(active);
@@ -224,7 +227,7 @@ export function NotificationFeed({
     <>
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
         <span className="text-sm font-medium text-foreground">
-          Notifications
+          {t("misc.notifications")}
         </span>
         <Button
           variant="ghost"
@@ -234,7 +237,7 @@ export function NotificationFeed({
           className="text-muted-foreground"
         >
           <CheckCheck className="size-3" strokeWidth={1.75} aria-hidden />
-          Mark all read
+          {t("misc.markAllRead")}
         </Button>
       </div>
 
@@ -257,19 +260,21 @@ export function NotificationFeed({
       ) : feed.isError ? (
         <div className="px-6 py-10 text-center">
           <p className="text-sm text-muted-foreground">
-            We couldn&apos;t load your notifications.
+            {t("misc.notifLoadFailed")}
           </p>
           <button
             type="button"
             onClick={() => void feed.refetch()}
             className="mt-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
           >
-            Try again
+            {t("common.retry")}
           </button>
         </div>
       ) : items.length === 0 ? (
         <div className="px-6 py-10 text-center">
-          <p className="text-sm text-muted-foreground">You&apos;re all caught up.</p>
+          <p className="text-sm text-muted-foreground">
+            {t("misc.notifAllCaughtUp")}
+          </p>
         </div>
       ) : (
         <ScrollArea className="max-h-[min(24rem,60vh)]">
@@ -289,7 +294,9 @@ export function NotificationFeed({
                 disabled={feed.isFetchingNextPage}
                 onClick={() => feed.fetchNextPage()}
               >
-                {feed.isFetchingNextPage ? "Loading…" : "Show older"}
+                {feed.isFetchingNextPage
+                  ? t("misc.notifLoadingMore")
+                  : t("misc.notifShowOlder")}
               </Button>
             </div>
           )}
@@ -319,6 +326,7 @@ export function NotificationBell({
    */
   appVariant?: boolean;
 } = {}) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   // Keep the badge + feed live off the shared realtime signal (no 2nd channel).
@@ -342,7 +350,9 @@ export function NotificationBell({
           <button
             type="button"
             aria-label={
-              count > 0 ? `Notifications, ${count} unread` : "Notifications"
+              count > 0
+                ? t("misc.notificationsUnreadAria", { count })
+                : t("misc.notifications")
             }
             className="relative grid size-[38px] place-items-center rounded-app-ctrl border border-app-line bg-app-paper text-app-ink shadow-[0_1px_1px_rgba(20,32,30,0.03)] transition-[border-color,background,box-shadow] duration-150 ease-out hover:border-app-tint-line hover:bg-app-hover hover:app-shadow-row focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
@@ -360,7 +370,9 @@ export function NotificationBell({
             size="icon-sm"
             className="relative"
             aria-label={
-              count > 0 ? `Notifications, ${count} unread` : "Notifications"
+              count > 0
+                ? t("misc.notificationsUnreadAria", { count })
+                : t("misc.notifications")
             }
           >
             <Bell className="size-[18px]" strokeWidth={1.75} aria-hidden />

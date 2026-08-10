@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useT } from "@/i18n/provider";
 import type { DestinationClock } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
@@ -74,6 +75,7 @@ export function SendLaterMenuItems({
   onSchedule: (sendAtIso: string) => void;
   onPickCustom: () => void;
 }) {
+  const t = useT();
   const zone = clock?.timezone ?? deviceZone();
   // Resolved on every render rather than memoized, matching the snooze ladder:
   // the presets only change when the clock crosses 8am there, and on that
@@ -84,8 +86,10 @@ export function SendLaterMenuItems({
     <>
       <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
         {clock
-          ? `Their clock — ${scheduledClockProvenance(clock.source)}`
-          : "Your workspace's time"}
+          ? t("thread.theirClock", {
+              source: scheduledClockProvenance(clock.source),
+            })
+          : t("thread.yourWorkspaceTime")}
       </DropdownMenuLabel>
       {presets.map((preset) =>
         preset.at ? (
@@ -104,7 +108,7 @@ export function SendLaterMenuItems({
       <DropdownMenuSeparator />
       <DropdownMenuItem onSelect={onPickCustom}>
         <CalendarClock className="size-4" strokeWidth={1.75} />
-        Pick a time…
+        {t("thread.pickATime")}
       </DropdownMenuItem>
     </>
   );
@@ -125,6 +129,7 @@ export function SendLaterDialog({
   onOpenChange: (open: boolean) => void;
   onConfirm: (sendAtIso: string) => void;
 }) {
+  const t = useT();
   const zone = clock?.timezone ?? deviceZone();
   const here = deviceZone();
   // #539: WHICH CLOCK THE TYPED TIME IS IN — the switch the issue asks for
@@ -167,8 +172,8 @@ export function SendLaterDialog({
   const equivalent =
     valid && canSwitch
       ? choice === "theirs"
-        ? `That's ${clockAt(new Date(parsed), here)} your time`
-        : `That's ${clockAt(new Date(parsed), zone)} their time`
+        ? t("thread.thatsYourTime", { when: clockAt(new Date(parsed), here) })
+        : t("thread.thatsTheirTime", { when: clockAt(new Date(parsed), zone) })
       : null;
 
   return (
@@ -181,15 +186,15 @@ export function SendLaterDialog({
     >
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Send later</DialogTitle>
+          <DialogTitle>{t("thread.sendLater")}</DialogTitle>
           <DialogDescription>
             {/* #539: the field is the sender's own wall clock unless they say
                 otherwise, and now they CAN say otherwise. Before this the
                 sentence explained the constraint and left the reader to do the
                 arithmetic; the switch below removes the arithmetic entirely. */}
             {canSwitch
-              ? `Pick which clock you mean. They are ${hoursApart(zone)}.`
-              : "This is your own time. You can change or cancel it any time before it goes."}
+              ? t("thread.pickWhichClock", { delta: hoursApart(zone) })
+              : t("thread.yourOwnTime")}
           </DialogDescription>
         </DialogHeader>
         {canSwitch && (
@@ -200,7 +205,7 @@ export function SendLaterDialog({
           // conventional place, matching the 7/30/90 pickers elsewhere.*
           <div
             role="group"
-            aria-label="Which clock"
+            aria-label={t("thread.whichClockAria")}
             className="flex gap-1 rounded-full bg-app-inset p-0.5"
           >
             {(["yours", "theirs"] as const).map((option) => (
@@ -226,8 +231,10 @@ export function SendLaterDialog({
           value={value}
           aria-label={
             canSwitch
-              ? `Send date and time, ${CLOCK_CHOICE_LABELS[choice].toLowerCase()}`
-              : "Send date and time"
+              ? t("thread.sendDateTimeClockAria", {
+                  clock: CLOCK_CHOICE_LABELS[choice].toLowerCase(),
+                })
+              : t("thread.sendDateTimeAria")
           }
           onChange={(event) => setValue(event.target.value)}
         />
@@ -242,7 +249,7 @@ export function SendLaterDialog({
         )}
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             disabled={!valid}
@@ -252,7 +259,7 @@ export function SendLaterDialog({
               onConfirm(new Date(parsed).toISOString());
             }}
           >
-            Schedule
+            {t("thread.schedule")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -278,21 +285,24 @@ export function QuietHoursConfirm({
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
 }) {
+  const t = useT();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>That lands late where they are</DialogTitle>
+          <DialogTitle>{t("thread.landsLateTitle")}</DialogTitle>
           <DialogDescription>
             {localHour === null
-              ? "That time is inside this customer's quiet hours."
-              : `That is around ${formatHour(localHour)} for this customer.`}{" "}
-            You can send it anyway, or pick a time in their morning.
+              ? t("thread.quietHoursNoHour")
+              : t("thread.quietHoursAround", {
+                  hour: formatHour(localHour),
+                })}{" "}
+            {t("thread.quietHoursTail")}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Pick another time
+            {t("thread.pickAnotherTime")}
           </Button>
           <Button
             onClick={() => {
@@ -300,7 +310,7 @@ export function QuietHoursConfirm({
               onConfirm();
             }}
           >
-            Schedule it anyway
+            {t("thread.scheduleItAnyway")}
           </Button>
         </DialogFooter>
       </DialogContent>

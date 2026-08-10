@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useAddContactPhone,
@@ -39,9 +40,13 @@ import type { ContactDetail } from "@/lib/api/types";
  *   the irreversible edge only — and this edge is not irreversible.*
  *
  * Mirrors the Android and iOS lists; `phone-parity.test.ts` keeps the words
- * the same.
+ * the same. #228 moved this client's half of those words into
+ * `i18n/sections/contacts.ts`, so the parity test reads them from the
+ * catalogue for web and from the source for the phones — the sentence is still
+ * pinned, it is just no longer spelled here.
  */
 export function PhoneList({ contact }: { contact: ContactDetail }) {
+  const t = useT();
   const phones = contact.phones ?? [];
   const add = useAddContactPhone(contact.id);
   const remove = useRemoveContactPhone(contact.id);
@@ -63,7 +68,7 @@ export function PhoneList({ contact }: { contact: ContactDetail }) {
       // this already is, and "couldn't add that" would send somebody looking
       // for a fault that is really a collision.
       toast.error(
-        cause instanceof ApiError ? cause.message : "Couldn't add that number.",
+        cause instanceof ApiError ? cause.message : t("contacts.phoneAddFailed"),
       );
     }
   }
@@ -90,7 +95,9 @@ export function PhoneList({ contact }: { contact: ContactDetail }) {
               </span>
               <button
                 type="button"
-                aria-label={`Remove ${entry.phone_e164}`}
+                aria-label={t("contacts.phoneRemove", {
+                  number: entry.phone_e164,
+                })}
                 disabled={remove.isPending}
                 onClick={() => remove.mutate(entry.id)}
                 className="tap-target text-app-muted-2 hover:text-app-ink"
@@ -106,40 +113,42 @@ export function PhoneList({ contact }: { contact: ContactDetail }) {
         <div className="space-y-2 rounded-app-input border border-app-line bg-app-paper p-3">
           <div className="space-y-1">
             <Label htmlFor="new-phone-label" className="text-[12px]">
-              Label
+              {t("contacts.fieldLabel")}
             </Label>
             <Input
               id="new-phone-label"
               value={draftLabel}
               maxLength={80}
-              placeholder="Landline, the wife, the shop…"
+              placeholder={t("contacts.phoneLabelPlaceholder")}
               autoComplete="off"
               onChange={(event) => setDraftLabel(event.target.value)}
             />
           </div>
           <div className="space-y-1">
             <Label htmlFor="new-phone" className="text-[12px]">
-              Number
+              {t("contacts.fieldNumber")}
             </Label>
             <Input
               id="new-phone"
               type="tel"
               value={draftPhone}
               maxLength={32}
-              placeholder="Another number they answer"
+              placeholder={t("contacts.phonePlaceholder")}
               autoComplete="off"
               onChange={(event) => setDraftPhone(event.target.value)}
             />
           </div>
           {/* What this actually does, said before it is done. */}
-          <p className="text-[12px] text-app-muted-2">{PHONE_MATCH_NOTE}</p>
+          <p className="text-[12px] text-app-muted-2">
+            {t("contacts.phoneMatchNote")}
+          </p>
           <div className="flex items-center gap-2">
             <Button
               size="sm"
               disabled={add.isPending || draftPhone.trim().length === 0}
               onClick={submit}
             >
-              Add
+              {t("contacts.add")}
             </Button>
             <Button
               size="sm"
@@ -150,7 +159,7 @@ export function PhoneList({ contact }: { contact: ContactDetail }) {
                 setDraftPhone("");
               }}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
           </div>
         </div>
@@ -161,15 +170,9 @@ export function PhoneList({ contact }: { contact: ContactDetail }) {
           className="tap-target flex items-center gap-1 text-[13px] text-app-muted-2 underline-offset-2 hover:text-app-ink hover:underline"
         >
           <Plus className="size-3.5" strokeWidth={1.75} aria-hidden />
-          {PHONE_ADD_LABEL}
+          {t("contacts.phoneAddLabel")}
         </button>
       )}
     </div>
   );
 }
-
-/** The two sentences this surface owns, kept where the parity test can read them. */
-export const PHONE_ADD_LABEL = "Add another number";
-export const PHONE_MATCH_NOTE =
-  "Texts and calls from this number will show up under this customer, in " +
-  "their own thread.";

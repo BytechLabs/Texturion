@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -24,35 +24,51 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useT, type Translate } from "@/i18n/provider";
 import { keys } from "@/lib/api/keys";
 import { useActiveCompany } from "@/lib/company/provider";
 import { endSessionOnThisDevice } from "@/lib/auth/end-session";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
-// display_name is synced to public.profiles (display_name text). Keep it 1–120
-// after trim — matches the profiles column and the shell's expectations.
-const profileSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "Enter your display name.")
-    .max(120, "Keep it under 120 characters."),
-});
-type ProfileValues = z.infer<typeof profileSchema>;
+/*
+ * display_name is synced to public.profiles (display_name text). Keep it 1–120
+ * after trim — matches the profiles column and the shell's expectations.
+ *
+ * A factory rather than a module-level constant, because both messages appear
+ * under the field for the reader — a validation message is copy wherever it
+ * happens to be declared.
+ */
+const NAME_MAX = 120;
+
+function makeProfileSchema(t: Translate) {
+  return z.object({
+    name: z
+      .string()
+      .trim()
+      .min(1, t("appShell.profileNameRequired"))
+      .max(
+        NAME_MAX,
+        t("appShell.profileNameTooLong", { max: NAME_MAX.toLocaleString() }),
+      ),
+  });
+}
+type ProfileValues = z.infer<ReturnType<typeof makeProfileSchema>>;
 
 /**
  * /settings/profile (G8): display name (Supabase auth metadata — the DB
  * trigger syncs public.profiles), theme (System/Light/Dark, G2), sign out.
  */
 export default function ProfileSettingsPage() {
+  const t = useT();
   const { displayName, companyId } = useActiveCompany();
   const queryClient = useQueryClient();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [signingOut, setSigningOut] = useState(false);
 
+  const schema = useMemo(() => makeProfileSchema(t), [t]);
   const form = useForm<ProfileValues>({
-    resolver: zodResolver(profileSchema),
+    resolver: zodResolver(schema),
     defaultValues: { name: displayName },
   });
   const [email, setEmail] = useState<string | null>(null);
@@ -87,12 +103,12 @@ export default function ProfileSettingsPage() {
       data: { display_name: values.name },
     });
     if (authError) {
-      form.setError("root", { message: "Couldn't save your name. Try again." });
+      form.setError("root", { message: t("appShell.profileNameSaveFailed") });
       return;
     }
     // The auth trigger syncs public.profiles; refresh /v1/me for the shell.
     await queryClient.invalidateQueries({ queryKey: keys.me });
-    toast.success("Name saved.");
+    toast.success(t("appShell.profileNameSaved"));
   }
 
   async function signOut() {
@@ -105,11 +121,14 @@ export default function ProfileSettingsPage() {
   }
 
   return (
-    <SettingsPage title="Profile" description="You, across this workspace.">
+    <SettingsPage
+      title={t("appShell.profileTitle")}
+      description={t("appShell.profileDescription")}
+    >
       <div className="space-y-6">
         <SettingsCard
-          title="Display name"
-          description="How teammates see you on assignments and notes."
+          title={t("appShell.profileDisplayName")}
+          description={t("appShell.profileDisplayNameDescription")}
         >
           <Form {...form}>
             <form
@@ -122,12 +141,16 @@ export default function ProfileSettingsPage() {
                 name="name"
                 render={({ field }) => (
                   <FormItem className="flex-1">
-                    <FormLabel className="sr-only">Display name</FormLabel>
+                    <FormLabel className="sr-only">
+                      {t("appShell.profileDisplayName")}
+                    </FormLabel>
                     <FormControl>
                       <Input maxLength={120} autoComplete="name" {...field} />
                     </FormControl>
                     {email && (
-                      <FormDescription>Signed in as {email}</FormDescription>
+                      <FormDescription>
+                        {t("appShell.profileSignedInAs", { email })}
+                      </FormDescription>
                     )}
                     <FormMessage />
                   </FormItem>
@@ -138,7 +161,7 @@ export default function ProfileSettingsPage() {
                 disabled={!dirty || saving}
                 className="sm:self-start"
               >
-                {saving ? "Saving…" : "Save"}
+                {saving ? t("common.saving") : t("common.save")}
               </Button>
             </form>
           </Form>
@@ -149,19 +172,31 @@ export default function ProfileSettingsPage() {
           )}
         </SettingsCard>
 
-        <SettingsCard title="Theme">
+        <SettingsCard title={t("appShell.profileTheme")}>
           {mounted ? (
             <RadioGroup
               value={theme ?? "system"}
               onValueChange={setTheme}
               className="gap-3"
-              aria-label="Theme"
+              aria-label={t("appShell.profileTheme")}
             >
               {(
                 [
-                  { value: "system", label: "System", icon: Monitor },
-                  { value: "light", label: "Light", icon: Sun },
-                  { value: "dark", label: "Dark", icon: Moon },
+                  {
+                    value: "system",
+                    label: t("appShell.profileThemeSystem"),
+                    icon: Monitor,
+                  },
+                  {
+                    value: "light",
+                    label: t("appShell.profileThemeLight"),
+                    icon: Sun,
+                  },
+                  {
+                    value: "dark",
+                    label: t("appShell.profileThemeDark"),
+                    icon: Moon,
+                  },
                 ] as const
               ).map(({ value, label, icon: Icon }) => (
                 <div key={value} className="flex items-center gap-2">
@@ -181,17 +216,21 @@ export default function ProfileSettingsPage() {
               ))}
             </RadioGroup>
           ) : (
-            <p className="text-sm text-muted-foreground">Loading theme…</p>
+            <p className="text-sm text-muted-foreground">
+              {t("appShell.profileThemeLoading")}
+            </p>
           )}
         </SettingsCard>
 
-        <SettingsCard title="Sign out">
+        <SettingsCard title={t("appShell.profileSignOut")}>
           <Button
             variant="outline"
             onClick={() => void signOut()}
             disabled={signingOut}
           >
-            {signingOut ? "Signing out…" : "Sign out"}
+            {signingOut
+              ? t("appShell.profileSigningOut")
+              : t("appShell.profileSignOut")}
           </Button>
         </SettingsCard>
       </div>
