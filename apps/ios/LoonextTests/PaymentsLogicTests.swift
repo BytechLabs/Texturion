@@ -554,12 +554,17 @@ final class PaymentsLogicTests: XCTestCase {
         XCTAssertTrue(canReadPayoutAccount(role: MemberRole.owner))
         XCTAssertTrue(canReadPayoutAccount(role: MemberRole.admin))
         XCTAssertTrue(canReadPayoutAccount(role: MemberRole.bookkeeper))
-        // A plain member holds `conversations.send` — everything the SEND route
-        // asks for — and cannot read the readiness, so the ask never appears for
-        // them. That is a gap in the API's gate rather than a client bug, and it
-        // is pinned here so closing it on the server is a failing test rather
-        // than a silent behaviour change nobody notices on the phones.
-        XCTAssertFalse(canReadPayoutAccount(role: MemberRole.member))
+        // THE case, and the one this test was written to pin while it was still
+        // broken. A plain member holds `conversations.send` — everything the
+        // SEND route asks for — so gating the readiness read on `billing.manage`
+        // alone made the ask invisible to the tech in the driveway the feature
+        // was written for, on every thread, permanently. The API route now takes
+        // either capability and sends this reader a narrower object; this side
+        // has to agree, or the phone still skips the call and still draws
+        // nothing.
+        XCTAssertTrue(canReadPayoutAccount(role: MemberRole.member))
+        // The observer holds neither. Not asked rather than asked-and-refused:
+        // a guaranteed 403 per thread open, for the role that opens the most.
         XCTAssertFalse(canReadPayoutAccount(role: MemberRole.readOnly))
         XCTAssertFalse(canReadPayoutAccount(role: nil))
     }
