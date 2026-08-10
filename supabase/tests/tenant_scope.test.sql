@@ -59,7 +59,9 @@ declare
     'template_uses',
     'templates', 'text_enablement_orders', 'usage_alerts', 'usage_events',
     'voicemail_greetings',
-    'lead_sources'
+    'lead_sources',
+    -- #224: text-to-pay.
+    'payment_requests', 'stripe_connect_accounts'
   ];
   actual text[];
   missing text;

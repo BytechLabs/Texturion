@@ -166,6 +166,9 @@ const SUITES = [
   // survived a workspace purge because `v_tables` is hand-written and the
   // companies row is anonymised, so the cascades never fire.
   "purge_coverage",
+  // #224: text-to-pay. Asserts the account predicate that stops one
+  // connected account marking another workspace's bill paid.
+  "payment_requests",
 ];
 
 const args = process.argv.slice(2);

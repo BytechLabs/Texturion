@@ -83,6 +83,21 @@ const SEND_SITES: Record<string, { shape: string; why: string }> = {
       "hole in it: a tech blocked at 9:40pm schedules for 8am and meets no " +
       "gate at all, because 8am is not a quiet hour",
   },
+  "routes/payments.ts": {
+    shape: "reply-exempt",
+    why:
+      "#224 text-to-pay. The same shape as routes/messages.ts, and it inherits " +
+      "that classification rather than arguing a new one: this route CANNOT " +
+      "start a conversation — it takes a conversation id and refuses anything " +
+      "else — so it is never the new outbound solicitation SPEC §5 scopes the " +
+      "gate to. A person taps a button, in a thread the customer began, to ask " +
+      "for money for work under discussion in it. " +
+      "Worth saying out loud, because a bill is not a reply and the exemption " +
+      "should not be read as one: what makes it defensible is the same " +
+      "concession #225 makes about a trade owner texting their own customer " +
+      "back at 9:15pm. If payment requests ever gain a way to originate a " +
+      "thread, that path is human-initiating and needs compose.ts's 409",
+  },
   "messaging/missed-call.ts": {
     shape: "reply-exempt",
     why:

@@ -46,6 +46,8 @@ const OPENS: Record<MemberRole, SettingsSectionId[]> = {
     "ai",
     "usage",
     "billing",
+    // #224: text-to-pay setup and the Stripe dashboard where refunds happen.
+    "payments",
     "notifications",
     "profile",
     "account",
@@ -64,6 +66,8 @@ const OPENS: Record<MemberRole, SettingsSectionId[]> = {
     "ai",
     "usage",
     "billing",
+    // #224: text-to-pay setup and the Stripe dashboard where refunds happen.
+    "payments",
     "notifications",
     "profile",
     "account",
@@ -106,6 +110,8 @@ const OPENS: Record<MemberRole, SettingsSectionId[]> = {
     "team",
     "usage",
     "billing",
+    // #224: text-to-pay setup and the Stripe dashboard where refunds happen.
+    "payments",
     "notifications",
     "profile",
     "account",

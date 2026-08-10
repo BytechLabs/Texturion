@@ -1,0 +1,223 @@
+[
+  {
+    "kind": "state",
+    "row": {
+      "status": "requested"
+    },
+    "state": "requested",
+    "label": "Waiting",
+    "cancellable": true
+  },
+  {
+    "kind": "state",
+    "row": {
+      "status": "paid"
+    },
+    "state": "paid",
+    "label": "Paid",
+    "cancellable": false
+  },
+  {
+    "kind": "state",
+    "row": {
+      "status": "cancelled"
+    },
+    "state": "cancelled",
+    "label": "Cancelled",
+    "cancellable": false
+  },
+  {
+    "kind": "state",
+    "row": {
+      "status": "expired"
+    },
+    "state": "expired",
+    "label": "Expired",
+    "cancellable": false
+  },
+  {
+    "kind": "state",
+    "row": {
+      "status": "requested",
+      "paid_at": "2026-08-01T00:00:00Z"
+    },
+    "state": "paid",
+    "label": "Paid",
+    "cancellable": false
+  },
+  {
+    "kind": "state",
+    "row": {
+      "status": "cancelled",
+      "paid_at": "2026-08-01T00:00:00Z"
+    },
+    "state": "paid",
+    "label": "Paid",
+    "cancellable": false
+  },
+  {
+    "kind": "state",
+    "row": {
+      "status": "expired",
+      "paid_at": "2026-08-01T00:00:00Z"
+    },
+    "state": "paid",
+    "label": "Paid",
+    "cancellable": false
+  },
+  {
+    "kind": "state",
+    "row": {
+      "status": "paid",
+      "paid_at": "2026-08-01T00:00:00Z",
+      "refunded_at": "2026-08-02T00:00:00Z"
+    },
+    "state": "refunded",
+    "label": "Refunded",
+    "cancellable": false
+  },
+  {
+    "kind": "state",
+    "row": {
+      "status": "paid",
+      "paid_at": "2026-08-01T00:00:00Z",
+      "disputed_at": "2026-08-02T00:00:00Z"
+    },
+    "state": "disputed",
+    "label": "Disputed",
+    "cancellable": false
+  },
+  {
+    "kind": "state",
+    "row": {
+      "status": "paid",
+      "paid_at": "2026-08-01T00:00:00Z",
+      "refunded_at": "2026-08-03T00:00:00Z",
+      "disputed_at": "2026-08-02T00:00:00Z"
+    },
+    "state": "disputed",
+    "label": "Disputed",
+    "cancellable": false
+  },
+  {
+    "kind": "amount",
+    "cents": 0,
+    "problem": "too_small"
+  },
+  {
+    "kind": "amount",
+    "cents": 1,
+    "problem": "too_small"
+  },
+  {
+    "kind": "amount",
+    "cents": 99,
+    "problem": "too_small"
+  },
+  {
+    "kind": "amount",
+    "cents": 100,
+    "problem": null
+  },
+  {
+    "kind": "amount",
+    "cents": 101,
+    "problem": null
+  },
+  {
+    "kind": "amount",
+    "cents": 25000,
+    "problem": null
+  },
+  {
+    "kind": "amount",
+    "cents": 2499999,
+    "problem": null
+  },
+  {
+    "kind": "amount",
+    "cents": 2500000,
+    "problem": null
+  },
+  {
+    "kind": "amount",
+    "cents": 2500001,
+    "problem": "too_large"
+  },
+  {
+    "kind": "amount",
+    "cents": 100000000,
+    "problem": "too_large"
+  },
+  {
+    "kind": "amount",
+    "cents": 1000.5,
+    "problem": "not_whole"
+  },
+  {
+    "kind": "amount",
+    "cents": -500,
+    "problem": "too_small"
+  },
+  {
+    "kind": "readiness",
+    "account": null,
+    "readiness": "not_connected"
+  },
+  {
+    "kind": "readiness",
+    "account": {
+      "connected": false,
+      "charges_enabled": false,
+      "details_submitted": false
+    },
+    "readiness": "not_connected"
+  },
+  {
+    "kind": "readiness",
+    "account": {
+      "connected": true,
+      "charges_enabled": false,
+      "details_submitted": false
+    },
+    "readiness": "onboarding_incomplete"
+  },
+  {
+    "kind": "readiness",
+    "account": {
+      "connected": true,
+      "charges_enabled": false,
+      "details_submitted": true
+    },
+    "readiness": "pending_verification"
+  },
+  {
+    "kind": "readiness",
+    "account": {
+      "connected": true,
+      "charges_enabled": false,
+      "details_submitted": true,
+      "disabled_reason": "requirements.past_due"
+    },
+    "readiness": "restricted"
+  },
+  {
+    "kind": "readiness",
+    "account": {
+      "connected": true,
+      "charges_enabled": true,
+      "details_submitted": true
+    },
+    "readiness": "ready"
+  },
+  {
+    "kind": "readiness",
+    "account": {
+      "connected": true,
+      "charges_enabled": true,
+      "details_submitted": true,
+      "disabled_reason": "requirements.pending_verification"
+    },
+    "readiness": "ready"
+  }
+]

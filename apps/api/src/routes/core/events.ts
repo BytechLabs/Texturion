@@ -68,7 +68,21 @@ export type ConversationEventType =
   // #554 — and the two the enum was actually missing. A customer's rating now
   // reaches the thread; before this it was recorded and never mentioned.
   | "appointment_confirmed"
-  | "job_rated";
+  | "job_rated"
+  // #224 — text-to-pay. Written by the payment routes (requested, cancelled)
+  // and by the Connect webhook (paid, refunded, disputed). Every one carries a
+  // non-null conversation_id — a payment request belongs to the thread it was
+  // sent into — so the shipped conversation_events_conv_required CHECK holds.
+  //
+  // Refunded and disputed are events rather than statuses for the reason
+  // payments.ts states: both happen to a request that stays PAID, and a refund
+  // discussed only in a Stripe dashboard is how two people tell a customer
+  // different things about the same money.
+  | "payment_requested"
+  | "payment_paid"
+  | "payment_cancelled"
+  | "payment_refunded"
+  | "payment_disputed";
 
 export interface ConversationEventRow {
   company_id: string;

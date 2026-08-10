@@ -120,11 +120,17 @@ import {
   jobPhotoShareRoutes,
   publicJobPhotoRoutes,
 } from "./routes/job-photos";
+import {
+  paymentAccountRoutes,
+  paymentRequestRoutes,
+  publicPaymentRoutes,
+} from "./routes/payments";
 import { teamRoutes } from "./routes/team";
 import { templatesRoutes } from "./routes/templates";
 import { textEnablementRoutes } from "./routes/text-enablement";
 import { reportsRoutes } from "./routes/reports";
 import { usageRoutes } from "./routes/usage";
+import { expirePaymentRequests } from "./crons/payment-requests";
 import { pollPortRequests } from "./telnyx/porting";
 import { reconcileNumbers, sweepStuckProvisioning } from "./telnyx/provisioning";
 import { reconcileTextEnablement } from "./telnyx/text-enablement";
@@ -222,6 +228,10 @@ app.route("/", appReleaseRoutes);
 // under it would either be refused or would need an exemption, and an
 // exemption inside an authed prefix is the kind of thing that gets copied.
 app.route("/", publicJobPhotoRoutes);
+// #224 — the payment page a customer opens with no account. Same reasoning as
+// the photo page above: mounted at the ROOT so it never passes through the /v1
+// auth middleware, rather than living under it behind an exemption.
+app.route("/", publicPaymentRoutes);
 
 /**
  * The /v1 surface (SPEC §7). Every sub-app sits behind the CORS → JWT →
@@ -251,6 +261,11 @@ app.route("/v1", onCallRoutes); // #244 rota + acknowledge
 app.route("/v1", conversationsRoutes);
 app.route("/v1", tasksRoutes); // D17 tasks + GET /v1/conversations/:id/tasks
 app.route("/v1", jobPhotoShareRoutes); // #294 mint/revoke a job photo link
+// #224 text-to-pay. Two routers because they are two capabilities: connecting
+// the account is owner-only (it binds a bank account to the workspace), asking
+// a customer for money is `conversations.send` like any other outbound text.
+app.route("/v1", paymentAccountRoutes);
+app.route("/v1", paymentRequestRoutes);
 app.route("/v1", messageRoutes);
 app.route("/v1", attachmentsRoutes);
 // #309: recording lives here; SELECTING a greeting stays on the identity
@@ -489,6 +504,9 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // traffic probes can only give in half a day. Off entirely until the
     // number pair is configured.
     job("job:inbound-canary", runInboundCanaryJob),
+    // #224: retire payment requests past their expiry, so a thread stops
+    // showing "Waiting" for a link that no longer opens.
+    job("job:expire-payment-requests", expirePaymentRequests),
   ],
   // Sole-prop OTP nudge (≥12h outstanding, once per submission).
   "30 * * * *": [job("job:nudge-sole-prop-otp", nudgeSoleProprietorOtp)],

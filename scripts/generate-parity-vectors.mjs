@@ -85,6 +85,13 @@ import { explainRejection } from "../packages/shared/src/rejection-guidance.ts";
 import { avatarInitials } from "../packages/shared/src/avatar-initials.ts";
 import { prepaidConversionCopy } from "../packages/shared/src/prepaid-conversion-copy.ts";
 import { lastCompleteMonth } from "../packages/shared/src/usage-export.ts";
+import {
+  paymentAmountProblem,
+  paymentRequestCancellable,
+  paymentRequestLabel,
+  paymentRequestState,
+  payoutReadiness,
+} from "../packages/shared/src/payments.ts";
 
 const OUT_DIR = join("packages", "shared", "vectors");
 
@@ -343,6 +350,97 @@ function avatarInitialsVectors() {
   }));
 }
 
+/**
+ * #224 — the six-state answer a payment request shows, and the bounds on the
+ * amount.
+ *
+ * This meets the bar the header sets for inclusion — "a divergence costs money
+ * or wakes somebody up" — more directly than anything already here. The state is
+ * DERIVED from four fields with a precedence order, and the two cases that
+ * decide it are both ones a reimplementation gets wrong by writing the obvious
+ * switch: a request that was cancelled and then paid anyway must read PAID (the
+ * money is real, and reading it as cancelled is how a customer is chased for a
+ * bill they settled), and a request that was refunded AFTER being disputed must
+ * read DISPUTED (a chargeback needs somebody; a refund does not).
+ *
+ * The amount bounds are here for the same reason the segment ceiling is: a
+ * client that disagrees about the floor mints a link Stripe will refuse, and one
+ * that disagrees about the ceiling lets a missed decimal turn $450 into $45,000
+ * on somebody else's card.
+ *
+ * Readiness is included and the COPY is not, per the header's standing rule:
+ * which of five states an account is in decides whether a control appears at
+ * all; the sentence beside it is presentation and each platform may phrase it.
+ */
+const PAYMENT_STATE_INPUTS = [
+  { status: "requested" },
+  { status: "paid" },
+  { status: "cancelled" },
+  { status: "expired" },
+  { status: "requested", paid_at: "2026-08-01T00:00:00Z" },
+  // Cancelled, then paid anyway. Reads PAID.
+  { status: "cancelled", paid_at: "2026-08-01T00:00:00Z" },
+  // Expired, then paid anyway. Same reasoning.
+  { status: "expired", paid_at: "2026-08-01T00:00:00Z" },
+  { status: "paid", paid_at: "2026-08-01T00:00:00Z", refunded_at: "2026-08-02T00:00:00Z" },
+  { status: "paid", paid_at: "2026-08-01T00:00:00Z", disputed_at: "2026-08-02T00:00:00Z" },
+  // Disputed AND refunded. Reads DISPUTED.
+  {
+    status: "paid",
+    paid_at: "2026-08-01T00:00:00Z",
+    refunded_at: "2026-08-03T00:00:00Z",
+    disputed_at: "2026-08-02T00:00:00Z",
+  },
+];
+
+const PAYMENT_AMOUNT_INPUTS = [
+  0, 1, 99, 100, 101, 25_000, 2_499_999, 2_500_000, 2_500_001, 100_000_000, 1000.5, -500,
+];
+
+const PAYOUT_ACCOUNT_INPUTS = [
+  null,
+  { connected: false, charges_enabled: false, details_submitted: false },
+  { connected: true, charges_enabled: false, details_submitted: false },
+  { connected: true, charges_enabled: false, details_submitted: true },
+  {
+    connected: true,
+    charges_enabled: false,
+    details_submitted: true,
+    disabled_reason: "requirements.past_due",
+  },
+  { connected: true, charges_enabled: true, details_submitted: true },
+  // Charges on despite a disabled reason. Stripe decides, and it says yes.
+  {
+    connected: true,
+    charges_enabled: true,
+    details_submitted: true,
+    disabled_reason: "requirements.pending_verification",
+  },
+];
+
+function paymentVectors() {
+  return [
+    ...PAYMENT_STATE_INPUTS.map((row) => ({
+      kind: "state",
+      row,
+      state: paymentRequestState(row),
+      label: paymentRequestLabel(paymentRequestState(row)),
+      cancellable: paymentRequestCancellable(row),
+    })),
+    ...PAYMENT_AMOUNT_INPUTS.map((cents) => ({
+      kind: "amount",
+      cents,
+      // Null is a real answer — it means the amount is chargeable.
+      problem: paymentAmountProblem(cents),
+    })),
+    ...PAYOUT_ACCOUNT_INPUTS.map((account) => ({
+      kind: "readiness",
+      account,
+      readiness: payoutReadiness(account),
+    })),
+  ];
+}
+
 const FILES = {
   "segments.json": segmentVectors,
   "nanp.json": nanpVectors,
@@ -350,6 +448,7 @@ const FILES = {
   "avatar-initials.json": avatarInitialsVectors,
   "prepaid-conversion-copy.json": prepaidConversionCopyVectors,
   "last-complete-month.json": lastCompleteMonthVectors,
+  "payments.json": paymentVectors,
 };
 
 const check = process.argv.includes("--check");

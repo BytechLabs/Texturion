@@ -782,6 +782,35 @@ export {
 export { hiddenNumbersNotice } from "./hidden-numbers-notice";
 
 /**
+ * #224 / D133 — text-to-pay. The six-state answer the thread shows, the amount
+ * bounds all four surfaces enforce, and the text the customer receives, which
+ * the API composes from here so a composer preview is the real message.
+ */
+export {
+  PAYMENT_DESCRIPTION_MAX,
+  PAYMENT_MAX_CENTS,
+  PAYMENT_MIN_CENTS,
+  paymentAmountProblem,
+  paymentRequestCancellable,
+  paymentRequestLabel,
+  paymentRequestState,
+  payoutReadiness,
+  payoutReadinessCopy,
+  payoutRequirementCopy,
+  type PaymentAmountProblem,
+  type PaymentRequestFacts,
+  type PaymentRequestState,
+  type PaymentRequestStatus,
+  type PayoutAccountFacts,
+  type PayoutReadiness,
+} from "./payments";
+/**
+ * The two sentences that need the money formatter, kept in their own module so
+ * the RULES above stay importable by the parity-vector generator.
+ */
+export { paymentAmountProblemCopy, paymentRequestSms } from "./payments-copy";
+
+/**
  * #307 — per-number identity. One implementation of "the number's value if it
  * has one, else the workspace's", because a rule this small written five
  * times is how a caller meets two different names in one interaction.

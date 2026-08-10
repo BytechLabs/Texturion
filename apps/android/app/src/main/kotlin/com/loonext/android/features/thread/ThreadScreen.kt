@@ -1068,6 +1068,34 @@ private fun ThreadLoaded(
             modifier = Modifier.padding(bottom = 4.dp),
         )
 
+        // #224: what this thread is owed, and the control that asks for more.
+        // Above the composer for the same reason the scheduled strip is — it is
+        // STATE, not history, and it changes without anybody here doing
+        // anything.
+        //
+        // Never for a notes-only member: a note goes to the crew, a payment
+        // request goes to the customer, and #106 says that member gets no
+        // control the API would refuse. Web draws the same line.
+        //
+        // A VIEW-ONLY OBSERVER STILL SEES THE STRIP and is offered nothing on
+        // it. #315 says read_only differs from a member in what it can DO, not
+        // in what it sees, and what this thread is owed is a fact about the
+        // conversation they are here to read.
+        if (detail.viewer_level != "note") {
+            ThreadPayments(
+                graph = graph,
+                companyId = companyId,
+                conversationId = controller.conversationId,
+                businessName = controller.company?.name,
+                canAct = !viewerReadOnly,
+                onNotice = onNotice,
+                // The ask went out as an ordinary text, so the transcript has a
+                // message the timeline does not know about yet.
+                onSent = { controller.refreshAfterReconnect() },
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
+        }
+
         ThreadComposer(
             state = composer,
             noteOnly = detail.viewer_level == "note",

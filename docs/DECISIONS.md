@@ -7955,3 +7955,71 @@ An owner enabling Dependency graph, after which the pull-request gate runs for
 real and the scheduled job goes green and quiet. Nothing else in this design has
 to change when that happens — which is the point of writing it this way rather
 than waiting.
+
+---
+
+## D133 — the business is the merchant, we are not in the path of the money (#224, 2026-08-10)
+
+**Context.** Text-to-pay was the last of the trade's five money jobs with zero
+coverage, and #224 refused to be started until an owner answered three
+questions rather than an implementation assuming them. Collecting on somebody
+else's behalf is a liability question before it is a feature.
+
+**Decision.** Stripe Connect **Express** accounts, **direct** charges, **zero**
+platform fee.
+
+The middle word is the one that decides everything else. A direct charge is
+created *on the connected account* — the request carries `stripeAccount` and
+nothing else — which makes the tradesperson the merchant of record:
+
+| | Lands on |
+|---|---|
+| The name on the customer's statement | the tradesperson |
+| A chargeback, and its fee | the tradesperson's balance |
+| A refund | the tradesperson's balance |
+| A negative balance | the tradesperson's account |
+| Tax reporting on the payment | the tradesperson |
+
+A destination charge would have moved every row onto us and made this platform
+the party of record for money movement between two others. That is the exposure
+the issue was filed to ask about, and it is declined — expressed as one request
+option rather than as a policy we promise.
+
+**Express, not Standard,** because Stripe then owns the onboarding, the KYC, and
+the dashboard where a refund is issued and a dispute answered. A one-truck
+plumber gets a real payments back office and we do not have to keep one
+compliant. **The refund path is that dashboard**, deliberately, and it is the
+whole reason this is defensible: building a thin copy of it would mean owning
+the correctness of money movement we just chose not to be in the path of.
+
+**Zero platform fee,** for three reasons in order of weight: the customer-facing
+amount is exactly the figure the business typed; collecting a fee on somebody
+else's transaction is a different regulatory conversation from the one we have
+chosen to have; and "the money goes to your bank account, we take nothing on
+top" is a sentence that is simple and true. There is no `application_fee_amount`
+anywhere in the codebase and a test asserts its absence on every link minted.
+
+### Why the customer's page is ours and not Stripe's
+
+A raw `buy.stripe.com` link would work and would be one tap shorter. What it
+could not do is say **"this has been paid"** — so a customer who taps the text a
+second time meets a card form for money they already sent. Ours is a D75 public
+link (256 bits, hash-only, mandatory expiry, individually revocable) showing
+three facts and one button, under the BUSINESS's name with none of our branding
+and none of the customer's own details. The card form stays Stripe's, on
+Stripe's domain.
+
+### What this does NOT change
+
+Nothing about the send path. A payment request is an ordinary outbound message
+carrying a different body, through `runPreSendGates` and `gate_outbound_send`
+like every other one — so a contact who sent STOP cannot be asked for money by
+the same mechanism that stops them receiving anything else. There is deliberately
+no second send path, which is the mistake D32/D47 refused for review requests.
+
+### What would change this
+
+A jurisdiction where facilitating the payment makes us a party regardless of the
+charge type, or a business asking us to hold funds. Both would be a decision to
+reopen, not a detail to adjust. `docs/TEXT-TO-PAY.md` carries the operating
+detail, the refund and dispute paths, and the boundaries this deliberately keeps.

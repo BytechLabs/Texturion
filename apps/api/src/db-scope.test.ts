@@ -92,6 +92,11 @@ const TENANT_TABLES = new Set([
   // #309: the business's own recorded greetings.
   "voicemail_greetings",
   "lead_sources",
+  // #224: the ask for money, and the mirror of the Stripe account it is paid
+  // into. An unscoped read of either is the most valuable cross-tenant leak in
+  // the schema — one is what a business charges its customers, the other names
+  // the account that receives it.
+  "payment_requests", "stripe_connect_accounts",
 ]);
 
 /**
@@ -159,6 +164,23 @@ const NULLABLE_SCOPE = new Set([
  * still fails CI, because the number changes.
  */
 const ALLOWED: Record<string, { count: number; why: string }> = {
+  /**
+   * #224: the webhook's direction of travel, and the one lookup in this feature
+   * that CANNOT carry a company scope — because resolving the company is what
+   * it is for.
+   *
+   * A Stripe Connect event arrives naming an account (`acct_…`) and nothing
+   * else; the workspace is the answer, not the question. `stripe_account_id` is
+   * UNIQUE, so this returns at most one row and cannot widen into a scan. The
+   * caller then uses the company id it returns for every subsequent write.
+   */
+  "billing/connect.ts::stripe_connect_accounts": {
+    count: 1,
+    why:
+      "loadConnectAccountByStripeId: resolves the workspace FROM a connected " +
+      "account id on a webhook. Unique column, at most one row, and the " +
+      "company is the result rather than an input",
+  },
   // ---- Platform-wide cron sweeps. These process work across ALL tenants by
   // definition; a company scope would defeat the job rather than secure it.
   "attachments/sweep.ts::attachments": {

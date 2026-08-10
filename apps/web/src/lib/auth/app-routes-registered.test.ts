@@ -102,6 +102,10 @@ const DECLARED_TOP_LEVEL_ROUTES = [
   // D75 public links: no session, served from the apex, token in the path.
   // A new one here needs a TOKEN_PATH_PREFIXES rule (see scrub.test.ts).
   "photos",
+  // #224: the payment page a customer opens. Same shape as /photos and it needs
+  // the same TOKEN_PATH_PREFIXES rule — the token in this one opens a page with
+  // an amount on it.
+  "pay",
   // Invite acceptance and onboarding: pre-workspace, so outside (app).
   "join",
   "onboarding",

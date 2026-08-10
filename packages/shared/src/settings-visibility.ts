@@ -48,6 +48,12 @@ export type SettingsSectionId =
   | "ai"
   | "usage"
   | "billing"
+  // #224: taking money FROM a customer, which is a different subject from the
+  // billing section next door — that one is what we charge the business, this
+  // is what the business charges the homeowner. Kept apart deliberately: one
+  // screen holding both would put "your plan renews" beside "your bank account"
+  // and make neither legible.
+  | "payments"
   | "history"
   | "notifications"
   | "profile"
@@ -104,6 +110,18 @@ const SECTION_CAPABILITY: Record<SettingsSectionId, Capability> = {
   numbers: "numbers.manage",
   billing: "billing.manage",
   usage: "billing.manage",
+  /**
+   * #224: `billing.manage`, and not `workspace.own` — even though CONNECTING
+   * the account is owner-only on the server.
+   *
+   * The two answer different questions. Setting it up binds a legal entity and
+   * a bank account, which is the owner's alone. Opening the screen is how the
+   * bookkeeper reaches the Stripe dashboard to issue a refund, which is the
+   * whole reason that role exists (#315). Hiding the section from them would
+   * send them back to sharing the owner's login for the one task the role was
+   * created to make unnecessary.
+   */
+  payments: "billing.manage",
   history: "history.read",
 };
 

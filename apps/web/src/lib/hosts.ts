@@ -44,6 +44,13 @@ const EXTRA_APP_PREFIXES = [
   // was 308ed to the marketing apex — where it picked up an hour of shared-cache
   // TTL and kept opening after the crew revoked it.
   "/photos",
+  // #224: the payment page a homeowner opens (D75). Here for exactly the same
+  // reason /photos is: the person opening it has no account, so
+  // PROTECTED_PREFIXES would bounce them to /login — and the API mints the URL
+  // on the app host, so without this it would 308 to the marketing apex and
+  // pick up an hour of shared-cache TTL on a page that has to stop opening the
+  // moment the bill is paid.
+  "/pay",
 ] as const;
 
 function matchesPrefix(pathname: string, prefix: string): boolean {

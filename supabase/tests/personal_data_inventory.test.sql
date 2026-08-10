@@ -97,6 +97,11 @@ declare
     -- #309: a recording of one of OUR users' voices, never a contact's.
     'voicemail_greetings',
     'lead_sources',
+    -- #224: the ask for money, and the mirror of the Stripe account it lands
+    -- in. Both hold business data with a personal edge — the description is
+    -- free text a crew member typed — and neither holds a card or a bank
+    -- number, which Stripe keeps.
+    'payment_requests', 'stripe_connect_accounts',
     -- §4 prospect data
     'contact_messages', 'marketing_contacts',
     -- §5 operational data with an identifier attached

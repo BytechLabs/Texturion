@@ -78,12 +78,22 @@ class SettingsVisibilityTest {
 
     @Test
     fun `a bookkeeper sees billing and nothing else of the business`() {
-        // #315: the whole point of the preset. Billing and Usage are the two
-        // rows their role exists for; every other business row stays hidden,
-        // including the conversations they have no access to at all.
+        // #315: the whole point of the preset. Billing, Usage and Getting paid
+        // are the rows their role exists for; every other business row stays
+        // hidden, including the conversations they have no access to at all.
+        //
+        // #224 added the third. It is deliberately NOT owner-only even though
+        // CONNECTING the Stripe account is: opening the screen is how the
+        // bookkeeper reaches the Stripe dashboard to issue a refund, which is
+        // the task this role was created to make possible without sharing the
+        // owner's login. The card itself still refuses them the connect button.
         val visible = visibleSettingsSections(MemberRole.BOOKKEEPER).toSet()
         assertEquals(
-            personal + readableByAll + setOf(SettingsSection.Billing, SettingsSection.Usage),
+            personal + readableByAll + setOf(
+                SettingsSection.Billing,
+                SettingsSection.Usage,
+                SettingsSection.Payments,
+            ),
             visible,
         )
     }

@@ -41,6 +41,7 @@ import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Quickreply
+import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.SupportAgent
@@ -145,6 +146,27 @@ enum class SettingsSection(
     Numbers("Numbers", "Your numbers, ports, text-enablement, registration", Capability.NUMBERS_MANAGE),
     Usage("Usage", "Fair use, your spending cap, and the numbers", Capability.BILLING_MANAGE),
     Billing("Billing", "Plan, payment, and invoices", Capability.BILLING_MANAGE),
+
+    /**
+     * #224: taking money FROM a customer, which is a different subject from the
+     * Billing row directly above it — that one is what we charge the business,
+     * this is what the business charges the homeowner. Kept apart deliberately:
+     * one screen holding both would put "your plan renews" beside "your bank
+     * account" and make neither legible.
+     *
+     * BILLING_MANAGE, and not owner-only, even though CONNECTING the account is
+     * owner-only on the server. The two answer different questions. Setting it
+     * up binds a legal entity and a bank account, which is the owner's alone.
+     * Opening the screen is how the bookkeeper reaches the Stripe dashboard to
+     * issue a refund, which is the whole reason that role exists (#315) — hiding
+     * the section from them would send them back to sharing the owner's login
+     * for the one task the role was created to make unnecessary.
+     */
+    Payments(
+        "Getting paid",
+        "Take a deposit or a final payment straight from a thread",
+        Capability.BILLING_MANAGE,
+    ),
     Notifications(
         "Notifications",
         "Email and push for new conversations",
@@ -395,6 +417,11 @@ fun SettingsHome(
                                 // only the host moves between sections.
                                 onOpenNumbers = { onOpenSection(SettingsSection.Numbers) },
                             )
+
+                            // #224: no `company` and no patch-back — the whole
+                            // of this section's state lives at Stripe, and the
+                            // company view has no column that mirrors it.
+                            SettingsSection.Payments -> PaymentsSection(settingsScope)
 
                             SettingsSection.Notifications -> NotificationsSection(
                                 settingsScope, company, onCompanyUpdated,
@@ -969,6 +996,10 @@ private fun iconFor(section: SettingsSection): ImageVector = when (section) {
     SettingsSection.Numbers -> Icons.Outlined.Tag
     SettingsSection.Usage -> Icons.Outlined.DataUsage
     SettingsSection.Billing -> Icons.Outlined.CreditCard
+    // #224: a receipt rather than a card. The card is what the business PAYS
+    // with, one row up; this is what it charges with, and two card glyphs in
+    // adjacent rows would make the pair unreadable at a glance.
+    SettingsSection.Payments -> Icons.Outlined.ReceiptLong
     SettingsSection.Notifications -> Icons.Outlined.Notifications
     SettingsSection.Ai -> Icons.Outlined.AutoAwesome
     SettingsSection.Profile -> Icons.Outlined.Person

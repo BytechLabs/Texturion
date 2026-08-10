@@ -407,9 +407,25 @@ func portStepIndex(_ status: String) -> Int {
 private let settingsPosixLocale = Locale(identifier: "en_US_POSIX")
 
 /// "$5" for 500 cents, "$7.50" for 750 — whole dollars drop the cents.
+///
+/// #224: THE THOUSANDS SEPARATOR IS NOT COSMETIC HERE ANY MORE. This formatter
+/// was written for plan prices, where the largest figure in the book is $109 and
+/// grouping never fires — so its absence cost nothing and matched nothing.
+/// Text-to-pay hands it amounts up to $25,000, and "$25000" beside web's
+/// "$25,000" is the same bill printed two ways, on the one screen where somebody
+/// is about to charge a customer's card. `formatMoney` in
+/// packages/shared/src/billing-currency.ts groups via `toLocaleString("en-CA")`;
+/// this is that behaviour, spelled with the digit grouper already in this file.
+///
+/// The cents are assembled with integer arithmetic rather than `%.2f` over a
+/// Double, for the reason `parsePaymentAmountToCents` gives at length: a money
+/// amount that becomes a binary double on its way to a screen is one rounding
+/// rule away from disagreeing with what the card is actually charged.
 func formatMonthlyCents(_ cents: Int) -> String {
-    if cents % 100 == 0 { return "$\(cents / 100)" }
-    return "$" + String(format: "%.2f", locale: settingsPosixLocale, Double(cents) / 100.0)
+    let whole = groupDigits(cents / 100)
+    if cents % 100 == 0 { return "$" + whole }
+    return "$" + whole
+        + String(format: ".%02d", locale: settingsPosixLocale, abs(cents % 100))
 }
 
 /// "$12.34" — always two decimals (projected overage dollars).

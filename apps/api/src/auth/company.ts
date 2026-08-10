@@ -400,3 +400,36 @@ export function requireCapability(capability: Capability) {
     await next();
   });
 }
+
+/**
+ * #224: a route two DIFFERENT people need for two different reasons.
+ *
+ * Deliberately rare, and it exists because the alternative was worse. The
+ * payout-account read is opened by a bookkeeper doing the books
+ * (`billing.manage`) and by a tech in a driveway whose composer has to know
+ * whether an "Ask for payment" control may appear at all
+ * (`conversations.send`) — two capabilities that intentionally do not overlap,
+ * so no single one describes the route.
+ *
+ * The alternatives were a second near-identical endpoint (two routes to keep in
+ * step about one fact) or widening the tech's role (handing the inbox to the
+ * bookkeeper, which #315 exists to stop). Neither is better than saying "either
+ * of these two" out loud.
+ *
+ * NOT a general-purpose loosener. It answers whether the caller may reach the
+ * route; a route whose RESPONSE differs by capability — as this one's does,
+ * redacting the operator fields from a caller without `billing.manage` — still
+ * has to make that distinction itself, because a gate cannot.
+ */
+export function requireAnyCapability(...capabilities: Capability[]) {
+  return createMiddleware<AppEnv>(async (c, next) => {
+    const role: MemberRole | undefined = c.get("role");
+    const permitted =
+      role !== undefined &&
+      capabilities.some((capability) => roleHasCapability(role, capability));
+    if (!permitted) {
+      return errorResponse(c, "forbidden", "Insufficient role for this action.");
+    }
+    await next();
+  });
+}

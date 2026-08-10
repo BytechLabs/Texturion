@@ -201,6 +201,18 @@ private struct ThreadBody: View {
         if let detail = controller.conversation {
             let names = memberNames(controller.members)
             let contactName = detail.contact.name ?? formatPhone(detail.contact.phone_e164)
+            // #224: this viewer's role in THIS workspace. Resolved here rather
+            // than inside the payments pane so the pane stays presentational,
+            // and resolved the same way `composerPane` and the settings index
+            // already do it — a second reading of "who is this" is a second
+            // answer waiting to disagree.
+            //
+            // `first(where:)` spelled out rather than `.first { … }`, for the
+            // reason `composerPane` records further down: Swift has BOTH a
+            // `first` property and a `first(where:)` method, and a closure whose
+            // type cannot be inferred on the spot resolves to the property.
+            let viewerRole = me.memberships
+                .first(where: { $0.company_id == detail.company_id })?.role
 
             VStack(spacing: 0) {
                 ThreadHeader(
@@ -309,6 +321,29 @@ private struct ThreadBody: View {
                 ScheduledStrip(rows: controller.scheduled) { id in
                     controller.cancelScheduled(id)
                 }
+                // #224: what this thread is owed, what it was paid, and the ask.
+                // Directly above the composer for the same reason the scheduled
+                // strip is — it is STATE, not history, and it changes without
+                // anybody here doing anything: a customer pays, a bank pulls a
+                // payment back, a link expires. Below the scheduled strip
+                // because a text that has not gone yet is about to leave this
+                // phone, and a bill that was already sent is not.
+                //
+                // Draws nothing on almost every thread, and nothing at all for a
+                // notes-only viewer.
+                ThreadPaymentsPane(
+                    api: graph.api,
+                    companyId: detail.company_id,
+                    conversationId: detail.id,
+                    role: viewerRole,
+                    viewerLevel: detail.viewer_level,
+                    businessName: controller.company?.name,
+                    // The ask sends an ordinary text, so the transcript has a
+                    // message it has not seen. The same catch-up the socket
+                    // re-JOIN runs, rather than a second refetch path that could
+                    // disagree with it.
+                    onSent: { controller.refreshAfterReconnect() }
+                )
                 composerPane(detail: detail)
             }
         // #302: presence for as long as this thread is on screen.

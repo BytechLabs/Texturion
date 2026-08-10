@@ -307,6 +307,14 @@ class UsageExportCardTest {
             LocalDate.parse(expected.to).dayOfMonth,
         )
 
+        // Waited for, not read. `awaitUntil { bodies.isNotEmpty() }` above
+        // returns the moment the REQUEST is recorded — the snackbar is emitted
+        // after the response comes back and is applied, which is a separate
+        // step this assertion used to race. It passed alone and failed under
+        // load, which is the same failure this file already documents for
+        // `awaitText` two methods up and did not apply here. #224 added enough
+        // suites to the run to expose it.
+        awaitUntil("the export's confirmation") { messages.isNotEmpty() }
         assertTrue(
             "the reader is told where the file will appear",
             messages.single().contains("Data export"),

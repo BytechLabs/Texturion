@@ -83,6 +83,18 @@ const envSchema = z.object({
   TELNYX_WEBRTC_CONNECTION_ID: z.string().min(1).optional(),
   STRIPE_SECRET_KEY: z.string().min(1),
   STRIPE_WEBHOOK_SECRET: z.string().min(1),
+  /**
+   * #224/D133: the signing secret for the CONNECT endpoint — events about a
+   * customer's own Stripe account rather than about ours.
+   *
+   * Stripe registers "events on your account" and "events on connected
+   * accounts" as separate endpoints with separate secrets, even when both point
+   * at the same URL, so text-to-pay needs a second one. Optional, and that is
+   * deliberate: unset means the Worker refuses connected-account deliveries
+   * exactly as it did before this feature existed, rather than starting up in a
+   * state where it would accept them unverified.
+   */
+  STRIPE_CONNECT_WEBHOOK_SECRET: z.string().min(1).optional(),
   RESEND_API_KEY: z.string().min(1),
   SENTRY_DSN: z.url(),
   /**

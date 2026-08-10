@@ -7,6 +7,7 @@ import {
   Clock,
   CreditCard,
   Gauge,
+  HandCoins,
   LifeBuoy,
   MessageSquareText,
   MonitorSmartphone,
@@ -144,6 +145,17 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     label: "Billing",
     description: "Plan, payment method, and invoices",
     icon: CreditCard,
+  },
+  {
+    // #224 — text-to-pay. Directly after Billing because the two are the same
+    // subject seen from opposite ends: that one is what we charge the business,
+    // this is what the business charges the homeowner. Adjacent so the
+    // distinction is legible; separate so neither screen has to explain it.
+    id: "payments",
+    slug: "payments",
+    label: "Getting paid",
+    description: "Take a deposit or a final payment over the thread",
+    icon: HandCoins,
   },
   {
     id: "notifications",

@@ -180,6 +180,16 @@ const UNGATED_WRITES: Record<string, string> = {
  * as never seeing one.
  */
 const NON_CONVERSATION_READS: Record<string, string> = {
+  "GET /payments/account":
+    "#224: whether this WORKSPACE can take a card, and in what currency. The " +
+    "bookkeeper is one of its two intended readers — it is their screen. No " +
+    "customer appears in it, and the operator half (what Stripe still wants " +
+    "from the owner) is redacted from the other reader entirely",
+  "GET /payments/account/dashboard":
+    "#224: a single-use login link into the workspace's OWN Stripe Express " +
+    "dashboard. Deliberately the bookkeeper's — it is where a refund is " +
+    "issued, and #315 exists so that does not need the owner's password. It " +
+    "returns a URL and nothing else",
   "GET /company": "the workspace record the app boots on — name, hours, plan " +
     "flags. A role that cannot read it cannot render a screen",
   "GET /company/ai-settings":
@@ -247,6 +257,23 @@ function gatedReads(): { name: string; route: string; capability: string }[] {
       /\.get\(\s*"(\/[^"]+)"\s*,\s*requireCapability\("([^"]+)"\)/g,
     )) {
       found.push({ name, route: `GET ${match[1]}`, capability: match[2] });
+    }
+    /**
+     * #224: `requireAnyCapability(a, b)` — a route two different people reach
+     * for two different reasons.
+     *
+     * Read as gated on EACH of them, so the bookkeeper question below is asked
+     * once per capability. Anything less would be a THIRD thing this lint
+     * cannot see, added silently — and the two it already cannot see are
+     * documented at the top of that test precisely because an unstated blind
+     * spot is how a conversation read reaches a role that must never have one.
+     */
+    for (const match of code.matchAll(
+      /\.get\(\s*"(\/[^"]+)"\s*,\s*requireAnyCapability\(([^)]*)\)/g,
+    )) {
+      for (const capability of match[2].matchAll(/"([^"]+)"/g)) {
+        found.push({ name, route: `GET ${match[1]}`, capability: capability[1] });
+      }
     }
   }
   return found;

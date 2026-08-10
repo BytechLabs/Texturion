@@ -64,6 +64,7 @@ import {
 import { submitRegistration } from "../telnyx/registration";
 import { enableVoiceForCompany } from "../telnyx/voice";
 import { countWebhookRejection } from "../observability/webhook-rejections";
+import { processConnectEvent } from "./stripe-connect";
 
 /**
  * Stripe webhook endpoint (SPEC §7 webhook pattern, §9 event table):
@@ -85,16 +86,39 @@ stripeWebhookRoute.post("/", async (c) => {
   if (!signature) {
     return c.json({ error: "missing stripe-signature header" }, 400);
   }
-  let event: Stripe.Event;
-  try {
-    event = await getStripe(env).webhooks.constructEventAsync(
-      rawBody,
-      signature,
-      env.STRIPE_WEBHOOK_SECRET,
-      undefined, // default 300s tolerance
-      stripeCryptoProvider,
-    );
-  } catch {
+  /**
+   * #224: TWO secrets can sign a delivery here, and both are legitimate.
+   *
+   * Stripe delivers events about our own account and events about CONNECTED
+   * accounts through separate endpoint registrations, each with its own signing
+   * secret — even when both point at this URL. The alternative to accepting
+   * both is a second route, which would mean a second ledger insert, a second
+   * ack path and a second place for the sweeper to look.
+   *
+   * Order matters only for cost: the platform secret is tried first because it
+   * signs the overwhelming majority of deliveries. Neither is skipped, and a
+   * signature matching NEITHER is still a rejection — the Connect secret is
+   * optional precisely so a deploy that has not configured Connect keeps
+   * refusing everything it always refused.
+   */
+  const secrets = [env.STRIPE_WEBHOOK_SECRET, env.STRIPE_CONNECT_WEBHOOK_SECRET]
+    .filter((secret): secret is string => Boolean(secret));
+  let event: Stripe.Event | null = null;
+  for (const secret of secrets) {
+    try {
+      event = await getStripe(env).webhooks.constructEventAsync(
+        rawBody,
+        signature,
+        secret,
+        undefined, // default 300s tolerance
+        stripeCryptoProvider,
+      );
+      break;
+    } catch {
+      // Try the next secret; the rejection below is what a total failure means.
+    }
+  }
+  if (!event) {
     // #308: counted. A rotated Stripe secret silently stops every billing
     // state change reaching us, which looks exactly like nobody subscribing.
     countWebhookRejection(c, "stripe");
@@ -170,6 +194,21 @@ export async function processStripeEvent(
   env: Env,
   event: Stripe.Event,
 ): Promise<void> {
+  /**
+   * #224: an event about somebody ELSE's account, before anything else looks
+   * at it.
+   *
+   * `event.account` is present only on Connect deliveries, and everything below
+   * resolves a workspace from a PLATFORM customer id — a different keyspace
+   * belonging to a different Stripe account. A connected account's
+   * `checkout.session.completed` reaching `handleCheckoutCompleted` would try
+   * to provision a subscription from a customer id that is not ours, which is
+   * the precise mistake this branch exists to make impossible.
+   */
+  if (event.account) {
+    return processConnectEvent(env, event);
+  }
+
   switch (event.type) {
     case "checkout.session.completed":
       return handleCheckoutCompleted(env, event.data.object);

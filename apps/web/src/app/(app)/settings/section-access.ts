@@ -53,6 +53,7 @@ export const WEB_SECTION_ROUTES: Record<
   ai: "route",
   usage: "route",
   billing: "route",
+  payments: "route",
   history: "route",
   notifications: "route",
   profile: "route",

@@ -136,6 +136,20 @@ export type AuditAction =
   // question if that link turns up somewhere it should not have.
   | "job_photos.shared"
   | "job_photos.share_revoked"
+  /**
+   * #224: text-to-pay. Recorded because these are the only entries in this log
+   * where somebody else's money is the subject.
+   *
+   * `payments.account_connected` is the moment a bank account and a legal
+   * entity were bound to this workspace, which is the single most consequential
+   * setting an owner ever changes outside ownership itself. The two request
+   * entries name who asked a customer for how much, and who called it off —
+   * "who sent this bill" is the first question after a customer disputes one,
+   * and the thread alone cannot answer it once a member has left.
+   */
+  | "payments.account_connected"
+  | "payments.request_sent"
+  | "payments.request_cancelled"
   // #404: actions taken by a PLATFORM operator rather than by anyone in the
   // workspace — the support fixes that used to be hand-written SQL leaving no
   // trace at all. They carry a null actor (the schema's system-actor slot) and

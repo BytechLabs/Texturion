@@ -1,0 +1,247 @@
+/**
+ * #224 / D133 — text-to-pay, the parts all four surfaces have to agree on.
+ *
+ * Web, Android, iOS and the API each render the same payment request, and the
+ * API composes the text the customer receives. Three of those are hand-ported
+ * from this file, which is the whole reason it is small and total: a rule
+ * written three times drifts (#548), so what is written here is the rule and
+ * the ports are checked against these vectors.
+ *
+ * ## The one modelling decision worth reading
+ *
+ * `status` in the database has four values and the thread shows six states.
+ * That is deliberate, not an omission. A REFUND and a DISPUTE happen to a
+ * request that is, and stays, PAID — money changed hands and then moved back —
+ * so folding them into `status` would destroy the fact the crew most needs.
+ * They are timestamps beside the status, and the six-state answer is DERIVED,
+ * once, here.
+ */
+
+/** The stored status. Mirrors the SQL CHECK exactly. */
+export type PaymentRequestStatus = "requested" | "paid" | "cancelled" | "expired";
+
+/** What the thread actually shows. Derived — never stored. */
+export type PaymentRequestState =
+  | "requested"
+  | "paid"
+  | "refunded"
+  | "disputed"
+  | "cancelled"
+  | "expired";
+
+/** The fields the derivation needs. Every client's row is a superset. */
+export interface PaymentRequestFacts {
+  status: PaymentRequestStatus;
+  paid_at?: string | null;
+  refunded_at?: string | null;
+  disputed_at?: string | null;
+}
+
+/**
+ * The six-state answer, in the order that matters.
+ *
+ * ORDER IS THE DESIGN. A disputed payment that was also refunded reads as
+ * DISPUTED, because a chargeback is the thing somebody has to act on and a
+ * refund is not. A cancelled request that was somehow paid anyway reads as
+ * PAID, because the money is real and telling a crew otherwise is how a
+ * customer gets chased for a bill they settled.
+ */
+export function paymentRequestState(row: PaymentRequestFacts): PaymentRequestState {
+  if (row.disputed_at) return "disputed";
+  if (row.refunded_at) return "refunded";
+  if (row.paid_at || row.status === "paid") return "paid";
+  if (row.status === "cancelled") return "cancelled";
+  if (row.status === "expired") return "expired";
+  return "requested";
+}
+
+/** One word for the state, as the crew reads it in the thread. */
+export function paymentRequestLabel(state: PaymentRequestState): string {
+  switch (state) {
+    case "requested":
+      return "Waiting";
+    case "paid":
+      return "Paid";
+    case "refunded":
+      return "Refunded";
+    case "disputed":
+      return "Disputed";
+    case "cancelled":
+      return "Cancelled";
+    case "expired":
+      return "Expired";
+  }
+}
+
+/**
+ * Whether this request can still be cancelled.
+ *
+ * Paid is excluded for the obvious reason and expired for a less obvious one:
+ * an expired request is already dead, and offering a Cancel on it invites a tap
+ * that does nothing, which reads as a broken button rather than a settled state.
+ */
+export function paymentRequestCancellable(row: PaymentRequestFacts): boolean {
+  return paymentRequestState(row) === "requested";
+}
+
+/**
+ * The floor, in cents.
+ *
+ * Not arbitrary: Stripe refuses a charge under 50 cents in both USD and CAD,
+ * and a request that mints a link the customer cannot pay is worse than a
+ * refusal at the keyboard. Stated once here so the API, the three composers and
+ * the tests cannot disagree about it.
+ */
+export const PAYMENT_MIN_CENTS = 100;
+
+/**
+ * The ceiling, in cents — $25,000.
+ *
+ * A cap exists because a typo in a phone keypad is a real event and "$450"
+ * becoming "$45000" is one missed decimal. It sits well above any residential
+ * trade job and below the point where a mistyped figure is plausible, which is
+ * the only job a cap of this kind can do. A business with a genuinely larger
+ * invoice has a bank transfer and an accountant; they do not need it collected
+ * by text.
+ */
+export const PAYMENT_MAX_CENTS = 2_500_000;
+
+/** The description ceiling — it rides in an SMS and on a card statement. */
+export const PAYMENT_DESCRIPTION_MAX = 200;
+
+export type PaymentAmountProblem = "too_small" | "too_large" | "not_whole";
+
+/**
+ * Is this a chargeable amount? Returns the problem, or null when it is fine.
+ *
+ * Shared rather than per-client because the phone keypads and the web input
+ * each need the same answer BEFORE the request is sent — a validation that only
+ * exists on the server is a validation the customer's crew meets as a red toast
+ * after typing everything twice.
+ */
+export function paymentAmountProblem(cents: number): PaymentAmountProblem | null {
+  if (!Number.isInteger(cents)) return "not_whole";
+  if (cents < PAYMENT_MIN_CENTS) return "too_small";
+  if (cents > PAYMENT_MAX_CENTS) return "too_large";
+  return null;
+}
+
+/**
+ * Why a workspace cannot send a payment request yet.
+ *
+ * The issue's first acceptance criterion is that a workspace which has not
+ * finished onboarding is told EXACTLY what is outstanding — so "not ready" is
+ * not one state, it is five, and each one has a different next action.
+ */
+export type PayoutReadiness =
+  | "not_connected"
+  | "onboarding_incomplete"
+  | "pending_verification"
+  | "restricted"
+  | "ready";
+
+export interface PayoutAccountFacts {
+  connected: boolean;
+  charges_enabled: boolean;
+  details_submitted: boolean;
+  disabled_reason?: string | null;
+  requirements_due?: readonly string[] | null;
+}
+
+/**
+ * The readiness answer, derived from Stripe's mirror.
+ *
+ * `charges_enabled` is the only field that decides whether a send may happen.
+ * The others exist to say WHY it is false, and the order below is the order a
+ * business moves through them.
+ */
+export function payoutReadiness(account: PayoutAccountFacts | null): PayoutReadiness {
+  if (!account || !account.connected) return "not_connected";
+  if (account.charges_enabled) return "ready";
+  if (account.disabled_reason) return "restricted";
+  if (!account.details_submitted) return "onboarding_incomplete";
+  return "pending_verification";
+}
+
+/** What the owner is told, and what to do about it. */
+export function payoutReadinessCopy(readiness: PayoutReadiness): {
+  title: string;
+  detail: string;
+  action: string | null;
+} {
+  switch (readiness) {
+    case "not_connected":
+      return {
+        title: "Not set up yet",
+        detail:
+          "Connect a Stripe account and you can ask a customer for a deposit " +
+          "or a final payment straight from the thread. Money goes to your " +
+          "bank account — we never hold it, and we take nothing on top.",
+        action: "Set up payments",
+      };
+    case "onboarding_incomplete":
+      return {
+        title: "Nearly there",
+        detail:
+          "Stripe still needs a few details about your business before it can " +
+          "take a payment. Picking up where you left off takes a couple of minutes.",
+        action: "Finish setting up",
+      };
+    case "pending_verification":
+      return {
+        title: "Stripe is checking your details",
+        detail:
+          "You have given Stripe everything it asked for. Verification is " +
+          "usually minutes, occasionally a day or two. We will switch payment " +
+          "requests on the moment it clears — nothing for you to do.",
+        action: null,
+      };
+    case "restricted":
+      return {
+        title: "Payments are paused",
+        detail:
+          "Stripe has paused payments on your account and needs something from " +
+          "you before it can take another one. Your Stripe dashboard says what.",
+        action: "Open Stripe",
+      };
+    case "ready":
+      return {
+        title: "Ready to take payments",
+        detail:
+          "Ask for a deposit or a final payment from any thread. It arrives as " +
+          "an ordinary text with a link, and the money goes to your bank account.",
+        action: "Open Stripe",
+      };
+  }
+}
+
+/**
+ * A Stripe requirement identifier, in plain words.
+ *
+ * Stripe returns things like `individual.verification.document` and
+ * `external_account`. Showing those to a plumber is showing them a stack trace.
+ * Unknown identifiers fall back to a readable version of the identifier itself
+ * rather than being dropped — an outstanding requirement nobody can see is the
+ * state where an owner concludes the product is broken.
+ */
+export function payoutRequirementCopy(requirement: string): string {
+  const known: Record<string, string> = {
+    external_account: "Your bank account details",
+    "business_profile.url": "Your website or a description of what you do",
+    "business_profile.mcc": "What kind of work you do",
+    "individual.verification.document": "Photo ID for the business owner",
+    "individual.verification.additional_document": "A second document for the business owner",
+    "individual.id_number": "The owner's SIN or SSN",
+    "individual.address.line1": "The owner's address",
+    "individual.dob.day": "The owner's date of birth",
+    "company.tax_id": "Your business number",
+    "company.verification.document": "A document proving the business exists",
+    "tos_acceptance.date": "Accepting Stripe's terms",
+    "representative.verification.document": "Photo ID for whoever signs for the business",
+  };
+  const hit = known[requirement];
+  if (hit) return hit;
+  const cleaned = requirement.replace(/^(individual|company|representative)\./, "");
+  const words = cleaned.replace(/[._]/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}

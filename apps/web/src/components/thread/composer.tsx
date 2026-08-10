@@ -25,7 +25,9 @@ import {
   SendLaterDialog,
   SendLaterMenuItems,
 } from "@/components/thread/send-later-menu";
+import { AskForPayment } from "@/components/thread/ask-for-payment";
 import { OnMyWay } from "@/components/thread/on-my-way";
+import { PaymentStrip } from "@/components/thread/payment-strip";
 import { useScheduleMessage } from "@/lib/api/scheduled-messages";
 import { StagedFileChips } from "@/components/attachments/staged-file-chips";
 import { DropOverlay, useFileDrop } from "@/components/attachments/use-file-drop";
@@ -1264,6 +1266,13 @@ export function Composer({
           sixth way to change the draft. Not on a note — a note goes to the
           crew, and "on my way" is for the customer. */}
       {!noteOnly && <OnMyWay conversationId={conversationId} />}
+      {/* #224: what this thread is owed, and what it was paid. Above the input
+          for the same reason the scheduled strip is — it is state, not history,
+          and it changes without anybody here doing anything. Never on a note. */}
+      {!noteOnly && <PaymentStrip conversationId={conversationId} />}
+      {/* #224: absent entirely unless the workspace can actually take a card,
+          so a crew never meets a control they cannot action. */}
+      {!noteOnly && <AskForPayment conversationId={conversationId} />}
       {!noteOnly && (
         <div
           className="mx-auto mb-2 flex max-w-[42rem] gap-1"

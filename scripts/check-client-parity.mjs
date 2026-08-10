@@ -156,6 +156,34 @@ const SURFACES = [
     iosReason: "the prompt lives in Features/Settings/OwnershipPrompt.swift — no address bar to arrive from",
   },
   {
+    key: "payments",
+    // #224 — text-to-pay: the crew asks a customer for money, and the owner
+    // connects the Stripe account that receives it.
+    //
+    // The capability IS on all three, and this entry exists to say where it
+    // lives on each rather than to record a gap.
+    //
+    // What is in the directory differs by client, and the difference is real
+    // rather than tidy. iOS puts all four files under Features/Payments. Android
+    // keeps the ported vocabulary and the repository there and leaves the three
+    // UI files beside their siblings — settings/PaymentsSection.kt next to
+    // BillingSection.kt, thread/PaymentStrip.kt next to ScheduledStrip.kt —
+    // because neither is a full screen there (#200 forbids the hosted settings
+    // card a title or a back button) and because HostHeaderLintTest only walks
+    // features/settings. Web has no package at all: the same two halves are
+    // settings/payments-card.tsx and thread/ask-for-payment.tsx +
+    // thread/payment-strip.tsx, inside the surfaces that own their context.
+    //
+    // The CUSTOMER's payment page is deliberately not here. It belongs to
+    // `public` above, for exactly the reason recorded there: a homeowner who
+    // tapped a link in a text installs nothing.
+    web: null,
+    webReason:
+      "the two halves are settings/payments-card.tsx and thread/ask-for-payment.tsx + thread/payment-strip.tsx; the customer's page is under `public`",
+    android: "payments",
+    ios: "Payments",
+  },
+  {
     key: "compose",
     // The mobile clients give the message composer its own feature package
     // because it is a full screen there. On web it is a component inside the

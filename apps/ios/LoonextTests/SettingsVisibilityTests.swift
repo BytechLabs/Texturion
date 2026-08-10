@@ -104,12 +104,18 @@ final class SettingsVisibilityTests: XCTestCase {
         }
     }
 
-    /// #315: the whole point of the preset. Billing and Usage are the two rows
-    /// their role exists for; every other business row stays hidden.
+    /// #315: the whole point of the preset. Billing, Usage and Getting paid are
+    /// the rows their role exists for; every other business row stays hidden.
+    ///
+    /// #224 added the third. It is `billing.manage` and NOT `workspace.own`,
+    /// even though CONNECTING the Stripe account is owner-only on the server —
+    /// because opening the screen is how the bookkeeper reaches the Stripe
+    /// dashboard to issue a refund, which is the task the role was created to
+    /// make possible without sharing the owner's login.
     func testABookkeeperSeesBillingAndNothingElseOfTheBusiness() {
         XCTAssertEqual(
             visible(MemberRole.bookkeeper),
-            personal.union(readableByAll).union([.billing, .usage])
+            personal.union(readableByAll).union([.billing, .usage, .payments])
         )
     }
 

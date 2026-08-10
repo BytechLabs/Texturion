@@ -218,6 +218,12 @@ fun deepLinkFor(
  */
 fun settingsSectionFor(slug: String?): SettingsSection? = when (slug?.trim()) {
     "billing" -> SettingsSection.Billing
+    // #224: the URL Stripe's hosted onboarding returns to is
+    // `${APP_ORIGIN}/settings/payments` (apps/api/src/billing/connect.ts), so
+    // an owner who finished the flow on this phone comes back through an app
+    // link. Landing them on the hub would make them go looking for the screen
+    // they were just on.
+    "payments" -> SettingsSection.Payments
     "numbers" -> SettingsSection.Numbers
     "usage" -> SettingsSection.Usage
     "team" -> SettingsSection.Team

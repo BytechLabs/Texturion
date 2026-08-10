@@ -12,6 +12,13 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
     case numbers
     case usage
     case billing
+    /// #224 — text-to-pay. Directly after Billing because the two are the same
+    /// subject seen from opposite ends: that one is what WE charge the business,
+    /// this is what the business charges the homeowner. Adjacent so the
+    /// distinction is legible; separate so neither screen has to explain it — a
+    /// single screen would put "your plan renews on the 3rd" beside "your bank
+    /// account" and make neither of them readable.
+    case payments
     case notifications
     case profile
     /// #236: what is signed in right now. Directly after Profile & account
@@ -58,7 +65,15 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .workspace, .hours, .calling, .templates, .ai:
             Capability.settingsManage
         case .numbers: Capability.numbersManage
-        case .usage, .billing: Capability.billingManage
+        // #224: `billing.manage` for payments, and NOT `workspace.own` — even
+        // though CONNECTING the account is owner-only on the server. The two
+        // answer different questions. Setting it up binds a legal entity and a
+        // bank account, which is the owner's alone. OPENING the screen is how
+        // the bookkeeper reaches the Stripe dashboard to issue a refund, which
+        // is the whole reason that role exists (#315) — hiding the row from
+        // them would send them back to sharing the owner's login for the one
+        // task the role was created to make unnecessary.
+        case .usage, .billing, .payments: Capability.billingManage
         }
     }
 
@@ -73,6 +88,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .numbers: "Numbers"
         case .usage: "Usage"
         case .billing: "Billing"
+        case .payments: "Getting paid"
         case .notifications: "Notifications"
         case .profile: "Profile & account"
         case .devices: "Signed-in devices"
@@ -93,6 +109,7 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .numbers: "Your numbers, ports, text-enablement, registration"
         case .usage: "Messages, minutes, and your overage cap"
         case .billing: "Plan, payment, and invoices"
+        case .payments: "Take a deposit or a final payment over the thread"
         case .notifications: "Email and push for new conversations"
         case .profile: "Your name, theme, email, and password"
         case .devices: "Every browser and phone with access right now"
@@ -114,6 +131,10 @@ enum SettingsSection: String, CaseIterable, Identifiable, Hashable {
         case .numbers: "number"
         case .usage: "chart.bar"
         case .billing: "creditcard"
+        // A card is what somebody pays US with; a dollar sign is money coming
+        // IN. The neighbouring rows have to be told apart at a glance, which is
+        // the whole reason they are neighbours.
+        case .payments: "dollarsign.circle"
         case .notifications: "bell"
         case .profile: "person.crop.circle"
         case .devices: "laptopcomputer.and.iphone"
@@ -492,6 +513,12 @@ struct SettingsHome: View {
                     UsageSectionView(scope: scope, company: company, onCompanyUpdated: onCompanyUpdated)
                 case .billing:
                     BillingSectionView(scope: scope, company: company, onRefreshCompany: refreshCompany)
+                case .payments:
+                    // #224. Takes only the scope: everything on it comes from
+                    // Stripe through /v1/payments/account, and nothing it shows
+                    // is on the company view — so threading `company` in would
+                    // be an argument the screen never reads.
+                    PaymentsSectionView(scope: scope)
                 case .notifications:
                     NotificationsSectionView(
                         scope: scope, company: company, onCompanyUpdated: onCompanyUpdated

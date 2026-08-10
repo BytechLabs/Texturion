@@ -1171,6 +1171,21 @@ export const LIVENESS_EXPECTATIONS = {
     everyMinutes: 1440,
     graceMinutes: 360,
   },
+  "job:expire-payment-requests": {
+    what:
+      "Payment requests past their 14-day expiry keep reading as \"Waiting\" " +
+      "in the thread, so a crew chases a customer over a link that no longer " +
+      "opens (#224).",
+    doThis:
+      "Workers Logs, search `cron job job:expire-payment-requests failed` for " +
+      "the stack. No money is at risk in either direction: the D75 token has " +
+      "already stopped resolving, so an expired request cannot be paid " +
+      "whether or not this ran. What is wrong is only what the thread SAYS. " +
+      "One good run clears the backlog. Several hourly keys together means " +
+      "the trigger, not this job.",
+    everyMinutes: 60,
+    graceMinutes: 180,
+  },
   "job:prune-probe-results": {
     what: "Synthetic probe results accumulate for the life of the install.",
     doThis:

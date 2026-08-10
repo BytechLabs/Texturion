@@ -97,4 +97,21 @@ object CacheKeys {
      * belongs to the person and follows them into every workspace.
      */
     fun mfa(userId: String) = "mfa/$userId"
+
+    /**
+     * #224 the connected Stripe account. ONE entry per company, deliberately
+     * shared between the settings card and every open thread: the read costs a
+     * live Stripe call on the server, and the composer has to ask "may we take a
+     * card?" on every conversation somebody opens. Keying it per thread would
+     * bill a Stripe round trip for scrolling the inbox.
+     */
+    fun payoutAccount(companyId: String) = "payoutAccount/$companyId"
+
+    /**
+     * #224 one thread's asks. Keyed per conversation because that is what the
+     * route is scoped to, and because two threads' money must never share a
+     * strip.
+     */
+    fun paymentRequests(companyId: String, conversationId: String) =
+        "paymentRequests/$companyId/$conversationId"
 }

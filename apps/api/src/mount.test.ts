@@ -23,6 +23,7 @@ import {
 import { runAupWatchJob } from "./messaging/aup-watch";
 import { runRetentionEnforceJob } from "./workspace/retention-enforce";
 import { runRetentionNoticeJob } from "./workspace/retention-notice";
+import { expirePaymentRequests } from "./crons/payment-requests";
 import { runInboundCanaryJob } from "./observability/inbound-canary";
 import { runDoSentryCanaryJob } from "./observability/do-sentry-canary";
 import { pruneExpiredExports } from "./workspace/export";
@@ -535,6 +536,9 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       sweepStaleCalls, // #133: stale-calls sweeper (in-flight >4h → missed)
       runEmailHealthJob, // #386: domain bounce/complaint rates, rolling 24h
       runInboundCanaryJob, // #308: synthetic inbound round trip (off until configured)
+      // #224: retires payment requests past their 14-day expiry, so a thread
+      // stops showing "Waiting" for a link that no longer opens.
+      expirePaymentRequests,
     ]);
     expect(runs("30 * * * *")).toEqual([nudgeSoleProprietorOtp]);
     expect(runs("20 * * * *")).toEqual([geocodeContactsJob]);

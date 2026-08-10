@@ -117,6 +117,13 @@ describe("the outbound gate cannot be bypassed (#331)", () => {
       "routes/compose.ts",
       // Thread send, and the retry of a failed one.
       "routes/messages.ts",
+      // #224: the payment request. It reaches the carrier because it IS an
+      // ordinary text — the link rides in the body — and it is named here for
+      // the reason this roster exists. It mints its clearance through
+      // runPreSendGates before anything is created at Stripe, so a contact who
+      // sent STOP is refused by the same gate as every other send rather than
+      // by a rule this feature wrote for itself.
+      "routes/payments.ts",
     ]);
   });
 });

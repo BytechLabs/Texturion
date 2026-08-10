@@ -36,7 +36,10 @@ const APP_VERSION: string = (
  * next-config-headers.test.ts: a link type whose token must be scrubbed is a
  * link type that can be revoked.
  */
-const UNCACHEABLE_TOKEN_PREFIXES = ["photos", "invite"] as const;
+// #224: `pay` joins them, and it is the one where an hour of stale edge TTL
+// would be worst — the page has to stop opening the MOMENT the bill is paid,
+// or a homeowner meets a card form for money they already sent.
+const UNCACHEABLE_TOKEN_PREFIXES = ["photos", "invite", "pay"] as const;
 /**
  * The alternation is wrapped, and that is load-bearing: `(?!photos|invite/)`
  * binds the slash to the LAST alternative only, so it would exclude every path
