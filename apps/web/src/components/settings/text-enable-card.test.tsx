@@ -62,7 +62,7 @@ import {
 import { useSyncExternalStore } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { MemberRole } from "@loonext/shared";
+import type { ApiErrorCode, MemberRole } from "@loonext/shared";
 
 import type { PhoneNumberSummary, TextEnablement } from "@/lib/api/types";
 
@@ -130,6 +130,42 @@ function useRequestHandoverCodeStub() {
 vi.mock("@/lib/api/ownership", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useRequestHandoverCode: useRequestHandoverCodeStub,
+}));
+
+/** POST /v1/text-enablements/:id/cancel — the withdrawal, sent to the carrier. */
+const cancelOrder = vi.fn();
+/**
+ * Whether that withdrawal is in flight, driven the same way as the two above and
+ * for the same reason: `disabled={cancel.isPending}` is the only thing between a
+ * second press and a second withdrawal, and a stub that can only answer `false`
+ * leaves it untestable rather than merely untested.
+ */
+let cancelPending = false;
+const cancelWatchers = new Set<() => void>();
+const subscribeCancel = (notify: () => void) => {
+  cancelWatchers.add(notify);
+  return () => {
+    cancelWatchers.delete(notify);
+  };
+};
+const readCancel = () => cancelPending;
+function setCancelPending(next: boolean) {
+  cancelPending = next;
+  for (const notify of cancelWatchers) notify();
+}
+
+function useCancelTextEnablementStub() {
+  return {
+    isPending: useSyncExternalStore(subscribeCancel, readCancel, readCancel),
+    mutate: cancelOrder,
+  };
+}
+
+// Only the one mutation is replaced; the rest of the module — including the upload,
+// resubmit and verification hooks this card also reaches for — stays real.
+vi.mock("@/lib/api/text-enablement", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useCancelTextEnablement: useCancelTextEnablementStub,
 }));
 
 /**
@@ -342,6 +378,8 @@ beforeEach(() => {
   role = "owner";
   releasePending = false;
   setCodePending(false);
+  setCancelPending(false);
+  cancelOrder.mockReset();
   mutate.mockReset();
   requestCode.mockReset();
   listFactors
@@ -826,6 +864,98 @@ describe("what keeps the release two presses deep", () => {
     expect(
       screen.queryByRole("alert"),
       "the previous attempt's reason is still on screen underneath a retry that is in flight",
+    ).toBeNull();
+  });
+});
+
+/**
+ * #604 — withdrawing the order, which is the other irreversible thing this card
+ * offers.
+ *
+ * Cancelling is a request to the carrier, not a local flag, so the same two rules
+ * hold as for the release above: one press must send one withdrawal, and the reason
+ * an attempt failed must not still be on screen under the next one. Both guards
+ * existed and neither was reachable — nothing in this file had ever pressed that
+ * button, so either could have been deleted without a test noticing.
+ */
+describe("withdrawing a text-enablement order", () => {
+  /** Non-terminal, so the card offers the cancel. Deliberately not `live`. */
+  const IN_PROGRESS: TextEnablement = {
+    ...ORDER,
+    status: "in-progress",
+    completed_at: null,
+  };
+
+  /** Mount with an order that can still be withdrawn, and open the dialog. */
+  function openCancel() {
+    const view = render(tree(IN_PROGRESS, null));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Cancel text-enablement…/ }),
+    );
+    return view;
+  }
+
+  /** The control that actually sends it. */
+  const withdraw = () =>
+    screen.getByRole("button", {
+      name: /^(Cancel text-enablement|Cancelling…)$/,
+    }) as HTMLButtonElement;
+
+  it("sends one withdrawal however many times it is pressed", () => {
+    openCancel();
+
+    fireEvent.click(withdraw());
+    // What the real hook does the instant the request goes out, and what the stub
+    // could never say before: the card is now mid-request. Inside `act` so the
+    // re-render lands before the next press, exactly as it would in a browser —
+    // outside it, React has not repainted yet and the button under the second
+    // click is still the old one.
+    act(() => {
+      setCancelPending(true);
+    });
+    fireEvent.click(withdraw());
+    fireEvent.click(withdraw());
+
+    expect(
+      cancelOrder,
+      "a second withdrawal went to the carrier for an order already being withdrawn",
+    ).toHaveBeenCalledTimes(1);
+    // And it says which of the two states it is in, rather than looking pressable.
+    expect(withdraw().textContent).toBe("Cancelling…");
+  });
+
+  it("does not leave the last failure standing under the next attempt", () => {
+    cancelOrder.mockImplementation(
+      (
+        _input: undefined,
+        handlers?: { onError?: (error: unknown) => void },
+      ) => {
+        // Only the first attempt fails, and the second is left in flight — the
+        // stretch during which a stale reason would be read as this attempt's.
+        if (cancelOrder.mock.calls.length === 1) {
+          handlers?.onError?.(
+            new ApiError(
+              "conflict" as ApiErrorCode,
+              "The carrier already closed this order.",
+              409,
+            ),
+          );
+        }
+      },
+    );
+    openCancel();
+
+    fireEvent.click(withdraw());
+    expect(screen.getByRole("alert").textContent).toBe(
+      "The carrier already closed this order.",
+    );
+
+    fireEvent.click(withdraw());
+
+    expect(cancelOrder).toHaveBeenCalledTimes(2);
+    expect(
+      screen.queryByRole("alert"),
+      "the previous attempt's reason is still on screen under a retry that is in flight",
     ).toBeNull();
   });
 });
