@@ -64,20 +64,31 @@ enum SessionEnded {
     }
 }
 
-/// Keychain-backed session persistence (kSecClassGenericPassword, this-device-only).
+/// Where the encoded session actually lives. #599.
 ///
-/// `changes` broadcasts every save/clear (a refresh save included) so the root
-/// state machine can react to sign-in/sign-out — the Keychain itself has no
-/// observation API.
-final class SessionStore: @unchecked Sendable {
+/// Three calls, pulled out of `SessionStore` so the thing the simulator test host lacks
+/// — the keychain — is separable from the logic that sits on top of it. Everything else
+/// about the store is unchanged: same encoding, same broadcast, same lock.
+protocol SessionStorage: Sendable {
+    func read() -> Data?
+    func write(_ data: Data)
+    func remove()
+}
+
+/// The real one, and the default. Same item, same accessibility, this-device-only.
+struct KeychainSessionStorage: SessionStorage {
     private let service = "com.loonext.ios.session"
     private let account = "supabase"
-    private let lock = NSLock()
-    private var observers: [UUID: AsyncStream<Session?>.Continuation] = [:]
 
-    func current() -> Session? {
-        lock.lock()
-        defer { lock.unlock() }
+    private var baseQuery: [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+    }
+
+    func read() -> Data? {
         var query = baseQuery
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -85,15 +96,10 @@ final class SessionStore: @unchecked Sendable {
         guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
               let data = item as? Data
         else { return nil }
-        return try? JSONDecoder().decode(Session.self, from: data)
+        return data
     }
 
-    func save(_ session: Session) {
-        lock.lock()
-        guard let data = try? JSONEncoder().encode(session) else {
-            lock.unlock()
-            return
-        }
+    func write(_ data: Data) {
         let attributes: [String: Any] = [
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
@@ -104,6 +110,42 @@ final class SessionStore: @unchecked Sendable {
             add.merge(attributes) { _, new in new }
             SecItemAdd(add as CFDictionary, nil)
         }
+    }
+
+    func remove() {
+        SecItemDelete(baseQuery as CFDictionary)
+    }
+}
+
+/// Session persistence, keychain-backed by default.
+///
+/// `changes` broadcasts every save/clear (a refresh save included) so the root
+/// state machine can react to sign-in/sign-out — the Keychain itself has no
+/// observation API.
+final class SessionStore: @unchecked Sendable {
+    private let storage: SessionStorage
+    private let lock = NSLock()
+    private var observers: [UUID: AsyncStream<Session?>.Continuation] = [:]
+
+    /// #599: defaulted, so every production call site is unchanged.
+    init(storage: SessionStorage = KeychainSessionStorage()) {
+        self.storage = storage
+    }
+
+    func current() -> Session? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let data = storage.read() else { return nil }
+        return try? JSONDecoder().decode(Session.self, from: data)
+    }
+
+    func save(_ session: Session) {
+        lock.lock()
+        guard let data = try? JSONEncoder().encode(session) else {
+            lock.unlock()
+            return
+        }
+        storage.write(data)
         let continuations = Array(observers.values)
         lock.unlock()
         for continuation in continuations { continuation.yield(session) }
@@ -111,7 +153,7 @@ final class SessionStore: @unchecked Sendable {
 
     func clear() {
         lock.lock()
-        SecItemDelete(baseQuery as CFDictionary)
+        storage.remove()
         let continuations = Array(observers.values)
         lock.unlock()
         // #330: the customer's data goes with the session, however it ended. Fired
@@ -140,11 +182,4 @@ final class SessionStore: @unchecked Sendable {
         return stream
     }
 
-    private var baseQuery: [String: Any] {
-        [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-    }
 }

@@ -894,8 +894,35 @@ jobs:
 
       - name: Unit tests
         run: |
+          set -o pipefail
           xcodebuild test \
             -project Loonext.xcodeproj \
             -scheme Loonext \
             -destination "id=${{ steps.sim.outputs.udid }}" \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO | tee /tmp/ios-tests.log
+
+      # [#599] A SKIPPED TEST REPORTS GREEN, WHICH IS BACKWARDS.
+      #
+      # Two cases in ThreadControllerResyncTests skipped on EVERY run of this job
+      # from the day they were written — the keychain a simulator host does not
+      # have — and one of them was the #215 contract that a message the backend
+      # holds, which no realtime event delivered, is recovered. Nothing in the
+      # summary said so: an XCTSkip is indistinguishable from a pass here.
+      #
+      # LoonextTests already made this decision once, for a different cause. See
+      # MissingSource.swift: six source scans used to throw XCTSkip when they
+      # could not read the file they check, and every one was converted to a
+      # failure because "the conditions that produce a missing file are exactly
+      # the conditions under which the scan has verified nothing at all". An
+      # environment a test needs and does not have is the same shape.
+      #
+      # This is the backstop, not the rule. The rule is not to write one.
+      - name: No test may skip its way to green
+        run: |
+          if grep -q "Test skipped" /tmp/ios-tests.log; then
+            echo "::error::An iOS test skipped. A skip reports as a pass, so the"
+            echo "::error::property it asserts is unproven and nothing says so."
+            grep "Test skipped" /tmp/ios-tests.log | sed 's/^/  /'
+            exit 1
+          fi
+          echo "No test skipped."

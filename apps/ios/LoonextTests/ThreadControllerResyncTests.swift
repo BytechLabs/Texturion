@@ -139,8 +139,15 @@ final class ThreadControllerResyncTests: XCTestCase {
     private let companyId = "c1"
     private let conversationId = "conv1"
 
+    /// A store that works on a host with no keychain — which is every CI run. #599.
+    ///
+    /// This used to be a plain `SessionStore()`, keychain-backed, and the simulator test
+    /// host has no keychain: both tests below skipped on EVERY run, including the #215
+    /// contract that a message the backend has, which no realtime event delivered, is
+    /// recovered. `XCTSkipIf` reports as a pass, so the suite looked green while never
+    /// executing the guarantee it was written for.
     private func seededStore() -> SessionStore {
-        let store = SessionStore()
+        let store = SessionStore(storage: InMemorySessionStorage())
         // A far-future access token so `ApiClient` uses it directly — the auth
         // refresh path (a real network call) is never taken.
         store.save(Session(
@@ -197,13 +204,10 @@ final class ThreadControllerResyncTests: XCTestCase {
     func testRefreshAfterReconnectRecoversAMessageNoEventDelivered() async throws {
         let store = seededStore()
         defer { store.clear() }
-        // The harness authorizes reads with a keychain-seeded session; if the
-        // test host has no keychain (rare), skip rather than red — the CI
-        // "Mobile" simulator job has one.
-        try XCTSkipIf(
-            store.current() == nil,
-            "keychain unavailable in this test host — cannot seed a session"
-        )
+        // #599: an ASSERTION where a skip used to be. The seeding either worked or this
+        // test cannot test anything, and the second of those has to be a failure — a
+        // skip that reports as a pass is how this ran nowhere for as long as it existed.
+        XCTAssertNotNil(store.current(), "the harness failed to seed a session")
         let recoveredId = "m-missed"
         let controller = makeController(
             store: store,
@@ -235,10 +239,7 @@ final class ThreadControllerResyncTests: XCTestCase {
     func testRefreshAfterReconnectMergesKeepingScrolledBackPages() async throws {
         let store = seededStore()
         defer { store.clear() }
-        try XCTSkipIf(
-            store.current() == nil,
-            "keychain unavailable in this test host — cannot seed a session"
-        )
+        XCTAssertNotNil(store.current(), "the harness failed to seed a session")
         let state = RouteState()
         let controller = makeController(store: store, route: mergeRoute(state))
 
