@@ -53,6 +53,14 @@ on:
     # Weekly, Monday morning, off the hour. A CVE published on Wednesday should
     # not wait for somebody to open a pull request.
     - cron: "37 6 * * 1"
+  # #601: so the scheduled jobs can be RUN rather than waited for.
+  #
+  # `Dependency graph is on` is the loud half of a check that steps aside on
+  # pull requests, and it went a full release cycle having never executed once —
+  # a safeguard nobody has watched fire is a safeguard nobody should be relying
+  # on. It is also the only way to confirm the setting is fixed on the day
+  # somebody flips it, rather than the following Monday.
+  workflow_dispatch:
 
 concurrency:
   group: security-${{ github.workflow }}-${{ github.ref }}
@@ -253,10 +261,14 @@ jobs:
   # ---------------------------------------------------------------------------
   dependency-graph:
     name: Dependency graph is on
+    # Scheduled OR asked for. Never on a pull request: this reports on a
+    # repository setting, and failing somebody's change over one is the exact
+    # thing the job beside it exists to stop doing.
     if: >-
       !(github.event.pull_request.head.repo.full_name == github.repository &&
       startsWith(github.head_ref, 'release-please--')) &&
-      github.event_name == 'schedule'
+      (github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
