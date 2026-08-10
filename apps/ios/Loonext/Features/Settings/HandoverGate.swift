@@ -100,11 +100,6 @@ func attemptHandover(
         // have never been ours to check, prove them now instead of posting them a second
         // time. Posting them a second time is the forever loop, and the person is told
         // their own correct code is wrong.
-        if let code, !HandoverConfirmation.codeGoesToOurApi(kind) {
-            return await handoverProveThenRetry(
-                scope: scope, proof: proof, kind: kind, code: code, auth: auth
-            )
-        }
         if !alreadyOpen, kind == .email {
             // Best effort. A send that fails must not replace the demand with a
             // network error — the dialog still has a working "send it again".
