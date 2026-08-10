@@ -4,6 +4,28 @@
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-06-01",
   "compatibility_flags": ["nodejs_compat"],
+
+  // #578: this Worker answers on its custom domain and nowhere else.
+  //
+  // Absent, both of these DEFAULT TO ON, and the difference between "absent" and
+  // "false" is that a dashboard toggle survives until the next `wrangler deploy`
+  // and this survives everything. The setting has to live in the repo or it
+  // lasts one release.
+  //
+  // `workers_dev` is a second front door with different rules. The host split in
+  // `src/lib/hosts.ts` returns null for a host it does not recognise —
+  // deliberately, so previews and tunnels are left alone — which means app routes
+  // served from `*.workers.dev` skip the marketing/app redirect and the cache
+  // rule anchored to a known host in #559. Measured on 2026-08-10 before this
+  // landed: this Worker served `/` and `/login` at 200 on its workers.dev name.
+  //
+  // `preview_urls` is off for the reason it exists: a preview URL keeps a
+  // SUPERSEDED build addressable at a stable address after a release. There is
+  // one environment here and no staging (docs/ENVIRONMENTS.md), so a preview URL
+  // is not a review surface — it is an older bundle nobody is watching, still
+  // answering, still holding whatever bug the release fixed.
+  "workers_dev": false,
+  "preview_urls": false,
   // #118: wrangler's bundler defaults keep_names to true, making esbuild
   // inject __name(...) helper calls into every function — INCLUDING functions
   // whose source gets serialized into inline <script> strings at runtime
