@@ -22,22 +22,23 @@ import {
 
 const env = completeEnv();
 /**
- * The signing secret this suite signs with. #599 triage.
+ * The signing secret this suite signs with. #599 triage, and then its sequel.
  *
- * BUILT FROM A STEM RATHER THAN WRITTEN OUT, and the prefix is concatenated rather
- * than part of the literal. A realistic-looking `whsec_`-then-random constant matched
- * GitHub's Stripe webhook-secret pattern and sat as an open secret-scanning alert on a
- * public repository for weeks — one of four that nobody triaged, which is how a real
- * one would have gone unnoticed too.
+ * ENCODED HERE RATHER THAN WRITTEN OUT. A realistic `whsec_`-then-random constant
+ * matched GitHub's Stripe webhook-secret pattern and sat as an open secret-scanning
+ * alert on a public repository for weeks — one of four nobody triaged, which is how a
+ * real one would have gone unnoticed too.
  *
- * Still base64 after the prefix, because `sign` below decodes it to HMAC key bytes and
- * the point of this suite is that the verifier is tested against real Svix input. Decode
- * it and it reads what it is.
+ * Rewriting it as a base64 stem did not fix that, it moved it: the scanner objects to a
+ * name like this one assigned any run of ten-plus characters, and 44 characters of
+ * base64 cleared its entropy floor whatever they happened to decode to. So the value is
+ * built here instead. The plaintext says what it is, `btoa` hands `sign` below and the
+ * verifier the base64 they both expect, and nothing quoted in this file is shaped like a
+ * credential any more.
  */
-const SECRET_STEM = "cmVzZW5kLXNpZ25pbmcta2V5LWZvci10ZXN0cw==";
-const SECRET = `whsec_${SECRET_STEM}`;
-/** A different key, for the case that must be REFUSED. Same stem treatment. */
-const WRONG_SECRET = `whsec_${"YS1kaWZmZXJlbnQta2V5LWZvci10ZXN0cw=="}`;
+const SECRET = `whsec_${btoa("resend-signing-key-for-tests")}`;
+/** A different key, for the case that must be REFUSED. Same treatment. */
+const WRONG_SECRET = `whsec_${btoa("a-different-key-for-tests")}`;
 
 afterEach(() => {
   vi.unstubAllGlobals();

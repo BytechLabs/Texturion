@@ -33,6 +33,18 @@ d93c6f6a734e87b3e15f64a6fe7a82e6065dc9c3:apps/api/e2e/harness.ts:vapid-private-k
 546e7b7e3fbd191fc0d320bd47201e54169b2e47:apps/api/src/webhooks/resend.test.ts:generic-api-key:20
 d93c6f6a734e87b3e15f64a6fe7a82e6065dc9c3:apps/api/e2e/harness.ts:generic-api-key:35
 
+# The SAME Resend fixture, one commit into being fixed. 3da06803 replaced the
+# realistic constant above with a base64 stem that decodes to
+# "resend-signing-key-for-tests" — readable, but still 44 characters assigned to
+# a name containing "SECRET", which is all this rule needs (entropy 4.30). It
+# was a signing key for this suite and nothing else, for the few hours it stood.
+#
+# Fixed forward at the commit that adds this line: the value is now built with
+# `btoa` from its own plaintext, so no quoted literal in that file is shaped
+# like a credential. This entry exists only because a full-history scan finds a
+# remediated commit forever.
+3da068030c1a1b9cedc6dbb0dcb82c612376192b:apps/api/src/webhooks/resend.test.ts:generic-api-key:37
+
 # The IndexNow key, which the protocol REQUIRES to be public: search engines
 # verify ownership by fetching https://loonext.com/<key>.txt. A key that were
 # secret would not work.
