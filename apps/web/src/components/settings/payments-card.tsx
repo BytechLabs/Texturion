@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { payoutRequirementCopy } from "@loonext/shared";
 
 import { LoadError, SettingsCard } from "@/components/settings/section";
+import { useT } from "@/i18n/provider";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/error";
@@ -55,13 +56,14 @@ import {
  *   a thin copy of a back office that already exists and stays compliant.
  */
 export function PaymentsCard() {
+  const t = useT();
   const account = usePayoutAccount();
   const onboarding = useStartPayoutOnboarding();
   const dashboard = useStripeDashboardLink();
 
   if (account.isLoading) {
     return (
-      <SettingsCard title="Getting paid">
+      <SettingsCard title={t("payments.settingsTitle")}>
         {/* A skeleton, not a spinner: the shape of what is coming is itself
             information, and it stops the card jumping when it lands. */}
         <div className="space-y-2">
@@ -90,7 +92,7 @@ export function PaymentsCard() {
       toast.error(
         cause instanceof ApiError
           ? cause.message
-          : "Couldn't open Stripe. Try again in a moment.",
+          : t("payments.stripeOpenFailed"),
       );
     }
   }
@@ -103,7 +105,7 @@ export function PaymentsCard() {
       toast.error(
         cause instanceof ApiError
           ? cause.message
-          : "Couldn't open Stripe. Try again in a moment.",
+          : t("payments.stripeOpenFailed"),
       );
     }
   }
@@ -114,13 +116,13 @@ export function PaymentsCard() {
   const busy = onboarding.isPending || dashboard.isPending;
 
   return (
-    <SettingsCard title="Getting paid" description={state.title}>
+    <SettingsCard title={t("payments.settingsTitle")} description={state.title}>
       <p className="text-sm text-muted-foreground">{state.detail}</p>
 
       {state.requirements_due.length > 0 && (
         <div className="mt-4 rounded-app-ctrl border border-app-amber-line bg-app-amber-bg/60 px-3 py-2.5">
           <p className="text-[13px] font-medium text-app-amber-ink">
-            Stripe still needs:
+            {t("payments.stripeNeeds")}
           </p>
           <ul className="mt-1 space-y-0.5">
             {state.requirements_due.map((requirement) => (
@@ -161,15 +163,15 @@ export function PaymentsCard() {
       {state.readiness === "ready" && (
         <dl className="mt-5 grid gap-x-6 gap-y-2 border-t border-border-subtle pt-4 text-sm sm:grid-cols-2">
           <Fact
-            label="Payouts"
+            label={t("payments.payouts")}
             value={
               state.payouts_enabled
-                ? "On — money reaches your bank"
-                : "Stripe has not switched payouts on yet"
+                ? t("payments.payoutsOn")
+                : t("payments.payoutsOff")
             }
           />
           <Fact
-            label="Charged in"
+            label={t("payments.chargedIn")}
             value={(state.currency ?? "usd").toUpperCase()}
           />
         </dl>
@@ -177,9 +179,7 @@ export function PaymentsCard() {
 
       {state.readiness === "ready" && (
         <p className="mt-4 text-[13px] text-muted-foreground">
-          Refunds, receipts and payout history all live in your Stripe
-          dashboard. We never hold your money and we take nothing on top of what
-          you charge — Stripe&rsquo;s own card fee is the only deduction.
+          {t("payments.refundNote")}
         </p>
       )}
     </SettingsCard>

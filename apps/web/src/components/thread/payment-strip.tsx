@@ -15,6 +15,7 @@ import {
   usePaymentRequests,
   type PaymentRequest,
 } from "@/lib/api/payments";
+import { useT, type Translate } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +45,7 @@ import { cn } from "@/lib/utils";
  * belongs on the ask, which is customer-visible, not on calling it off.*
  */
 export function PaymentStrip({ conversationId }: { conversationId: string }) {
+  const t = useT();
   const { role } = useActiveCompany();
   // #315: an observer SEES the money — the strip is a read, and read_only holds
   // `conversations.read` precisely so it can follow the work. What it does not
@@ -64,6 +66,7 @@ export function PaymentStrip({ conversationId }: { conversationId: string }) {
           key={row.id}
           row={row}
           canAct={canAct}
+          t={t}
           onCancel={() => cancel.mutate(row.id)}
           cancelling={cancel.isPending && cancel.variables === row.id}
         />
@@ -91,11 +94,13 @@ export function isWorthShowing(
 function PaymentRow({
   row,
   canAct,
+  t,
   onCancel,
   cancelling,
 }: {
   row: PaymentRequest;
   canAct: boolean;
+  t: Translate;
   onCancel: () => void;
   cancelling: boolean;
 }) {
@@ -123,13 +128,14 @@ function PaymentRow({
         </p>
         {row.state === "refunded" && row.amount_refunded_cents !== null && (
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {formatMoney(row.amount_refunded_cents, row.currency)} went back to
-            them.
+            {t("payments.refundedBack", {
+              amount: formatMoney(row.amount_refunded_cents, row.currency),
+            })}
           </p>
         )}
         {row.state === "disputed" && (
           <p className="mt-0.5 text-app-amber">
-            Their bank has pulled this back. Stripe has emailed you what it needs.
+            {t("payments.disputedNote")}
           </p>
         )}
       </div>
@@ -138,7 +144,10 @@ function PaymentRow({
           type="button"
           onClick={onCancel}
           disabled={cancelling}
-          aria-label={`Cancel the ${amount} request for ${row.description}`}
+          aria-label={t("payments.cancelAria", {
+            amount,
+            description: row.description,
+          })}
           className="tap-target -mr-1 flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors duration-150 ease-out hover:bg-secondary hover:text-foreground disabled:opacity-45"
         >
           <X className="size-3.5" strokeWidth={1.75} />

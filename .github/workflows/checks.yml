@@ -416,6 +416,16 @@ jobs:
       - name: Guard typed prices on the phones
         run: node scripts/check-money-literals.mjs
 
+      # #228: a user-facing sentence typed into a component is a sentence no
+      # translator will ever see, and Bill 96 makes "we sell into Quebec in
+      # English only" a legal exposure rather than a papercut. The check is a
+      # LEDGER rather than a clean gate on purpose — 1,461 literals from its
+      # first run would be a check everybody learns to merge past, which is the
+      # outcome D68 and D132 both record. It fails when a file's count GROWS, so
+      # every screen extracted stays extracted, and the ledger only shrinks.
+      - name: Guard hardcoded user-facing strings
+        run: node scripts/check-hardcoded-strings.mjs
+
       # #376: `packages/shared` is shared by two of four clients, so every rule
       # Android and iOS need exists three times. The generated vectors are what
       # the Kotlin and Swift suites assert against — if a shared rule changes and

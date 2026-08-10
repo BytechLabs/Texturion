@@ -14,6 +14,7 @@ import { GateSignOut } from "@/components/shell/gate-escape";
 import { SessionExpiredCard } from "@/components/shell/session-expired";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LocaleProvider } from "@/i18n/provider";
 import { useMe } from "@/lib/api/me";
 import type { MemberRole, Membership } from "@/lib/api/types";
 import { useSessionState } from "@/lib/auth/use-session-ready";
@@ -160,7 +161,28 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <CompanyContext.Provider value={value}>{children}</CompanyContext.Provider>
+    <CompanyContext.Provider value={value}>
+      {/*
+       * #228: the app's language, decided once, here.
+       *
+       * This is the only place in the tree where all three inputs exist at
+       * once — the member's own setting from /v1/me, the device's, and the
+       * workspace's. And it is safe to read `navigator.language` from: nothing
+       * under this provider is server-rendered, because it renders only after
+       * a client-side /me resolves. Reading the navigator higher up would make
+       * the first paint disagree with the second, which React resolves by
+       * silently discarding the server HTML on every load.
+       */}
+      <LocaleProvider
+        userLocale={me.data?.locale ?? null}
+        companyLocale={value.membership.locale ?? null}
+        deviceLocale={
+          typeof navigator === "undefined" ? null : navigator.language
+        }
+      >
+        {children}
+      </LocaleProvider>
+    </CompanyContext.Provider>
   );
 }
 

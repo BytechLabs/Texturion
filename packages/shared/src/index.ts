@@ -838,6 +838,8 @@ export {
 
 export {
   LOCALES,
+  normalizeDeviceLocale,
+  resolveUiLocale,
   DEFAULT_LOCALE,
   LOCALE_LABELS,
   EN_COPY,

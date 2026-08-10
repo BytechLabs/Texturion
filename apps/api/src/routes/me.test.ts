@@ -103,12 +103,18 @@ describe("GET /v1/me", () => {
       // that needs no interpretation on three clients.
       email_state: null,
       has_password: true,
+      // #228: null means "ask the device, then the workspace" — never English.
+      // Sent unresolved because the device half only exists on the client.
+      locale: null,
       memberships: [
         {
           company_id: COMPANY_ID,
           name: "Acme Plumbing",
           role: "owner",
           subscription_status: "active",
+          // #228: the workspace's own language, carried on the join the app
+          // already makes, so nothing paints English first.
+          locale: null,
           // #540: the empty set for a member who has put nothing away, which is
           // everybody until they open Customise.
           dashboard_hidden: [],
@@ -374,6 +380,77 @@ describe("GET /v1/me withholds the workspace at aal1 (#581)", () => {
 });
 
 describe("PATCH /v1/me (#112: set your own display name)", () => {
+  /**
+   * #228 — the language THIS MEMBER reads the app in, and the two ways the
+   * obvious spelling of this handler gets it wrong.
+   */
+  it("writes only the fields that were sent, so a language change keeps the name", async () => {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/profiles", () => [
+      { display_name: "Pat Rivera", locale: "fr-CA" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/me", {
+      method: "PATCH",
+      companyId: null,
+      body: { locale: "fr-CA" },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      display_name: "Pat Rivera",
+      locale: "fr-CA",
+    });
+
+    // THE assertion. This is an UPSERT, so an absent display_name spread into
+    // the row would write the column default over a name somebody chose — a
+    // member switching to French would be renamed to nothing.
+    const upsert = sb.find("POST", "/rest/v1/profiles")[0];
+    expect(upsert.body).toEqual({ user_id: auth.subject, locale: "fr-CA" });
+  });
+
+  it("lets null through, because null is how a choice is undone", async () => {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/profiles", () => [
+      { display_name: "Pat Rivera", locale: null },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/me", {
+      method: "PATCH",
+      companyId: null,
+      body: { locale: null },
+    });
+    expect(res.status).toBe(200);
+    // Null is a VALUE here, not an absence: it means "go back to asking my
+    // device, then the workspace". A handler that treated it as absent would
+    // make the setting one-way.
+    const upsert = sb.find("POST", "/rest/v1/profiles")[0];
+    expect(upsert.body).toEqual({ user_id: auth.subject, locale: null });
+  });
+
+  it("refuses a language this product does not have", async () => {
+    const sb = supabaseStub(env);
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/me", {
+      method: "PATCH",
+      companyId: null,
+      body: { locale: "de" },
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it("refuses a body that changes nothing", async () => {
+    const sb = supabaseStub(env);
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/me", {
+      method: "PATCH",
+      companyId: null,
+      body: {},
+    });
+    expect(res.status).toBe(422);
+  });
+
   it("upserts the caller's profile name, company-exempt (no X-Company-Id)", async () => {
     const sb = supabaseStub(env);
     sb.on("POST", "/rest/v1/profiles", () => [{ display_name: "Pat Rivera" }]);
@@ -385,7 +462,12 @@ describe("PATCH /v1/me (#112: set your own display name)", () => {
       body: { display_name: "  Pat Rivera  " },
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ display_name: "Pat Rivera" });
+    // #228: the response echoes both halves of the profile, so a client that
+    // set one does not have to re-read to learn the other.
+    expect(await res.json()).toEqual({
+      display_name: "Pat Rivera",
+      locale: null,
+    });
 
     // Upsert on user_id, scoped to the CALLER (the sub, never a body field),
     // with the whitespace trimmed.

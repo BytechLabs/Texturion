@@ -16,7 +16,7 @@
  * profile name — the signup form is the only other place that sets one, and
  * invitees never pass through it).
  */
-import { DASHBOARD_PANEL_IDS, normaliseHiddenPanels } from "@loonext/shared";
+import { DASHBOARD_PANEL_IDS, LOCALES, normaliseHiddenPanels } from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -31,15 +31,29 @@ import { parseJsonBody, unwrap } from "./core/http";
 
 const companyIdSchema = z.uuid();
 
-const updateMeSchema = z.object({
-  display_name: z.string().trim().min(1).max(80),
-});
+const updateMeSchema = z
+  .object({
+    display_name: z.string().trim().min(1).max(80).optional(),
+    /**
+     * #228: the language THIS MEMBER reads the app in.
+     *
+     * Nullable, and null is a real value a client sends on purpose — it means
+     * "go back to asking my device, then the workspace", which is a different
+     * answer from either language and the only way to undo a choice. A schema
+     * that treated null as absent would make the setting one-way.
+     */
+    locale: z.enum(LOCALES).nullable().optional(),
+  })
+  .refine(
+    (value) => value.display_name !== undefined || value.locale !== undefined,
+    { message: "Provide a display_name, a locale, or both." },
+  );
 
 interface MembershipRow {
   company_id: string;
   role: string;
   dashboard_hidden: string[] | null;
-  companies: { name: string; subscription_status: string };
+  companies: { name: string; subscription_status: string; locale: string | null };
 }
 
 /**
@@ -222,17 +236,30 @@ meRoutes.put(
 meRoutes.patch("/me", async (c) => {
   const body = await parseJsonBody(c, updateMeSchema);
   const db = getDb(getEnv(c.env));
-  const rows = unwrap<{ display_name: string }[]>(
+  /*
+   * #228: only the fields that were SENT.
+   *
+   * The upsert is what makes this matter. Spreading an absent `display_name`
+   * into the row would write the column's default over a name somebody already
+   * chose — so a member switching to French would be renamed to nothing. The
+   * `locale` half has the same shape and the opposite risk: `null` must reach
+   * the database, because that is how a choice is undone.
+   */
+  const patch: Record<string, unknown> = { user_id: c.get("userId") };
+  if (body.display_name !== undefined) patch.display_name = body.display_name;
+  if (body.locale !== undefined) patch.locale = body.locale;
+
+  const rows = unwrap<{ display_name: string; locale: string | null }[]>(
     await db
       .from("profiles")
-      .upsert(
-        { user_id: c.get("userId"), display_name: body.display_name },
-        { onConflict: "user_id" },
-      )
-      .select("display_name"),
+      .upsert(patch, { onConflict: "user_id" })
+      .select("display_name,locale"),
     "profile update",
   );
-  return c.json({ display_name: rows[0]?.display_name ?? body.display_name });
+  return c.json({
+    display_name: rows[0]?.display_name ?? body.display_name ?? "",
+    locale: rows[0]?.locale ?? null,
+  });
 });
 
 /**
@@ -275,7 +302,7 @@ meRoutes.get("/me", async (c) => {
   // Both key only on userId — one parallel round-trip instead of two serial
   // (GET /v1/me is on every app load).
   const [profilesRes, membershipRes, hasPasswordRes, emailStateRes] = await Promise.all([
-    db.from("profiles").select("display_name").eq("user_id", userId).limit(1),
+    db.from("profiles").select("display_name,locale").eq("user_id", userId).limit(1),
     db
       .from("company_members")
       .select(
@@ -286,7 +313,12 @@ meRoutes.get("/me", async (c) => {
         // offering the preference at all. One more column on a select that was
         // already happening costs nothing; a second round trip would cost a
         // flash on every app load.
-        "company_id,role,dashboard_hidden,companies!inner(name,subscription_status,deleted_at)",
+        // #228: `locale` rides here for the same reason `dashboard_hidden` does —
+        // it is one more column on a join already happening, and the app has to
+        // know which language to draw itself in BEFORE it paints. A second
+        // round trip would cost an English flash on every load for a French
+        // workspace, which is the one reader this is for.
+        "company_id,role,dashboard_hidden,companies!inner(name,subscription_status,deleted_at,locale)",
       )
       .eq("user_id", userId)
       .is("deactivated_at", null)
@@ -302,7 +334,7 @@ meRoutes.get("/me", async (c) => {
     // instead of two serial round trips on the hottest route in the product.
     db.rpc("api_user_email_state", { p_user_id: userId }),
   ]);
-  const profiles = unwrap<{ display_name: string }[]>(
+  const profiles = unwrap<{ display_name: string; locale: string | null }[]>(
     profilesRes,
     "profile lookup",
   );
@@ -316,6 +348,9 @@ meRoutes.get("/me", async (c) => {
     name: row.companies.name,
     role: row.role,
     subscription_status: row.companies.subscription_status,
+    // #228: the language the BUSINESS works in — the last step of the app's
+    // own locale chain (user > device > company > English).
+    locale: row.companies.locale ?? null,
     // #540: normalised on the way out, so an id this build no longer renders is
     // simply not hidden any more rather than a panel the client cannot account
     // for. Clients then need no defensive handling of their own.
@@ -325,6 +360,13 @@ meRoutes.get("/me", async (c) => {
   const body: Record<string, unknown> = {
     user_id: userId,
     display_name: profiles[0]?.display_name ?? "",
+    /**
+     * #228: null means "ask the device, then the workspace" — never English.
+     * Sent as null rather than resolved here, because the DEVICE half of the
+     * answer only exists on the client and resolving without it would override
+     * a phone's own language with a workspace default.
+     */
+    locale: profiles[0]?.locale ?? null,
     memberships,
     // A failed lookup reports false, which only ever offers "Set a password" —
     // harmless, and it never claims a password the account may not have.

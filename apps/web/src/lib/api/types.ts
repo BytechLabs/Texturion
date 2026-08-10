@@ -173,12 +173,25 @@ export interface Membership {
    * nothing hidden, which is the same as the default.
    */
   dashboard_hidden?: string[];
+  /**
+   * #228: the language the WORKSPACE works in — the last step of the app's own
+   * locale chain, before English.
+   */
+  locale?: Locale | null;
 }
 
 /** GET /v1/me — optionally hydrated with `company` when X-Company-Id is sent. */
 export interface Me {
   user_id: string;
   display_name: string;
+  /**
+   * #228: the language THIS MEMBER reads the app in, or null.
+   *
+   * Null does NOT mean English. It means "ask this device, then the
+   * workspace" — the server deliberately sends it unresolved, because the
+   * device half of the answer only exists here.
+   */
+  locale?: Locale | null;
   memberships: Membership[];
   /**
    * Whether the account has a password at all. The Supabase identities array

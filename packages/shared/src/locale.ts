@@ -225,3 +225,56 @@ export function copyForContact(
 ): AutomatedCopy {
   return copyFor(resolveLocale(contactLocale, companyLocale));
 }
+
+/**
+ * #228 Phase 1 — the language the APP is drawn in, which is a different
+ * question from the language a customer is texted in.
+ *
+ * `resolveLocale` above answers "what does this CUSTOMER receive". This answers
+ * "what does this CREW MEMBER read", and the two deliberately do not share an
+ * order, because the people are different and so is the evidence:
+ *
+ *   1. THEIR OWN SETTING. Somebody who has said what they read has said it.
+ *   2. THE DEVICE. A phone's language is a choice its owner already made, once,
+ *      for everything on it. It is better evidence about what a person reads
+ *      than a setting their employer made — which is exactly why it outranks
+ *      the workspace here and does not exist at all in the send path.
+ *   3. THE WORKSPACE. The business's own language, as a last guess.
+ *   4. English.
+ *
+ * A bilingual shop is the case this ordering exists for: the owner runs the
+ * business in French and employs a tech whose phone is in English, and neither
+ * of them should have to argue with the other's setting to read the app.
+ *
+ * The device string arrives in whatever shape the platform hands over —
+ * `fr-CA`, `fr_CA`, `fr`, `en-US` — so it is normalised rather than matched
+ * exactly. `fr` alone resolves to fr-CA because fr-CA is the only French this
+ * product has; a French speaker in France reading Quebec French is a far better
+ * outcome than one reading English.
+ */
+export function resolveUiLocale(
+  userLocale: string | null | undefined,
+  deviceLocale: string | null | undefined,
+  companyLocale: string | null | undefined,
+): Locale {
+  if (isLocale(userLocale)) return userLocale;
+  const device = normalizeDeviceLocale(deviceLocale);
+  if (device) return device;
+  if (isLocale(companyLocale)) return companyLocale;
+  return DEFAULT_LOCALE;
+}
+
+/**
+ * A platform's locale tag, read as one of ours — or null when it is neither.
+ *
+ * Null rather than English on purpose: "this device says nothing we recognise"
+ * has to fall through to the workspace, and returning English here would stop
+ * that and quietly override a French business's own setting with a default.
+ */
+export function normalizeDeviceLocale(tag: string | null | undefined): Locale | null {
+  if (typeof tag !== "string") return null;
+  const primary = tag.replace(/_/g, "-").split("-")[0]?.toLowerCase();
+  if (primary === "fr") return "fr-CA";
+  if (primary === "en") return "en";
+  return null;
+}
