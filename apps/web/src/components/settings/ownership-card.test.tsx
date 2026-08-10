@@ -105,7 +105,11 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ companyId: "c-1", role: "owner" }),
 }));
 
-import { HANDOVER_CONFIRM_FIELD, HANDOVER_CONFIRM_REJECTED } from "@loonext/shared";
+import {
+  HANDOVER_CONFIRM_FIELD,
+  HANDOVER_CONFIRM_REJECTED,
+  HANDOVER_CONFIRM_SUBMIT,
+} from "@loonext/shared";
 
 import { ApiError } from "@/lib/api/error";
 import { toast } from "sonner";
@@ -276,7 +280,16 @@ function refuseOnce(errorCode: string) {
   });
 }
 
-/** Type six digits into the confirmation dialog and press Confirm. */
+/**
+ * Type six digits into the confirmation dialog and press Confirm.
+ *
+ * Both the field and the button are named by their shared constant, never by a
+ * retyped copy of it: `getByLabelText`/`getByRole` match the accessible name
+ * exactly, so a hand-written "Confirm" here would red every handover suite the
+ * day somebody reworded the button — a failure with no customer behind it. This
+ * file is the one the other handover suites are copied from, so the habit
+ * spreads either way.
+ */
 async function answer(digits: string) {
   fireEvent.change(screen.getByLabelText(HANDOVER_CONFIRM_FIELD), {
     target: { value: digits },
@@ -284,13 +297,48 @@ async function answer(digits: string) {
   // Awaited: the `reprove` path talks to Supabase before it retries, and the
   // assertions are all about what happens after that answer comes back.
   await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    fireEvent.click(screen.getByRole("button", { name: HANDOVER_CONFIRM_SUBMIT }));
   });
 }
 
-/** The input the action was retried with, or undefined if it never was. */
+/**
+ * The input the action was retried with. THROWS if it never was.
+ *
+ * That is the whole point of it, and the version this replaced did the opposite:
+ * `mutate.mock.calls[1]?.[0] ?? {}` handed back an empty object when the retry had
+ * not happened, so `expect(retriedWith().code).toBeUndefined()` — the assertion this
+ * file is copied from, in three suites — passed identically whether the retry
+ * carried no code or the action was silently dropped on the floor. Deleting
+ * `holding.retry(undefined)` out of `useActionConfirmation` (the owner types their
+ * correct digits, the prompt closes, the transfer never happens) left every one of
+ * them green.
+ *
+ * A helper that answers a question it was not asked is the defect, not the tests
+ * that trusted it — this file is the template the other handover suites are copied
+ * from, so the next copy inherits whichever of the two this is.
+ */
 function retriedWith(): { action?: string; code?: string; memberId?: string } {
-  return mutate.mock.calls[1]?.[0] ?? {};
+  if (mutate.mock.calls.length < 2) {
+    throw new Error(
+      "the action was never retried: mutate was called " +
+        `${mutate.mock.calls.length} time(s), so there is no retry to inspect`,
+    );
+  }
+  // And exactly one retry, checked here rather than at each call site so no copy
+  // of this file can inherit the gap. Answering the prompt twice would hand the
+  // workspace over twice, which is the same irreversible double-fire the gate
+  // exists to prevent — and reading `calls[1]` alone cannot see a `calls[2]`.
+  if (mutate.mock.calls.length > 2) {
+    throw new Error(
+      `the action was retried ${mutate.mock.calls.length - 1} times, not once: ` +
+        "one answered prompt must produce one attempt",
+    );
+  }
+  return mutate.mock.calls[1][0] as {
+    action?: string;
+    code?: string;
+    memberId?: string;
+  };
 }
 
 describe("…and when the server asks who is doing this", () => {
@@ -351,6 +399,11 @@ describe("…and when the server asks who is doing this", () => {
       factorId: FACTOR,
       code: "123456",
     });
+    // The retry HAPPENED. Without this line the one below it is vacuous: "no code"
+    // and "no retry" read the same off a missing call, and "no retry" is the owner
+    // watching the prompt close over a handover that did not occur.
+    expect(mutate).toHaveBeenCalledTimes(2);
+    expect(retriedWith().action).toBe("accept");
     expect(retriedWith().code).toBeUndefined();
   });
 

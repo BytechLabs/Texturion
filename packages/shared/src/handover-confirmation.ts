@@ -127,6 +127,24 @@ export const HANDOVER_CONFIRM_FIELD = "Six-digit code";
 export const HANDOVER_CONFIRM_SUBMIT = "Confirm";
 
 /**
+ * The same button while the answer is being checked.
+ *
+ * Lives here, next to the label it replaces, because it is the button's ACCESSIBLE
+ * NAME for the whole time the gate is busy — which on the `reprove` path is a round
+ * trip to Supabase, the longest the dialog is ever on screen. It is therefore the
+ * name every test that pins the in-flight, disabled button has to ask for, and it
+ * was the one string in this vocabulary still typed out by hand at each end: once in
+ * `handover-confirm-dialog.tsx` and once in each suite that reaches for it. Rewording
+ * it reddened tests that were not about the wording at all — a failure with no
+ * customer behind it, in the file every other confirmation suite is copied from.
+ *
+ * The trailing character is a real ellipsis, not three periods, and that is exactly
+ * the sort of difference a retyped copy loses: `getByRole` matches the accessible
+ * name exactly, so the two spellings are simply different buttons.
+ */
+export const HANDOVER_CONFIRM_SUBMITTING = "Confirming…";
+
+/**
  * Only offered on the email path.
  *
  * There is nothing to resend to somebody using an authenticator — the app is

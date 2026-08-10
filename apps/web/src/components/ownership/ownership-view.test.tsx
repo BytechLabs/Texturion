@@ -121,7 +121,12 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-import { HANDOVER_CONFIRM_FIELD, HANDOVER_CONFIRM_REJECTED } from "@loonext/shared";
+import {
+  HANDOVER_CONFIRM_FIELD,
+  HANDOVER_CONFIRM_REJECTED,
+  HANDOVER_CONFIRM_SUBMIT,
+  HANDOVER_CONFIRM_SUBMITTING,
+} from "@loonext/shared";
 import { toast } from "sonner";
 
 import { ApiError } from "@/lib/api/error";
@@ -164,13 +169,39 @@ async function answer(digits: string) {
   // Awaited: the `reprove` path talks to Supabase before it retries, and every
   // assertion is about what happened by the time that answer came back.
   await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    fireEvent.click(screen.getByRole("button", { name: HANDOVER_CONFIRM_SUBMIT }));
   });
 }
 
-/** The input the action was retried with, or an empty object if it never was. */
+/**
+ * The input the action was retried with. THROWS if it never was.
+ *
+ * That is the whole point of it, and the version this replaced did the opposite:
+ * `mutate.mock.calls[1]?.[0] ?? {}` handed back an empty object when the retry had
+ * not happened, so `expect(retriedWith().code).toBeUndefined()` passed identically
+ * whether the retry carried no code or the action was silently dropped. Deleting
+ * `holding.retry(undefined)` out of `useActionConfirmation` — the owner types their
+ * correct digits, the prompt closes, and the workspace never changes hands — left
+ * two assertions in this file green.
+ */
 function retriedWith(): { action?: string; code?: string } {
-  return mutate.mock.calls[1]?.[0] ?? {};
+  if (mutate.mock.calls.length < 2) {
+    throw new Error(
+      "the action was never retried: mutate was called " +
+        `${mutate.mock.calls.length} time(s), so there is no retry to inspect`,
+    );
+  }
+  // And exactly one retry, checked here rather than at each call site so no copy
+  // of this file can inherit the gap. Answering the prompt twice would hand the
+  // workspace over twice, which is the same irreversible double-fire the gate
+  // exists to prevent — and reading `calls[1]` alone cannot see a `calls[2]`.
+  if (mutate.mock.calls.length > 2) {
+    throw new Error(
+      `the action was retried ${mutate.mock.calls.length - 1} times, not once: ` +
+        "one answered prompt must produce one attempt",
+    );
+  }
+  return mutate.mock.calls[1][0] as { action?: string; code?: string };
 }
 
 /** Press the button that accepts the offer sitting on the page. */
@@ -227,6 +258,11 @@ describe("accepting a workspace when the server asks who is asking", () => {
       factorId: FACTOR,
       code: "123456",
     });
+    // The retry HAPPENED. Without this line the one below it is vacuous: "no code"
+    // and "no retry at all" read the same off a call that was never made, and the
+    // second is a workspace that quietly did not change hands.
+    expect(mutate).toHaveBeenCalledTimes(2);
+    expect(retriedWith().action).toBe("accept");
     expect(retriedWith().code).toBeUndefined();
   });
 
@@ -291,16 +327,28 @@ describe("accepting a workspace when the server asks who is asking", () => {
     fireEvent.change(screen.getByLabelText(HANDOVER_CONFIRM_FIELD), {
       target: { value: "123456" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    fireEvent.click(screen.getByRole("button", { name: HANDOVER_CONFIRM_SUBMIT }));
     await act(async () => {});
 
+    // Named by its shared constant, like the field and the idle label above it. The
+    // in-flight name was the last string in this vocabulary still typed out by hand
+    // at both ends, and rewording the dialog's `"Confirming…"` reddened this line —
+    // a failure with no customer behind it, in a test about a double submit.
     expect(
-      (screen.getByRole("button", { name: "Confirming…" }) as HTMLButtonElement)
-        .disabled,
+      (
+        screen.getByRole("button", {
+          name: HANDOVER_CONFIRM_SUBMITTING,
+        }) as HTMLButtonElement
+      ).disabled,
     ).toBe(true);
 
     await act(async () => settle({ data: {}, error: null }));
     expect(challengeAndVerify).toHaveBeenCalledTimes(1);
+    // ONE verify, and then the action was retried — once, carrying nothing. The
+    // retry count is what makes the line below mean anything: the second press was
+    // refused, not the whole handover.
+    expect(mutate).toHaveBeenCalledTimes(2);
+    expect(retriedWith().action).toBe("accept");
     expect(retriedWith().code).toBeUndefined();
   });
 

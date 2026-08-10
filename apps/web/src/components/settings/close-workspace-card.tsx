@@ -56,6 +56,17 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
   async function confirm(code?: string) {
     close.mutate(code, {
       onSuccess: async (result) => {
+        // The gate cannot see a mutation succeed, so it is told — first, before
+        // anything below is awaited. Every sibling call site dismisses on
+        // success; this one did not, and the cost here is worse than a stale
+        // dialog. Ending the session is a real round trip (push release, session
+        // revoke, GoTrue sign-out) and the redirect waits on it, so the code
+        // prompt stayed on screen with Confirm live over a workspace that had
+        // ALREADY been closed. A second press fired a third `close.mutate` and a
+        // second Supabase challenge — a double-fire on the one action nobody can
+        // undo after 30 days.
+        gate.dismiss();
+        setOpen(false);
         // The session is already dead server-side; clear this browser too so
         // nothing lingers on a shared machine.
         await endSessionOnThisDevice(company.id);

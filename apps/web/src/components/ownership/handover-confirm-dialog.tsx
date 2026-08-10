@@ -5,6 +5,7 @@ import {
   HANDOVER_CONFIRM_REJECTED,
   HANDOVER_CONFIRM_RESEND,
   HANDOVER_CONFIRM_SUBMIT,
+  HANDOVER_CONFIRM_SUBMITTING,
   HANDOVER_CONFIRM_TITLE,
   HANDOVER_CONFIRM_WHERE,
   type HandoverConfirmationKind,
@@ -149,7 +150,7 @@ export function HandoverConfirmDialog({
               disabled={!valid || pending}
               onClick={() => onConfirm(code)}
             >
-              {pending ? "Confirming…" : HANDOVER_CONFIRM_SUBMIT}
+              {pending ? HANDOVER_CONFIRM_SUBMITTING : HANDOVER_CONFIRM_SUBMIT}
             </Button>
           </span>
         </DialogFooter>

@@ -18,6 +18,7 @@ import {
   HANDOVER_CONFIRM_FIELD,
   HANDOVER_CONFIRM_REJECTED,
   HANDOVER_CONFIRM_RESEND,
+  HANDOVER_CONFIRM_SUBMIT,
 } from "@loonext/shared";
 
 import { HandoverConfirmDialog } from "./handover-confirm-dialog";
@@ -41,9 +42,17 @@ function open(
 }
 
 const field = () => screen.getByLabelText(HANDOVER_CONFIRM_FIELD) as HTMLInputElement;
-/** Radix renders the real attribute, and this project has no jest-dom matchers. */
+/**
+ * Radix renders the real attribute, and this project has no jest-dom matchers.
+ *
+ * The name comes from the shared constant rather than a retyped "Confirm":
+ * `getByRole` matches the accessible name exactly, so a hand-written copy here
+ * turns any rewording of the button into a red suite with nothing behind it.
+ */
 const confirmButton = () =>
-  screen.getByRole("button", { name: "Confirm" }) as HTMLButtonElement;
+  screen.getByRole("button", {
+    name: HANDOVER_CONFIRM_SUBMIT,
+  }) as HTMLButtonElement;
 
 describe("answering the demand", () => {
   it("keeps Confirm quiet until there is something worth sending", () => {
