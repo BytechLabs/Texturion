@@ -37,20 +37,30 @@
  * The edge in front of this Worker refuses one specific client signature: a user
  * agent BEGINNING with `Python-urllib` (case-sensitive, any version, `urllib3`
  * included) gets a Cloudflare block page — HTTP 403, `text/plain`, carrying
- * `X-Frame-Options` and a `post-check=0` cache header. Measured 2026-08-09; every
- * other signature tried was served normally, including `curl`, `okhttp`,
- * `CFNetwork/Darwin`, `Python-requests`, `Go-http-client`, `Wget`, and no UA at all.
+ * `X-Frame-Options` and a `post-check=0` cache header. Measured 2026-08-09 and
+ * again 2026-08-10; every other signature tried was served normally, including
+ * `curl`, `okhttp`, `CFNetwork/Darwin`, `Python-requests`, `Go-http-client`,
+ * `Wget`, and no UA at all.
+ *
+ * The body is seventeen bytes and names the cause: `error code: 1010`, which is
+ * Cloudflare's BROWSER INTEGRITY CHECK — a zone setting that refuses user agents
+ * matching known-abusive signatures. So the rule is identified without reading the
+ * zone, which matters because neither token here can: `zones/{id}/rulesets`,
+ * `/bot_management` and `/firewall/rules` all answer `10000 Authentication
+ * error`, and `/settings` answers `9109 Unauthorized`, while `zones?name=` lists
+ * the zone fine. The setting stays ON deliberately — it costs us no client, and
+ * `Python-urllib` is overwhelmingly a scanner signature.
  *
  * A narrow block, and it still cost a wrong answer. Python's `urllib` is exactly
  * what an audit script reaches for, the block page LOOKS like a real answer from a
  * real server, and it appears to carry security headers of its own — so during #586
  * it was measured and briefly believed.
  *
- * So this script REFUSES to grade a response that smells like a block page rather
- * than reporting on it. A probe that cannot tell our answer from an edge refusal is
- * worse than no probe: it produces a confident number about the wrong server. The
- * detector is deliberately not tied to the `Python-urllib` signature, because the
- * lesson is the shape, not that one library.
+ * So this script refuses to grade a response it cannot POSITIVELY identify as
+ * ours. A probe that cannot tell our answer from an edge refusal is worse than no
+ * probe: it produces a confident number about the wrong server. The first attempt
+ * at that guard matched the block page by shape and never fired once — see
+ * `identify` below, which is the corrected version and the more useful lesson.
  *
  * Read-only. One GET per path, no credentials, no customer data.
  */
@@ -130,16 +140,53 @@ function expectedHeaders() {
 }
 
 /**
- * Does this response look like an edge refusal rather than our Worker? (#596)
+ * Did this response come from our Worker? (#596)
  *
- * Deliberately generous: any `text/plain` non-2xx/401 from a JSON API is not us.
- * A false positive here costs a re-run; a false negative costs a wrong answer in
- * a security audit, which is what actually happened.
+ * ---------------------------------------------------------------------------
+ * THIS ASKS THE POSITIVE QUESTION, AND THE FIRST VERSION DID NOT.
+ *
+ * It used to look for a block page by its shape — a `text/plain` body on a
+ * non-2xx — which was measured with `curl` and then deployed into a script that
+ * does not send curl's headers. **Cloudflare content-negotiates its block page**,
+ * and all three variants are the same 403:
+ *
+ *   Accept: * / *                 text/plain   `error code: 1010`
+ *   Accept: application/json    application/json   a Cloudflare problem document
+ *   (no Accept header)           text/html    the full interstitial
+ *
+ * This script sends `Accept: application/json`, so the one shape it can actually
+ * receive is the one the old test could not see: a 403 whose content type is
+ * exactly what our own errors carry. The guard had therefore never fired once in
+ * the conditions it runs under, while reading as though the hazard was handled —
+ * and it reported six confident header failures against a server it never reached,
+ * complete with a hint about the fix not being released yet.
+ *
+ * So: recognise OUR answer instead of enumerating Cloudflare's. Headers are what
+ * the edge is imitating; the body is not. Every response from this Worker is JSON
+ * that is either a success or `{"error":{"code":…}}`. Anything else did not come
+ * from us, whatever it claims in its headers, and is refused rather than graded.
+ * ---------------------------------------------------------------------------
  */
-function looksLikeBlockPage(response) {
-  const type = response.headers.get("content-type") ?? "";
-  if (response.status === 403 && !type.includes("json")) return true;
-  return type.startsWith("text/plain") && ![200, 401].includes(response.status);
+function identify(status, bodyText) {
+  let body;
+  try {
+    body = JSON.parse(bodyText);
+  } catch {
+    return { ours: false, why: "the body is not JSON" };
+  }
+  if (body && typeof body === "object" && typeof body.error?.code === "string") {
+    return { ours: true };
+  }
+  if (status >= 200 && status < 300 && body && typeof body === "object") {
+    return { ours: true };
+  }
+  // Cloudflare's JSON block page is an RFC 9457 problem document, and its `type`
+  // points at their own docs. Named so the failure says what happened rather
+  // than "unrecognised".
+  if (typeof body?.type === "string" && body.type.includes("cloudflare.com")) {
+    return { ours: false, why: "it is a Cloudflare block page" };
+  }
+  return { ours: false, why: "it is JSON but carries no error.code" };
 }
 
 function baseFromArgv() {
@@ -176,14 +223,18 @@ async function main() {
       continue;
     }
 
-    if (looksLikeBlockPage(response)) {
-      // Refuse rather than grade. See the #596 note at the top.
+    // Read the body before grading a single header. See `identify`: the headers
+    // are the part an edge refusal imitates convincingly.
+    const bodyText = await response.text().catch(() => "");
+    const verdict = identify(response.status, bodyText);
+    if (!verdict.ours) {
       problems.push(
         `${path}: answered HTTP ${response.status} as ` +
-          `${response.headers.get("content-type") ?? "no content-type"} — that is ` +
-          `an edge refusal, not our Worker (#596). Nothing was graded.`,
+          `${response.headers.get("content-type") ?? "no content-type"}, but ` +
+          `${verdict.why} — so it did not come from our Worker (#596). Nothing ` +
+          `was graded. First bytes: ${JSON.stringify(bodyText.slice(0, 120))}`,
       );
-      console.log(`${path}  BLOCKED AT THE EDGE (HTTP ${response.status})`);
+      console.log(`${path}  NOT OUR WORKER (HTTP ${response.status})`);
       continue;
     }
 
