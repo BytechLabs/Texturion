@@ -108,6 +108,40 @@ struct SettingsRepository: Sendable {
         try await api.get("/v1/usage", companyId: companyId)
     }
 
+    // MARK: - #595 usage export (routes/exports.ts)
+
+    /// POST /v1/exports/usage — this workspace's metered usage for a period.
+    ///
+    /// Behind `billing.manage` server-side, and deliberately NOT the
+    /// `contacts.bulk` gate its neighbours carry: the document names no
+    /// customer, and the bulk gate would lock out the bookkeeper it exists for.
+    /// `UsageExportCard` asks the same capability before offering the surface,
+    /// so this call is never made speculatively.
+    ///
+    /// Both instants are ISO-8601 UTC. `from` is required; `to` absent means the
+    /// period is still running.
+    func requestUsageExport(
+        _ companyId: String,
+        from: String,
+        to: String?
+    ) async throws -> DataExportRequested {
+        try await api.post(
+            "/v1/exports/usage",
+            body: UsageExportBody(from: from, to: to),
+            companyId: companyId
+        )
+    }
+
+    /// GET /v1/exports — the recent exports, with links minted at read time.
+    ///
+    /// Gated on `workspace.access`, and the KINDS are filtered SQL-side to the
+    /// ones this caller may collect (#581/C13). No client-side role logic here
+    /// for exactly that reason: a second implementation of one access decision
+    /// is the drift D79 exists to prevent.
+    func dataExports(_ companyId: String) async throws -> Page<DataExport> {
+        try await api.get("/v1/exports", companyId: companyId)
+    }
+
     // MARK: - AI enrichment settings (#214)
 
     /// GET /v1/company/ai-settings — member-visible read.

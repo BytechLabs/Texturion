@@ -929,6 +929,16 @@ export {
   isHandoverCode,
 } from "./handover-confirmation";
 
+// #595 — the bookkeeper's usage export, on all three clients. The default period
+// and the words live here rather than in whichever client built the surface first.
+export {
+  EXPORT_USAGE_ACTION,
+  EXPORT_USAGE_BLURB,
+  EXPORT_USAGE_NOTE,
+  lastCompleteMonth,
+  USAGE_EXPORT_CAPABILITY,
+} from "./usage-export";
+
 // #330 — handing the truck phone to whoever is covering the evening. A full, clean
 // exit made fast, rather than a stored account switcher: keeping the previous
 // person's session on the device is the thing that issue exists to stop.

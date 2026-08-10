@@ -545,3 +545,54 @@ data class ResolvedBool(
     val value: Boolean = false,
     val inherited: Boolean = true,
 )
+
+// ---------------------------------------------------------------------------
+// Data exports (routes/exports.ts) — #595
+// ---------------------------------------------------------------------------
+
+/**
+ * One file on a finished export, with a link minted for this read.
+ *
+ * The URL is signed and short-lived — `GET /v1/exports` mints it per request
+ * rather than storing it — so it is never cached and never persisted here.
+ */
+@Serializable
+data class DataExportFile(
+    val name: String,
+    val url: String,
+)
+
+/**
+ * A row of `GET /v1/exports`.
+ *
+ * `kind` is deliberately absent: the route does not send it, because which
+ * kinds a caller can see is already decided server-side (#581) and the response
+ * shape cannot leak one by accident. Nothing here needs it.
+ *
+ * [files] is empty for anything not `ready`, and also for a `ready` export
+ * whose objects have expired — the server sends no link rather than one that
+ * would 404.
+ */
+@Serializable
+data class DataExport(
+    val id: String,
+    val status: String,
+    val error: String? = null,
+    val requested_at: String? = null,
+    val completed_at: String? = null,
+    val expires_at: String? = null,
+    val files: List<DataExportFile> = emptyList(),
+)
+
+/**
+ * The answer from `POST /v1/exports/usage`.
+ *
+ * [already_building] is not an error: asking twice while one is in flight
+ * returns the export already being built, so the honest thing to say is that
+ * it is coming rather than that nothing happened.
+ */
+@Serializable
+data class UsageExportStarted(
+    val export_id: String,
+    val already_building: Boolean = false,
+)

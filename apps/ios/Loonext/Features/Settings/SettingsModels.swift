@@ -357,3 +357,70 @@ struct WorkspaceMfa: Codable, Sendable {
     let required: Bool?
     let grace_until: String?
 }
+
+// MARK: - Data exports (#227/#304/#595 — routes/exports.ts)
+
+enum DataExportStatus {
+    static let pending = "pending"
+    static let running = "running"
+    static let ready = "ready"
+    static let failed = "failed"
+}
+
+/// One file inside a finished export, with a link minted at read time.
+///
+/// The URL is signed for an hour and carries a download disposition, so it is
+/// never stored anywhere: a link in an old email cannot outlive the export it
+/// points at.
+struct DataExportFile: Codable, Sendable, Identifiable {
+    let name: String
+    let url: String
+
+    /// The name is unique within one export's prefix, which is all `ForEach`
+    /// needs and the only stable thing on the row — the URL changes every time
+    /// the list is read.
+    var id: String { name }
+}
+
+/// GET /v1/exports — one recent export.
+///
+/// WHICH exports arrive is the server's decision and is made in the query
+/// (#581/C13): a caller is sent only the kinds they may collect, so a
+/// bookkeeper's list is their usage summaries and an owner's is everything.
+/// There is deliberately no `kind` here — this client has no filtering of its
+/// own to do, and a field it did not need would invite some.
+///
+/// `row_counts` is likewise absent: it is a per-table receipt for the workspace
+/// dump and says nothing a usage summary's reader would recognise.
+struct DataExport: Codable, Sendable, Identifiable {
+    let id: String
+    let status: String
+    /// Why it did not finish, in the server's own words.
+    let error: String?
+    let requested_at: String
+    let completed_at: String?
+    let expires_at: String?
+    /// Empty unless the export is ready and its objects have not expired.
+    @Default<DefaultEmptyList<DataExportFile>> var files: [DataExportFile]
+}
+
+/// POST /v1/exports/usage (#595) — the period, as two ISO-8601 instants.
+///
+/// `from` is required by the route: an absent start would mean "since the
+/// beginning", which is a different document. `to` is Optional and OMITTED when
+/// nil — a synthesized `encode(to:)` uses `encodeIfPresent`, which is what the
+/// route's `.optional()` expects and is not the same as sending null.
+struct UsageExportBody: Codable, Sendable {
+    let from: String
+    let to: String?
+}
+
+/// What a POST to any of the export routes answers with.
+///
+/// `already_building` is the cost guard rather than an error: an export reads
+/// every row it covers and writes a copy, so the second tap is told about the
+/// first instead of quietly making another.
+struct DataExportRequested: Codable, Sendable {
+    let export_id: String
+    @Default<DefaultFalse> var already_building: Bool
+}

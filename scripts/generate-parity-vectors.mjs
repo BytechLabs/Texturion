@@ -84,6 +84,7 @@ import { isUsCaDestination, lookupAreaCode } from "../packages/shared/src/nanp.t
 import { explainRejection } from "../packages/shared/src/rejection-guidance.ts";
 import { avatarInitials } from "../packages/shared/src/avatar-initials.ts";
 import { prepaidConversionCopy } from "../packages/shared/src/prepaid-conversion-copy.ts";
+import { lastCompleteMonth } from "../packages/shared/src/usage-export.ts";
 
 const OUT_DIR = join("packages", "shared", "vectors");
 
@@ -306,6 +307,35 @@ function prepaidConversionCopyVectors() {
   }));
 }
 
+/**
+ * #595 — the period the usage export offers by default.
+ *
+ * Chosen for what three calendar implementations disagree about, not for typical
+ * months: the year boundary, a 30-day month, February in a common year, a leap
+ * year, and both century rules. Kotlin has `YearMonth.lengthOfMonth` and Swift has
+ * `Calendar.range(of:in:for:)`, so the ports will almost certainly be right — and
+ * "almost certainly" is what a vector file is for.
+ */
+const LAST_COMPLETE_MONTH_INPUTS = [
+  [2026, 8],
+  [2026, 1],
+  [2026, 5],
+  [2026, 3],
+  [2024, 3],
+  [2100, 3],
+  [2000, 3],
+  [2026, 12],
+  [2026, 10],
+];
+
+function lastCompleteMonthVectors() {
+  return LAST_COMPLETE_MONTH_INPUTS.map(([year, month]) => ({
+    year,
+    month,
+    ...lastCompleteMonth(year, month),
+  }));
+}
+
 function avatarInitialsVectors() {
   return AVATAR_INITIALS_INPUTS.map((name) => ({
     name,
@@ -319,6 +349,7 @@ const FILES = {
   "rejections.json": rejectionVectors,
   "avatar-initials.json": avatarInitialsVectors,
   "prepaid-conversion-copy.json": prepaidConversionCopyVectors,
+  "last-complete-month.json": lastCompleteMonthVectors,
 };
 
 const check = process.argv.includes("--check");

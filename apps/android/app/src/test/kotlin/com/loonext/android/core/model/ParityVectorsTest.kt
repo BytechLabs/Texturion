@@ -3,6 +3,7 @@ package com.loonext.android.core.model
 import com.loonext.android.features.compose.Nanp
 import com.loonext.android.features.compose.SmsEncoding
 import com.loonext.android.features.compose.estimateSegments
+import com.loonext.android.features.settings.lastCompleteMonth
 import com.loonext.android.features.settings.prepaidConversionCopy
 import com.loonext.android.ui.common.initialsOf
 import java.io.File
@@ -183,6 +184,42 @@ class ParityVectorsTest {
             // The label names the INPUT, so a failure says which name diverged rather
             // than which line of a JSON file.
             assertEquals("initials for '${case.name}'", case.initials, initialsOf(case.name))
+        }
+    }
+
+    @Serializable
+    private data class LastCompleteMonthVector(
+        val year: Int,
+        val month: Int,
+        val from: String,
+        val to: String,
+    )
+
+    @Test
+    fun `the default export period agrees with the TypeScript`() {
+        // #595. The period three clients OPEN ON. Drift here is not cosmetic: a
+        // bookkeeper reconciling a month gets a different file depending on
+        // which client they asked from, and the difference is a whole day at
+        // each end — exactly the kind that reconciles to nothing and gets
+        // blamed on the meter.
+        //
+        // The vectors carry the cases the rule is actually wrong in if ported
+        // carelessly: January rolling back a year, a 30-day month, February
+        // common and leap, and BOTH century rules — 2100 is not a leap year and
+        // 2000 is. A `% 4` shortcut passes every case a human would think to
+        // write by hand and fails the 2100 one here.
+        val cases =
+            json.decodeFromString<List<LastCompleteMonthVector>>(
+                vectors("last-complete-month.json"),
+            )
+        assertTrue("no last-complete-month vectors", cases.isNotEmpty())
+        for (case in cases) {
+            val actual = lastCompleteMonth(case.year, case.month)
+            // The label names the INPUT, so a failure says which month diverged
+            // rather than which line of a JSON file.
+            val label = "lastCompleteMonth(${case.year}, ${case.month})"
+            assertEquals("$label: from", case.from, actual.from)
+            assertEquals("$label: to", case.to, actual.to)
         }
     }
 

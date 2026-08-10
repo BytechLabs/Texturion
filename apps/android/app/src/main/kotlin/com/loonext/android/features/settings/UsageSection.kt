@@ -151,6 +151,11 @@ fun UsageSection(
                 }
             }
             if (isOwner) DetailsCard(usage)
+            // #595: the file behind the meters, for whoever does the books.
+            // Gates itself on `billing.manage` — the section already needs that
+            // capability to be reachable, and the card asking again is what
+            // keeps the answer in one place rather than at the call site.
+            UsageExportCard(scope)
         }
     }
 }
