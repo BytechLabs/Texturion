@@ -28,6 +28,8 @@ import SwiftUI
 struct LeadSourcesCard: View {
     let report: LeadSourceReport?
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         // Loading, or a month in which nothing happened. Silence, not a zero.
         if let report, report.total > 0 {
@@ -35,19 +37,14 @@ struct LeadSourcesCard: View {
             // the four carried their title inside the card and two above it, which
             // read as two different species of panel in one list.
             VStack(alignment: .leading, spacing: 0) {
-            MeasureHeader("Where your customers come from")
+            MeasureHeader(AppStrings.translate(appLocale, "inbox.leadSourcesTitle"))
             PaperCard {
                 VStack(alignment: .leading, spacing: 0) {
 
                     if report.sources.isEmpty {
                         // Sources exist as a feature and this workspace has
                         // set none up, so every conversation is unknown.
-                        Text(
-                            "You haven't told us yet. Put a source on the numbers you "
-                                + "advertise — the one on the truck, the one in the ad — and "
-                                + "every call and text to them is counted from then on, with "
-                                + "nobody tapping anything."
-                        )
+                        Text(AppStrings.translate(appLocale, "inbox.leadSourcesNoneSetUp"))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .padding(.top, 6)
@@ -80,7 +77,7 @@ struct LeadSourcesCard: View {
             }
             if report.unknown > 0 {
                 LeadSourceRow(
-                    name: "Don't know",
+                    name: AppStrings.translate(appLocale, "inbox.leadSourcesUnknown"),
                     total: report.unknown,
                     max: max,
                     muted: true
@@ -89,9 +86,16 @@ struct LeadSourcesCard: View {
         }
         .padding(.top, 10)
 
+        // One sentence per number rather than an "s" glued on: French pluralises
+        // the noun AND its article, which a suffix cannot reach.
         Text(
-            "Last 30 days · \(report.total) conversation"
-                + (report.total == 1 ? "" : "s")
+            AppStrings.translate(
+                appLocale,
+                report.total == 1
+                    ? "inbox.leadSourcesFooterOne"
+                    : "inbox.leadSourcesFooterMany",
+                ["count": String(report.total)]
+            )
         )
         .font(.footnote)
         .foregroundStyle(.secondary)

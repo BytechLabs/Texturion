@@ -73,12 +73,19 @@ struct PipelineCard: View {
     /// Nil while it loads. The card says nothing rather than showing zeroes.
     let report: PipelineReportResponse?
 
+    @Environment(\.appLocale) private var appLocale
+
     private var headline: String {
         guard let report else { return "" }
         if let insight = report.insight { return insight }
         let quoted: Int = report.current.quoted
-        let noun: String = quoted == 1 ? "quote" : "quotes"
-        return "\(quoted) \(noun) sent. Too early to call a win rate."
+        // One sentence per number, not a noun spliced into a shared frame: a
+        // language whose plural changes more than the noun cannot be served by
+        // swapping one word.
+        let key: String = quoted == 1
+            ? "inbox.pipelineTooEarlyOne"
+            : "inbox.pipelineTooEarlyMany"
+        return AppStrings.translate(appLocale, key, ["count": String(quoted)])
     }
 
     /// How the rate moved, or nil when there is nothing to compare against.
@@ -96,7 +103,11 @@ struct PipelineCard: View {
     private var deltaLabel: String {
         guard let delta else { return "" }
         let sign: String = delta > 0 ? "+" : ""
-        return "\(sign)\(delta) pts"
+        return AppStrings.translate(
+            appLocale,
+            "inbox.pipelineDeltaPoints",
+            ["delta": "\(sign)\(delta)"]
+        )
     }
 
     var body: some View {
@@ -104,8 +115,8 @@ struct PipelineCard: View {
             // #540: the same heading treatment as the other three measures — see
             // Theme/Measures.swift for why the four have to agree.
             VStack(alignment: .leading, spacing: 0) {
-            MeasureHeader("Quotes") {
-                Text("last 30 days")
+            MeasureHeader(AppStrings.translate(appLocale, "inbox.pipelineTitle")) {
+                Text(AppStrings.translate(appLocale, "inbox.pipelineWindow"))
                     .font(.golos(10.5))
                     .foregroundStyle(BrandColor.muted500)
             }
@@ -133,9 +144,18 @@ struct PipelineCard: View {
                         }
                     }
                     HStack(alignment: .top, spacing: 16) {
-                        pipelineFigure("Quoted", report.current.quoted)
-                        pipelineFigure("Won", report.current.won)
-                        pipelineFigure("Still out", report.current.open)
+                        pipelineFigure(
+                            AppStrings.translate(appLocale, "inbox.pipelineQuoted"),
+                            report.current.quoted
+                        )
+                        pipelineFigure(
+                            AppStrings.translate(appLocale, "inbox.pipelineWon"),
+                            report.current.won
+                        )
+                        pipelineFigure(
+                            AppStrings.translate(appLocale, "inbox.pipelineStillOut"),
+                            report.current.open
+                        )
                     }
                     // #540: what the month is MADE of, under the three figures it
                     // describes. A ring was the wrong shape — it would force won,
@@ -147,20 +167,30 @@ struct PipelineCard: View {
                     ShareBar(
                         segments: [
                             ShareSegment(
-                                label: "Won",
+                                label: AppStrings.translate(
+                                    appLocale, "inbox.pipelineWon"
+                                ),
                                 value: Double(report.current.won),
                                 color: BrandColor.olive
                             ),
                             ShareSegment(
-                                label: "Still out",
+                                label: AppStrings.translate(
+                                    appLocale, "inbox.pipelineStillOut"
+                                ),
                                 value: Double(report.current.open),
                                 color: BrandColor.olive.opacity(0.45)
                             ),
                         ],
                         total: Double(report.current.quoted),
-                        label: "Of \(report.current.quoted) quoted, "
-                            + "\(report.current.won) won and "
-                            + "\(report.current.open) still out"
+                        label: AppStrings.translate(
+                            appLocale,
+                            "inbox.pipelineShareAria",
+                            [
+                                "quoted": String(report.current.quoted),
+                                "won": String(report.current.won),
+                                "open": String(report.current.open),
+                            ]
+                        )
                     )
                 }
                 .padding(16)

@@ -61,11 +61,18 @@ struct ResponseTimeCard: View {
     let onOpenUnanswered: () -> Void
 
     @State private var open = false
+    /// #228. The sentences this card still writes out are the ones
+    /// `apps/web/src/components/for-you/response-time-parity.test.ts` reads OUT
+    /// OF THIS FILE — for iOS it compares against the source, not the catalogue,
+    /// the way it already does for web and Android. Moving them would make that
+    /// guard fail rather than make a French reader happier, so they stay here
+    /// until it is re-pointed at `Core/I18n/InboxStrings.swift`.
+    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("RESPONSE TIME")
+                Text(AppStrings.translate(appLocale, "inbox.responseTimeTitle"))
                     .font(.golos(10.5, weight: .bold))
                     .kerning(1.2)
                     .foregroundStyle(BrandColor.muted500)
@@ -99,8 +106,11 @@ struct ResponseTimeCard: View {
                         // response time, and "0 sec" would read as instant
                         // service.
                         Text(
-                            "No new customers texted you in the last \(days) days, "
-                                + "so there is nothing to measure yet."
+                            AppStrings.translate(
+                                appLocale,
+                                "inbox.responseNoLeads",
+                                ["days": String(days)]
+                            )
                         )
                         .font(.golos(13))
                         .foregroundStyle(BrandColor.muted600)
@@ -109,7 +119,7 @@ struct ResponseTimeCard: View {
                         content(for: report)
                     }
                 } else {
-                    Text("Working out your response time…")
+                    Text(AppStrings.translate(appLocale, "inbox.responseLoading"))
                         .font(.golos(13))
                         .foregroundStyle(BrandColor.muted600)
                         .padding(14)
@@ -132,7 +142,14 @@ struct ResponseTimeCard: View {
                     ProportionRing(
                         value: Double(report.answered),
                         total: Double(report.leads),
-                        label: "\(report.answered) of \(report.leads) new customers answered",
+                        label: AppStrings.translate(
+                            appLocale,
+                            "inbox.responseRingAria",
+                            [
+                                "answered": String(report.answered),
+                                "leads": String(report.leads),
+                            ]
+                        ),
                         color: BrandColor.olive,
                         size: 20
                     )
@@ -192,7 +209,9 @@ struct ResponseTimeCard: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityHint("Opens the inbox filtered to conversations nobody has answered")
+            .accessibilityHint(
+                AppStrings.translate(appLocale, "inbox.responseUnansweredHint")
+            )
         }
 
         Divider().overlay(BrandColor.muted250)
@@ -244,9 +263,14 @@ struct ResponseTimeCard: View {
                     // Said out loud. A cap that reports nothing reads as "we
                     // looked at everything".
                     Text(
-                        "The hours split covers your most recent "
-                            + "\(report.split_row_limit) leads; the numbers above it "
-                            + "cover all \(report.leads)."
+                        AppStrings.translate(
+                            appLocale,
+                            "inbox.responseSplitTruncated",
+                            [
+                                "limit": String(report.split_row_limit),
+                                "total": String(report.leads),
+                            ]
+                        )
                     )
                     .font(.golos(10.5))
                     .foregroundStyle(BrandColor.muted500)

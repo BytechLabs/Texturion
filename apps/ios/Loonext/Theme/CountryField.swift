@@ -17,17 +17,29 @@ import SwiftUI
 @MainActor
 struct CountryField: View {
     @Binding var value: String
-    var placeholder: String = "Country"
+    /// #228: EMPTY means "the shared word for this field, in the reader's
+    /// language". A default argument is evaluated at the call site and cannot
+    /// reach the environment, so the sentinel is what lets the ordinary case
+    /// stay translated while a call site that wants different words still says
+    /// so. Nothing in the app passes one today.
+    var placeholder: String = ""
     var onSelect: (@MainActor () -> Void)? = nil
 
     @State private var picking = false
+    @Environment(\.appLocale) private var appLocale
+
+    private var placeholderText: String {
+        placeholder.isEmpty
+            ? AppStrings.translate(appLocale, "shell.country")
+            : placeholder
+    }
 
     var body: some View {
         Button {
             picking = true
         } label: {
             HStack(spacing: 8) {
-                Text(value.isEmpty ? placeholder : value)
+                Text(value.isEmpty ? placeholderText : value)
                     .font(.golos(13))
                     .foregroundStyle(value.isEmpty ? BrandColor.muted500 : BrandColor.ink)
                     .lineLimit(1)
@@ -46,8 +58,12 @@ struct CountryField: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Country")
-        .accessibilityValue(value.isEmpty ? "Not set" : value)
+        .accessibilityLabel(AppStrings.translate(appLocale, "shell.country"))
+        .accessibilityValue(
+            value.isEmpty
+                ? AppStrings.translate(appLocale, "shell.countryNotSet")
+                : value
+        )
         .sheet(isPresented: $picking) {
             CountryPickerSheet(current: value) { picked in
                 value = picked
@@ -66,6 +82,7 @@ private struct CountryPickerSheet: View {
 
     @State private var query = ""
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLocale) private var appLocale
 
     private var trimmedQuery: String {
         query.trimmingCharacters(in: .whitespaces)
@@ -103,9 +120,15 @@ private struct CountryPickerSheet: View {
                     countryRow(off, checked: true)
                 }
                 if filtered.isEmpty && offListCurrent == nil {
-                    Text("No countries match \"\(trimmedQuery)\".")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                    Text(
+                        AppStrings.translate(
+                            appLocale,
+                            "shell.countryNoMatch",
+                            ["query": trimmedQuery]
+                        )
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
                 } else {
                     ForEach(filtered, id: \.self) { name in
                         countryRow(name, checked: isCurrent(name))
@@ -116,13 +139,13 @@ private struct CountryPickerSheet: View {
             .searchable(
                 text: $query,
                 placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "Search countries"
+                prompt: Text(AppStrings.translate(appLocale, "shell.countrySearch"))
             )
-            .navigationTitle("Country")
+            .navigationTitle(AppStrings.translate(appLocale, "shell.country"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(AppStrings.translate(appLocale, "common.cancel")) { dismiss() }
                 }
             }
         }

@@ -2,11 +2,23 @@ import SwiftUI
 import AVFoundation
 
 private enum CallsFilter: String, CaseIterable, Identifiable {
+    // The raw values stay ENGLISH and stay identity: they are the `.task(id:)`
+    // key and the `Identifiable` id, so translating them would make switching
+    // language look like switching filter.
     case all = "All"
     case missed = "Missed"
     case voicemail = "Voicemail"
 
     var id: String { rawValue }
+
+    /// What the pill says, which is a different question from what it is.
+    var labelKey: String {
+        switch self {
+        case .all: "contactsTasks.filterAll"
+        case .missed: "contactsTasks.filterMissed"
+        case .voicemail: "contactsTasks.filterVoicemail"
+        }
+    }
 
     var outcome: String? {
         switch self {
@@ -48,6 +60,10 @@ struct CallsView: View {
     /// anchor is dropped on iOS 15/16 and flaky on 17.x — "Add contact" would
     /// do nothing / need a second tap).
     @State private var activeSheet: CallsSheet?
+
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String { AppStrings.translate(appLocale, key) }
 
     init(
         graph: AppGraph,
@@ -210,7 +226,7 @@ struct CallsView: View {
         HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline, spacing: 9) {
-                    ScreenTitle(text: "Calls")
+                    ScreenTitle(text: t("contactsTasks.callsTitle"))
                     SoftphoneStatusPill(
                         status: manager.state.status,
                         onRetry: manager.retryNow
@@ -218,7 +234,7 @@ struct CallsView: View {
                 }
                 // Honest until the founder uploads a Telnyx VoIP push
                 // credential — without it, nothing rings a closed app.
-                Text("Calls ring here while the app is open.")
+                Text(t("contactsTasks.callsRingWhileOpen"))
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted500)
             }
@@ -233,7 +249,7 @@ struct CallsView: View {
                     .background(BrandColor.paper, in: Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Dial a number")
+            .accessibilityLabel(t("contactsTasks.dialANumber"))
         }
         .padding(.horizontal, 18)
         .padding(.top, 16)
@@ -247,7 +263,7 @@ struct CallsView: View {
                 Button {
                     filter = item
                 } label: {
-                    Text(item.rawValue)
+                    Text(t(item.labelKey))
                         .font(.golos(12, weight: selected ? .semibold : .medium))
                         .foregroundStyle(
                             selected ? BrandColor.muted900 : BrandColor.muted500
@@ -267,9 +283,9 @@ struct CallsView: View {
 
     private var emptyCopy: String {
         switch filter {
-        case .missed: "No missed calls."
-        case .voicemail: "No voicemails yet."
-        case .all: "No calls yet. When customers call your number, they land here."
+        case .missed: t("contactsTasks.noMissedCalls")
+        case .voicemail: t("contactsTasks.noVoicemailsYet")
+        case .all: t("contactsTasks.noCallsYetLog")
         }
     }
 
@@ -326,7 +342,7 @@ struct CallsView: View {
                             if loadingMore {
                                 ProgressView()
                             } else {
-                                Button("Load more") { loadMore() }
+                                Button(t("contactsTasks.loadMore")) { loadMore() }
                                     .font(.golos(12, weight: .semibold))
                                     .foregroundStyle(BrandColor.olive)
                             }
@@ -403,11 +419,13 @@ private struct SoftphoneStatusPill: View {
     let status: SoftphoneStatus
     let onRetry: @MainActor () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     private var label: String {
         switch status {
-        case .ready: "Ready to ring"
-        case .connecting: "Connecting…"
-        case .disconnected: "Offline · retry"
+        case .ready: AppStrings.translate(appLocale, "contactsTasks.readyToRing")
+        case .connecting: AppStrings.translate(appLocale, "contactsTasks.connecting")
+        case .disconnected: AppStrings.translate(appLocale, "contactsTasks.offlineRetry")
         }
     }
 
@@ -453,9 +471,14 @@ private struct OngoingCallsCard: View {
     let numbers: [PhoneNumberSummary]
     let openConversation: (String) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(label: "Ongoing", count: calls.count > 1 ? calls.count : nil)
+            SectionHeader(
+                label: AppStrings.translate(appLocale, "contactsTasks.ongoing"),
+                count: calls.count > 1 ? calls.count : nil
+            )
             PaperCard {
                 ForEach(calls, id: \.id) { call in
                     OngoingCallRow(
@@ -705,6 +728,8 @@ private struct VoicemailPlayerRow: View {
     @State private var scrubbing = false
     @State private var errorText: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     init(
         service: CallsService,
         companyId: String,
@@ -739,7 +764,11 @@ private struct VoicemailPlayerRow: View {
                     .background(BrandColor.ink, in: Circle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(playing ? "Pause voicemail" : "Play voicemail")
+                .accessibilityLabel(
+                    playing
+                        ? AppStrings.translate(appLocale, "contactsTasks.pauseVoicemail")
+                        : AppStrings.translate(appLocale, "contactsTasks.playVoicemail")
+                )
 
                 Slider(
                     value: Binding(
@@ -788,7 +817,9 @@ private struct VoicemailPlayerRow: View {
                         let total = item.duration.seconds
                         if total.isFinite && total > 0 { durationMs = Int(total * 1000) }
                         if item.error != nil {
-                            errorText = "Couldn't play this voicemail."
+                            errorText = AppStrings.translate(
+                                appLocale, "contactsTasks.voicemailPlayFailed"
+                            )
                             playing = false
                         }
                     }
@@ -840,7 +871,9 @@ private struct VoicemailPlayerRow: View {
                     sessionId: sessionId
                 )
                 guard let url = URL(string: playback.url) else {
-                    errorText = "Couldn't play this voicemail."
+                    errorText = AppStrings.translate(
+                        appLocale, "contactsTasks.voicemailPlayFailed"
+                    )
                     return
                 }
                 if !transcriptShown, let words = playback.transcript, !words.isBlank {

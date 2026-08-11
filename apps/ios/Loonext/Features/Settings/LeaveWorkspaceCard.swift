@@ -18,42 +18,43 @@ struct LeaveWorkspaceCard: View {
     let company: CompanyView
     let onLeft: @MainActor () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     @State private var confirming = false
     @State private var leaving = false
     @State private var error: String?
 
     var body: some View {
         SettingsCard(
-            title: "Leave this workspace",
-            description: "End your own access to this workspace. You can do this yourself — "
-                + "you don't need to ask an owner."
+            title: t("settings.leaveTitle"),
+            description: t("settings.leaveIntro")
         ) {
-            ReadOnlyLine("Your access ends straight away, on every device you're signed in on.")
-            ReadOnlyLine(
-                "Anything you were working on goes back to the team, so nothing is left "
-                    + "pointing at someone who has gone."
-            )
-            ReadOnlyLine(
-                "Messages you sent stay on the record under your name. Leaving doesn't "
-                    + "erase your work, and isn't meant to."
-            )
-            ReadOnlyLine("To come back, someone in the workspace has to invite you again.")
+            ReadOnlyLine(t("settings.leaveAccessEnds"))
+            ReadOnlyLine(t("settings.leaveWorkReturns"))
+            ReadOnlyLine(t("settings.leaveHistoryStays"))
+            ReadOnlyLine(t("settings.leaveComeBack"))
             InlineError(error)
             Spacer().frame(height: 10)
-            Button("Leave workspace") { confirming = true }
+            Button(t("settings.leaveAction")) { confirming = true }
                 .buttonStyle(.bordered)
                 .disabled(leaving)
         }
-        .alert("Leave \(company.name)?", isPresented: $confirming) {
-            Button("Stay", role: .cancel) {}
-            Button(leaving ? "Leaving…" : "Leave workspace") { leave() }
+        .alert(
+            AppStrings.translate(
+                appLocale, "settings.leaveConfirmTitle", ["workspace": company.name]
+            ),
+            isPresented: $confirming
+        ) {
+            Button(t("settings.leaveStay"), role: .cancel) {}
+            Button(leaving ? t("settings.leavePending") : t("settings.leaveAction")) { leave() }
                 .disabled(leaving)
         } message: {
-            Text(
-                "Your access ends now and your open work goes back to the team. "
-                    + "To come back, someone will need to invite you again."
-            )
+            Text(t("settings.leaveConfirmBody"))
         }
+    }
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
     }
 
     private func leave() {

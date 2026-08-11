@@ -40,8 +40,14 @@ struct ContactFieldsCard: View {
     @State private var cap = ContactFields.cap
     @State private var saving = false
 
+    @Environment(\.appLocale) private var appLocale
+
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
     private var dirty: Bool { draft != saved }
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
 
     var body: some View {
         SettingsCard(
@@ -49,7 +55,7 @@ struct ContactFieldsCard: View {
             description: ContactFields.Copy.intro
         ) {
             if !loaded {
-                Text("Loading…")
+                Text(t("settings.contactFieldsLoading"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
@@ -62,12 +68,9 @@ struct ContactFieldsCard: View {
     @ViewBuilder
     private var fields: some View {
         if draft.isEmpty {
-            Text(
-                "You have not added any yet. Your contacts show the standard "
-                    + "fields — name, phone, email, address and notes."
-            )
-            .font(.footnote)
-            .foregroundStyle(.secondary)
+            Text(t("settings.contactFieldsEmpty"))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         }
 
         ForEach(Array(draft.enumerated()), id: \.offset) { index, field in
@@ -87,7 +90,7 @@ struct ContactFieldsCard: View {
 
         if canEdit, draft.count < cap {
             Spacer().frame(height: 8)
-            Button("Add a field") {
+            Button(t("settings.contactFieldsAdd")) {
                 // Smart Defaults: a row arrives as Text with an empty name,
                 // which is the commonest field and one decision fewer.
                 draft.append(ContactFieldDef(kind: "text"))
@@ -119,10 +122,10 @@ struct ContactFieldsCard: View {
             }
             Spacer().frame(height: 10)
             HStack(spacing: 8) {
-                Button("Save fields") { Task { await commit() } }
+                Button(t("settings.contactFieldsSave")) { Task { await commit() } }
                     .buttonStyle(.borderedProminent)
                     .disabled(saving)
-                Button("Discard") {
+                Button(t("settings.contactFieldsDiscard")) {
                     draft = saved
                     freshKeys = []
                 }
@@ -147,7 +150,7 @@ struct ContactFieldsCard: View {
         if draft.contains(where: {
             $0.key.isEmpty || $0.label.trimmingCharacters(in: .whitespaces).isEmpty
         }) {
-            scope.showMessage("Give every field a name first.")
+            scope.showMessage(t("settings.contactFieldsNeedName"))
             return
         }
         saving = true
@@ -162,8 +165,8 @@ struct ContactFieldsCard: View {
             freshKeys = []
             scope.showMessage(
                 result.data.isEmpty
-                    ? "Saved. Your contacts are back to the standard fields."
-                    : "Saved. These show on every customer."
+                    ? t("settings.contactFieldsSavedEmpty")
+                    : t("settings.contactFieldsSaved")
             )
         } catch {
             scope.showMessage(error.userMessage)
@@ -179,10 +182,16 @@ private struct ContactFieldRow: View {
     let onChange: (ContactFieldDef) -> Void
     let onRemove: () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                TextField("Boiler model", text: Binding(
+                TextField(t("settings.contactFieldsNamePlaceholder"), text: Binding(
                     get: { field.label },
                     set: { next in
                         var updated = field
@@ -197,9 +206,9 @@ private struct ContactFieldRow: View {
                 ))
                 .textFieldStyle(.roundedBorder)
                 .disabled(!canEdit)
-                .accessibilityLabel("Field name")
+                .accessibilityLabel(t("settings.contactFieldsNameLabel"))
 
-                Picker("Type", selection: Binding(
+                Picker(t("settings.contactFieldsTypeLabel"), selection: Binding(
                     get: { field.kind },
                     set: { kind in
                         var updated = field
@@ -219,7 +228,7 @@ private struct ContactFieldRow: View {
                 .disabled(!canEdit || !isNew)
 
                 if canEdit {
-                    Button("Remove", action: onRemove)
+                    Button(t("settings.contactFieldsRemove"), action: onRemove)
                         .buttonStyle(.plain)
                         .foregroundStyle(BrandColor.muted600)
                 }
@@ -227,7 +236,7 @@ private struct ContactFieldRow: View {
 
             // The choices editor, for the one type that has any.
             if field.kind == "select" {
-                TextField("Combi\nSystem\nHeat only", text: Binding(
+                TextField(t("settings.contactFieldsChoicesPlaceholder"), text: Binding(
                     get: { (field.options ?? []).joined(separator: "\n") },
                     set: { text in
                         var updated = field
@@ -243,17 +252,19 @@ private struct ContactFieldRow: View {
                 .lineLimit(3...6)
                 .textFieldStyle(.roundedBorder)
                 .disabled(!canEdit)
-                .accessibilityLabel("The choices, one per line")
+                .accessibilityLabel(t("settings.contactFieldsChoices"))
             }
 
             if !field.key.isEmpty {
                 // The key matters because it is the column head in an export,
                 // and because a saved field's key is frozen.
-                Text(
+                Text(AppStrings.translate(
+                    appLocale,
                     isNew
-                        ? "Exports as \(field.key)"
-                        : "Exports as \(field.key) · the name can change, the type cannot"
-                )
+                        ? "settings.contactFieldsExportsAs"
+                        : "settings.contactFieldsExportsAsFrozen",
+                    ["key": field.key]
+                ))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }

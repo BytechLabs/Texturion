@@ -215,6 +215,11 @@ struct HelpSectionView: View {
     let company: CompanyView
 
     @Environment(\.openURL) private var openURL
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
 
     private var appVersion: String? {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
@@ -237,11 +242,12 @@ struct HelpSectionView: View {
 
     var body: some View {
         SettingsCard(
-            title: "Email us",
-            description: "Opens Mail with your workspace details already filled in, "
-                + "so we can look it up without asking you first."
+            title: t("settings.helpEmailTitle"),
+            description: t("settings.helpEmailIntro")
         ) {
-            Button("Email \(supportEmail)") {
+            Button(AppStrings.translate(
+                appLocale, "settings.helpEmailAction", ["email": supportEmail]
+            )) {
                 if let url = supportMailto(
                     companyId: scope.companyId,
                     companyName: company.name,
@@ -256,16 +262,14 @@ struct HelpSectionView: View {
             .tint(BrandColor.olive)
 
             Spacer().frame(height: 10)
-            ReadOnlyLine(
-                "Say what you expected and what happened instead. If it's about a "
-                    + "specific text or call, the customer's number and roughly when "
-                    + "it happened is usually all we need."
-            )
+            ReadOnlyLine(t("settings.helpWhatToSay"))
         }
 
         SettingsCard(
-            title: "If that button doesn't open anything",
-            description: "Write to \(supportEmail) from any email app and paste this in."
+            title: t("settings.helpNoMailAppTitle"),
+            description: AppStrings.translate(
+                appLocale, "settings.helpNoMailAppIntro", ["email": supportEmail]
+            )
         ) {
             ReadOnlyLine(body_.trimmingCharacters(in: .whitespacesAndNewlines))
         }
@@ -274,11 +278,10 @@ struct HelpSectionView: View {
         // requests from a working contractor are the highest-signal product
         // input available to us, and there was no way for one to arrive.
         SettingsCard(
-            title: "Got an idea?",
-            description: "Something we don't do yet, or do in a way that doesn't fit "
-                + "how you work."
+            title: t("settings.helpIdeaTitle"),
+            description: t("settings.helpIdeaIntro")
         ) {
-            Button("Send an idea") {
+            Button(t("settings.helpIdeaAction")) {
                 if let url = feedbackMailto(
                     companyId: scope.companyId,
                     companyName: company.name,
@@ -293,18 +296,14 @@ struct HelpSectionView: View {
             .tint(BrandColor.olive)
 
             Spacer().frame(height: 10)
-            ReadOnlyLine(
-                "This goes to the same place, under its own subject so it doesn't get "
-                    + "triaged as a fault. Half of what's in the product came from "
-                    + "someone describing their day."
-            )
+            ReadOnlyLine(t("settings.helpIdeaNote"))
         }
 
         // #253 — the answers already exist, in banners you have to hit and
         // legal pages you have to leave the app to find. The gap was the index.
         SettingsCard(
-            title: "Common questions",
-            description: "The things that confuse people most, answered straight."
+            title: t("settings.helpFaqTitle"),
+            description: t("settings.helpFaqIntro")
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(supportTopics) { topic in
@@ -319,8 +318,8 @@ struct HelpSectionView: View {
         }
 
         SettingsCard(
-            title: "What to expect",
-            description: "An honest answer rather than a promise we'd have to break."
+            title: t("settings.helpExpectTitle"),
+            description: t("settings.helpExpectIntro")
         ) {
             ReadOnlyLine(
                 // #253 acceptance 4: a stated commitment, from ONE mirrored

@@ -54,6 +54,25 @@ const SOURCES: Record<string, string> = {
 /** The source with its comments removed. See the header. */
 const code = parityCode;
 
+/**
+ * #228: iOS reads its labels from the catalogue now, so the screen alone no
+ * longer contains the sentences this guard pins. Web moved first (that is what
+ * `WEB_WORDS` is), Android has not.
+ *
+ * Screen AND catalogue rather than catalogue alone: what is being asked is
+ * whether a person reads the same words on three clients, and dropping the
+ * screen would stop noticing a view that renders something else entirely.
+ */
+const IOS_CATALOGUE = join(
+  REPO_ROOT,
+  "apps/ios/Loonext/Core/I18n/ContactsTasksStrings.swift",
+);
+
+/** A client's words: its screen, plus the catalogue it reaches into. */
+function words(platform: string, path: string): string {
+  return platform === "ios" ? code(path) + " " + code(IOS_CATALOGUE) : code(path);
+}
+
 /** Said on every client, verbatim. */
 const SENTENCES: readonly string[] = [
   "Add another number",
@@ -73,7 +92,7 @@ describe("#291 the other-numbers list reads the same everywhere", () => {
   it("carries every sentence on every client, verbatim", () => {
     const missing: string[] = [];
     for (const [platform, path] of Object.entries(SOURCES)) {
-      const text = platform === "web" ? WEB_WORDS : code(path);
+      const text = platform === "web" ? WEB_WORDS : words(platform, path);
       for (const sentence of SENTENCES) {
         if (!text.includes(sentence)) missing.push(`${platform}: ${sentence}`);
       }
@@ -100,12 +119,26 @@ describe("#291 the other-numbers list reads the same everywhere", () => {
     expect(code(SOURCES.web), "web: remove names the number").toMatch(
       /contacts\.phoneRemove"[\s,{]*number:\s*entry\.phone_e164/,
     );
-    for (const platform of ["android", "ios"] as const) {
-      expect(
-        code(SOURCES[platform]),
-        `${platform}: remove names the number`,
-      ).toMatch(/Remove \$?\{?entry\.phone_e164\}?|Remove \\\(entry\.phone_e164\)/);
-    }
+    // #228: iOS moved to the same shape web uses, so it takes both halves for
+    // the same reason — the catalogue sentence has the slot, and the screen
+    // fills it with the row's own number. Asserting only the label would pass
+    // for a screen that renders "Remove {number}" literally, which is worse
+    // than a bare "Remove" because it looks like a bug rather than reading as
+    // one control among many.
+    expect(
+      code(IOS_CATALOGUE),
+      "ios: the label has a slot",
+    ).toContain("Remove {number}");
+    expect(
+      code(SOURCES.ios),
+      "ios: remove names the number",
+    ).toMatch(/contactsTasks\.phoneRemove"[\s,\][]*\["number":\s*entry\.phone_e164/);
+
+    // Android still spells it inline.
+    expect(
+      words("android", SOURCES.android),
+      "android: remove names the number",
+    ).toMatch(/Remove \$?\{?entry\.phone_e164\}?/);
   });
 
   /**

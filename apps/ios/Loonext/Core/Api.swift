@@ -47,6 +47,19 @@ struct MeApi: Sendable {
         )
     }
 
+    /// #228: the language THIS member reads the app in.
+    ///
+    /// `nil` is sent as a JSON null rather than omitted, and the difference is
+    /// the whole feature: the route treats an absent key as "leave it alone"
+    /// and an explicit null as "ask the device, then the workspace". Omitting it
+    /// would make "Same as my phone" a control that does nothing.
+    func updateLocale(_ locale: String?) async throws {
+        let _: JSONValue = try await api.patch(
+            "/v1/me",
+            body: JSONValue.object(["locale": locale.map(JSONValue.string) ?? JSONValue.null])
+        )
+    }
+
     /// #540: which dashboard panels this member has put away.
     ///
     /// PUT because the body IS the whole set. A member switching two panels off is

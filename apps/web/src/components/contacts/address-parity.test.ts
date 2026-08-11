@@ -46,6 +46,31 @@ const SOURCES: Record<string, string> = {
   ios: join(REPO_ROOT, "apps/ios/Loonext/Features/Contacts/AddressList.swift"),
 };
 
+/**
+ * #228: where a client's WORDS live, when they left the screen.
+ *
+ * Web's moved first, which is why `WEB_WORDS` above is built from the catalogue
+ * import rather than read off disk. iOS followed, and split — some labels went
+ * to the catalogue and some literals stayed in the view, so its words are the
+ * two files together. Android still holds its own.
+ *
+ * Read alongside the screen rather than instead of it: reading only the
+ * catalogue would stop noticing if the view quietly rendered something else,
+ * which is the question this guard is actually asking.
+ */
+const CATALOGUES: Partial<Record<keyof typeof SOURCES, string>> = {
+  ios: join(REPO_ROOT, "apps/ios/Loonext/Core/I18n/ContactsTasksStrings.swift"),
+};
+
+/** The screen, plus the catalogue it now reaches for its labels. */
+function wordsOf(platform: string, path: string): string {
+  const catalogue = CATALOGUES[platform as keyof typeof SOURCES];
+  return (
+    readFileSync(path, "utf8") +
+    (catalogue ? " " + readFileSync(catalogue, "utf8") : "")
+  );
+}
+
 const FRAGMENTS: readonly string[] = [
   "Where the van goes",
   "Make it the main one",
@@ -65,7 +90,7 @@ describe("#291 the address list reads the same everywhere", () => {
     const missing: string[] = [];
     for (const [platform, path] of Object.entries(SOURCES)) {
       const text =
-        platform === "web" ? WEB_WORDS : readFileSync(path, "utf8");
+        platform === "web" ? WEB_WORDS : wordsOf(platform, path);
       for (const fragment of FRAGMENTS) {
         if (!text.includes(fragment)) missing.push(`${platform}: ${fragment}`);
       }
@@ -82,7 +107,7 @@ describe("#291 the address list reads the same everywhere", () => {
     // ordering means something. Every client has to say it.
     for (const [platform, path] of Object.entries(SOURCES)) {
       const source = readFileSync(path, "utf8");
-      const words = platform === "web" ? WEB_WORDS : source;
+      const words = platform === "web" ? WEB_WORDS : wordsOf(platform, path);
       expect(words, platform).toContain("Where the van goes");
       // And it is conditional on the flag, not printed on every row. Always
       // read from the SOURCE — this half is about the branch, not the words.

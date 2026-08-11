@@ -28,6 +28,8 @@ struct AddressList: View {
     @State private var draftLabel = ""
     @State private var draftAddress = ""
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(addresses) { entry in
@@ -39,11 +41,13 @@ struct AddressList: View {
                         .font(.golos(13))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if entry.is_primary {
-                        Text(addressPrimaryLabel)
+                        Text(AppStrings.translate(appLocale, "contactsTasks.addressPrimary"))
                             .font(.golos(11, weight: .semibold))
                             .foregroundStyle(BrandColor.olive)
                     } else {
-                        Button(addressPromoteLabel) { onMakePrimary(entry.id) }
+                        Button(
+                            AppStrings.translate(appLocale, "contactsTasks.addressMakePrimary")
+                        ) { onMakePrimary(entry.id) }
                             .font(.golos(11))
                             .buttonStyle(.plain)
                             .foregroundStyle(BrandColor.muted600)
@@ -56,7 +60,13 @@ struct AddressList: View {
                             .foregroundStyle(BrandColor.muted500)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Remove \(entry.address)")
+                    .accessibilityLabel(
+                        AppStrings.translate(
+                            appLocale,
+                            "contactsTasks.addressRemove",
+                            ["address": entry.address]
+                        )
+                    )
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
@@ -65,14 +75,20 @@ struct AddressList: View {
             }
 
             if adding {
-                TextField("Unit 4, Billing, the rooftop…", text: $draftLabel)
+                TextField(
+                    AppStrings.translate(appLocale, "contactsTasks.addressLabelPlaceholder"),
+                    text: $draftLabel
+                )
                     .textFieldStyle(.roundedBorder)
                     .font(.golos(13))
-                TextField("Where the job is", text: $draftAddress)
+                TextField(
+                    AppStrings.translate(appLocale, "contactsTasks.addressPlaceholder"),
+                    text: $draftAddress
+                )
                     .textFieldStyle(.roundedBorder)
                     .font(.golos(13))
                 HStack(spacing: 8) {
-                    Button("Add") {
+                    Button(AppStrings.translate(appLocale, "contactsTasks.add")) {
                         let address = draftAddress.trimmingCharacters(
                             in: .whitespacesAndNewlines
                         )
@@ -90,7 +106,7 @@ struct AddressList: View {
                         draftAddress.trimmingCharacters(in: .whitespacesAndNewlines)
                             .isEmpty
                     )
-                    Button("Cancel") {
+                    Button(AppStrings.translate(appLocale, "common.cancel")) {
                         adding = false
                         draftLabel = ""
                         draftAddress = ""
@@ -105,7 +121,7 @@ struct AddressList: View {
                     HStack(spacing: 4) {
                         Image(systemName: "plus")
                             .font(.scaled(11, weight: .medium))
-                        Text(addressAddLabel)
+                        Text(AppStrings.translate(appLocale, "contactsTasks.addressAddAnother"))
                             .font(.golos(13))
                     }
                     .foregroundStyle(BrandColor.muted600)
@@ -122,9 +138,7 @@ struct AddressList: View {
     }
 }
 
-/// #291: the primary one is named, not merely first.
-let addressPrimaryLabel = "Where the van goes"
-
-let addressPromoteLabel = "Make it the main one"
-
-let addressAddLabel = "Add another address"
+// #291: the primary one is named, not merely first — `contactsTasks.addressPrimary`
+// in the catalogue, beside `addressMakePrimary` and `addressAddAnother`. The three
+// module-level `let`s that used to hold these sentences are gone: nothing outside
+// this file read them, and a constant is a place a translator cannot reach.

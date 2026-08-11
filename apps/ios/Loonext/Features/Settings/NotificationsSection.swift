@@ -27,6 +27,8 @@ struct NotificationsSectionView: View {
     let company: CompanyView
     let onCompanyUpdated: @MainActor (CompanyView) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         // #386. ABOVE the toggles, because it contradicts the one directly
         // below it: an Email switch reading ON while every message bounces is
@@ -61,10 +63,7 @@ struct NotificationsSectionView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
 
-        Text(
-            "Billing, usage, and registration emails always go to owners and admins — "
-                + "they can't be turned off."
-        )
+        Text(AppStrings.translate(appLocale, "settingsMore.notifAlwaysOn"))
         .font(.footnote)
         .foregroundStyle(.secondary)
         .padding(.horizontal, 20)
@@ -96,16 +95,24 @@ private struct LeadChaseRowView: View {
     @State private var saving = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
 
     var body: some View {
         LabeledToggleRow(
-            label: "Tell the whole crew after \(widenMinutes) minutes",
-            supporting: "When a conversation is assigned to one person and they still "
-                + "haven't replied, notify everyone who can see it. Business hours only, "
-                + "and never someone who has turned their own notifications off. This one "
-                + "is for the whole workspace, not just you"
-                + (canEdit ? "." : " — only owners and admins can change it."),
+            label: AppStrings.translate(
+                appLocale,
+                "settingsMore.leadChaseLabel",
+                ["minutes": String(widenMinutes)]
+            ),
+            supporting: AppStrings.translate(appLocale, "settingsMore.leadChaseSupporting")
+                + AppStrings.translate(
+                    appLocale,
+                    canEdit
+                        ? "settingsMore.workspaceWideEnd"
+                        : "settingsMore.workspaceWideAdminsOnly"
+                ),
             isOn: company.lead_chase_crew_enabled,
             enabled: canEdit && !saving
         ) { save(crew: $0) }
@@ -151,17 +158,20 @@ private struct PushContentRowView: View {
     @State private var saving = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
 
     var body: some View {
         LabeledToggleRow(
-            label: "Show message text on lock screens",
-            supporting: "Notifications show who texted and the first line of what they "
-                + "said, so the crew can tell a lead from a \"thanks\" without unlocking. "
-                + "Turn this off and they'll still see who it was, but never what a "
-                + "customer wrote — useful if phones are out on the job, in other "
-                + "people's homes. This one is for the whole workspace, not just you"
-                + (canEdit ? "." : " — only owners and admins can change it."),
+            label: AppStrings.translate(appLocale, "settingsMore.pushContentLabel"),
+            supporting: AppStrings.translate(appLocale, "settingsMore.pushContentSupporting")
+                + AppStrings.translate(
+                    appLocale,
+                    canEdit
+                        ? "settingsMore.workspaceWideEnd"
+                        : "settingsMore.workspaceWideAdminsOnly"
+                ),
             isOn: company.push_include_content,
             enabled: canEdit && !saving
         ) { save(include: $0) }
@@ -206,36 +216,42 @@ private struct EmailReachabilityCardView: View {
     @State private var retrying = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         // Driven by the `me` loaded when settings opened, so after a
         // successful retry it hides itself rather than waiting for a refetch
         // this screen has no trigger for. The server has already cleared it.
         if let state = scope.me.email_state, !cleared {
-            SettingsCard(title: "We can't email you at \(state.email)") {
+            SettingsCard(
+                title: AppStrings.translate(
+                    appLocale,
+                    "settingsMore.emailUnreachableTitle",
+                    ["email": state.email]
+                )
+            ) {
                 if state.fixable {
-                    Text(
-                        "Emails to this address are bouncing, so we've stopped sending "
-                            + "them. Push notifications still work. If the address was "
-                            + "mistyped, fix it in your account first, then tell us to "
-                            + "try again."
-                    )
+                    Text(AppStrings.translate(appLocale, "settingsMore.emailBouncingBody"))
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted600)
 
                     InlineError(error)
 
-                    Button(retrying ? "Trying…" : "Try this address again") { retry() }
+                    Button(
+                        AppStrings.translate(
+                            appLocale,
+                            retrying
+                                ? "settingsMore.emailRetrying"
+                                : "settingsMore.emailRetryAction"
+                        )
+                    ) { retry() }
                         .disabled(retrying)
                         .padding(.top, 10)
                 } else {
                     // No button, on purpose. The address reported us as spam,
                     // and one tap in our own app is not that person's consent
                     // to start again.
-                    Text(
-                        "This address reported our email as spam, so we've stopped "
-                            + "sending to it for good. Push notifications still work. To "
-                            + "get email again, change your account to a different address."
-                    )
+                    Text(AppStrings.translate(appLocale, "settingsMore.emailComplainedBody"))
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted600)
                 }
@@ -250,7 +266,9 @@ private struct EmailReachabilityCardView: View {
             do {
                 _ = try await scope.repo.retryOwnEmail()
                 cleared = true
-                scope.showMessage("We'll try that address again on your next notification.")
+                scope.showMessage(
+                    AppStrings.translate(appLocale, "settingsMore.emailRetryQueued")
+                )
             } catch {
                 self.error = error.userMessage
             }

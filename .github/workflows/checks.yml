@@ -426,6 +426,17 @@ jobs:
       - name: Guard hardcoded user-facing strings
         run: node scripts/check-hardcoded-strings.mjs
 
+      # #228: the ledger above counts literals REMOVED, so it cannot tell a
+      # screen that was translated from one whose words were deleted. That is
+      # not hypothetical — 225 keys were referenced with no section defining
+      # them, the app rendered `settingsMore.signOut` as UI text, and the
+      # ledger scored it as a 408-literal improvement. `translate` falls back
+      # to the key itself, so there is no runtime signal either. This asks the
+      # question the ledger cannot: does every key a screen names exist, in
+      # both languages, carrying the same {tokens}?
+      - name: Guard iOS catalogue keys
+        run: node scripts/check-ios-catalogue-keys.mjs
+
       # #376: `packages/shared` is shared by two of four clients, so every rule
       # Android and iOS need exists three times. The generated vectors are what
       # the Kotlin and Swift suites assert against — if a shared rule changes and

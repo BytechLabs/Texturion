@@ -55,7 +55,11 @@ struct ReferralShareBlock: View {
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(3 ... 8)
 
-            Text("\(ReferralShare.linkNote) \(link ?? code)")
+            // Concatenated rather than interpolated into a string literal: the
+            // note is `ReferralShare`'s, asserted against the shared TypeScript,
+            // and a literal wrapped around it reads to the #228 scanner as a
+            // sentence typed in here that no translator will ever see.
+            Text(ReferralShare.linkNote + " " + (link ?? code))
                 .font(.golos(11.5))
                 .foregroundStyle(BrandColor.muted600)
 

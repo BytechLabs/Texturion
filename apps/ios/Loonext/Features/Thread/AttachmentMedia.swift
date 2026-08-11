@@ -36,6 +36,8 @@ struct SignedAudioAttachment: View {
     @State private var mintKey = 0
     @State private var failed = false
 
+    @Environment(\.appLocale) private var appLocale
+
     /// Drives the progress bar. A half-second tick is plenty for a clip and
     /// avoids a periodic time observer (which would have to hop actors).
     private let tick = Timer.publish(every: 0.5, on: .main, in: .common)
@@ -50,7 +52,12 @@ struct SignedAudioAttachment: View {
             }
             .buttonStyle(.plain)
             .disabled(player == nil && !failed)
-            .accessibilityLabel(playing ? "Pause audio message" : "Play audio message")
+            .accessibilityLabel(
+                AppStrings.translate(
+                    appLocale,
+                    playing ? "thread.pauseAudio" : "thread.playAudio"
+                )
+            )
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(audioRowCaption(failed: failed))
@@ -185,6 +192,7 @@ struct AttachmentFileChip: View {
     let mintUrl: @MainActor (String, String) async throws -> String
 
     @Environment(\.openURL) private var openURL
+    @Environment(\.appLocale) private var appLocale
     @State private var opening = false
 
     private var kind: MediaKind { MediaKind.of(attachment.content_type) }
@@ -237,7 +245,13 @@ struct AttachmentFileChip: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Open \(attachmentLabel(kind: kind, count: 1).lowercased())")
+        .accessibilityLabel(
+            AppStrings.translate(
+                appLocale,
+                "thread.openAttachment",
+                ["kind": attachmentLabel(kind: kind, count: 1).lowercased()]
+            )
+        )
         .padding(.bottom, 4)
     }
 }

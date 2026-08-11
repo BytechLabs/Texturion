@@ -91,27 +91,29 @@ private struct MyDevicesCard: View {
     @State private var confirmingAll = false
     @State private var actionError: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     private var ordered: [DeviceSession] { orderMyDevices(sessions) }
     private var others: Int { sessions.filter { !$0.isCurrent }.count }
 
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     var body: some View {
         SettingsCard(
-            title: "Your devices",
-            description: "Anything signed in as you, in any workspace. "
-                + "Signing one out takes effect on its next tap."
+            title: t("settings.devicesMineTitle"),
+            description: t("settings.devicesMineIntro")
         ) {
             VStack(alignment: .leading, spacing: 0) {
                 if ordered.isEmpty {
-                    ReadOnlyLine(
-                        "Nothing is signed in — which cannot be true, since you are reading "
-                            + "this. Pull to refresh and check again."
-                    )
+                    ReadOnlyLine(t("settings.devicesNoneSignedIn"))
                 }
                 ForEach(Array(ordered.enumerated()), id: \.element.id) { index, session in
                     if index > 0 { Divider() }
                     DeviceRow(
                         client: session.clientKind,
-                        secondary: session.location ?? "Location not available",
+                        secondary: session.location ?? t("settings.devicesLocationUnknown"),
                         signedInAt: session.signed_in_at,
                         lastActiveAt: session.last_active_at,
                         userAgent: session.user_agent,
@@ -121,7 +123,7 @@ private struct MyDevicesCard: View {
                         // small and reversible (they sign back in). The pause
                         // is spent on the two actions that are not.
                         if !session.isCurrent {
-                            Button("Sign out") { signOut(session.id) }
+                            Button(t("settings.devicesSignOut")) { signOut(session.id) }
                                 .font(.golos(13))
                                 .foregroundStyle(BrandColor.muted600)
                                 .disabled(busy)
@@ -130,7 +132,7 @@ private struct MyDevicesCard: View {
                 }
 
                 if others > 0 {
-                    Button("Sign out everywhere else") { confirmingAll = true }
+                    Button(t("settings.devicesSignOutEverywhere")) { confirmingAll = true }
                         .buttonStyle(.bordered)
                         .disabled(busy)
                         .padding(.top, 12)
@@ -143,11 +145,19 @@ private struct MyDevicesCard: View {
         // actually happens.
         .sheet(isPresented: $confirmingAll) {
             ConfirmSheet(
-                title: "Sign out everywhere else?",
-                message: "\(deviceCountLabel(others)) will stop working on the next tap, and "
-                    + "stop receiving your customers' messages. You stay signed in here. "
-                    + "Anyone who should still have access can sign back in.",
-                confirmLabel: "Sign them out",
+                title: t("settings.devicesSignOutEverywhereTitle"),
+                // One sentence per count rather than `deviceCountLabel` dropped
+                // into a shared stem: that helper builds its phrase in English
+                // only, so the shared version printed "3 devices" in the middle
+                // of a French warning about somebody's phone.
+                message: others == 1
+                    ? t("settings.devicesSignOutEverywhereBodyOne")
+                    : AppStrings.translate(
+                        appLocale,
+                        "settings.devicesSignOutEverywhereBody",
+                        ["count": "\(others)"]
+                    ),
+                confirmLabel: t("settings.devicesSignThemOut"),
                 destructive: true,
                 pending: busy,
                 error: actionError,
@@ -162,7 +172,7 @@ private struct MyDevicesCard: View {
         Task {
             do {
                 _ = try await scope.repo.revokeMySession(sessionId: sessionId)
-                scope.showMessage("Signed that device out.")
+                scope.showMessage(t("settings.devicesSignedOutThatOne"))
                 onChanged()
             } catch {
                 scope.showMessage(error.userMessage)
@@ -178,17 +188,21 @@ private struct MyDevicesCard: View {
             do {
                 let result = try await scope.repo.revokeMyOtherSessions()
                 confirmingAll = false
-                scope.showMessage(
-                    result.endedSessions == 0
-                        ? "Nothing else was signed in."
-                        : "Signed out \(deviceCountLabel(result.endedSessions))."
-                )
+                scope.showMessage(signedOutMessage(result.endedSessions))
                 onChanged()
             } catch {
                 actionError = error.userMessage
             }
             busy = false
         }
+    }
+
+    private func signedOutMessage(_ ended: Int) -> String {
+        if ended == 0 { return t("settings.devicesNothingElseSignedIn") }
+        if ended == 1 { return t("settings.devicesSignedOutOne") }
+        return AppStrings.translate(
+            appLocale, "settings.devicesSignedOutMany", ["count": "\(ended)"]
+        )
     }
 }
 
@@ -205,27 +219,33 @@ private struct CrewDevicesCard: View {
     @State private var busy = false
     @State private var actionError: String?
 
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     private var nameByMember: [String: String] {
-        Dictionary(uniqueKeysWithValues: members.map {
-            ($0.id, $0.display_name.isEmpty ? "A crew member" : $0.display_name)
+        let fallback = t("settings.devicesCrewMemberFallback")
+        return Dictionary(uniqueKeysWithValues: members.map {
+            ($0.id, $0.display_name.isEmpty ? fallback : $0.display_name)
         })
     }
 
     private func name(for memberId: String?) -> String {
-        guard let memberId else { return "A crew member" }
-        return nameByMember[memberId] ?? "A crew member"
+        let fallback = t("settings.devicesCrewMemberFallback")
+        guard let memberId else { return fallback }
+        return nameByMember[memberId] ?? fallback
     }
 
     var body: some View {
         SettingsCard(
-            title: "The crew's devices",
-            description: "Everything signed in to this workspace. Removing someone already "
-                + "ends their access — this is for a phone that went missing while they are "
-                + "still on the team."
+            title: t("settings.devicesCrewTitle"),
+            description: t("settings.devicesCrewIntro")
         ) {
             VStack(alignment: .leading, spacing: 0) {
                 if sessions.isEmpty {
-                    ReadOnlyLine("Nobody on the crew has anything signed in right now.")
+                    ReadOnlyLine(t("settings.devicesCrewNoneSignedIn"))
                 }
                 ForEach(Array(sessions.enumerated()), id: \.element.id) { index, session in
                     if index > 0 { Divider() }
@@ -241,7 +261,7 @@ private struct CrewDevicesCard: View {
                         current: false
                     ) {
                         if let memberId = session.member_id {
-                            Button("Sign out") {
+                            Button(t("settings.devicesSignOut")) {
                                 target = RevokeTarget(memberId: memberId, name: who)
                             }
                             .font(.golos(13))
@@ -255,12 +275,17 @@ private struct CrewDevicesCard: View {
         .sheet(item: $target) { current in
             let count = sessions.filter { $0.member_id == current.memberId }.count
             ConfirmSheet(
-                title: "Sign \(current.name) out?",
-                message: "Every device they are signed in on — \(deviceCountLabel(count)) right "
-                    + "now — stops working on its next tap and stops receiving this "
-                    + "workspace's messages. They keep their seat and can sign back in; a "
-                    + "call they are on right now is not cut off.",
-                confirmLabel: "Sign them out",
+                title: AppStrings.translate(
+                    appLocale, "settings.devicesSignMemberOutTitle", ["name": current.name]
+                ),
+                message: count == 1
+                    ? t("settings.devicesSignMemberOutBodyOne")
+                    : AppStrings.translate(
+                        appLocale,
+                        "settings.devicesSignMemberOutBody",
+                        ["count": "\(count)"]
+                    ),
+                confirmLabel: t("settings.devicesSignThemOut"),
                 destructive: true,
                 pending: busy,
                 error: actionError,
@@ -279,17 +304,27 @@ private struct CrewDevicesCard: View {
                     scope.companyId, memberId: memberId
                 )
                 target = nil
-                scope.showMessage(
-                    result.endedSessions == 0
-                        ? "They had nothing signed in."
-                        : "Signed \(who) out of \(deviceCountLabel(result.endedSessions))."
-                )
+                scope.showMessage(signedOutMessage(result.endedSessions, who: who))
                 onChanged()
             } catch {
                 actionError = error.userMessage
             }
             busy = false
         }
+    }
+
+    private func signedOutMessage(_ ended: Int, who: String) -> String {
+        if ended == 0 { return t("settings.devicesTheyHadNothing") }
+        if ended == 1 {
+            return AppStrings.translate(
+                appLocale, "settings.devicesSignedMemberOutOne", ["name": who]
+            )
+        }
+        return AppStrings.translate(
+            appLocale,
+            "settings.devicesSignedMemberOutMany",
+            ["name": who, "count": "\(ended)"]
+        )
     }
 }
 
@@ -317,6 +352,8 @@ private struct DeviceRow<Action: View>: View {
     let userAgent: String?
     let current: Bool
     let action: () -> Action
+
+    @Environment(\.appLocale) private var appLocale
 
     // Explicit rather than memberwise: the trailing closure is a ViewBuilder,
     // and this file cannot be compiled on the box it was written on (there is
@@ -355,17 +392,26 @@ private struct DeviceRow<Action: View>: View {
                     if current {
                         // Said before anything else about this row: the one
                         // device nobody should worry about.
-                        StatusPill(label: "This device", tone: .positive)
+                        StatusPill(
+                            label: AppStrings.translate(
+                                appLocale, "settings.devicesThisDevice"
+                            ),
+                            tone: .positive
+                        )
                     }
                 }
                 Text(secondary)
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted600)
                     .lineLimit(1)
-                Text(
-                    "Last active \(relativeTime(lastActiveAt)) · signed in "
-                        + relativeTime(signedInAt)
-                )
+                Text(AppStrings.translate(
+                    appLocale,
+                    "settings.devicesLastActive",
+                    [
+                        "lastActive": relativeTime(lastActiveAt),
+                        "signedIn": relativeTime(signedInAt),
+                    ]
+                ))
                 .font(.golos(11))
                 .foregroundStyle(BrandColor.muted600)
                 if let userAgent {
@@ -417,22 +463,23 @@ private struct AppLockCard: View {
     /// to a view that has been rebuilt.
     @State private var canLock = true
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         SettingsCard(
-            title: "Lock this app",
-            description: "This phone only. Your other devices keep their own answer."
+            title: AppStrings.translate(appLocale, "settings.devicesAppLockTitle"),
+            description: AppStrings.translate(appLocale, "settings.devicesThisPhoneOnly")
         ) {
             Toggle(isOn: Binding(
                 get: { scope.graph.prefs.appLockEnabled && canLock },
                 set: { scope.graph.prefs.appLockEnabled = $0 }
             )) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Ask before showing the inbox").font(.body)
+                    Text(AppStrings.translate(appLocale, "settings.devicesAppLockLabel"))
+                        .font(.body)
                     Text(
                         canLock
-                            ? "Face ID, Touch ID or your passcode, whenever the app "
-                                + "has been away for a minute. Worth it if this phone "
-                                + "is ever handed to somebody else."
+                            ? AppStrings.translate(appLocale, "settings.devicesAppLockHelp")
                             : AppLock.cannotEnableNote
                     )
                     .font(.footnote)
@@ -448,10 +495,12 @@ private struct AppLockCard: View {
 private struct DataUseCard: View {
     let scope: SettingsScope
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         SettingsCard(
-            title: "Mobile data",
-            description: "This phone only. Your other devices keep their own answer."
+            title: AppStrings.translate(appLocale, "settings.devicesMobileDataTitle"),
+            description: AppStrings.translate(appLocale, "settings.devicesThisPhoneOnly")
         ) {
             Toggle(isOn: Binding(
                 get: { scope.graph.prefs.wifiOnlyOriginals },

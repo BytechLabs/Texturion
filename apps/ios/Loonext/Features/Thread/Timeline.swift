@@ -122,7 +122,12 @@ func buildTimeline(
     filter: ThreadFilter,
     allMessagesLoaded: Bool,
     calendar: Calendar,
-    now: Date
+    now: Date,
+    /// #228: the reader's language, for the day dividers this builds. Defaults
+    /// to English so the pure callers — and the tests that pin the divider text
+    /// — read exactly as they did; the screen passes `\.appLocale`. The Android
+    /// twin takes it in the same place, for the same reason.
+    locale: String? = nil
 ) -> [TimelineItem] {
     let oldestMessageAt = messages.last?.created_at
     let shownEvents = filter.events
@@ -175,7 +180,9 @@ func buildTimeline(
         guard let day = localDayOf(item.createdAt, calendar: calendar) else { continue }
         if let previous = currentDay, day != previous {
             out.append(.dayDivider(
-                label: dayLabel(previous, now: now, calendar: calendar),
+                label: dayLabel(
+                    previous, now: now, calendar: calendar, locale: locale
+                ),
                 isoDay: isoDayString(previous, calendar: calendar)
             ))
         }
@@ -184,7 +191,9 @@ func buildTimeline(
     }
     if let currentDay {
         out.append(.dayDivider(
-            label: dayLabel(currentDay, now: now, calendar: calendar),
+            label: dayLabel(
+                currentDay, now: now, calendar: calendar, locale: locale
+            ),
             isoDay: isoDayString(currentDay, calendar: calendar)
         ))
     }
@@ -208,11 +217,20 @@ func isoDayString(_ day: Date, calendar: Calendar) -> String {
 }
 
 /// "Today" / "Yesterday" / "Tue, Jul 14" / "Jul 14, 2025".
-func dayLabel(_ day: Date, now: Date, calendar: Calendar) -> String {
+///
+/// #228: only the two relative words are ours to translate. The dated arms are
+/// a `DateFormatter`'s, and reformatting them from a catalogue would be a second
+/// date implementation to keep in step with the system's.
+func dayLabel(
+    _ day: Date,
+    now: Date,
+    calendar: Calendar,
+    locale: String? = nil
+) -> String {
     let today = calendar.startOfDay(for: now)
-    if day == today { return "Today" }
+    if day == today { return AppStrings.translate(locale, "thread.dayToday") }
     if let yesterday = calendar.date(byAdding: .day, value: -1, to: today), day == yesterday {
-        return "Yesterday"
+        return AppStrings.translate(locale, "thread.dayYesterday")
     }
     let formatter = DateFormatter()
     formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -235,11 +253,18 @@ func bubbleTime(_ iso: String, calendar: Calendar = .current) -> String {
 }
 
 /// Human delivery-state line for an outbound bubble.
-func deliveryLabel(_ message: Message) -> String? {
+///
+/// #228: `locale` defaults to English so the pure callers (and their tests) read
+/// exactly as they did; every view call site passes the reader's. The FAILED arm
+/// is the API's own sentence, which is translated where it is written. The
+/// check marks are punctuation rather than words, so they stay outside the
+/// catalogue and outside the translator's way.
+func deliveryLabel(_ message: Message, locale: String? = nil) -> String? {
     switch message.status {
-    case MessageStatus.queued: "Sending…"
-    case MessageStatus.sent: "Sent ✓"
-    case MessageStatus.delivered: "Delivered ✓✓"
+    case MessageStatus.queued: AppStrings.translate(locale, "thread.sending")
+    case MessageStatus.sent: AppStrings.translate(locale, "thread.sent") + " ✓"
+    case MessageStatus.delivered:
+        AppStrings.translate(locale, "thread.delivered") + " ✓✓"
     case MessageStatus.failed: sendFailureMessage(message.error_code)
     default: nil
     }
@@ -414,12 +439,15 @@ func mediaRefusedLine(_ event: ConversationEvent) -> String {
     }
 }
 
-func statusLabel(_ status: String) -> String {
+/// #228: `locale` defaults to English, so `eventLine` and the tests that pin its
+/// sentences read exactly as they did while every view passes the reader's. The
+/// Android twin takes it the same way.
+func statusLabel(_ status: String, locale: String? = nil) -> String {
     switch status {
-    case "new": "New"
-    case "open": "Open"
-    case "waiting": "Waiting"
-    case "closed": "Closed"
+    case "new": AppStrings.translate(locale, "thread.statusNew")
+    case "open": AppStrings.translate(locale, "thread.statusOpen")
+    case "waiting": AppStrings.translate(locale, "thread.statusWaiting")
+    case "closed": AppStrings.translate(locale, "thread.statusClosed")
     default: status.prefix(1).uppercased() + status.dropFirst()
     }
 }
