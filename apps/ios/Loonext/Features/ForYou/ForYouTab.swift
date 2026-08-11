@@ -373,6 +373,8 @@ private struct ForYouList: View {
     /// #540: opens the Customise sheet.
     let onCustomise: @MainActor () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     /// #306: the work, not the page. Counting the rows meant a member 60
     /// conversations behind read "20 things need you", and the queue looked
     /// finished after twenty items.
@@ -393,8 +395,17 @@ private struct ForYouList: View {
     // Optional.map closure-of-closure below made swiftc's type checker give
     // up on the whole body (CI run 7).
     private var subtitle: String {
-        if total == 0 { return "You're all caught up." }
-        return total == 1 ? "1 thing needs you" : "\(total) things need you"
+        if total == 0 {
+            return AppStrings.translate(appLocale, "inbox.forYouAllCaughtUp")
+        }
+        if total == 1 {
+            return AppStrings.translate(appLocale, "inbox.forYouWorkOne")
+        }
+        return AppStrings.translate(
+            appLocale,
+            "inbox.forYouWorkMany",
+            ["count": String(total)]
+        )
     }
 
     private func callTap(_ call: Call) -> (@MainActor () -> Void)? {
@@ -501,7 +512,7 @@ private struct ForYouList: View {
     private var heading: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
-                ScreenTitle(text: "For you")
+                ScreenTitle(text: AppStrings.translate(appLocale, "inbox.forYouTitle"))
                 Text(subtitle)
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted600)
@@ -537,9 +548,16 @@ private struct ForYouList: View {
     /// The control's accessible name, carrying the count the dot only hints at.
     private var customiseLabel: String {
         let count = DashboardPanels.normalise(hidden).count
-        if count == 0 { return "Customise this screen" }
-        let noun = count == 1 ? "panel" : "panels"
-        return "Customise this screen — \(count) \(noun) put away"
+        if count == 0 {
+            return AppStrings.translate(appLocale, "inbox.customiseAria")
+        }
+        // A whole sentence per number, not a noun swapped inside one: French
+        // agrees the participle as well as the noun ("panneau rangé" /
+        // "panneaux rangés"), which a spliced word cannot reach.
+        let key: String = count == 1
+            ? "inbox.customiseAriaPutAwayOne"
+            : "inbox.customiseAriaPutAwayMany"
+        return AppStrings.translate(appLocale, key, ["count": String(count)])
     }
 
     /// #342 — the spam marks that do not look like spam, and the two answers.
@@ -552,7 +570,9 @@ private struct ForYouList: View {
         if !spamReview.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 SectionHeader(
-                    label: "Marked spam, still texting",
+                    label: AppStrings.translate(
+                        appLocale, "inbox.forYouSectionSpamReview"
+                    ),
                     count: spamReview.count
                 )
                 PaperCard {
@@ -617,7 +637,9 @@ private struct ForYouList: View {
                     // for a section only owners could see. It is the whole
                     // crew's queue now, and "unassigned" is the word the rest
                     // of the product already uses.
-                    label: "Unassigned",
+                    label: AppStrings.translate(
+                        appLocale, "inbox.forYouSectionUnassigned"
+                    ),
                     count: triageConvTotal + triageTaskTotal
                 )
                 PaperCard {
@@ -652,7 +674,12 @@ private struct ForYouList: View {
     private var followUpsSection: some View {
         if !forYou.follow_ups.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeader(label: "Chase these", count: followUpTotal)
+                SectionHeader(
+                    label: AppStrings.translate(
+                        appLocale, "inbox.forYouSectionChaseThese"
+                    ),
+                    count: followUpTotal
+                )
                 PaperCard {
                     ForEach(
                         Array(forYou.follow_ups.enumerated()),
@@ -669,7 +696,11 @@ private struct ForYouList: View {
                             // chore.
                             meta: (row.note?.isBlank == false)
                                 ? row.note!
-                                : "No reply since \(relativeTime(row.last_message_at))",
+                                : AppStrings.translate(
+                                    appLocale,
+                                    "inbox.forYouWhyNoReply",
+                                    ["when": relativeTime(row.last_message_at)]
+                                ),
                             unread: row.unread
                         ) { onOpenConversation(row.conversation_id) }
                     }
@@ -682,7 +713,10 @@ private struct ForYouList: View {
     private var waitingSection: some View {
         if !forYou.waiting_on_you.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeader(label: "Waiting on you", count: waitingTotal)
+                SectionHeader(
+                    label: AppStrings.translate(appLocale, "inbox.forYouSectionWaiting"),
+                    count: waitingTotal
+                )
                 PaperCard {
                     ForEach(
                         Array(forYou.waiting_on_you.enumerated()),
@@ -704,7 +738,10 @@ private struct ForYouList: View {
     private var tasksSection: some View {
         if !forYou.my_tasks.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeader(label: "My tasks", count: tasksTotal)
+                SectionHeader(
+                    label: AppStrings.translate(appLocale, "inbox.forYouSectionTasks"),
+                    count: tasksTotal
+                )
                 PaperCard {
                     ForEach(
                         Array(forYou.my_tasks.enumerated()),
@@ -726,7 +763,10 @@ private struct ForYouList: View {
     private var unreadSection: some View {
         if !forYou.unread.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeader(label: "Unread", count: unreadTotal)
+                SectionHeader(
+                    label: AppStrings.translate(appLocale, "inbox.forYouSectionUnread"),
+                    count: unreadTotal
+                )
                 PaperCard {
                     ForEach(
                         Array(forYou.unread.enumerated()),
@@ -768,7 +808,7 @@ private struct ForYouList: View {
             VStack(alignment: .leading, spacing: 0) {
                 recentCallsHeader
                 PaperCard {
-                    Text("Couldn't load recent calls.")
+                    Text(AppStrings.translate(appLocale, "inbox.forYouCallsLoadFailed"))
                         .font(.golos(12))
                         .foregroundStyle(BrandColor.muted500)
                         .padding(.horizontal, 16)
@@ -793,10 +833,15 @@ private struct ForYouList: View {
     /// "Recent calls" + the shell-wired "View all" doorway (hidden until wired).
     private var recentCallsHeader: some View {
         HStack(alignment: .firstTextBaseline) {
-            SectionHeader(label: "Recent calls")
+            SectionHeader(
+                label: AppStrings.translate(appLocale, "inbox.forYouRecentCalls")
+            )
             Spacer()
             if let onOpenCalls {
-                Button("View all", action: onOpenCalls)
+                Button(
+                    AppStrings.translate(appLocale, "inbox.forYouViewAllCalls"),
+                    action: onOpenCalls
+                )
                     .font(.golos(12, weight: .bold))
                     .foregroundStyle(BrandColor.olive)
                     .buttonStyle(.plain)
@@ -873,9 +918,13 @@ private struct PersonRow: View {
     let unread: Bool
     let onTap: @MainActor () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     private var displayName: String {
         let trimmed = name ?? ""
-        return trimmed.isEmpty ? "Unknown" : trimmed
+        return trimmed.isEmpty
+            ? AppStrings.translate(appLocale, "inbox.forYouUnknownCaller")
+            : trimmed
     }
 
     var body: some View {
@@ -906,7 +955,9 @@ private struct PersonRow: View {
         .buttonStyle(.plain)
         // Same as the inbox + notification rows: the AttentionDot is the only
         // unread signal, and it is invisible to VoiceOver.
-        .accessibilityValue(unread ? "Unread" : "")
+        .accessibilityValue(
+            unread ? AppStrings.translate(appLocale, "inbox.rowStateUnread") : ""
+        )
     }
 }
 
@@ -915,6 +966,8 @@ private struct TaskLineRow: View {
     let overdue: Bool
     let dueAt: String?
     let onTap: @MainActor () -> Void
+
+    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         Button(action: onTap) {
@@ -947,11 +1000,19 @@ private struct TaskLineRow: View {
     }
 
     private var subtitle: String {
-        if overdue { return "Overdue task" }
+        if overdue {
+            return AppStrings.translate(appLocale, "inbox.forYouWhyOverdueTask")
+        }
         // formatDue, NOT relativeTime: relativeTime measures time ELAPSED, so
         // every future due date came out as "Due now".
-        if let dueAt { return "Due \(formatDue(dueAt))" }
-        return "Open task"
+        if let dueAt {
+            return AppStrings.translate(
+                appLocale,
+                "inbox.forYouWhyDue",
+                ["when": formatDue(dueAt)]
+            )
+        }
+        return AppStrings.translate(appLocale, "inbox.forYouWhyOpenTask")
     }
 }
 
@@ -1137,6 +1198,8 @@ private struct SpamReviewRow: View {
     let onOpen: @MainActor () -> Void
     let onAnswer: @MainActor (Bool) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Button(action: onOpen) {
@@ -1155,11 +1218,15 @@ private struct SpamReviewRow: View {
             .buttonStyle(.plain)
 
             HStack(spacing: 10) {
-                Button("Not spam") { onAnswer(true) }
+                Button(AppStrings.translate(appLocale, "inbox.forYouNotSpam")) {
+                    onAnswer(true)
+                }
                     .font(.golos(12, weight: .semibold))
                     .foregroundStyle(BrandColor.olive)
                     .buttonStyle(.plain)
-                Button("Still spam") { onAnswer(false) }
+                Button(AppStrings.translate(appLocale, "inbox.forYouStillSpam")) {
+                    onAnswer(false)
+                }
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted500)
                     .buttonStyle(.plain)

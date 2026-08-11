@@ -23,6 +23,8 @@ struct ContactPanelSheet: View {
     /// the same way onOpenTask and onOpenConversation do.
     let onOpenContact: @MainActor (String) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         Group {
             if let detail = controller.conversation {
@@ -51,10 +53,14 @@ struct ContactPanelSheet: View {
                             .font(.golos(16, weight: .semibold))
                             .foregroundStyle(BrandColor.ink)
                             .lineLimit(1)
+                        let phone = formatPhone(detail.contact.phone_e164)
+                        let optedOut = AppStrings.translate(
+                            appLocale, "thread.optedOut"
+                        )
                         Text(
                             contact?.opted_out == true
-                                ? "\(formatPhone(detail.contact.phone_e164)) · Opted out"
-                                : formatPhone(detail.contact.phone_e164)
+                                ? "\(phone) · \(optedOut)"
+                                : phone
                         )
                         .font(.golos(11))
                         .foregroundStyle(BrandColor.muted500)
@@ -68,37 +74,49 @@ struct ContactPanelSheet: View {
                             .foregroundStyle(BrandColor.muted500)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Open the full contact")
+                    .accessibilityLabel(
+                        AppStrings.translate(appLocale, "thread.openFullContact")
+                    )
                 }
                 .padding(.top, 18)
 
                 // Details — the same auto-saving fields as the contact screen.
-                sheetSection("Details") {
+                sheetSection(
+                    AppStrings.translate(appLocale, "thread.sectionDetails")
+                ) {
                     PanelAutosaveField(
-                        label: "Name",
+                        label: AppStrings.translate(appLocale, "thread.fieldName"),
                         initial: contact?.name ?? detail.contact.name ?? "",
                         maxLength: contactNameMax,
-                        placeholder: "Add a name",
+                        placeholder: AppStrings.translate(
+                            appLocale, "thread.addName"
+                        ),
                         multiline: false
                     ) { value in
                         try await controller.saveContactField("name", value)
                     }
                     .id("\(detail.contact_id)|name")
                     PanelAutosaveField(
-                        label: "Address",
+                        label: AppStrings.translate(
+                            appLocale, "thread.fieldAddress"
+                        ),
                         initial: contact?.address ?? detail.contact.address ?? "",
                         maxLength: contactAddressMax,
-                        placeholder: "Add an address",
+                        placeholder: AppStrings.translate(
+                            appLocale, "thread.addAddress"
+                        ),
                         multiline: false
                     ) { value in
                         try await controller.saveContactField("address", value)
                     }
                     .id("\(detail.contact_id)|address")
                     PanelAutosaveField(
-                        label: "Notes",
+                        label: AppStrings.translate(appLocale, "thread.fieldNotes"),
                         initial: contact?.notes ?? detail.contact.notes ?? "",
                         maxLength: contactNotesMax,
-                        placeholder: "Gate code, dog's name, preferred arrival window…",
+                        placeholder: AppStrings.translate(
+                            appLocale, "thread.notesPlaceholder"
+                        ),
                         multiline: true
                     ) { value in
                         try await controller.saveContactField("notes", value)
@@ -106,7 +124,9 @@ struct ContactPanelSheet: View {
                     .id("\(detail.contact_id)|notes")
                 }
 
-                sheetSection("Consent") {
+                sheetSection(
+                    AppStrings.translate(appLocale, "thread.sectionConsent")
+                ) {
                     Text(
                         consentLine(
                             consentSource: contact?.consent_source
@@ -124,11 +144,15 @@ struct ContactPanelSheet: View {
                 // because it is a question somebody ASKS in the first minute
                 // of a call, while a task is what they write down afterwards —
                 // and because the ask disappears the moment it is answered.
-                sheetSection("Where they came from") {
+                sheetSection(
+                    AppStrings.translate(appLocale, "thread.sectionLeadSource")
+                ) {
                     LeadSourcePicker(controller: controller, detail: detail)
                 }
 
-                sheetSection("Tasks in this conversation") {
+                sheetSection(
+                    AppStrings.translate(appLocale, "thread.sectionTasks")
+                ) {
                     TasksChecklistSection(
                         state: controller.conversationTasks,
                         onToggle: { controller.toggleTaskDone($0) },
@@ -136,7 +160,11 @@ struct ContactPanelSheet: View {
                     )
                 }
 
-                sheetSection("Other conversations") {
+                sheetSection(
+                    AppStrings.translate(
+                        appLocale, "thread.sectionOtherConversations"
+                    )
+                ) {
                     OtherConversationsSection(
                         state: controller.otherConversations,
                         onOpen: onOpenConversation
@@ -173,17 +201,19 @@ private struct TasksChecklistSection: View {
     /// #217: tapping the ROW (not the checkbox) opens the task's detail.
     let onOpenTask: @MainActor (String) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         switch state {
         case nil, .loading?:
             ProgressView()
         case .failed?:
-            Text("Couldn't load this conversation's tasks.")
+            Text(AppStrings.translate(appLocale, "thread.tasksLoadFailed"))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         case .ready(let tasks)?:
             if tasks.isEmpty {
-                Text("No tasks in this conversation.")
+                Text(AppStrings.translate(appLocale, "thread.noTasks"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
@@ -213,7 +243,13 @@ private struct TasksChecklistSection: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(
-                task.done ? "Reopen task \(task.title)" : "Mark task \(task.title) done"
+                AppStrings.translate(
+                    appLocale,
+                    task.done
+                        ? "thread.reopenTaskNamed"
+                        : "thread.markTaskDoneNamed",
+                    ["title": task.title]
+                )
             )
 
             Button {
@@ -231,7 +267,11 @@ private struct TasksChecklistSection: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Open task \(task.title)")
+            .accessibilityLabel(
+                AppStrings.translate(
+                    appLocale, "thread.openTaskNamed", ["title": task.title]
+                )
+            )
         }
         .padding(.vertical, 6)
     }
@@ -243,19 +283,25 @@ private struct OtherConversationsSection: View {
     let state: LoadState<[ConversationListItem]>?
     let onOpen: (@MainActor (String) -> Void)?
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         switch state {
         case nil, .loading?:
             ProgressView()
         case .failed?:
-            Text("Couldn't load prior conversations.")
+            Text(AppStrings.translate(appLocale, "thread.priorLoadFailed"))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         case .ready(let rows)?:
             if rows.isEmpty {
-                Text("No other conversations with this contact.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                Text(
+                    AppStrings.translate(
+                        appLocale, "thread.noOtherConversations"
+                    )
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(rows, id: \.id) { row in
@@ -265,7 +311,7 @@ private struct OtherConversationsSection: View {
                                     .font(.subheadline)
                                     .foregroundStyle(.primary)
                                     .lineLimit(1)
-                                Text(statusLabel(row.status))
+                                Text(statusLabel(row.status, locale: appLocale))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -293,7 +339,9 @@ private struct OtherConversationsSection: View {
     }
 
     private func snippetLabel(_ row: ConversationListItem) -> String {
-        guard let body = row.last_message?.body, !body.isBlank else { return "Conversation" }
+        guard let body = row.last_message?.body, !body.isBlank else {
+            return AppStrings.translate(appLocale, "thread.conversationFallback")
+        }
         return body
     }
 }
@@ -321,6 +369,8 @@ private struct PanelAutosaveField: View {
     @State private var value: String
     @State private var lastSaved: String
     @State private var saveState: SaveState = .idle
+
+    @Environment(\.appLocale) private var appLocale
 
     init(
         label: String,
@@ -383,9 +433,9 @@ private struct PanelAutosaveField: View {
     private var statusLine: String {
         switch saveState {
         case .idle: ""
-        case .saving: "Saving…"
-        case .saved: "Saved"
-        case .failed: "Couldn't save. Check your connection."
+        case .saving: AppStrings.translate(appLocale, "common.saving")
+        case .saved: AppStrings.translate(appLocale, "common.saved")
+        case .failed: AppStrings.translate(appLocale, "thread.saveFailed")
         }
     }
 }

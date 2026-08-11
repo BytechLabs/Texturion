@@ -16,6 +16,7 @@ struct SnoozeDatePicker: View {
     let onPick: @MainActor (Date, String?) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLocale) private var appLocale
     @State private var picked: Date
     /// The reason, optional, and only here. A preset is one tap and stays one
     /// tap; somebody who has opened a date picker is already deliberating, and
@@ -40,21 +41,21 @@ struct SnoozeDatePicker: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 14) {
                 Text(
-                    kind == .followUp
+                    AppStrings.translate(
+                        appLocale,
                         // The cancellation is the reassuring half, and the half
                         // nobody believes until it is written down.
-                        ? "It comes back then as something to chase — unless they "
-                            + "reply first, in which case there is nothing to chase "
-                            + "and the reminder disappears."
-                        : "It comes back to your inbox then — and immediately if "
-                            + "the customer replies before that."
+                        kind == .followUp
+                            ? "thread.followUpExplainer"
+                            : "thread.snoozeExplainer"
+                    )
                 )
                 .font(.golos(12.5))
                 .foregroundStyle(BrandColor.muted500)
                 .fixedSize(horizontal: false, vertical: true)
 
                 DatePicker(
-                    "Return date and time",
+                    AppStrings.translate(appLocale, "thread.returnDateTime"),
                     selection: $picked,
                     in: Date()...,
                     displayedComponents: [.date, .hourAndMinute]
@@ -62,7 +63,10 @@ struct SnoozeDatePicker: View {
                 .datePickerStyle(.graphical)
                 .labelsHidden()
 
-                TextField("Why? (optional)", text: $note)
+                TextField(
+                    AppStrings.translate(appLocale, "thread.whyOptional"),
+                    text: $note
+                )
                     .font(.golos(13.5))
                     .textFieldStyle(.roundedBorder)
                     // The column's CHECK. Stopping here turns a Postgres error
@@ -77,14 +81,28 @@ struct SnoozeDatePicker: View {
             }
             .padding(18)
             .background(BrandColor.canvas)
-            .navigationTitle(kind == .followUp ? "Remind me to chase" : "Snooze until")
+            .navigationTitle(
+                AppStrings.translate(
+                    appLocale,
+                    kind == .followUp
+                        ? "thread.remindMeToChase"
+                        : "thread.snoozeUntil"
+                )
+            )
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(AppStrings.translate(appLocale, "common.cancel")) {
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(kind == .followUp ? "Remind me" : "Snooze") {
+                    Button(
+                        AppStrings.translate(
+                            appLocale,
+                            kind == .followUp ? "thread.remindMe" : "thread.snooze"
+                        )
+                    ) {
                         let trimmed = note.trimmingCharacters(
                             in: .whitespacesAndNewlines
                         )

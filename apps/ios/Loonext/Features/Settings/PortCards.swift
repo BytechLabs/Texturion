@@ -67,15 +67,30 @@ private struct PortFormFields: View {
 
     @FocusState private var focused: String?
 
-    private var ssnLabel: String { country == "US" ? "SSN" : "SIN" }
-    private var regionLabel: String { country == "US" ? "State" : "Province" }
-    private var postalLabel: String { country == "US" ? "ZIP code" : "Postal code" }
+    @Environment(\.appLocale) private var appLocale
+
+    // SSN stays SSN in French — it is a US federal identifier and the form is
+    // filled from a US carrier's bill. SIN's Quebec name is NAS, and a Montreal
+    // owner reading "SIN" would hunt for a field their paperwork does not have.
+    private var ssnLabel: String {
+        AppStrings.translate(
+            appLocale, country == "US" ? "settingsMore.ssnLabel" : "settingsMore.sinLabel"
+        )
+    }
+    private var regionLabel: String {
+        AppStrings.translate(
+            appLocale,
+            country == "US" ? "settingsMore.stateLabel" : "settingsMore.provinceLabel"
+        )
+    }
+    private var postalLabel: String {
+        AppStrings.translate(
+            appLocale, country == "US" ? "settingsMore.zipLabel" : "settingsMore.postalLabel"
+        )
+    }
 
     var body: some View {
-        Text(
-            "Enter these exactly as they appear on your current carrier's bill — "
-                + "mismatches are the top cause of rejections."
-        )
+        Text(AppStrings.translate(appLocale, "settingsMore.portFormIntro"))
         .font(.footnote)
         .foregroundStyle(.secondary)
         // The jump hangs off this line because the body is a bare list of
@@ -89,33 +104,58 @@ private struct PortFormFields: View {
             focused = target
             focusField.wrappedValue = nil
         }
-        field("Account holder", text: $form.entityName, key: PortFixField.entityName)
-        field("Authorized person", text: $form.authPersonName, key: PortFixField.authPersonName)
-        field("Account number", text: $form.accountNumber, key: PortFixField.accountNumber)
+        field(
+            AppStrings.translate(appLocale, "settingsMore.accountHolder"),
+            text: $form.entityName,
+            key: PortFixField.entityName
+        )
+        field(
+            AppStrings.translate(appLocale, "settingsMore.authorizedPerson"),
+            text: $form.authPersonName,
+            key: PortFixField.authPersonName
+        )
+        field(
+            AppStrings.translate(appLocale, "settingsMore.accountNumber"),
+            text: $form.accountNumber,
+            key: PortFixField.accountNumber
+        )
         if wireless {
             Text(
-                "This is a mobile number. Enter the transfer PIN and the last 4 of the "
-                    + "account holder's \(ssnLabel). We store only the last 4."
+                AppStrings.translate(
+                    appLocale, "settingsMore.portWirelessNote", ["idLabel": ssnLabel]
+                )
             )
             .font(.footnote)
             .foregroundStyle(.secondary)
             .padding(.top, 4)
-            field("Transfer PIN", text: $form.pinPasscode)
-            TextField("Last 4 of \(ssnLabel)", text: Binding(
-                get: { form.ssnSinLast4 },
-                set: { next in
-                    if next.count <= 4 && next.allSatisfy(\.isNumber) {
-                        form.ssnSinLast4 = next
+            field(
+                AppStrings.translate(appLocale, "settingsMore.transferPin"),
+                text: $form.pinPasscode
+            )
+            TextField(
+                AppStrings.translate(
+                    appLocale, "settingsMore.last4Of", ["idLabel": ssnLabel]
+                ),
+                text: Binding(
+                    get: { form.ssnSinLast4 },
+                    set: { next in
+                        if next.count <= 4 && next.allSatisfy(\.isNumber) {
+                            form.ssnSinLast4 = next
+                        }
                     }
-                }
-            ))
+                )
+            )
             .textFieldStyle(.roundedBorder)
             .keyboardType(.numberPad)
             .disabled(!enabled)
             .padding(.vertical, 4)
         }
-        field("Street address", text: $form.street, key: PortFixField.serviceStreet)
-        field("City", text: $form.locality)
+        field(
+            AppStrings.translate(appLocale, "settingsMore.streetAddress"),
+            text: $form.street,
+            key: PortFixField.serviceStreet
+        )
+        field(AppStrings.translate(appLocale, "settingsMore.city"), text: $form.locality)
         field(regionLabel, text: $form.adminArea)
         field(postalLabel, text: $form.postalCode)
     }
@@ -148,6 +188,8 @@ struct PortsBlock: View {
 
     @State private var starting = false
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         ForEach(ports.filter { $0.status != PortStatus.cancelled }, id: \.id) { port in
             PortCard(
@@ -160,12 +202,12 @@ struct PortsBlock: View {
 
         if SettingsRoleGate.canManageNumbers(scope.role) && company.subscriptionActive {
             SettingsCard(
-                title: "Bring your existing number",
-                description: "Transfer a number you already own. It keeps working with "
-                    + "your current carrier until the switch completes — usually a few "
-                    + "business days. Transfers are free."
+                title: AppStrings.translate(appLocale, "settingsMore.bringNumber"),
+                description: AppStrings.translate(appLocale, "settingsMore.bringNumberDesc")
             ) {
-                Button("Start a transfer") { starting = true }
+                Button(AppStrings.translate(appLocale, "settingsMore.startTransfer")) {
+                    starting = true
+                }
                     .buttonStyle(.bordered)
             }
             .sheet(isPresented: $starting) {
@@ -202,6 +244,8 @@ private struct PortCard: View {
     /// afresh at every entry point, because a sheet can also be swiped away.
     @State private var focusField: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     private var canManage: Bool { SettingsRoleGate.canManageNumbers(scope.role) }
     private var canCancel: Bool { SettingsRoleGate.canCancelPort(scope.role) }
 
@@ -220,7 +264,13 @@ private struct PortCard: View {
     private var isPreCutover: Bool { preCutoverStatuses.contains(port.status) }
 
     var body: some View {
-        SettingsCard(title: "Transfer: \(formatPhone(port.phone_e164))") {
+        SettingsCard(
+            title: AppStrings.translate(
+                appLocale,
+                "settingsMore.transferTitle",
+                ["number": formatPhone(port.phone_e164)]
+            )
+        ) {
             statusPill
             Spacer().frame(height: 8)
             PortStepper(status: port.status)
@@ -255,7 +305,11 @@ private struct PortCard: View {
             // compile, and the error it produces names none of this.
             Group {
                 if let foc = port.foc_date {
-                    Text("The carriers agreed on a switch date: \(foc).")
+                    Text(
+                        AppStrings.translate(
+                            appLocale, "settingsMore.focDate", ["date": foc]
+                        )
+                    )
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .padding(.top, 6)
@@ -281,17 +335,19 @@ private struct PortCard: View {
                     .padding(.top, 8)
                 }
                 if let bridge = port.bridge_number_e164 {
-                    Text("Temporary number while you wait: \(formatPhone(bridge)).")
+                    Text(
+                        AppStrings.translate(
+                            appLocale,
+                            "settingsMore.bridgeNumber",
+                            ["number": formatPhone(bridge)]
+                        )
+                    )
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .padding(.top, 6)
                 }
                 if port.assignment_blocked {
-                    Text(
-                        "Your number arrived, but its texting registration is still held by "
-                            + "your previous texting provider. Ask them to release it, and "
-                            + "texting switches on automatically."
-                    )
+                    Text(AppStrings.translate(appLocale, "settingsMore.registrationHeld"))
                     .font(.footnote)
                     .padding(.top, 6)
                 }
@@ -312,13 +368,18 @@ private struct PortCard: View {
             InlineError(actionError)
             HStack(spacing: 8) {
                 if canManage && port.status == PortStatus.draft && port.has_loa && port.has_invoice {
-                    Button(busy ? "Submitting…" : "Submit transfer") { submit() }
+                    Button(
+                        AppStrings.translate(
+                            appLocale,
+                            busy ? "settingsMore.submitting" : "settingsMore.submitTransfer"
+                        )
+                    ) { submit() }
                         .buttonStyle(.borderedProminent)
                         .tint(BrandColor.olive)
                         .disabled(busy)
                 }
                 if canManage && port.status == PortStatus.exception {
-                    Button("Fix and resubmit") {
+                    Button(AppStrings.translate(appLocale, "settingsMore.fixResubmit")) {
                         focusField = nil
                         fixing = true
                     }
@@ -327,7 +388,9 @@ private struct PortCard: View {
                         .disabled(busy)
                 }
                 if canCancel && port.status != PortStatus.ported && port.status != PortStatus.cancelPending {
-                    Button("Cancel transfer") { cancelling = true }
+                    Button(AppStrings.translate(appLocale, "settingsMore.cancelTransfer")) {
+                        cancelling = true
+                    }
                         .font(.subheadline)
                         .foregroundStyle(BrandColor.destructive)
                         .buttonStyle(.borderless)
@@ -346,14 +409,13 @@ private struct PortCard: View {
         }
         .sheet(isPresented: $cancelling) {
             ConfirmSheet(
-                title: "Cancel this transfer?",
-                message: "Your number stays with your current carrier and nothing changes "
-                    + "there. You can start a new transfer any time.",
-                confirmLabel: "Cancel transfer",
+                title: AppStrings.translate(appLocale, "settingsMore.cancelTransferTitle"),
+                message: AppStrings.translate(appLocale, "settingsMore.cancelTransferBody"),
+                confirmLabel: AppStrings.translate(appLocale, "settingsMore.cancelTransfer"),
                 destructive: true,
                 pending: busy,
                 error: actionError,
-                dismissLabel: "Keep it going",
+                dismissLabel: AppStrings.translate(appLocale, "settingsMore.keepItGoing"),
                 onConfirm: { cancel() },
                 onDismiss: { cancelling = false }
             )
@@ -374,19 +436,39 @@ private struct PortCard: View {
             // number that can neither send nor answer. The sentence under the
             // stepper says which of the transfer and the line is held, so the
             // shorter label cannot be read as the transfer stalling.
-            StatusPill(label: "On hold", tone: .warn)
+            StatusPill(
+                label: AppStrings.translate(appLocale, "settingsMore.portOnHold"),
+                tone: .warn
+            )
         } else {
             switch port.status {
             case PortStatus.cancelPending:
-                StatusPill(label: "Cancelling", tone: .neutral)
+                StatusPill(
+                    label: AppStrings.translate(appLocale, "settingsMore.portCancelling"),
+                    tone: .neutral
+                )
             case PortStatus.exception:
-                StatusPill(label: "Needs attention", tone: .warn)
+                StatusPill(
+                    label: AppStrings.translate(
+                        appLocale, "settingsMore.portNeedsAttention"
+                    ),
+                    tone: .warn
+                )
             case PortStatus.ported:
-                StatusPill(label: "Ported", tone: .positive)
+                StatusPill(
+                    label: AppStrings.translate(appLocale, "settingsMore.portStepPorted"),
+                    tone: .positive
+                )
             default:
                 let index = portStepIndex(port.status)
+                // The carrier's own status word is the last resort, and it is
+                // deliberately NOT translated: it is theirs, and a guess at what
+                // a token we have never seen means would be worse than showing
+                // it. Same rule as the rejection reason two cards down.
                 StatusPill(
-                    label: (portSteps.indices.contains(index) ? portSteps[index] : port.status),
+                    label: portStepKeys.indices.contains(index)
+                        ? AppStrings.translate(appLocale, portStepKeys[index])
+                        : port.status,
                     tone: .warn
                 )
             }
@@ -399,7 +481,9 @@ private struct PortCard: View {
         Task {
             do {
                 _ = try await scope.repo.submitPort(scope.companyId, portId: port.id)
-                scope.showMessage("Transfer submitted to the carriers.")
+                scope.showMessage(
+                    AppStrings.translate(appLocale, "settingsMore.transferSubmitted")
+                )
                 onChanged()
             } catch {
                 actionError = error.userMessage
@@ -415,7 +499,9 @@ private struct PortCard: View {
             do {
                 _ = try await scope.repo.cancelPort(scope.companyId, portId: port.id)
                 cancelling = false
-                scope.showMessage("Transfer cancelled.")
+                scope.showMessage(
+                    AppStrings.translate(appLocale, "settingsMore.transferCancelled")
+                )
                 onChanged()
             } catch {
                 actionError = error.userMessage
@@ -429,19 +515,21 @@ private struct PortCard: View {
 private struct PortStepper: View {
     let status: String
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         let index = portStepIndex(status)
         HStack(alignment: .top, spacing: 0) {
-            ForEach(Array(portSteps.enumerated()), id: \.offset) { i, step in
+            ForEach(Array(portStepKeys.enumerated()), id: \.offset) { i, step in
                 VStack(spacing: 2) {
                     Circle()
                         .fill(index >= i ? BrandColor.olive : Color(.secondarySystemFill))
                         .frame(width: 10, height: 10)
-                    Text(step)
+                    Text(AppStrings.translate(appLocale, step))
                         .font(.caption2)
                         .foregroundStyle(index >= i ? Color.primary : Color.secondary)
                 }
-                if i < portSteps.count - 1 {
+                if i < portStepKeys.count - 1 {
                     Rectangle()
                         .fill(index > i ? BrandColor.olive : Color(.separator).opacity(0.5))
                         .frame(height: 2)
@@ -479,9 +567,11 @@ private struct PortStepper: View {
 /// actually is. Hierarchy is carried by size and weight alone, no tint and no
 /// icons.
 private struct PreCutoverChecklist: View {
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Before your number switches")
+            Text(AppStrings.translate(appLocale, "settingsMore.beforeSwitch"))
                 .font(.footnote.weight(.semibold))
                 .fixedSize(horizontal: false, vertical: true)
             ForEach(preCutoverSteps, id: \.lead) { step in
@@ -522,23 +612,28 @@ private struct PortDocumentsRow: View {
     @State private var uploading = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
-        Text(
-            "Two documents are needed: a signed letter of authorization and a recent "
-                + "bill from your current carrier (PDF, PNG, or JPEG)."
-        )
+        Text(AppStrings.translate(appLocale, "settingsMore.portDocsNote"))
         .font(.footnote)
         .foregroundStyle(.secondary)
         HStack(spacing: 8) {
             DocumentPickButton(
-                label: port.has_loa ? "Replace LOA ✓" : "Upload LOA",
+                label: AppStrings.translate(
+                    appLocale,
+                    port.has_loa ? "settingsMore.replaceLoa" : "settingsMore.uploadLoa"
+                ),
                 fieldName: "loa",
                 disabled: uploading,
                 onPicked: { upload($0) },
                 onError: { error = $0 }
             )
             DocumentPickButton(
-                label: port.has_invoice ? "Replace bill ✓" : "Upload bill",
+                label: AppStrings.translate(
+                    appLocale,
+                    port.has_invoice ? "settingsMore.replaceBill" : "settingsMore.uploadBill"
+                ),
                 fieldName: "invoice",
                 disabled: uploading,
                 onPicked: { upload($0) },
@@ -547,7 +642,7 @@ private struct PortDocumentsRow: View {
         }
         .padding(.top, 6)
         if uploading {
-            Text("Uploading…")
+            Text(AppStrings.translate(appLocale, "settingsMore.uploading"))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .padding(.top, 4)
@@ -566,9 +661,12 @@ private struct PortDocumentsRow: View {
                     parts: [document]
                 )
                 scope.showMessage(
-                    document.fieldName == "loa"
-                        ? "Letter of authorization uploaded."
-                        : "Carrier bill uploaded."
+                    AppStrings.translate(
+                        appLocale,
+                        document.fieldName == "loa"
+                            ? "settingsMore.loaUploaded"
+                            : "settingsMore.billUploaded"
+                    )
                 )
                 onChanged()
             } catch {
@@ -596,6 +694,8 @@ private struct StartPortSheet: View {
     @State private var error: String?
     @State private var idempotencyKey = UUID().uuidString
 
+    @Environment(\.appLocale) private var appLocale
+
     private var wireless: Bool { check?.is_wireless == true }
     private var readyForForm: Bool { check?.portable == true }
 
@@ -604,32 +704,45 @@ private struct StartPortSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if !readyForForm {
-                        TextField("(416) 555-0182", text: $phoneInput)
+                        TextField(
+                            AppStrings.translate(appLocale, "settingsMore.phoneSample"),
+                            text: $phoneInput
+                        )
                             .textFieldStyle(.roundedBorder)
                             .keyboardType(.phonePad)
                             .disabled(pending)
-                        Text("Number to transfer")
+                        Text(AppStrings.translate(appLocale, "settingsMore.numberToTransfer"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .padding(.top, 2)
                         if let verdict = check, !verdict.portable {
-                            Text(verdict.reason ?? "That number can't be transferred automatically.")
+                            // The carrier's own refusal wins when there is one;
+                            // ours is only the fallback.
+                            Text(
+                                verdict.reason
+                                    ?? AppStrings.translate(
+                                        appLocale, "settingsMore.notPortable"
+                                    )
+                            )
                                 .font(.footnote)
                                 .padding(.top, 8)
                         }
                     } else if let verdict = check {
                         Text(
-                            formatPhone(checkedE164) + " can be transferred."
+                            AppStrings.translate(
+                                appLocale,
+                                "settingsMore.canBeTransferred",
+                                ["number": formatPhone(checkedE164)]
+                            )
                                 + (wireless
-                                    ? " It's a mobile number, so a transfer PIN and ID check are required."
+                                    ? AppStrings.translate(
+                                        appLocale, "settingsMore.wirelessRequires"
+                                    )
                                     : "")
                         )
                         .font(.callout)
                         if !verdict.messaging_capable {
-                            Text(
-                                "Heads up: this number may not support texting after the "
-                                    + "transfer — calls will still work."
-                            )
+                            Text(AppStrings.translate(appLocale, "settingsMore.mayNotText"))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .padding(.top, 4)
@@ -642,10 +755,12 @@ private struct StartPortSheet: View {
                             enabled: !pending
                         )
                         LabeledToggleRow(
-                            label: "Give me a temporary number while it transfers",
-                            supporting: "Optional. Texting starts right away on the "
-                                + "temporary number; your own number takes over when the "
-                                + "transfer completes.",
+                            label: AppStrings.translate(
+                                appLocale, "settingsMore.wantBridge"
+                            ),
+                            supporting: AppStrings.translate(
+                                appLocale, "settingsMore.wantBridgeSupporting"
+                            ),
                             isOn: wantsBridge,
                             enabled: !pending
                         ) { wantsBridge = $0 }
@@ -653,12 +768,24 @@ private struct StartPortSheet: View {
                     InlineError(error)
                     Spacer().frame(height: 16)
                     if !readyForForm {
-                        Button(pending ? "Checking…" : "Check the number") { checkNumber() }
+                        Button(
+                            AppStrings.translate(
+                                appLocale,
+                                pending ? "settingsMore.checking" : "settingsMore.checkNumber"
+                            )
+                        ) { checkNumber() }
                             .buttonStyle(.borderedProminent)
                             .tint(BrandColor.olive)
                             .disabled(pending || phoneInput.isBlank)
                     } else {
-                        Button(pending ? "Creating…" : "Create the transfer") { create() }
+                        Button(
+                            AppStrings.translate(
+                                appLocale,
+                                pending
+                                    ? "settingsMore.creating"
+                                    : "settingsMore.createTransfer"
+                            )
+                        ) { create() }
                             .buttonStyle(.borderedProminent)
                             .tint(BrandColor.olive)
                             .disabled(pending || !form.isComplete(wireless: wireless))
@@ -667,11 +794,11 @@ private struct StartPortSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
             }
-            .navigationTitle("Bring your existing number")
+            .navigationTitle(AppStrings.translate(appLocale, "settingsMore.bringNumber"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onDismiss() }
+                    Button(AppStrings.translate(appLocale, "common.cancel")) { onDismiss() }
                         .disabled(pending)
                 }
             }
@@ -682,7 +809,7 @@ private struct StartPortSheet: View {
 
     private func checkNumber() {
         guard let e164 = normalizeNanpInput(phoneInput) else {
-            error = "Enter a full 10-digit US or Canadian number."
+            error = AppStrings.translate(appLocale, "settingsMore.enterFullNanp")
             return
         }
         pending = true
@@ -710,7 +837,9 @@ private struct StartPortSheet: View {
         Task {
             do {
                 _ = try await scope.repo.createPort(scope.companyId, idempotencyKey: key, body: payload)
-                scope.showMessage("Transfer created. Upload the two documents to submit it.")
+                scope.showMessage(
+                    AppStrings.translate(appLocale, "settingsMore.transferCreated")
+                )
                 onCreated()
             } catch {
                 self.error = error.userMessage
@@ -734,6 +863,8 @@ private struct FixPortSheet: View {
     /// #319: which field to put the cursor in — seeded by the notice on the
     /// card, and reset by the notice in here.
     @State private var focusTarget: String?
+
+    @Environment(\.appLocale) private var appLocale
 
     init(
         scope: SettingsScope,
@@ -773,7 +904,7 @@ private struct FixPortSheet: View {
                         onGoToField: { focusTarget = $0 }
                     )
                     .padding(.bottom, 8)
-                    Text("The account number and PIN are never shown back for security — re-enter them.")
+                    Text(AppStrings.translate(appLocale, "settingsMore.reenterSecrets"))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .padding(.bottom, 6)
@@ -786,7 +917,12 @@ private struct FixPortSheet: View {
                     )
                     InlineError(error)
                     Spacer().frame(height: 16)
-                    Button(pending ? "Resubmitting…" : "Resubmit") { resubmit() }
+                    Button(
+                        AppStrings.translate(
+                            appLocale,
+                            pending ? "settingsMore.resubmitting" : "settingsMore.resubmit"
+                        )
+                    ) { resubmit() }
                         .buttonStyle(.borderedProminent)
                         .tint(BrandColor.olive)
                         .disabled(pending || !form.isComplete(wireless: port.is_wireless))
@@ -794,11 +930,11 @@ private struct FixPortSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
             }
-            .navigationTitle("Fix and resubmit")
+            .navigationTitle(AppStrings.translate(appLocale, "settingsMore.fixResubmit"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onDismiss() }
+                    Button(AppStrings.translate(appLocale, "common.cancel")) { onDismiss() }
                         .disabled(pending)
                 }
             }
@@ -815,7 +951,9 @@ private struct FixPortSheet: View {
             do {
                 _ = try await scope.repo.updatePort(scope.companyId, portId: port.id, body: payload)
                 _ = try await scope.repo.resubmitPort(scope.companyId, portId: port.id)
-                scope.showMessage("Transfer resubmitted.")
+                scope.showMessage(
+                    AppStrings.translate(appLocale, "settingsMore.transferResubmitted")
+                )
                 onDone()
             } catch {
                 self.error = error.userMessage

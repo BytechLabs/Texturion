@@ -53,11 +53,15 @@ struct SatisfactionCard: View {
     let onOpenPoor: () -> Void
 
     @State private var open = false
+    /// #228, and the same arrangement as the card above: the sentences this file
+    /// still writes out are the ones `satisfaction-parity.test.ts` reads OUT OF
+    /// THIS FILE for iOS. See the note in `ResponseTimeCard`.
+    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("SATISFACTION")
+                Text(AppStrings.translate(appLocale, "inbox.satisfactionTitle"))
                     .font(.golos(10.5, weight: .bold))
                     .kerning(1.2)
                     .foregroundStyle(BrandColor.muted500)
@@ -91,7 +95,7 @@ struct SatisfactionCard: View {
                         content(for: report)
                     }
                 } else {
-                    Text("Reading your ratings…")
+                    Text(AppStrings.translate(appLocale, "inbox.satisfactionLoading"))
                         .font(.golos(13))
                         .foregroundStyle(BrandColor.muted600)
                         .padding(14)
@@ -199,7 +203,9 @@ struct SatisfactionCard: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityHint("Opens the inbox to follow up with unhappy customers")
+            .accessibilityHint(
+                AppStrings.translate(appLocale, "inbox.satisfactionPoorHint")
+            )
         }
 
         Divider().overlay(BrandColor.muted250)
@@ -248,7 +254,13 @@ struct SatisfactionCard: View {
                 }
 
                 if report.truncated {
-                    Text("Showing the most recent \(report.row_limit) ratings.")
+                    Text(
+                        AppStrings.translate(
+                            appLocale,
+                            "inbox.satisfactionTruncated",
+                            ["count": String(report.row_limit)]
+                        )
+                    )
                         .font(.golos(10.5))
                         .foregroundStyle(BrandColor.muted500)
                         .padding(.top, 4)

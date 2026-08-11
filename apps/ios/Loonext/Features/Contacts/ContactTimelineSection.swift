@@ -44,8 +44,12 @@ struct ContactTimelineSection: View {
     /// the name is a decoration on a line that already reads correctly.
     @State private var answererNames: [String: String] = [:]
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
-        ContactSection(title: "History") {
+        ContactSection(
+            title: AppStrings.translate(appLocale, "contactsTasks.historySection")
+        ) {
             content
         }
         .task(id: "\(contactId)|\(refreshKey)") { await reload() }
@@ -88,7 +92,7 @@ struct ContactTimelineSection: View {
                 Text(message)
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted500)
-                Button("Try again") { refreshKey += 1 }
+                Button(AppStrings.translate(appLocale, "common.retry")) { refreshKey += 1 }
                     .font(.golos(12, weight: .semibold))
                     .foregroundStyle(BrandColor.olive)
                     .buttonStyle(.plain)
@@ -97,7 +101,7 @@ struct ContactTimelineSection: View {
         case .ready(let log):
             let entries = log.entries
             if entries.isEmpty {
-                Text("Texts, calls and jobs for this customer will collect here.")
+                Text(AppStrings.translate(appLocale, "contactsTasks.timelineEmpty"))
                     .font(.golos(12.5))
                     .foregroundStyle(BrandColor.muted500)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -138,7 +142,9 @@ struct ContactTimelineSection: View {
                     if loadingMore {
                         ProgressView().controlSize(.small)
                     } else {
-                        Button("Show earlier") { loadMore(from: cursor) }
+                        Button(
+                            AppStrings.translate(appLocale, "contactsTasks.showEarlier")
+                        ) { loadMore(from: cursor) }
                             .font(.golos(12, weight: .semibold))
                             .foregroundStyle(BrandColor.olive)
                             .buttonStyle(.plain)

@@ -40,14 +40,13 @@ struct NumberIdentitySheet: View {
     @State private var greetings: [VoicemailGreeting] = []
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(
-                        "Anything you leave alone follows your workspace. "
-                            + "Change one here and it only affects this number."
-                    )
+                    Text(AppStrings.translate(appLocale, "settingsMore.numberIdentityIntro"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
@@ -61,7 +60,9 @@ struct NumberIdentitySheet: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .padding(.top, 12)
-                        Button("Try again") { retryKey += 1 }
+                        Button(AppStrings.translate(appLocale, "common.retry")) {
+                            retryKey += 1
+                        }
                             .buttonStyle(.bordered)
                             .padding(.top, 8)
                     case .ready(let identity):
@@ -76,41 +77,58 @@ struct NumberIdentitySheet: View {
                         // #278: how THIS line rings, and for how long.
                         ringPicker(identity)
                         field(
-                            title: "Name for this line",
-                            hint: "Used in the greeting, on missed-call texts, and "
-                                + "wherever this line introduces itself.",
+                            title: AppStrings.translate(
+                                appLocale, "settingsMore.lineNameTitle"
+                            ),
+                            hint: AppStrings.translate(
+                                appLocale, "settingsMore.lineNameHint"
+                            ),
                             text: $label,
                             multiline: false,
                             inherited: identity.label.inherited,
                             restore: { restore("label") }
                         )
                         field(
-                            title: "Voicemail greeting",
-                            hint: "What a caller hears when nobody picks up.",
+                            title: AppStrings.translate(
+                                appLocale, "settingsMore.voicemailGreetingTitle"
+                            ),
+                            hint: AppStrings.translate(
+                                appLocale, "settingsMore.voicemailGreetingHint"
+                            ),
                             text: $greeting,
                             multiline: true,
                             inherited: identity.voicemail_greeting.inherited,
                             restore: { restore("voicemail_greeting") }
                         )
                         field(
-                            title: "After-hours reply",
-                            hint: "The text sent when somebody messages this line "
-                                + "outside your hours.",
+                            title: AppStrings.translate(
+                                appLocale, "settingsMore.afterHoursReplyTitle"
+                            ),
+                            hint: AppStrings.translate(
+                                appLocale, "settingsMore.afterHoursReplyHint"
+                            ),
                             text: $away,
                             multiline: true,
                             inherited: identity.away_message.inherited,
                             restore: { restore("away_message") }
                         )
                         toggleRow(
-                            title: "Text back a missed caller",
-                            hint: "Sent from this line when a call goes unanswered.",
+                            title: AppStrings.translate(
+                                appLocale, "settingsMore.missedCallBackTitle"
+                            ),
+                            hint: AppStrings.translate(
+                                appLocale, "settingsMore.missedCallBackHint"
+                            ),
                             inherited: identity.mctb_enabled.inherited,
                             restore: { restore("mctb_enabled") }
                         )
                         field(
-                            title: "Missed-call text",
-                            hint: "What a caller gets when nobody picks up and "
-                                + "they hang up.",
+                            title: AppStrings.translate(
+                                appLocale, "settingsMore.missedCallTextTitle"
+                            ),
+                            hint: AppStrings.translate(
+                                appLocale, "settingsMore.missedCallTextHint"
+                            ),
                             text: $mctbMessage,
                             multiline: true,
                             inherited: identity.mctb_message.inherited,
@@ -122,15 +140,22 @@ struct NumberIdentitySheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
             }
-            .navigationTitle("How this line answers")
+            .navigationTitle(
+                AppStrings.translate(appLocale, "settingsMore.numberIdentityTitle")
+            )
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onDismiss() }
+                    Button(AppStrings.translate(appLocale, "common.cancel")) { onDismiss() }
                         .disabled(pending)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(pending ? "Saving…" : "Save") { save() }
+                    Button(
+                        AppStrings.translate(
+                            appLocale,
+                            pending ? "common.saving" : "common.save"
+                        )
+                    ) { save() }
                         .disabled(!isReady || pending)
                 }
             }
@@ -173,11 +198,11 @@ struct NumberIdentitySheet: View {
                 Text(title).font(.subheadline.weight(.medium))
                 Spacer()
                 if inherited {
-                    Text("Same as your workspace")
+                    Text(AppStrings.translate(appLocale, "settingsMore.inheritSame"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Button("Use the workspace's") { restore() }
+                    Button(AppStrings.translate(appLocale, "settingsMore.inheritUse")) { restore() }
                         .font(.caption)
                         .disabled(pending)
                 }
@@ -216,11 +241,11 @@ struct NumberIdentitySheet: View {
                 Text(title).font(.subheadline.weight(.medium))
                 Spacer()
                 if inherited {
-                    Text("Same as your workspace")
+                    Text(AppStrings.translate(appLocale, "settingsMore.inheritSame"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Button("Use the workspace's") { restore() }
+                    Button(AppStrings.translate(appLocale, "settingsMore.inheritUse")) { restore() }
                         .font(.caption)
                         .disabled(pending)
                 }
@@ -243,26 +268,28 @@ struct NumberIdentitySheet: View {
     private func greetingPicker(_ identity: NumberIdentity) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Voicemail voice").font(.subheadline.weight(.medium))
+                Text(AppStrings.translate(appLocale, "settingsMore.voicemailVoice"))
+                    .font(.subheadline.weight(.medium))
                 Spacer()
                 if identity.voicemail_greeting_id.inherited {
-                    Text("Same as your workspace")
+                    Text(AppStrings.translate(appLocale, "settingsMore.inheritSame"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Button("Use the workspace's") { restore("voicemail_greeting_id") }
+                    Button(AppStrings.translate(appLocale, "settingsMore.inheritUse")) { restore("voicemail_greeting_id") }
                         .font(.caption)
                         .disabled(pending)
                 }
             }
             Picker(
-                "Voicemail voice",
+                AppStrings.translate(appLocale, "settingsMore.voicemailVoice"),
                 selection: Binding(
                     get: { identity.voicemail_greeting_id.value ?? writtenGreetingId },
                     set: { selectGreeting($0 == writtenGreetingId ? nil : $0) }
                 )
             ) {
-                Text("The written greeting, read aloud").tag(writtenGreetingId)
+                Text(AppStrings.translate(appLocale, "settingsMore.writtenGreeting"))
+                    .tag(writtenGreetingId)
                 ForEach(greetings) { row in
                     Text(row.name).tag(row.id)
                 }
@@ -270,10 +297,7 @@ struct NumberIdentitySheet: View {
             .pickerStyle(.menu)
             .labelsHidden()
             .disabled(pending)
-            Text(
-                "A recording that will not play falls back to the words below, "
-                    + "so a caller never hears silence."
-            )
+            Text(AppStrings.translate(appLocale, "settingsMore.recordingFallbackHint"))
             .font(.caption)
             .foregroundStyle(.secondary)
         }
@@ -283,20 +307,21 @@ struct NumberIdentitySheet: View {
     private func afterHoursPicker(_ identity: NumberIdentity) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text("After-hours calls").font(.subheadline.weight(.medium))
+                Text(AppStrings.translate(appLocale, "settingsMore.afterHoursCalls"))
+                    .font(.subheadline.weight(.medium))
                 Spacer()
                 if identity.after_hours_calls.inherited {
-                    Text("Same as your workspace")
+                    Text(AppStrings.translate(appLocale, "settingsMore.inheritSame"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Button("Use the workspace's") { restore("after_hours_calls") }
+                    Button(AppStrings.translate(appLocale, "settingsMore.inheritUse")) { restore("after_hours_calls") }
                         .font(.caption)
                         .disabled(pending)
                 }
             }
             Picker(
-                "After-hours calls",
+                AppStrings.translate(appLocale, "settingsMore.afterHoursCalls"),
                 selection: Binding(
                     get: {
                         identity.after_hours_calls.inherited
@@ -309,19 +334,18 @@ struct NumberIdentitySheet: View {
                 // Inherit FIRST: it is what every line does until somebody says
                 // otherwise, and the option that is always correct is the one
                 // that needs no thought.
-                Text("Same as your workspace").tag(inheritTag)
-                Text("Ring everyone, day or night").tag("ring_everyone")
-                Text("Ring only whoever's on call").tag("on_call_only")
-                Text("Take a message").tag("voicemail")
+                Text(AppStrings.translate(appLocale, "settingsMore.inheritSame")).tag(inheritTag)
+                Text(AppStrings.translate(appLocale, "settingsMore.afterHoursRingEveryone"))
+                    .tag("ring_everyone")
+                Text(AppStrings.translate(appLocale, "settingsMore.afterHoursOnCallOnly"))
+                    .tag("on_call_only")
+                Text(AppStrings.translate(appLocale, "settingsMore.afterHoursVoicemail"))
+                    .tag("voicemail")
             }
             .pickerStyle(.menu)
             .labelsHidden()
             .disabled(pending)
-            Text(
-                "Outside this line's hours. With nobody on call, the last two "
-                    + "still differ — one rings the crew anyway, the other takes "
-                    + "a message."
-            )
+            Text(AppStrings.translate(appLocale, "settingsMore.afterHoursHint"))
             .font(.caption)
             .foregroundStyle(.secondary)
         }
@@ -331,20 +355,21 @@ struct NumberIdentitySheet: View {
     private func ringPicker(_ identity: NumberIdentity) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text("How the phones ring").font(.subheadline.weight(.medium))
+                Text(AppStrings.translate(appLocale, "settingsMore.ringHow"))
+                    .font(.subheadline.weight(.medium))
                 Spacer()
                 if identity.ring_strategy.inherited {
-                    Text("Same as your workspace")
+                    Text(AppStrings.translate(appLocale, "settingsMore.inheritSame"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Button("Use the workspace's") { restore("ring_strategy") }
+                    Button(AppStrings.translate(appLocale, "settingsMore.inheritUse")) { restore("ring_strategy") }
                         .font(.caption)
                         .disabled(pending)
                 }
             }
             Picker(
-                "How the phones ring",
+                AppStrings.translate(appLocale, "settingsMore.ringHow"),
                 selection: Binding(
                     get: {
                         identity.ring_strategy.inherited
@@ -354,29 +379,30 @@ struct NumberIdentitySheet: View {
                     set: { setRingStrategy($0 == inheritTag ? nil : $0) }
                 )
             ) {
-                Text("Same as your workspace").tag(inheritTag)
-                Text("All at once").tag("all")
-                Text("One at a time").tag("in_turn")
+                Text(AppStrings.translate(appLocale, "settingsMore.inheritSame")).tag(inheritTag)
+                Text(AppStrings.translate(appLocale, "settingsMore.ringAll")).tag("all")
+                Text(AppStrings.translate(appLocale, "settingsMore.ringInTurn")).tag("in_turn")
             }
             .pickerStyle(.menu)
             .labelsHidden()
             .disabled(pending)
 
             HStack(alignment: .firstTextBaseline) {
-                Text("How long they ring").font(.subheadline.weight(.medium))
+                Text(AppStrings.translate(appLocale, "settingsMore.ringHowLong"))
+                    .font(.subheadline.weight(.medium))
                 Spacer()
                 if identity.ring_seconds.inherited {
-                    Text("Same as your workspace")
+                    Text(AppStrings.translate(appLocale, "settingsMore.inheritSame"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Button("Use the workspace's") { restore("ring_seconds") }
+                    Button(AppStrings.translate(appLocale, "settingsMore.inheritUse")) { restore("ring_seconds") }
                         .font(.caption)
                         .disabled(pending)
                 }
             }
             Picker(
-                "How long they ring",
+                AppStrings.translate(appLocale, "settingsMore.ringHowLong"),
                 selection: Binding(
                     get: {
                         identity.ring_seconds.inherited
@@ -389,9 +415,15 @@ struct NumberIdentitySheet: View {
                 // -1 is the inherit tag here rather than a string, because the
                 // value this picker holds is a number and a mixed-type tag is
                 // how a SwiftUI Picker silently stops matching its selection.
-                Text("Same as your workspace").tag(-1)
+                Text(AppStrings.translate(appLocale, "settingsMore.inheritSame")).tag(-1)
                 ForEach(ringSecondChoices, id: \.self) { value in
-                    Text("\(value) seconds").tag(value)
+                    Text(
+                        AppStrings.translate(
+                            appLocale,
+                            "settingsMore.ringSeconds",
+                            ["seconds": String(value)]
+                        )
+                    ).tag(value)
                 }
             }
             .pickerStyle(.menu)

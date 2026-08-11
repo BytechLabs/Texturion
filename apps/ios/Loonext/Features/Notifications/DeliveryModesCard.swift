@@ -22,6 +22,8 @@ struct DeliveryModesCard: View {
     let prefs: NotificationPrefs
     let onSave: (NotificationPrefs) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     /// An absent key means immediate — the SERVER's rule, restated here rather
     /// than reinvented, so the two cannot drift.
     private func mode(of category: String) -> String {
@@ -113,10 +115,10 @@ struct DeliveryModesCard: View {
             if anyBatched {
                 Divider().padding(.vertical, 6)
                 HStack {
-                    Text("Group them every")
+                    Text(AppStrings.translate(appLocale, "inbox.deliveryGroupEvery"))
                         .font(.golos(13))
                     Picker(
-                        "Group them every",
+                        AppStrings.translate(appLocale, "inbox.deliveryGroupEvery"),
                         selection: Binding(
                             get: {
                                 prefs.batch_window_minutes
@@ -130,7 +132,13 @@ struct DeliveryModesCard: View {
                         )
                     ) {
                         ForEach(OnCall.batchWindowChoices, id: \.self) { minutes in
-                            Text("\(minutes) minutes").tag(minutes)
+                            Text(
+                                AppStrings.translate(
+                                    appLocale,
+                                    "inbox.deliveryMinutes",
+                                    ["minutes": String(minutes)]
+                                )
+                            ).tag(minutes)
                         }
                     }
                     .pickerStyle(.menu)

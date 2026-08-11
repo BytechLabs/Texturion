@@ -20,6 +20,8 @@ struct NotificationsView: View {
     @State private var model: NotificationsFeedModel
     @State private var refreshKey = 0
 
+    @Environment(\.appLocale) private var appLocale
+
     init(
         graph: AppGraph,
         companyId: String,
@@ -54,7 +56,7 @@ struct NotificationsView: View {
         }
         .background(BrandColor.canvas.ignoresSafeArea())
         .overlay(alignment: .bottom) { toastNotice }
-        .animation(.default, value: model.toast)
+        .animation(.default, value: model.toastKey)
         .task(id: "\(companyId)#\(refreshKey)") { await model.refresh() }
         // The feed is derived from messages/conversations/tasks/calls — any of
         // those moving can add an item or change the badge.
@@ -97,7 +99,7 @@ struct NotificationsView: View {
     private var feed: some View {
         VStack(spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Notifications")
+                Text(AppStrings.translate(appLocale, "inbox.notificationsHeading"))
                     .font(.display(24))
                     .kerning(-0.2)
                     .foregroundStyle(BrandColor.ink)
@@ -105,7 +107,7 @@ struct NotificationsView: View {
                 Button {
                     model.markAllRead()
                 } label: {
-                    Text("Read all")
+                    Text(AppStrings.translate(appLocale, "inbox.notifReadAll"))
                         .font(.golos(11.5, weight: .bold))
                         .foregroundStyle(model.hasUnread ? BrandColor.olive : BrandColor.muted300)
                 }
@@ -122,7 +124,7 @@ struct NotificationsView: View {
             NotificationPauseNotice(pause: model.alertPause)
 
             if model.items.isEmpty {
-                Text("You're all caught up.")
+                Text(AppStrings.translate(appLocale, "inbox.notifCaughtUp"))
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted600)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -144,7 +146,14 @@ struct NotificationsView: View {
                             Button {
                                 model.loadOlder()
                             } label: {
-                                Text(model.loadingMore ? "Loading older…" : "Show older")
+                                Text(
+                                    AppStrings.translate(
+                                        appLocale,
+                                        model.loadingMore
+                                            ? "inbox.notifLoadingOlder"
+                                            : "inbox.notifShowOlder"
+                                    )
+                                )
                                     .font(.golos(12, weight: .semibold))
                                     .foregroundStyle(BrandColor.olive)
                             }
@@ -153,7 +162,7 @@ struct NotificationsView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 4)
                         }
-                        Text("Push and email mirror these — Settings › Notifications")
+                        Text(AppStrings.translate(appLocale, "inbox.notifMirrorHint"))
                             .font(.golos(11))
                             .foregroundStyle(BrandColor.muted700)
                             .padding(.horizontal, 14)
@@ -173,8 +182,8 @@ struct NotificationsView: View {
 
     @ViewBuilder
     private var toastNotice: some View {
-        if let toast = model.toast {
-            Text(toast)
+        if let toastKey = model.toastKey {
+            Text(AppStrings.translate(appLocale, toastKey))
                 .font(.subheadline)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
@@ -189,6 +198,11 @@ private struct NotificationRow: View {
     let row: NotificationItem
     let onTap: @MainActor () -> Void
 
+    // Read from the environment rather than taken as a parameter: this row is
+    // built by two `#Preview` blocks, and a new required argument breaks a
+    // preview in a way only CI's `Gate / iOS` can see.
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         // Every derived type today links to its conversation; a future type
         // without one renders disabled instead of dead-tapping.
@@ -199,7 +213,7 @@ private struct NotificationRow: View {
                     .foregroundStyle(iconTint(row.type))
                     .frame(width: 38, height: 38)
                     .background(iconWell(row.type), in: Circle())
-                Text(summaryFor(row))
+                Text(summaryFor(row, appLocale))
                     .font(.golos(13, weight: row.unread ? .bold : .semibold))
                     .foregroundStyle(BrandColor.ink)
                     .lineLimit(2)
@@ -224,7 +238,9 @@ private struct NotificationRow: View {
         .disabled(row.conversation_id == nil)
         // Announce read/unread to VoiceOver — the visual AttentionDot + bold
         // weight that convey it to sighted users aren't otherwise exposed.
-        .accessibilityValue(row.unread ? "Unread" : "")
+        .accessibilityValue(
+            row.unread ? AppStrings.translate(appLocale, "inbox.notifStateUnread") : ""
+        )
     }
 }
 
@@ -252,23 +268,34 @@ private func iconTint(_ type: String) -> Color {
 }
 
 /// One-line summaries, mirroring the web bell popover copy exactly.
-private func summaryFor(_ row: NotificationItem) -> String {
+///
+/// #228: the locale is a PARAMETER because this is a plain function rather than
+/// a view. Its single call site is the row above, which reads it once from the
+/// environment. Two keys per type, not one with an optional name spliced in: a
+/// language that reorders "de {who}" cannot be served by concatenation.
+private func summaryFor(_ row: NotificationItem, _ locale: String) -> String {
     let who: String? = row.contact.map { $0.name ?? formatPhone($0.phone_e164) }
+
+    func say(_ named: String, _ bare: String) -> String {
+        guard let who else { return AppStrings.translate(locale, bare) }
+        return AppStrings.translate(locale, named, ["who": who])
+    }
+
     switch row.type {
     case NotificationType.inboundMessage:
-        return who.map { "New message from \($0)" } ?? "New message"
+        return say("inbox.notifNewMessageFrom", "inbox.notifNewMessage")
     case NotificationType.assigned:
-        return who.map { "\($0) assigned to you" } ?? "Conversation assigned to you"
+        return say("inbox.notifAssignedFrom", "inbox.notifAssigned")
     case NotificationType.taskAssigned:
-        return who.map { "Task assigned · \($0)" } ?? "Task assigned to you"
+        return say("inbox.notifTaskAssignedFrom", "inbox.notifTaskAssigned")
     case NotificationType.missedCall:
-        return who.map { "Missed call from \($0)" } ?? "Missed call"
+        return say("inbox.notifMissedCallFrom", "inbox.notifMissedCall")
     case NotificationType.mention:
-        return who.map { "You were mentioned · \($0)" } ?? "You were mentioned"
+        return say("inbox.notifMentionFrom", "inbox.notifMention")
     default:
         // A type added server-side after this build shipped — show something
         // honest instead of crashing or hiding it.
-        return who.map { "Update · \($0)" } ?? "Update"
+        return say("inbox.notifUpdateFrom", "inbox.notifUpdate")
     }
 }
 
@@ -328,29 +355,47 @@ private func iconFor(_ type: String) -> String {
 private struct NotificationPauseNotice: View {
     let pause: AlertPause?
 
+    @Environment(\.appLocale) private var appLocale
+
     private var headline: String {
         guard let pause else { return "" }
-        if pause.email_paused && pause.push_paused { return "Notifications are paused" }
-        return pause.email_paused ? "Email alerts are paused" : "Push alerts are paused"
+        let key: String = {
+            if pause.email_paused && pause.push_paused { return "inbox.notifPausedBoth" }
+            return pause.email_paused
+                ? "inbox.notifPausedEmail"
+                : "inbox.notifPausedPush"
+        }()
+        return AppStrings.translate(appLocale, key)
     }
 
     /// When only one channel is spent, saying which is the difference between
     /// "we are broken" and "you are still covered".
     private var stillCovered: String {
         guard let pause, pause.email_paused, !pause.push_paused else { return "" }
-        return " You're still getting push."
+        return AppStrings.translate(appLocale, "inbox.notifPausedStillPush")
     }
 
     private var resumes: String {
         guard let at = pause?.resets_at else { return "" }
-        return " They resume \(relativeTime(at))."
+        return AppStrings.translate(
+            appLocale,
+            "inbox.notifPausedResumes",
+            ["when": relativeTime(at)]
+        )
     }
 
     var body: some View {
         if let pause, pause.anyPaused {
             Text(
-                "\(headline) for today — this workspace hit its daily limit."
-                    + "\(stillCovered)\(resumes) Your messages are all still here."
+                AppStrings.translate(
+                    appLocale,
+                    "inbox.notifPausedBody",
+                    [
+                        "what": headline,
+                        "still": stillCovered,
+                        "resumes": resumes,
+                    ]
+                )
             )
             .font(.golos(11.5))
             .foregroundStyle(BrandColor.coral)

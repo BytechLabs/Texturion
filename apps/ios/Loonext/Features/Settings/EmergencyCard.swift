@@ -30,6 +30,8 @@ struct EmergencyCard: View {
     @State private var saving = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     init(
         scope: SettingsScope,
         company: CompanyView,

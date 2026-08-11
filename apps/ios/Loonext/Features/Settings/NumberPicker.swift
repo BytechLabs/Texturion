@@ -40,6 +40,8 @@ struct NumberPickerSheet: View {
     @State private var state: LoadState<AvailableNumbersResult> = .loading
     @State private var fetchKey = 0
 
+    @Environment(\.appLocale) private var appLocale
+
     init(
         scope: SettingsScope,
         country: String,
@@ -70,7 +72,7 @@ struct NumberPickerSheet: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 8) {
-                    TextField("Area code", text: Binding(
+                    TextField(AppStrings.translate(appLocale, "settingsMore.areaCode"), text: Binding(
                         get: { areaCode },
                         set: { next in
                             if next.count <= 3 && next.allSatisfy(\.isNumber) {
@@ -83,7 +85,7 @@ struct NumberPickerSheet: View {
                     .keyboardType(.numberPad)
                     .frame(width: 110)
                     .disabled(pending)
-                    TextField("Contains digits", text: Binding(
+                    TextField(AppStrings.translate(appLocale, "settingsMore.containsDigits"), text: Binding(
                         get: { digitFilter },
                         set: { next in
                             if next.count <= 10 && next.allSatisfy(\.isNumber) {
@@ -109,7 +111,9 @@ struct NumberPickerSheet: View {
                             Text(message)
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
-                            Button("Try again") { fetchKey += 1 }
+                            Button(AppStrings.translate(appLocale, "common.retry")) {
+                                fetchKey += 1
+                            }
                                 .buttonStyle(.bordered)
                                 .padding(.top, 8)
                         case .ready(let result):
@@ -125,7 +129,7 @@ struct NumberPickerSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onDismiss() }
+                    Button(AppStrings.translate(appLocale, "common.cancel")) { onDismiss() }
                         .disabled(pending)
                 }
             }
@@ -170,13 +174,31 @@ struct NumberPickerSheet: View {
         // CA (masked) inventory: no exact numbers to list — the pick is the code.
         if result.masked {
             Text(
-                "Canadian numbers are assigned when the order goes through, so your "
-                    + "pick here is the area code. There are numbers available"
-                    + (effectiveAreaCode.map { " in \($0)" } ?? "") + "."
+                AppStrings.translate(
+                    appLocale,
+                    "settingsMore.maskedPick",
+                    [
+                        "where": effectiveAreaCode.map {
+                            AppStrings.translate(
+                                appLocale,
+                                "settingsMore.inAreaCode",
+                                ["areaCode": $0]
+                            )
+                        } ?? ""
+                    ]
+                )
             )
             .font(.callout)
             if let code = effectiveAreaCode {
-                Button(pending ? "Ordering…" : "Use area code \(code)") {
+                Button(
+                    pending
+                        ? AppStrings.translate(appLocale, "settingsMore.ordering")
+                        : AppStrings.translate(
+                            appLocale,
+                            "settingsMore.useAreaCode",
+                            ["areaCode": code]
+                        )
+                ) {
                     onPick(.areaCode(code))
                 }
                 .buttonStyle(.borderedProminent)
@@ -184,18 +206,26 @@ struct NumberPickerSheet: View {
                 .disabled(pending)
                 .padding(.top, 10)
             } else {
-                Text("Enter the 3-digit area code you want above.")
+                Text(AppStrings.translate(appLocale, "settingsMore.enterAreaCode"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .padding(.top, 6)
             }
         } else if result.best_effort_exhausted && !bestEffort {
             Text(
-                "No numbers in \(effectiveAreaCode ?? "that area code") right now. "
-                    + "Nearby area codes usually have plenty."
+                AppStrings.translate(
+                    appLocale,
+                    "settingsMore.noNumbersIn",
+                    [
+                        "areaCode": effectiveAreaCode
+                            ?? AppStrings.translate(appLocale, "settingsMore.thatAreaCode")
+                    ]
+                )
             )
             .font(.callout)
-            Button("Show nearby numbers") { bestEffort = true }
+            Button(AppStrings.translate(appLocale, "settingsMore.showNearby")) {
+                bestEffort = true
+            }
                 .buttonStyle(.bordered)
                 .disabled(pending)
                 .padding(.top, 8)
@@ -204,19 +234,24 @@ struct NumberPickerSheet: View {
             if filtered.isEmpty {
                 Text(
                     digitFilter.isEmpty
-                        ? "No numbers came back. Refresh for a new batch, or try another area code."
-                        : "No available number contains \"\(digitFilter)\". Loosen the filter "
-                            + "or refresh for a new batch."
+                        ? AppStrings.translate(appLocale, "settingsMore.noNumbersBack")
+                        : AppStrings.translate(
+                            appLocale,
+                            "settingsMore.noNumberContains",
+                            ["digits": digitFilter]
+                        )
                 )
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-                Button("Refresh") { fetchKey += 1 }
+                Button(AppStrings.translate(appLocale, "settingsMore.refresh")) {
+                    fetchKey += 1
+                }
                     .buttonStyle(.bordered)
                     .disabled(pending)
                     .padding(.top, 8)
             } else {
                 if bestEffort {
-                    Text("Showing nearby numbers — the exact area code is out of stock.")
+                    Text(AppStrings.translate(appLocale, "settingsMore.showingNearby"))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .padding(.bottom, 6)
@@ -242,7 +277,9 @@ struct NumberPickerSheet: View {
                     .disabled(pending)
                     Divider()
                 }
-                Button("Refresh the list") { fetchKey += 1 }
+                Button(AppStrings.translate(appLocale, "settingsMore.refreshList")) {
+                    fetchKey += 1
+                }
                     .font(.subheadline)
                     .buttonStyle(.borderless)
                     .disabled(pending)

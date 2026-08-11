@@ -37,6 +37,8 @@ struct ReferralAskCard: View {
     let onOpen: () -> Void
     let onDismiss: () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         // Never a skeleton and never an error row. This is a favour being asked on
         // somebody's working screen; if we cannot tell whether it is the right
@@ -61,7 +63,11 @@ struct ReferralAskCard: View {
                             } else {
                                 // The one place a wait is worth showing: they
                                 // pressed a button and are owed an answer about it.
-                                Text("Getting your link…")
+                                Text(
+                                    AppStrings.translate(
+                                        appLocale, "inbox.referralGettingLink"
+                                    )
+                                )
                                     .font(.golos(13))
                                     .foregroundStyle(BrandColor.muted600)
                                     .padding(.top, 12)

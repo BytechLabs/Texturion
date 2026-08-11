@@ -24,6 +24,8 @@ struct NumbersSectionView: View {
     @State private var state: LoadState<NumbersData> = .loading
     @State private var refreshKey = 0
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         Group {
             switch state {
@@ -57,8 +59,10 @@ struct NumbersSectionView: View {
                         || number.status == NumberStatus.suspended
                 }
                 if cards.isEmpty && company.plan == nil {
-                    SettingsCard(title: "Your number") {
-                        Text("No number yet — it's created automatically when your subscription starts.")
+                    SettingsCard(
+                        title: AppStrings.translate(appLocale, "settingsMore.yourNumber")
+                    ) {
+                        Text(AppStrings.translate(appLocale, "settingsMore.noNumberYet"))
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
@@ -148,6 +152,8 @@ private struct NumberCard: View {
     @State private var managingHours = false
     @State private var choosing = false
 
+    @Environment(\.appLocale) private var appLocale
+
     private var canManage: Bool { SettingsRoleGate.canManageNumbers(scope.role) }
     private var canRelease: Bool { SettingsRoleGate.canReleaseNumber(scope.role) }
     private var released: Bool { number.status == NumberStatus.released }
@@ -210,8 +216,12 @@ private struct NumberCard: View {
 
     private var display: String {
         if let e164 = number.number_e164 { return formatPhone(e164) }
-        if let code = number.requested_area_code { return "Area code \(code)" }
-        return "Your number"
+        if let code = number.requested_area_code {
+            return AppStrings.translate(
+                appLocale, "settingsMore.areaCodeIs", ["areaCode": code]
+            )
+        }
+        return AppStrings.translate(appLocale, "settingsMore.yourNumber")
     }
 
     var body: some View {
@@ -227,13 +237,17 @@ private struct NumberCard: View {
                 if let e164 = number.number_e164, !released {
                     Button {
                         copyToClipboard(e164)
-                        scope.showMessage("Number copied.")
+                        scope.showMessage(
+                            AppStrings.translate(appLocale, "settingsMore.numberCopied")
+                        )
                     } label: {
                         Image(systemName: "doc.on.doc")
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.borderless)
-                    .accessibilityLabel("Copy number")
+                    .accessibilityLabel(
+                        AppStrings.translate(appLocale, "settingsMore.copyNumber")
+                    )
                 }
             }
 
@@ -242,17 +256,27 @@ private struct NumberCard: View {
             if manageable {
                 HStack(spacing: 12) {
                     if canManage {
-                        Button("How this line answers") { managingIdentity = true }
+                        Button(
+                            AppStrings.translate(
+                                appLocale, "settingsMore.numberIdentityTitle"
+                            )
+                        ) { managingIdentity = true }
                         // #307: a SECOND entry rather than more rows in the
                         // first sheet — when the line is open is a different
                         // question, asked at a different time.
-                        Button("When this line is open") { managingHours = true }
-                        Button("Who can use this number") { managingAccess = true }
+                        Button(
+                            AppStrings.translate(appLocale, "settingsMore.numberHoursTitle")
+                        ) { managingHours = true }
+                        Button(
+                            AppStrings.translate(appLocale, "settingsMore.whoCanUse")
+                        ) { managingAccess = true }
                             .font(.subheadline)
                             .buttonStyle(.borderless)
                     }
                     if canRelease && releasable {
-                        Button("Release") { releasing = true }
+                        Button(
+                            AppStrings.translate(appLocale, "settingsMore.release")
+                        ) { releasing = true }
                             .font(.subheadline)
                             .foregroundStyle(BrandColor.destructive)
                             .buttonStyle(.borderless)
@@ -260,7 +284,11 @@ private struct NumberCard: View {
                 }
                 .padding(.top, 6)
                 if !canManage {
-                    ReadOnlyLine("Only owners and admins can manage numbers.")
+                    ReadOnlyLine(
+                        AppStrings.translate(
+                            appLocale, "settingsMore.onlyAdminsManageNumbers"
+                        )
+                    )
                 }
             }
         }
@@ -309,9 +337,9 @@ private struct NumberCard: View {
 
     private func sourceLabel(_ source: String) -> String {
         switch source {
-        case "ported": "Transferred in"
-        case "hosted": "Text-enabled landline"
-        default: "Loonext number"
+        case "ported": AppStrings.translate(appLocale, "settingsMore.sourcePorted")
+        case "hosted": AppStrings.translate(appLocale, "settingsMore.sourceHosted")
+        default: AppStrings.translate(appLocale, "settingsMore.sourceLoonext")
         }
     }
 
@@ -319,24 +347,47 @@ private struct NumberCard: View {
     private var statusPill: some View {
         switch number.status {
         case NumberStatus.active:
-            StatusPill(label: "Active", tone: .positive)
+            StatusPill(
+                label: AppStrings.translate(appLocale, "settingsMore.statusActive"),
+                tone: .positive
+            )
         case NumberStatus.provisioning:
-            StatusPill(label: "Setting up", tone: .warn)
+            StatusPill(
+                label: AppStrings.translate(appLocale, "settingsMore.statusSettingUp"),
+                tone: .warn
+            )
         case NumberStatus.suspended:
             // "On hold", not the database's word for it. #523's mail, push and
             // billing card all say a number is on hold; a pill that said
             // "Suspended" would be a fourth name for one state, on the screen
             // somebody opens straight after reading the other three.
-            StatusPill(label: "On hold", tone: .warn)
+            StatusPill(
+                label: AppStrings.translate(appLocale, "settingsMore.portOnHold"),
+                tone: .warn
+            )
         case NumberStatus.released:
-            StatusPill(label: "Released", tone: .neutral)
+            StatusPill(
+                label: AppStrings.translate(appLocale, "settingsMore.statusReleased"),
+                tone: .neutral
+            )
         case NumberStatus.provisionFailed:
             if !needsNumberChoice(number) {
-                StatusPill(label: "Setting up", tone: .warn)
+                StatusPill(
+                    label: AppStrings.translate(appLocale, "settingsMore.statusSettingUp"),
+                    tone: .warn
+                )
             } else if number.failure_reason == "timeout" {
-                StatusPill(label: "Action needed", tone: .warn)
+                StatusPill(
+                    label: AppStrings.translate(
+                        appLocale, "settingsMore.statusActionNeeded"
+                    ),
+                    tone: .warn
+                )
             } else {
-                StatusPill(label: "Couldn't set up", tone: .bad)
+                StatusPill(
+                    label: AppStrings.translate(appLocale, "settingsMore.statusFailed"),
+                    tone: .bad
+                )
             }
         default:
             StatusPill(label: number.status, tone: .neutral)
@@ -351,7 +402,13 @@ private struct NumberCard: View {
                 .strikethrough()
                 .foregroundStyle(.secondary)
             if let at = number.released_at {
-                Text("Released \(relativeTime(at)) ago.")
+                Text(
+                    AppStrings.translate(
+                        appLocale,
+                        "settingsMore.releasedAgo",
+                        ["ago": relativeTime(at)]
+                    )
+                )
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -360,7 +417,7 @@ private struct NumberCard: View {
             // 'degraded' state ever reaches a client — the server flattens the
             // internal 'watch' to healthy, because a maybe-degraded warning on
             // a thin sample is how a false alarm becomes a cancellation.
-            Text("Messages from this number aren't arriving reliably")
+            Text(AppStrings.translate(appLocale, "settingsMore.numberUnreliable"))
                 .font(.callout)
             Text(numberHealthCopy(health))
                 .font(.footnote)
@@ -405,7 +462,9 @@ private struct NumberCard: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             if canManage && needsNumberChoice(number) {
-                Button("Choose a number") { choosing = true }
+                Button(AppStrings.translate(appLocale, "settingsMore.chooseNumber")) {
+                    choosing = true
+                }
                     .buttonStyle(.bordered)
                     .padding(.top, 8)
             }
@@ -436,6 +495,8 @@ private struct ReleaseNumberSheet: View {
     @State private var proof: HandoverProof?
     @State private var codeRejected = false
 
+    @Environment(\.appLocale) private var appLocale
+
     private var display: String { formatPhone(number.number_e164) }
 
     private var matches: Bool {
@@ -446,22 +507,29 @@ private struct ReleaseNumberSheet: View {
 
     var body: some View {
         ConfirmSheet(
-            title: "Release \(display)?",
+            title: AppStrings.translate(
+                appLocale, "settingsMore.releaseTitle", ["number": display]
+            ),
             // #523: the ordinary sentence promises a free replacement, which is
             // false for a row on hold — see `releaseNumberMessage`. The sheet
             // asks which row this is rather than carrying one paragraph for two
             // different decisions.
             message: releaseNumberMessage(heldOverAllowance: heldOverAllowance),
-            confirmLabel: "Release number",
+            confirmLabel: AppStrings.translate(appLocale, "settingsMore.releaseConfirm"),
             destructive: true,
             pending: pending,
             error: error,
             confirmEnabled: matches,
-            dismissLabel: "Keep the number",
+            dismissLabel: AppStrings.translate(appLocale, "settingsMore.keepNumber"),
             onConfirm: { attempt(nil) },
             onDismiss: { onDismiss() }
         ) {
-            TextField("Type \(display) to confirm", text: $typed)
+            TextField(
+                AppStrings.translate(
+                    appLocale, "settingsMore.typeToConfirm", ["number": display]
+                ),
+                text: $typed
+            )
                 .textFieldStyle(.roundedBorder)
                 .keyboardType(.phonePad)
                 .disabled(pending)
@@ -492,7 +560,9 @@ private struct ReleaseNumberSheet: View {
         let companyId = scope.companyId
         let repo = scope.repo
         let numberId = number.id
-        let done = "\(display) released."
+        let done = AppStrings.translate(
+            appLocale, "settingsMore.numberReleased", ["number": display]
+        )
         Task {
             // The kind is carried FORWARD from the demand we are answering, not left at
             // the default. This screen rebuilds its proof on every press — the other two
@@ -535,7 +605,7 @@ private struct ReleaseNumberSheet: View {
                 scope.companyId, action: pendingProof.action
             )
             // Said either way. Whether an address exists is not ours to leak.
-            scope.showMessage("Sent. Check your email.")
+            scope.showMessage(AppStrings.translate(appLocale, "settingsMore.codeSent"))
         }
     }
 }
@@ -548,21 +618,27 @@ private enum AccessMode: CaseIterable {
     case admins
     case users
 
-    var label: String {
+    /// The catalogue key for this option's name.
+    ///
+    /// A KEY rather than the sentence, because an enum outside a view has no
+    /// locale to read. It doubles as the stable `ForEach` id the list needs —
+    /// which is what the English used to be, and would have started changing
+    /// under the reader the moment it became translated.
+    var labelKey: String {
         switch self {
-        case .everyone: "Everyone"
-        case .membersView: "Members: view & notes only"
-        case .admins: "Admins only"
-        case .users: "Specific people"
+        case .everyone: "settingsMore.accessEveryone"
+        case .membersView: "settingsMore.accessMembersView"
+        case .admins: "settingsMore.accessAdmins"
+        case .users: "settingsMore.accessUsers"
         }
     }
 
-    var detail: String {
+    var detailKey: String {
         switch self {
-        case .everyone: "The whole team can text, like today."
-        case .membersView: "Members can read and add notes, but not text. Admins still text."
-        case .admins: "Members can't see this number at all."
-        case .users: "Only the people you pick. Admins still text."
+        case .everyone: "settingsMore.accessEveryoneDetail"
+        case .membersView: "settingsMore.accessMembersViewDetail"
+        case .admins: "settingsMore.accessAdminsDetail"
+        case .users: "settingsMore.accessUsersDetail"
         }
     }
 }
@@ -580,15 +656,18 @@ private struct NumberAccessSheet: View {
     @State private var pending = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     private var display: String {
-        number.number_e164.map(formatPhone) ?? "this number"
+        number.number_e164.map(formatPhone)
+            ?? AppStrings.translate(appLocale, "settingsMore.thisNumber")
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Owners and admins can always use every number.")
+                    Text(AppStrings.translate(appLocale, "settingsMore.adminsAlwaysUse"))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     Spacer().frame(height: 8)
@@ -601,7 +680,9 @@ private struct NumberAccessSheet: View {
                         Text(message)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
-                        Button("Try again") { retryKey += 1 }
+                        Button(AppStrings.translate(appLocale, "common.retry")) {
+                            retryKey += 1
+                        }
                             .buttonStyle(.bordered)
                             .padding(.top, 8)
                     case .ready(let members):
@@ -616,15 +697,24 @@ private struct NumberAccessSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
             }
-            .navigationTitle("Who can use \(display)?")
+            .navigationTitle(
+                AppStrings.translate(
+                    appLocale, "settingsMore.whoCanUseNumber", ["number": display]
+                )
+            )
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onDismiss() }
+                    Button(AppStrings.translate(appLocale, "common.cancel")) { onDismiss() }
                         .disabled(pending)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(pending ? "Saving…" : "Save") { save() }
+                    Button(
+                        AppStrings.translate(
+                            appLocale,
+                            pending ? "common.saving" : "common.save"
+                        )
+                    ) { save() }
                         .disabled(!isReady || pending)
                 }
             }
@@ -661,7 +751,7 @@ private struct NumberAccessSheet: View {
     }
 
     private var modeOptions: some View {
-        ForEach(AccessMode.allCases, id: \.label) { option in
+        ForEach(AccessMode.allCases, id: \.labelKey) { option in
             Button {
                 mode = option
             } label: {
@@ -670,10 +760,10 @@ private struct NumberAccessSheet: View {
                         .foregroundStyle(mode == option ? BrandColor.olive : Color.secondary)
                         .padding(.top, 2)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(option.label)
+                        Text(AppStrings.translate(appLocale, option.labelKey))
                             .font(.callout)
                             .foregroundStyle(Color.primary)
-                        Text(option.detail)
+                        Text(AppStrings.translate(appLocale, option.detailKey))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -689,7 +779,7 @@ private struct NumberAccessSheet: View {
     @ViewBuilder
     private func userPicker(_ members: [Member]) -> some View {
         if members.isEmpty {
-            Text("No active members to pick — everyone else on the team is an owner or admin.")
+            Text(AppStrings.translate(appLocale, "settingsMore.noMembersToPick"))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         } else {
@@ -705,7 +795,11 @@ private struct NumberAccessSheet: View {
                     HStack(spacing: 8) {
                         Image(systemName: checked ? "checkmark.square.fill" : "square")
                             .foregroundStyle(checked ? BrandColor.olive : Color.secondary)
-                        Text(member.display_name.isBlank ? "Teammate" : member.display_name)
+                        Text(
+                            member.display_name.isBlank
+                                ? AppStrings.translate(appLocale, "settingsMore.teammate")
+                                : member.display_name
+                        )
                             .font(.callout)
                             .foregroundStyle(Color.primary)
                         Spacer(minLength: 0)
@@ -723,7 +817,14 @@ private struct NumberAccessSheet: View {
                     HStack(spacing: 6) {
                         Image(systemName: level == value ? "largecircle.fill.circle" : "circle")
                             .foregroundStyle(level == value ? BrandColor.olive : Color.secondary)
-                        Text(value == NumberAccessLevel.text ? "Can text" : "View & notes only")
+                        Text(
+                            AppStrings.translate(
+                                appLocale,
+                                value == NumberAccessLevel.text
+                                    ? "settingsMore.levelText"
+                                    : "settingsMore.levelNote"
+                            )
+                        )
                             .font(.callout)
                             .foregroundStyle(Color.primary)
                         Spacer(minLength: 0)
@@ -742,7 +843,7 @@ private struct NumberAccessSheet: View {
         let activeMemberIds = Set(members.map(\.user_id))
         let picked = Array(pickedUserIds.intersection(activeMemberIds))
         if mode == .users && picked.isEmpty {
-            error = "Pick at least one person, or choose Everyone."
+            error = AppStrings.translate(appLocale, "settingsMore.pickAtLeastOne")
             return
         }
         pending = true
@@ -751,7 +852,11 @@ private struct NumberAccessSheet: View {
         Task {
             do {
                 _ = try await scope.repo.setNumberAccess(scope.companyId, numberId: number.id, body: body)
-                scope.showMessage("Access to \(display) updated.")
+                scope.showMessage(
+                    AppStrings.translate(
+                        appLocale, "settingsMore.accessUpdated", ["number": display]
+                    )
+                )
                 onDismiss()
             } catch {
                 self.error = error.userMessage
@@ -800,6 +905,8 @@ private struct AddNumberCard: View {
     @State private var pending = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     /// #522: three cases, and the third is the one that matters. With no
     /// recognised plan there is NO figure to name, and this card is a consent
     /// surface — so it states the shape of the charge rather than inventing an
@@ -810,15 +917,14 @@ private struct AddNumberCard: View {
         extraPrice: String?
     ) -> String {
         if !nextIsExtra {
-            return "Choose the number your customers will text. It's included in "
-                + "your plan — no extra cost."
+            return AppStrings.translate(appLocale, "settingsMore.addNumberIncluded")
         }
         if let extraPrice {
-            return "An extra number is \(extraPrice), billed today. Your message "
-                + "allowance is shared — an extra number doesn't add messages."
+            return AppStrings.translate(
+                appLocale, "settingsMore.addNumberPriced", ["price": extraPrice]
+            )
         }
-        return "An extra number is billed to your plan today. Your message "
-            + "allowance is shared — an extra number doesn't add messages."
+        return AppStrings.translate(appLocale, "settingsMore.addNumberBilled")
     }
 
     var body: some View {
@@ -844,9 +950,15 @@ private struct AddNumberCard: View {
                 billingCurrency: company.billing_currency
             )
             if !starterAtCap, nextIsExtra, let extraBlockedReason {
-                SettingsCard(title: "Add a number") {
+                SettingsCard(
+                    title: AppStrings.translate(appLocale, "settingsMore.addNumber")
+                ) {
                     ReadOnlyLine(
-                        "Your plan's numbers are all in use. \(extraBlockedReason)"
+                        AppStrings.translate(
+                            appLocale,
+                            "settingsMore.planNumbersInUse",
+                            ["reason": extraBlockedReason]
+                        )
                     )
                 }
             } else if !starterAtCap {
@@ -861,13 +973,13 @@ private struct AddNumberCard: View {
                     audience: company.billedIn
                 )
                 SettingsCard(
-                    title: "Add a number",
+                    title: AppStrings.translate(appLocale, "settingsMore.addNumber"),
                     description: extraDescription(
                         nextIsExtra: nextIsExtra,
                         extraPrice: extraPrice
                     )
                 ) {
-                    Button("Choose a number") {
+                    Button(AppStrings.translate(appLocale, "settingsMore.chooseNumber")) {
                         // One key per attempt-intent: reused across retries of
                         // THIS sheet, regenerated the next time it opens.
                         idempotencyKey = UUID().uuidString
@@ -881,7 +993,7 @@ private struct AddNumberCard: View {
                         scope: scope,
                         country: company.country,
                         initialAreaCode: company.requested_area_code.isEmpty ? nil : company.requested_area_code,
-                        title: "Choose a number",
+                        title: AppStrings.translate(appLocale, "settingsMore.chooseNumber"),
                         pending: pending,
                         error: error,
                         onDismiss: {
@@ -915,7 +1027,9 @@ private struct AddNumberCard: View {
                     )
                 }
                 picking = false
-                scope.showMessage("Your number is being set up.")
+                scope.showMessage(
+                    AppStrings.translate(appLocale, "settingsMore.numberBeingSetUp")
+                )
                 onChanged()
             } catch {
                 self.error = error.userMessage
@@ -934,12 +1048,14 @@ private struct RemediateNumberSheet: View {
     @State private var pending = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         NumberPickerSheet(
             scope: scope,
             country: number.country,
             initialAreaCode: number.requested_area_code,
-            title: "Choose a number to finish setup",
+            title: AppStrings.translate(appLocale, "settingsMore.chooseNumberFinish"),
             pending: pending,
             error: error,
             onDismiss: {
@@ -968,7 +1084,9 @@ private struct RemediateNumberSheet: View {
                         requestedAreaCode: code
                     )
                 }
-                scope.showMessage("Setup restarted — you won't be charged again.")
+                scope.showMessage(
+                    AppStrings.translate(appLocale, "settingsMore.setupRestarted")
+                )
                 onDone()
             } catch {
                 self.error = error.userMessage
@@ -1021,18 +1139,26 @@ private struct MyAccessCard: View {
 
     @State private var rows: [NumberAccessExplanation] = []
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         if let note = numberAccessSelfNote(rows) {
             SettingsCard(
-                title: "What you can reach",
-                description: "Some of this workspace's numbers are not shared "
-                    + "with you. Here is which, and what decided it."
+                title: AppStrings.translate(appLocale, "settingsMore.whatYouReach"),
+                description: AppStrings.translate(
+                    appLocale, "settingsMore.whatYouReachDesc"
+                )
             ) {
                 Text(note).font(.body)
                 ForEach(rows.sortedForOwner().filter { $0.level != "text" }) { row in
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 10) {
-                            Text(row.number_e164.map(formatPhone) ?? "A number")
+                            Text(
+                                row.number_e164.map(formatPhone)
+                                    ?? AppStrings.translate(
+                                        appLocale, "settingsMore.aNumber"
+                                    )
+                            )
                                 .font(.body)
                             Text(numberAccessLevelLabel(row.level))
                                 .font(.footnote)
