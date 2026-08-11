@@ -194,7 +194,7 @@ begin
   exception when foreign_key_violation then
     v_ok := true;
   end;
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception 'LS-5: deleting a source erased the history that used it';
   end if;
 
@@ -221,7 +221,7 @@ begin
   exception when check_violation then
     v_ok := true;
   end;
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception 'LS-6: a source was allowed to exist with no origin';
   end if;
 
@@ -232,7 +232,7 @@ begin
   exception when check_violation then
     v_ok := true;
   end;
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception 'LS-6: an origin was allowed with no source';
   end if;
 
@@ -244,7 +244,7 @@ begin
   exception when check_violation then
     v_ok := true;
   end;
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception 'LS-6: an unknown origin was accepted';
   end if;
   raise notice 'LS-6 PASSED: a source and its story are never apart';
@@ -264,7 +264,7 @@ begin
   exception when unique_violation then
     v_ok := true;
   end;
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception 'LS-7: a duplicate source name was accepted';
   end if;
 
@@ -276,7 +276,7 @@ begin
   exception when check_violation then
     v_ok := true;
   end;
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception 'LS-7: a 41-character source name was accepted';
   end if;
   raise notice 'LS-7 PASSED: one name per workspace, and it fits in a chip';

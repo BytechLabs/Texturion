@@ -41,7 +41,7 @@ begin
   if done_at_type is distinct from 'timestamp with time zone' then
     raise exception 'D14-1 FAILED: messages.done_at is % (want timestamptz)', done_at_type;
   end if;
-  if not done_at_null then
+  if done_at_null is distinct from true then
     raise exception 'D14-1 FAILED: messages.done_at must be NULLable';
   end if;
 
@@ -56,7 +56,7 @@ begin
   if done_by_type is distinct from 'uuid' then
     raise exception 'D14-1 FAILED: messages.done_by_user_id is % (want uuid)', done_by_type;
   end if;
-  if not done_by_null then
+  if done_by_null is distinct from true then
     raise exception 'D14-1 FAILED: messages.done_by_user_id must be NULLable';
   end if;
   raise notice 'D14-1 PASSED: done_at timestamptz NULL + done_by_user_id uuid NULL';
@@ -346,7 +346,7 @@ begin
   if tz_type is distinct from 'text' then
     raise exception 'D15-1 FAILED: companies.timezone is % (want text)', tz_type;
   end if;
-  if tz_null then
+  if tz_null is distinct from false then
     raise exception 'D15-1 FAILED: companies.timezone must be NOT NULL';
   end if;
   if tz_default is null or tz_default not like '%America/Toronto%' then

@@ -457,7 +457,7 @@ begin
   exception when insufficient_privilege then
     v_wrote := false;
   end;
-  if not v_wrote then
+  if v_wrote is distinct from true then
     raise exception 'PT-8 FAILED: a live session cannot track presence';
   end if;
   execute 'reset role';
@@ -479,7 +479,7 @@ begin
     v_wrote := false;
   end;
   execute 'reset role';
-  if v_wrote then
+  if v_wrote is distinct from false then
     raise exception 'PT-8 FAILED: a revoked session WROTE presence — it can still '
       'announce itself on a customer''s conversation';
   end if;

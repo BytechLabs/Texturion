@@ -82,7 +82,7 @@ begin
   from public.phone_numbers
   where id = '6e000000-0000-4000-8000-0000000000b1'::uuid;
 
-  if v_is_null then
+  if v_is_null is distinct from false then
     raise exception 'MB-2 FAILED: false did not survive the write';
   end if;
   if v_enabled is distinct from false then
@@ -97,7 +97,7 @@ begin
   from public.phone_numbers
   where id = '6e000000-0000-4000-8000-0000000000b1'::uuid;
 
-  if not v_is_null then
+  if v_is_null is distinct from true then
     raise exception 'MB-2 FAILED: a line could not go back to following the workspace';
   end if;
   raise notice 'MB-2 PASSED: on, off and inherit are three distinct states';
@@ -122,7 +122,7 @@ begin
     v_rejected := true;
   end;
 
-  if not v_rejected then
+  if v_rejected is distinct from true then
     raise exception 'MB-3 FAILED: a 1001-character message was accepted';
   end if;
 

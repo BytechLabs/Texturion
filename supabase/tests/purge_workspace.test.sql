@@ -88,7 +88,7 @@ begin
     v_ran := true;
   exception when others then null;
   end;
-  if v_ran then raise exception 'PW-1 FAILED: a LIVE workspace was purged'; end if;
+  if v_ran is distinct from false then raise exception 'PW-1 FAILED: a LIVE workspace was purged'; end if;
 
   -- Closed, but inside the window: still refused.
   perform public.close_workspace(v_company);
@@ -98,7 +98,7 @@ begin
     v_ran := true;
   exception when others then null;
   end;
-  if v_ran then
+  if v_ran is distinct from false then
     raise exception 'PW-1 FAILED: a workspace inside its window was purged';
   end if;
 

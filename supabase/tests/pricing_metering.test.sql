@@ -65,7 +65,7 @@ begin
   select has_function_privilege('authenticated', p.oid, 'EXECUTE') into acl
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'api_period_inbound_segments' limit 1;
-  if acl then raise exception 'M-2 FAILED: api_period_inbound_segments executable by authenticated'; end if;
+  if acl is distinct from false then raise exception 'M-2 FAILED: api_period_inbound_segments executable by authenticated'; end if;
   raise notice 'M-2 PASSED: api_period_inbound_segments is service-role only';
 end $$;
 
@@ -230,7 +230,7 @@ begin
   select has_function_privilege('authenticated', p.oid, 'EXECUTE') into acl
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'api_period_voice_seconds' limit 1;
-  if acl then raise exception 'M-8 FAILED: api_period_voice_seconds executable by authenticated'; end if;
+  if acl is distinct from false then raise exception 'M-8 FAILED: api_period_voice_seconds executable by authenticated'; end if;
   raise notice 'M-8 PASSED: api_period_voice_seconds is service-role only';
 end $$;
 
@@ -279,7 +279,7 @@ begin
   select has_function_privilege('authenticated', p.oid, 'EXECUTE') into acl
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'api_period_forward_seconds' limit 1;
-  if acl then raise exception 'M-11 FAILED: api_period_forward_seconds executable by authenticated'; end if;
+  if acl is distinct from false then raise exception 'M-11 FAILED: api_period_forward_seconds executable by authenticated'; end if;
   raise notice 'M-11 PASSED: api_period_forward_seconds is service-role only';
 end $$;
 

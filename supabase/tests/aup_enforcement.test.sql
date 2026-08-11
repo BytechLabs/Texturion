@@ -60,7 +60,7 @@ begin
   exception when check_violation then
     v_rejected := true;
   end;
-  if not v_rejected then
+  if v_rejected is distinct from true then
     raise exception 'AU-2: a suspension was accepted with no timestamp and no note';
   end if;
 
@@ -75,7 +75,7 @@ begin
   exception when check_violation then
     v_rejected := true;
   end;
-  if not v_rejected then
+  if v_rejected is distinct from true then
     raise exception 'AU-2: a four-character note was accepted as evidence';
   end if;
 end $$;
@@ -279,7 +279,7 @@ begin
   exception when check_violation then
     v_rejected := true;
   end;
-  if not v_rejected then
+  if v_rejected is distinct from true then
     raise exception 'AU-6: the step ''suspend'' was accepted';
   end if;
 end $$;

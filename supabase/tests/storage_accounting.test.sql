@@ -68,7 +68,7 @@ begin
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname='public' and p.proname='api_storage_usage';
   if fn is null then raise exception 'SA-1 FAILED: public.api_storage_usage missing'; end if;
-  if not is_secdef then raise exception 'SA-1 FAILED: api_storage_usage must be SECURITY DEFINER'; end if;
+  if is_secdef is distinct from true then raise exception 'SA-1 FAILED: api_storage_usage must be SECURITY DEFINER'; end if;
   if cfg is null or not ('search_path=' = any(cfg) or 'search_path=""' = any(cfg)) then
     raise exception 'SA-1 FAILED: api_storage_usage must pin an empty search_path (got %)', cfg;
   end if;
@@ -331,7 +331,7 @@ begin
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname='public' and p.proname=fn_name;
     if fn is null then raise exception 'SA-7 FAILED: public.% missing', fn_name; end if;
-    if not is_secdef then raise exception 'SA-7 FAILED: % must be SECURITY DEFINER', fn_name; end if;
+    if is_secdef is distinct from true then raise exception 'SA-7 FAILED: % must be SECURITY DEFINER', fn_name; end if;
     if cfg is null or not ('search_path=' = any(cfg) or 'search_path=""' = any(cfg)) then
       raise exception 'SA-7 FAILED: % must pin an empty search_path (got %)', fn_name, cfg;
     end if;
@@ -639,7 +639,7 @@ begin
   select p.oid, p.prosecdef, p.proconfig into fn, is_secdef, cfg
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'api_orphan_mms_media_objects';
-  if not is_secdef then
+  if is_secdef is distinct from true then
     raise exception 'SA-12 FAILED: api_orphan_mms_media_objects must be SECURITY DEFINER';
   end if;
   if cfg is null or not ('search_path=' = any(cfg) or 'search_path=""' = any(cfg)) then
@@ -865,7 +865,7 @@ begin
     select p.prosecdef, p.proconfig into is_secdef, cfg
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'public' and p.proname = fname;
-    if not is_secdef then
+    if is_secdef is distinct from true then
       raise exception 'SA-15 FAILED: % must be SECURITY DEFINER', fname;
     end if;
     if cfg is null or not ('search_path=' = any(cfg) or 'search_path=""' = any(cfg)) then

@@ -247,7 +247,7 @@ declare v_locked boolean;
 begin
   select tags_locked into v_locked from public.companies
    where id = '53000000-0000-4000-8000-0000000000c1'::uuid;
-  if v_locked then
+  if v_locked is distinct from false then
     raise exception 'TG-7: tag creation is locked by default';
   end if;
 end $$;

@@ -407,7 +407,7 @@ begin
   exception when check_violation then
     v_ok := true;
   end;
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception
       'AR-7 FAILED: a reminder with no offset was accepted. Regeneration '
       'matches on that offset, so this row can never be replaced or removed.';
@@ -426,7 +426,7 @@ begin
   exception when check_violation then
     v_ok := true;
   end;
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception
       'AR-7 FAILED: a human-written text was accepted carrying a reminder '
       'offset. That is exactly the row AR-4''s sweep would delete.';
@@ -536,7 +536,7 @@ begin
     v_ok := true;
   end;
 
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception
       'AR-10 FAILED: a second rule at the same offset was accepted. The '
       'customer receives the same reminder twice.';

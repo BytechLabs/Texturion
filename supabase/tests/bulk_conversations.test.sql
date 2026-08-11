@@ -313,12 +313,12 @@ begin
 
   select (a -> 'previous' ->> 'had_tag')::boolean into had
     from jsonb_array_elements(res -> 'applied') a where a ->> 'id' = c1::text;
-  if not had then
+  if had is distinct from true then
     raise exception 'BC-5 FAILED: c1 already had the tag but had_tag was false';
   end if;
   select (a -> 'previous' ->> 'had_tag')::boolean into had
     from jsonb_array_elements(res -> 'applied') a where a ->> 'id' = c2::text;
-  if had then
+  if had is distinct from false then
     raise exception 'BC-5 FAILED: c2 did not have the tag but had_tag was true';
   end if;
   if (select count(*) from public.conversation_tags

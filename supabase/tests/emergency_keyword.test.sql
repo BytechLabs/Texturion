@@ -38,7 +38,7 @@ begin
   if col_type is distinct from 'boolean' then
     raise exception 'EK-1 FAILED: emergency_keyword_enabled is % (want boolean)', col_type;
   end if;
-  if col_null then
+  if col_null is distinct from false then
     raise exception 'EK-1 FAILED: emergency_keyword_enabled must be NOT NULL';
   end if;
   if col_default is null or col_default not like '%true%' then

@@ -552,7 +552,7 @@ begin
     if sqlerrm not like '%append-only%' then raise; end if;
     ok := true;
   end;
-  if not ok then
+  if ok is distinct from true then
     raise exception 'CL-13b FAILED: the rewrite guard did not fire';
   end if;
 
@@ -568,7 +568,7 @@ begin
     if sqlerrm not like '%append-only%' then raise; end if;
     ok := true;
   end;
-  if not ok then
+  if ok is distinct from true then
     raise exception 'CL-13b FAILED: the smuggled edit was not caught';
   end if;
 
@@ -585,7 +585,7 @@ begin
     if sqlerrm not like '%append-only%' then raise; end if;
     ok := true;
   end;
-  if not ok then
+  if ok is distinct from true then
     raise exception 'CL-13b FAILED: re-attachment was not caught';
   end if;
 end $$;
@@ -718,7 +718,7 @@ begin
   exception when others then
     ok := true;
   end;
-  if not ok then
+  if ok is distinct from true then
     raise exception 'CL-16 FAILED: the ledger accepted a phone rewrite';
   end if;
 
@@ -745,7 +745,7 @@ begin
   exception when others then
     ok := true;
   end;
-  if not ok then
+  if ok is distinct from true then
     raise exception
       'CL-16 FAILED: the ledger filled a null phone — the migration''s temporary exemption is still in force';
   end if;
@@ -762,7 +762,7 @@ begin
   exception when others then
     ok := true;
   end;
-  if not ok then
+  if ok is distinct from true then
     raise exception 'CL-16 FAILED: the ledger accepted a rewrite of two columns';
   end if;
 

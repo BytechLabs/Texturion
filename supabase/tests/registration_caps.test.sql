@@ -47,7 +47,7 @@ begin
     and column_name='reactivation_count';
   if c_type is null then raise exception 'RC1 FAILED: messaging_registrations.reactivation_count missing'; end if;
   if c_type is distinct from 'integer' then raise exception 'RC1 FAILED: reactivation_count is % (want integer)', c_type; end if;
-  if c_null then raise exception 'RC1 FAILED: reactivation_count must be NOT NULL'; end if;
+  if c_null is distinct from false then raise exception 'RC1 FAILED: reactivation_count must be NOT NULL'; end if;
   if c_default is distinct from '0' then raise exception 'RC1 FAILED: reactivation_count default is % (want 0)', c_default; end if;
 
   perform 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
@@ -138,7 +138,7 @@ begin
     if sqlerrm not like '%unknown counter%' then raise; end if;
     ok := true;
   end;
-  if not ok then raise exception 'RC2 FAILED: expected unknown-counter to raise'; end if;
+  if ok is distinct from true then raise exception 'RC2 FAILED: expected unknown-counter to raise'; end if;
 
   -- … and so does a nonsensical cap.
   ok := false;
@@ -151,7 +151,7 @@ begin
     if sqlerrm not like '%p_cap must be >= 1%' then raise; end if;
     ok := true;
   end;
-  if not ok then raise exception 'RC2 FAILED: expected cap<1 to raise'; end if;
+  if ok is distinct from true then raise exception 'RC2 FAILED: expected cap<1 to raise'; end if;
 
   raise notice 'RC2 PASSED: bump_registration_counter increments atomically, stops at the cap, keeps budgets independent';
 end $$;

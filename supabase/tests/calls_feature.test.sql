@@ -245,7 +245,7 @@ begin
     select has_function_privilege('authenticated', p.oid, 'EXECUTE') into acl
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'public' and p.proname = fn limit 1;
-    if acl then
+    if acl is distinct from false then
       raise exception 'C-5 FAILED: % executable by authenticated', fn;
     end if;
   end loop;

@@ -39,7 +39,7 @@ begin
   -- every workspace in the table has already declined an offer it never saw.
   select winback_dismissed_at is null into v_visible
     from public.companies where id = v_company;
-  if not v_visible then
+  if v_visible is distinct from true then
     raise exception 'W-1 FAILED: winback_dismissed_at defaulted to a value, so '
       'every existing workspace reads as having already dismissed the offer';
   end if;
@@ -53,7 +53,7 @@ begin
   select (canceled_at is not null
           and (winback_dismissed_at is null or winback_dismissed_at < canceled_at))
     into v_visible from public.companies where id = v_company;
-  if not v_visible then
+  if v_visible is distinct from true then
     raise exception 'W-2 FAILED: the offer is hidden on a fresh cancellation';
   end if;
   raise notice 'W-2 PASSED: a fresh cancellation shows the offer';
@@ -67,7 +67,7 @@ begin
   select (canceled_at is not null
           and (winback_dismissed_at is null or winback_dismissed_at < canceled_at))
     into v_visible from public.companies where id = v_company;
-  if v_visible then
+  if v_visible is distinct from false then
     raise exception 'W-3 FAILED: the offer survived being dismissed';
   end if;
   raise notice 'W-3 PASSED: a dismissal hides the offer for this cancellation';
@@ -87,7 +87,7 @@ begin
   select (canceled_at is not null
           and (winback_dismissed_at is null or winback_dismissed_at < canceled_at))
     into v_visible from public.companies where id = v_company;
-  if not v_visible then
+  if v_visible is distinct from true then
     raise exception 'W-4 FAILED: a SECOND cancellation is still silenced by a '
       'dismissal made about the first one, a year earlier';
   end if;
@@ -110,7 +110,7 @@ begin
   select (canceled_at is not null
           and (winback_dismissed_at is null or winback_dismissed_at < canceled_at))
     into v_visible from public.companies where id = v_company;
-  if v_visible then
+  if v_visible is distinct from false then
     raise exception 'W-5 FAILED: an active workspace is being offered a win-back';
   end if;
   raise notice 'W-5 PASSED: no cancellation means no offer, whatever was dismissed';

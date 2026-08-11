@@ -142,7 +142,7 @@ begin
     v_raised := true;
     get stacked diagnostics v_message = message_text;
   end;
-  if not v_raised then
+  if v_raised is distinct from true then
     raise exception 'AB-4: kind ''urgent'' was accepted';
   end if;
   -- The FUNCTION's own guard, not the column's. Written first as "any error
@@ -162,7 +162,7 @@ begin
   exception when check_violation then
     v_raised := true;
   end;
-  if not v_raised then
+  if v_raised is distinct from true then
     raise exception 'AB-4: the kind constraint is missing';
   end if;
 end $$;

@@ -202,7 +202,7 @@ begin
   end if;
 
   select relrowsecurity into rls from pg_class where oid = 'public.billing_disputes'::regclass;
-  if not rls then
+  if rls is distinct from true then
     raise exception 'BD-6 FAILED: billing_disputes has RLS disabled';
   end if;
 

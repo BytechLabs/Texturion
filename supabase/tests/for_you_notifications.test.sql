@@ -533,7 +533,7 @@ begin
     'a0000000-0000-4000-8000-000000000003',
     '30000000-0000-4000-8000-000000000022',
     now() - interval '10 minutes');
-  if not flipped then
+  if flipped is distinct from true then
     raise exception 'NR1 FAILED: first mark-one did not report newly read';
   end if;
 
@@ -572,7 +572,7 @@ begin
     'a0000000-0000-4000-8000-000000000003',
     '30000000-0000-4000-8000-000000000022',
     now() - interval '10 minutes');
-  if flipped then
+  if flipped is distinct from false then
     raise exception 'NR1 FAILED: re-marking reported newly read';
   end if;
   if public.api_notifications_unread_count(
@@ -629,7 +629,7 @@ begin
     'a0000000-0000-4000-8000-000000000003',
     '30000000-0000-4000-8000-000000000021',
     now() - interval '20 minutes');
-  if flipped then
+  if flipped is distinct from false then
     raise exception 'NR3 FAILED: covered item reported newly read';
   end if;
   if (select count(*) from public.notification_read_items

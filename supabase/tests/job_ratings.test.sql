@@ -345,7 +345,7 @@ begin
   exception when check_violation then
     v_ok := true;
   end;
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception 'JR-8 FAILED: the column accepted a score of 9';
   end if;
 
@@ -389,7 +389,7 @@ begin
     v_ok := true;
   end;
 
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception
       'JR-9 FAILED: a rating ask with no job was accepted. Nothing can '
       'attribute the answer to a visit, which is the whole signal.';

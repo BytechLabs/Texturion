@@ -93,7 +93,7 @@ begin
   exception when check_violation then
     v_ok := true;
   end;
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception 'RS-2: an unknown ring_strategy was accepted';
   end if;
 
@@ -127,7 +127,7 @@ begin
   exception when check_violation then
     v_ok := true;
   end;
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception 'RS-3: a window longer than the leg timeout was accepted';
   end if;
 
@@ -140,7 +140,7 @@ begin
   exception when check_violation then
     v_ok := true;
   end;
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception 'RS-3: a window too short to answer was accepted';
   end if;
 
@@ -168,7 +168,7 @@ begin
   exception when check_violation then
     v_ok := true;
   end;
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception 'RS-4: a per-number window past the leg timeout was accepted';
   end if;
   raise notice 'RS-4 PASSED: a line may inherit, but not invent';

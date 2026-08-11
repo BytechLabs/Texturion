@@ -100,7 +100,7 @@ begin
   exception when check_violation then
     v_ok := true;
   end;
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception 'AH-2: an unknown after_hours_calls value was accepted';
   end if;
 
@@ -113,7 +113,7 @@ begin
   exception when not_null_violation then
     v_ok := true;
   end;
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception 'AH-2: the company-level setting was allowed to be null';
   end if;
 
@@ -141,7 +141,7 @@ begin
   exception when check_violation then
     v_ok := true;
   end;
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception 'AH-3: an unknown per-number after_hours_calls was accepted';
   end if;
   raise notice 'AH-3 PASSED: a line may inherit, but not invent';

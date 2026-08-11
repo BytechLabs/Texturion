@@ -58,7 +58,7 @@ begin
   exception when check_violation then
     null;
   end;
-  if v_allowed then
+  if v_allowed is distinct from false then
     raise exception 'WC-1 FAILED: a live workspace accepted a purge date';
   end if;
   raise notice 'WC-1 PASSED: a purge date requires a closed workspace';

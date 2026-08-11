@@ -262,7 +262,7 @@ begin
   exception when check_violation then
     v_rejected := true;
   end;
-  if not v_rejected then
+  if v_rejected is distinct from true then
     raise exception 'SE-8: a misspelled kind was accepted — the constraint is gone';
   end if;
 end $$;
@@ -305,7 +305,7 @@ begin
   exception when check_violation then
     v_rejected := true;
   end;
-  if not v_rejected then
+  if v_rejected is distinct from true then
     raise exception 'SE-9: kind ''task'' was accepted — the constraint is stale';
   end if;
 end $$;

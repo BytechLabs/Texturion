@@ -111,7 +111,7 @@ begin
     null; -- refused, which is the point
   end;
 
-  if v_stored then
+  if v_stored is distinct from false then
     raise exception 'BC-4 FAILED: a workspace can be set to a currency the '
       'price book has never heard of.';
   end if;

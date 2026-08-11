@@ -83,7 +83,7 @@ begin
    where id = '6d000000-0000-4000-8000-0000000000b1'::uuid;
   select away_enabled is null into v_is_null
     from public.phone_numbers where id = '6d000000-0000-4000-8000-0000000000b1'::uuid;
-  if not v_is_null then
+  if v_is_null is distinct from true then
     raise exception 'PN-2: clearing the override did not return it to inherit';
   end if;
 end $$;
@@ -105,7 +105,7 @@ begin
   exception when check_violation then
     v_rejected := true;
   end;
-  if not v_rejected then
+  if v_rejected is distinct from true then
     raise exception 'PN-3: a whitespace-only label was accepted';
   end if;
 
@@ -178,7 +178,7 @@ begin
   exception when check_violation then
     v_rejected := true;
   end;
-  if not v_rejected then
+  if v_rejected is distinct from true then
     raise exception 'PN-6: a 1001-character greeting was accepted';
   end if;
 end $$;

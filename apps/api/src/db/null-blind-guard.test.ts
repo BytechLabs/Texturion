@@ -136,3 +136,62 @@ describe("#528: the guard reports somewhere a person can look", () => {
     ).toBe("not (… = …)");
   });
 });
+
+/**
+ * A block that DECLARES its flag, which the rule below requires.
+ *
+ * `assertion` above has no `declare`, and the bare-boolean rule only fires on an
+ * identifier declared `boolean` in the same file — a bare `if some_call()` is a
+ * different question this cannot answer from source.
+ */
+const declared = (body: string) =>
+  `do $$
+declare
+  v_ok boolean;
+begin
+${body}
+end $$;`;
+
+describe("#610: a bare boolean is judged by plpgsql truthiness, which loses NULL", () => {
+  it.each([
+    [
+      "the refusal direction",
+      declared("  if v_ok then raise exception 'x'; end if;"),
+      "is distinct from false",
+    ],
+    [
+      "the admission direction",
+      declared("  if not v_ok then raise exception 'x'; end if;"),
+      "is distinct from true",
+    ],
+  ])("refuses %s and names the spelling that fixes it", (_name, sql, wanted) => {
+    const found = offences(sql);
+    expect(found).toHaveLength(1);
+    expect(found[0].operator).toContain(wanted);
+  });
+
+  it.each([
+    [
+      "an explicit comparison, which is the fix",
+      declared("  if v_ok is distinct from true then raise exception 'x'; end if;"),
+    ],
+    [
+      // The two directions need OPPOSITE rewrites, so flagging control flow
+      // would invite somebody to invert a branch while "fixing" it.
+      "a branch whose body does not raise, because that is control flow",
+      declared("  if v_ok then insert into t values (1); end if;"),
+    ],
+    [
+      "an identifier that is not a declared boolean",
+      assertion("  if some_call() then raise exception 'x'; end if;"),
+    ],
+    [
+      // The whole point of the strip: two suites explain this defect in prose.
+      "the shape described in a comment",
+      declared(`  -- if v_ok then raise ... would be wrong
+  null;`),
+    ],
+  ])("allows %s", (_name, sql) => {
+    expect(offences(sql)).toEqual([]);
+  });
+});

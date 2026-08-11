@@ -49,7 +49,7 @@ begin
     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname='public' and p.proname=fn_name;
     if fn is null then raise exception 'AL-1 FAILED: public.% missing', fn_name; end if;
-    if not is_secdef then raise exception 'AL-1 FAILED: % must be SECURITY DEFINER', fn_name; end if;
+    if is_secdef is distinct from true then raise exception 'AL-1 FAILED: % must be SECURITY DEFINER', fn_name; end if;
     if cfg is null or not ('search_path=' = any(cfg) or 'search_path=""' = any(cfg)) then
       raise exception 'AL-1 FAILED: % must pin an empty search_path (got %)', fn_name, cfg;
     end if;
@@ -82,7 +82,7 @@ begin
   exception when others then
     null;
   end;
-  if v_updated then raise exception 'AL-2 FAILED: audit_log accepted an UPDATE'; end if;
+  if v_updated is distinct from false then raise exception 'AL-2 FAILED: audit_log accepted an UPDATE'; end if;
 
   begin
     delete from public.audit_log where company_id = v_company;
@@ -90,7 +90,7 @@ begin
   exception when others then
     null;
   end;
-  if v_deleted then raise exception 'AL-2 FAILED: audit_log accepted a DELETE'; end if;
+  if v_deleted is distinct from false then raise exception 'AL-2 FAILED: audit_log accepted a DELETE'; end if;
 
   -- The row is untouched, which is the only acceptable outcome.
   if not exists (

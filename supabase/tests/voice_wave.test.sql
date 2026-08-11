@@ -22,14 +22,14 @@ begin
   select is_nullable='YES' into vc_null from information_schema.columns
   where table_schema='public' and table_name='phone_numbers' and column_name='voice_connection_id';
   if vc_null is null then raise exception 'VW-1 FAILED: phone_numbers.voice_connection_id missing'; end if;
-  if not vc_null then raise exception 'VW-1 FAILED: voice_connection_id must be NULLable'; end if;
+  if vc_null is distinct from true then raise exception 'VW-1 FAILED: voice_connection_id must be NULLable'; end if;
 
   select data_type, is_nullable='YES', column_default into ve_type, ve_null, ve_default
   from information_schema.columns
   where table_schema='public' and table_name='phone_numbers' and column_name='voice_enabled';
   if ve_type is null then raise exception 'VW-1 FAILED: phone_numbers.voice_enabled missing'; end if;
   if ve_type is distinct from 'boolean' then raise exception 'VW-1 FAILED: voice_enabled is % (want boolean)', ve_type; end if;
-  if ve_null then raise exception 'VW-1 FAILED: voice_enabled must be NOT NULL'; end if;
+  if ve_null is distinct from false then raise exception 'VW-1 FAILED: voice_enabled must be NOT NULL'; end if;
   if ve_default not like '%false%' then raise exception 'VW-1 FAILED: voice_enabled default is % (want false)', ve_default; end if;
 
   raise notice 'VW-1 PASSED: phone_numbers voice columns present';
@@ -48,13 +48,13 @@ begin
   where table_schema='public' and table_name='companies' and column_name='mctb_enabled';
   if me_type is null then raise exception 'VW-2 FAILED: companies.mctb_enabled missing'; end if;
   if me_type is distinct from 'boolean' then raise exception 'VW-2 FAILED: mctb_enabled is % (want boolean)', me_type; end if;
-  if me_null then raise exception 'VW-2 FAILED: mctb_enabled must be NOT NULL'; end if;
+  if me_null is distinct from false then raise exception 'VW-2 FAILED: mctb_enabled must be NOT NULL'; end if;
   if me_default not like '%false%' then raise exception 'VW-2 FAILED: mctb_enabled default is % (want false)', me_default; end if;
 
   select is_nullable='YES' into mm_null from information_schema.columns
   where table_schema='public' and table_name='companies' and column_name='mctb_message';
   if mm_null is null then raise exception 'VW-2 FAILED: companies.mctb_message missing'; end if;
-  if not mm_null then raise exception 'VW-2 FAILED: mctb_message must be NULLable'; end if;
+  if mm_null is distinct from true then raise exception 'VW-2 FAILED: mctb_message must be NULLable'; end if;
 
   -- D43: forward_to_cell was DROPPED — it must NOT exist.
   select count(*) into fc_present from information_schema.columns
@@ -85,7 +85,7 @@ begin
   where table_schema='public' and table_name='companies' and column_name='caller_id_lookup';
   if cil_type is null then raise exception 'VW-3 FAILED: companies.caller_id_lookup missing'; end if;
   if cil_type is distinct from 'boolean' then raise exception 'VW-3 FAILED: caller_id_lookup is % (want boolean)', cil_type; end if;
-  if cil_null then raise exception 'VW-3 FAILED: caller_id_lookup must be NOT NULL'; end if;
+  if cil_null is distinct from false then raise exception 'VW-3 FAILED: caller_id_lookup must be NOT NULL'; end if;
 
   -- The CNAM display-name CHECK rejects a >15-char / non-alnum value.
   begin
@@ -97,7 +97,7 @@ begin
     raise exception 'VW-3 FAILED: bad cnam_display_name was accepted';
   exception when check_violation then ok := true;
   end;
-  if not ok then raise exception 'VW-3 FAILED: expected a check_violation on cnam_display_name'; end if;
+  if ok is distinct from true then raise exception 'VW-3 FAILED: expected a check_violation on cnam_display_name'; end if;
   raise notice 'VW-3 PASSED: D43 calls columns present + cnam_display_name CHECK enforced';
 end $$;
 
@@ -130,7 +130,7 @@ begin
 
   select relrowsecurity into has_rls from pg_class
    where oid = 'public.text_enablement_orders'::regclass;
-  if not has_rls then raise exception 'VW-5 FAILED: RLS not enabled on text_enablement_orders'; end if;
+  if has_rls is distinct from true then raise exception 'VW-5 FAILED: RLS not enabled on text_enablement_orders'; end if;
 
   perform 1 from pg_type where typname='text_enablement_status';
   if not found then raise exception 'VW-5 FAILED: text_enablement_status enum missing'; end if;
@@ -433,7 +433,7 @@ begin
     if sqlerrm not like '%belongs to another company%' then raise; end if;
     ok := true;
   end;
-  if not ok then raise exception 'VW-15 FAILED: expected the cross-company guard to raise'; end if;
+  if ok is distinct from true then raise exception 'VW-15 FAILED: expected the cross-company guard to raise'; end if;
   raise notice 'VW-15 PASSED: a cross-company provisioning-key replay raises, never leaks';
 end $$;
 
@@ -475,7 +475,7 @@ begin
     where table_schema='public' and table_name='text_enablement_orders' and column_name=col;
     if c_type is null then raise exception 'VW-17 FAILED: text_enablement_orders.% missing', col; end if;
     if c_type is distinct from 'integer' then raise exception 'VW-17 FAILED: % is % (want integer)', col, c_type; end if;
-    if c_null then raise exception 'VW-17 FAILED: % must be NOT NULL', col; end if;
+    if c_null is distinct from false then raise exception 'VW-17 FAILED: % must be NOT NULL', col; end if;
     if c_default is distinct from '0' then raise exception 'VW-17 FAILED: % default is % (want 0)', col, c_default; end if;
   end loop;
 
@@ -550,7 +550,7 @@ begin
     if sqlerrm not like '%unknown counter%' then raise; end if;
     ok := true;
   end;
-  if not ok then raise exception 'VW-18 FAILED: expected unknown-counter to raise'; end if;
+  if ok is distinct from true then raise exception 'VW-18 FAILED: expected unknown-counter to raise'; end if;
 
   raise notice 'VW-18 PASSED: bump_text_enablement_counter increments atomically and stops at the cap';
 end $$;
@@ -571,7 +571,7 @@ begin
 
   select relrowsecurity into has_rls from pg_class
    where oid = 'public.inbound_notification_days'::regclass;
-  if not has_rls then raise exception 'VW-19 FAILED: RLS not enabled on inbound_notification_days'; end if;
+  if has_rls is distinct from true then raise exception 'VW-19 FAILED: RLS not enabled on inbound_notification_days'; end if;
 
   select string_agg(a.attname, ',' order by k.ordinality) into pk
   from pg_constraint c

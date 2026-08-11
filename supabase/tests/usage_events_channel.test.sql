@@ -74,7 +74,7 @@ begin
     v_rejected := true;
   end;
 
-  if not v_rejected then
+  if v_rejected is distinct from true then
     raise exception 'UE-3 FAILED: an undefined channel was accepted';
   end if;
   raise notice 'UE-3 PASSED: an undefined channel is refused';

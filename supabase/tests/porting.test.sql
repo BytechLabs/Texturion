@@ -79,7 +79,7 @@ begin
   if has_rls is null then
     raise exception 'PT2 FAILED: public.port_requests table missing';
   end if;
-  if not has_rls then
+  if has_rls is distinct from true then
     raise exception 'PT2 FAILED: RLS not enabled on port_requests';
   end if;
 

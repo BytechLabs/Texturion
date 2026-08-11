@@ -155,7 +155,7 @@ begin
     raise exception 'LV-5 FAILED: the heartbeat that ended the outage did not report it';
   end if;
   select alerting into still from public.liveness_heartbeats where key = 'test:fast';
-  if still then
+  if still is distinct from false then
     raise exception 'LV-5 FAILED: still marked alerting after a heartbeat';
   end if;
 
@@ -211,7 +211,7 @@ begin
   end if;
 
   select relrowsecurity into rls from pg_class where oid = 'public.liveness_heartbeats'::regclass;
-  if not rls then
+  if rls is distinct from true then
     raise exception 'LV-7 FAILED: liveness_heartbeats has RLS disabled';
   end if;
 

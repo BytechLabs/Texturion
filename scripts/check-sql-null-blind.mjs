@@ -297,6 +297,56 @@ function textAt(code, at) {
   return code.slice(start, end === -1 ? undefined : end).trim();
 }
 
+/**
+ * `if v_flag then raise …` — the same defect in the ASSERTION rather than the
+ * comparison, and the half this guard could not see until #610.
+ *
+ * Everything above is about how a condition COMPARES. This is about a condition
+ * that does not compare at all: a bare boolean, judged by plpgsql's own
+ * truthiness. `if NULL then` takes the FALSE branch, so a predicate that
+ * returned NULL reads as "the property did not hold" — and for a refusal
+ * assertion that is indistinguishable from "the property held", which is a pass.
+ *
+ * FOUND BY IT HAPPENING. #576's assurance clause was mutated from
+ * `is distinct from` to `<>` to prove the guard bit. The clause was genuinely
+ * broken, the whole predicate returned NULL, and the suite went green — the
+ * assertion written to catch NULL-blindness was itself NULL-blind. 118 sites
+ * across 37 suites had the same shape.
+ *
+ * ONLY ASSERTIONS. The body must `raise`, because that is what makes it a
+ * judgement rather than control flow: `if v_found then insert …` is a branch,
+ * and the two directions need opposite rewrites, so flagging one would invite
+ * somebody to invert a test while "fixing" it. Measured at the time: all 118
+ * were assertions and none was control flow, so this is a floor rather than a
+ * guess about which is which.
+ *
+ * Only identifiers DECLARED `boolean` in the same file. A bare `if some_call()`
+ * is a different question and one this cannot answer from source.
+ */
+const BARE_CONDITION = /\bif\s+(not\s+)?([a-z_][\w]*)\s+then\b/gi;
+const BOOLEAN_DECLARATION = /\b([a-z_][\w]*)\s+boolean\b/gi;
+
+function bareBooleanOffences(code) {
+  const declared = new Set(
+    [...code.matchAll(BOOLEAN_DECLARATION)].map((m) => m[1].toLowerCase()),
+  );
+  if (declared.size === 0) return [];
+  const out = [];
+  for (const match of code.matchAll(BARE_CONDITION)) {
+    if (!declared.has(match[2].toLowerCase())) continue;
+    // The body decides whether this is an assertion. `raise` may be the very
+    // next token or sit on the following line, so the check is on the trimmed
+    // remainder rather than a fixed window.
+    if (!/^\s*raise\b/i.test(code.slice(match.index + match[0].length))) continue;
+    out.push({
+      at: match.index,
+      operator: match[1] ? "if not <boolean>" : "if <boolean>",
+      wanted: match[1] ? "is distinct from true" : "is distinct from false",
+    });
+  }
+  return out;
+}
+
 /** Every offence in one suite's source. Exported so the guard has its own test. */
 export function nullBlindOffences(sql) {
   const code = stripNoise(sql);
@@ -311,6 +361,13 @@ export function nullBlindOffences(sql) {
         text: textAt(code, hit.at),
       });
     }
+  }
+  for (const hit of bareBooleanOffences(code)) {
+    out.push({
+      line: lineOf(code, hit.at),
+      operator: `${hit.operator} (write \`${hit.wanted}\`)`,
+      text: textAt(code, hit.at),
+    });
   }
   return out;
 }

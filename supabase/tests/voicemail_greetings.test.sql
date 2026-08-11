@@ -109,10 +109,10 @@ begin
                 where id = '6f000000-0000-4000-8000-0000000000b1'::uuid)
     into v_number_exists;
 
-  if not v_company_exists then
+  if v_company_exists is distinct from true then
     raise exception 'VG-2 FAILED: deleting a greeting deleted the COMPANY — the FK cascades';
   end if;
-  if not v_number_exists then
+  if v_number_exists is distinct from true then
     raise exception 'VG-2 FAILED: deleting a greeting deleted the NUMBER — the FK cascades';
   end if;
 
@@ -151,7 +151,7 @@ begin
     v_rejected := true;
   end;
 
-  if not v_rejected then
+  if v_rejected is distinct from true then
     raise exception 'VG-3 FAILED: one workspace has two greetings called "After hours"';
   end if;
   raise notice 'VG-3 PASSED: a name identifies one greeting per workspace';
@@ -178,7 +178,7 @@ begin
     v_rejected := true;
   end;
 
-  if not v_rejected then
+  if v_rejected is distinct from true then
     raise exception 'VG-4 FAILED: a greeting over two minutes was accepted';
   end if;
 

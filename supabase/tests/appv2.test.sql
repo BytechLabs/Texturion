@@ -70,7 +70,7 @@ begin
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
   where n.nspname='public' and c.relname='tasks';
   if has_rls is null then raise exception 'A1 FAILED: public.tasks table missing'; end if;
-  if not has_rls then raise exception 'A1 FAILED: RLS not enabled on tasks'; end if;
+  if has_rls is distinct from true then raise exception 'A1 FAILED: RLS not enabled on tasks'; end if;
   select count(*) into n_pol from pg_policies where schemaname='public' and tablename='tasks';
   if n_pol is distinct from 0 then raise exception 'A1 FAILED: tasks has % RLS policies (want 0)', n_pol; end if;
   raise notice 'A1 PASSED: tasks exists, RLS enabled, deny-by-default (0 policies)';
@@ -87,12 +87,12 @@ begin
   select is_nullable='YES' into mid_null from information_schema.columns
   where table_schema='public' and table_name='tasks' and column_name='message_id';
   if mid_null is null then raise exception 'A2 FAILED: tasks.message_id missing'; end if;
-  if mid_null then raise exception 'A2 FAILED: tasks.message_id must be NOT NULL (D17)'; end if;
+  if mid_null is distinct from false then raise exception 'A2 FAILED: tasks.message_id must be NOT NULL (D17)'; end if;
 
   select is_nullable='YES' into cid_null from information_schema.columns
   where table_schema='public' and table_name='tasks' and column_name='conversation_id';
   if cid_null is null then raise exception 'A2 FAILED: tasks.conversation_id missing'; end if;
-  if cid_null then raise exception 'A2 FAILED: tasks.conversation_id must be NOT NULL'; end if;
+  if cid_null is distinct from false then raise exception 'A2 FAILED: tasks.conversation_id must be NOT NULL'; end if;
 
   select string_agg(column_name, ', ') into bad from information_schema.columns
   where table_schema='public' and table_name='tasks'
@@ -205,7 +205,7 @@ begin
   select m.done_at is null into derived_open
   from public.tasks t join public.messages m on m.id=t.message_id
   where t.message_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004' and t.deleted_at is null;
-  if not derived_open then raise exception 'A6 FAILED: task should render open while message not done'; end if;
+  if derived_open is distinct from true then raise exception 'A6 FAILED: task should render open while message not done'; end if;
 
   -- mark the SOURCE MESSAGE done (the single write path, D14/D17) → derived done
   update public.messages set done_at=now(),
@@ -214,14 +214,14 @@ begin
   select m.done_at is not null into derived_done
   from public.tasks t join public.messages m on m.id=t.message_id
   where t.message_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004' and t.deleted_at is null;
-  if not derived_done then raise exception 'A6 FAILED: task did not derive done from messages.done_at'; end if;
+  if derived_done is distinct from true then raise exception 'A6 FAILED: task did not derive done from messages.done_at'; end if;
 
   -- soft-delete the task → messages.done_at is UNTOUCHED (D17/T1.1)
   update public.tasks set deleted_at=now()
   where message_id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004' and deleted_at is null;
   select done_at is not null into msg_done_after_delete
   from public.messages where id='b7b7b7b7-b7b7-4b7b-8b7b-b7b700000004';
-  if not msg_done_after_delete then
+  if msg_done_after_delete is distinct from true then
     raise exception 'A6 FAILED: soft-deleting the task cleared messages.done_at (it must not)';
   end if;
   raise notice 'A6 PASSED: completion derives from messages.done_at; task soft-delete never touches it';
@@ -264,16 +264,16 @@ declare has_mod boolean; has_bcast boolean; is_definer boolean;
 begin
   select exists (select 1 from pg_trigger where tgrelid='public.tasks'::regclass
     and tgname='set_updated_at' and not tgisinternal) into has_mod;
-  if not has_mod then raise exception 'A8 FAILED: tasks missing moddatetime set_updated_at trigger'; end if;
+  if has_mod is distinct from true then raise exception 'A8 FAILED: tasks missing moddatetime set_updated_at trigger'; end if;
 
   select exists (select 1 from pg_trigger where tgrelid='public.tasks'::regclass
     and tgname='tasks_broadcast' and not tgisinternal) into has_bcast;
-  if not has_bcast then raise exception 'A8 FAILED: tasks missing tasks_broadcast trigger'; end if;
+  if has_bcast is distinct from true then raise exception 'A8 FAILED: tasks missing tasks_broadcast trigger'; end if;
 
   select prosecdef into is_definer from pg_proc p join pg_namespace n on n.oid=p.pronamespace
   where n.nspname='public' and p.proname='broadcast_task_changed';
   if is_definer is null then raise exception 'A8 FAILED: broadcast_task_changed() function missing'; end if;
-  if not is_definer then raise exception 'A8 FAILED: broadcast_task_changed() must be SECURITY DEFINER'; end if;
+  if is_definer is distinct from true then raise exception 'A8 FAILED: broadcast_task_changed() must be SECURITY DEFINER'; end if;
   raise notice 'A8 PASSED: tasks has moddatetime + SECURITY DEFINER task.changed broadcast trigger';
 end $$;
 
@@ -289,13 +289,13 @@ begin
   from pg_class c join pg_namespace n on n.oid=c.relnamespace
   where n.nspname='public' and c.relname='attachments';
   if has_rls is null then raise exception 'A9 FAILED: public.attachments table missing'; end if;
-  if not has_rls then raise exception 'A9 FAILED: RLS not enabled on attachments'; end if;
+  if has_rls is distinct from true then raise exception 'A9 FAILED: RLS not enabled on attachments'; end if;
   select count(*) into n_pol from pg_policies where schemaname='public' and tablename='attachments';
   if n_pol is distinct from 0 then raise exception 'A9 FAILED: attachments has % RLS policies (want 0)', n_pol; end if;
 
   select exists (select 1 from information_schema.columns
     where table_schema='public' and table_name='attachments' and column_name='updated_at') into has_upd;
-  if has_upd then raise exception 'A9 FAILED: attachments must be append-only (no updated_at, D19)'; end if;
+  if has_upd is distinct from false then raise exception 'A9 FAILED: attachments must be append-only (no updated_at, D19)'; end if;
 
   select count(*) into n_trig from pg_trigger
   where tgrelid='public.attachments'::regclass and not tgisinternal;
@@ -315,7 +315,7 @@ begin
   select is_nullable='YES' into oid_null from information_schema.columns
   where table_schema='public' and table_name='attachments' and column_name='owner_id';
   if oid_null is null then raise exception 'A10 FAILED: attachments.owner_id missing'; end if;
-  if oid_null then raise exception 'A10 FAILED: attachments.owner_id must be NOT NULL'; end if;
+  if oid_null is distinct from false then raise exception 'A10 FAILED: attachments.owner_id must be NOT NULL'; end if;
 
   -- a note attachment (owner_id → a messages row) inserts
   insert into public.attachments (company_id, owner_type, owner_id, conversation_id, storage_path, file_name, content_type, size_bytes, uploaded_by_user_id)
@@ -367,14 +367,14 @@ begin
   select exists (select 1 from information_schema.columns
     where table_schema='public' and table_name='attachments' and column_name='conversation_id')
     into generic_has_cid;
-  if not generic_has_cid then
+  if generic_has_cid is distinct from true then
     raise exception 'A12 FAILED: attachments must denormalize conversation_id (gallery generic arm)';
   end if;
 
   select exists (select 1 from information_schema.columns
     where table_schema='public' and table_name='message_attachments' and column_name='conversation_id')
     into mms_has_cid;
-  if mms_has_cid then
+  if mms_has_cid is distinct from false then
     raise exception 'A12 FAILED: message_attachments unexpectedly has conversation_id (MMS arm must join through messages)';
   end if;
 
@@ -430,7 +430,7 @@ begin
   if lng_t is distinct from 'double precision' then raise exception 'A14 FAILED: contacts.lng type % (want double precision)', lng_t; end if;
   if ga_t is null or ga_t not like 'timestamp%' then raise exception 'A14 FAILED: contacts.geocoded_at not timestamptz'; end if;
   if gs_t is null then raise exception 'A14 FAILED: contacts.geocode_status missing'; end if;
-  if gs_null then raise exception 'A14 FAILED: contacts.geocode_status must be NOT NULL'; end if;
+  if gs_null is distinct from false then raise exception 'A14 FAILED: contacts.geocode_status must be NOT NULL'; end if;
   if gs_def is null or gs_def not like '%pending%' then
     raise exception 'A14 FAILED: contacts.geocode_status default should be ''pending'', got %', gs_def;
   end if;
@@ -551,7 +551,7 @@ begin
   select public, file_size_limit, allowed_mime_types into pub, lim, mimes
   from storage.buckets where id='attachments';
   if pub is null then raise exception 'A18 FAILED: attachments storage bucket missing'; end if;
-  if pub then raise exception 'A18 FAILED: attachments bucket must be private'; end if;
+  if pub is distinct from false then raise exception 'A18 FAILED: attachments bucket must be private'; end if;
   if lim is distinct from 26214400 then raise exception 'A18 FAILED: attachments bucket file_size_limit % (want 26214400 = 25 MB)', lim; end if;
   if mimes is null or array_length(mimes,1) < 1 then raise exception 'A18 FAILED: attachments bucket has no allowed_mime_types'; end if;
   if not ('image/jpeg' = any(mimes) and 'application/pdf' = any(mimes)) then
@@ -959,7 +959,7 @@ begin
   select is_nullable='YES' into tid_null from information_schema.columns
   where table_schema='public' and table_name='messages' and column_name='task_id';
   if tid_null is null then raise exception 'A26 FAILED: messages.task_id missing'; end if;
-  if not tid_null then raise exception 'A26 FAILED: messages.task_id must be nullable'; end if;
+  if tid_null is distinct from true then raise exception 'A26 FAILED: messages.task_id must be nullable'; end if;
 
   -- FK → tasks with ON DELETE SET NULL ('n')
   select con.confdeltype into del
@@ -978,7 +978,7 @@ begin
     join pg_attribute a on a.attrelid=tc.oid and a.attnum=i.indkey[0]
     where n.nspname='public' and tc.relname='messages' and a.attname='task_id')
   into has_idx;
-  if not has_idx then raise exception 'A26 FAILED: no index leads with messages.task_id'; end if;
+  if has_idx is distinct from true then raise exception 'A26 FAILED: no index leads with messages.task_id'; end if;
 
   -- a note can link to a task; ON DELETE SET NULL clears the link on hard delete
   v_task_id := (public.create_task(

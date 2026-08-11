@@ -190,7 +190,7 @@ begin
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'public' and p.proname = fn
      limit 1;
-    if acl then
+    if acl is distinct from false then
       raise exception 'P0-5 FAILED: % is executable by authenticated (should be service-role only)', fn;
     end if;
   end loop;

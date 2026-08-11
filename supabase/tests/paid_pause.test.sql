@@ -135,7 +135,7 @@ begin
 
   -- The predicate every send gate in this schema used before the pause existed.
   v_old := v_company.subscription_status <> 'active' or v_company.plan is null;
-  if v_old then
+  if v_old is distinct from false then
     raise exception 'P-3 FAILED: the paused fixture is not `active` with a plan, so '
       'the OLD gate would already have caught it and this suite proves nothing';
   end if;

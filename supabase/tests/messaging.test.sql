@@ -1031,7 +1031,7 @@ begin
   if c_type is distinct from 'timestamp with time zone' then
     raise exception 'R8 FAILED: claimed_at is % (want timestamptz)', c_type;
   end if;
-  if not c_null then raise exception 'R8 FAILED: claimed_at must be NULLable'; end if;
+  if c_null is distinct from true then raise exception 'R8 FAILED: claimed_at must be NULLable'; end if;
 
   foreach fn in array array['claim_message_retry', 'fail_stuck_outbound_sends'] loop
     select string_agg(distinct r.rolname, ',') into leaked
@@ -1079,7 +1079,7 @@ begin
     where t.typname = 'conversation_event_type'
       and e.enumlabel = 'media_refused'
   ) into v_ok;
-  if not v_ok then
+  if v_ok is distinct from true then
     raise exception 'R9 FAILED: conversation_event_type is missing media_refused';
   end if;
 

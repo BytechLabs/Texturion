@@ -32,7 +32,7 @@ begin
   where table_schema='public' and table_name='companies' and column_name='business_hours';
   if bh_type is null then raise exception 'SF-1 FAILED: companies.business_hours missing'; end if;
   if bh_type is distinct from 'jsonb' then raise exception 'SF-1 FAILED: business_hours is % (want jsonb)', bh_type; end if;
-  if bh_null then raise exception 'SF-1 FAILED: business_hours must be NOT NULL'; end if;
+  if bh_null is distinct from false then raise exception 'SF-1 FAILED: business_hours must be NOT NULL'; end if;
   if bh_default is null or bh_default not like '%{}%' then
     raise exception 'SF-1 FAILED: business_hours default is % (want {})', bh_default;
   end if;
@@ -43,13 +43,13 @@ begin
   where table_schema='public' and table_name='companies' and column_name='away_enabled';
   if ae_type is null then raise exception 'SF-1 FAILED: companies.away_enabled missing'; end if;
   if ae_type is distinct from 'boolean' then raise exception 'SF-1 FAILED: away_enabled is % (want boolean)', ae_type; end if;
-  if ae_null then raise exception 'SF-1 FAILED: away_enabled must be NOT NULL'; end if;
+  if ae_null is distinct from false then raise exception 'SF-1 FAILED: away_enabled must be NOT NULL'; end if;
   if ae_default not like '%false%' then raise exception 'SF-1 FAILED: away_enabled default is % (want false)', ae_default; end if;
 
   select is_nullable='YES' into am_null from information_schema.columns
   where table_schema='public' and table_name='companies' and column_name='away_message';
   if am_null is null then raise exception 'SF-1 FAILED: companies.away_message missing'; end if;
-  if not am_null then raise exception 'SF-1 FAILED: away_message must be NULLable'; end if;
+  if am_null is distinct from true then raise exception 'SF-1 FAILED: away_message must be NULLable'; end if;
 
   raise notice 'SF-1 PASSED: companies send-features columns present with correct types/defaults';
 end $$;
@@ -67,7 +67,7 @@ begin
   if c_type is distinct from 'timestamp with time zone' then
     raise exception 'SF-2 FAILED: last_auto_reply_at is % (want timestamptz)', c_type;
   end if;
-  if not c_null then raise exception 'SF-2 FAILED: last_auto_reply_at must be NULLable'; end if;
+  if c_null is distinct from true then raise exception 'SF-2 FAILED: last_auto_reply_at must be NULLable'; end if;
   raise notice 'SF-2 PASSED: conversations.last_auto_reply_at timestamptz NULL';
 end $$;
 
