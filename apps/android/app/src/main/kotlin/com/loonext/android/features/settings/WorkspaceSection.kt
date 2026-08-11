@@ -2,6 +2,9 @@ package com.loonext.android.features.settings
 
 import androidx.compose.foundation.clickable
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -97,15 +100,15 @@ private fun NameCard(
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
     val haptics = rememberHaptics()
     val trimmed = name.trim()
     val dirty = trimmed != company.name
     val valid = trimmed.length in 1..200
 
     SettingsCard(
-        title = "Workspace name",
-        description = "The name your customers know you by, used on your carrier " +
-            "registration and available as {business_name} in your texts.",
+        title = t("settingsMore.workspaceName"),
+        description = t("settingsMore.workspaceNameDesc"),
     ) {
         if (canEdit) {
             OutlinedTextField(
@@ -115,7 +118,7 @@ private fun NameCard(
                 singleLine = true,
                 isError = dirty && !valid,
                 supportingText = if (dirty && !valid) {
-                    { Text("1 to 200 characters.") }
+                    { Text(t("settingsMore.nameLength200")) }
                 } else {
                     null
                 },
@@ -134,7 +137,12 @@ private fun NameCard(
                                 )
                                 onCompanyUpdated(updated)
                                 haptics.confirm()
-                                scope.showMessage("Workspace name saved.")
+                                scope.showMessage(
+                                    AppStrings.translate(
+                                        locale,
+                                        "settingsMore.workspaceNameSaved",
+                                    ),
+                                )
                             } catch (cause: Exception) {
                                 error = cause.userMessage()
                             } finally {
@@ -144,12 +152,12 @@ private fun NameCard(
                     },
                     enabled = valid && !saving,
                     modifier = Modifier.padding(top = 10.dp),
-                ) { Text(if (saving) "Saving…" else "Save") }
+                ) { Text(if (saving) t("common.saving") else t("common.save")) }
             }
         } else {
             Text(company.name, style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(4.dp))
-            ReadOnlyLine("Only owners and admins can rename the workspace.")
+            ReadOnlyLine(t("settingsMore.onlyAdminsRename"))
         }
     }
 }
@@ -166,9 +174,8 @@ private fun BusinessIdentificationCard(scope: SettingsScope, company: CompanyVie
     ) { scope.repo.registration(scope.companyId) }
 
     SettingsCard(
-        title = "Business identification",
-        description = "What carriers have on file for your business. " +
-            "It comes from your texting registration.",
+        title = t("settingsMore.businessIdCard"),
+        description = t("settingsMore.businessIdCardDesc"),
     ) {
         when (val current = state) {
             is LoadState.Loading -> Column {
@@ -186,7 +193,7 @@ private fun BusinessIdentificationCard(scope: SettingsScope, company: CompanyVie
                 OutlinedButton(
                     onClick = { refreshKey++ },
                     modifier = Modifier.padding(top = 8.dp),
-                ) { Text("Try again") }
+                ) { Text(t("common.retry")) }
             }
 
             is LoadState.Ready -> {
@@ -194,11 +201,9 @@ private fun BusinessIdentificationCard(scope: SettingsScope, company: CompanyVie
                 if (brand == null) {
                     Text(
                         if (company.country == "CA" && !company.us_texting_enabled) {
-                            "No registration needed. Canadian texting works without one. " +
-                                "Enabling US texting adds it."
+                            t("settingsMore.noRegistrationNeeded")
                         } else {
-                            "No registration details on file yet. " +
-                                "Manage registration under Numbers."
+                            t("settingsMore.noRegistrationYet")
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -206,13 +211,17 @@ private fun BusinessIdentificationCard(scope: SettingsScope, company: CompanyVie
                 } else if (SettingsRoleGate.canEditWorkspace(scope.role)) {
                     IdentityRows(brand, company.country)
                     Spacer(Modifier.height(8.dp))
-                    ReadOnlyLine("Need to change something? Manage registration under Numbers.")
+                    ReadOnlyLine(t("settingsMore.changeRegistrationUnderNumbers"))
                 } else {
                     Text(
-                        "Registration is " +
-                            (if (brand.status == RegistrationStatus.APPROVED) "approved"
-                            else "on file") +
-                            ". Owners and admins can see the full details.",
+                        t(
+                            "settingsMore.registrationIs",
+                            "state" to if (brand.status == RegistrationStatus.APPROVED) {
+                                t("settingsMore.registrationApproved")
+                            } else {
+                                t("settingsMore.registrationOnFile")
+                            },
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -231,26 +240,26 @@ private fun IdentityRows(brand: RegistrationDetail, country: String) {
         if (brand.sole_proprietor) "${field("firstName")} ${field("lastName")}".trim()
         else field("companyName")
     val identifierLabel = when {
-        brand.sole_proprietor && country == "US" -> "SSN (last 4)"
-        brand.sole_proprietor -> "SIN (last 4)"
-        country == "US" -> "EIN"
-        else -> "Business number"
+        brand.sole_proprietor && country == "US" -> t("settingsMore.ssnLast4")
+        brand.sole_proprietor -> t("settingsMore.sinLast4")
+        country == "US" -> t("settingsMore.einLabel")
+        else -> t("settingsMore.businessNumberLabel")
     }
     val address = listOf(field("street"), field("city"), field("state"), field("postalCode"))
         .filter { it.isNotEmpty() }
         .joinToString(", ")
 
     val rows = listOf(
-        "Legal name" to legalName,
+        t("settingsMore.legalName") to legalName,
         identifierLabel to field("ein"),
-        "Address" to address,
-        "Website" to field("website"),
-        "Contact" to field("email"),
+        t("settingsMore.addressLabel") to address,
+        t("settingsMore.websiteLabel") to field("website"),
+        t("settingsMore.contactLabel") to field("email"),
     ).filter { it.second.isNotEmpty() }
 
     if (rows.isEmpty()) {
         Text(
-            "Registration details are being prepared.",
+            t("settingsMore.registrationBeingPrepared"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -289,6 +298,7 @@ private fun TimezoneCard(
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
     val haptics = rememberHaptics()
 
     // Live "It's 3:42 PM in …" preview — ticks with the clock.
@@ -302,32 +312,41 @@ private fun TimezoneCard(
     val localTime = zone?.let { now.withZoneSameInstant(it).format(TIME_FORMAT) }
 
     SettingsCard(
-        title = "Timezone",
-        description = "Dates in emails about your workspace are framed in your " +
-            "business's local time.",
+        title = t("settingsMore.timezone"),
+        description = t("settingsMore.timezoneDesc"),
     ) {
         Text(company.timezone, style = MaterialTheme.typography.bodyLarge)
         if (localTime != null) {
             Text(
-                "It's $localTime in ${company.timezone} right now.",
+                t(
+                    "settingsMore.localTimeNow",
+                    "time" to localTime,
+                    "zone" to company.timezone,
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Spacer(Modifier.height(6.dp))
-        ReadOnlyLine(
-            "Texting quiet hours use each customer's local time, not this timezone.",
-        )
+        ReadOnlyLine(t("settingsMore.quietHoursNote"))
         InlineError(error)
         if (canEdit) {
             OutlinedButton(
                 onClick = { picking = true },
                 enabled = !saving,
                 modifier = Modifier.padding(top = 10.dp),
-            ) { Text(if (saving) "Saving…" else "Change timezone") }
+            ) {
+                Text(
+                    if (saving) {
+                        t("common.saving")
+                    } else {
+                        t("settingsMore.changeTimezone")
+                    },
+                )
+            }
         } else {
             Spacer(Modifier.height(4.dp))
-            ReadOnlyLine("Only owners and admins can change the timezone.")
+            ReadOnlyLine(t("settingsMore.onlyAdminsTimezone"))
         }
     }
 
@@ -348,7 +367,9 @@ private fun TimezoneCard(
                         )
                         onCompanyUpdated(updated)
                         haptics.confirm()
-                        scope.showMessage("Timezone saved.")
+                        scope.showMessage(
+                            AppStrings.translate(locale, "settingsMore.timezoneSaved"),
+                        )
                     } catch (cause: Exception) {
                         error = cause.userMessage()
                     } finally {
@@ -377,7 +398,7 @@ internal fun TimezonePickerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Choose a timezone") },
+        title = { Text(t("settingsMore.chooseTimezone")) },
         text = {
             // #199: platform-positioned dialog window + debug guard on the
             // search field.
@@ -387,12 +408,12 @@ internal fun TimezonePickerDialog(
                     onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    placeholder = { Text("Search, e.g. Toronto") },
+                    placeholder = { Text(t("settingsMore.timezoneSearchHint")) },
                 )
                 Spacer(Modifier.height(8.dp))
                 if (filtered.isEmpty()) {
                     Text(
-                        "No timezone matches \"$query\".",
+                        t("settingsMore.noTimezoneMatch", "query" to query),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -438,7 +459,7 @@ internal fun TimezonePickerDialog(
             }
         },
         confirmButton = {},
-        dismissButton = { LinkButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { LinkButton(onClick = onDismiss) { Text(t("common.cancel")) } },
     )
 }
 
@@ -458,17 +479,17 @@ private fun SignTextsCard(
 ) {
     val canEdit = SettingsRoleGate.canEditWorkspace(scope.role)
     val coroutines = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
     SettingsCard(
-        title = "Sign your texts",
-        description = "Add your business name to the first text you send " +
-            "someone, so a message from an unknown number says who it is from.",
+        title = t("settingsMore.signTextsTitle"),
+        description = t("settingsMore.signTextsDesc"),
     ) {
         LabeledSwitchRow(
-            label = "Sign the first text to a new customer",
-            supporting = "Once per customer. Replies and later texts are never signed.",
+            label = t("settingsMore.signFirstText"),
+            supporting = t("settingsMore.signFirstTextSupporting"),
             checked = company.first_message_identification,
             enabled = canEdit && !saving,
             onCheckedChange = { next ->
@@ -492,17 +513,19 @@ private fun SignTextsCard(
         // the signature here could drift from what actually sends and bills.
         val signature = company.first_message_identification_suffix?.trim()
         if (company.first_message_identification && !signature.isNullOrEmpty()) {
-            PreviewBubble(label = "What gets added", text = signature)
+            PreviewBubble(label = t("settingsMore.whatGetsAdded"), text = signature)
             Spacer(Modifier.height(6.dp))
             ReadOnlyLine(
-                "That is ${signature.length} characters, so a long first text " +
-                    "can be sent in two parts instead of one.",
+                t(
+                    "settingsMore.signatureLength",
+                    "count" to "${signature.length}",
+                ),
             )
         }
         InlineError(error)
         if (!canEdit) {
             Spacer(Modifier.height(4.dp))
-            ReadOnlyLine("Only owners and admins can change how texts are signed.")
+            ReadOnlyLine(t("settingsMore.onlyAdminsSigning"))
         }
     }
 }
@@ -525,18 +548,17 @@ private fun QuietHoursCard(
 ) {
     val canEdit = SettingsRoleGate.canEditWorkspace(scope.role)
     val coroutines = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
     SettingsCard(
-        title = "Texting a new customer at night",
-        description = "Starting a brand-new conversation between 8pm and 8am " +
-            "the customer's time asks you to confirm first.",
+        title = t("settingsMore.nightTextTitle"),
+        description = t("settingsMore.nightTextDesc"),
     ) {
         LabeledSwitchRow(
-            label = "Ask me to confirm",
-            supporting = "Only when you start the conversation. Replying to a " +
-                "customer who texted or called you is never interrupted.",
+            label = t("settingsMore.askMeToConfirm"),
+            supporting = t("settingsMore.askMeToConfirmSupporting"),
             checked = company.quiet_hours_confirm_enabled,
             enabled = canEdit && !saving,
             onCheckedChange = { next ->
@@ -561,22 +583,16 @@ private fun QuietHoursCard(
         // permits automated night texts.
         if (!company.quiet_hours_confirm_enabled) {
             PreviewBubble(
-                label = "With this off",
-                text = "You will not be asked. A text you start at 2am goes " +
-                    "straight out, and it is on you that the customer wanted to " +
-                    "hear from you then.",
+                label = t("settingsMore.withThisOff"),
+                text = t("settingsMore.withThisOffBody"),
             )
             Spacer(Modifier.height(6.dp))
-            ReadOnlyLine(
-                "This does not change automated texts. Reminders and anything " +
-                    "else we send on your behalf still wait for the customer's " +
-                    "morning, whatever this is set to.",
-            )
+            ReadOnlyLine(t("settingsMore.nightTextAutomatedNote"))
         }
         InlineError(error)
         if (!canEdit) {
             Spacer(Modifier.height(4.dp))
-            ReadOnlyLine("Only owners and admins can change this.")
+            ReadOnlyLine(t("settingsMore.onlyAdminsThis"))
         }
     }
 }
@@ -606,12 +622,11 @@ private fun LanguageCard(
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
 
     SettingsCard(
-        title = "Language for automated texts",
-        description = "The language we write in when we text a customer for you: " +
-            "the after-hours away reply, the missed-call text-back, the emergency " +
-            "acknowledgment, and the rating ask after a job.",
+        title = t("settingsMore.automatedLanguageTitle"),
+        description = t("settingsMore.automatedLanguageDesc"),
     ) {
         // The stored value always appears, even when this build has not heard of
         // it: a list that silently omitted somebody's language would render
@@ -638,7 +653,12 @@ private fun LanguageCard(
                                         buildJsonObject { put("locale", value) },
                                     )
                                     onCompanyUpdated(updated)
-                                    scope.showMessage("Language updated.")
+                                    scope.showMessage(
+                                        AppStrings.translate(
+                                            locale,
+                                            "settingsMore.languageUpdated",
+                                        ),
+                                    )
                                 } catch (cause: Exception) {
                                     error = cause.userMessage()
                                 } finally {
@@ -660,20 +680,13 @@ private fun LanguageCard(
             }
         }
         Spacer(Modifier.height(6.dp))
-        ReadOnlyLine(
-            "This does not change the app itself, and it never rewrites words " +
-                "somebody typed. An away message you wrote is sent exactly as " +
-                "you wrote it, in the language you wrote it in.",
-        )
+        ReadOnlyLine(t("settingsMore.automatedLanguageNotApp"))
         Spacer(Modifier.height(4.dp))
-        ReadOnlyLine(
-            "One customer who should hear from you in the other language can be " +
-                "set on their own contact.",
-        )
+        ReadOnlyLine(t("settingsMore.automatedLanguagePerContact"))
         InlineError(error)
         if (!canEdit) {
             Spacer(Modifier.height(4.dp))
-            ReadOnlyLine("Only owners and admins can change the language.")
+            ReadOnlyLine(t("settingsMore.onlyAdminsLanguage"))
         }
     }
 }

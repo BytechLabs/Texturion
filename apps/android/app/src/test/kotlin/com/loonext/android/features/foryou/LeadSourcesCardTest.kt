@@ -2,6 +2,7 @@ package com.loonext.android.features.foryou
 
 import com.loonext.android.core.model.LeadSourceCount
 import com.loonext.android.core.model.LeadSourceReport
+import com.loonext.android.core.model.MessageLocale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -17,6 +18,14 @@ import org.junit.Test
  */
 class LeadSourcesCardTest {
 
+    /**
+     * #228 moved both sentences into `InboxStrings`, so each one now takes the
+     * reader's language. Asserted in English because English is what the web
+     * twin is written in and what this suite exists to stay level with; the
+     * French is held to the same shape by `AppStringsTest`.
+     */
+    private val locale = MessageLocale.DEFAULT
+
     private fun source(name: String, total: Int) =
         LeadSourceCount(lead_source_id = name, name = name, by_number = total, total = total)
 
@@ -29,7 +38,7 @@ class LeadSourcesCardTest {
         )
         assertEquals(
             "Most of the work you can account for came from Truck — 30 of 40.",
-            leadingSentence(report),
+            leadingSentence(report, locale),
         )
     }
 
@@ -42,7 +51,7 @@ class LeadSourcesCardTest {
             unknown = 0,
             total = 36,
         )
-        assertNull(leadingSentence(spread))
+        assertNull(leadingSentence(spread, locale))
     }
 
     @Test
@@ -50,7 +59,7 @@ class LeadSourcesCardTest {
         // Dividing by an attributed count of zero is how a card ends up
         // printing NaN at somebody.
         val blind = LeadSourceReport(sources = emptyList(), unknown = 12, total = 12)
-        assertNull(leadingSentence(blind))
+        assertNull(leadingSentence(blind, locale))
     }
 
     @Test
@@ -68,7 +77,7 @@ class LeadSourcesCardTest {
             unknown = 0,
             total = 45,
         )
-        val rows = visibleRows(many)
+        val rows = visibleRows(many, locale)
         assertEquals(5, rows.size)
         assertEquals("2 more" to 11, rows[4])
     }
@@ -80,6 +89,6 @@ class LeadSourcesCardTest {
             unknown = 0,
             total = 19,
         )
-        assertEquals(listOf("A" to 10, "B" to 9), visibleRows(few))
+        assertEquals(listOf("A" to 10, "B" to 9), visibleRows(few, locale))
     }
 }

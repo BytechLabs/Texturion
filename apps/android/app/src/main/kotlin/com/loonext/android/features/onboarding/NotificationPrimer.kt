@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import com.loonext.android.core.i18n.t
 import com.loonext.android.push.PushPrefs
 
 /**
@@ -122,18 +123,16 @@ fun NotificationPrimer(suppressed: Boolean = false) {
             dismissed = true
         },
         icon = { Icon(Icons.Outlined.Notifications, contentDescription = null) },
-        title = { Text("Want a nudge when work comes in?") },
+        title = { Text(t("shell.primerTitle")) },
         text = {
             Text(
-                "We'll buzz you for new customer texts, missed calls and the " +
-                    "work assigned to you — nothing else. You can change what " +
-                    "reaches you, and when, in Settings.",
+                t("shell.primerBody"),
                 style = MaterialTheme.typography.bodyLarge,
             )
         },
         confirmButton = {
             TextButton(onClick = { dismissed = true; ask.ask() }) {
-                Text("Turn on notifications")
+                Text(t("shell.notificationsTurnOn"))
             }
         },
         dismissButton = {
@@ -144,7 +143,7 @@ fun NotificationPrimer(suppressed: Boolean = false) {
                 PushPrefs.setPermissionRequested(context)
                 dismissed = true
             }) {
-                Text("Not now")
+                Text(t("shell.notificationsNotNow"))
             }
         },
     )

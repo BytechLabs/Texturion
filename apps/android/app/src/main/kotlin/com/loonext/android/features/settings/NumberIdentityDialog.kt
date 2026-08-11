@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.userMessage
@@ -245,18 +246,17 @@ internal fun NumberIdentityDialog(
 
     AlertDialog(
         onDismissRequest = { if (!pending) onDismiss() },
-        title = { Text("How this line answers") },
+        title = { Text(t("settingsMore.numberIdentityTitle")) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
-                    "Anything you leave alone follows your workspace. Change one " +
-                        "here and it only affects this number.",
+                    t("settingsMore.numberIdentityIntro"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 when (val state = loaded) {
                     is LoadState.Loading -> Text(
-                        "Loading…",
+                        t("settingsMore.loading"),
                         modifier = Modifier.padding(top = 12.dp),
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -273,19 +273,19 @@ internal fun NumberIdentityDialog(
                             val selectedId = state.value.voicemail_greeting_id.value
                             val selectedName = greetings
                                 .firstOrNull { it.id == selectedId }?.name
-                                ?: WRITTEN_GREETING_LABEL
+                                ?: t("settingsMore.writtenGreeting")
                             Row(
                                 Modifier.fillMaxWidth().padding(top = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    "Voicemail voice",
+                                    t("settingsMore.voicemailVoice"),
                                     style = MaterialTheme.typography.labelLarge,
                                 )
                                 Spacer(Modifier.weight(1f))
                                 if (state.value.voicemail_greeting_id.inherited) {
                                     Text(
-                                        "Same as your workspace",
+                                        t("settingsMore.inheritSame"),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -295,7 +295,7 @@ internal fun NumberIdentityDialog(
                                         onClick = { clear("voicemail_greeting_id") },
                                     ) {
                                         Text(
-                                            "Use the workspace's",
+                                            t("settingsMore.inheritUse"),
                                             style = MaterialTheme.typography.bodySmall,
                                         )
                                     }
@@ -314,7 +314,7 @@ internal fun NumberIdentityDialog(
                                 // until somebody chooses otherwise, and what
                                 // the runtime falls back to anyway.
                                 DropdownMenuItem(
-                                    text = { Text(WRITTEN_GREETING_LABEL) },
+                                    text = { Text(t("settingsMore.writtenGreeting")) },
                                     onClick = {
                                         greetingMenuOpen = false
                                         selectGreeting(null)
@@ -331,8 +331,7 @@ internal fun NumberIdentityDialog(
                                 }
                             }
                             Text(
-                                "A recording that will not play falls back to the " +
-                                    "words below, so a caller never hears silence.",
+                                t("settingsMore.recordingFallbackHint"),
                                 modifier = Modifier.padding(top = 4.dp),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -344,25 +343,24 @@ internal fun NumberIdentityDialog(
                         // 3am is rarely the one taking invoice questions.
                         val afterHoursInherited =
                             state.value.after_hours_calls.inherited
-                        val afterHoursLabel =
+                        val afterHoursText =
                             if (afterHoursInherited) {
-                                INHERIT_LABEL
+                                t("settingsMore.inheritSame")
                             } else {
-                                AFTER_HOURS_LABELS[state.value.after_hours_calls.value]
-                                    ?: INHERIT_LABEL
+                                afterHoursLabel(state.value.after_hours_calls.value)
                             }
                         Row(
                             Modifier.fillMaxWidth().padding(top = 14.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                "After-hours calls",
+                                t("settingsMore.afterHoursCalls"),
                                 style = MaterialTheme.typography.labelLarge,
                             )
                             Spacer(Modifier.weight(1f))
                             if (afterHoursInherited) {
                                 Text(
-                                    INHERIT_LABEL,
+                                    t("settingsMore.inheritSame"),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -372,7 +370,7 @@ internal fun NumberIdentityDialog(
                                     onClick = { clear("after_hours_calls") },
                                 ) {
                                     Text(
-                                        "Use the workspace's",
+                                        t("settingsMore.inheritUse"),
                                         style = MaterialTheme.typography.bodySmall,
                                     )
                                 }
@@ -381,7 +379,7 @@ internal fun NumberIdentityDialog(
                         TextButton(
                             enabled = !pending,
                             onClick = { afterHoursMenuOpen = true },
-                        ) { Text(afterHoursLabel) }
+                        ) { Text(afterHoursText) }
                         DropdownMenu(
                             expanded = afterHoursMenuOpen,
                             onDismissRequest = { afterHoursMenuOpen = false },
@@ -390,15 +388,15 @@ internal fun NumberIdentityDialog(
                             // somebody says otherwise, and the option that is
                             // always correct is the one that needs no thought.
                             DropdownMenuItem(
-                                text = { Text(INHERIT_LABEL) },
+                                text = { Text(t("settingsMore.inheritSame")) },
                                 onClick = {
                                     afterHoursMenuOpen = false
                                     selectAfterHours(null)
                                 },
                             )
-                            AFTER_HOURS_LABELS.forEach { (value, label) ->
+                            AFTER_HOURS_CHOICES.forEach { value ->
                                 DropdownMenuItem(
-                                    text = { Text(label) },
+                                    text = { Text(afterHoursLabel(value)) },
                                     onClick = {
                                         afterHoursMenuOpen = false
                                         selectAfterHours(value)
@@ -407,9 +405,7 @@ internal fun NumberIdentityDialog(
                             }
                         }
                         Text(
-                            "Outside this line's hours. With nobody on call, the " +
-                                "last two still differ — one rings the crew anyway, " +
-                                "the other takes a message.",
+                            t("settingsMore.afterHoursHint"),
                             modifier = Modifier.padding(top = 4.dp),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -421,13 +417,13 @@ internal fun NumberIdentityDialog(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                "How the phones ring",
+                                t("settingsMore.ringHow"),
                                 style = MaterialTheme.typography.labelLarge,
                             )
                             Spacer(Modifier.weight(1f))
                             if (ringInherited) {
                                 Text(
-                                    INHERIT_LABEL,
+                                    t("settingsMore.inheritSame"),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -437,7 +433,7 @@ internal fun NumberIdentityDialog(
                                     onClick = { clear("ring_strategy") },
                                 ) {
                                     Text(
-                                        "Use the workspace's",
+                                        t("settingsMore.inheritUse"),
                                         style = MaterialTheme.typography.bodySmall,
                                     )
                                 }
@@ -449,9 +445,9 @@ internal fun NumberIdentityDialog(
                         ) {
                             Text(
                                 if (ringInherited) {
-                                    INHERIT_LABEL
+                                    t("settingsMore.inheritSame")
                                 } else {
-                                    RING_LABELS[state.value.ring_strategy.value] ?: INHERIT_LABEL
+                                    ringLabel(state.value.ring_strategy.value)
                                 },
                             )
                         }
@@ -460,15 +456,15 @@ internal fun NumberIdentityDialog(
                             onDismissRequest = { ringMenuOpen = false },
                         ) {
                             DropdownMenuItem(
-                                text = { Text(INHERIT_LABEL) },
+                                text = { Text(t("settingsMore.inheritSame")) },
                                 onClick = {
                                     ringMenuOpen = false
                                     selectRing("ring_strategy", JsonNull)
                                 },
                             )
-                            RING_LABELS.forEach { (value, label) ->
+                            RING_CHOICES.forEach { value ->
                                 DropdownMenuItem(
-                                    text = { Text(label) },
+                                    text = { Text(ringLabel(value)) },
                                     onClick = {
                                         ringMenuOpen = false
                                         selectRing("ring_strategy", JsonPrimitive(value))
@@ -483,13 +479,13 @@ internal fun NumberIdentityDialog(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                "How long they ring",
+                                t("settingsMore.ringHowLong"),
                                 style = MaterialTheme.typography.labelLarge,
                             )
                             Spacer(Modifier.weight(1f))
                             if (secondsInherited) {
                                 Text(
-                                    INHERIT_LABEL,
+                                    t("settingsMore.inheritSame"),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -499,7 +495,7 @@ internal fun NumberIdentityDialog(
                                     onClick = { clear("ring_seconds") },
                                 ) {
                                     Text(
-                                        "Use the workspace's",
+                                        t("settingsMore.inheritUse"),
                                         style = MaterialTheme.typography.bodySmall,
                                     )
                                 }
@@ -512,9 +508,9 @@ internal fun NumberIdentityDialog(
                             val seconds = state.value.ring_seconds.value
                             Text(
                                 if (secondsInherited || seconds == null) {
-                                    INHERIT_LABEL
+                                    t("settingsMore.inheritSame")
                                 } else {
-                                    "$seconds seconds"
+                                    t("settingsMore.ringSeconds", "seconds" to "$seconds")
                                 },
                             )
                         }
@@ -523,7 +519,7 @@ internal fun NumberIdentityDialog(
                             onDismissRequest = { ringSecondsMenuOpen = false },
                         ) {
                             DropdownMenuItem(
-                                text = { Text(INHERIT_LABEL) },
+                                text = { Text(t("settingsMore.inheritSame")) },
                                 onClick = {
                                     ringSecondsMenuOpen = false
                                     selectRing("ring_seconds", JsonNull)
@@ -531,7 +527,14 @@ internal fun NumberIdentityDialog(
                             )
                             RING_SECOND_CHOICES.forEach { value ->
                                 DropdownMenuItem(
-                                    text = { Text("$value seconds") },
+                                    text = {
+                                        Text(
+                                            t(
+                                                "settingsMore.ringSeconds",
+                                                "seconds" to "$value",
+                                            ),
+                                        )
+                                    },
                                     onClick = {
                                         ringSecondsMenuOpen = false
                                         selectRing("ring_seconds", JsonPrimitive(value))
@@ -540,9 +543,8 @@ internal fun NumberIdentityDialog(
                             }
                         }
                         IdentityField(
-                            title = "Name for this line",
-                            hint = "Used in the greeting, on missed-call texts, and " +
-                                "wherever this line introduces itself.",
+                            title = t("settingsMore.lineNameTitle"),
+                            hint = t("settingsMore.lineNameHint"),
                             value = label,
                             inherited = state.value.label.inherited,
                             enabled = !pending,
@@ -551,8 +553,8 @@ internal fun NumberIdentityDialog(
                             onUseWorkspace = { clear("label") },
                         )
                         IdentityField(
-                            title = "Voicemail greeting",
-                            hint = "What a caller hears when nobody picks up.",
+                            title = t("settingsMore.voicemailGreetingTitle"),
+                            hint = t("settingsMore.voicemailGreetingHint"),
                             value = greeting,
                             inherited = state.value.voicemail_greeting.inherited,
                             enabled = !pending,
@@ -561,9 +563,8 @@ internal fun NumberIdentityDialog(
                             onUseWorkspace = { clear("voicemail_greeting") },
                         )
                         IdentityField(
-                            title = "After-hours reply",
-                            hint = "The text sent when somebody messages this line " +
-                                "outside your hours.",
+                            title = t("settingsMore.afterHoursReplyTitle"),
+                            hint = t("settingsMore.afterHoursReplyHint"),
                             value = away,
                             inherited = state.value.away_message.inherited,
                             enabled = !pending,
@@ -572,8 +573,8 @@ internal fun NumberIdentityDialog(
                             onUseWorkspace = { clear("away_message") },
                         )
                         IdentityToggle(
-                            title = "Text back a missed caller",
-                            hint = "Sent from this line when a call goes unanswered.",
+                            title = t("settingsMore.missedCallBackTitle"),
+                            hint = t("settingsMore.missedCallBackHint"),
                             checked = mctbEnabled,
                             inherited = state.value.mctb_enabled.inherited,
                             enabled = !pending,
@@ -581,9 +582,8 @@ internal fun NumberIdentityDialog(
                             onUseWorkspace = { clear("mctb_enabled") },
                         )
                         IdentityField(
-                            title = "Missed-call text",
-                            hint = "What a caller gets when nobody picks up and " +
-                                "they hang up.",
+                            title = t("settingsMore.missedCallTextTitle"),
+                            hint = t("settingsMore.missedCallTextHint"),
                             value = mctbMessage,
                             inherited = state.value.mctb_message.inherited,
                             enabled = !pending,
@@ -626,10 +626,10 @@ internal fun NumberIdentityDialog(
                         }
                     }
                 },
-            ) { Text("Save") }
+            ) { Text(t("common.save")) }
         },
         dismissButton = {
-            TextButton(enabled = !pending, onClick = onDismiss) { Text("Cancel") }
+            TextButton(enabled = !pending, onClick = onDismiss) { Text(t("common.cancel")) }
         },
     )
 }
@@ -652,13 +652,16 @@ private fun IdentityField(
             Spacer(Modifier.weight(1f))
             if (inherited) {
                 Text(
-                    "Same as your workspace",
+                    t("settingsMore.inheritSame"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
                 TextButton(enabled = enabled, onClick = onUseWorkspace) {
-                    Text("Use the workspace's", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        t("settingsMore.inheritUse"),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             }
         }
@@ -703,13 +706,16 @@ private fun IdentityToggle(
             Spacer(Modifier.weight(1f))
             if (inherited) {
                 Text(
-                    "Same as your workspace",
+                    t("settingsMore.inheritSame"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
                 TextButton(enabled = enabled, onClick = onUseWorkspace) {
-                    Text("Use the workspace's", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        t("settingsMore.inheritUse"),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             }
             Spacer(Modifier.width(8.dp))
@@ -725,27 +731,34 @@ private fun IdentityToggle(
 }
 
 /**
- * What a line plays when no recording is chosen.
+ * #278: the two ring shapes, and the three after-hours shapes, in the order an
+ * owner grows through them.
  *
- * Worded as the outcome rather than as "None": a caller still hears a greeting,
- * spoken aloud from the written words, and "None" would suggest silence.
+ * The VALUES live here and the words live in the catalogue (#228). They used to
+ * be one `linkedMapOf(value to label)`, which is the shape that cannot be
+ * translated: the wire value and the sentence a person reads are two different
+ * things, and a map that stores them together makes the reader's language a
+ * property of the protocol.
  */
-private const val WRITTEN_GREETING_LABEL = "The written greeting, read aloud"
-
-/** "Follow the workspace" is a real choice here, so it is a labelled option. */
-private const val INHERIT_LABEL = "Same as your workspace"
-
-/** #278: the two ring shapes, and the four windows the workspace card offers. */
-private val RING_LABELS = linkedMapOf(
-    "all" to "All at once",
-    "in_turn" to "One at a time",
-)
+private val RING_CHOICES = listOf("all", "in_turn")
 
 private val RING_SECOND_CHOICES = listOf(15, 20, 30, 45)
 
-/** #278: the three shapes, in the order an owner grows through them. */
-private val AFTER_HOURS_LABELS = linkedMapOf(
-    "ring_everyone" to "Ring everyone, day or night",
-    "on_call_only" to "Ring only whoever's on call",
-    "voicemail" to "Take a message",
-)
+private val AFTER_HOURS_CHOICES = listOf("ring_everyone", "on_call_only", "voicemail")
+
+/** The words for [RING_CHOICES]. Anything unknown reads as the inherited state. */
+@Composable
+private fun ringLabel(value: String?): String = when (value) {
+    "all" -> t("settingsMore.ringAll")
+    "in_turn" -> t("settingsMore.ringInTurn")
+    else -> t("settingsMore.inheritSame")
+}
+
+/** The words for [AFTER_HOURS_CHOICES], same fallback rule. */
+@Composable
+private fun afterHoursLabel(value: String?): String = when (value) {
+    "ring_everyone" -> t("settingsMore.afterHoursRingEveryone")
+    "on_call_only" -> t("settingsMore.afterHoursOnCallOnly")
+    "voicemail" -> t("settingsMore.afterHoursVoicemail")
+    else -> t("settingsMore.inheritSame")
+}

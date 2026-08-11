@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.PaperCard
 
 /**
@@ -45,6 +46,14 @@ import com.loonext.android.ui.common.PaperCard
 data class WhatsNewEntry(
     /** ISO date the change reached customers. */
     val date: String,
+    /**
+     * #228: the CATALOGUE KEYS, not the words.
+     *
+     * The list is a top-level `val` built at class-init, before anybody has a
+     * locale, so an entry that stored its own sentence could only ever store
+     * one language's. Everything that reads these — the marker, the tests —
+     * works on the date and on identity, never on the prose.
+     */
     val title: String,
     val body: String,
 )
@@ -59,33 +68,28 @@ data class WhatsNewEntry(
 val WHATS_NEW: List<WhatsNewEntry> = listOf(
     WhatsNewEntry(
         "2026-08-01",
-        "Save the filters you use every morning",
-        "Arrange the inbox how you want it, name it, and it is one tap away " +
-            "tomorrow. Share one with the crew and everybody opens the same list.",
+        "settingsMore.whatsNewSavedViewsTitle",
+        "settingsMore.whatsNewSavedViewsBody",
     ),
     WhatsNewEntry(
         "2026-08-01",
-        "See how many quotes turned into work",
-        "Your home screen now shows how many quotes you sent, how many you won, " +
-            "and how many are still waiting on an answer.",
+        "settingsMore.whatsNewQuotesTitle",
+        "settingsMore.whatsNewQuotesBody",
     ),
     WhatsNewEntry(
         "2026-07-25",
-        "Voicemails are written down",
-        "A missed call leaves a voicemail you can read at a red light instead of " +
-            "listening to it. It is searchable like any other message.",
+        "settingsMore.whatsNewVoicemailTitle",
+        "settingsMore.whatsNewVoicemailBody",
     ),
     WhatsNewEntry(
         "2026-07-24",
-        "Lou drafts the reply for you",
-        "Lou reads the thread and offers a reply you can edit before it goes. " +
-            "You send it, or you ignore it; nothing is sent on your behalf.",
+        "settingsMore.whatsNewDraftsTitle",
+        "settingsMore.whatsNewDraftsBody",
     ),
     WhatsNewEntry(
         "2026-07-12",
-        "Answer calls in the app",
-        "Calls to your business number ring your whole crew right here. Pick up, " +
-            "put someone on hold, or hand the call to a teammate.",
+        "settingsMore.whatsNewCallsTitle",
+        "settingsMore.whatsNewCallsBody",
     ),
 )
 
@@ -164,7 +168,7 @@ fun WhatsNewSection(scope: SettingsScope, joinedAt: String?) {
 
     Column(Modifier.fillMaxWidth()) {
         Text(
-            "Everything here has already shipped and is in the product now.",
+            t("settingsMore.whatsNewIntro"),
             style = MaterialTheme.typography.bodyMedium,
         )
         Spacer(Modifier.height(14.dp))
@@ -177,7 +181,7 @@ fun WhatsNewSection(scope: SettingsScope, joinedAt: String?) {
                             Spacer(Modifier.width(8.dp))
                             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary) {
                                 Text(
-                                    "New",
+                                    t("settingsMore.whatsNewBadge"),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onPrimary,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
@@ -186,16 +190,15 @@ fun WhatsNewSection(scope: SettingsScope, joinedAt: String?) {
                         }
                     }
                     Spacer(Modifier.height(4.dp))
-                    Text(entry.title, style = MaterialTheme.typography.titleMedium)
+                    Text(t(entry.title), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
-                    Text(entry.body, style = MaterialTheme.typography.bodyMedium)
+                    Text(t(entry.body), style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            "Smaller repairs ship most days and are not listed. If you reported " +
-                "something and want to know where it got to, ask us on the Help page.",
+            t("settingsMore.whatsNewFooter"),
             style = MaterialTheme.typography.bodySmall,
         )
     }

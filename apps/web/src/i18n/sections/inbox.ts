@@ -69,6 +69,27 @@ export const inboxEn = {
   rowAssignedToTitle: "Assigned to {name}",
   spamLabel: "Spam",
 
+  // --- The status pill (status-pill.tsx) ------------------------------------
+  /*
+   * Shorter than the filter chips above on purpose: a pill sits inside a row
+   * that already says who and when, so `statusWaitingOnThem`'s extra words
+   * would push the name out (phone-header-is-full).
+   */
+  pillNew: "New",
+  pillOpen: "Open",
+  pillWaiting: "Waiting",
+  pillClosed: "Closed",
+  /*
+   * The same four INSIDE a sentence — "Sam marked this waiting" (the thread's
+   * system lines). A lowercased pill label is the version that breaks: French
+   * capitalises differently and a `.toLowerCase()` over translated copy is a
+   * rule about English hiding in a helper.
+   */
+  pillNewInSentence: "new",
+  pillOpenInSentence: "open",
+  pillWaitingInSentence: "waiting",
+  pillClosedInSentence: "closed",
+
   // --- The virtualized list (conversation-list.tsx) -------------------------
   listLoadFailed:
     "We couldn't load your conversations. Check your connection and try again.",
@@ -395,6 +416,27 @@ export const inboxEn = {
   whileWaitContacts: "Bring your customers in",
   whileWaitInvite: "Invite your crew",
   whileWaitHours: "Set your hours and greeting",
+
+  /* ── What "selected" says, and what a bulk action reports back ────────────
+     `lib/inbox/bulk-selection.ts`, read by the inbox bar and the task bar.
+
+     `bulkSelectedAllMatching` deliberately carries no number. The server has
+     not counted the set yet, and a confident "340 selected" that turns out to
+     be the 25 loaded rows is the trap #275 is about.
+
+     The result sentence is assembled from a VERB and a NOUN the caller
+     supplies — "Closed", "conversations" — because which action ran is the
+     caller's fact, not this module's. They are interpolated rather than
+     concatenated so a translator can put them where the sentence needs them. */
+  bulkSelectedCount: "{count} selected",
+  bulkSelectedAllMatching: "All matching this filter",
+  bulkResultApplied: "{verb} {count} {thing}",
+  /** Appended when the server capped one pass, so the remainder is named. */
+  bulkResultCapped:
+    ". {count} more matched than one go can handle, so run it again",
+  /** …and when some rows could not be touched. Never swallowed. */
+  bulkResultFailedOne: ". {count} couldn't be reached and was left alone",
+  bulkResultFailedMany: ". {count} couldn't be reached and were left alone",
 } as const;
 
 /**
@@ -457,6 +499,16 @@ export const inboxFr: Translated<typeof inboxEn> = {
   rowNoteAria: "Note",
   rowAssignedToTitle: "Assignée à {name}",
   spamLabel: "Indésirable",
+
+  // --- The status pill -------------------------------------------------------
+  pillNew: "Nouvelle",
+  pillOpen: "Ouverte",
+  pillWaiting: "En attente",
+  pillClosed: "Fermée",
+  pillNewInSentence: "nouvelle",
+  pillOpenInSentence: "ouverte",
+  pillWaitingInSentence: "en attente",
+  pillClosedInSentence: "fermée",
 
   // --- The virtualized list --------------------------------------------------
   listLoadFailed:
@@ -793,4 +845,15 @@ export const inboxFr: Translated<typeof inboxEn> = {
   whileWaitContacts: "Importer vos clients",
   whileWaitInvite: "Inviter votre équipe",
   whileWaitHours: "Définir vos heures et votre message d'accueil",
+
+  // --- La sélection multiple et ce qu'une action en lot rapporte -------------
+  bulkSelectedCount: "{count} sélectionnées",
+  bulkSelectedAllMatching: "Toutes celles qui correspondent à ce filtre",
+  bulkResultApplied: "{verb} {count} {thing}",
+  bulkResultCapped:
+    ". {count} de plus correspondent que ce qu'une seule passe peut traiter ; " +
+    "relancez l'action",
+  bulkResultFailedOne: ". {count} n'a pas pu être atteinte et a été laissée telle quelle",
+  bulkResultFailedMany:
+    ". {count} n'ont pas pu être atteintes et ont été laissées telles quelles",
 };

@@ -1,5 +1,11 @@
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
 import { derivePortUiState } from "@/components/porting/port-ui-state";
+import { makeTranslate, type Translate } from "@/i18n/provider";
 import type { PortRequest } from "@/lib/api/types";
+
+/** English, for a caller with no provider around it — the unit tests. */
+const EN = makeTranslate(DEFAULT_LOCALE);
 
 /**
  * Port-aware branch of the setting-up checklist (PORTING.md §3.5/§4 P5, §8.1).
@@ -86,20 +92,18 @@ export function resolvePortChecklistItem(
  * components/porting/copy.ts; only the strings unique to this checklist
  * surface live here.
  */
-export const PORT_CHECKLIST_COPY = {
-  /** Replaces the "Creating your number" row title for a port. */
-  title: "Transferring your number to Loonext",
-  needsDocuments:
-    "Upload your signed authorization (LOA) and a recent phone bill to start the transfer. Your number can't move until we have both.",
-  needsDocumentsCta: "Upload your documents",
-  needsSubmit:
-    "Your documents are in. Send the transfer to your carrier when you're ready.",
-  needsSubmitCta: "Review and submit the transfer",
-  /** Shown to members, who can't upload — mirrors the OTP row's member line. */
-  memberDocuments:
-    "Your account owner or an admin uploads the signed authorization (LOA) and a recent phone bill to start the transfer.",
-  /** Appended to the §9 "submitted" banner — the honest end-to-end window. */
-  inReviewWindow:
-    "The whole transfer usually takes a few business days to about two weeks (US), often faster in Canada.",
-  trackLink: "Track it in Settings → Numbers",
-} as const;
+export function portChecklistCopy(t: Translate = EN) {
+  return {
+    /** Replaces the "Creating your number" row title for a port. */
+    title: t("onboarding.portChecklistTitle"),
+    needsDocuments: t("onboarding.portChecklistNeedsDocuments"),
+    needsDocumentsCta: t("onboarding.portChecklistNeedsDocumentsCta"),
+    needsSubmit: t("onboarding.portChecklistNeedsSubmit"),
+    needsSubmitCta: t("onboarding.portChecklistNeedsSubmitCta"),
+    /** Shown to members, who can't upload — mirrors the OTP row's member line. */
+    memberDocuments: t("onboarding.portChecklistMemberDocuments"),
+    /** Appended to the §9 "submitted" banner — the honest end-to-end window. */
+    inReviewWindow: t("onboarding.portChecklistInReviewWindow"),
+    trackLink: t("onboarding.portChecklistTrackLink"),
+  };
+}

@@ -76,6 +76,9 @@ import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Capability
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Me
@@ -126,26 +129,50 @@ import androidx.compose.ui.draw.clip
  * and they are unchanged. Hiding a row is a courtesy.
  */
 enum class SettingsSection(
-    val title: String,
-    val blurb: String,
+    /**
+     * #228: the CATALOGUE KEY, not the words.
+     *
+     * An enum constant is built once, at class-init, long before anybody has a
+     * locale — so a section that stored its own sentence could only ever store
+     * one language's. The key is stable, and [title] below resolves it for the
+     * one caller that cannot reach the reader's language from where it stands.
+     */
+    val titleKey: String,
+    val blurbKey: String,
     val needs: String = Capability.SETTINGS_MANAGE,
 ) {
-    Workspace("Workspace", "Name, business identification, timezone"),
-    Hours("Business hours & away reply", "When you're open, and what after-hours texters hear"),
-    Calling("Calling", "Missed-call text-back, voicemail, screening, caller ID"),
+    Workspace("settingsMore.sectionWorkspace", "settingsMore.sectionWorkspaceBlurb"),
+    Hours("settingsMore.sectionHours", "settingsMore.sectionHoursBlurb"),
+    Calling("settingsMore.sectionCalling", "settingsMore.sectionCallingBlurb"),
     Templates(
-        "Templates & tags",
-        "Saved replies, and the labels you file conversations under",
+        "settingsMore.sectionTemplates",
+        "settingsMore.sectionTemplatesBlurb",
     ),
     // #286: WORKSPACE_ACCESS, not TEAM_MANAGE. Reading who is in the crew and
     // changing who is in it are different rights, and a new member could do
     // neither — "identify the owner and the rest of the crew without asking"
     // had no screen behind it. Every control on the section still asks
     // SettingsRoleGate.canManageTeam, and the API still refuses each write.
-    Team("Team", "Who can see and answer your customers' texts", Capability.WORKSPACE_ACCESS),
-    Numbers("Numbers", "Your numbers, ports, text-enablement, registration", Capability.NUMBERS_MANAGE),
-    Usage("Usage", "Fair use, your spending cap, and the numbers", Capability.BILLING_MANAGE),
-    Billing("Billing", "Plan, payment, and invoices", Capability.BILLING_MANAGE),
+    Team(
+        "settingsMore.sectionTeam",
+        "settingsMore.sectionTeamBlurb",
+        Capability.WORKSPACE_ACCESS,
+    ),
+    Numbers(
+        "settingsMore.sectionNumbers",
+        "settingsMore.sectionNumbersBlurb",
+        Capability.NUMBERS_MANAGE,
+    ),
+    Usage(
+        "settingsMore.sectionUsage",
+        "settingsMore.sectionUsageBlurb",
+        Capability.BILLING_MANAGE,
+    ),
+    Billing(
+        "settingsMore.sectionBilling",
+        "settingsMore.sectionBillingBlurb",
+        Capability.BILLING_MANAGE,
+    ),
 
     /**
      * #224: taking money FROM a customer, which is a different subject from the
@@ -163,19 +190,19 @@ enum class SettingsSection(
      * for the one task the role was created to make unnecessary.
      */
     Payments(
-        "Getting paid",
-        "Take a deposit or a final payment straight from a thread",
+        "settingsMore.sectionPayments",
+        "settingsMore.sectionPaymentsBlurb",
         Capability.BILLING_MANAGE,
     ),
     Notifications(
-        "Notifications",
-        "Email and push for new conversations",
+        "settingsMore.sectionNotifications",
+        "settingsMore.sectionNotificationsBlurb",
         Capability.WORKSPACE_ACCESS,
     ),
-    Ai("Lou", "Loonext's assistant: drafts replies and fills in task details"),
+    Ai("settingsMore.sectionAi", "settingsMore.sectionAiBlurb"),
     Profile(
-        "Profile & account",
-        "Your name, theme, email, and password",
+        "settingsMore.sectionProfile",
+        "settingsMore.sectionProfileBlurb",
         Capability.WORKSPACE_ACCESS,
     ),
 
@@ -185,8 +212,8 @@ enum class SettingsSection(
      * is currently in.
      */
     Devices(
-        "Signed-in devices",
-        "Every browser and phone with access right now",
+        "settingsMore.sectionDevices",
+        "settingsMore.sectionDevicesBlurb",
         Capability.WORKSPACE_ACCESS,
     ),
 
@@ -195,8 +222,8 @@ enum class SettingsSection(
      * when something is wrong, not a screen you pass through.
      */
     Help(
-        "Help",
-        "Get in touch when something isn't right",
+        "settingsMore.sectionHelp",
+        "settingsMore.sectionHelpBlurb",
         Capability.WORKSPACE_ACCESS,
     ),
 
@@ -207,10 +234,22 @@ enum class SettingsSection(
      * Beside Help because both are what you go looking for.
      */
     WhatsNew(
-        "What's new",
-        "What shipped recently, and where to find it",
+        "settingsMore.sectionWhatsNew",
+        "settingsMore.sectionWhatsNewBlurb",
         Capability.WORKSPACE_ACCESS,
     ),
+    ;
+
+    /**
+     * The English title, for the ONE reader of it that is not in composition:
+     * `MainActivity` sets the hosted header from here (#200 gives the route a
+     * single header slot), and it stands outside this file's slice.
+     *
+     * Resolved from the catalogue rather than stored beside the key, so there
+     * is still exactly one place the words live. Passing `null` asks for the
+     * English table by the same rule a missing locale always has.
+     */
+    val title: String get() = AppStrings.translate(null, titleKey)
 }
 
 /** Everything a section needs, threaded once instead of eight parameters. */
@@ -253,6 +292,11 @@ fun SettingsHome(
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    // Every sentence below that a coroutine writes — a snackbar, a clipboard
+    // label — is read from here, because `t` is a composable read and none of
+    // them happen during one.
+    val locale = LocalAppLocale.current
+    val clipLabel = t("settingsMore.phoneNumberClipLabel")
     val settingsScope = remember(graph, companyId, me, role) {
         SettingsScope(
             graph = graph,
@@ -279,7 +323,16 @@ fun SettingsHome(
             val next = !devMode
             scope.launch {
                 graph.prefs.setDevMode(next)
-                snackbar.showSnackbar(if (next) "Diagnostics unlocked" else "Diagnostics hidden")
+                snackbar.showSnackbar(
+                    AppStrings.translate(
+                        locale,
+                        if (next) {
+                            "settingsMore.diagnosticsUnlocked"
+                        } else {
+                            "settingsMore.diagnosticsHidden"
+                        },
+                    ),
+                )
             }
         }
     }
@@ -355,8 +408,10 @@ fun SettingsHome(
                         devMode = devMode,
                         onOpen = onOpenSection,
                         onCopyNumber = { number ->
-                            copyToClipboard(context, number)
-                            settingsScope.showMessage("Number copied.")
+                            copyToClipboard(context, clipLabel, number)
+                            settingsScope.showMessage(
+                                AppStrings.translate(locale, "settingsMore.numberCopied"),
+                            )
                         },
                         onOpenDiagnostics = onOpenDiagnostics,
                         onVersionTap = onVersionTap,
@@ -554,11 +609,11 @@ private fun DiagnosticsIndexRow(onOpen: () -> Unit) {
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                "Diagnostics",
+                t("settingsMore.diagnostics"),
                 style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp),
             )
             Text(
-                "Call flow, crash reports, device",
+                t("settingsMore.diagnosticsBlurb"),
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                 color = MaterialTheme.colorScheme.outline,
                 maxLines = 1,
@@ -725,7 +780,7 @@ private fun IdentityCard(
                         Spacer(Modifier.width(6.dp))
                         Icon(
                             Icons.Outlined.ContentCopy,
-                            contentDescription = "Copy number",
+                            contentDescription = t("settingsMore.copyNumber"),
                             modifier = Modifier.size(12.dp),
                         )
                     }
@@ -834,9 +889,9 @@ private fun UsageStatusCard(usage: Usage, onOpen: () -> Unit) {
     val haptics = rememberHaptics()
     val interaction = remember { MutableInteractionSource() }
     val caption = when (usage.status) {
-        UsageStatus.CAPPED -> "SPENDING CAP"
-        UsageStatus.PACING -> "PACING AHEAD"
-        else -> "FAIR USE"
+        UsageStatus.CAPPED -> t("settingsMore.captionSpendingCap")
+        UsageStatus.PACING -> t("settingsMore.captionPacing")
+        else -> t("settingsMore.captionFairUse")
     }
     val captionColor = when (usage.status) {
         UsageStatus.CAPPED -> MaterialTheme.colorScheme.error
@@ -884,7 +939,7 @@ private fun UsageStatusCard(usage: Usage, onOpen: () -> Unit) {
                     fadeIn(tween(durationMillis = 180)) togetherWith
                         fadeOut(tween(durationMillis = 120))
                 },
-                label = "hubUsageStatus",
+                label = USAGE_TRANSITION_LABEL,
             ) { status ->
                 Text(
                     hubUsageLine(status, usage),
@@ -897,34 +952,46 @@ private fun UsageStatusCard(usage: Usage, onOpen: () -> Unit) {
     }
 }
 
+/**
+ * The name Compose gives this transition in its own tooling. NOT copy: nobody
+ * reads it, and #228's ledger otherwise counts `label =` as a reader-facing
+ * argument — which it is everywhere else on this screen.
+ */
+private const val USAGE_TRANSITION_LABEL = "hubUsageStatus"
+
 /** The one calm sentence per status (#178); the section holds the rest. */
+@Composable
 private fun hubUsageLine(status: String, usage: Usage): String = when (status) {
     UsageStatus.CAPPED ->
         if (capUseRatio(usage) >= 1.0) {
-            "Spending cap reached. Sending and calling are paused until you raise it."
+            t("settingsMore.hubCapReached")
         } else {
-            "${capUsePercent(usage)}% of your spending cap used. Sending and " +
-                "calling pause at the cap."
+            t("settingsMore.hubCapPercent", "percent" to "${capUsePercent(usage)}")
         }
 
     UsageStatus.PACING -> {
         val projected = usage.overage_projection.projected_overage_cents
-        "${pacingSubject(usage)} are pacing past your plan." +
-            if (projected > 0) " About ${formatCents(projected)} extra at this pace." else ""
+        t("settingsMore.hubPacing", "subject" to t(pacingSubjectKey(usage))) +
+            if (projected > 0) {
+                t("settingsMore.hubPacingExtra", "amount" to formatCents(projected))
+            } else {
+                ""
+            }
     }
 
-    else -> "Well within fair use this month."
+    else -> t("settingsMore.hubQuiet")
 }
 
 /** "resets in 18 days" from the usage period end; null when unknowable. */
+@Composable
 private fun resetsIn(periodEnd: String?): String? {
     val end = periodEnd?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
     val days = Duration.between(Instant.now(), end).toDays()
     return when {
         days < 0 -> null
-        days == 0L -> "resets today"
-        days == 1L -> "resets tomorrow"
-        else -> "resets in $days days"
+        days == 0L -> t("settingsMore.resetsToday")
+        days == 1L -> t("settingsMore.resetsTomorrow")
+        else -> t("settingsMore.resetsInDays", "days" to "$days")
     }
 }
 
@@ -958,11 +1025,11 @@ private fun SettingsIndexRow(
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                section.title,
+                t(section.titleKey),
                 style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp),
             )
             Text(
-                section.blurb,
+                t(section.blurbKey),
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                 color = MaterialTheme.colorScheme.outline,
                 maxLines = 1,
@@ -1025,10 +1092,9 @@ private fun SectionContainer(content: @Composable () -> Unit) {
     }
 }
 
-private fun copyToClipboard(context: Context, text: String) {
-    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    clipboard.setPrimaryClip(ClipData.newPlainText("Phone number", text))
-}
+// The clipboard helper this used to keep to itself now lives in SettingsUi as
+// `copyToClipboard(context, label, text)` — one copy, and the label is a word
+// somebody reads on Android 13's clipboard preview rather than a constant.
 
 /**
  * #180 responsive proof: the settings hub index laid out at every ratio. The

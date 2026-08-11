@@ -1,3 +1,6 @@
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
 import { recordClientError } from "@/lib/observability/recent-errors";
 
 import { ApiError, parseErrorBody } from "./error";
@@ -13,6 +16,17 @@ export interface ApiClientConfig {
   getAccessToken: () => Promise<string | null>;
   /** Injectable fetch for tests; defaults to the global. */
   fetch?: typeof fetch;
+  /**
+   * #228 — the reader's words, injected like everything else this client
+   * needs. It reaches exactly two sentences: the refusal raised before a
+   * request is sent (no session), and the one for a failed response with no
+   * server message in it. Every other sentence a failure carries is the
+   * SERVER's, rendered verbatim (see `parseErrorBody`).
+   *
+   * Optional because the client is constructed once at module load, outside
+   * React, where no member's locale exists yet.
+   */
+  t?: Translate;
 }
 
 export interface RequestOptions {
@@ -40,9 +54,14 @@ export function createApiClient(config: ApiClientConfig): ApiRequest {
     path: string,
     options: RequestOptions = {},
   ): Promise<T> {
+    // Resolved per request, never at module load: `makeTranslate` comes from a
+    // `"use client"` module, and calling a client reference while rendering on
+    // the server is a build failure rather than a fallback.
+    const t = config.t ?? makeTranslate(DEFAULT_LOCALE);
+
     const token = await config.getAccessToken();
     if (!token) {
-      throw new ApiError("unauthorized", "You're signed out. Log in again.", 401);
+      throw new ApiError("unauthorized", t("misc.apiSignedOut"), 401);
     }
 
     const url = new URL(baseUrl + path);
@@ -104,7 +123,7 @@ export function createApiClient(config: ApiClientConfig): ApiRequest {
     }
 
     if (!response.ok) {
-      const error = parseErrorBody(response.status, payload);
+      const error = parseErrorBody(response.status, payload, t);
       // #253: every API failure the app ever sees passes through here, which
       // makes this the one place a recent-errors ring can be filled without
       // asking three hundred call sites to remember. The method and path go in

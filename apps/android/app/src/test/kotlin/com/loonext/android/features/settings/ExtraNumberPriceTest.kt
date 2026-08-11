@@ -270,9 +270,27 @@ class ExtraNumberPriceTest {
                 "extraNumberMonthly(company.plan, company.billing_currency, company.country)",
             ),
         )
+        // #228 MOVED THE SENTENCE, NOT THE RULE. The card's words now live in
+        // `SettingsMoreStrings`, so a guard that looked for the English in this
+        // file would pass forever on a card that had stopped naming a price —
+        // which is the ceiling this whole file exists to avoid.
+        //
+        // So it is checked in the two places it can now break: the card has to
+        // HAND the resolved price to the sentence, and the sentence has to have
+        // somewhere to put it. A key with no `{price}` drops the figure
+        // silently, and `AppStringsTest` only checks that the two languages
+        // agree — it cannot know this one is about money.
         assertTrue(
-            "an unpriced buy button is the failure this half exists for",
-            stringLiterals(src).any { it.contains("An extra number is \$extraPrice") },
+            "an unpriced buy button is the failure this half exists for: the card " +
+                "must pass extraPrice into the priced sentence",
+            src.contains("\"price\" to extraPrice"),
+        )
+        val catalogue = readMainSource("core/i18n/SettingsMoreStrings.kt")
+        val priced = catalogue.substringAfter("\"settingsMore.addNumberPriced\" to")
+        assertTrue(
+            "settingsMore.addNumberPriced must interpolate {price}, or the figure " +
+                "the card resolved never reaches the reader",
+            priced.substringBefore("\"settingsMore.").contains("{price}"),
         )
     }
 

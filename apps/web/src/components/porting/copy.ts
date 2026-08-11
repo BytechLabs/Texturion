@@ -1,3 +1,7 @@
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
+
 import type { PortStepKey } from "./port-ui-state";
 
 /**
@@ -7,39 +11,57 @@ import type { PortStepKey } from "./port-ui-state";
  * registration copy: plain, no false urgency, no "instant".
  */
 
+/**
+ * #228: English is the DEFAULT here, not the only option.
+ *
+ * The sentences themselves now live in `i18n/sections/settingsMore.ts`, in both
+ * languages. What stays in this module is the DECISION of which one a given
+ * transfer state deserves — which is the part `port-ui-state.test.ts` and
+ * `port-card.test.tsx` assert, with no provider in the room.
+ *
+ * So every function here takes the reader's own `t` and falls back to English,
+ * and the plain constants resolve through English at import time. A caller that
+ * has a reader (any `"use client"` component, through `useT()`) should pass it;
+ * a caller that has not been converted yet reads exactly what it read before.
+ */
+const EN = makeTranslate(DEFAULT_LOCALE);
+
 /** The 4-step tracker labels + owner-facing meaning (PORTING.md §8.2 table). */
 export const PORT_STEP_COPY: Record<
   PortStepKey,
   { label: string; meaning: string }
 > = {
   submitted: {
-    label: "Transfer requested",
-    meaning: "We've sent the transfer request to your current carrier.",
+    label: EN("settingsMore.portStepSubmittedLabel"),
+    meaning: EN("settingsMore.portStepSubmittedMeaning"),
   },
   date_confirmed: {
-    label: "Switch-over date confirmed",
-    meaning: "Your carrier confirmed the date your number moves to Loonext.",
+    label: EN("settingsMore.portStepDateConfirmedLabel"),
+    meaning: EN("settingsMore.portStepDateConfirmedMeaning"),
   },
   number_switched: {
-    label: "Number switched",
-    meaning: "Your number moved to Loonext. Turning on texting now.",
+    label: EN("settingsMore.portStepNumberSwitchedLabel"),
+    meaning: EN("settingsMore.portStepNumberSwitchedMeaning"),
   },
   texting_live: {
-    label: "Texting live",
-    meaning: "Text your customers straight from Loonext.",
+    label: EN("settingsMore.portStepTextingLiveLabel"),
+    meaning: EN("settingsMore.portStepTextingLiveMeaning"),
   },
 };
 
 /** Portability check result copy (PORTING.md §9, pre-pay). */
-export function portabilityOkCopy(display: string): string {
-  return `Good news: ${display} can move to Loonext. It'll keep working with your current carrier until the switch-over date.`;
+export function portabilityOkCopy(display: string, t: Translate = EN): string {
+  return t("settingsMore.portabilityOk", { number: display });
 }
 
-export function portabilityFailCopy(reason: string | null): string {
+export function portabilityFailCopy(
+  reason: string | null,
+  t: Translate = EN,
+): string {
   const why = reason?.trim()
     ? reason.trim()
-    : "the carrier reports it can't be transferred right now";
-  return `We can't transfer this number: ${why}. You can start with a new local number instead.`;
+    : t("settingsMore.portabilityFailReasonUnknown");
+  return t("settingsMore.portabilityFail", { reason: why });
 }
 
 /**
@@ -47,39 +69,40 @@ export function portabilityFailCopy(reason: string | null): string {
  * checkout copy, plain-language distillation). Kept short — the wizard shows one
  * warm sentence, not a wall of compliance text.
  */
-export const PORT_HONEST_WINDOW =
-  "Your number keeps working with your current provider until the switch completes, usually 1 to 7 business days. We'll email you when it's ready.";
+export const PORT_HONEST_WINDOW = EN("settingsMore.portHonestWindow");
 
 /** The pre-payment checkout expectation card lines (PORTING.md §8.1). */
 export const PORT_CHECKOUT_TIMELINE = [
-  "Your number keeps working on your current carrier the whole time.",
-  "It switches to Loonext on the transfer date, usually a few business days to about two weeks (US), often faster in Canada.",
-  "Texting through Loonext starts once the switch completes. We'll show you exactly where it is and email you at each step.",
+  EN("settingsMore.portTimelineKeepsWorking"),
+  EN("settingsMore.portTimelineSwitchDate"),
+  EN("settingsMore.portTimelineTextingStarts"),
 ] as const;
 
-/** Per-state banner copy for the Settings port card (PORTING.md §9). */
+/**
+ * Per-state banner copy for the Settings port card (PORTING.md §9).
+ *
+ * The four states that interpolate something take `t` as a trailing argument;
+ * the five that do not are resolved in English at import time, and their
+ * translated twins are one `t("settingsMore.portState…")` away at the call site.
+ */
 export const PORT_STATE_COPY = {
-  submitted:
-    "Transfer in progress. We've sent the request to your current carrier. They usually respond within a couple of business days. Your number still works on your old carrier for now.",
-  focConfirmed: (date: string) =>
-    `Locked in. Your number switches to Loonext on ${date}. Nothing works differently until then. We'll email you when it switches.`,
-  numberSwitched:
-    "Your number moved to Loonext. We're turning on texting now, usually about 10 minutes, occasionally a business day or two. We'll email you the moment it's ready.",
-  textingLive:
-    "Your number is live on Loonext. Text your customers straight from here.",
-  voiceException: (reason: string | null) =>
-    `Your carrier flagged something on the transfer: ${
-      reason?.trim().replace(/[.!?]+$/, "") ||
-      "they didn't say exactly what, so check your details below"
-    }. Fix it and resubmit. It usually takes a couple of minutes, and there's no fee to try again.`,
-  messagingException:
-    "Your number moved over, but texting is taking a bit longer. Your old provider hasn't released the texting routing yet. We're escalating with the carrier on your behalf; this usually clears within a business day or two and there's nothing you need to do.",
-  assignmentBlocked: (number: string) =>
-    `One more step: ask your previous texting provider to remove ${number} from their carrier campaign, then we'll finish connecting it. We'll retry automatically once they do.`,
-  documentsPending:
-    "Almost there. Upload your signed authorization (LOA) and a recent bill, then submit the transfer to your carrier.",
-  bridgeAvailable: (bridge: string) =>
-    `Your temporary number ${bridge} is ready so you can text today. Once your real number finishes transferring, you can release the temporary one.`,
+  submitted: EN("settingsMore.portStateSubmitted"),
+  focConfirmed: (date: string, t: Translate = EN) =>
+    t("settingsMore.portStateFocConfirmed", { date }),
+  numberSwitched: EN("settingsMore.portStateNumberSwitched"),
+  textingLive: EN("settingsMore.portStateTextingLive"),
+  voiceException: (reason: string | null, t: Translate = EN) =>
+    t("settingsMore.portStateVoiceException", {
+      reason:
+        reason?.trim().replace(/[.!?]+$/, "") ||
+        t("settingsMore.portStateVoiceExceptionReasonUnknown"),
+    }),
+  messagingException: EN("settingsMore.portStateMessagingException"),
+  assignmentBlocked: (number: string, t: Translate = EN) =>
+    t("settingsMore.portStateAssignmentBlocked", { number }),
+  documentsPending: EN("settingsMore.portStateDocumentsPending"),
+  bridgeAvailable: (bridge: string, t: Translate = EN) =>
+    t("settingsMore.portStateBridgeAvailable", { bridge }),
 } as const;
 
 /**
@@ -117,10 +140,9 @@ export { PORT_PRE_CUTOVER_CHECKLIST } from "@loonext/shared";
 
 /** Plain one-liners explaining the two required documents (labels, not jargon). */
 export const PORT_DOCUMENT_HINTS = {
-  loa: "A signed letter authorizing the transfer. Sign it within the last 90 days, and make sure it lists this number and your service address.",
-  loaCa: "Canadian carriers use a standard letter. Download the template, sign it, and upload it here.",
-  invoice:
-    "A recent bill from your current carrier, less than 30 days old, showing this number and your service address.",
+  loa: EN("settingsMore.portHintLoa"),
+  loaCa: EN("settingsMore.portHintLoaCa"),
+  invoice: EN("settingsMore.portHintInvoice"),
 } as const;
 
 /** Telnyx Canadian LOA template (PORTING.md §3.2 — linked for CA ports). */

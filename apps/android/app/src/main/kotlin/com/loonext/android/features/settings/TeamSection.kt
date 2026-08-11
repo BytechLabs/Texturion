@@ -35,6 +35,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Invite
 import com.loonext.android.core.model.Member
@@ -81,22 +84,39 @@ private fun isExpired(invite: Invite, now: Instant = Instant.now()): Boolean =
  * the owner the opposite of what they had set. An unknown role from a newer
  * server now reads as itself rather than as a role it is not.
  */
-private fun roleLabel(role: String): String = when (role) {
-    MemberRole.OWNER -> "Owner"
-    MemberRole.ADMIN -> "Admin"
-    MemberRole.MEMBER -> "Member"
-    MemberRole.READ_ONLY -> "View only"
-    MemberRole.BOOKKEEPER -> "Bookkeeper"
-    else -> role.replace('_', ' ').replaceFirstChar { it.uppercase() }
+private fun roleLabelKey(role: String): String? = when (role) {
+    MemberRole.OWNER -> "settingsMore.roleOwner"
+    MemberRole.ADMIN -> "settingsMore.roleAdmin"
+    MemberRole.MEMBER -> "settingsMore.roleMember"
+    MemberRole.READ_ONLY -> "settingsMore.roleReadOnly"
+    MemberRole.BOOKKEEPER -> "settingsMore.roleBookkeeper"
+    else -> null
 }
 
+/**
+ * One role, in one language. Written as a function of the locale rather than
+ * only as a composable, because the confirmation a role change writes ("Sam is
+ * now admin.") is composed inside a coroutine, where there is no composition to
+ * read from — and the two must never be able to name the role differently.
+ *
+ * A role this build has never heard of reads as ITSELF, the server's own word.
+ * Never a catch-all "Member": that is the app telling an owner the opposite of
+ * what they set.
+ */
+private fun roleLabelIn(locale: String?, role: String): String =
+    roleLabelKey(role)?.let { AppStrings.translate(locale, it) }
+        ?: role.replace('_', ' ').replaceFirstChar { it.uppercase() }
+
+@Composable
+private fun roleLabel(role: String): String = roleLabelIn(LocalAppLocale.current, role)
+
 /** What each assignable role is FOR, in the words an owner picking one uses. */
+@Composable
 private fun roleBlurb(role: String): String = when (role) {
-    MemberRole.ADMIN ->
-        "Everything except transferring ownership and closing the workspace"
-    MemberRole.READ_ONLY -> "Can see conversations, cannot reply or change anything"
-    MemberRole.BOOKKEEPER -> "Billing and invoices only; no access to conversations"
-    else -> "Read and answer customers; no billing, team or settings"
+    MemberRole.ADMIN -> t("settingsMore.roleAdminBlurb")
+    MemberRole.READ_ONLY -> t("settingsMore.roleReadOnlyBlurb")
+    MemberRole.BOOKKEEPER -> t("settingsMore.roleBookkeeperBlurb")
+    else -> t("settingsMore.roleMemberBlurb")
 }
 
 /**
@@ -147,8 +167,8 @@ fun TeamSection(scope: SettingsScope, company: CompanyView) {
                     onChanged = { refreshKey++ },
                 )
             } else {
-                SettingsCard(title = "Invites") {
-                    ReadOnlyLine("Only owners and admins can invite or deactivate teammates.")
+                SettingsCard(title = t("settingsMore.invites")) {
+                    ReadOnlyLine(t("settingsMore.onlyAdminsInvite"))
                 }
             }
         }
@@ -161,8 +181,8 @@ private fun MembersCard(scope: SettingsScope, members: List<Member>, onChanged: 
     val deactivated = members.filter { it.deactivated_at != null }
 
     SettingsCard(
-        title = "Members",
-        description = "Who can see and answer your customers' texts.",
+        title = t("settingsMore.members"),
+        description = t("settingsMore.membersDesc"),
     ) {
         active.forEachIndexed { index, member ->
             if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -171,7 +191,7 @@ private fun MembersCard(scope: SettingsScope, members: List<Member>, onChanged: 
         if (deactivated.isNotEmpty()) {
             Spacer(Modifier.height(14.dp))
             Text(
-                "Deactivated",
+                t("settingsMore.deactivatedHeading"),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -191,7 +211,7 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
     // confirm. Null the rest of the time, which is almost always.
     var givingUp by remember { mutableStateOf<String?>(null) }
 
-    val name = member.display_name.ifBlank { "Teammate" }
+    val name = member.display_name.ifBlank { t("settingsMore.teammate") }
     val canChangeRole = SettingsRoleGate.canChangeRoleOf(scope.role, member)
     val canDeactivate = SettingsRoleGate.canDeactivate(scope.role, member, scope.me.user_id)
     var roleMenuOpen by remember { mutableStateOf(false) }
@@ -205,6 +225,7 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
     var actionError by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    val locale = LocalAppLocale.current
     /**
      * #538: one path for both the menu and the confirmation, so the acknowledged
      * change cannot drift from the ordinary one.
@@ -219,7 +240,16 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
                     confirmLosingAccess = acknowledged,
                 )
                 haptics.confirm()
-                scope.showMessage("$name is now ${roleLabel(role).lowercase()}.")
+                scope.showMessage(
+                    AppStrings.translate(
+                        locale,
+                        "settingsMore.roleChanged",
+                        mapOf(
+                            "name" to name,
+                            "role" to roleLabelIn(locale, role).lowercase(),
+                        ),
+                    ),
+                )
                 onChanged()
             } catch (cause: Exception) {
                 scope.showMessage(cause.userMessage())
@@ -239,7 +269,7 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
     givingUp?.let { role ->
         AlertDialog(
             onDismissRequest = { givingUp = null },
-            title = { Text("Give up your own access?") },
+            title = { Text(t("settingsMore.giveUpAccessTitle")) },
             // The sentence comes from the shared rule, so the phone, the laptop
             // and the server agree about what a role costs.
             text = { Text(SelfDowngrade.warning(member.role, role) ?: "") },
@@ -249,10 +279,19 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
                 TextButton(onClick = {
                     givingUp = null
                     changeRole(role, acknowledged = true)
-                }) { Text("Make me ${roleLabel(role).lowercase()}") }
+                }) {
+                    Text(
+                        t(
+                            "settingsMore.makeMeRole",
+                            "role" to roleLabel(role).lowercase(),
+                        ),
+                    )
+                }
             },
             dismissButton = {
-                TextButton(onClick = { givingUp = null }) { Text("Keep my access") }
+                TextButton(onClick = { givingUp = null }) {
+                    Text(t("settingsMore.keepMyAccess"))
+                }
             },
         )
     }
@@ -267,15 +306,15 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                if (isSelf) "$name (you)" else name,
+                if (isSelf) t("settingsMore.nameYou", "name" to name) else name,
                 style = MaterialTheme.typography.bodyLarge,
             )
             val deactivatedAt = member.deactivated_at
             Text(
                 if (deactivatedAt != null) {
-                    "Deactivated ${relativeTime(deactivatedAt)} ago"
+                    t("settingsMore.deactivatedAgo", "ago" to relativeTime(deactivatedAt))
                 } else {
-                    "Joined ${relativeTime(member.created_at)} ago"
+                    t("settingsMore.joinedAgo", "ago" to relativeTime(member.created_at))
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -285,15 +324,17 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
         // #348: the access model was complete and entirely invisible. Quiet and
         // text-only, because it answers a question rather than being an action.
         if (member.deactivated_at == null) {
-            LinkButton(onClick = { showingAccess = true }) { Text("Numbers") }
+            LinkButton(onClick = { showingAccess = true }) {
+                Text(t("settingsMore.numbersLink"))
+            }
         }
         when {
             member.role == MemberRole.OWNER ->
-                StatusPill("Owner", PillTone.Positive)
+                StatusPill(t("settingsMore.roleOwner"), PillTone.Positive)
 
             canChangeRole -> Column {
                 LinkButton(onClick = { roleMenuOpen = true }, enabled = !busy) {
-                    Text(if (busy) "Saving…" else roleLabel(member.role))
+                    Text(if (busy) t("common.saving") else roleLabel(member.role))
                 }
                 DropdownMenu(
                     expanded = roleMenuOpen,
@@ -342,17 +383,19 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
         if (canDeactivate) {
             Spacer(Modifier.width(4.dp))
             LinkButton(onClick = { confirmingDeactivate = true }, enabled = !busy) {
-                Text("Deactivate", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    t("settingsMore.deactivate"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
 
     if (confirmingDeactivate) {
         ConfirmDialog(
-            title = "Deactivate $name?",
-            body = "They lose access right away and their seat frees up. " +
-                "Conversations and messages they worked on stay put.",
-            confirmLabel = "Deactivate",
+            title = t("settingsMore.deactivateTitle", "name" to name),
+            body = t("settingsMore.deactivateBody"),
+            confirmLabel = t("settingsMore.deactivate"),
             destructive = true,
             pending = busy,
             error = actionError,
@@ -365,7 +408,13 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
                     try {
                         scope.repo.deactivateMember(scope.companyId, member.id)
                         confirmingDeactivate = false
-                        scope.showMessage("$name deactivated. Their seat is free.")
+                        scope.showMessage(
+                            AppStrings.translate(
+                                locale,
+                                "settingsMore.deactivated",
+                                mapOf("name" to name),
+                            ),
+                        )
                         onChanged()
                     } catch (cause: Exception) {
                         actionError = cause.userMessage()
@@ -389,6 +438,8 @@ private fun InvitesCard(
     val context = LocalContext.current
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    val locale = LocalAppLocale.current
+    val inviteClipLabel = t("settingsMore.inviteLinkClipLabel")
     val seat = seatUsage(
         activeMembers = countActiveMembers(members),
         pendingInvites = pendingInviteCount(invites),
@@ -406,14 +457,14 @@ private fun InvitesCard(
 
     val pending = invites.filter { it.accepted_at == null && it.revoked_at == null }
 
-    SettingsCard(title = "Invite a teammate", description = seat.line) {
+    SettingsCard(title = t("settingsMore.inviteTeammate"), description = seat.line) {
         OutlinedTextField(
             value = email,
             onValueChange = { email = it },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             enabled = !seat.full && !sending,
-            label = { Text("Email") },
+            label = { Text(t("settingsMore.email")) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
         )
         Spacer(Modifier.height(8.dp))
@@ -435,16 +486,14 @@ private fun InvitesCard(
             modifier = Modifier.fillMaxWidth(),
             minLines = 2,
             enabled = !seat.full && !sending,
-            label = { Text("What to tell them (optional)") },
-            placeholder = {
-                Text("You'll be running the Bathurst jobs. Text Dave before quoting anything big.")
-            },
+            label = { Text(t("settingsMore.inviteNoteLabel")) },
+            placeholder = { Text(t("settingsMore.inviteNotePlaceholder")) },
             supportingText = {
                 // When they read it, and that it is one shot. An owner writing
                 // here deserves to know both before they write something they
                 // would not want read aloud: the words are gone the moment the
                 // invite is sent, and no screen in this app can call them back.
-                Text("They see this once, when they join. You cannot change it after the invite goes out.")
+                Text(t("settingsMore.inviteNoteOneShot"))
             },
         )
         Spacer(Modifier.height(8.dp))
@@ -492,7 +541,8 @@ private fun InvitesCard(
                 onClick = {
                     val trimmed = email.trim()
                     if (!trimmed.contains('@') || trimmed.length < 3) {
-                        formError = "Enter the teammate's email address."
+                        formError =
+                            AppStrings.translate(locale, "settingsMore.enterTeammateEmail")
                         return@Button
                     }
                     sending = true
@@ -511,11 +561,19 @@ private fun InvitesCard(
                             haptics.confirm()
                             if (invite.email_sent == false) {
                                 scope.showMessage(
-                                    "We couldn't email that invite. " +
-                                        "Use Copy link below and share it yourself.",
+                                    AppStrings.translate(
+                                        locale,
+                                        "settingsMore.inviteEmailFailed",
+                                    ),
                                 )
                             } else {
-                                scope.showMessage("Invite sent to $trimmed.")
+                                scope.showMessage(
+                                    AppStrings.translate(
+                                        locale,
+                                        "settingsMore.inviteSentTo",
+                                        mapOf("email" to trimmed),
+                                    ),
+                                )
                             }
                             onChanged()
                         } catch (cause: Exception) {
@@ -526,20 +584,22 @@ private fun InvitesCard(
                     }
                 },
                 enabled = !seat.full && !sending && email.isNotBlank(),
-            ) { Text(if (sending) "Inviting…" else "Invite") }
+            ) {
+                Text(
+                    if (sending) t("settingsMore.inviting") else t("settingsMore.invite"),
+                )
+            }
         }
         InlineError(formError)
         if (seat.full) {
             Spacer(Modifier.height(6.dp))
-            ReadOnlyLine(
-                "All seats are taken. Deactivate a teammate or revoke a pending invite first.",
-            )
+            ReadOnlyLine(t("settingsMore.seatsFull"))
         }
 
         if (pending.isNotEmpty()) {
             Spacer(Modifier.height(14.dp))
             Text(
-                "Pending invites",
+                t("settingsMore.pendingInvites"),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -555,9 +615,18 @@ private fun InvitesCard(
                     Column(Modifier.weight(1f)) {
                         Text(invite.email, style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            "${roleLabel(invite.role)} · " +
-                                if (expired) "Expired, doesn't hold a seat"
-                                else "Expires ${expiryDate(invite.expires_at)}",
+                            t(
+                                "settingsMore.invitePending",
+                                "role" to roleLabel(invite.role),
+                                "when" to if (expired) {
+                                    t("settingsMore.inviteExpired")
+                                } else {
+                                    t(
+                                        "settingsMore.inviteExpires",
+                                        "date" to expiryDate(invite.expires_at),
+                                    )
+                                },
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -589,9 +658,18 @@ private fun InvitesCard(
                     if (!expired) {
                         LinkButton(onClick = {
                             haptics.tap()
-                            copyToClipboard(context, "Invite link", inviteLink(invite.id))
-                            scope.showMessage("Invite link copied.")
-                        }) { Text("Copy link") }
+                            copyToClipboard(
+                                context,
+                                inviteClipLabel,
+                                inviteLink(invite.id),
+                            )
+                            scope.showMessage(
+                                AppStrings.translate(
+                                    locale,
+                                    "settingsMore.inviteLinkCopied",
+                                ),
+                            )
+                        }) { Text(t("settingsMore.copyLink")) }
                     }
                     LinkButton(
                         onClick = {
@@ -600,7 +678,12 @@ private fun InvitesCard(
                             coroutines.launch {
                                 try {
                                     scope.repo.revokeInvite(scope.companyId, invite.id)
-                                    scope.showMessage("Invite revoked.")
+                                    scope.showMessage(
+                                        AppStrings.translate(
+                                            locale,
+                                            "settingsMore.inviteRevoked",
+                                        ),
+                                    )
                                     onChanged()
                                 } catch (cause: Exception) {
                                     scope.showMessage(cause.userMessage())
@@ -612,7 +695,11 @@ private fun InvitesCard(
                         enabled = !revoking,
                     ) {
                         Text(
-                            if (revoking) "Revoking…" else "Revoke",
+                            if (revoking) {
+                                t("settingsMore.revoking")
+                            } else {
+                                t("settingsMore.revoke")
+                            },
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -659,12 +746,12 @@ private fun MemberAccessDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { LinkButton(onClick = onDismiss) { Text("Done") } },
-        title = { Text("Numbers $name can reach") },
+        confirmButton = { LinkButton(onClick = onDismiss) { Text(t("settingsMore.done")) } },
+        title = { Text(t("settingsMore.memberNumbersTitle", "name" to name)) },
         text = {
             Column {
                 Text(
-                    "What they can do on each number, and the rule that decided it.",
+                    t("settingsMore.memberNumbersDesc"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -672,19 +759,19 @@ private fun MemberAccessDialog(
                 val current = rows
                 when {
                     failed -> Text(
-                        "Couldn't load their access. Try again.",
+                        t("settingsMore.memberAccessFailed"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
 
                     current == null -> Text(
-                        "Checking…",
+                        t("settingsMore.checking"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
 
                     current.isEmpty() -> Text(
-                        "This workspace has no numbers yet.",
+                        t("settingsMore.noNumbersInWorkspace"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -697,7 +784,7 @@ private fun MemberAccessDialog(
                         ) {
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    row.number_e164 ?: "Number",
+                                    row.number_e164 ?: t("settingsMore.aNumber"),
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                                 Text(

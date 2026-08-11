@@ -22,6 +22,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.userMessage
@@ -50,12 +53,12 @@ fun TextEnableBlock(
 
     if (canManage && company.subscriptionActive) {
         SettingsCard(
-            title = "Text-enable your landline",
-            description = "Keep your number: texting runs through Loonext while calls " +
-                "stay exactly where they are today. The carrier review takes a few " +
-                "business days.",
+            title = t("settingsMore.textEnableTitle"),
+            description = t("settingsMore.textEnableDesc"),
         ) {
-            OutlinedButton(onClick = { starting = true }) { Text("Text-enable a number") }
+            OutlinedButton(onClick = { starting = true }) {
+                Text(t("settingsMore.textEnableAction"))
+            }
         }
     }
 
@@ -83,38 +86,51 @@ private fun TextEnableCard(
     var cancelling by remember { mutableStateOf(false) }
     var actionError by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
 
     val open = order.status != TextEnablementStatus.COMPLETED &&
         order.status != TextEnablementStatus.CANCELLED
 
-    SettingsCard(title = "Text-enable: ${formatPhone(order.phone_e164)}") {
+    SettingsCard(
+        title = t("settingsMore.textEnableCardTitle", "number" to formatPhone(order.phone_e164)),
+    ) {
         when (order.status) {
-            TextEnablementStatus.COMPLETED -> StatusPill("Texting live", PillTone.Positive)
-            TextEnablementStatus.FAILED -> StatusPill("Didn't go through", PillTone.Bad)
-            TextEnablementStatus.ACTION_REQUIRED -> StatusPill("Action needed", PillTone.Warn)
-            TextEnablementStatus.IN_PROGRESS -> StatusPill("Carrier reviewing", PillTone.Warn)
-            TextEnablementStatus.PENDING -> StatusPill("Order received", PillTone.Warn)
+            TextEnablementStatus.COMPLETED ->
+                StatusPill(t("settingsMore.teLive"), PillTone.Positive)
+
+            TextEnablementStatus.FAILED ->
+                StatusPill(t("settingsMore.teFailed"), PillTone.Bad)
+
+            TextEnablementStatus.ACTION_REQUIRED ->
+                StatusPill(t("settingsMore.statusActionNeeded"), PillTone.Warn)
+
+            TextEnablementStatus.IN_PROGRESS ->
+                StatusPill(t("settingsMore.teReviewing"), PillTone.Warn)
+
+            TextEnablementStatus.PENDING ->
+                StatusPill(t("settingsMore.teReceived"), PillTone.Warn)
+
             else -> StatusPill(order.status, PillTone.Neutral)
         }
         Spacer(Modifier.height(6.dp))
+        // The carrier's own `last_error` is appended verbatim — it is their
+        // sentence, and a translation of it here would be a second copy that
+        // goes stale the moment they reword theirs.
+        val carrierSays = order.last_error
+            ?.let { t("settingsMore.colonReason", "reason" to it) }
+            ?: t("settingsMore.fullStop")
         Text(
             when (order.status) {
-                TextEnablementStatus.COMPLETED ->
-                    "Texting is live on this number. Calls stay with your current carrier."
+                TextEnablementStatus.COMPLETED -> t("settingsMore.teLiveBody")
 
                 TextEnablementStatus.FAILED ->
-                    "The order didn't go through" +
-                        (order.last_error?.let { ": $it" } ?: ".") +
-                        " Fix what's named and resubmit."
+                    t("settingsMore.teFailedBody") + carrierSays +
+                        t("settingsMore.teFixAndResubmit")
 
                 TextEnablementStatus.ACTION_REQUIRED ->
-                    "The carrier needs something from you" +
-                        (order.last_error?.let { ": $it" } ?: ".")
+                    t("settingsMore.teActionBody") + carrierSays
 
-                else ->
-                    "The carrier reviews text-enablement over a few business days. " +
-                        "Texting goes live only when the review completes. We'll " +
-                        "keep this card honest in the meantime."
+                else -> t("settingsMore.teReviewingBody")
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -137,7 +153,12 @@ private fun TextEnableCard(
                         coroutines.launch {
                             try {
                                 scope.repo.resubmitTextEnablement(scope.companyId, order.id)
-                                scope.showMessage("Order resubmitted.")
+                                scope.showMessage(
+                                    AppStrings.translate(
+                                        locale,
+                                        "settingsMore.orderResubmitted",
+                                    ),
+                                )
                                 onChanged()
                             } catch (cause: Exception) {
                                 actionError = cause.userMessage()
@@ -147,12 +168,23 @@ private fun TextEnableCard(
                         }
                     },
                     enabled = !busy,
-                ) { Text(if (busy) "Resubmitting…" else "Resubmit") }
+                ) {
+                    Text(
+                        if (busy) {
+                            t("settingsMore.resubmitting")
+                        } else {
+                            t("settingsMore.resubmit")
+                        },
+                    )
+                }
                 Spacer(Modifier.width(8.dp))
             }
             if (canCancel && open) {
                 LinkButton(onClick = { cancelling = true }, enabled = !busy) {
-                    Text("Cancel order", color = MaterialTheme.colorScheme.error)
+                    Text(
+                        t("settingsMore.cancelOrder"),
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             }
         }
@@ -160,14 +192,13 @@ private fun TextEnableCard(
 
     if (cancelling) {
         ConfirmDialog(
-            title = "Cancel text-enablement?",
-            body = "Nothing changes with your current carrier. The number keeps " +
-                "working exactly as it does today. You can start again any time.",
-            confirmLabel = "Cancel order",
+            title = t("settingsMore.cancelTextEnableTitle"),
+            body = t("settingsMore.cancelTextEnableBody"),
+            confirmLabel = t("settingsMore.cancelOrder"),
             destructive = true,
             pending = busy,
             error = actionError,
-            dismissLabel = "Keep it going",
+            dismissLabel = t("settingsMore.keepItGoing"),
             onDismiss = { cancelling = false },
             onConfirm = {
                 busy = true
@@ -176,7 +207,12 @@ private fun TextEnableCard(
                     try {
                         scope.repo.cancelTextEnablement(scope.companyId, order.id)
                         cancelling = false
-                        scope.showMessage("Text-enablement cancelled.")
+                        scope.showMessage(
+                            AppStrings.translate(
+                                locale,
+                                "settingsMore.textEnableCancelled",
+                            ),
+                        )
                         onChanged()
                     } catch (cause: Exception) {
                         actionError = cause.userMessage()
@@ -198,6 +234,7 @@ private fun TextEnableDocumentsRow(
     var uploading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
     val picker = rememberDocumentPicker(
         onPicked = { upload ->
             uploading = true
@@ -208,8 +245,14 @@ private fun TextEnableDocumentsRow(
                         scope.companyId, order.id, listOf(upload),
                     )
                     scope.showMessage(
-                        if (upload.fieldName == "loa") "Letter of authorization uploaded."
-                        else "Bill uploaded.",
+                        AppStrings.translate(
+                            locale,
+                            if (upload.fieldName == "loa") {
+                                "settingsMore.loaUploaded"
+                            } else {
+                                "settingsMore.plainBillUploaded"
+                            },
+                        ),
                     )
                     onChanged()
                 } catch (cause: Exception) {
@@ -223,8 +266,7 @@ private fun TextEnableDocumentsRow(
     )
 
     Text(
-        "Ownership proof: a signed letter of authorization and a recent bill for " +
-            "the number (PDF, PNG, or JPEG).",
+        t("settingsMore.teDocsNote"),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -232,16 +274,32 @@ private fun TextEnableDocumentsRow(
         OutlinedButton(
             onClick = { picker.pick("loa") },
             enabled = !uploading,
-        ) { Text(if (order.has_loa) "Replace LOA ✓" else "Upload LOA") }
+        ) {
+            Text(
+                if (order.has_loa) {
+                    t("settingsMore.replaceLoa")
+                } else {
+                    t("settingsMore.uploadLoa")
+                },
+            )
+        }
         Spacer(Modifier.width(8.dp))
         OutlinedButton(
             onClick = { picker.pick("bill") },
             enabled = !uploading,
-        ) { Text(if (order.has_bill) "Replace bill ✓" else "Upload bill") }
+        ) {
+            Text(
+                if (order.has_bill) {
+                    t("settingsMore.replaceBill")
+                } else {
+                    t("settingsMore.uploadBill")
+                },
+            )
+        }
     }
     if (uploading) {
         Text(
-            "Uploading…",
+            t("settingsMore.uploading"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
@@ -262,6 +320,7 @@ private fun VerificationRow(
     var error by remember { mutableStateOf<String?>(null) }
     var codeSent by remember(order.id) { mutableStateOf(false) }
     val coroutines = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
 
     fun requestCode(method: String) {
         requesting = true
@@ -271,8 +330,14 @@ private fun VerificationRow(
                 scope.repo.requestVerificationCode(scope.companyId, order.id, method)
                 codeSent = true
                 scope.showMessage(
-                    if (method == "sms") "Code sent by text to your number."
-                    else "You'll get a call at your number with the code.",
+                    AppStrings.translate(
+                        locale,
+                        if (method == "sms") {
+                            "settingsMore.codeSentBySms"
+                        } else {
+                            "settingsMore.codeComingByCall"
+                        },
+                    ),
                 )
             } catch (cause: Exception) {
                 error = cause.userMessage()
@@ -283,7 +348,7 @@ private fun VerificationRow(
     }
 
     Text(
-        "Number ownership check: the carrier sends a code to the number itself.",
+        t("settingsMore.ownershipCheckNote"),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -291,12 +356,12 @@ private fun VerificationRow(
         OutlinedButton(
             onClick = { requestCode("sms") },
             enabled = !requesting && !verifying,
-        ) { Text("Text me the code") }
+        ) { Text(t("settingsMore.textMeTheCode")) }
         Spacer(Modifier.width(8.dp))
         OutlinedButton(
             onClick = { requestCode("call") },
             enabled = !requesting && !verifying,
-        ) { Text("Call me instead") }
+        ) { Text(t("settingsMore.callMeInstead")) }
     }
     if (codeSent) {
         Row(
@@ -311,7 +376,7 @@ private fun VerificationRow(
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 enabled = !verifying,
-                label = { Text("Verification code") },
+                label = { Text(t("settingsMore.verificationCode")) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             )
             Spacer(Modifier.width(8.dp))
@@ -324,7 +389,12 @@ private fun VerificationRow(
                             scope.repo.submitVerificationCode(
                                 scope.companyId, order.id, code.trim(),
                             )
-                            scope.showMessage("Number verified.")
+                            scope.showMessage(
+                                AppStrings.translate(
+                                    locale,
+                                    "settingsMore.numberVerified",
+                                ),
+                            )
                             onChanged()
                         } catch (cause: Exception) {
                             error = cause.userMessage()
@@ -334,7 +404,15 @@ private fun VerificationRow(
                     }
                 },
                 enabled = !verifying && code.isNotBlank(),
-            ) { Text(if (verifying) "Checking…" else "Verify") }
+            ) {
+                Text(
+                    if (verifying) {
+                        t("settingsMore.checking")
+                    } else {
+                        t("settingsMore.verify")
+                    },
+                )
+            }
         }
     }
     InlineError(error)
@@ -351,20 +429,19 @@ private fun StartTextEnableDialog(
     var error by remember { mutableStateOf<String?>(null) }
     val idempotencyKey = remember { UUID.randomUUID().toString() }
     val coroutines = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
 
     ConfirmDialog(
-        title = "Text-enable your landline",
-        body = "Texting for this number runs through Loonext; calls stay with your " +
-            "current carrier, nothing changes there. The carrier reviews the order " +
-            "over a few business days, and you'll upload proof you own the number.",
-        confirmLabel = "Start",
+        title = t("settingsMore.textEnableTitle"),
+        body = t("settingsMore.startTextEnableBody"),
+        confirmLabel = t("settingsMore.start"),
         pending = pending,
         error = error,
         onDismiss = onDismiss,
         onConfirm = {
             val e164 = normalizeNanpInput(phoneInput)
             if (e164 == null) {
-                error = "Enter a full 10-digit US or Canadian number."
+                error = AppStrings.translate(locale, "settingsMore.enterFullNanp")
                 return@ConfirmDialog
             }
             pending = true
@@ -372,7 +449,9 @@ private fun StartTextEnableDialog(
             coroutines.launch {
                 try {
                     scope.repo.createTextEnablement(scope.companyId, idempotencyKey, e164)
-                    scope.showMessage("Order created. Upload the documents to move it along.")
+                    scope.showMessage(
+                        AppStrings.translate(locale, "settingsMore.teOrderCreated"),
+                    )
                     onCreated()
                 } catch (cause: Exception) {
                     error = cause.userMessage()
@@ -390,8 +469,8 @@ private fun StartTextEnableDialog(
                     .padding(top = 10.dp),
                 singleLine = true,
                 enabled = !pending,
-                label = { Text("Your landline or VoIP number") },
-                placeholder = { Text("(416) 555-0182") },
+                label = { Text(t("settingsMore.landlineNumberLabel")) },
+                placeholder = { Text(t("settingsMore.phoneSample")) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
             )
         },

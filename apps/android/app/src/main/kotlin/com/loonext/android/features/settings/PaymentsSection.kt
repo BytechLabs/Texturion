@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.features.payments.PayoutAccount
 import com.loonext.android.features.payments.PayoutReadiness
@@ -146,7 +147,7 @@ private fun PayoutCard(
         account.state == PayoutReadiness.ONBOARDING_INCOMPLETE
     val isOwner = scope.role == MemberRole.OWNER
 
-    SettingsCard(title = "Getting paid", description = account.title) {
+    SettingsCard(title = t("payments.settingsTitle"), description = account.title) {
         Text(
             account.detail,
             style = MaterialTheme.typography.bodySmall,
@@ -166,11 +167,7 @@ private fun PayoutCard(
                 // person reading this can do everything else on the screen, and
                 // the one thing they cannot do is bind a bank account to the
                 // business. Saying so is shorter than finding out.
-                ReadOnlyLine(
-                    "Only the owner can connect the bank account. Once they " +
-                        "have, you can open Stripe from here to issue refunds " +
-                        "and read payouts.",
-                )
+                ReadOnlyLine(t("settingsMore.onlyOwnerConnectsBank"))
             } else {
                 Button(
                     onClick = {
@@ -201,7 +198,7 @@ private fun PayoutCard(
                     },
                     enabled = !opening,
                 ) {
-                    Text(if (opening) "Opening…" else label)
+                    Text(if (opening) t("settingsMore.opening") else label)
                     Spacer(Modifier.width(6.dp))
                     // A right chevron on a forward action, an out-arrow on one
                     // that leaves the product. The difference tells somebody
@@ -225,11 +222,11 @@ private fun PayoutCard(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(Modifier.height(12.dp))
             Fact(
-                "Payouts",
+                t("settingsMore.payouts"),
                 if (account.payouts_enabled) {
-                    "On — money reaches your bank"
+                    t("settingsMore.payoutsOn")
                 } else {
-                    "Stripe has not switched payouts on yet"
+                    t("settingsMore.payoutsOff")
                 },
             )
             Spacer(Modifier.height(8.dp))
@@ -237,13 +234,10 @@ private fun PayoutCard(
             // an amount, so it is not a price and has no formatter to go
             // through. What the business is PAID in; every figure this feature
             // renders goes through formatMoney in that currency.
-            Fact("Charged in", account.billingCurrency.name)
+            Fact(t("settingsMore.chargedIn"), account.billingCurrency.name)
             Spacer(Modifier.height(14.dp))
             Text(
-                "Refunds, receipts and payout history all live in your Stripe " +
-                    "dashboard. We never hold your money and we take nothing on " +
-                    "top of what you charge — Stripe's own card fee is the only " +
-                    "deduction.",
+                t("settingsMore.stripeDashboardNote"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -272,7 +266,7 @@ private fun OutstandingRequirements(requirements: List<String>) {
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Text(
-            "Stripe still needs:",
+            t("payments.stripeNeeds"),
             style = MaterialTheme.typography.labelLarge,
             color = ink,
         )

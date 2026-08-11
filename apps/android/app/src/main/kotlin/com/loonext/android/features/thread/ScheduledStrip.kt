@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.time.TwoClocks
 import com.loonext.android.core.model.ScheduledMessage
 import com.loonext.android.core.scheduled.ScheduledSend
@@ -113,7 +114,7 @@ private fun ScheduledRow(row: ScheduledMessage, onCancel: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(
                 buildString {
-                    append(if (held) "Waiting" else sendAtOf(row))
+                    append(if (held) t("thread.scheduledWaiting") else sendAtOf(row))
                     append(" — ")
                     append(row.body)
                 },
@@ -146,7 +147,10 @@ private fun ScheduledRow(row: ScheduledMessage, onCancel: () -> Unit) {
         }) {
             Icon(
                 Icons.Filled.Close,
-                contentDescription = "Cancel the message scheduled for ${sendAtSpokenOf(row)}",
+                contentDescription = t(
+                    "thread.cancelScheduledAria",
+                    "when" to sendAtSpokenOf(row),
+                ),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(15.dp),
             )

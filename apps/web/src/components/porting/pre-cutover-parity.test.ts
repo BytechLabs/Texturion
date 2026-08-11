@@ -24,6 +24,12 @@ import { describe, expect, it } from "vitest";
 
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
 
+/** #228: the Android SCREEN, which still owns the state gate. */
+const ANDROID_SCREEN = join(
+  REPO_ROOT,
+  "apps/android/app/src/main/kotlin/com/loonext/android/features/settings/PortCards.kt",
+);
+
 const SOURCES: Record<string, string> = {
   // #248: the TypeScript definition moved to the shared package, which is where
   // a contract three clients depend on belongs — `copy.ts` re-exports it, so
@@ -31,9 +37,20 @@ const SOURCES: Record<string, string> = {
   // guard is unaffected, because what it checks is that all three languages say
   // the same sentences and that is still hand-kept on two of them.
   web: join(REPO_ROOT, "packages/shared/src/porting.ts"),
+  /*
+   * #228: Android's copy moved into the string catalogue, so the screen file no
+   * longer contains these sentences — it contains the KEYS that reach them.
+   * This guard follows the copy, exactly as it followed the TypeScript
+   * definition into the shared package above.
+   *
+   * The catalogue is read whole rather than resolved key-by-key: what #319
+   * protects is that the SENTENCES exist and are in order, and both facts are
+   * as true of a catalogue as they were of a Composable. iOS has not been
+   * extracted yet and still holds its literals inline.
+   */
   android: join(
     REPO_ROOT,
-    "apps/android/app/src/main/kotlin/com/loonext/android/features/settings/PortCards.kt",
+    "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/SettingsMoreStrings.kt",
   ),
   ios: join(REPO_ROOT, "apps/ios/Loonext/Features/Settings/PortCards.swift"),
 };
@@ -121,7 +138,14 @@ describe("#319 the pre-cutover checklist is the same on every client", () => {
     ]) {
       expect(web, `web gate missing ${status}`).toContain(status);
     }
-    const android = readFileSync(SOURCES.android, "utf8");
+    /*
+     * #228: the GATE stayed on the screen while the COPY moved to the
+     * catalogue, so this assertion reads the screen and the one above reads the
+     * catalogue. Two sources for one client is worth the awkwardness — the two
+     * questions are genuinely different, and folding them would mean asserting
+     * a state machine against a map of sentences.
+     */
+    const android = readFileSync(ANDROID_SCREEN, "utf8");
     for (const status of [
       "SUBMITTED",
       "IN_PROCESS",

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { EN } from "@/i18n/catalog";
+
 /**
  * Per-route tab title for /update-password (the "choose a new password" screen
  * reached from the recovery link). The page is a client component, so the title
@@ -7,7 +9,7 @@ import type { Metadata } from "next";
  * from the (auth) group layout; the "%s · Loonext" template comes from the root.
  */
 export const metadata: Metadata = {
-  title: "Set a new password",
+  title: EN.onboarding.tabSetNewPassword,
 };
 
 export default function UpdatePasswordTitleLayout({

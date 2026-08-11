@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.jobs.WorkPhase
 
 /**
@@ -47,11 +49,17 @@ fun WorkPhaseRow(
     value: String?,
     onChange: (String?) -> Unit,
 ) {
+    // The `semantics` block below is not composition, so the language is read
+    // here and the sentence built there.
+    val locale = LocalAppLocale.current
     Row(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 4.dp)
-            .semantics { contentDescription = "What these photos show" },
+            .semantics {
+                contentDescription =
+                    AppStrings.translate(locale, "thread.workPhaseAria")
+            },
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

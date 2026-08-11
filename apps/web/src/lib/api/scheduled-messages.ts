@@ -5,6 +5,8 @@ import { toast } from "sonner";
 
 import type { ScheduledMessageStatus } from "@loonext/shared";
 
+import { useT } from "@/i18n/provider";
+
 import { apiFetch } from "./client";
 import { useCompanyId } from "@/lib/company/provider";
 
@@ -140,6 +142,7 @@ export function useScheduleMessage() {
 }
 
 export function useCancelScheduledMessage(conversationId?: string) {
+  const t = useT();
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
@@ -160,7 +163,7 @@ export function useCancelScheduledMessage(conversationId?: string) {
       // Plain confirmation, not a dialog. Cancelling something that has not
       // gone is reversible in the only sense that matters — you can schedule it
       // again — so friction here would be friction for its own sake.
-      toast.success("Cancelled. That text will not go out.");
+      toast.success(t("thread.scheduledCancelled"));
     },
   });
 }

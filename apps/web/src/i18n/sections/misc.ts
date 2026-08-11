@@ -267,6 +267,70 @@ export const miscEn = {
   realtimeNewMessage: "New message",
   realtimeAttachment: "Attachment",
   realtimeView: "View",
+
+  /* ── The API client's own two sentences (lib/api/core.ts, error.ts) ───────
+     Everything else a failed request says is the SERVER's sentence, rendered
+     verbatim — SPEC §7 writes one per code, and a second copy here would be a
+     translation that drifts from the one the phones show. These two are the
+     cases where no server sentence exists: the client refused before sending,
+     and the body came back unreadable. */
+  apiSignedOut: "You're signed out. Log in again.",
+  apiServerError: "Something went wrong on our end. Try again in a moment.",
+
+  /* ── Un-blocking notifications, per browser (lib/push/support.ts) ─────────
+     The user agent picks a SENTENCE and never a code path, so a wrong guess
+     costs a reader one wrong menu name rather than a broken feature. The menu
+     names are what the browser itself shows in French, which is why they are
+     translated rather than left in English. Loonext is the app's name in every
+     language. */
+  pushRecoveryIos:
+    "Open Settings → Notifications → Loonext on your phone, allow " +
+    "notifications, then come back here.",
+  pushRecoveryFirefox:
+    "Click the permissions icon next to the address bar, remove the " +
+    "notifications block, then reload this page.",
+  pushRecoverySafari:
+    "Open Safari → Settings → Websites → Notifications, allow this site, then " +
+    "reload this page.",
+  pushRecoveryChromium:
+    "Click the icon next to the address bar, set Notifications to Allow, then " +
+    "reload this page.",
+  pushRecoveryGeneric:
+    "Allow notifications for this site in your browser settings, then reload " +
+    "this page.",
+  /* …and when turning them on or off is what failed
+     (lib/push/subscription-machine.ts, lib/push/use-push-subscription.ts). */
+  pushTurnOnFailed: "We couldn't turn on notifications. Try again in a moment.",
+  pushTurnOffFailed: "We couldn't turn off notifications. Try again in a moment.",
+  pushNotConfigured: "Notifications aren't configured yet. Try again later.",
+
+  /* The Map view with no tile provider configured (lib/maps/basemap.ts).
+     Names the state and who fixes it, and does not apologise for a bug —
+     this is a setting an owner can complete, not a fault. */
+  mapNoBasemap:
+    "Job pins are exact. The street background needs a map provider " +
+    "configured, which an owner can do in one setting.",
+
+  /* ── The shared formatters (lib/format/*) ─────────────────────────────────
+     Every list row in the product renders through these, which is why they
+     live in the section for words more than one surface says rather than in
+     any one screen's. */
+  /** A contact with neither a name nor a number we can render. */
+  unknownContact: "Unknown",
+  /** The freshest a relative timestamp gets. */
+  timeNow: "now",
+  /** A call row's outcome. Outbound speaks from the crew's side: a customer
+      who did not pick up is "No answer", never "Missed" — nothing was missed
+      by the crew. */
+  callNoAnswer: "No answer",
+  callMissed: "Missed",
+  callVoicemail: "Voicemail",
+  callYouCalled: "You called",
+  callPlacedBy: "{name} called",
+  callAnswered: "Answered",
+  callAnsweredBy: "Answered by {name}",
+  callCalling: "Calling…",
+  callInProgress: "In progress",
 } as const;
 
 export const miscFr: Translated<typeof miscEn> = {
@@ -525,4 +589,49 @@ export const miscFr: Translated<typeof miscEn> = {
   realtimeNewMessage: "Nouveau message",
   realtimeAttachment: "Pièce jointe",
   realtimeView: "Voir",
+
+  // --- Les deux phrases du client API ---------------------------------------
+  apiSignedOut: "Vous êtes déconnecté. Connectez-vous de nouveau.",
+  apiServerError:
+    "Une erreur s'est produite de notre côté. Réessayez dans un moment.",
+
+  // --- Débloquer les notifications, selon le navigateur ----------------------
+  pushRecoveryIos:
+    "Ouvrez Réglages → Notifications → Loonext sur votre téléphone, autorisez " +
+    "les notifications, puis revenez ici.",
+  pushRecoveryFirefox:
+    "Cliquez sur l'icône des permissions à côté de la barre d'adresse, " +
+    "retirez le blocage des notifications, puis rechargez cette page.",
+  pushRecoverySafari:
+    "Ouvrez Safari → Réglages → Sites web → Notifications, autorisez ce site, " +
+    "puis rechargez cette page.",
+  pushRecoveryChromium:
+    "Cliquez sur l'icône à côté de la barre d'adresse, réglez Notifications " +
+    "sur Autoriser, puis rechargez cette page.",
+  pushRecoveryGeneric:
+    "Autorisez les notifications pour ce site dans les paramètres de votre " +
+    "navigateur, puis rechargez cette page.",
+  pushTurnOnFailed:
+    "Impossible d'activer les notifications. Réessayez dans un moment.",
+  pushTurnOffFailed:
+    "Impossible de désactiver les notifications. Réessayez dans un moment.",
+  pushNotConfigured:
+    "Les notifications ne sont pas encore configurées. Réessayez plus tard.",
+
+  mapNoBasemap:
+    "Les épingles des travaux sont exactes. Le fond de carte exige un " +
+    "fournisseur de tuiles, qu'un propriétaire peut configurer en un réglage.",
+
+  // --- Les formateurs partagés ----------------------------------------------
+  unknownContact: "Inconnu",
+  timeNow: "maintenant",
+  callNoAnswer: "Sans réponse",
+  callMissed: "Manqué",
+  callVoicemail: "Message vocal",
+  callYouCalled: "Vous avez appelé",
+  callPlacedBy: "{name} a appelé",
+  callAnswered: "Pris",
+  callAnsweredBy: "Pris par {name}",
+  callCalling: "Appel en cours…",
+  callInProgress: "En cours",
 };

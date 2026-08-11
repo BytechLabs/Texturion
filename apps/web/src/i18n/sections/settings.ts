@@ -63,8 +63,14 @@ export const settingsEn = {
   aiUsageNearCap: "Close to this month’s limit. It resets on the 1st.",
   aiUsageNoOutcomes: "Nothing recorded yet about whether these got used.",
 
-  /* Cancelling (#277). The consequence copy itself is a cross-client contract
-     pinned by structural tests and stays in the component. */
+  /* Cancelling (#277).
+
+     The consequence copy is a cross-client contract pinned by structural tests
+     in `billing.test.tsx` — every count of days on this card has to name where
+     it is counted FROM, and no sentence may claim texting is currently on. The
+     card still exports the English of each line for those tests to read; the
+     words themselves live here, so a French owner reads the same promise in
+     their own language rather than an English one they have to trust. */
   cancelTitle: "Cancel",
   cancelPortalFailed: "Couldn't open the billing portal. Try again.",
   cancelExportFailed: "The export didn't go through. Try again.",
@@ -73,6 +79,52 @@ export const settingsEn = {
   cancelDetailAria: "Anything else worth telling us (optional)",
   cancelCharactersLeft: "{count} characters left.",
   cancelExporting: "Exporting…",
+  /* The six answers. The CODE is what gets recorded and never changes; this is
+     only what the screen shows. */
+  cancelReasonTooExpensive: "Too expensive",
+  cancelReasonSeasonal: "Quiet season, I'll be back",
+  cancelReasonMissingFeature: "Missing something I need",
+  cancelReasonSwitched: "Going with something else",
+  cancelReasonNotUsing: "Not using it",
+  cancelReasonOther: "Something else",
+  /* The hold is anchored to the CANCELLATION, not to the period end, in both
+     voices — `runGraceJob` measures from `companies.canceled_at`, which Stripe
+     stamps at the moment of the request. Somebody who reads the other anchor
+     counts about twice the days they have, and what runs out is the number on
+     the side of their van. Keep "{days} days from the day you cancel" adjacent
+     in any rewrite, in either language. */
+  cancelConsequence:
+    "Cancel anytime. Your plan runs to the end of the billing period and does " +
+    "not renew — texting stops then, if it has not stopped already. We hold " +
+    "your number for {days} days from the day you cancel, not from the day " +
+    "the plan ends, so the hold can run out soon afterwards. After that the " +
+    "number is released for good.",
+  cancelQuestion: "If you want to say why, it helps us fix it.",
+  cancelQuestionNote: "Optional, and it changes nothing about cancelling.",
+  cancelExportTitle: "Take your contacts with you",
+  /* Names the columns the CSV actually carries. Custom fields are NOT in it,
+     and somebody who has already left cannot come back and check. */
+  cancelExportNote:
+    "Every contact in this workspace as a CSV: names, numbers, tags and when " +
+    "they opted in. It opens in a spreadsheet and imports into whatever you " +
+    "use next. Yours either way.",
+  cancelExportAction: "Export contacts",
+  cancelSkipNote:
+    "Nothing above has to be filled in. This takes you to Stripe either way, " +
+    "where you finish cancelling.",
+  cancelAction: "Continue to cancel",
+  /* The admin's version: the same three facts, never in the second person,
+     because an admin cannot do any of it — and they are the one relaying the
+     deadline to the owner, so the anchor matters more here rather than less. */
+  cancelAdminConsequence:
+    "Only the owner can cancel this plan. When they do, the plan runs to the " +
+    "end of the billing period and does not renew — texting stops then, if it " +
+    "has not stopped already. We hold the number for {days} days from the day " +
+    "they cancel, not from the day the plan ends, so the hold can run out soon " +
+    "afterwards. After that the number is released for good.",
+  cancelAdminNote:
+    "The payment portal an admin reaches is the card screen and has no " +
+    "cancellation on it, so this is not something to go looking for there.",
 
   /* The hold on the number, after cancelling. */
   holdGeneral:
@@ -666,6 +718,44 @@ export const settingsFr: Translated<typeof settingsEn> = {
   cancelDetailAria: "Autre chose à nous dire (facultatif)",
   cancelCharactersLeft: "{count} caractères restants.",
   cancelExporting: "Exportation…",
+  cancelReasonTooExpensive: "Trop cher",
+  cancelReasonSeasonal: "Saison tranquille, je reviendrai",
+  cancelReasonMissingFeature: "Il manque quelque chose dont j'ai besoin",
+  cancelReasonSwitched: "Je passe à autre chose",
+  cancelReasonNotUsing: "Je ne m'en sers pas",
+  cancelReasonOther: "Autre chose",
+  cancelConsequence:
+    "Annulez à tout moment. Votre forfait se poursuit jusqu'à la fin de la " +
+    "période de facturation et ne se renouvelle pas — les textos s'arrêtent " +
+    "alors, s'ils ne se sont pas déjà arrêtés. Nous conservons votre numéro " +
+    "pendant {days} jours à compter du jour de l'annulation, et non à compter " +
+    "de la fin du forfait : la conservation peut donc prendre fin peu après. " +
+    "Ensuite, le numéro est libéré définitivement.",
+  cancelQuestion:
+    "Si vous voulez nous dire pourquoi, cela nous aide à nous améliorer.",
+  cancelQuestionNote: "Facultatif, et cela ne change rien à l'annulation.",
+  cancelExportTitle: "Repartez avec vos contacts",
+  cancelExportNote:
+    "Tous les contacts de cet espace de travail en fichier CSV : noms, " +
+    "numéros, étiquettes et date du consentement. Il s'ouvre dans un tableur " +
+    "et s'importe dans l'outil que vous utiliserez ensuite. Il est à vous " +
+    "dans tous les cas.",
+  cancelExportAction: "Exporter les contacts",
+  cancelSkipNote:
+    "Rien de ce qui précède n'est obligatoire. Ce bouton vous mène à Stripe " +
+    "dans tous les cas, où vous terminez l'annulation.",
+  cancelAction: "Continuer vers l'annulation",
+  cancelAdminConsequence:
+    "Seul le propriétaire peut annuler ce forfait. Lorsqu'il le fait, le " +
+    "forfait se poursuit jusqu'à la fin de la période de facturation et ne se " +
+    "renouvelle pas — les textos s'arrêtent alors, s'ils ne se sont pas déjà " +
+    "arrêtés. Nous conservons le numéro pendant {days} jours à compter du " +
+    "jour de l'annulation, et non à compter de la fin du forfait : la " +
+    "conservation peut donc prendre fin peu après. Ensuite, le numéro est " +
+    "libéré définitivement.",
+  cancelAdminNote:
+    "Le portail de paiement auquel accède un administrateur est l'écran de la " +
+    "carte ; il n'y a aucune annulation à y trouver.",
 
   holdGeneral:
     "Nous conservons votre numéro pendant {days} jours à compter du jour de " +

@@ -64,6 +64,11 @@ fun ReferralShareBlock(link: String?, code: String) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val text = ReferralShare.shareText(note, link, code)
+    // #228: the words are `ReferralShare`'s and stay there — they are asserted
+    // against the shared TypeScript by `ReferralShareTest`, so a copy in the
+    // Android catalogue would be a second source for one sentence. Built here
+    // rather than inline so what reaches `Text` is a value, not a template.
+    val linkLine = "${ReferralShare.LINK_NOTE} ${link ?: code}"
 
     OutlinedTextField(
         value = note,
@@ -74,7 +79,7 @@ fun ReferralShareBlock(link: String?, code: String) {
     )
     Spacer(Modifier.height(6.dp))
     Text(
-        "${ReferralShare.LINK_NOTE} ${link ?: code}",
+        linkLine,
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )

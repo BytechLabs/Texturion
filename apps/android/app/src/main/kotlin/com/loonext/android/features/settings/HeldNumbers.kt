@@ -12,6 +12,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ChangePlanResult
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.HeldNumberReason
@@ -540,7 +541,9 @@ private fun ReinstateControl(
     var idempotencyKey by remember { mutableStateOf("") }
     val coroutines = rememberCoroutineScope()
 
-    val display = number.number_e164?.let(::formatPhone) ?: "This number"
+    val display = number.number_e164?.let(::formatPhone) ?: t("settings.heldThisNumber")
+    val alreadyBack = t("settings.heldAlreadyBack", "number" to display)
+    val backNow = t("settings.heldBackNow", "number" to display)
 
     OutlinedButton(
         onClick = {
@@ -549,15 +552,13 @@ private fun ReinstateControl(
             confirming = true
         },
         modifier = Modifier.padding(top = 8.dp),
-    ) { Text("Bring it back · $price") }
+    ) { Text(t("settings.heldBringBackPriced", "price" to price)) }
 
     if (confirming) {
         ConfirmDialog(
-            title = "Bring $display back?",
-            body = "$price is added to your plan for this number. You're charged a " +
-                "prorated amount for the rest of this period today, then the full " +
-                "price each month. It starts sending and answering again straight away.",
-            confirmLabel = "Bring it back",
+            title = t("settings.heldBringBackTitle", "number" to display),
+            body = t("settings.heldBringBackBody", "price" to price),
+            confirmLabel = t("settings.heldBringBack"),
             pending = pending,
             error = error,
             onDismiss = { if (!pending) confirming = false },
@@ -577,11 +578,7 @@ private fun ReinstateControl(
                         // Reporting it as a failure would send somebody back to
                         // a button that would charge them for real.
                         scope.showMessage(
-                            if (result.already_active) {
-                                "$display is already back."
-                            } else {
-                                "$display is back. It can send and answer again."
-                            },
+                            if (result.already_active) alreadyBack else backNow,
                         )
                         onChanged()
                     } catch (cause: Exception) {

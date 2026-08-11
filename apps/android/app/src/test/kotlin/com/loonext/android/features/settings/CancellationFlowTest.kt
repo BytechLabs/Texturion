@@ -1,5 +1,6 @@
 package com.loonext.android.features.settings
 
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.MemberRole
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -155,6 +156,35 @@ class CancellationFlowTest {
     }
 
     /**
+     * #228 — the key and the words behind it have to stay one thing.
+     *
+     * Since the extraction there are two anchors for one button:
+     * [ExitPath.EXIT_KEY] is how every SOURCE guard here finds it, and
+     * [ExitPath.EXIT_LABEL] is what [BillingPressTest] taps by rendered text.
+     * Nothing else ties them together — so a rename of the English behind the
+     * key would leave every lint in this file green while the press test hunted
+     * for a button that no longer says that, which is the failure mode this
+     * whole file exists to refuse.
+     *
+     * English rather than French deliberately: the press test renders with no
+     * locale provided, and [AppStrings.translate] answers English there.
+     */
+    @Test
+    fun `the exit's key and the words the press test taps are the same button`() {
+        assertEquals(
+            "the button that leaves renders something other than ExitPath.EXIT_LABEL",
+            ExitPath.EXIT_LABEL,
+            AppStrings.translate(null, ExitPath.EXIT_KEY),
+        )
+        // And the key really resolves: a typo would fall back to the key itself,
+        // which is a string that would pass a looser assertion than this one.
+        assertTrue(
+            "the exit's key is not in the catalogue at all",
+            AppStrings.en.containsKey(ExitPath.EXIT_KEY),
+        )
+    }
+
+    /**
      * THE guard for this card, and the one the shipped defect walked straight
      * past.
      *
@@ -183,7 +213,7 @@ class CancellationFlowTest {
         assertTrue("the owner check must still open the card", gate > 0)
         val gateReturn = body.indexOf("return@SettingsCard", gate)
         assertTrue("the owner check must still return early", gateReturn > gate)
-        val confirm = body.indexOf("Continue to cancel")
+        val confirm = body.indexOf(ExitPath.EXIT_KEY)
         assertTrue("the card must still carry the button that leaves", confirm > gateReturn)
 
         val toTheExit = body.substring(gateReturn + "return@SettingsCard".length, confirm)
@@ -626,7 +656,7 @@ class CancellationFlowTest {
     fun `the export offer and the confirm button are on the same card`() {
         val body = cancelCard()
         val export = body.indexOf("exportLauncher.launch(")
-        val confirm = body.indexOf("Continue to cancel")
+        val confirm = body.indexOf(ExitPath.EXIT_KEY)
         assertTrue("the cancel card must offer the contacts export", export > 0)
         assertTrue("and the confirm button lives on the same card", confirm > 0)
         assertTrue(

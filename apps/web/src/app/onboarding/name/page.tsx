@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -28,31 +28,40 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { useT } from "@/i18n/provider";
+import { useT, type Translate } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { cn } from "@/lib/utils";
 
-import { CREW_FIT_PROMPT, crewFitCopy } from "../crew-copy";
+import { crewFitCopy, crewFitPrompt } from "../crew-copy";
 import { writeOnboardingDraft } from "../local-draft";
 import { StepError, StepLoading, StepShell } from "../step-shell";
 import { stepProgress } from "../steps";
 import { useWizardStepGuard } from "../use-onboarding-state";
 
-const schema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "Enter your company name.")
-    .max(200, "Keep it under 200 characters."),
-  // #370: optional on purpose. A signup that skips it is a signup we still
-  // want, and the column keeps "never asked" distinguishable from "solo".
-  crewSize: z.enum(CREW_SIZE_BUCKETS).optional(),
-  // #288: optional for the same reason, and it is the ONLY signal that can see
-  // word of mouth. An owner told about us at a supply counter who then searches
-  // for the name arrives with no landing path, no referrer and no campaign —
-  // every passive measure reads them as direct traffic.
-  signupSource: z.enum(SIGNUP_SOURCES).optional(),
-});
+/*
+ * A factory rather than a module-level constant: both messages are read under
+ * the field by the person filling it in, so they are copy and belong in the
+ * catalogue.
+ */
+function buildSchema(t: Translate) {
+  return z.object({
+    name: z
+      .string()
+      .trim()
+      .min(1, t("onboarding.companyNameRequired"))
+      .max(200, t("onboarding.companyNameTooLong")),
+    // #370: optional on purpose. A signup that skips it is a signup we still
+    // want, and the column keeps "never asked" distinguishable from "solo".
+    crewSize: z.enum(CREW_SIZE_BUCKETS).optional(),
+    // #288: optional for the same reason, and it is the ONLY signal that can
+    // see word of mouth. An owner told about us at a supply counter who then
+    // searches for the name arrives with no landing path, no referrer and no
+    // campaign — every passive measure reads them as direct traffic.
+    signupSource: z.enum(SIGNUP_SOURCES).optional(),
+  });
+}
+
+type FormValues = z.infer<ReturnType<typeof buildSchema>>;
 
 /**
  * G7 step: company name. Local until POST /v1/companies (the create call
@@ -87,7 +96,8 @@ export default function CompanyNamePage() {
   const { state, ready } = useWizardStepGuard("name");
   const router = useRouter();
 
-  const form = useForm<z.infer<typeof schema>>({
+  const schema = useMemo(() => buildSchema(t), [t]);
+  const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", crewSize: undefined, signupSource: undefined },
   });
@@ -112,7 +122,7 @@ export default function CompanyNamePage() {
   const progress = stepProgress("name", state.snapshot);
   const chosenCrew = form.watch("crewSize");
 
-  function onSubmit(values: z.infer<typeof schema>) {
+  function onSubmit(values: FormValues) {
     writeOnboardingDraft({
       name: values.name,
       ...(values.crewSize ? { crewSize: values.crewSize } : {}),
@@ -196,7 +206,7 @@ export default function CompanyNamePage() {
                   </RadioGroup>
                 </FormControl>
                 <FormDescription>
-                  {chosenCrew ? crewFitCopy(chosenCrew) : CREW_FIT_PROMPT}
+                  {chosenCrew ? crewFitCopy(chosenCrew, t) : crewFitPrompt(t)}
                 </FormDescription>
                 <FormMessage />
               </FormItem>

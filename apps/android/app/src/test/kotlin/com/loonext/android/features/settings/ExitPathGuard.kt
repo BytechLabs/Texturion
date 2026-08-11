@@ -100,6 +100,22 @@ internal object ExitPath {
      */
     const val EXIT_LABEL = "Continue to cancel"
 
+    /**
+     * How the button that leaves is found in the SOURCE, since #228.
+     *
+     * The label itself moved into `SettingsStrings` with every other word on
+     * that card, so [EXIT_LABEL] is no longer written in `BillingSection.kt` —
+     * it is what the card RENDERS, which is why the press test still finds the
+     * control by it (the default locale is English, and the catalogue's English
+     * for this key is byte-identical to the literal it replaced).
+     *
+     * Every guard that reads this file as text anchors here instead. The two are
+     * kept in step by `exitLabelIsTheCatalogue`, below: a key with different
+     * words behind it would leave the press test hunting for a button that no
+     * longer says that.
+     */
+    const val EXIT_KEY = "settings.cancelExitAction"
+
     /** The two files the property is read out of. */
     const val BILLING_SECTION = "features/settings/BillingSection.kt"
     const val SETTINGS_LOGIC = "features/settings/SettingsLogic.kt"
@@ -144,10 +160,10 @@ internal object ExitPath {
         Escape(
             "an early return above the card's body, in front of the role gate",
             listOf(
-                "    SettingsCard(title = \"Cancel\") {\n" +
+                "    SettingsCard(title = t(\"settings.cancelTitle\")) {\n" +
                     "        if (!SettingsRoleGate.canCancelSubscription(scope.role)) {" to
                     "    if (pause is PauseRead.Loading) return\n" +
-                    "    SettingsCard(title = \"Cancel\") {\n" +
+                    "    SettingsCard(title = t(\"settings.cancelTitle\")) {\n" +
                     "        if (!SettingsRoleGate.canCancelSubscription(scope.role)) {",
             ),
         ),
@@ -440,13 +456,13 @@ internal object ExitPath {
         // that renders BELOW the exit.
         val card = body(code, "fun CancelCard(")
         val carried = pauseCarrying(code, exitCard, tainted)
-        val label = source.indexOf(EXIT_LABEL, card.first)
+        val label = source.indexOf(EXIT_KEY, card.first)
         check(label in card.first until card.second) {
-            "the button that leaves no longer says \"$EXIT_LABEL\". Teach this guard " +
-                "the new label rather than deleting it"
+            "the button that leaves no longer reads \"$EXIT_KEY\". Teach this guard " +
+                "the new key rather than deleting it"
         }
         val seen = mutableSetOf<String>()
-        identifiers(code, card.first, label + EXIT_LABEL.length).forEach { (word, at) ->
+        identifiers(code, card.first, label + EXIT_KEY.length).forEach { (word, at) ->
             if ((word in words || word in carried || pauseNamed(word)) && seen.add(word)) {
                 out += Finding(
                     "the card's own path from its first statement to the button",

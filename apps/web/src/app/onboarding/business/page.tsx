@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useT } from "@/i18n/provider";
+import { useT, type Translate } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { useCreateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
@@ -52,7 +52,7 @@ import { normalizeNanpPhone, normalizeWebsite } from "../normalize";
 import { StepError, StepLoading, StepShell } from "../step-shell";
 import { previousStepHref, stepProgress } from "../steps";
 import { useWizardStepGuard } from "../use-onboarding-state";
-import { TCR_VERTICALS, VERTICAL_OPTIONS } from "../verticals";
+import { TCR_VERTICALS, verticalOptions } from "../verticals";
 
 /**
  * G7 step 3 — business identity. Feeds 10DLC registration:
@@ -70,7 +70,7 @@ import { TCR_VERTICALS, VERTICAL_OPTIONS } from "../verticals";
 const EIN_RE = /^[0-9A-Za-z][0-9A-Za-z-]{7,14}$/;
 const CONTACT_PHONE_RE = /^\+?[0-9()\-. ]{10,20}$/;
 
-function buildSchema(country: "US" | "CA") {
+function buildSchema(country: "US" | "CA", t: Translate) {
   const einName = country === "US" ? "EIN" : "Business Number";
   const sinName = country === "US" ? "SSN" : "SIN";
   return z
@@ -82,23 +82,37 @@ function buildSchema(country: "US" | "CA") {
       lastName: z.string().trim().max(100),
       last4: z.string().trim(),
       mobilePhone: z.string().trim(),
-      street: z.string().trim().min(1, "Enter your street address.").max(255),
-      city: z.string().trim().min(1, "Enter your city.").max(100),
+      street: z
+        .string()
+        .trim()
+        .min(1, t("onboarding.bizStreetRequired"))
+        .max(255),
+      city: z.string().trim().min(1, t("onboarding.bizCityRequired")).max(100),
       state: z
         .string()
         .trim()
-        .min(1, country === "US" ? "Pick your state." : "Pick your province."),
+        .min(
+          1,
+          country === "US"
+            ? t("onboarding.bizStateRequiredUs")
+            : t("onboarding.bizStateRequiredCa"),
+        ),
       postalCode: z
         .string()
         .trim()
-        .min(1, country === "US" ? "Enter your ZIP code." : "Enter your postal code.")
-        .max(10, "Keep it under 10 characters."),
-      website: z.string().trim().max(255, "Keep it under 255 characters."),
-      email: z.email("Enter a real email address.").max(320),
+        .min(
+          1,
+          country === "US"
+            ? t("onboarding.bizPostalRequiredUs")
+            : t("onboarding.bizPostalRequiredCa"),
+        )
+        .max(10, t("onboarding.bizPostalTooLong")),
+      website: z.string().trim().max(255, t("onboarding.bizWebsiteTooLong")),
+      email: z.email(t("onboarding.bizEmailInvalid")).max(320),
       phone: z
         .string()
         .trim()
-        .regex(CONTACT_PHONE_RE, "Enter a phone number carriers can reach you at."),
+        .regex(CONTACT_PHONE_RE, t("onboarding.bizPhoneInvalid")),
       vertical: z.enum(TCR_VERTICALS),
     })
     .superRefine((v, ctx) => {
@@ -107,14 +121,14 @@ function buildSchema(country: "US" | "CA") {
           ctx.addIssue({
             code: "custom",
             path: ["companyName"],
-            message: "Enter your legal business name.",
+            message: t("onboarding.bizLegalNameRequired"),
           });
         }
         if (!EIN_RE.test(v.ein)) {
           ctx.addIssue({
             code: "custom",
             path: ["ein"],
-            message: `Enter your ${einName} (numbers and dashes are fine).`,
+            message: t("onboarding.bizTaxIdRequired", { id: einName }),
           });
         }
         // Website is optional on every path (G7). When present it must look
@@ -124,28 +138,28 @@ function buildSchema(country: "US" | "CA") {
           ctx.addIssue({
             code: "custom",
             path: ["firstName"],
-            message: "Enter your legal first name.",
+            message: t("onboarding.bizFirstNameRequired"),
           });
         }
         if (v.lastName === "") {
           ctx.addIssue({
             code: "custom",
             path: ["lastName"],
-            message: "Enter your legal last name.",
+            message: t("onboarding.bizLastNameRequired"),
           });
         }
         if (!/^\d{4}$/.test(v.last4)) {
           ctx.addIssue({
             code: "custom",
             path: ["last4"],
-            message: `Enter the last 4 digits of your ${sinName}.`,
+            message: t("onboarding.bizLast4Required", { id: sinName }),
           });
         }
         if (normalizeNanpPhone(v.mobilePhone) === null) {
           ctx.addIssue({
             code: "custom",
             path: ["mobilePhone"],
-            message: "Enter a US or Canadian mobile number.",
+            message: t("onboarding.bizMobileInvalid"),
           });
         }
       }
@@ -156,7 +170,7 @@ function buildSchema(country: "US" | "CA") {
         ctx.addIssue({
           code: "custom",
           path: ["website"],
-          message: "That doesn't look like a web address.",
+          message: t("onboarding.bizWebsiteInvalid"),
         });
       }
     });
@@ -198,7 +212,7 @@ export default function BusinessIdentityPage() {
 
   const country: "US" | "CA" =
     state.company?.country ?? state.draft.country ?? "US";
-  const schema = useMemo(() => buildSchema(country), [country]);
+  const schema = useMemo(() => buildSchema(country, t), [country, t]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -726,7 +740,7 @@ export default function BusinessIdentityPage() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {VERTICAL_OPTIONS.map((option) => (
+                    {verticalOptions(t).map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>

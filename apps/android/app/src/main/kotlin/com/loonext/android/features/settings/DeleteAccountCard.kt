@@ -20,6 +20,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import kotlinx.coroutines.launch
 
 /** What has to be typed. Fixed, unambiguous, and not a name we might change. */
@@ -50,9 +51,14 @@ fun DeleteAccountCard(scope: SettingsScope, onDeleted: () -> Unit) {
     var deleting by remember { mutableStateOf(false) }
     val coroutines = rememberCoroutineScope()
 
+    // Both failures are reported from a coroutine started by a press, where the
+    // reader's locale is out of scope — so the sentences are read here.
+    val previewFailed = t("settings.deletePreviewFailed")
+    val deleteFailed = t("settings.deleteFailed")
+
     SettingsCard(
-        title = "Delete your account",
-        description = "Removes you from Loonext entirely. This cannot be undone.",
+        title = t("settings.deleteTitle"),
+        description = t("settings.deleteIntro"),
     ) {
         when {
             !expanded -> OutlinedButton(onClick = {
@@ -62,13 +68,13 @@ fun DeleteAccountCard(scope: SettingsScope, onDeleted: () -> Unit) {
                 coroutines.launch {
                     runCatching { scope.repo.accountDeletionPreview() }
                         .onSuccess { preview = it }
-                        .onFailure { error = "Couldn't check your account. Try again in a moment." }
+                        .onFailure { error = previewFailed }
                     loading = false
                 }
-            }) { Text("Delete my account") }
+            }) { Text(t("settings.deleteAction")) }
 
             loading -> Text(
-                "Checking your account…",
+                t("settings.deleteChecking"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -79,14 +85,15 @@ fun DeleteAccountCard(scope: SettingsScope, onDeleted: () -> Unit) {
                 // Specific, not generic: there is no ownership transfer yet
                 // (#332), so the way out has to be spelled out.
                 Text(
-                    "You own ${preview!!.owned_workspaces.joinToString { it.name }}. " +
-                        "A workspace cannot be left without an owner, so hand it to " +
-                        "someone else or close it first — then you can delete your account.",
+                    t(
+                        "settings.deleteBlockedByOwnership",
+                        "workspaces" to preview!!.owned_workspaces.joinToString { it.name },
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Closing a workspace is on the workspace settings screen.",
+                    t("settings.deleteClosingIsElsewhere"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -94,8 +101,7 @@ fun DeleteAccountCard(scope: SettingsScope, onDeleted: () -> Unit) {
 
             else -> Column {
                 Text(
-                    "You are signed out everywhere and cannot sign back in. Your name " +
-                        "comes off the app, and notifications stop.",
+                    t("settings.deleteSignedOut"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -103,16 +109,26 @@ fun DeleteAccountCard(scope: SettingsScope, onDeleted: () -> Unit) {
                     if (current.memberships > 0) {
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            buildString {
-                                append(
-                                    if (current.memberships == 1) "You leave your workspace"
-                                    else "You leave all ${current.memberships} of your workspaces",
+                            // Four WHOLE sentences rather than a stem plus a
+                            // clause. The English happens to read correctly when
+                            // the two halves are concatenated; French moves the
+                            // verb and the count, so a shared stem would leave a
+                            // translator with two fragments neither of which can
+                            // be made into a sentence.
+                            when {
+                                current.memberships == 1 && current.openWork > 0 ->
+                                    t("settings.deleteLeaveOneOpenWork")
+
+                                current.memberships == 1 -> t("settings.deleteLeaveOne")
+
+                                current.openWork > 0 -> t(
+                                    "settings.deleteLeaveManyOpenWork",
+                                    "count" to current.memberships.toString(),
                                 )
-                                append(
-                                    if (current.openWork > 0) {
-                                        ", and anything you are still working on goes back " +
-                                            "to the crew so nothing is lost."
-                                    } else "."
+
+                                else -> t(
+                                    "settings.deleteLeaveMany",
+                                    "count" to current.memberships.toString(),
                                 )
                             },
                             style = MaterialTheme.typography.bodySmall,
@@ -122,9 +138,7 @@ fun DeleteAccountCard(scope: SettingsScope, onDeleted: () -> Unit) {
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Texts you sent to customers, jobs you logged and notes you wrote stay " +
-                        "with the business. They have to — that record is theirs, and some of " +
-                        "it we are required by law to keep. They will no longer carry your name.",
+                    t("settings.deleteRecordStays"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -133,8 +147,7 @@ fun DeleteAccountCard(scope: SettingsScope, onDeleted: () -> Unit) {
                 // moment this succeeds you are signed out and there is no
                 // screen left to read a confirmation on.
                 Text(
-                    "We email you a confirmation before your address is removed. It is the " +
-                        "last thing you will get from us, and it is worth keeping.",
+                    t("settings.deleteConfirmationEmail"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -145,7 +158,7 @@ fun DeleteAccountCard(scope: SettingsScope, onDeleted: () -> Unit) {
                         containerColor = MaterialTheme.colorScheme.error,
                         contentColor = MaterialTheme.colorScheme.onError,
                     ),
-                ) { Text("Delete my account") }
+                ) { Text(t("settings.deleteAction")) }
             }
         }
     }
@@ -153,13 +166,11 @@ fun DeleteAccountCard(scope: SettingsScope, onDeleted: () -> Unit) {
     if (confirming) {
         AlertDialog(
             onDismissRequest = { if (!deleting) { confirming = false; typed = "" } },
-            title = { Text("Delete your account?") },
+            title = { Text(t("settings.deleteConfirmTitle")) },
             text = {
                 Column {
                     Text(
-                        "You will be signed out everywhere and will not be able to sign back " +
-                            "in. Your work stays with the business, without your name on it. " +
-                            "Nobody can undo this.",
+                        t("settings.deleteConfirmBody"),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Spacer(Modifier.height(12.dp))
@@ -169,7 +180,7 @@ fun DeleteAccountCard(scope: SettingsScope, onDeleted: () -> Unit) {
                         singleLine = true,
                         enabled = !deleting,
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Type $CONFIRM_WORD to confirm") },
+                        label = { Text(t("settings.deleteTypeToConfirm", "word" to CONFIRM_WORD)) },
                     )
                 }
             },
@@ -188,20 +199,21 @@ fun DeleteAccountCard(scope: SettingsScope, onDeleted: () -> Unit) {
                                     deleting = false
                                     confirming = false
                                     typed = ""
-                                    scope.showMessage(
-                                        cause.message
-                                            ?: "Couldn't delete your account. Try again in a moment.",
-                                    )
+                                    scope.showMessage(cause.message ?: deleteFailed)
                                 }
                         }
                     },
-                ) { Text(if (deleting) "Deleting…" else "Delete my account") }
+                ) {
+                    Text(
+                        if (deleting) t("settings.deletePending") else t("settings.deleteAction"),
+                    )
+                }
             },
             dismissButton = {
                 LinkButton(
                     enabled = !deleting,
                     onClick = { confirming = false; typed = "" },
-                ) { Text("Keep my account") }
+                ) { Text(t("settings.deleteKeep")) }
             },
             modifier = Modifier.padding(0.dp),
         )

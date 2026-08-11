@@ -33,14 +33,26 @@ object TaskStatus {
     const val DONE = "done"
 }
 
-/** The segmented tabs, mirroring the web /tasks page. */
-enum class TasksTabKind(val label: String) {
-    Open("Open"), Mine("Mine"), All("All"), Done("Done")
+/**
+ * The segmented tabs, mirroring the web /tasks page.
+ *
+ * #228: a KEY rather than the word. The enum is `rememberSaveable`d by name and
+ * read by the filter arms, so it outlives any one composition — a translated
+ * word stored here would be a word resolved once, in whatever language the
+ * reader had when they first opened the tab.
+ */
+enum class TasksTabKind(val labelKey: String) {
+    Open("contactsTasks.tabOpen"),
+    Mine("contactsTasks.tabMine"),
+    All("contactsTasks.tabAll"),
+    Done("contactsTasks.tabDone"),
 }
 
 /** The due filter chip (single-select, mirrors DUE_LABELS on the web). */
-enum class DueChip(val label: String) {
-    Overdue("Overdue"), Today("Due today"), Week("Due this week")
+enum class DueChip(val labelKey: String) {
+    Overdue("contactsTasks.dueOverdue"),
+    Today("contactsTasks.dueToday"),
+    Week("contactsTasks.dueThisWeek"),
 }
 
 /** One GET /v1/tasks query, pre-serialization. All fields optional. */

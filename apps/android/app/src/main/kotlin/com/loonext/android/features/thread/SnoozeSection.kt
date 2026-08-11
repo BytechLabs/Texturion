@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ConversationDetail
 import com.loonext.android.core.snooze.DeferralKind
 import com.loonext.android.core.snooze.SnoozeTiming
@@ -89,14 +90,15 @@ fun SnoozeSection(
                 SnoozeNote(if (isFollowUp) back.replace("Back", "Chase") else back)
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 SnoozeRow(
-                    if (isFollowUp) "Cancel the reminder" else "Bring back now",
+                    if (isFollowUp) t("thread.cancelReminder")
+                    else t("thread.bringBackNow"),
                 ) {
                     haptics.tap()
                     controller.unsnooze()
                     onDismiss()
                 }
             } else {
-                SnoozeNote("Snooze until")
+                SnoozeNote(t("thread.snoozeUntil"))
                 snoozePresets(zone = zone).forEach { preset ->
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SnoozeRow(preset.label, trailing = clockOf(preset.at, zone)) {
@@ -106,7 +108,7 @@ fun SnoozeSection(
                     }
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                SnoozeRow("Pick a date…") {
+                SnoozeRow(t("thread.pickADate")) {
                     note = ""
                     pickerKind = DeferralKind.SNOOZE
                 }
@@ -116,7 +118,7 @@ fun SnoozeSection(
                 // and a meaningless time to chase a quote — one ladder for both
                 // would put three useless options in front of whichever job you
                 // were actually doing.
-                SnoozeNote("Remind me to chase")
+                SnoozeNote(t("thread.remindMeToChase"))
                 followUpPresets(zone = zone).forEach { preset ->
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SnoozeRow(preset.label, trailing = clockOf(preset.at, zone)) {
@@ -129,7 +131,7 @@ fun SnoozeSection(
                     }
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                SnoozeRow("Pick a date…") {
+                SnoozeRow(t("thread.pickADate")) {
                     note = ""
                     pickerKind = DeferralKind.FOLLOW_UP
                 }
@@ -185,12 +187,13 @@ fun SnoozeSection(
                     pickerKind = null
                 }) {
                     Text(
-                        if (kind == DeferralKind.FOLLOW_UP) "Remind me" else "Snooze",
+                        if (kind == DeferralKind.FOLLOW_UP) t("thread.remindMe")
+                        else t("thread.snooze"),
                     )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pickerKind = null }) { Text("Cancel") }
+                TextButton(onClick = { pickerKind = null }) { Text(t("common.cancel")) }
             },
         ) {
             DatePicker(state = pickerState)
@@ -199,7 +202,7 @@ fun SnoozeSection(
                 // The column's CHECK. Stopping here turns a Postgres error into
                 // a field that simply stops taking characters.
                 onValueChange = { if (it.length <= SnoozeTiming.NOTE_MAX) note = it },
-                label = { Text("Why? (optional)") },
+                label = { Text(t("thread.whyOptional")) },
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()

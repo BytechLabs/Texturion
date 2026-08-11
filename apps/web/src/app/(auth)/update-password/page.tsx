@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -19,21 +19,29 @@ import {
 } from "@/components/ui/form";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT } from "@/i18n/provider";
+import { useT, type Translate } from "@/i18n/provider";
 import { authErrorMessage } from "@/lib/auth/messages";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
-const schema = z
-  .object({
-    password: z.string().min(8, "Use at least 8 characters."),
-    confirm: z.string(),
-  })
-  .refine((values) => values.password === values.confirm, {
-    path: ["confirm"],
-    message: "The passwords don't match.",
-  });
+/*
+ * A factory rather than a module-level constant: every message below is read
+ * UNDER the field by the person filling it in, so it is copy and belongs in the
+ * catalogue. The type comes from the factory's return, so the form's typing does
+ * not depend on which locale built the schema.
+ */
+function makeSchema(t: Translate) {
+  return z
+    .object({
+      password: z.string().min(8, t("onboarding.passwordTooShort")),
+      confirm: z.string(),
+    })
+    .refine((values) => values.password === values.confirm, {
+      path: ["confirm"],
+      message: t("onboarding.passwordMismatch"),
+    });
+}
 
-type FormValues = z.infer<typeof schema>;
+type FormValues = z.infer<ReturnType<typeof makeSchema>>;
 
 type SessionState = "checking" | "ready" | "missing";
 
@@ -78,6 +86,7 @@ export default function UpdatePasswordPage() {
     };
   }, []);
 
+  const schema = useMemo(() => makeSchema(t), [t]);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { password: "", confirm: "" },

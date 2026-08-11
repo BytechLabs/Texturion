@@ -1,3 +1,7 @@
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
+
 /**
  * The staged-note-upload sequencer (D28). Pure and dependency-free (like
  * validate.ts) so the chain unit-tests without React, the env-validated API
@@ -22,6 +26,7 @@ export interface StagedUploadResult {
 export async function uploadFilesSequentially(
   uploadOne: (file: File) => Promise<unknown>,
   files: readonly File[],
+  t: Translate = makeTranslate(DEFAULT_LOCALE),
 ): Promise<StagedUploadResult> {
   const failed: StagedUploadResult["failed"] = [];
   let uploaded = 0;
@@ -32,10 +37,13 @@ export async function uploadFilesSequentially(
     } catch (error) {
       failed.push({
         name: file.name || "file",
+        // The uploader's own sentence when it threw one — for an `ApiError`
+        // that is the server's, which SPEC §7 already writes per code. Ours
+        // only covers a throw that carried no message at all.
         message:
           error instanceof Error
             ? error.message
-            : "That file didn't upload. Try again.",
+            : t("thread.attachmentUploadFailed"),
       });
     }
   }

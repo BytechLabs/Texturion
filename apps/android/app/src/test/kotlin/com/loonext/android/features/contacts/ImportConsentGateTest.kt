@@ -140,8 +140,12 @@ class ImportConsentGateTest {
         // These rows were IMPORTED. The server named the field separately for
         // exactly this reason, and either of the two easy mistakes here tells
         // the workspace those people never arrived.
+        // #228: the screen reaches both of these sentences through catalogue
+        // KEYS now, so the keys are the needles. Nothing about what this guard
+        // watches has moved — the key appears exactly once, in the block it
+        // names — only the spelling of the sentence has.
         val counts = tab
-            .substringAfter("""Text("Import finished"""")
+            .substringAfter(""""contactsTasks.importFinished"""")
             .substringBefore("""joinToString(" · ")""")
         assertFalse(
             "the refusal count must stay OUT of the imported/updated/skipped " +
@@ -149,7 +153,7 @@ class ImportConsentGateTest {
             counts.contains("consent_refused"),
         )
         val refusalAt = tab.indexOf("result.consent_refusals")
-        val skippedAt = tab.indexOf(""""Skipped rows:"""")
+        val skippedAt = tab.indexOf(""""contactsTasks.importSkippedRows"""")
         assertTrue("the refusal block is gone", refusalAt > 0)
         assertTrue("the skipped list is gone", skippedAt > 0)
         assertTrue(

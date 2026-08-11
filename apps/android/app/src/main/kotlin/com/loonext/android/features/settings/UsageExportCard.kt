@@ -33,6 +33,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Capability
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.ui.common.rememberHaptics
@@ -235,6 +238,7 @@ fun UsageExportCard(scope: SettingsScope) {
     val context = LocalContext.current
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    val locale = LocalAppLocale.current
 
     var open by rememberSaveable { mutableStateOf(false) }
     val initial = remember {
@@ -265,7 +269,7 @@ fun UsageExportCard(scope: SettingsScope) {
     }
 
     SettingsCard(
-        title = "Data export",
+        title = t("settingsMore.dataExport"),
         description = if (open) null else EXPORT_USAGE_BLURB,
     ) {
         if (!open) {
@@ -286,13 +290,13 @@ fun UsageExportCard(scope: SettingsScope) {
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 DayField(
-                    label = "From",
+                    label = t("settingsMore.exportFrom"),
                     day = from,
                     modifier = Modifier.weight(1f),
                     onClick = { picking = PickTarget.FROM },
                 )
                 DayField(
-                    label = "To",
+                    label = t("settingsMore.exportTo"),
                     day = to,
                     modifier = Modifier.weight(1f),
                     onClick = { picking = PickTarget.TO },
@@ -324,13 +328,14 @@ fun UsageExportCard(scope: SettingsScope) {
                                 open = false
                                 haptics.confirm()
                                 scope.showMessage(
-                                    if (started.already_building) {
-                                        "One is already being put together. It will " +
-                                            "appear under Data export."
-                                    } else {
-                                        "Being put together now. It will appear under " +
-                                            "Data export."
-                                    },
+                                    AppStrings.translate(
+                                        locale,
+                                        if (started.already_building) {
+                                            "settingsMore.exportAlreadyBuilding"
+                                        } else {
+                                            "settingsMore.exportBuildingNow"
+                                        },
+                                    ),
                                 )
                                 // Re-read, which also restarts the poll: there is
                                 // now something in flight to watch.
@@ -342,8 +347,16 @@ fun UsageExportCard(scope: SettingsScope) {
                             }
                         }
                     },
-                ) { Text(if (starting) "Starting…" else "Start it") }
-                LinkButton(onClick = { open = false }) { Text("Cancel") }
+                ) {
+                    Text(
+                        if (starting) {
+                            t("settingsMore.starting")
+                        } else {
+                            t("settingsMore.startIt")
+                        },
+                    )
+                }
+                LinkButton(onClick = { open = false }) { Text(t("common.cancel")) }
             }
         }
 
@@ -397,10 +410,10 @@ private fun ExportRow(row: DataExport, onDownload: (String) -> Unit) {
     ) {
         Column(Modifier.weight(1f)) {
             Text(
-                requestedLabel(row) ?: "Export",
+                requestedLabel(row) ?: t("settingsMore.export"),
                 style = MaterialTheme.typography.bodyMedium,
             )
-            ReadOnlyLine(statusLine(row))
+            ReadOnlyLine(statusLine(row, LocalAppLocale.current))
         }
         // A download appears only when there is something to download. A ready
         // export whose files have expired lists none, and the server says so by
@@ -414,21 +427,37 @@ private fun ExportRow(row: DataExport, onDownload: (String) -> Unit) {
                     modifier = Modifier.size(18.dp),
                 )
                 Spacer(Modifier.width(6.dp))
-                Text("Download")
+                Text(t("settingsMore.download"))
             }
         }
     }
 }
 
-/** What the server is doing with this row, in the reader's words rather than the column's. */
-internal fun statusLine(row: DataExport): String = when (row.status) {
-    "pending" -> "Queued."
-    "running" -> "Being put together…"
-    // The server's own sentence first: it knows what went wrong and this app
-    // does not.
-    "failed" -> row.error ?: "That one could not be built."
-    "ready" -> if (row.files.isEmpty()) "Ready, but the file has expired." else "Ready."
-    else -> row.status
+/**
+ * What the server is doing with this row, in the reader's words rather than the
+ * column's.
+ *
+ * The locale is a defaulted PARAMETER rather than a composition read, because
+ * this is a plain function with a test that calls it directly; the default is
+ * English, which is exactly what every caller got before there was a choice.
+ */
+internal fun statusLine(row: DataExport, locale: String? = null): String {
+    fun say(key: String) = AppStrings.translate(locale, key)
+    return when (row.status) {
+        "pending" -> say("settingsMore.exportQueued")
+        "running" -> say("settingsMore.exportRunning")
+        // The server's own sentence first: it knows what went wrong and this app
+        // does not.
+        "failed" -> row.error ?: say("settingsMore.exportFailed")
+        "ready" ->
+            if (row.files.isEmpty()) {
+                say("settingsMore.exportExpired")
+            } else {
+                say("settingsMore.exportReady")
+            }
+
+        else -> row.status
+    }
 }
 
 private fun requestedLabel(row: DataExport): String? {
@@ -478,8 +507,8 @@ private fun DayPicker(day: String, onPick: (String) -> Unit, onDismiss: () -> Un
                             .toString(),
                     )
                 },
-            ) { Text("Use this day") }
+            ) { Text(t("settingsMore.useThisDay")) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(t("common.cancel")) } },
     ) { DatePicker(state = state) }
 }

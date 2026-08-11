@@ -153,6 +153,18 @@ data class Membership(
      * Customise.
      */
     val dashboard_hidden: List<String> = emptyList(),
+    /**
+     * #228: the language the BUSINESS works in — the last step of the app's own
+     * locale chain (user > device > company > English), and a different question
+     * from [CompanyView.locale]'s only in that this one arrives unhydrated, on
+     * the first /v1/me of a cold start, before there is an active workspace.
+     *
+     * Null on a workspace that has never said, and on any server that predates
+     * the field. Null is a real answer here — see [UiLocale][
+     * com.loonext.android.core.i18n.UiLocale]: it must fall through rather than
+     * be read as English.
+     */
+    val locale: String? = null,
 )
 
 /**
@@ -206,6 +218,15 @@ data class Me(
     val user_id: String,
     val display_name: String,
     val memberships: List<Membership>,
+    /**
+     * #228: the language THIS PERSON has said they read the app in.
+     *
+     * Null means "ask the device, then the workspace" — never English. The
+     * server sends null rather than resolving, because the DEVICE half of the
+     * answer only exists on the client, and resolving without it would override
+     * a phone's own language with a workspace default.
+     */
+    val locale: String? = null,
     /**
      * #386: null when email can reach this person, which is the common case.
      * Present when their address hard-bounced or reported us as spam — the

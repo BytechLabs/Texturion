@@ -29,6 +29,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.loonext.android.core.format.ResponseTimeFormat
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ResponseTimeReport
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.ProportionRing
@@ -54,28 +57,42 @@ import com.loonext.android.ui.common.formatPhone
  * the same fortnight.
  */
 
-/** The arc sentence, or null when there is no arc worth drawing. */
-fun responseArcSentence(report: ResponseTimeReport): String? {
+/**
+ * The arc sentence, or null when there is no arc worth drawing.
+ *
+ * #228: the SENTENCES moved to `InboxStrings`; the DIRECTION did not, and that
+ * split is the point. Which way the arc points is still decided here by the
+ * shared helper, so a client cannot quietly stop reporting the bad direction by
+ * rewording a string.
+ *
+ * The locale is a required parameter rather than a defaulted one, for the reason
+ * the navigation callbacks on this card are: a default turns "nobody passed it"
+ * into an English sentence on a French phone instead of a compile error.
+ */
+fun responseArcSentence(report: ResponseTimeReport, locale: String): String? {
     val direction = ResponseTimeFormat.arcDirection(report.improved_by_seconds)
         ?: return null
     val then = report.baseline?.median_seconds ?: return null
     val label = ResponseTimeFormat.format(then)
-    return if (direction == "faster") {
-        "Down from $label when you started"
-    } else {
-        "Up from $label when you started"
-    }
+    return AppStrings.translate(
+        locale,
+        if (direction == "faster") "inbox.responseArcDown" else "inbox.responseArcUp",
+        mapOf("then" to label),
+    )
 }
 
 /** Why there is no arc yet, said plainly rather than left blank. */
-fun responseNoArcReason(report: ResponseTimeReport): String = when (report.baseline_unavailable) {
-    "too_new" -> "Your starting point lands once you have been here a fortnight"
-    "no_answered_leads" ->
-        "No answered leads in your first two weeks, so there is nothing to compare"
-    // A baseline exists and the change is under a minute: the same performance
-    // measured twice, which is not a story.
-    else -> "About the same as when you started"
-}
+fun responseNoArcReason(report: ResponseTimeReport, locale: String): String =
+    AppStrings.translate(
+        locale,
+        when (report.baseline_unavailable) {
+            "too_new" -> "inbox.responseNoArcTooNew"
+            "no_answered_leads" -> "inbox.responseNoArcNoLeads"
+            // A baseline exists and the change is under a minute: the same
+            // performance measured twice, which is not a story.
+            else -> "inbox.responseNoArcSame"
+        },
+    )
 
 @Composable
 fun ResponseTimeCard(
@@ -100,7 +117,7 @@ fun ResponseTimeCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "RESPONSE TIME",
+                t("inbox.responseTimeTitle"),
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 10.5.sp,
                     fontWeight = FontWeight.Bold,
@@ -138,7 +155,7 @@ fun ResponseTimeCard(
             when {
                 report == null ->
                     Text(
-                        "Working out your response time…",
+                        t("inbox.responseLoading"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(14.dp),
@@ -148,8 +165,7 @@ fun ResponseTimeCard(
                 // and "0 sec" would read as instant service.
                 report.leads == 0 ->
                     Text(
-                        "No new customers texted you in the last $days days, so " +
-                            "there is nothing to measure yet.",
+                        t("inbox.responseNoLeads", "days" to days.toString()),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(14.dp),
@@ -167,6 +183,7 @@ private fun ResponseTimeBody(
     onOpenUnanswered: () -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
+    val locale = LocalAppLocale.current
 
     Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 10.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
@@ -179,7 +196,11 @@ private fun ResponseTimeBody(
                 ProportionRing(
                     value = report.answered.toFloat(),
                     total = report.leads.toFloat(),
-                    label = "${report.answered} of ${report.leads} new customers answered",
+                    label = t(
+                        "inbox.responseRingAria",
+                        "answered" to report.answered.toString(),
+                        "leads" to report.leads.toString(),
+                    ),
                     color = MaterialTheme.colorScheme.secondary,
                     size = 22.dp,
                     modifier = Modifier.padding(bottom = 2.dp),
@@ -199,18 +220,18 @@ private fun ResponseTimeBody(
                 modifier = Modifier.padding(start = 7.dp, end = 6.dp),
             )
             Text(
-                "to answer a new customer",
+                t("inbox.responseToAnswer"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 2.dp),
             )
         }
 
-        val arc = responseArcSentence(report)
+        val arc = responseArcSentence(report, locale)
         val direction = ResponseTimeFormat.arcDirection(report.improved_by_seconds)
         if (arc == null) {
             Text(
-                responseNoArcReason(report),
+                responseNoArcReason(report, locale),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 3.dp),
@@ -264,7 +285,7 @@ private fun ResponseTimeBody(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                buildUnansweredLine(report.unanswered),
+                buildUnansweredLine(report.unanswered, locale),
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.weight(1f),
             )
@@ -279,7 +300,7 @@ private fun ResponseTimeBody(
 
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     Text(
-        if (open) "Hide details" else "Details",
+        if (open) t("inbox.responseHideDetails") else t("inbox.responseDetails"),
         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
@@ -291,27 +312,36 @@ private fun ResponseTimeBody(
     if (open) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         Column(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
-            DetailRow("Slowest 10% of answers", ResponseTimeFormat.format(report.p90_seconds))
             DetailRow(
-                "During hours (${report.business_hours.leads})",
+                t("inbox.responseSlowest"),
+                ResponseTimeFormat.format(report.p90_seconds),
+            )
+            DetailRow(
+                t(
+                    "inbox.responseDuringHours",
+                    "count" to report.business_hours.leads.toString(),
+                ),
                 ResponseTimeFormat.format(report.business_hours.median_seconds),
             )
             DetailRow(
-                "After hours (${report.after_hours.leads})",
+                t("inbox.responseAfterHours", "count" to report.after_hours.leads.toString()),
                 ResponseTimeFormat.format(report.after_hours.median_seconds),
             )
             // #482: which line is letting people down. Slowest first, and
             // present only when there is more than one to compare.
             report.by_number.forEach { number ->
                 DetailRow(
-                    "${formatPhone(number.number_e164)} · " +
-                        "${number.leads - number.answered} unanswered",
+                    t(
+                        "inbox.responseByNumber",
+                        "number" to formatPhone(number.number_e164),
+                        "count" to (number.leads - number.answered).toString(),
+                    ),
                     ResponseTimeFormat.format(number.median_seconds),
                 )
             }
             report.by_member?.forEach { member ->
                 DetailRow(
-                    "Member · ${member.answered} answered",
+                    t("inbox.responseByMember", "count" to member.answered.toString()),
                     ResponseTimeFormat.format(member.median_seconds),
                 )
             }
@@ -319,8 +349,11 @@ private fun ResponseTimeBody(
                 // Said out loud. A cap that reports nothing reads as "we looked
                 // at everything".
                 Text(
-                    "The hours split covers your most recent ${report.split_row_limit} " +
-                        "leads; the numbers above it cover all ${report.leads}.",
+                    t(
+                        "inbox.responseSplitTruncated",
+                        "limit" to report.split_row_limit.toString(),
+                        "total" to report.leads.toString(),
+                    ),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),
@@ -331,8 +364,11 @@ private fun ResponseTimeBody(
 }
 
 /** "2 leads nobody answered" — singular when it is one, because it often is. */
-fun buildUnansweredLine(count: Int): String =
-    if (count == 1) "1 lead nobody answered" else "$count leads nobody answered"
+fun buildUnansweredLine(count: Int, locale: String): String = AppStrings.translate(
+    locale,
+    if (count == 1) "inbox.responseUnansweredOne" else "inbox.responseUnansweredMany",
+    mapOf("count" to count.toString()),
+)
 
 @Composable
 private fun DetailRow(label: String, value: String) {

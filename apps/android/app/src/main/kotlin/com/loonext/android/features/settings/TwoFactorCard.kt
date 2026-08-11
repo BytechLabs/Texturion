@@ -28,6 +28,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.rememberCacheFirst
@@ -89,6 +92,9 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
     val context = LocalContext.current
+    val locale = LocalAppLocale.current
+    val setupKeyLabel = t("settingsMore.setupKeyClipLabel")
+    val recoveryCodesLabel = t("settingsMore.recoveryCodesClipLabel")
 
     fun fail(cause: Exception) {
         actionError = cause.userMessage()
@@ -96,22 +102,33 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
     }
 
     SettingsCard(
-        title = "Two-factor authentication",
-        description = "A code from an app, on top of your password. It is what stops a " +
-            "stolen password becoming somebody texting your customers as you.",
+        title = t("settingsMore.twoFactorTitle"),
+        description = t("settingsMore.twoFactorDesc"),
     ) {
         if (mfa.enrolled) {
-            Text("Authenticator app is on", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                t("settingsMore.authenticatorOn"),
+                style = MaterialTheme.typography.bodyMedium,
+            )
             Spacer(Modifier.height(4.dp))
             if (mfa.recovery_codes_remaining > 0) {
+                // Two whole sentences rather than a stem plus "code"/"codes":
+                // the singular and the plural differ by more than the noun in
+                // French, where the number word agrees too.
                 ReadOnlyLine(
-                    "${mfa.recovery_codes_remaining} recovery " +
-                        (if (mfa.recovery_codes_remaining == 1) "code" else "codes") + " left.",
+                    if (mfa.recovery_codes_remaining == 1) {
+                        t("settingsMore.oneRecoveryCodeLeft")
+                    } else {
+                        t(
+                            "settingsMore.recoveryCodesLeft",
+                            "count" to "${mfa.recovery_codes_remaining}",
+                        )
+                    },
                 )
             } else {
                 // Nought left is a lockout waiting for a lost phone, so it
                 // reads as something to fix rather than a statistic.
-                StatusPill("No recovery codes left", PillTone.Warn)
+                StatusPill(t("settingsMore.noRecoveryCodesLeft"), PillTone.Warn)
             }
             Spacer(Modifier.height(10.dp))
             Row {
@@ -133,19 +150,18 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
                     },
                     enabled = !busy,
                 ) {
-                    Text("New recovery codes")
+                    Text(t("settingsMore.newRecoveryCodes"))
                 }
                 Spacer(Modifier.width(8.dp))
                 LinkButton(onClick = { confirmingOff = true }, enabled = !busy) {
-                    Text("Turn off", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        t("settingsMore.turnOff"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         } else {
-            ReadOnlyLine(
-                "You will add Loonext to an authenticator app — Google Authenticator, " +
-                    "1Password, whatever you already use — and enter the six-digit code " +
-                    "it shows. We will give you backup codes for the day you lose the phone.",
-            )
+            ReadOnlyLine(t("settingsMore.twoFactorHow"))
             Spacer(Modifier.height(10.dp))
             Button(
                 onClick = {
@@ -154,7 +170,12 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
                     coroutines.launch {
                         try {
                             val token = scope.graph.api.freshSession()?.accessToken
-                                ?: error("You're signed out.")
+                                ?: error(
+                                    AppStrings.translate(
+                                        locale,
+                                        "settingsMore.signedOut",
+                                    ),
+                                )
                             val enrolled = scope.graph.supabaseAuth.enrollTotp(
                                 token,
                                 "Loonext on Android",
@@ -175,7 +196,7 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Set up two-factor")
+                Text(t("settingsMore.setUpTwoFactor"))
             }
         }
         InlineError(actionError.takeIf { step is EnrolStep.Idle })
@@ -183,10 +204,9 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
 
     when (val current = step) {
         is EnrolStep.Verify -> ConfirmDialog(
-            title = "Add Loonext to your authenticator",
-            body = "Tap below to hand it to your authenticator app, or copy the key in " +
-                "by hand. Then enter the six-digit code it shows.",
-            confirmLabel = "Turn it on",
+            title = t("settingsMore.addToAuthenticator"),
+            body = t("settingsMore.addToAuthenticatorBody"),
+            confirmLabel = t("settingsMore.turnItOn"),
             pending = busy,
             error = actionError,
             confirmEnabled = code.filter { it.isDigit() }.length >= 6,
@@ -201,7 +221,9 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
                 coroutines.launch {
                     try {
                         val token = scope.graph.api.freshSession()?.accessToken
-                            ?: error("You're signed out.")
+                            ?: error(
+                                AppStrings.translate(locale, "settingsMore.signedOut"),
+                            )
                         val challenge = scope.graph.supabaseAuth.challengeFactor(
                             token, current.factorId,
                         )
@@ -219,7 +241,7 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
                         haptics.confirm()
                     } catch (cause: Exception) {
                         actionError =
-                            "That code didn't match. Check your app and try the next one."
+                            AppStrings.translate(locale, "settingsMore.codeDidNotMatch")
                     } finally {
                         busy = false
                     }
@@ -233,29 +255,31 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
                         runCatching {
                             context.startActivity(Intent(Intent.ACTION_VIEW, current.uri.toUri()))
                         }.onFailure {
-                            actionError =
-                                "No authenticator app answered. Copy the key below instead."
+                            actionError = AppStrings.translate(
+                                locale,
+                                "settingsMore.noAuthenticatorApp",
+                            )
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Open my authenticator app")
+                    Text(t("settingsMore.openAuthenticator"))
                 }
                 Spacer(Modifier.height(8.dp))
-                ReadOnlyLine("Or enter this key by hand:")
+                ReadOnlyLine(t("settingsMore.orEnterKey"))
                 Spacer(Modifier.height(2.dp))
                 Text(current.secret, style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(4.dp))
                 LinkButton(onClick = {
-                    copyToClipboard(context, "Setup key", current.secret)
+                    copyToClipboard(context, setupKeyLabel, current.secret)
                 }) {
-                    Text("Copy key")
+                    Text(t("settingsMore.copyKey"))
                 }
                 Spacer(Modifier.height(10.dp))
                 OutlinedTextField(
                     value = code,
                     onValueChange = { code = it },
-                    label = { Text("Six-digit code") },
+                    label = { Text(t("settingsMore.sixDigitCode")) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                     modifier = Modifier.fillMaxWidth(),
@@ -264,11 +288,9 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
         )
 
         is EnrolStep.Codes -> ConfirmDialog(
-            title = "Save your recovery codes",
-            body = "This is the only time you will see these. If you lose your phone, one " +
-                "of these codes is how you get back in — without them, getting back into " +
-                "your business line takes us weeks.",
-            confirmLabel = "I've saved them",
+            title = t("settingsMore.saveRecoveryCodes"),
+            body = t("settingsMore.saveRecoveryCodesBody"),
+            confirmLabel = t("settingsMore.savedThem"),
             // The friction is the feature: this is the step people skip and
             // then need six months later.
             confirmEnabled = savedCodes,
@@ -279,7 +301,9 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
                 step = EnrolStep.Idle
                 savedCodes = false
                 onChanged()
-                scope.showMessage("Two-factor authentication is on.")
+                scope.showMessage(
+                    AppStrings.translate(locale, "settingsMore.twoFactorOn"),
+                )
             },
             extraContent = {
                 Spacer(Modifier.height(10.dp))
@@ -292,14 +316,22 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
                 OutlinedButton(
                     onClick = {
                         copyToClipboard(
-                            context, "Recovery codes", current.codes.joinToString("\n"),
+                            context, recoveryCodesLabel, current.codes.joinToString("\n"),
                         )
                         savedCodes = true
-                        scope.showMessage("Copied.")
+                        scope.showMessage(
+                            AppStrings.translate(locale, "settingsMore.copiedToast"),
+                        )
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(if (savedCodes) "Copied" else "Copy all codes")
+                    Text(
+                        if (savedCodes) {
+                            t("settingsMore.copied")
+                        } else {
+                            t("settingsMore.copyAllCodes")
+                        },
+                    )
                 }
             },
         )
@@ -309,11 +341,9 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
 
     if (confirmingOff) {
         ConfirmDialog(
-            title = "Turn off two-factor authentication?",
-            body = "Your account goes back to a password alone. If this workspace requires " +
-                "two-factor, you will be asked to set it up again the next time you open " +
-                "the app.",
-            confirmLabel = "Turn it off",
+            title = t("settingsMore.turnOffTwoFactorTitle"),
+            body = t("settingsMore.turnOffTwoFactorBody"),
+            confirmLabel = t("settingsMore.turnItOff"),
             destructive = true,
             pending = busy,
             error = actionError,
@@ -324,13 +354,17 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
                 coroutines.launch {
                     try {
                         val token = scope.graph.api.freshSession()?.accessToken
-                            ?: error("You're signed out.")
+                            ?: error(
+                                AppStrings.translate(locale, "settingsMore.signedOut"),
+                            )
                         mfa.factors.forEach { factor ->
                             scope.graph.supabaseAuth.unenrollFactor(token, factor.id)
                         }
                         confirmingOff = false
                         onChanged()
-                        scope.showMessage("Two-factor authentication is off.")
+                        scope.showMessage(
+                            AppStrings.translate(locale, "settingsMore.twoFactorOff"),
+                        )
                     } catch (cause: Exception) {
                         fail(cause)
                     } finally {

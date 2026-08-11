@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
+import { useT } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { useRegistration } from "@/lib/api/registration";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -34,6 +35,7 @@ export function WorkspaceStatusBanner() {
   // #515: before any early return — this component bails out for the happy
   // cases below, and a hook called after that runs in a different order on
   // different renders.
+  const t = useT();
   const canOpen = useCanOpenSettings();
   const company = useCompany();
   const registration = useRegistration();
@@ -65,10 +67,13 @@ export function WorkspaceStatusBanner() {
       previousKind.current !== "approved" &&
       previousKind.current !== "none"
     ) {
-      toast.success(REGISTRATION_COPY.approvedToast);
+      toast.success(t("shell.regApprovedToast"));
     }
     previousKind.current = kind;
-  }, [kind]);
+    // `t` re-runs this on a language change and cannot double-toast: the guard
+    // above needs the PREVIOUS kind to differ, and the line below has just set
+    // it to this one.
+  }, [kind, t]);
 
   // Loading and errors stay silent — this is an ambient status strip; the
   // screens it links to carry the full states.
@@ -82,30 +87,31 @@ export function WorkspaceStatusBanner() {
   const otpPhone =
     typeof brandData?.mobilePhone === "string"
       ? formatPhone(brandData.mobilePhone)
-      : "your mobile";
+      : t("shell.regBannerYourMobile");
 
   const message =
     state.kind === "setup_unfinished_member"
-      ? REGISTRATION_COPY.setupUnfinishedMember
+      ? t("shell.regSetupUnfinishedMember")
       : state.kind === "subscription_canceled"
-        ? REGISTRATION_COPY.subscriptionCanceled
+        ? t("shell.regSubscriptionCanceled")
         : state.kind === "payment_issue"
-          ? REGISTRATION_COPY.paymentIssue
+          ? t("shell.regPaymentIssue")
           : state.kind === "number_provisioning"
-            ? provisioningWaitCopy(state.createdAt, now)
+            ? provisioningWaitCopy(state.createdAt, now, t)
             : state.kind === "number_delayed"
-              ? REGISTRATION_COPY.numberDelayed
+              ? t("shell.regNumberDelayed")
               : state.kind === "number_action_needed"
-                ? REGISTRATION_COPY.numberActionNeeded(state.areaCode)
+                ? REGISTRATION_COPY.numberActionNeeded(state.areaCode, t)
                 : state.kind === "number_hosted_review"
-                  ? REGISTRATION_COPY.hostedReview
+                  ? t("shell.regHostedReview")
                 : state.kind === "otp_pending"
-                  ? REGISTRATION_COPY.otpPending(otpPhone)
+                  ? REGISTRATION_COPY.otpPending(otpPhone, t)
                   : state.kind === "rejected"
                     ? REGISTRATION_COPY.rejected(
-                        state.reason ?? "the carrier flagged a detail",
+                        state.reason ?? t("shell.regBannerReasonUnknown"),
+                        t,
                       )
-                    : REGISTRATION_COPY.registrationPending;
+                    : t("shell.regPending");
 
   // Members of an unpaid workspace can't act — the strip is informational only.
   //
@@ -113,20 +119,25 @@ export function WorkspaceStatusBanner() {
   // mounted app-wide for every role, so an unfiltered action offers a member a
   // Billing button that now refuses them. The strip still SAYS what is wrong —
   // that part is everybody's business — it just stops handing out a door.
+  const billing = "/settings/billing";
+  const numbers = "/settings/numbers";
   const rawAction: { href: string; label: string } | null =
     state.kind === "setup_unfinished_member"
       ? null
       : state.kind === "subscription_canceled"
-        ? { href: "/settings/billing", label: "Billing" }
+        ? { href: billing, label: t("shell.navBilling") }
         : state.kind === "payment_issue"
-          ? { href: "/settings/billing", label: "Update billing" }
+          ? { href: billing, label: t("shell.regBannerUpdateBilling") }
           : state.kind === "otp_pending"
-            ? { href: "/onboarding/setting-up", label: "Enter code" }
+            ? {
+                href: "/onboarding/setting-up",
+                label: t("shell.regBannerEnterCode"),
+              }
             : state.kind === "rejected"
-              ? { href: "/settings/numbers", label: "Fix and resubmit" }
+              ? { href: numbers, label: t("shell.regBannerFixResubmit") }
               : state.kind === "number_action_needed"
-                ? { href: "/settings/numbers", label: "Choose a number" }
-                : { href: "/settings/numbers", label: "Details" };
+                ? { href: numbers, label: t("shell.regBannerChooseNumber") }
+                : { href: numbers, label: t("shell.regBannerDetails") };
 
   // Both destinations are Settings sections with a capability behind them.
   // Anything outside Settings (the onboarding code entry) is everybody's.

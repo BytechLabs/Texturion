@@ -324,6 +324,182 @@ export const onboardingEn = {
   or: "or",
   lastUsed: "Last used",
 
+  // The two fields the front door refuses to submit without. Read under the
+  // field by the person filling it in, so they are copy like any other.
+  emailRequired: "Enter your email address.",
+  passwordRequired: "Enter your password.",
+  nameRequired: "Enter your name.",
+  passwordTooShort: "Use at least 8 characters.",
+  passwordMismatch: "The passwords don't match.",
+
+  /*
+   * TAB TITLES for the gate and the onboarding wizard.
+   *
+   * Read off `EN` in a server `metadata` export rather than through
+   * `makeTranslate` — see the header of `app/not-found.tsx`. `i18n/provider.tsx`
+   * is `"use client"`, so calling any export of it while Next collects a route's
+   * metadata is a BUILD failure, not a fallback. The keys still belong here: a
+   * translator can see them, and the day a locale can be resolved on the server
+   * this becomes a change of argument rather than a re-extraction.
+   */
+  tabSignUp: "Create your account",
+  tabResetPassword: "Reset your password",
+  tabSetNewPassword: "Set a new password",
+  tabAcceptInvitation: "Accept your invitation",
+  tabGetStarted: "Get started · Loonext",
+  tabBusinessName: "Your business name",
+  tabBusinessDetails: "About your business",
+  tabHowYoullText: "How you'll text",
+  tabChoosePlan: "Choose your plan",
+  tabYourNumber: "Your business number",
+  tabPortYourNumber: "Port your number",
+
+  /*
+   * The TCR business verticals, as the wizard asks for them (verticals.ts).
+   *
+   * ANOTHER COPY OF THIS ENUM'S LABELS LIVES AT `settingsMore.vertical*`, read
+   * by `components/settings/registration-fix-form.tsx`. That one is a
+   * title-cased token per value ("Real estate", "Ngo"); these are the wizard's
+   * richer copy, and they are the ones somebody picks their own trade out of.
+   * Two vocabularies for one enum is drift waiting to happen and the two should
+   * be merged onto these — recorded here rather than done in passing, because
+   * the other set is read by a screen this change does not own.
+   */
+  verticalProfessional: "Professional & home services",
+  verticalConstruction: "Construction & trades",
+  verticalAgriculture: "Agriculture & landscaping",
+  verticalRetail: "Retail",
+  verticalHospitality: "Hospitality, food & travel",
+  verticalRealEstate: "Real estate & property",
+  verticalHealthcare: "Healthcare & wellness",
+  verticalTransportation: "Transportation & moving",
+  verticalEducation: "Education",
+  verticalFinancial: "Financial services",
+  verticalInsurance: "Insurance",
+  verticalLegal: "Legal",
+  verticalTechnology: "Technology",
+  verticalManufacturing: "Manufacturing",
+  verticalEnergy: "Energy & utilities",
+  verticalCommunication: "Communications & media",
+  verticalEntertainment: "Entertainment & events",
+  verticalHumanResources: "Staffing & HR",
+  verticalPostal: "Postal & delivery",
+  verticalNgo: "Nonprofit",
+  verticalGovernment: "Government",
+  verticalPolitical: "Political",
+  verticalGambling: "Gambling",
+
+  /*
+   * What the business-identity form refuses to submit without (§4.4).
+   *
+   * `bizStateRequired` / `bizPostalRequired` come in a US and a Canadian
+   * wording because the two countries call the field different things, and a
+   * form that asks a Quebecker for a ZIP code has already told them it was not
+   * built for them.
+   */
+  bizStreetRequired: "Enter your street address.",
+  bizCityRequired: "Enter your city.",
+  bizStateRequiredUs: "Pick your state.",
+  bizStateRequiredCa: "Pick your province.",
+  bizPostalRequiredUs: "Enter your ZIP code.",
+  bizPostalRequiredCa: "Enter your postal code.",
+  bizPostalTooLong: "Keep it under 10 characters.",
+  bizWebsiteTooLong: "Keep it under 255 characters.",
+  bizEmailInvalid: "Enter a real email address.",
+  bizPhoneInvalid: "Enter a phone number carriers can reach you at.",
+  bizLegalNameRequired: "Enter your legal business name.",
+  /** `id` is EIN or Business Number — a registry's name, never translated. */
+  bizTaxIdRequired: "Enter your {id} (numbers and dashes are fine).",
+  bizFirstNameRequired: "Enter your legal first name.",
+  bizLastNameRequired: "Enter your legal last name.",
+  /** `id` is SSN or SIN, for the same reason. */
+  bizLast4Required: "Enter the last 4 digits of your {id}.",
+  bizMobileInvalid: "Enter a US or Canadian mobile number.",
+  bizWebsiteInvalid: "That doesn't look like a web address.",
+
+  // The company-name step (§4.1).
+  companyNameRequired: "Enter your company name.",
+  companyNameTooLong: "Keep it under 200 characters.",
+
+  /*
+   * The texting-details step's floors (§4.4), mirrored from the API's
+   * campaignDraftSchema. The FIELD VALUES on that step are deliberately not
+   * here — see the note on `DEFAULT_MESSAGE_FLOW` in texting/page.tsx.
+   */
+  textingFlowTooShort:
+    "Give carriers at least a sentence or two (40+ characters).",
+  textingFlowTooLong: "Keep it under 2,048 characters.",
+  textingSampleTooShort: "Make it a realistic text, at least 20 characters.",
+  textingSampleTooLong: "Keep it under 1,024 characters.",
+
+  /*
+   * #370 — what picking a crew size says back (crew-copy.ts).
+   *
+   * `seats` and `amount` are DERIVED from PLAN_PRICING by the caller and
+   * interpolated; a hand-written figure on a paying-customer surface is a claim
+   * that silently stops being true the day pricing moves. No en or em dashes on
+   * this surface (Law 6), in either language — `crew-copy.test.ts` checks.
+   */
+  crewFitPrompt:
+    "Everyone answers on the same number, so this only decides which plan " +
+    "fits. Skip it if you'd rather.",
+  crewFitBeyond:
+    "Our biggest plan covers {seats} people. Past that, tell us how your crew " +
+    "works and we'll be straight with you about the fit.",
+  crewFitPlan:
+    "{plan} covers up to {seats} people at {amount} a month, however many " +
+    "customers you text.",
+
+  /*
+   * The plan cards on the wizard's plan step (plan/plans.ts).
+   *
+   * Every figure is DERIVED from PLAN_PRICING and interpolated; only the words
+   * are here. `planLineNumbersOne` / `-Many` are two keys because the catalogue
+   * has no plural rules on purpose (catalog.ts), and no en or em dashes on this
+   * surface in either language (Law 6) — `plan/plan.test.tsx` checks.
+   */
+  planCardTextingIncluded: "Texting included, bound by fair use",
+  planCardIncomingFree: "Incoming texts & photos free, always",
+  planCardOverage: "Busy month? Extra texts bill under fair use, capped by you",
+  planCardNumbersOne: "{count} business number",
+  planCardNumbersMany: "{count} business numbers",
+  planCardCrewStarter: "Your whole crew, {seats} teammates",
+  planCardCrewPro: "{seats} teammates",
+  /** #381: the monthly figure said again in a unit people spend in. */
+  planCardDaily: "about {amount} a day",
+
+  // The status line under the setting-up heading (setting-up/headline.ts).
+  setupNeedsYou: "One step below needs you. The rest updates itself.",
+  setupAllLive: "Everything below is live. Text your new number to see it land.",
+  setupNumberReady:
+    "Text your new number to see it land. One step below is still finishing.",
+  setupUpdatesItself: "This screen updates itself. No refreshing needed.",
+
+  /*
+   * The port branch of the same checklist (setting-up/port-item.ts).
+   *
+   * Tone per PORTING.md §9: plain, honest, never "instant". The in-flight
+   * states reuse `PORT_STATE_COPY` from components/porting/copy.ts; only the
+   * strings unique to this checklist are here.
+   */
+  portChecklistTitle: "Transferring your number to Loonext",
+  portChecklistNeedsDocuments:
+    "Upload your signed authorization (LOA) and a recent phone bill to start " +
+    "the transfer. Your number can't move until we have both.",
+  portChecklistNeedsDocumentsCta: "Upload your documents",
+  portChecklistNeedsSubmit:
+    "Your documents are in. Send the transfer to your carrier when you're " +
+    "ready.",
+  portChecklistNeedsSubmitCta: "Review and submit the transfer",
+  /** Shown to members, who can't upload — mirrors the OTP row's member line. */
+  portChecklistMemberDocuments:
+    "Your account owner or an admin uploads the signed authorization (LOA) " +
+    "and a recent phone bill to start the transfer.",
+  portChecklistInReviewWindow:
+    "The whole transfer usually takes a few business days to about two weeks " +
+    "(US), often faster in Canada.",
+  portChecklistTrackLink: "Track it in Settings → Numbers",
+
   // ── Sign up ───────────────────────────────────────────────────────────────
   createYourAccount: "Create your account",
   signupSubtitle: "A business number for your whole crew. Set up in minutes.",
@@ -452,6 +628,31 @@ export const onboardingEn = {
   turnOnNotifications: "Turn on notifications",
   turningOn: "Turning on…",
   startWorking: "Start working",
+
+  /* ── Supabase Auth failures, in words (lib/auth/messages.ts) ──────────────
+     Read on every screen that signs somebody in or changes their credentials:
+     login, signup, reset, update-password, the OAuth buttons and the two
+     Settings cards. One sentence each — what happened, then what to do — and
+     never the provider's own code.
+
+     What is NOT here: the fallback for a code this list does not name. That
+     sentence is Supabase's own `error.message`, and it is shown rather than
+     replaced, because a wrong guess about an unknown failure is worse than an
+     English one. */
+  authInvalidCredentials: "That email or password isn't right. Try again.",
+  authEmailNotConfirmed:
+    "Confirm your email first. We sent you a link when you signed up.",
+  authEmailExists: "You already have an account with this email. Log in instead.",
+  authWeakPassword:
+    "That password is too easy to guess. Use at least 8 characters.",
+  authSamePassword: "That's already your password. Pick a new one.",
+  authLinkExpired: "That link has expired. Request a new one.",
+  authTooManyAttempts: "Too many attempts. Wait a minute and try again.",
+  authUserNotFound: "We couldn't find an account with that email.",
+  authSessionEnded: "Your session ended. Log in again.",
+  authCaptchaFailed:
+    "We couldn't confirm you're human. Refresh the page and try again.",
+  authFailed: "Something went wrong. Try again in a moment.",
 } as const;
 
 /**
@@ -784,6 +985,127 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   or: "ou",
   lastUsed: "Dernière utilisation",
 
+  emailRequired: "Entrez votre adresse courriel.",
+  passwordRequired: "Entrez votre mot de passe.",
+  nameRequired: "Entrez votre nom.",
+  passwordTooShort: "Utilisez au moins 8 caractères.",
+  passwordMismatch: "Les mots de passe ne correspondent pas.",
+
+  tabSignUp: "Créez votre compte",
+  tabResetPassword: "Réinitialisez votre mot de passe",
+  tabSetNewPassword: "Définissez un nouveau mot de passe",
+  tabAcceptInvitation: "Acceptez votre invitation",
+  tabGetStarted: "Commencer · Loonext",
+  tabBusinessName: "Le nom de votre entreprise",
+  tabBusinessDetails: "À propos de votre entreprise",
+  tabHowYoullText: "Comment vous texterez",
+  tabChoosePlan: "Choisissez votre forfait",
+  tabYourNumber: "Votre numéro d'affaires",
+  tabPortYourNumber: "Transférez votre numéro",
+
+  verticalProfessional: "Services professionnels et à domicile",
+  verticalConstruction: "Construction et métiers",
+  verticalAgriculture: "Agriculture et aménagement paysager",
+  verticalRetail: "Commerce de détail",
+  verticalHospitality: "Hôtellerie, restauration et voyage",
+  verticalRealEstate: "Immobilier et gestion immobilière",
+  verticalHealthcare: "Santé et mieux-être",
+  verticalTransportation: "Transport et déménagement",
+  verticalEducation: "Éducation",
+  verticalFinancial: "Services financiers",
+  verticalInsurance: "Assurance",
+  verticalLegal: "Droit",
+  verticalTechnology: "Technologie",
+  verticalManufacturing: "Fabrication",
+  verticalEnergy: "Énergie et services publics",
+  verticalCommunication: "Communications et médias",
+  verticalEntertainment: "Divertissement et événements",
+  verticalHumanResources: "Dotation et ressources humaines",
+  verticalPostal: "Services postaux et livraison",
+  verticalNgo: "Organisme sans but lucratif",
+  verticalGovernment: "Gouvernement",
+  verticalPolitical: "Politique",
+  verticalGambling: "Jeux d'argent",
+
+  bizStreetRequired: "Entrez votre adresse municipale.",
+  bizCityRequired: "Entrez votre ville.",
+  bizStateRequiredUs: "Choisissez votre État.",
+  bizStateRequiredCa: "Choisissez votre province.",
+  bizPostalRequiredUs: "Entrez votre code ZIP.",
+  bizPostalRequiredCa: "Entrez votre code postal.",
+  bizPostalTooLong: "Gardez cela sous 10 caractères.",
+  bizWebsiteTooLong: "Gardez cela sous 255 caractères.",
+  bizEmailInvalid: "Entrez une véritable adresse courriel.",
+  bizPhoneInvalid:
+    "Entrez un numéro de téléphone où les fournisseurs peuvent vous joindre.",
+  bizLegalNameRequired: "Entrez la dénomination légale de votre entreprise.",
+  bizTaxIdRequired: "Entrez votre {id} (les chiffres et les tirets conviennent).",
+  bizFirstNameRequired: "Entrez votre prénom légal.",
+  bizLastNameRequired: "Entrez votre nom de famille légal.",
+  bizLast4Required: "Entrez les 4 derniers chiffres de votre {id}.",
+  bizMobileInvalid: "Entrez un numéro mobile américain ou canadien.",
+  bizWebsiteInvalid: "Cela ne ressemble pas à une adresse web.",
+
+  companyNameRequired: "Entrez le nom de votre entreprise.",
+  companyNameTooLong: "Gardez cela sous 200 caractères.",
+
+  textingFlowTooShort:
+    "Donnez aux fournisseurs au moins une phrase ou deux (40 caractères et plus).",
+  textingFlowTooLong: "Gardez cela sous 2 048 caractères.",
+  textingSampleTooShort:
+    "Rédigez un texto réaliste, d'au moins 20 caractères.",
+  textingSampleTooLong: "Gardez cela sous 1 024 caractères.",
+
+  crewFitPrompt:
+    "Tout le monde répond sur le même numéro, alors ceci ne sert qu'à " +
+    "déterminer quel forfait convient. Passez la question si vous préférez.",
+  crewFitBeyond:
+    "Notre plus grand forfait couvre {seats} personnes. Au-delà, dites-nous " +
+    "comment votre équipe fonctionne et nous serons francs avec vous sur ce " +
+    "qui convient.",
+  crewFitPlan:
+    "{plan} couvre jusqu'à {seats} personnes pour {amount} par mois, peu " +
+    "importe le nombre de clients à qui vous textez.",
+
+  planCardTextingIncluded: "Textos inclus, selon un usage raisonnable",
+  planCardIncomingFree: "Textos et photos reçus gratuits, toujours",
+  planCardOverage:
+    "Mois chargé ? Les textos supplémentaires sont facturés selon un usage " +
+    "raisonnable, plafonnés par vous",
+  planCardNumbersOne: "{count} numéro d'affaires",
+  planCardNumbersMany: "{count} numéros d'affaires",
+  planCardCrewStarter: "Toute votre équipe, {seats} coéquipiers",
+  planCardCrewPro: "{seats} coéquipiers",
+  planCardDaily: "environ {amount} par jour",
+
+  setupNeedsYou:
+    "Une étape ci-dessous a besoin de vous. Le reste se met à jour tout seul.",
+  setupAllLive:
+    "Tout ci-dessous est actif. Textez votre nouveau numéro pour le voir arriver.",
+  setupNumberReady:
+    "Textez votre nouveau numéro pour le voir arriver. Une étape ci-dessous " +
+    "est encore en cours.",
+  setupUpdatesItself:
+    "Cet écran se met à jour tout seul. Aucun rafraîchissement nécessaire.",
+
+  portChecklistTitle: "Transfert de votre numéro vers Loonext",
+  portChecklistNeedsDocuments:
+    "Téléversez votre autorisation signée (LOA) et une facture de téléphone " +
+    "récente pour lancer le transfert. Votre numéro ne peut pas être " +
+    "transféré tant que nous n'avons pas les deux.",
+  portChecklistNeedsDocumentsCta: "Téléverser vos documents",
+  portChecklistNeedsSubmit:
+    "Vos documents sont reçus. Envoyez le transfert à votre fournisseur " +
+    "quand vous serez prêt.",
+  portChecklistNeedsSubmitCta: "Réviser et envoyer le transfert",
+  portChecklistMemberDocuments:
+    "Le propriétaire du compte ou un administrateur téléverse l'autorisation " +
+    "signée (LOA) et une facture de téléphone récente pour lancer le transfert.",
+  portChecklistInReviewWindow:
+    "Le transfert complet prend habituellement de quelques jours ouvrables à " +
+    "environ deux semaines (É.-U.), souvent plus vite au Canada.",
+  portChecklistTrackLink: "Suivez-le dans Réglages → Numéros",
+
   // ── Sign up ───────────────────────────────────────────────────────────────
   createYourAccount: "Créez votre compte",
   signupSubtitle:
@@ -914,4 +1236,24 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   turnOnNotifications: "Activer les notifications",
   turningOn: "Activation…",
   startWorking: "Commencer à travailler",
+
+  // --- Échecs d'authentification --------------------------------------------
+  authInvalidCredentials:
+    "Ce courriel ou ce mot de passe n'est pas le bon. Réessayez.",
+  authEmailNotConfirmed:
+    "Confirmez d'abord votre courriel. Nous vous avons envoyé un lien à " +
+    "l'inscription.",
+  authEmailExists:
+    "Vous avez déjà un compte avec ce courriel. Connectez-vous plutôt.",
+  authWeakPassword:
+    "Ce mot de passe est trop facile à deviner. Utilisez au moins 8 caractères.",
+  authSamePassword: "C'est déjà votre mot de passe. Choisissez-en un nouveau.",
+  authLinkExpired: "Ce lien a expiré. Demandez-en un nouveau.",
+  authTooManyAttempts: "Trop de tentatives. Attendez une minute et réessayez.",
+  authUserNotFound: "Nous n'avons trouvé aucun compte avec ce courriel.",
+  authSessionEnded: "Votre session a pris fin. Connectez-vous de nouveau.",
+  authCaptchaFailed:
+    "Nous n'avons pas pu confirmer que vous êtes une personne. Actualisez la " +
+    "page et réessayez.",
+  authFailed: "Une erreur s'est produite. Réessayez dans un moment.",
 };

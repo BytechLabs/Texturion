@@ -23,6 +23,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.OnCallShift
 import com.loonext.android.core.model.OnCallShiftBody
@@ -59,6 +62,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun OnCallCard(scope: SettingsScope) {
     val canEdit = SettingsRoleGate.canEditWorkspace(scope.role)
+    // Read here because `nameOf` and the confirmations below run outside
+    // composition — a shift is created from a coroutine, not from a redraw.
+    val locale = LocalAppLocale.current
     val coroutines = rememberCoroutineScope()
 
     var loaded by remember { mutableStateOf(false) }
@@ -81,7 +87,8 @@ fun OnCallCard(scope: SettingsScope) {
     }
 
     fun nameOf(userId: String): String =
-        roster.firstOrNull { it.user_id == userId }?.display_name ?: "Someone"
+        roster.firstOrNull { it.user_id == userId }?.display_name
+            ?: AppStrings.translate(locale, "settingsMore.someone")
 
     val now = System.currentTimeMillis()
     val live = shifts.firstOrNull {
@@ -112,7 +119,13 @@ fun OnCallCard(scope: SettingsScope) {
                     ),
                 )
                 reload()
-                scope.showMessage("${nameOf(target)} is on call")
+                scope.showMessage(
+                    AppStrings.translate(
+                        locale,
+                        "settingsMore.onCallNowOn",
+                        mapOf("name" to nameOf(target)),
+                    ),
+                )
             } catch (cause: Exception) {
                 scope.showMessage(cause.userMessage())
             } finally {
@@ -136,11 +149,11 @@ fun OnCallCard(scope: SettingsScope) {
         }
     }
 
-    SettingsCard(title = "On call", description = OnCall.ESCALATION) {
+    SettingsCard(title = t("settingsMore.onCallTitle"), description = OnCall.ESCALATION) {
         when {
             !loaded ->
                 Text(
-                    "Checking the rota…",
+                    t("settingsMore.onCallChecking"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -157,7 +170,7 @@ fun OnCallCard(scope: SettingsScope) {
                     )
                     if (canEdit) {
                         TextButton(onClick = { end(live.id) }, enabled = !busy) {
-                            Text("End shift")
+                            Text(t("settingsMore.onCallEndShift"))
                         }
                     }
                 }
@@ -190,7 +203,7 @@ fun OnCallCard(scope: SettingsScope) {
                     )
                     if (canEdit) {
                         TextButton(onClick = { end(shift.id) }, enabled = !busy) {
-                            Text("Remove")
+                            Text(t("settingsMore.remove"))
                         }
                     }
                 }
@@ -212,7 +225,7 @@ fun OnCallCard(scope: SettingsScope) {
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
         )
         Text(
-            "Put somebody on call",
+            t("settingsMore.onCallPut"),
             style = MaterialTheme.typography.labelMedium,
             modifier = Modifier.padding(bottom = 6.dp),
         )

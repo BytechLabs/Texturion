@@ -1,5 +1,6 @@
 package com.loonext.android.features.settings
 
+import com.loonext.android.core.i18n.AppStrings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -1124,7 +1125,7 @@ class CancellationOfferTest {
     fun `the offer is rendered after the button that leaves, never before it`() {
         val body = cancelCard()
         val note = body.indexOf("CancellationOfferNote(")
-        val confirm = body.indexOf("Continue to cancel")
+        val confirm = body.indexOf(ExitPath.EXIT_KEY)
         assertTrue("the cancel card must carry the offer at all", note > 0)
         assertTrue("the cancel card must still carry the button that leaves", confirm > 0)
         assertTrue(
@@ -1327,20 +1328,41 @@ class CancellationOfferTest {
      * What is true at exactly that boundary is about the HOLD, not about the
      * carrier.
      */
+    /**
+     * #228 moved this card's words into `SettingsStrings`, and the guard had to
+     * follow them there rather than stay pointed at a file that no longer holds
+     * a sentence.
+     *
+     * Reading the composable for the past tense would now pass on the empty set
+     * — the card contains keys — which is the decorative-guard failure this repo
+     * keeps re-learning. So the SOURCE is still checked for the wiring (the card
+     * must reach the hold copy at all), and the CLAIM is checked where the claim
+     * now lives: in both languages, because a French translator has the same
+     * opportunity to promise a release that the daily cron has not performed.
+     */
     @Test
     fun `the expired branch says the hold ended, not that the number is already gone`() {
         val card = readableCopy(composable("CanceledSubscriptionCard"))
-        assertFalse(
-            "the release runs on a daily cron, so the past tense is a claim the " +
-                "product has not necessarily carried out yet: $card",
-            Regex("(has|have|is|are) (gone back|been released|been given)")
-                .containsMatchIn(card),
-        )
         assertTrue(
             "the expired branch must still say the hold is over, or somebody reads " +
                 "a canceled card with nothing on it about their number",
-            card.contains("hold on your number"),
+            card.contains("settings.holdEnded"),
         )
+
+        val holdCopy = AppStrings.SECTIONS
+            .flatMap { section -> section.en.entries + section.frCA.entries }
+            .filter { it.key.startsWith("settings.hold") }
+        assertTrue("the hold sentences are not in the catalogue", holdCopy.size >= 8)
+        holdCopy.forEach { (key, sentence) ->
+            assertFalse(
+                "$key: the release runs on a daily cron, so the past tense is a claim " +
+                    "the product has not necessarily carried out yet: $sentence",
+                Regex(
+                    "(has|have|is|are) (gone back|been released|been given)|" +
+                        "(est|sont) (retourné|libéré|rendu)",
+                ).containsMatchIn(sentence),
+            )
+        }
     }
 
     // -- helpers -------------------------------------------------------------

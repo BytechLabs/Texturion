@@ -1,3 +1,9 @@
+"use client";
+
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
+import type { MessageKey, Translate } from "@/i18n/provider";
+import { makeTranslate, useT } from "@/i18n/provider";
 import type { ConversationStatus } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
@@ -19,15 +25,54 @@ const PILL_STYLES: Record<ConversationStatus, string> = {
   closed: "bg-secondary text-stone-600 dark:text-muted-foreground",
 };
 
-const PILL_LABELS: Record<ConversationStatus, string> = {
-  new: "New",
-  open: "Open",
-  waiting: "Waiting",
-  closed: "Closed",
+/** English, for a caller that cannot reach a provider. See `statusLabel`. */
+const EN = makeTranslate(DEFAULT_LOCALE);
+
+const PILL_LABEL_KEYS: Record<ConversationStatus, MessageKey> = {
+  new: "inbox.pillNew",
+  open: "inbox.pillOpen",
+  waiting: "inbox.pillWaiting",
+  closed: "inbox.pillClosed",
 };
 
-export function statusLabel(status: ConversationStatus): string {
-  return PILL_LABELS[status];
+/**
+ * The same four statuses as they read INSIDE a sentence — "Sam marked this
+ * waiting", the thread's system line.
+ *
+ * A separate map rather than `statusLabel(...).toLowerCase()`, which is a rule
+ * about English written into a helper: French does not lowercase the same way,
+ * and lowercasing translated copy is how a catalogue quietly grows a second
+ * source of truth.
+ */
+const PILL_SENTENCE_KEYS: Record<ConversationStatus, MessageKey> = {
+  new: "inbox.pillNewInSentence",
+  open: "inbox.pillOpenInSentence",
+  waiting: "inbox.pillWaitingInSentence",
+  closed: "inbox.pillClosedInSentence",
+};
+
+/**
+ * One status as a label.
+ *
+ * Returns the empty string for a status this build does not know — the callers
+ * pass an unsafe cast of an untrusted event payload, and an undefined label
+ * that reaches `.toLowerCase()` tears down a whole thread render.
+ */
+export function statusLabel(
+  status: ConversationStatus,
+  t: Translate = EN,
+): string {
+  const key = PILL_LABEL_KEYS[status] as MessageKey | undefined;
+  return key ? t(key) : "";
+}
+
+/** The same, for a status named in the middle of a sentence. */
+export function statusInSentence(
+  status: ConversationStatus,
+  t: Translate = EN,
+): string {
+  const key = PILL_SENTENCE_KEYS[status] as MessageKey | undefined;
+  return key ? t(key) : "";
 }
 
 export function StatusPill({
@@ -37,6 +82,7 @@ export function StatusPill({
   status: ConversationStatus;
   className?: string;
 }) {
+  const t = useT();
   return (
     <span
       className={cn(
@@ -45,7 +91,7 @@ export function StatusPill({
         className,
       )}
     >
-      {PILL_LABELS[status]}
+      {statusLabel(status, t)}
     </span>
   );
 }

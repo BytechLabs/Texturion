@@ -42,6 +42,36 @@ const SOURCES: Record<string, string> = {
  */
 const WEB_COPY = Object.values(inboxEn).join("\n");
 
+/**
+ * #228 moved ANDROID's sentences into a catalogue of `"key" to "value"` pairs,
+ * the same shape web's are in. Only iOS still writes them at the card.
+ */
+const ANDROID_CATALOGUE = join(
+  REPO_ROOT,
+  "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/InboxStrings.kt",
+);
+
+/**
+ * The Kotlin catalogue's VALUES.
+ *
+ * Keys stripped, for the reason recorded below for web: `inbox.satisfactionAsked`
+ * contains the fragment "Asked", so reading the file whole would let an
+ * identifier satisfy a copy check while the label beside it had been reworded.
+ * Comment lines go for the same reason.
+ */
+function kotlinCatalogueValues(text: string): string {
+  return text
+    .replace(/"inbox\.[A-Za-z0-9_]+"\s*to\s*/g, "")
+    .split("\n")
+    .filter((line) => {
+      const trimmed = line.trim();
+      return !trimmed.startsWith("//") && !trimmed.startsWith("*");
+    })
+    .join("\n");
+}
+
+const ANDROID_COPY = kotlinCatalogueValues(readFileSync(ANDROID_CATALOGUE, "utf8"));
+
 /** Sentences that live on the CARD in all three clients. */
 const CARD_FRAGMENTS: readonly string[] = [
   "out of 5, from ",
@@ -104,6 +134,7 @@ describe("#313 satisfaction copy is the same on every client", () => {
       expect(text.length, platform).toBeGreaterThan(1000);
     }
     expect(WEB_COPY.length).toBeGreaterThan(1000);
+    expect(ANDROID_COPY.length).toBeGreaterThan(1000);
   });
 
   it("carries every card sentence on every client, verbatim", () => {
@@ -126,11 +157,15 @@ describe("#313 satisfaction copy is the same on every client", () => {
       // Web is the shared module + the catalogue's values, and NOT its own
       // source: the card calls `t("inbox.satisfactionAsked")`, whose key
       // contains the fragment "Asked", so including the file made a reworded
-      // label match its own identifier. The phones keep their whole file.
+      // label match its own identifier. Android now reads the same way, off its
+      // own catalogue (#228); iOS keeps its whole file, because that is still
+      // where its strings are.
       const text =
         platform === "web"
           ? `${shared}\n${WEB_COPY}`
-          : codeOnly(SOURCES[platform]);
+          : platform === "android"
+            ? ANDROID_COPY
+            : codeOnly(SOURCES[platform]);
       for (const fragment of [...CARD_FRAGMENTS, ...GAP_FRAGMENTS]) {
         if (!text.includes(fragment)) missing.push(`${platform}: ${fragment}`);
       }

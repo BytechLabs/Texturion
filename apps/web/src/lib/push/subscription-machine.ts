@@ -15,6 +15,9 @@
  *          `caps` is the #170 CALLS-V3 §9.2 capability declaration)
  *   DELETE /v1/push-subscriptions/:id
  */
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 
 export type PushPermission = "default" | "granted" | "denied";
@@ -154,6 +157,13 @@ export interface PushMachine {
 export function createPushMachine(
   env: PushEnvironment,
   onChange: (snapshot: PushSnapshot) => void = () => {},
+  /**
+   * #228 — the two sentences this machine can put on screen, in the reader's
+   * language. Injected like everything else here rather than reached for, which
+   * is what keeps the whole flow a plain-function unit; the React binding in
+   * `use-push-subscription.ts` passes the member's own.
+   */
+  t: Translate = makeTranslate(DEFAULT_LOCALE),
 ): PushMachine {
   let state: PushSnapshot = {
     phase: env.supported ? "initializing" : "unsupported",
@@ -242,10 +252,7 @@ export function createPushMachine(
       set({
         phase: "idle",
         permission,
-        error: errorSentence(
-          cause,
-          "We couldn't turn on notifications. Try again in a moment.",
-        ),
+        error: errorSentence(cause, t("misc.pushTurnOnFailed")),
       });
     }
   }
@@ -271,10 +278,7 @@ export function createPushMachine(
     } catch (cause) {
       set({
         phase: "subscribed",
-        error: errorSentence(
-          cause,
-          "We couldn't turn off notifications. Try again in a moment.",
-        ),
+        error: errorSentence(cause, t("misc.pushTurnOffFailed")),
       });
     }
   }

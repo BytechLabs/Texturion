@@ -1,5 +1,6 @@
 package com.loonext.android.features.calls
 
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallOutcome
 import com.loonext.android.core.model.Member
@@ -263,12 +264,24 @@ fun ongoingPhase(call: Call): OngoingPhase = when (call.state) {
  * an answered call names who does; an answered call whose member cannot be
  * resolved still says the line is taken instead of naming no one.
  */
-fun ongoingStatusLabel(phase: OngoingPhase, memberName: String?): String = when (phase) {
-    OngoingPhase.RINGING -> "Ringing…"
-    OngoingPhase.DIALING -> "Calling…"
-    OngoingPhase.VOICEMAIL -> "Leaving a voicemail"
+fun ongoingStatusLabel(
+    phase: OngoingPhase,
+    memberName: String?,
+    // #228: last and defaulted, so the vectors that pin the English are
+    // untouched while the screen that knows the reader's language can pass it.
+    locale: String? = null,
+): String = when (phase) {
+    OngoingPhase.RINGING -> AppStrings.translate(locale, "contactsTasks.ringing")
+    OngoingPhase.DIALING -> AppStrings.translate(locale, "contactsTasks.phaseCalling")
+    OngoingPhase.VOICEMAIL ->
+        AppStrings.translate(locale, "contactsTasks.leavingVoicemail")
+
     OngoingPhase.ANSWERED ->
-        memberName?.takeIf { it.isNotBlank() }?.let { "With $it" } ?: "On the line"
+        memberName?.takeIf { it.isNotBlank() }
+            ?.let {
+                AppStrings.translate(locale, "contactsTasks.withMember", mapOf("who" to it))
+            }
+            ?: AppStrings.translate(locale, "contactsTasks.onTheLine")
 }
 
 /** Only an answered call has talk time to tick. */

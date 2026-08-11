@@ -1,40 +1,63 @@
 import { AuthError } from "@supabase/supabase-js";
 
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
+
 /**
  * Map Supabase Auth failures to G10 microcopy: what happened + what to do,
  * one sentence each, no jargon.
+ *
+ * #228: the sentences live in `i18n/sections/onboarding.ts`, and the lookup
+ * arrives as an argument rather than being reached for. Every caller is a
+ * `"use client"` screen with `useT()` already in hand — login, signup, reset,
+ * update-password, the OAuth buttons and the two Settings credential cards — so
+ * passing it costs a line and keeps this module free of React.
+ *
+ * The default exists for the callers that have not been handed a `t` yet and
+ * for a test calling this bare; it is English, which is what every reader saw
+ * before this existed. It is `makeTranslate(DEFAULT_LOCALE)` and not a
+ * catalogue read because two of these sentences are shown outside any provider.
+ *
+ * WHAT IS DELIBERATELY NOT TRANSLATED: `error.message`, Supabase's own text for
+ * a code this switch does not name. It is shown rather than replaced — a code
+ * we have never seen is a code we cannot write a sentence for, and a confident
+ * wrong sentence is worse than an English right one.
  */
-export function authErrorMessage(error: unknown): string {
+export function authErrorMessage(
+  error: unknown,
+  t: Translate = makeTranslate(DEFAULT_LOCALE),
+): string {
   if (error instanceof AuthError) {
     switch (error.code) {
       case "invalid_credentials":
-        return "That email or password isn't right. Try again.";
+        return t("onboarding.authInvalidCredentials");
       case "email_not_confirmed":
-        return "Confirm your email first. We sent you a link when you signed up.";
+        return t("onboarding.authEmailNotConfirmed");
       case "user_already_exists":
       case "email_exists":
-        return "You already have an account with this email. Log in instead.";
+        return t("onboarding.authEmailExists");
       case "weak_password":
-        return "That password is too easy to guess. Use at least 8 characters.";
+        return t("onboarding.authWeakPassword");
       case "same_password":
-        return "That's already your password. Pick a new one.";
+        return t("onboarding.authSamePassword");
       case "otp_expired":
-        return "That link has expired. Request a new one.";
+        return t("onboarding.authLinkExpired");
       case "over_request_rate_limit":
       case "over_email_send_rate_limit":
-        return "Too many attempts. Wait a minute and try again.";
+        return t("onboarding.authTooManyAttempts");
       case "user_not_found":
-        return "We couldn't find an account with that email.";
+        return t("onboarding.authUserNotFound");
       case "session_expired":
       case "refresh_token_not_found":
-        return "Your session ended. Log in again.";
+        return t("onboarding.authSessionEnded");
       case "captcha_failed":
-        return "We couldn't confirm you're human. Refresh the page and try again.";
+        return t("onboarding.authCaptchaFailed");
       default:
         break;
     }
     if (error.message) return error.message;
   }
   if (error instanceof Error && error.message) return error.message;
-  return "Something went wrong. Try again in a moment.";
+  return t("onboarding.authFailed");
 }

@@ -1,5 +1,7 @@
 package com.loonext.android.features.settings
 
+import androidx.compose.runtime.Composable
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.PhoneNumberSummary
 
 /**
@@ -17,11 +19,14 @@ import com.loonext.android.core.model.PhoneNumberSummary
  *
  * Same words as web and iOS, deliberately.
  */
+@Composable
 fun ringCeilingLine(number: PhoneNumberSummary): String? {
     val targets = number.ring_targets ?: return null
     val limit = number.ring_target_limit ?: return null
     if (targets <= limit) return null
-    return "$targets people could be rung by a call to this number, and one " +
-        "call rings $limit. Everyone still takes turns — a different $limit " +
-        "ring each time — but nobody is rung on every call."
+    return t(
+        "settingsMore.ringCeilingLine",
+        "targets" to "$targets",
+        "limit" to "$limit",
+    )
 }

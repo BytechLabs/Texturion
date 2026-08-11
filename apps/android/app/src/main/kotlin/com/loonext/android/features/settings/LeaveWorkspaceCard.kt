@@ -13,6 +13,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
@@ -44,37 +45,25 @@ fun LeaveWorkspaceCard(
     val coroutines = rememberCoroutineScope()
 
     SettingsCard(
-        title = "Leave this workspace",
-        description = "End your own access to this workspace. You can do this yourself — " +
-            "you don't need to ask an owner.",
+        title = t("settings.leaveTitle"),
+        description = t("settings.leaveIntro"),
     ) {
-        ReadOnlyLine("Your access ends straight away, on every device you're signed in on.")
-        ReadOnlyLine(
-            "Anything you were working on goes back to the team, so nothing is left " +
-                "pointing at someone who has gone.",
-        )
-        ReadOnlyLine(
-            "Messages you sent stay on the record under your name. Leaving doesn't " +
-                "erase your work, and isn't meant to.",
-        )
-        ReadOnlyLine("To come back, someone in the workspace has to invite you again.")
+        ReadOnlyLine(t("settings.leaveAccessEnds"))
+        ReadOnlyLine(t("settings.leaveWorkReturns"))
+        ReadOnlyLine(t("settings.leaveHistoryStays"))
+        ReadOnlyLine(t("settings.leaveComeBack"))
         InlineError(error)
         Spacer(Modifier.height(10.dp))
         OutlinedButton(onClick = { confirming = true }, enabled = !leaving) {
-            Text("Leave workspace")
+            Text(t("settings.leaveAction"))
         }
     }
 
     if (confirming) {
         AlertDialog(
             onDismissRequest = { if (!leaving) confirming = false },
-            title = { Text("Leave ${company.name}?") },
-            text = {
-                Text(
-                    "Your access ends now and your open work goes back to the team. " +
-                        "To come back, someone will need to invite you again.",
-                )
-            },
+            title = { Text(t("settings.leaveConfirmTitle", "workspace" to company.name)) },
+            text = { Text(t("settings.leaveConfirmBody")) },
             confirmButton = {
                 LinkButton(
                     onClick = {
@@ -94,13 +83,17 @@ fun LeaveWorkspaceCard(
                         }
                     },
                     enabled = !leaving,
-                ) { Text(if (leaving) "Leaving…" else "Leave workspace") }
+                ) {
+                    Text(
+                        if (leaving) t("settings.leavePending") else t("settings.leaveAction"),
+                    )
+                }
             },
             dismissButton = {
                 LinkButton(
                     onClick = { confirming = false },
                     enabled = !leaving,
-                ) { Text("Stay") }
+                ) { Text(t("settings.leaveStay")) }
             },
         )
     }

@@ -66,6 +66,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.loonext.android.AppGraph
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Task
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
@@ -333,9 +334,14 @@ private fun TaskMapContent(
                 // The quiet count line, web copy grammar: "N on the map · N
                 // without a location".
                 Text(
-                    buildString {
-                        append("${model.located} on the map")
-                        if (model.missing > 0) append(" · ${model.missing} without a location")
+                    if (model.missing > 0) {
+                        t(
+                            "contactsTasks.mapCountsWithMissing",
+                            "located" to "${model.located}",
+                            "missing" to "${model.missing}",
+                        )
+                    } else {
+                        t("contactsTasks.mapCounts", "located" to "${model.located}")
                     },
                     fontSize = 11.5.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -379,14 +385,20 @@ private fun TaskMapContent(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(
-                            "No located tasks yet.",
+                            t("contactsTasks.mapNoLocatedTasks"),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
-                            if (model.missing > 0) "${model.missing} without a location"
-                            else "Add an address to a contact and its tasks appear here.",
+                            if (model.missing > 0) {
+                                t(
+                                    "contactsTasks.mapMissingCount",
+                                    "missing" to "${model.missing}",
+                                )
+                            } else {
+                                t("contactsTasks.mapAddAnAddress")
+                            },
                             fontSize = 11.5.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 3.dp),
@@ -397,7 +409,7 @@ private fun TaskMapContent(
 
             PaperCircleButton(
                 icon = Icons.Outlined.MyLocation,
-                contentDescription = "My location",
+                contentDescription = t("contactsTasks.mapMyLocation"),
                 onClick = {
                     haptics.tap()
                     val granted = context.checkSelfPermission(
@@ -461,7 +473,8 @@ private fun PinPeekCard(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        single?.title ?: (group.contactName ?: "This location"),
+                        single?.title
+                            ?: (group.contactName ?: t("contactsTasks.mapThisLocation")),
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 2,
@@ -469,8 +482,14 @@ private fun PinPeekCard(
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     val subline =
-                        if (single != null) group.contactName
-                        else "${group.tasks.size} tasks here"
+                        if (single != null) {
+                            group.contactName
+                        } else {
+                            t(
+                                "contactsTasks.mapTasksHere",
+                                "count" to "${group.tasks.size}",
+                            )
+                        }
                     if (subline != null) {
                         Text(
                             subline,
@@ -491,7 +510,7 @@ private fun PinPeekCard(
                 ) {
                     Icon(
                         Icons.Outlined.Close,
-                        contentDescription = "Close",
+                        contentDescription = t("common.close"),
                         modifier = Modifier.size(15.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -509,7 +528,7 @@ private fun PinPeekCard(
                         },
                     ) {
                         Text(
-                            "Open task",
+                            t("contactsTasks.mapOpenTask"),
                             fontSize = 12.5.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary,
@@ -525,7 +544,7 @@ private fun PinPeekCard(
                         },
                     ) {
                         Text(
-                            "Directions",
+                            t("contactsTasks.mapDirections"),
                             fontSize = 12.5.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary,
@@ -563,7 +582,7 @@ private fun PinPeekCard(
                 }
                 if (group.tasks.size > 5) {
                     Text(
-                        "+${group.tasks.size - 5} more",
+                        t("contactsTasks.mapMore", "count" to "${group.tasks.size - 5}"),
                         fontSize = 11.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 15.dp, top = 2.dp, bottom = 10.dp),

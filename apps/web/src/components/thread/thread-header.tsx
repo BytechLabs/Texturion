@@ -79,12 +79,12 @@ import { cn } from "@/lib/utils";
 import {
   SnoozeDialog,
   SnoozeMenuItems,
-  snoozeReturnLabel,
+  deferralReturnLabel,
   toastSnoozed,
 } from "./snooze-menu";
 import {
   THREAD_CATEGORIES,
-  THREAD_CATEGORY_LABELS,
+  threadCategoryLabel,
   toggleThreadCategory,
   type ThreadFilter,
 } from "./thread-filter";
@@ -263,7 +263,7 @@ export function ThreadHeader({
               ? t("thread.reminderSetFailed")
               : t("thread.snoozeFailed"),
           ),
-        onSuccess: () => toastSnoozed(until, kind),
+        onSuccess: () => toastSnoozed(until, kind, t),
       },
     );
   };
@@ -489,9 +489,11 @@ export function ThreadHeader({
           className="tap-target mr-1 hidden shrink-0 items-center gap-1.5 rounded-full border border-app-line bg-app-ground px-2.5 py-1 text-[11.5px] font-semibold leading-none text-app-muted transition-colors duration-150 ease-out hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex"
         >
           <AlarmClock className="size-3.5" strokeWidth={1.75} aria-hidden />
-          {snoozeKind === "follow_up"
-            ? snoozeReturnLabel(snoozedUntil).replace("Back", "Chase")
-            : snoozeReturnLabel(snoozedUntil)}
+          {deferralReturnLabel(
+            snoozedUntil,
+            snoozeKind === "follow_up" ? "chase" : "back",
+            t,
+          )}
         </button>
       )}
 
@@ -656,7 +658,7 @@ export function ThreadHeader({
                       onFilterChange(toggleThreadCategory(filter, category))
                     }
                   >
-                    {THREAD_CATEGORY_LABELS[category]}
+                    {threadCategoryLabel(category, t)}
                   </DropdownMenuToggleItem>
                 ))}
                 <DropdownMenuSeparator />

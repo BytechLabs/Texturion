@@ -33,7 +33,7 @@ import { hasPaid, owesUsRegistration } from "../steps";
 import { useOnboardingState } from "../use-onboarding-state";
 import { setupHeadline } from "./headline";
 import {
-  PORT_CHECKLIST_COPY,
+  portChecklistCopy,
   resolvePortChecklistItem,
   type PortChecklistItem,
 } from "./port-item";
@@ -281,6 +281,7 @@ function PortRow({
   canAct: boolean;
 }) {
   const t = useT();
+  const copy = portChecklistCopy(t);
   const { port, phase } = item;
 
   if (phase === "needs_documents" || phase === "needs_submit") {
@@ -289,16 +290,16 @@ function PortRow({
         <p className="text-sm text-muted-foreground">
           {canAct
             ? phase === "needs_documents"
-              ? PORT_CHECKLIST_COPY.needsDocuments
-              : PORT_CHECKLIST_COPY.needsSubmit
-            : PORT_CHECKLIST_COPY.memberDocuments}
+              ? copy.needsDocuments
+              : copy.needsSubmit
+            : copy.memberDocuments}
         </p>
         {canAct ? (
           <Button asChild>
             <Link href="/settings/numbers">
               {phase === "needs_documents"
-                ? PORT_CHECKLIST_COPY.needsDocumentsCta
-                : PORT_CHECKLIST_COPY.needsSubmitCta}
+                ? copy.needsDocumentsCta
+                : copy.needsSubmitCta}
             </Link>
           </Button>
         ) : null}
@@ -335,7 +336,7 @@ function PortRow({
         ? PORT_STATE_COPY.numberSwitched
         : phase === "texting_delayed"
           ? PORT_STATE_COPY.messagingException
-          : `${PORT_STATE_COPY.submitted} ${PORT_CHECKLIST_COPY.inReviewWindow}`;
+          : `${PORT_STATE_COPY.submitted} ${copy.inReviewWindow}`;
   return (
     <div className="space-y-2">
       <p className="text-sm text-muted-foreground">{body}</p>
@@ -343,7 +344,7 @@ function PortRow({
         href="/settings/numbers"
         className="inline-block text-[13px] font-medium text-primary underline-offset-4 hover:underline"
       >
-        {PORT_CHECKLIST_COPY.trackLink}
+        {copy.trackLink}
       </Link>
     </div>
   );
@@ -565,7 +566,7 @@ function SettingUp() {
             : t("onboarding.settingUpTitle")}
         </h1>
         <p className="text-sm text-muted-foreground">
-          {setupHeadline({ numberReady, everyRowDone, aRowNeedsYou })}
+          {setupHeadline({ numberReady, everyRowDone, aRowNeedsYou }, t)}
         </p>
       </div>
 
@@ -580,7 +581,7 @@ function SettingUp() {
           <ChecklistRow
             status={numberStatus}
             order={0}
-            title={PORT_CHECKLIST_COPY.title}
+            title={portChecklistCopy(t).title}
           >
             <PortRow item={portItem} canAct={canActOnRegistration} />
           </ChecklistRow>

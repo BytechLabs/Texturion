@@ -19,6 +19,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useT } from "@/i18n/provider";
 import { apiFetch } from "@/lib/api/client";
 import type { NotificationPrefs, PushSubscriptionRow } from "@/lib/api/types";
 import { useCompanyId } from "@/lib/company/provider";
@@ -58,11 +59,18 @@ export interface PushSubscriptionState {
 }
 
 export function usePushSubscription(): PushSubscriptionState {
+  const t = useT();
   const companyId = useCompanyId();
   // The machine is created once; read the company through a ref so a
   // workspace switch never leaves stale headers in its callbacks.
   const companyIdRef = useRef(companyId);
   companyIdRef.current = companyId;
+  // #228: and the lookup through a ref for exactly the same reason. The machine
+  // outlives the render that built it, so a `t` captured by value would keep
+  // answering in the language the member had when this hook first mounted —
+  // which is the language they just changed away from.
+  const tRef = useRef(t);
+  tRef.current = t;
 
   // Always start at "initializing" so server render and client hydration
   // agree (pushSupported() differs between them); init() resolves the truth
@@ -88,9 +96,7 @@ export function usePushSubscription(): PushSubscriptionState {
             { companyId: companyIdRef.current },
           );
           if (!prefs.vapid_public_key) {
-            throw new Error(
-              "Notifications aren't configured yet. Try again later.",
-            );
+            throw new Error(tRef.current("misc.pushNotConfigured"));
           }
           return prefs.vapid_public_key;
         },
@@ -107,6 +113,7 @@ export function usePushSubscription(): PushSubscriptionState {
           }),
       },
       setSnapshot,
+      (key, vars) => tRef.current(key, vars),
     );
   }
 

@@ -169,6 +169,15 @@ export const appShellEn = {
   numbersLoading: "Loading numbers",
   numbersNoneYet:
     "No number yet. It's created automatically when your subscription starts.",
+  /*
+   * Why an extra number cannot be bought when there is no plan at all.
+   *
+   * The other reasons come back from `extraNumberBlockedReason` in
+   * @loonext/shared, which the phones hand-port and which no catalogue owns
+   * yet — so a French owner who hits one of THOSE still reads English. This
+   * one is ours and is translated; the rest move when the shared strings do.
+   */
+  numbersNoPlanYet: "No plan yet.",
   numbersExtraPaid:
     "An extra number is {price}/mo, billed to your subscription today. Your " +
     "monthly message allowance is shared across all your numbers — an extra " +
@@ -346,6 +355,19 @@ export const appShellEn = {
   billingManagePortal: "Manage payment & invoices",
   billingOpening: "Opening…",
   billingPortalFailed: "Couldn't open the billing portal. Try again.",
+  /*
+   * The four plan-card facts (settings/billing/plan-facts.ts). The figures are
+   * derived from PLAN_PRICING and interpolated; only the words are here.
+   *
+   * `planNumbersOne` / `planNumbersMany` are two keys rather than one with an
+   * "(s)": the catalogue has no plural rules on purpose (see catalog.ts), and
+   * French does not form a plural where English does anyway.
+   */
+  planIncluded: "Texting for your crew, bound by fair use",
+  planOverage: "Extra texts bill under fair use, up to a cap you control",
+  planSeats: "{count} team members",
+  planNumbersOne: "{count} phone number",
+  planNumbersMany: "{count} phone numbers",
   billingBadgeActive: "Active",
   billingBadgePaused: "Paused",
   billingBadgeChecking: "Checking…",
@@ -931,6 +953,94 @@ export const appShellEn = {
     "send on your behalf still wait for the customer's morning, whatever this " +
     "is set to.",
   workspaceNightOwnersOnly: "Only owners and admins can change this.",
+
+  /* ── Settings › History: one audit row as a sentence ──────────────────────
+     `lib/settings/audit-sentence.ts` builds these. The reader is usually not
+     technical and is often looking for the one line that explains something,
+     so a row reads as something that HAPPENED rather than as
+     `member.role_changed / member / 4f2a…`.
+
+     The sentence is assembled from pieces because the parts are separately
+     variable — who, which setting, how many people — and the pieces are keyed
+     rather than concatenated in code so a translator can place them. Loonext
+     is a product name and stays put; a ROLE name and a PLAN name arrive from
+     the server and are interpolated verbatim, because renaming somebody's
+     role in a log entry would make the log disagree with the screen it
+     describes. */
+
+  /** The filter dropdown's label for each action. */
+  auditActionInvited: "Invited someone",
+  auditActionInviteRevoked: "Cancelled an invite",
+  auditActionJoined: "Joined the workspace",
+  auditActionRoleChanged: "Changed a role",
+  auditActionDeactivated: "Removed a member",
+  auditActionReactivated: "Restored a member",
+  auditActionNumberAccess: "Changed number access",
+  auditActionSettings: "Changed settings",
+  auditActionPlan: "Changed the plan",
+  auditActionModule: "Changed an add-on",
+  auditActionContactsImported: "Imported contacts",
+  auditActionContactsExported: "Exported contacts",
+  auditActionContactsBulkDeleted: "Deleted contacts in bulk",
+
+  /** Who did it, when the row carries a person we cannot name. */
+  auditActorSomeone: "Someone",
+  /** …and the role, plan or count a row was written without. */
+  auditRoleFallback: "their role",
+  auditPlanFallback: "another plan",
+  auditCountFallback: "some",
+  auditEmailFallback: "someone",
+
+  /** The whole line, one per action. */
+  auditInvited: "{who} invited {email} as {role}",
+  auditInviteRevoked: "{who} cancelled an invite",
+  auditJoined: "{who} joined as {role}",
+  auditRoleChanged: "{who} changed a member from {before} to {after}",
+  auditDeactivated: "{who} removed a member from the workspace",
+  auditReactivated: "{who} restored a member",
+  auditNumberAccessChanged: "{who} {phrase}",
+  auditSettingsChanged: "{who} changed {what}",
+  auditPlanChanged: "{who} changed the plan to {plan}",
+  auditModuleChanged: "{who} changed an add-on",
+  auditContactsImported: "{who} imported {count} contacts",
+  auditContactsExported: "{who} exported {count} contacts",
+  auditContactsDeleted: "{who} deleted {count} contacts",
+  /** A row written by a newer server than this build still reads as something. */
+  auditUnknownAction: "{who} — {action}",
+
+  /** What changed about a number's access. */
+  auditAccessEveryone: "opened a number to everyone",
+  auditAccessRole: "limited a number to {role}s",
+  auditAccessRoleFallback: "a role",
+  auditAccessOnePerson: "limited a number to 1 person",
+  auditAccessPeople: "limited a number to {count} people",
+
+  /** Which settings moved, in words. */
+  auditSettingsFallback: "settings",
+  auditSettingName: "the workspace name",
+  auditSettingTimezone: "the timezone",
+  auditSettingBusinessHours: "business hours",
+  auditSettingAwayEnabled: "the away reply",
+  auditSettingAwayMessage: "the away message",
+  auditSettingMctbEnabled: "the missed-call text-back",
+  auditSettingMctbMessage: "the missed-call message",
+  auditSettingFirstMessageId: "first-message identification",
+  auditSettingQuietHours: "the night-texting confirmation",
+  auditSettingTagsLocked: "who can create tags",
+  auditSettingVoicemailGreeting: "the voicemail greeting",
+  auditSettingCallScreening: "call screening",
+  auditSettingCnam: "the caller ID",
+  auditSettingCallerIdLookup: "caller ID lookup",
+  auditSettingOverageCap: "the spending cap",
+  auditSettingEnrichAddress: "Lou's address pre-fill",
+  auditSettingEnrichDue: "Lou's due-date pre-fill",
+  auditSettingSuggestReplies: "Lou's reply drafts",
+  auditSettingTranscribeVoicemail: "voicemail transcripts",
+  auditSettingVoicemailIntake: "asking callers what the job is",
+  auditSettingCallWrapup: "dictating a wrap-up after a call",
+  auditSettingSummarizeThreads: "thread catch-ups",
+  /** Joining that list: "a, b and c". The comma-joined head, then the last. */
+  auditListAnd: "{items} and {last}",
 } as const;
 
 export const appShellFr: Translated<typeof appShellEn> = {
@@ -1078,6 +1188,7 @@ export const appShellFr: Translated<typeof appShellEn> = {
   numbersNoneYet:
     "Aucun numéro pour l'instant. Il est créé automatiquement au début de " +
     "votre abonnement.",
+  numbersNoPlanYet: "Aucun forfait pour l'instant.",
   numbersExtraPaid:
     "Un numéro supplémentaire coûte {price}/mois, facturé à votre abonnement " +
     "aujourd'hui. Votre quota mensuel de messages est partagé entre tous vos " +
@@ -1281,6 +1392,13 @@ export const appShellFr: Translated<typeof appShellEn> = {
   billingOpening: "Ouverture…",
   billingPortalFailed:
     "Impossible d'ouvrir le portail de facturation. Réessayez.",
+  planIncluded: "Textos pour votre équipe, selon un usage raisonnable",
+  planOverage:
+    "Les textos supplémentaires sont facturés selon un usage raisonnable, " +
+    "jusqu'à un plafond que vous fixez",
+  planSeats: "{count} membres d'équipe",
+  planNumbersOne: "{count} numéro de téléphone",
+  planNumbersMany: "{count} numéros de téléphone",
   billingBadgeActive: "Actif",
   billingBadgePaused: "En pause",
   billingBadgeChecking: "Vérification…",
@@ -1919,4 +2037,71 @@ export const appShellFr: Translated<typeof appShellEn> = {
     "que soit ce réglage.",
   workspaceNightOwnersOnly:
     "Seuls les propriétaires et les administrateurs peuvent modifier ceci.",
+
+  // ── Paramètres › Historique : une entrée du journal, en une phrase ────────
+  auditActionInvited: "A invité quelqu'un",
+  auditActionInviteRevoked: "A annulé une invitation",
+  auditActionJoined: "S'est joint à l'espace de travail",
+  auditActionRoleChanged: "A changé un rôle",
+  auditActionDeactivated: "A retiré un membre",
+  auditActionReactivated: "A réintégré un membre",
+  auditActionNumberAccess: "A modifié l'accès à un numéro",
+  auditActionSettings: "A modifié des paramètres",
+  auditActionPlan: "A changé le forfait",
+  auditActionModule: "A modifié une option",
+  auditActionContactsImported: "A importé des contacts",
+  auditActionContactsExported: "A exporté des contacts",
+  auditActionContactsBulkDeleted: "A supprimé des contacts en lot",
+
+  auditActorSomeone: "Quelqu'un",
+  auditRoleFallback: "son rôle",
+  auditPlanFallback: "un autre forfait",
+  auditCountFallback: "quelques",
+  auditEmailFallback: "quelqu'un",
+
+  auditInvited: "{who} a invité {email} à titre de {role}",
+  auditInviteRevoked: "{who} a annulé une invitation",
+  auditJoined: "{who} s'est joint à titre de {role}",
+  auditRoleChanged: "{who} a fait passer un membre de {before} à {after}",
+  auditDeactivated: "{who} a retiré un membre de l'espace de travail",
+  auditReactivated: "{who} a réintégré un membre",
+  auditNumberAccessChanged: "{who} {phrase}",
+  auditSettingsChanged: "{who} a modifié {what}",
+  auditPlanChanged: "{who} a changé le forfait pour {plan}",
+  auditModuleChanged: "{who} a modifié une option",
+  auditContactsImported: "{who} a importé {count} contacts",
+  auditContactsExported: "{who} a exporté {count} contacts",
+  auditContactsDeleted: "{who} a supprimé {count} contacts",
+  auditUnknownAction: "{who} — {action}",
+
+  auditAccessEveryone: "a ouvert un numéro à tout le monde",
+  auditAccessRole: "a limité un numéro aux {role}s",
+  auditAccessRoleFallback: "un rôle",
+  auditAccessOnePerson: "a limité un numéro à 1 personne",
+  auditAccessPeople: "a limité un numéro à {count} personnes",
+
+  auditSettingsFallback: "des paramètres",
+  auditSettingName: "le nom de l'espace de travail",
+  auditSettingTimezone: "le fuseau horaire",
+  auditSettingBusinessHours: "les heures d'ouverture",
+  auditSettingAwayEnabled: "la réponse d'absence",
+  auditSettingAwayMessage: "le message d'absence",
+  auditSettingMctbEnabled: "le texto après un appel manqué",
+  auditSettingMctbMessage: "le message d'appel manqué",
+  auditSettingFirstMessageId: "l'identification au premier message",
+  auditSettingQuietHours: "la confirmation des textos en soirée",
+  auditSettingTagsLocked: "qui peut créer des étiquettes",
+  auditSettingVoicemailGreeting: "le message d'accueil de la boîte vocale",
+  auditSettingCallScreening: "le filtrage des appels",
+  auditSettingCnam: "l'afficheur",
+  auditSettingCallerIdLookup: "la recherche d'afficheur",
+  auditSettingOverageCap: "le plafond de dépenses",
+  auditSettingEnrichAddress: "le préremplissage d'adresse de Lou",
+  auditSettingEnrichDue: "le préremplissage d'échéance de Lou",
+  auditSettingSuggestReplies: "les propositions de réponse de Lou",
+  auditSettingTranscribeVoicemail: "la transcription des messages vocaux",
+  auditSettingVoicemailIntake: "la question posée aux appelants sur le travail",
+  auditSettingCallWrapup: "la dictée d'un compte rendu après un appel",
+  auditSettingSummarizeThreads: "les rattrapages de conversation",
+  auditListAnd: "{items} et {last}",
 };

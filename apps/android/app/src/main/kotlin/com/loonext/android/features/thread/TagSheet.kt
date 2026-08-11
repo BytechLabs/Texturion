@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Tag
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.LoadState
@@ -85,7 +86,7 @@ internal fun TagManageSheet(
         // ANY viewport height (inert on tall screens).
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             Text(
-                "Tags",
+                t("thread.tags"),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
@@ -100,7 +101,7 @@ internal fun TagManageSheet(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    TextButton(onClick = { retryKey++ }) { Text("Try again") }
+                    TextButton(onClick = { retryKey++ }) { Text(t("common.retry")) }
                 }
 
                 is LoadState.Ready -> {
@@ -123,8 +124,8 @@ internal fun TagManageSheet(
                             onValueChange = { input = it.take(TAG_NAME_MAX) },
                             placeholder = {
                                 Text(
-                                    if (mayCreate) "Add or create a tag"
-                                    else "Find a tag",
+                                    if (mayCreate) t("thread.addOrCreateTag")
+                                    else t("thread.findTag"),
                                 )
                             },
                             singleLine = true,
@@ -139,7 +140,7 @@ internal fun TagManageSheet(
                                 input = ""
                             },
                         ) {
-                            Text(if (creating) "Create" else "Add")
+                            Text(if (creating) t("thread.create") else t("thread.add"))
                         }
                     }
 
@@ -158,14 +159,13 @@ internal fun TagManageSheet(
                             },
                             modifier = Modifier.padding(horizontal = 12.dp),
                         ) {
-                            Text("Did you mean \"${suggestion.tag.name}\"?")
+                            Text(t("thread.didYouMean", "name" to suggestion.tag.name))
                         }
                     }
 
                     if (blocked) {
                         Text(
-                            "No tag by that name. Ask an admin to add it — " +
-                                "this workspace keeps a set list.",
+                            t("thread.tagsLocked"),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -174,8 +174,8 @@ internal fun TagManageSheet(
 
                     if (current.value.isEmpty()) {
                         Text(
-                            if (mayCreate) "No tags yet. Create the first one above."
-                            else "No tags yet. An admin adds the first one.",
+                            if (mayCreate) t("thread.noTagsCreate")
+                            else t("thread.noTagsAdmin"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(20.dp),
@@ -211,7 +211,7 @@ internal fun TagManageSheet(
                             if (isAttached) {
                                 Icon(
                                     Icons.Filled.Check,
-                                    contentDescription = "Attached",
+                                    contentDescription = t("thread.attached"),
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(20.dp),
                                 )

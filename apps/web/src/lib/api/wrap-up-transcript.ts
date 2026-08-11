@@ -1,7 +1,9 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import { DEFAULT_LOCALE } from "@loonext/shared";
 
+import { makeTranslate, type Translate } from "@/i18n/provider";
 import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
@@ -75,29 +77,37 @@ export interface WrapUpTranscript {
  * always works — typing. "Something went wrong" would be the same sentence for
  * a workspace that switched the feature off, a month that ran out of budget,
  * and a model that fell over, and only one of those is worth trying again.
+ *
+ * #228: the sentences live in `i18n/sections/thread.ts` with the rest of the
+ * dictation control. The CEILING is interpolated rather than written into each
+ * translation — it mirrors the server's constant, and a French sentence
+ * carrying its own "2" would be the first thing to go stale when that moves.
  */
 export function wrapUpFailureMessage(
   reason: WrapUpFailureReason | undefined,
+  t: Translate = makeTranslate(DEFAULT_LOCALE),
 ): string {
   switch (reason) {
     case "too_long":
-      return `That recording was too long to write down. Keep a wrap-up under ${
-        WRAP_UP_MAX_SECONDS / 60
-      } minutes, or type it.`;
+      return t("thread.wrapUpTooLong", {
+        minutes: WRAP_UP_MAX_SECONDS / 60,
+      });
     case "disabled":
-      return "Dictation is turned off for this workspace. Type the note, or turn it back on in Settings, Lou.";
+      return t("thread.wrapUpDisabled");
     case "subscription_inactive":
-      // billing, not breakage — so it must not say "try again", which is not what fixes it. Same words everywhere Lou refuses for this reason (#581).
-      return "Lou is paused while the subscription is sorted out. An owner can fix that in Billing.";
+      // Billing, not breakage — so it must not say "try again", which is not
+      // what fixes it. The same KEY every feature Lou refuses for this reason
+      // reads, so the wording cannot drift between them (#581).
+      return t("thread.louPausedForBilling");
     case "over_cap":
-      return "This month's dictation is used up. It starts again next month — type the note for now.";
+      return t("thread.wrapUpOverCap");
     case "model_error":
     case "unavailable":
-      return "Couldn't reach Lou just now. Try again, or type the note.";
+      return t("thread.wrapUpUnreachable");
     case "unusable_output":
-      return "Nothing came back that could be read. Say it again, closer to the mic, or type it.";
+      return t("thread.wrapUpUnusable");
     default:
-      return "That didn't come back as words. Type the note instead.";
+      return t("thread.wrapUpFailed");
   }
 }
 

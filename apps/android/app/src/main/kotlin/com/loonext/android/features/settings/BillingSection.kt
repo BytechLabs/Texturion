@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.loonext.android.BuildConfig
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.BillingModule
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.NumberStatus
@@ -213,11 +214,10 @@ fun BillingSection(
     }
     if (canManage) {
         SettingsCard(
-            title = "Payment & invoices",
-            description = "Cards, receipts, and billing details live in the secure " +
-                "Stripe portal. It opens in your browser.",
+            title = t("settings.billingPortalTitle"),
+            description = t("settings.billingPortalIntro"),
         ) {
-            PortalButton(scope, label = "Manage payment & invoices")
+            PortalButton(scope, label = t("settings.billingPortalAction"))
         }
         if (company.subscriptionActive) {
             CancelCard(scope, company, onRefreshCompany, onOpenHelp, pause, onPauseChanged)
@@ -236,8 +236,8 @@ fun BillingSection(
             ReferralCardSection(scope)
         }
     } else {
-        SettingsCard(title = "Billing") {
-            ReadOnlyLine("Only owners and admins can change billing.")
+        SettingsCard(title = t("settings.billingTitle")) {
+            ReadOnlyLine(t("settings.billingReadOnly"))
         }
     }
 }
@@ -276,6 +276,8 @@ private fun PortalButton(
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
 
+    val openingLabel = t("settings.billingOpening")
+
     Column {
         val onClick: () -> Unit = {
             opening = true
@@ -293,11 +295,11 @@ private fun PortalButton(
         }
         if (solid) {
             Button(onClick = onClick, enabled = !opening) {
-                Text(if (opening) "Opening…" else label)
+                Text(if (opening) openingLabel else label)
             }
         } else {
             OutlinedButton(onClick = onClick, enabled = !opening) {
-                Text(if (opening) "Opening…" else label)
+                Text(if (opening) openingLabel else label)
             }
         }
         InlineError(error)
@@ -396,6 +398,20 @@ private fun CancelCard(
     val contacts = remember(scope.graph) {
         ContactMutations(scope.graph.api, BuildConfig.API_URL)
     }
+    val exportedMessage = t("settings.cancelContactsExported")
+    // Read as plain values, so the controls between this card opening and the
+    // button that leaves stay single-line EXPRESSIONS. A multi-line `if (…) {`
+    // in there is a conditional STATEMENT to `CancellationFlowTest`, which is
+    // the shape that once hid a second tap in front of the exit — the guard does
+    // not care that this particular one only picks a word, and it is right not
+    // to have to.
+    val exportingLabel = t("settings.cancelExporting")
+    val exportLabel = t("settings.cancelExportAction")
+    val openingLabel = t("settings.billingOpening")
+    // The exit's OWN key is deliberately NOT hoisted here with the others.
+    // `ExitPathGuard` scans from the card's first statement to wherever that key
+    // appears, so a copy up here would move the finish line to the top of the
+    // card and leave the guard reading four lines instead of the whole path.
     // The same save-as-file path the contacts list uses: a 50k-row CSV through
     // a share-sheet intent would blow the binder transaction limit.
     val exportLauncher = rememberLauncherForActivityResult(
@@ -411,7 +427,7 @@ private fun CancelCard(
                             stream.write(csvExportBytes(csv))
                         } ?: throw IllegalStateException("no stream")
                     }
-                    scope.showMessage("Contacts exported.")
+                    scope.showMessage(exportedMessage)
                 } catch (cause: Exception) {
                     scope.showMessage(cause.userMessage())
                 } finally {
@@ -421,7 +437,7 @@ private fun CancelCard(
         }
     }
 
-    SettingsCard(title = "Cancel") {
+    SettingsCard(title = t("settings.cancelTitle")) {
         if (!SettingsRoleGate.canCancelSubscription(scope.role)) {
             // The same three facts as the owner's version above, but never in
             // the second person, because none of it is theirs to do. "Cancel
@@ -429,21 +445,14 @@ private fun CancelCard(
             // makes a promise and withdraws it one line later, which reads as a
             // runaround rather than as information.
             ReadOnlyLine(
-                "Only the owner can cancel this plan. When they do, the plan runs to " +
-                    "the end of the billing period and nothing sends after that. The " +
-                    "number is held for $CANCELLATION_GRACE_DAYS days from the day they " +
-                    "cancel — not from that date — in case they change their mind. " +
-                    "After that it is released for good.",
+                t("settings.cancelOwnerOnly", "days" to CANCELLATION_GRACE_DAYS.toString()),
             )
             Spacer(Modifier.height(8.dp))
             // Said plainly rather than by omission. The portal an admin or a
             // bookkeeper can open is the card-update flow, which has no cancel
             // button in it, so being sent there to hunt for one is worse than
             // being told there is nothing to find.
-            ReadOnlyLine(
-                "The payment portal above is for cards and invoices and has no " +
-                    "cancellation on it, so this is not something to go looking for there.",
-            )
+            ReadOnlyLine(t("settings.cancelNotInPortal"))
             return@SettingsCard
         }
 
@@ -470,11 +479,7 @@ private fun CancelCard(
         // under a thumb. The paused reader's own sentence is under the button,
         // where everything the read decides on this card already lives.
         ReadOnlyLine(
-            "Cancel anytime. Your plan runs to the end of your billing period, and " +
-                "you can't send once it ends. Your number is held for " +
-                "$CANCELLATION_GRACE_DAYS days from the day you cancel — not from " +
-                "that date — in case you change your mind. After that it is released " +
-                "for good.",
+            t("settings.cancelConsequence", "days" to CANCELLATION_GRACE_DAYS.toString()),
         )
 
         // Spacing is what tells the four groups apart. A divider or an inner
@@ -486,10 +491,7 @@ private fun CancelCard(
         // muted paragraph in the same voice as the sentence above rather than a
         // heading with a caption under it. A title here would make the survey
         // the loudest thing on a card whose subject is leaving.
-        ReadOnlyLine(
-            "If you want to say why, it helps us fix it. Optional, and it changes " +
-                "nothing about cancelling.",
-        )
+        ReadOnlyLine(t("settings.cancelWhyAsk"))
         Spacer(Modifier.height(6.dp))
         // Announced as one group of six rather than as six unrelated tappable
         // lines: without the group and the role below, a screen reader never
@@ -532,13 +534,13 @@ private fun CancelCard(
             onValueChange = { detail = it.take(CANCELLATION_DETAIL_MAX) },
             enabled = !opening,
             minLines = 2,
-            label = { Text("Anything you want to tell us (optional)") },
+            label = { Text(t("settings.cancelDetailLabel")) },
             modifier = Modifier.fillMaxWidth(),
         )
         DetailCounter(detail.length)
 
         Spacer(Modifier.height(20.dp))
-        Text("Take your contacts with you", style = MaterialTheme.typography.titleSmall)
+        Text(t("settings.cancelExportHeading"), style = MaterialTheme.typography.titleSmall)
         // The columns are named, and named accurately, because this is a promise
         // made to somebody who is leaving and will not be back to check it.
         // GET /v1/contacts/export carries name, phone, tags, consent source and
@@ -546,9 +548,7 @@ private fun CancelCard(
         // would send somebody off with less than they were told they had, and no
         // way left to ask us about it.
         Text(
-            "Every contact in this workspace as a CSV: names, numbers, tags and when " +
-                "they opted in. Save it, send it, or open it in a spreadsheet. Yours " +
-                "either way.",
+            t("settings.cancelExportIntro"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -556,13 +556,10 @@ private fun CancelCard(
         OutlinedButton(
             onClick = { exportLauncher.launch("contacts.csv") },
             enabled = !exporting,
-        ) { Text(if (exporting) "Exporting…" else "Export contacts") }
+        ) { Text(if (exporting) exportingLabel else exportLabel) }
 
         Spacer(Modifier.height(20.dp))
-        ReadOnlyLine(
-            "Nothing above has to be filled in. This takes you to the secure Stripe " +
-                "portal either way, where you finish cancelling. It opens in your browser.",
-        )
+        ReadOnlyLine(t("settings.cancelHandoffNote"))
         Spacer(Modifier.height(8.dp))
         Button(
             // Enabled on the first frame the billing screen draws. `opening` is
@@ -597,7 +594,12 @@ private fun CancelCard(
                     }
                 }
             },
-        ) { Text(if (opening) "Opening…" else "Continue to cancel") }
+        // #228: the exit's label comes from the catalogue like every other word
+        // on this card. Its English is unchanged, which is what keeps
+        // `BillingPressTest` — which finds this control by the text it RENDERS —
+        // pressing the same button; the guards that read this file as SOURCE
+        // anchor on the key instead, see `ExitPathGuard.EXIT_KEY`.
+        ) { Text(if (opening) openingLabel else t("settings.cancelExitAction")) }
         InlineError(error)
         // #524: what the sentence at the top of this card cannot say, for the
         // one reader it would otherwise mislead.
@@ -700,6 +702,7 @@ private fun CancellationOfferNote(
     var pausePending by remember { mutableStateOf(false) }
     var pauseError by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val pausedMessage = t("settings.pausePaused")
 
     Spacer(Modifier.height(20.dp))
     Text(
@@ -794,7 +797,7 @@ private fun CancellationOfferNote(
                             ),
                         )
                         pausing = false
-                        scope.showMessage("Paused. Your number and your history are safe.")
+                        scope.showMessage(pausedMessage)
                     } catch (cause: Exception) {
                         pauseError = cause.userMessage()
                     } finally {
@@ -827,7 +830,7 @@ private fun DetailCounter(length: Int) {
     val remaining = CANCELLATION_DETAIL_MAX - length
     if (remaining >= CANCELLATION_DETAIL_COUNTDOWN_FROM) return
     Text(
-        "$remaining characters left.",
+        t("settings.cancelCharactersLeft", "count" to remaining.toString()),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = 4.dp),
@@ -881,6 +884,9 @@ private fun OffRampCard(scope: SettingsScope, company: CompanyView) {
     val coroutines = rememberCoroutineScope()
     val saved = company.offramp_message
     val trimmed = draft.trim()
+    val turnedOffMessage = t("settings.offRampTurnedOff")
+    val savedMessage = t("settings.offRampSaved")
+    val saveFailed = t("settings.offRampSaveFailed")
 
     fun save(message: String?) {
         if (busy) return
@@ -895,22 +901,20 @@ private fun OffRampCard(scope: SettingsScope, company: CompanyView) {
                     },
                 )
             }.onSuccess {
-                scope.showMessage(
-                    if (message == null) "Turned off." else "Saved. We'll send this once to each customer who texts you.",
-                )
-            }.onFailure { scope.showMessage("Couldn't save that. Try again.") }
+                scope.showMessage(if (message == null) turnedOffMessage else savedMessage)
+            }.onFailure { scope.showMessage(saveFailed) }
             busy = false
         }
     }
 
     Spacer(Modifier.height(10.dp))
-    SettingsCard(title = "Tell your customers where you went") {
+    SettingsCard(title = t("settings.offRampTitle")) {
         Text(
-            "Anyone who texts your old number gets this back, once each. " +
-                (releaseDate(company.canceled_at)?.let { "It stops on $it, when " }
-                    ?: "It stops when ") +
-                "the number goes back to the phone company. After that we can't " +
-                "answer it, and texts to it reach whoever gets it next.",
+            // Two whole sentences rather than a clause spliced mid-sentence: the
+            // date lands inside the subordinate clause, and French moves it.
+            releaseDate(company.canceled_at)?.let { date ->
+                t("settings.offRampIntroDated", "date" to date)
+            } ?: t("settings.offRampIntro"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -920,17 +924,19 @@ private fun OffRampCard(scope: SettingsScope, company: CompanyView) {
             onValueChange = { if (it.length <= OFFRAMP_MAX) draft = it },
             enabled = !busy,
             minLines = 3,
-            placeholder = {
-                Text("We've moved to (416) 555-0123 — call or text us there and we'll pick right up.")
-            },
+            placeholder = { Text(t("settings.offRampPlaceholder")) },
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(6.dp))
         Text(
             if (trimmed.isEmpty()) {
-                "Nothing is sent until you write something here."
+                t("settings.offRampEmpty")
             } else {
-                "${trimmed.length} of $OFFRAMP_MAX characters. Your words, sent as they are."
+                t(
+                    "settings.offRampCount",
+                    "count" to trimmed.length.toString(),
+                    "max" to OFFRAMP_MAX.toString(),
+                )
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -941,11 +947,11 @@ private fun OffRampCard(scope: SettingsScope, company: CompanyView) {
                 onClick = { save(trimmed) },
                 enabled = !busy && trimmed.isNotEmpty() && trimmed != saved.orEmpty(),
             ) {
-                Text(if (saved == null) "Start sending this" else "Save")
+                Text(if (saved == null) t("settings.offRampStart") else t("common.save"))
             }
             if (saved != null) {
                 TextButton(onClick = { draft = ""; save(null) }, enabled = !busy) {
-                    Text("Turn off")
+                    Text(t("settings.offRampTurnOff"))
                 }
             }
         }
@@ -996,17 +1002,21 @@ private fun MissedWhileOffNote(scope: SettingsScope, company: CompanyView) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
             Text(
                 if (data.count == 1) {
-                    "1 customer called while your number was off"
+                    t("settings.missedWhileOffOne")
                 } else {
-                    "${data.count} customers called while your number was off"
+                    t("settings.missedWhileOff", "count" to data.count.toString())
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
             )
             Spacer(Modifier.height(3.dp))
             Text(
-                "They heard that the number isn't taking calls." +
-                    (relativeDay(data.last_at)?.let { " The most recent was $it." } ?: ""),
+                // `relativeDay` still builds "today" / "on 12 July" in English —
+                // it is a DATE formatter, which this catalogue deliberately does
+                // not own. Named in the extraction report.
+                relativeDay(data.last_at)?.let { day ->
+                    t("settings.missedWhileOffNoteDated", "day" to day)
+                } ?: t("settings.missedWhileOffNote"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1018,12 +1028,10 @@ private fun MissedWhileOffNote(scope: SettingsScope, company: CompanyView) {
 private fun StatusNotices(scope: SettingsScope, company: CompanyView, canManage: Boolean) {
     val notice = when {
         company.subscription_status == SubscriptionStatus.PAST_DUE ->
-            "Your last payment didn't go through. Update your payment method to keep " +
-                "sending messages." to "Update payment method"
+            t("settings.noticePastDue") to t("settings.noticeUpdatePayment")
 
         company.subscription_status == SubscriptionStatus.UNPAID ->
-            "Sending is paused until your payment method is updated." to
-                "Update payment method"
+            t("settings.noticeUnpaid") to t("settings.noticeUpdatePayment")
 
         // The hold is counted from the day cancelling was REQUESTED, not from
         // the day texting stops — `canceled_at` comes off Stripe's own
@@ -1036,12 +1044,13 @@ private fun StatusNotices(scope: SettingsScope, company: CompanyView, canManage:
         // would be a guess. The anchor is named instead.
         company.subscriptionActive && company.cancel_at_period_end -> {
             val date = fullDate(company.current_period_end)
-            ("Your plan is set to cancel" +
-                (if (date != null) " on $date" else " at the end of this period") +
-                ". Texting stops then. Your number is held for " +
-                "$CANCELLATION_GRACE_DAYS days from the day you cancelled — not from " +
-                "the end of that period — so it can be released soon afterwards. You " +
-                "can undo this from the payment portal.") to "Keep my plan"
+            val days = CANCELLATION_GRACE_DAYS.toString()
+            val text = if (date != null) {
+                t("settings.noticeCancellingOn", "date" to date, "days" to days)
+            } else {
+                t("settings.noticeCancelling", "days" to days)
+            }
+            text to t("settings.noticeKeepMyPlan")
         }
 
         else -> null
@@ -1116,6 +1125,7 @@ private fun CanceledSubscriptionCard(
 
     val canceledAt = company.canceled_at
     val withinGrace = isWithinCancellationGrace(canceledAt)
+    val dismissFailed = t("settings.winbackDismissFailed")
 
     // Hidden the moment it is waved away, and re-shown if the write fails —
     // the control did nothing, so the screen must not pretend it did.
@@ -1166,19 +1176,17 @@ private fun CanceledSubscriptionCard(
     val releaseOn = releaseDate(canceledAt)
     val released = canceledAt != null && !withinGrace
 
-    SettingsCard(title = "Subscription") {
+    SettingsCard(title = t("settings.subscriptionTitle")) {
         Text(
             if (released) {
-                "Your subscription is canceled."
+                t("settings.subscriptionCanceled")
             } else {
                 // Receiving and sending are not the same thing here, and saying
                 // only the reassuring half would let somebody plan around a
                 // product they think is answering their customers.
                 // `runPreSendGates` requires an active subscription and answers
                 // 402 otherwise; inbound still lands.
-                "Your subscription is canceled. You can't send until you're back, " +
-                    "but your number is still taking messages and your history is " +
-                    "untouched."
+                t("settings.subscriptionCanceledInGrace")
             },
             style = MaterialTheme.typography.bodyMedium,
         )
@@ -1203,11 +1211,11 @@ private fun CanceledSubscriptionCard(
                         runCatching { scope.repo.dismissWinback(scope.companyId) }
                             .onFailure {
                                 wavedAway = false
-                                scope.showMessage("Couldn't save that. Try again.")
+                                scope.showMessage(dismissFailed)
                             }
                     }
                 },
-            ) { Text("No thanks") }
+            ) { Text(t("settings.winbackNoThanks")) }
         }
 
         Spacer(Modifier.height(if (offer != null) 14.dp else 10.dp))
@@ -1221,29 +1229,23 @@ private fun CanceledSubscriptionCard(
         // about the HOLD, not about the carrier, so that is what is said.
         Text(
             when {
-                released && releaseOn != null ->
-                    "The $CANCELLATION_GRACE_DAYS-day hold on your number ended on " +
-                        "$releaseOn. Resubscribing now sets you up with a new number " +
-                        "— your message history is still here."
+                released && releaseOn != null -> t(
+                    "settings.holdEndedOn",
+                    "days" to CANCELLATION_GRACE_DAYS.toString(),
+                    "date" to releaseOn,
+                )
 
-                released ->
-                    "The $CANCELLATION_GRACE_DAYS-day hold on your number has ended. " +
-                        "Resubscribing now sets you up with a new number — your " +
-                        "message history is still here."
+                released -> t(
+                    "settings.holdEnded",
+                    "days" to CANCELLATION_GRACE_DAYS.toString(),
+                )
 
-                releaseOn != null ->
-                    "We hold your number until $releaseOn. Resubscribe before then and " +
-                        "it comes back with everything in it; after that it goes back " +
-                        "to the phone company."
+                releaseOn != null -> t("settings.holdUntil", "date" to releaseOn)
 
                 // No readable `canceled_at` — a member without `billing.manage`
                 // is not sent one. The rule is still true, so state the rule
                 // rather than inventing a date for it.
-                else ->
-                    "We hold your number for $CANCELLATION_GRACE_DAYS days from the " +
-                        "day you cancel. Resubscribe before then and it comes back " +
-                        "with everything in it; after that it goes back to the phone " +
-                        "company."
+                else -> t("settings.holdRule", "days" to CANCELLATION_GRACE_DAYS.toString())
             },
             style = MaterialTheme.typography.bodyMedium,
         )
@@ -1261,7 +1263,13 @@ private fun CanceledSubscriptionCard(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Button(onClick = { resubscribe(currentPlan) }, enabled = opening == null) {
-                    Text(if (opening == currentPlan) "Opening…" else "Resubscribe")
+                    Text(
+                        if (opening == currentPlan) {
+                            t("settings.billingOpening")
+                        } else {
+                            t("settings.resubscribe")
+                        },
+                    )
                 }
                 // Never filled: the offer is the alternative, not the headline.
                 val label = offer?.actionLabel
@@ -1270,7 +1278,15 @@ private fun CanceledSubscriptionCard(
                         OutlinedButton(
                             onClick = { resubscribe("starter") },
                             enabled = opening == null,
-                        ) { Text(if (opening == "starter") "Opening…" else label) }
+                        ) {
+                            Text(
+                                if (opening == "starter") {
+                                    t("settings.billingOpening")
+                                } else {
+                                    label
+                                },
+                            )
+                        }
                     }
 
                     CancellationOfferAction.OpenHelp -> if (label != null && onOpenHelp != null) {
@@ -1330,9 +1346,9 @@ private fun PlanCard(
     // were on screen at once.
     val facts = planFacts(company.plan, company.billing_currency, company.country)
     if (facts == null) {
-        SettingsCard(title = "Plan") {
+        SettingsCard(title = t("settings.planTitle")) {
             Text(
-                "No plan yet. Finish setup on the web to pick one and get your number.",
+                t("settings.planNone"),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1355,20 +1371,21 @@ private fun PlanCard(
     val running = pause.isRunning
     val badge = planBadge(pause, company.subscriptionActive, company.cancel_at_period_end)
 
-    SettingsCard(title = "Plan") {
+    SettingsCard(title = t("settings.planTitle")) {
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text(
-                "${facts.name} · ${facts.price}",
+                t("settings.planNameAndPrice", "name" to facts.name, "price" to facts.price),
                 style = MaterialTheme.typography.titleLarge,
             )
             Spacer(Modifier.width(10.dp))
             when (badge) {
                 // Amber, not the positive green: the plan above is not what is
                 // being charged today, and the line under says what is.
-                PlanBadge.Paused -> StatusPill("Paused", PillTone.Warn)
-                PlanBadge.Active -> StatusPill("Active", PillTone.Positive)
+                PlanBadge.Paused -> StatusPill(t("settings.planPillPaused"), PillTone.Warn)
+                PlanBadge.Active -> StatusPill(t("settings.planPillActive"), PillTone.Positive)
                 // Says only that we are asking, which is all that is true yet.
-                PlanBadge.Checking -> StatusPill("Checking…", PillTone.Neutral)
+                PlanBadge.Checking ->
+                    StatusPill(t("settings.planPillChecking"), PillTone.Neutral)
                 null -> Unit
             }
         }
@@ -1387,7 +1404,9 @@ private fun PlanCard(
             // pill — the only thing that CLAIMS a state — is already withheld.
             planAllowanceLines(facts).forEach { line ->
                 Text(
-                    "· $line",
+                    // The bullet only; `line` itself is `planAllowanceLines`', in
+                    // SettingsLogic.kt, and still English — see the report.
+                    t("settings.planAllowanceLine", "line" to line),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 1.dp),
@@ -1395,7 +1414,7 @@ private fun PlanCard(
             }
             Spacer(Modifier.height(6.dp))
             LinkButton(onClick = { openExternal(context, FAIR_USE_URL) }) {
-                Text("Allowances reflect fair use. See the policy")
+                Text(t("settings.planFairUse"))
             }
         }
         // #523: WHICH LINE IS DOWN, AND WHY — directly under the allowance it is
@@ -1439,7 +1458,7 @@ private fun PlanCard(
                 // of the two routes out of this state. A louder button here would
                 // out-rank it.
                 onOpenNumbers?.let { open ->
-                    LinkButton(onClick = open) { Text("Open your numbers") }
+                    LinkButton(onClick = open) { Text(t("settings.planOpenNumbers")) }
                 }
             }
         }
@@ -1448,11 +1467,11 @@ private fun PlanCard(
         // above already says so and narrating a request is not information.
         planStateUnknownNote(pause)?.let { note ->
             ReadOnlyLine(note)
-            LinkButton(onClick = onRetryPause) { Text("Try again") }
+            LinkButton(onClick = onRetryPause) { Text(t("common.retry")) }
         }
         fullDate(company.current_period_end)?.let { date ->
             Text(
-                "Current period ends $date.",
+                t("settings.planPeriodEnds", "date" to date),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1500,6 +1519,7 @@ private fun PausedPlanNote(
     var pending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val resumedMessage = t("settings.pauseResumed")
 
     Text(copy.heading, style = MaterialTheme.typography.titleSmall)
     Spacer(Modifier.height(4.dp))
@@ -1510,7 +1530,7 @@ private fun PausedPlanNote(
     )
     fullDate(answer?.paused_at)?.let { since ->
         Text(
-            "Paused since $since.",
+            t("settings.pausedSince", "date" to since),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
@@ -1546,7 +1566,7 @@ private fun PausedPlanNote(
                             ),
                         )
                         confirming = false
-                        scope.showMessage("You're back. Texting and calls work again.")
+                        scope.showMessage(resumedMessage)
                     } catch (cause: Exception) {
                         error = cause.userMessage()
                     } finally {
@@ -1568,7 +1588,15 @@ private fun ChangePlanControl(
     OutlinedButton(
         onClick = { open = true },
         modifier = Modifier.padding(top = 10.dp),
-    ) { Text(if (company.plan == "pro") "Switch to Starter" else "Upgrade to Pro") }
+    ) {
+        Text(
+            if (company.plan == "pro") {
+                t("settings.planSwitchToStarter")
+            } else {
+                t("settings.planUpgradeToPro")
+            },
+        )
+    }
 
     if (open) {
         ChangePlanDialog(
@@ -1641,14 +1669,21 @@ private fun ChangePlanDialog(
     val downgradeBlocked = !upgrading && (!numbersOk || !seatsOk || membersFailed)
 
     ConfirmDialog(
-        title = if (upgrading) "Upgrade to Pro?" else "Switch to Starter?",
-        body = if (upgrading) {
-            "The upgrade happens right away. You're charged the prorated difference " +
-                "for the rest of this period, and your allowances go up immediately."
+        title = if (upgrading) {
+            t("settings.changePlanUpgradeTitle")
         } else {
-            "Starter is smaller, so your workspace has to fit it first."
+            t("settings.changePlanDowngradeTitle")
         },
-        confirmLabel = if (upgrading) "Upgrade now" else "Schedule the switch",
+        body = if (upgrading) {
+            t("settings.changePlanUpgradeBody")
+        } else {
+            t("settings.changePlanDowngradeBody")
+        },
+        confirmLabel = if (upgrading) {
+            t("settings.changePlanUpgradeAction")
+        } else {
+            t("settings.changePlanDowngradeAction")
+        },
         // #583: and never while a prepaid year is running and unacknowledged.
         confirmEnabled = !downgradeBlocked && (prepaid == null || endPrepaid),
         pending = pending,
@@ -1686,32 +1721,58 @@ private fun ChangePlanDialog(
                 onAcknowledgedChange = { endPrepaid = it },
             )
             if (!upgrading) {
-                val numbersLabel =
-                    "$STARTER_NUMBERS phone number" + if (STARTER_NUMBERS == 1) "" else "s"
+                val numbers = STARTER_NUMBERS.toString()
+                val seats = STARTER_SEATS.toString()
                 Spacer(Modifier.height(10.dp))
+                // The tick or cross rides INSIDE the catalogue string. Held
+                // outside it, the mark and the sentence are two fragments and a
+                // translator sees neither whole.
                 Text(
-                    (if (numbersOk) "✓" else "✗") +
-                        if (numbersOk) " $numbersLabel. You're set."
-                        else " Starter includes $numbersLabel; you have $activeNumbers. " +
-                            "Release under Settings › Numbers first.",
+                    when {
+                        // STARTER_NUMBERS is 1 today, and the sentence it used to
+                        // build said "1 phone number" — the `+ "s"` was there for
+                        // a reason. A single {numbers} string would print "1
+                        // phone numbers" the moment it shipped.
+                        numbersOk && STARTER_NUMBERS == 1 ->
+                            t("settings.downgradeNumbersOkOne")
+
+                        numbersOk -> t("settings.downgradeNumbersOk", "numbers" to numbers)
+
+                        STARTER_NUMBERS == 1 -> t(
+                            "settings.downgradeNumbersBlockedOne",
+                            "have" to activeNumbers.toString(),
+                        )
+
+                        else -> t(
+                            "settings.downgradeNumbersBlocked",
+                            "numbers" to numbers,
+                            "have" to activeNumbers.toString(),
+                        )
+                    },
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Text(
                     when {
-                        membersFailed -> "✗ Couldn't check your member count. Try again."
-                        activeMembers == null -> "Checking your member count…"
-                        seatsOk -> "✓ Up to $STARTER_SEATS members; you have $activeMembers."
-                        else -> "✗ Starter includes $STARTER_SEATS members; you have " +
-                            "$activeMembers active. Deactivate " +
-                            "${activeMembers!! - STARTER_SEATS} under Settings › Team " +
-                            "first."
+                        membersFailed -> t("settings.downgradeSeatsUnknown")
+                        activeMembers == null -> t("settings.downgradeSeatsChecking")
+                        seatsOk -> t(
+                            "settings.downgradeSeatsOk",
+                            "seats" to seats,
+                            "have" to activeMembers.toString(),
+                        )
+
+                        else -> t(
+                            "settings.downgradeSeatsBlocked",
+                            "seats" to seats,
+                            "have" to activeMembers.toString(),
+                            "excess" to (activeMembers!! - STARTER_SEATS).toString(),
+                        )
                     },
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "The change happens at the end of your current period. You keep Pro " +
-                        "until then, and nothing is refunded mid-period.",
+                    t("settings.downgradeTiming"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1771,18 +1832,18 @@ private fun ColumnScope.PrepaidYearPanel(
     )
     Spacer(Modifier.height(4.dp))
     Text(
-        "Paid up front: ${formatMoney(open.amount_cents, paid)}",
+        t("settings.prepaidPaidUpFront", "amount" to formatMoney(open.amount_cents, paid)),
         style = MaterialTheme.typography.bodySmall,
     )
     open.conversion?.let {
         Text(
-            "Months used: ${it.consumed_months} of 12",
+            t("settings.prepaidMonthsUsed", "months" to it.consumed_months.toString()),
             style = MaterialTheme.typography.bodySmall,
         )
     }
     if (credit != null) {
         Text(
-            "Back on your account: $credit",
+            t("settings.prepaidCredit", "amount" to credit),
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Medium,
         )
@@ -1829,12 +1890,18 @@ private fun ModulesCard(scope: SettingsScope) {
             val modules = current.value
             if (modules.isEmpty()) return
             SettingsCard(
-                title = "Add-ons",
-                description = "Optional extras billed with your plan.",
+                title = t("settings.modulesTitle"),
+                description = t("settings.modulesIntro"),
             ) {
                 modules.forEach { module ->
                     LabeledSwitchRow(
-                        label = "${module.label} · ${formatMonthlyCents(module.monthly_cents)}/mo",
+                        // `module.label` and `module.blurb` are the SERVER's —
+                        // the add-on catalogue is data, not copy in this app.
+                        label = t(
+                            "settings.moduleRow",
+                            "name" to module.label,
+                            "price" to formatMonthlyCents(module.monthly_cents),
+                        ),
                         supporting = module.blurb,
                         checked = module.enabled,
                         onCheckedChange = {
@@ -1851,17 +1918,27 @@ private fun ModulesCard(scope: SettingsScope) {
     val module = confirming
     if (module != null) {
         val enabling = !module.enabled
+        val addedMessage = t("settings.moduleAdded", "name" to module.label)
+        val removedMessage = t("settings.moduleRemoved", "name" to module.label)
         ConfirmDialog(
-            title = if (enabling) "Add ${module.label}?" else "Remove ${module.label}?",
-            body = if (enabling) {
-                "${formatMonthlyCents(module.monthly_cents)}/mo is added to your plan. " +
-                    "You're charged a prorated amount for the rest of this period today, " +
-                    "then the full price each month."
+            title = if (enabling) {
+                t("settings.moduleAddTitle", "name" to module.label)
             } else {
-                "${module.label} comes off your plan now, with a prorated credit for " +
-                    "the unused part of this period on your next invoice."
+                t("settings.moduleRemoveTitle", "name" to module.label)
             },
-            confirmLabel = if (enabling) "Add it" else "Remove it",
+            body = if (enabling) {
+                t(
+                    "settings.moduleAddBody",
+                    "price" to formatMonthlyCents(module.monthly_cents),
+                )
+            } else {
+                t("settings.moduleRemoveBody", "name" to module.label)
+            },
+            confirmLabel = if (enabling) {
+                t("settings.moduleAddAction")
+            } else {
+                t("settings.moduleRemoveAction")
+            },
             pending = pending,
             error = dialogError,
             onDismiss = { confirming = null },
@@ -1872,9 +1949,7 @@ private fun ModulesCard(scope: SettingsScope) {
                     try {
                         scope.repo.setModule(scope.companyId, module.id, enabling)
                         confirming = null
-                        scope.showMessage(
-                            if (enabling) "${module.label} added." else "${module.label} removed.",
-                        )
+                        scope.showMessage(if (enabling) addedMessage else removedMessage)
                         refreshKey++
                     } catch (cause: Exception) {
                         dialogError = cause.userMessage()

@@ -43,6 +43,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.NumberAccessExplanation
 import com.loonext.android.core.model.numberAccessLevelLabel
 import com.loonext.android.core.model.numberAccessReason
@@ -219,10 +222,9 @@ fun NumbersSection(
                     number.status == NumberStatus.SUSPENDED
             }
             if (cards.isEmpty() && company.plan == null) {
-                SettingsCard(title = "Your number") {
+                SettingsCard(title = t("settingsMore.yourNumber")) {
                     Text(
-                        "No number yet. It's created automatically when your " +
-                            "subscription starts.",
+                        t("settingsMore.noNumberYet"),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -269,6 +271,7 @@ private fun NumberCard(
     onChanged: () -> Unit,
 ) {
     val context = LocalContext.current
+    val locale = LocalAppLocale.current
     val haptics = rememberHaptics()
     val canManage = SettingsRoleGate.canManageNumbers(scope.role)
     val canRelease = SettingsRoleGate.canReleaseNumber(scope.role)
@@ -285,9 +288,10 @@ private fun NumberCard(
     var choosing by remember { mutableStateOf(false) }
 
     val display = number.number_e164?.let(::formatPhone)
-        ?: number.requested_area_code?.let { "Area code $it" }
-        ?: "Your number"
+        ?: number.requested_area_code?.let { t("settingsMore.areaCodeIs", "areaCode" to it) }
+        ?: t("settingsMore.yourNumber")
 
+    val clipLabel = t("settingsMore.phoneNumberClipLabel")
     SettingsCard(title = display) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             NumberStatusPill(number)
@@ -295,9 +299,9 @@ private fun NumberCard(
             number.source?.let { source ->
                 Text(
                     when (source) {
-                        "ported" -> "Transferred in"
-                        "hosted" -> "Text-enabled landline"
-                        else -> "Loonext number"
+                        "ported" -> t("settingsMore.sourcePorted")
+                        "hosted" -> t("settingsMore.sourceHosted")
+                        else -> t("settingsMore.sourceLoonext")
                     },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -308,12 +312,14 @@ private fun NumberCard(
             if (e164 != null && !released) {
                 IconButton(onClick = {
                     haptics.tap()
-                    copyToClipboard(context, "Phone number", e164)
-                    scope.showMessage("Number copied.")
+                    copyToClipboard(context, clipLabel, e164)
+                    scope.showMessage(
+                        AppStrings.translate(locale, "settingsMore.numberCopied"),
+                    )
                 }) {
                     Icon(
                         Icons.Filled.ContentCopy,
-                        contentDescription = "Copy number",
+                        contentDescription = t("settingsMore.copyNumber"),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -331,7 +337,7 @@ private fun NumberCard(
                 )
                 number.released_at?.let { at ->
                     Text(
-                        "Released ${relativeTime(at)} ago.",
+                        t("settingsMore.releasedAgo", "ago" to relativeTime(at)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -344,7 +350,7 @@ private fun NumberCard(
             // a thin sample is how a false alarm becomes a cancellation.
             number.status == NumberStatus.ACTIVE && number.health != null -> {
                 Text(
-                    "Messages from this number aren't arriving reliably",
+                    t("settingsMore.numberUnreliable"),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
@@ -402,7 +408,7 @@ private fun NumberCard(
                     OutlinedButton(
                         onClick = { choosing = true },
                         modifier = Modifier.padding(top = 8.dp),
-                    ) { Text("Choose a number") }
+                    ) { Text(t("settingsMore.chooseNumber")) }
                 }
             }
         }
@@ -435,22 +441,22 @@ private fun NumberCard(
                     // same kind of question about one number, and a second
                     // number is a second business.
                     LinkButton(onClick = { managingIdentity = true }) {
-                        Text("How this line answers")
+                        Text(t("settingsMore.numberIdentityTitle"))
                     }
                     // #307: a SECOND entry rather than more rows in the first
                     // dialog — when the line is open is a different question,
                     // asked at a different time.
                     LinkButton(onClick = { managingHours = true }) {
-                        Text("When this line is open")
+                        Text(t("settingsMore.numberHoursTitle"))
                     }
                     LinkButton(onClick = { managingAccess = true }) {
-                        Text("Who can use this number")
+                        Text(t("settingsMore.whoCanUse"))
                     }
                 }
                 if (releasable && canRelease) {
                     LinkButton(onClick = { releasing = true }) {
                         Text(
-                            "Release",
+                            t("settingsMore.release"),
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
@@ -461,7 +467,7 @@ private fun NumberCard(
         // already named who can act on it, and a second sentence saying the same
         // thing a different way reads as a runaround.
         if (configurable && !canManage) {
-            ReadOnlyLine("Only owners and admins can manage numbers.")
+            ReadOnlyLine(t("settingsMore.onlyAdminsManageNumbers"))
         }
     }
 
@@ -521,17 +527,19 @@ private fun NumberCard(
 @Composable
 private fun NumberStatusPill(number: PhoneNumberSummary) {
     when (number.status) {
-        NumberStatus.ACTIVE -> StatusPill("Active", PillTone.Positive)
-        NumberStatus.PROVISIONING -> StatusPill("Setting up", PillTone.Warn)
-        NumberStatus.SUSPENDED -> StatusPill("Suspended", PillTone.Warn)
-        NumberStatus.RELEASED -> StatusPill("Released", PillTone.Neutral)
+        NumberStatus.ACTIVE -> StatusPill(t("settingsMore.statusActive"), PillTone.Positive)
+        NumberStatus.PROVISIONING ->
+            StatusPill(t("settingsMore.statusSettingUp"), PillTone.Warn)
+
+        NumberStatus.SUSPENDED -> StatusPill(t("settingsMore.statusSuspended"), PillTone.Warn)
+        NumberStatus.RELEASED -> StatusPill(t("settingsMore.statusReleased"), PillTone.Neutral)
         NumberStatus.PROVISION_FAILED ->
             if (!needsNumberChoice(number)) {
-                StatusPill("Setting up", PillTone.Warn)
+                StatusPill(t("settingsMore.statusSettingUp"), PillTone.Warn)
             } else if (number.failure_reason == "timeout") {
-                StatusPill("Action needed", PillTone.Warn)
+                StatusPill(t("settingsMore.statusActionNeeded"), PillTone.Warn)
             } else {
-                StatusPill("Couldn't set up", PillTone.Bad)
+                StatusPill(t("settingsMore.statusFailed"), PillTone.Bad)
             }
 
         else -> StatusPill(number.status, PillTone.Neutral)
@@ -569,6 +577,7 @@ private fun ReleaseNumberDialog(
     onReleased: () -> Unit,
 ) {
     val display = formatPhone(number.number_e164)
+    val locale = LocalAppLocale.current
     var typed by remember { mutableStateOf("") }
     var pending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -600,7 +609,11 @@ private fun ReleaseNumberDialog(
             // in one of our own request bodies.
             val request = HandoverProof(
                 action = "release_number",
-                label = "$display released.",
+                label = AppStrings.translate(
+                    locale,
+                    "settingsMore.numberReleased",
+                    mapOf("number" to display),
+                ),
                 kind = proof?.kind ?: HandoverConfirmation.Kind.EMAIL,
             ) { digits -> scope.repo.releaseNumber(scope.companyId, number.id, digits) }
             when (val outcome = attemptHandover(scope, request, code, proof != null)) {
@@ -626,14 +639,14 @@ private fun ReleaseNumberDialog(
     }
 
     ConfirmDialog(
-        title = "Release $display?",
+        title = t("settingsMore.releaseTitle", "number" to display),
         body = releaseNumberBody(heldOverAllowance),
-        confirmLabel = "Release number",
+        confirmLabel = t("settingsMore.releaseConfirm"),
         destructive = true,
         pending = pending,
         error = error,
         confirmEnabled = matches,
-        dismissLabel = "Keep the number",
+        dismissLabel = t("settingsMore.keepNumber"),
         onDismiss = onDismiss,
         onConfirm = {
             haptics.reject()
@@ -648,7 +661,7 @@ private fun ReleaseNumberDialog(
                     .padding(top = 10.dp),
                 singleLine = true,
                 enabled = !pending,
-                label = { Text("Type $display to confirm") },
+                label = { Text(t("settingsMore.typeToConfirm", "number" to display)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
             )
         },
@@ -667,7 +680,9 @@ private fun ReleaseNumberDialog(
                         scope.repo.requestHandoverCode(scope.companyId, pendingProof.action)
                     }
                     // Said either way. Whether an address exists is not ours to leak.
-                    scope.showMessage("Sent. Check your email.")
+                    scope.showMessage(
+                        AppStrings.translate(locale, "settingsMore.codeSent"),
+                    )
                 }
             },
             onDismiss = {
@@ -699,6 +714,7 @@ private fun NumberAccessDialog(
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    val locale = LocalAppLocale.current
 
     LaunchedEffect(number.id, retryKey) {
         loaded = LoadState.Loading
@@ -722,17 +738,17 @@ private fun NumberAccessDialog(
         }
     }
 
-    val display = number.number_e164?.let(::formatPhone) ?: "this number"
+    val display = number.number_e164?.let(::formatPhone) ?: t("settingsMore.thisNumber")
 
     AlertDialog(
         onDismissRequest = { if (!pending) onDismiss() },
-        title = { Text("Who can use $display?") },
+        title = { Text(t("settingsMore.whoCanUseNumber", "number" to display)) },
         text = {
             // #180: option rows stay reachable at any viewport height; the
             // member list keeps its own bounded scroll inside.
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
-                    "Owners and admins can always use every number.",
+                    t("settingsMore.adminsAlwaysUse"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -748,7 +764,7 @@ private fun NumberAccessDialog(
                         OutlinedButton(
                             onClick = { retryKey++ },
                             modifier = Modifier.padding(top = 8.dp),
-                        ) { Text("Try again") }
+                        ) { Text(t("common.retry")) }
                     }
 
                     is LoadState.Ready -> {
@@ -762,12 +778,12 @@ private fun NumberAccessDialog(
                             Spacer(Modifier.height(8.dp))
                             if (members.isEmpty()) {
                                 Text(
-                                    "No active members to pick. Everyone else on the " +
-                                        "team is an owner or admin.",
+                                    t("settingsMore.noMembersToPick"),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             } else {
+                                val teammate = t("settingsMore.teammate")
                                 LazyColumn(Modifier.heightIn(max = 180.dp)) {
                                     items(members, key = { it.id }) { member ->
                                         val checked = member.user_id in pickedUserIds
@@ -789,7 +805,7 @@ private fun NumberAccessDialog(
                                             Checkbox(checked = checked, onCheckedChange = null)
                                             Spacer(Modifier.width(8.dp))
                                             Text(
-                                                member.display_name.ifBlank { "Teammate" },
+                                                member.display_name.ifBlank { teammate },
                                                 style = MaterialTheme.typography.bodyMedium,
                                             )
                                         }
@@ -797,8 +813,8 @@ private fun NumberAccessDialog(
                                 }
                                 Spacer(Modifier.height(6.dp))
                                 listOf(
-                                    NumberAccessLevel.TEXT to "Can text",
-                                    NumberAccessLevel.NOTE to "View & notes only",
+                                    NumberAccessLevel.TEXT to t("settingsMore.levelText"),
+                                    NumberAccessLevel.NOTE to t("settingsMore.levelNote"),
                                 ).forEach { (value, label) ->
                                     Row(
                                         Modifier
@@ -832,7 +848,7 @@ private fun NumberAccessDialog(
                     // Stale/deactivated selections are silently dropped (web parity).
                     val picked = pickedUserIds.intersect(activeMemberIds).toList()
                     if (mode == AccessMode.Users && picked.isEmpty()) {
-                        error = "Pick at least one person, or choose Everyone."
+                        error = AppStrings.translate(locale, "settingsMore.pickAtLeastOne")
                         return@Button
                     }
                     pending = true
@@ -845,7 +861,13 @@ private fun NumberAccessDialog(
                                 buildAccessBody(mode, level, picked),
                             )
                             haptics.confirm()
-                            scope.showMessage("Access to $display updated.")
+                            scope.showMessage(
+                                AppStrings.translate(
+                                    locale,
+                                    "settingsMore.accessUpdated",
+                                    mapOf("number" to display),
+                                ),
+                            )
                             onDismiss()
                         } catch (cause: Exception) {
                             error = cause.userMessage()
@@ -855,10 +877,10 @@ private fun NumberAccessDialog(
                     }
                 },
                 enabled = loaded is LoadState.Ready && !pending,
-            ) { Text(if (pending) "Saving…" else "Save") }
+            ) { Text(if (pending) t("common.saving") else t("common.save")) }
         },
         dismissButton = {
-            LinkButton(onClick = onDismiss, enabled = !pending) { Text("Cancel") }
+            LinkButton(onClick = onDismiss, enabled = !pending) { Text(t("common.cancel")) }
         },
     )
 }
@@ -907,17 +929,25 @@ private fun AccessModeOptions(
     enabled: Boolean,
 ) {
     listOf(
-        Triple(AccessMode.Everyone, "Everyone", "The whole team can text, like today."),
+        Triple(
+            AccessMode.Everyone,
+            t("settingsMore.accessEveryone"),
+            t("settingsMore.accessEveryoneDetail"),
+        ),
         Triple(
             AccessMode.MembersView,
-            "Members: view & notes only",
-            "Members can read and add notes, but not text. Admins still text.",
+            t("settingsMore.accessMembersView"),
+            t("settingsMore.accessMembersViewDetail"),
         ),
-        Triple(AccessMode.Admins, "Admins only", "Members can't see this number at all."),
+        Triple(
+            AccessMode.Admins,
+            t("settingsMore.accessAdmins"),
+            t("settingsMore.accessAdminsDetail"),
+        ),
         Triple(
             AccessMode.Users,
-            "Specific people",
-            "Only the people you pick. Admins still text.",
+            t("settingsMore.accessUsers"),
+            t("settingsMore.accessUsersDetail"),
         ),
     ).forEach { (value, label, detail) ->
         Row(
@@ -974,8 +1004,10 @@ private fun AddNumberCard(
         billingCurrency = company.billing_currency,
     )
     if (nextIsExtra && extraBlockedReason != null) {
-        SettingsCard(title = "Add a number") {
-            ReadOnlyLine("Your plan's numbers are all in use. $extraBlockedReason")
+        SettingsCard(title = t("settingsMore.addNumber")) {
+            ReadOnlyLine(
+                t("settingsMore.planNumbersInUse", "reason" to extraBlockedReason),
+            )
         }
         return
     }
@@ -994,25 +1026,21 @@ private fun AddNumberCard(
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    val locale = LocalAppLocale.current
 
     SettingsCard(
-        title = "Add a number",
+        title = t("settingsMore.addNumber"),
         description = when {
-            !nextIsExtra ->
-                "Choose the number your customers will text. It's included in your " +
-                    "plan at no extra cost."
+            !nextIsExtra -> t("settingsMore.addNumberIncluded")
 
             extraPrice != null ->
-                "An extra number is $extraPrice, billed today. Your message allowance " +
-                    "is shared, so an extra number doesn't add messages."
+                t("settingsMore.addNumberPriced", "price" to extraPrice)
 
             // No figure to name — [extraNumberMonthly] does not guess a price
             // book for a plan it does not recognise. Says the shape of the
             // charge instead of inventing an amount, which is the one thing a
             // consent surface must never do.
-            else ->
-                "An extra number is billed to your plan today. Your message allowance " +
-                    "is shared, so an extra number doesn't add messages."
+            else -> t("settingsMore.addNumberBilled")
         },
     ) {
         OutlinedButton(onClick = {
@@ -1021,7 +1049,7 @@ private fun AddNumberCard(
             idempotencyKey = UUID.randomUUID().toString()
             error = null
             picking = true
-        }) { Text("Choose a number") }
+        }) { Text(t("settingsMore.chooseNumber")) }
     }
 
     if (picking) {
@@ -1029,7 +1057,7 @@ private fun AddNumberCard(
             scope = scope,
             country = company.country,
             initialAreaCode = company.requested_area_code.takeIf { it.isNotBlank() },
-            title = "Choose a number",
+            title = t("settingsMore.chooseNumber"),
             pending = pending,
             error = error,
             onDismiss = { if (!pending) picking = false },
@@ -1053,7 +1081,9 @@ private fun AddNumberCard(
                         }
                         picking = false
                         haptics.confirm()
-                        scope.showMessage("Your number is being set up.")
+                        scope.showMessage(
+                            AppStrings.translate(locale, "settingsMore.numberBeingSetUp"),
+                        )
                         onChanged()
                     } catch (cause: Exception) {
                         error = cause.userMessage()
@@ -1078,12 +1108,13 @@ private fun RemediateNumberFlow(
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    val locale = LocalAppLocale.current
 
     NumberPickerDialog(
         scope = scope,
         country = number.country,
         initialAreaCode = number.requested_area_code,
-        title = "Choose a number to finish setup",
+        title = t("settingsMore.chooseNumberFinish"),
         pending = pending,
         error = error,
         onDismiss = { if (!pending) onDismiss() },
@@ -1106,7 +1137,9 @@ private fun RemediateNumberFlow(
                         )
                     }
                     haptics.confirm()
-                    scope.showMessage("Setup restarted. You won't be charged again.")
+                    scope.showMessage(
+                        AppStrings.translate(locale, "settingsMore.setupRestarted"),
+                    )
                     onDone()
                 } catch (cause: Exception) {
                     error = cause.userMessage()
@@ -1299,16 +1332,16 @@ private fun MyAccessCard(scope: SettingsScope) {
     val restricted = rows.sortedForOwner().filter { it.level != "text" }
 
     SettingsCard(
-        title = "What you can reach",
-        description = "Some of this workspace's numbers are not shared with " +
-            "you. Here is which, and what decided it.",
+        title = t("settingsMore.whatYouReach"),
+        description = t("settingsMore.whatYouReachDesc"),
     ) {
         Text(note, style = MaterialTheme.typography.bodyMedium)
+        val aNumber = t("settingsMore.aNumber")
         restricted.forEach { row ->
             Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        row.number_e164?.let { formatPhone(it) } ?: "A number",
+                        row.number_e164?.let { formatPhone(it) } ?: aNumber,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Spacer(Modifier.width(10.dp))

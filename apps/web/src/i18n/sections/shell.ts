@@ -81,6 +81,64 @@ export const shellEn = {
   numberSetupFailed: "Couldn't set up — choose a number",
   numberSettingUp: "Setting up your number…",
 
+  // ── The workspace status strip (SPEC §4.4, DESIGN.md G7) ─────────────────
+  //
+  // `components/registration/copy.ts` holds these as data rather than as JSX,
+  // because the ambient strip, the /onboarding/setting-up checklist, the plan
+  // step and the empty inbox all say them — and a workspace that is not ready
+  // yet must not be described three different ways depending on which screen
+  // somebody happens to be looking at.
+  //
+  // The timing promises are the load-bearing part. "usually under a minute"
+  // belongs to a provisioned number and NEVER to a carrier review, which takes
+  // days; keep the two apart in French as well.
+  regNumberProvisioning: "Setting up your business number, usually under a minute.",
+  regNumberDelayed:
+    "We're still setting up your number. This is taking a little longer than usual.",
+  regNumberActionNeededAreaCode:
+    "We couldn't get a number in area code {areaCode}. Choose another to finish setup.",
+  regNumberActionNeeded:
+    "We couldn't finish setting up your number. Choose a number to finish setup.",
+  regHostedReview:
+    "Text-enabling your existing number. Carrier review usually takes a few business days. Calls keep working the whole time.",
+  regPending:
+    "US texting activates in ~3 to 7 business days (carrier approval). Calling, receiving texts, and texting Canadian numbers already work.",
+  regOtpPending:
+    "One step left: enter the verification code we sent to {phone} to finish US registration.",
+  regRejected:
+    "US registration needs a fix: {reason}. Update and resubmit. It takes 2 minutes.",
+  regApproved: "US texting is live.",
+  regApprovedToast: "You're live. US texting is on.",
+  regSetupUnfinishedMember:
+    "Your workspace setup isn't finished yet. Ask your account owner to complete it.",
+  regSubscriptionCanceled:
+    "Your subscription is canceled. Outbound texting is off. Resubscribe to turn it back on.",
+  regPaymentIssue:
+    "Payment didn't go through. Outbound texting is paused. Update your card to restore it.",
+  /* The two later tiers of `provisioningWaitCopy`: the under-a-minute promise
+     de-escalating as the clock runs, so a slow setup is never a frozen lie. */
+  regWaitLonger:
+    "Your number is taking a little longer than usual. We're still on it — you don't have to wait here.",
+  regWaitStill:
+    "Still setting up your number — this is taking a little longer than usual. Hang tight.",
+  /* The honest timeline shown before payment (SPEC §4.1 step 4). */
+  regHonestTimelineReceiving:
+    "Receiving texts works the moment your number is ready (minutes).",
+  regHonestTimelineCanada: "Texting Canadian numbers works immediately.",
+  regHonestTimelineUs:
+    "Texting US numbers activates after carrier approval, typically 3 to 7 business days. We'll email you the moment you're approved.",
+  regHonestTimelineUsOff:
+    "US texting is off for your account. You can turn it on any time in Settings.",
+  /* The strip's own action links, and the two stand-ins for a fact we do not
+     have: the mobile number the code went to, and the carrier's reason. */
+  regBannerUpdateBilling: "Update billing",
+  regBannerEnterCode: "Enter code",
+  regBannerFixResubmit: "Fix and resubmit",
+  regBannerChooseNumber: "Choose a number",
+  regBannerDetails: "Details",
+  regBannerYourMobile: "your mobile",
+  regBannerReasonUnknown: "the carrier flagged a detail",
+
   // ── The two-factor wall ──────────────────────────────────────────────────
   mfaRequiredTitle: "This workspace needs two-factor authentication",
   mfaRequiredBody:
@@ -370,6 +428,50 @@ export const shellFr: Translated<typeof shellEn> = {
     "Impossible de copier. Votre navigateur a bloqué l'accès au presse-papiers.",
   copyNumber: "Copier {number}",
   numberSetupFailed: "Configuration impossible — choisissez un numéro",
+  regNumberProvisioning:
+    "Configuration de votre numéro d'entreprise, généralement en moins d'une minute.",
+  regNumberDelayed:
+    "Nous configurons encore votre numéro. Cela prend un peu plus de temps que d'habitude.",
+  regNumberActionNeededAreaCode:
+    "Nous n'avons pas pu obtenir de numéro dans l'indicatif régional {areaCode}. Choisissez-en un autre pour terminer la configuration.",
+  regNumberActionNeeded:
+    "Nous n'avons pas pu terminer la configuration de votre numéro. Choisissez un numéro pour terminer.",
+  regHostedReview:
+    "Activation des textos sur votre numéro actuel. L'examen par le fournisseur prend habituellement quelques jours ouvrables. Les appels continuent de fonctionner pendant tout ce temps.",
+  regPending:
+    "Les textos vers les États-Unis s'activent en environ 3 à 7 jours ouvrables (approbation du fournisseur). Les appels, la réception de textos et les textos vers les numéros canadiens fonctionnent déjà.",
+  regOtpPending:
+    "Une dernière étape : entrez le code de vérification envoyé au {phone} pour terminer l'inscription américaine.",
+  regRejected:
+    "L'inscription américaine demande une correction : {reason}. Corrigez et renvoyez la demande. Cela prend 2 minutes.",
+  regApproved: "Les textos vers les États-Unis sont en service.",
+  regApprovedToast:
+    "Tout est prêt. Les textos vers les États-Unis sont activés.",
+  regSetupUnfinishedMember:
+    "La configuration de votre espace de travail n'est pas terminée. Demandez au propriétaire du compte de la compléter.",
+  regSubscriptionCanceled:
+    "Votre abonnement est annulé. L'envoi de textos est désactivé. Réabonnez-vous pour le réactiver.",
+  regPaymentIssue:
+    "Le paiement n'a pas été accepté. L'envoi de textos est suspendu. Mettez votre carte à jour pour le rétablir.",
+  regWaitLonger:
+    "Votre numéro prend un peu plus de temps que d'habitude. Nous nous en occupons — vous n'avez pas à attendre ici.",
+  regWaitStill:
+    "Configuration de votre numéro en cours — cela prend un peu plus de temps que d'habitude. Patientez un instant.",
+  regHonestTimelineReceiving:
+    "La réception de textos fonctionne dès que votre numéro est prêt (quelques minutes).",
+  regHonestTimelineCanada:
+    "Les textos vers les numéros canadiens fonctionnent immédiatement.",
+  regHonestTimelineUs:
+    "Les textos vers les numéros américains s'activent après l'approbation du fournisseur, généralement de 3 à 7 jours ouvrables. Nous vous écrirons dès que vous serez approuvé.",
+  regHonestTimelineUsOff:
+    "Les textos vers les États-Unis sont désactivés pour votre compte. Vous pouvez les activer à tout moment dans les Paramètres.",
+  regBannerUpdateBilling: "Mettre la facturation à jour",
+  regBannerEnterCode: "Entrer le code",
+  regBannerFixResubmit: "Corriger et renvoyer",
+  regBannerChooseNumber: "Choisir un numéro",
+  regBannerDetails: "Détails",
+  regBannerYourMobile: "votre mobile",
+  regBannerReasonUnknown: "le fournisseur a signalé un détail",
   numberSettingUp: "Configuration de votre numéro…",
 
   mfaRequiredTitle:

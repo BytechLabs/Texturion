@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.AttachmentSummary
 import kotlinx.coroutines.delay
 
@@ -151,9 +152,9 @@ fun AttachmentAudio(
             Icon(
                 if (playing) Icons.Outlined.Pause else Icons.Filled.PlayArrow,
                 contentDescription = if (playing) {
-                    "Pause audio message"
+                    t("thread.pauseAudio")
                 } else {
-                    "Play audio message"
+                    t("thread.playAudio")
                 },
                 tint = MaterialTheme.colorScheme.primary,
             )

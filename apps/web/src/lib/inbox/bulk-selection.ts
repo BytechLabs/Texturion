@@ -1,3 +1,6 @@
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
 // Type-only imports: erased at compile time, so this module stays free of the
 // runtime API/env dependencies that make it testable in isolation.
 import type { ConversationFilters } from "@/lib/api/filters";
@@ -113,10 +116,12 @@ export function canEscalate(
  * runs the action and reports `matched`; until then the honest phrasing is the
  * one that does not commit to a figure.
  */
-export function selectionLabel(selection: BulkSelection): string {
-  if (selection.mode === "filter") return "All matching this filter";
-  const n = selection.ids.size;
-  return `${n} selected`;
+export function selectionLabel(
+  selection: BulkSelection,
+  t: Translate = makeTranslate(DEFAULT_LOCALE),
+): string {
+  if (selection.mode === "filter") return t("inbox.bulkSelectedAllMatching");
+  return t("inbox.bulkSelectedCount", { count: selection.ids.size });
 }
 
 /** The ids to send, or null when the server should resolve the filter itself. */
@@ -131,6 +136,13 @@ export function selectionIds(selection: BulkSelection): string[] | null {
  * whenever a row was on a denied number, already gone, or past the cap, and the
  * difference is exactly what #275 says must not be swallowed. `applied` is the
  * only count that describes reality.
+ *
+ * #228: the glue between the counts is keyed, and the VERB and NOUN stay the
+ * caller's — which action ran, and what it ran on, are facts this module is
+ * told rather than facts it knows. Both are interpolated rather than
+ * concatenated so a translator can put them where the sentence needs them; a
+ * caller that has not been converted yet passes English words into a French
+ * frame, which is visibly half-done rather than quietly wrong.
  */
 export function bulkResultMessage(
   verb: string,
@@ -140,21 +152,27 @@ export function bulkResultMessage(
     one: "conversation",
     many: "conversations",
   },
+  t: Translate = makeTranslate(DEFAULT_LOCALE),
 ): string {
   const applied = result.applied?.length ?? 0;
   const failed = result.failed?.length ?? 0;
   const matched = result.matched ?? applied;
 
   const thing = applied === 1 ? noun.one : noun.many;
-  let message = `${verb} ${applied} ${thing}`;
+  let message = t("inbox.bulkResultApplied", { verb, count: applied, thing });
 
   // The cap is the case where "it worked" and "it finished" are different
   // answers, so the remainder is named rather than left to be discovered.
   if (result.capped && matched > applied) {
-    message += `. ${matched - applied} more matched than one go can handle, so run it again`;
+    message += t("inbox.bulkResultCapped", { count: matched - applied });
   }
   if (failed > 0) {
-    message += `. ${failed} couldn't be reached and ${failed === 1 ? "was" : "were"} left alone`;
+    // One and many are separate keys rather than one sentence with the verb
+    // swapped in: the agreement moves more than a word in French.
+    message +=
+      failed === 1
+        ? t("inbox.bulkResultFailedOne", { count: failed })
+        : t("inbox.bulkResultFailedMany", { count: failed });
   }
   return message;
 }

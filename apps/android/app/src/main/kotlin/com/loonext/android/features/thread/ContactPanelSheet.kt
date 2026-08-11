@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ConversationDetail
 import com.loonext.android.core.model.LeadSource
 import kotlinx.coroutines.launch
@@ -108,7 +109,8 @@ internal fun ContactPanelSheet(
                     )
                     Text(
                         if (contact?.opted_out == true) {
-                            "${formatPhone(detail.contact.phone_e164)} · Opted out"
+                            "${formatPhone(detail.contact.phone_e164)} · " +
+                                t("thread.optedOut")
                         } else {
                             formatPhone(detail.contact.phone_e164)
                         },
@@ -125,7 +127,7 @@ internal fun ContactPanelSheet(
                     ) {
                         Icon(
                             Icons.AutoMirrored.Outlined.OpenInNew,
-                            contentDescription = "Open the full contact",
+                            contentDescription = t("thread.openFullContact"),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(19.dp),
                         )
@@ -134,37 +136,37 @@ internal fun ContactPanelSheet(
             }
 
             // Details — the same auto-saving fields as the contact screen.
-            SheetSection("Details") {
+            SheetSection(t("thread.sectionDetails")) {
                 AutosaveField(
                     fieldKey = "${detail.contact_id}:name",
-                    label = "Name",
+                    label = t("thread.fieldName"),
                     initial = (contact?.name ?: detail.contact.name).orEmpty(),
                     maxLength = CONTACT_NAME_MAX,
-                    placeholder = "Add a name",
+                    placeholder = t("thread.addName"),
                     singleLine = true,
                     save = { value -> controller.saveContactField("name", value) },
                 )
                 AutosaveField(
                     fieldKey = "${detail.contact_id}:address",
-                    label = "Address",
+                    label = t("thread.fieldAddress"),
                     initial = (contact?.address ?: detail.contact.address).orEmpty(),
                     maxLength = CONTACT_ADDRESS_MAX,
-                    placeholder = "Add an address",
+                    placeholder = t("thread.addAddress"),
                     singleLine = true,
                     save = { value -> controller.saveContactField("address", value) },
                 )
                 AutosaveField(
                     fieldKey = "${detail.contact_id}:notes",
-                    label = "Notes",
+                    label = t("thread.fieldNotes"),
                     initial = (contact?.notes ?: detail.contact.notes).orEmpty(),
                     maxLength = CONTACT_NOTES_MAX,
-                    placeholder = "Gate code, dog's name, preferred arrival window…",
+                    placeholder = t("thread.notesPlaceholder"),
                     singleLine = false,
                     save = { value -> controller.saveContactField("notes", value) },
                 )
             }
 
-            SheetSection("Consent") {
+            SheetSection(t("thread.sectionConsent")) {
                 Text(
                     consentLine(
                         consentSource = contact?.consent_source
@@ -182,11 +184,11 @@ internal fun ContactPanelSheet(
             // is a question somebody ASKS in the first minute of a call, while
             // a task is what they write down afterwards — and because the ask
             // disappears the moment it is answered.
-            SheetSection("Where they came from") {
+            SheetSection(t("thread.sectionLeadSource")) {
                 LeadSourcePicker(controller = controller, detail = detail)
             }
 
-            SheetSection("Tasks in this conversation") {
+            SheetSection(t("thread.sectionTasks")) {
                 TasksChecklist(
                     state = controller.conversationTasks,
                     onToggle = { controller.toggleTaskDone(it) },
@@ -194,7 +196,7 @@ internal fun ContactPanelSheet(
                 )
             }
 
-            SheetSection("Other conversations") {
+            SheetSection(t("thread.sectionOtherConversations")) {
                 OtherConversations(
                     state = controller.otherConversations,
                     onOpen = onOpenConversation,
@@ -261,15 +263,15 @@ private fun LeadSourcePicker(controller: ThreadController, detail: ConversationD
     Column(Modifier.fillMaxWidth()) {
         when {
             origin == "number" && currentName != null -> Text(
-                "$currentName · the line they called",
+                t("thread.leadFromLine", "name" to currentName),
                 style = MaterialTheme.typography.bodyMedium,
             )
             currentName != null -> Text(
-                "$currentName · somebody said so",
+                t("thread.leadSaidSo", "name" to currentName),
                 style = MaterialTheme.typography.bodyMedium,
             )
             else -> Text(
-                "Ask them: how did you hear about us?",
+                t("thread.leadAsk"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -291,7 +293,7 @@ private fun LeadSourcePicker(controller: ThreadController, detail: ConversationD
             }
             if (current != null) {
                 TextButton(enabled = !pending, onClick = { choose(null) }) {
-                    Text("Don't know")
+                    Text(t("thread.dontKnow"))
                 }
             }
         }
@@ -320,7 +322,7 @@ private fun TasksChecklist(
     when (state) {
         null, is LoadState.Loading -> LoadingIndicator()
         is LoadState.Failed -> Text(
-            "Couldn't load this conversation's tasks.",
+            t("thread.tasksLoadFailed"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -328,7 +330,7 @@ private fun TasksChecklist(
         is LoadState.Ready -> {
             if (state.value.isEmpty()) {
                 Text(
-                    "No tasks in this conversation.",
+                    t("thread.noTasks"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -380,7 +382,7 @@ private fun OtherConversations(
     when (state) {
         null, is LoadState.Loading -> LoadingIndicator()
         is LoadState.Failed -> Text(
-            "Couldn't load prior conversations.",
+            t("thread.priorLoadFailed"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -388,7 +390,7 @@ private fun OtherConversations(
         is LoadState.Ready -> {
             if (state.value.isEmpty()) {
                 Text(
-                    "No other conversations with this contact.",
+                    t("thread.noOtherConversations"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -408,7 +410,8 @@ private fun OtherConversations(
                     ) {
                         Column(Modifier.weight(1f)) {
                             Text(
-                                row.last_message?.body?.ifBlank { null } ?: "Conversation",
+                                row.last_message?.body?.ifBlank { null }
+                                    ?: t("thread.conversationFallback"),
                                 style = MaterialTheme.typography.bodyMedium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,

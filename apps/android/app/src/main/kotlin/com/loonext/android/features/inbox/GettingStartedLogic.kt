@@ -1,5 +1,6 @@
 package com.loonext.android.features.inbox
 
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.Capability
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberFirsts
@@ -14,10 +15,19 @@ import com.loonext.android.core.model.SubscriptionStatus
  *
  * # The copy is a hand-port, and it is checked
  *
- * Web owns the wording (`getting-started-card.tsx`). These strings are copied
- * verbatim, and `packages/shared/src/first-run-copy.test.ts` reads all three
- * client sources and fails when one drifts. Three wordings of the same idea is
- * the failure #376 and #392 describe, and this card exists on three platforms.
+ * Web owns the wording. The sentences themselves moved to
+ * `core/i18n/InboxStrings.kt` under #228 — this file now names the KEYS — and
+ * `packages/shared/src/first-run-copy.test.ts` reads all three clients'
+ * catalogues and fails when one drifts. Three wordings of the same idea is the
+ * failure #376 and #392 describe, and this card exists on three platforms.
+ *
+ * # Why the locale is a parameter rather than a default
+ *
+ * These are plain functions, so there is no composition to read the reader's
+ * language from — the tab passes it down from `LocalAppLocale`. It is REQUIRED
+ * on every one of them: a default would turn "nobody passed it" into an English
+ * checklist on a French phone instead of a compile error, which is the same
+ * failure #503 records for a defaulted navigation callback.
  *
  * # Why derivations rather than a "seen it" flag
  *
@@ -60,42 +70,41 @@ fun ownerSteps(
     hasConversation: Boolean,
     usedSegments: Long,
     activeMemberCount: Int,
+    locale: String,
 ): List<StartedStep> {
+    fun say(key: String) = AppStrings.translate(locale, key)
     val numberDone = numbers.any { it.status == NumberStatus.ACTIVE }
     val numberStalled = !numberDone && numbers.any { it.status == NumberStatus.PROVISION_FAILED }
     return listOf(
-        StartedStep("signup", done = true, label = "Set your workspace up"),
+        StartedStep("signup", done = true, label = say("inbox.startedOwnerSignupLabel")),
         StartedStep(
             key = "number",
             done = numberDone,
-            label = "Get your business number",
+            label = say("inbox.startedOwnerNumberLabel"),
             hint = when {
                 numberDone -> null
                 // Don't promise "under a minute" once a purchase has actually
                 // stalled: the honest delayed line matches the app-wide banner.
-                numberStalled ->
-                    "Taking a little longer than usual. You don't need to do anything."
-                else -> "It's on its way, usually under a minute."
+                numberStalled -> say("inbox.startedOwnerNumberStalledHint")
+                else -> say("inbox.startedOwnerNumberHint")
             },
         ),
         StartedStep(
             key = "inbound",
             done = hasConversation,
-            label = "Receive your first text",
-            hint = if (hasConversation) null
-            else "Text your number from your phone, and it lands right here.",
+            label = say("inbox.startedOwnerInboundLabel"),
+            hint = if (hasConversation) null else say("inbox.startedOwnerInboundHint"),
         ),
         StartedStep(
             key = "reply",
             done = usedSegments > 0,
-            label = "Send your first reply",
-            hint = if (usedSegments > 0) null
-            else "Open a conversation and answer like you would from your cell.",
+            label = say("inbox.startedOwnerReplyLabel"),
+            hint = if (usedSegments > 0) null else say("inbox.startedOwnerReplyHint"),
         ),
         StartedStep(
             key = "teammate",
             done = activeMemberCount > 1,
-            label = "Invite a teammate",
+            label = say("inbox.startedOwnerTeammateLabel"),
         ),
     )
 }
@@ -109,29 +118,29 @@ fun ownerSteps(
  * something meant for a colleague.
  * *Applying: Chunking — three things, which is what a person holds.*
  */
-fun memberSteps(firsts: MemberFirsts): List<StartedStep> = listOf(
-    StartedStep(
-        key = "reply",
-        done = firsts.replied,
-        label = "Answer a customer",
-        hint = if (firsts.replied) null
-        else "Open a thread and reply. It goes out from the business number, and the whole crew can see it.",
-    ),
-    StartedStep(
-        key = "note",
-        done = firsts.noted,
-        label = "Leave a note for the crew",
-        hint = if (firsts.noted) null
-        else "Switch the composer to Note. Notes stay inside the app — the customer never sees them.",
-    ),
-    StartedStep(
-        key = "done",
-        done = firsts.marked_done,
-        label = "Mark something done",
-        hint = if (firsts.marked_done) null
-        else "Tick a message off when it is handled, so the rest of the crew knows nobody needs to chase it.",
-    ),
-)
+fun memberSteps(firsts: MemberFirsts, locale: String): List<StartedStep> {
+    fun say(key: String) = AppStrings.translate(locale, key)
+    return listOf(
+        StartedStep(
+            key = "reply",
+            done = firsts.replied,
+            label = say("inbox.startedMemberReplyLabel"),
+            hint = if (firsts.replied) null else say("inbox.startedMemberReplyHint"),
+        ),
+        StartedStep(
+            key = "note",
+            done = firsts.noted,
+            label = say("inbox.startedMemberNoteLabel"),
+            hint = if (firsts.noted) null else say("inbox.startedMemberNoteHint"),
+        ),
+        StartedStep(
+            key = "done",
+            done = firsts.marked_done,
+            label = say("inbox.startedMemberDoneLabel"),
+            hint = if (firsts.marked_done) null else say("inbox.startedMemberDoneHint"),
+        ),
+    )
+}
 
 /** A finished list has nothing left to say, so it stops saying it. */
 fun stepsComplete(steps: List<StartedStep>): Boolean = steps.all { it.done }

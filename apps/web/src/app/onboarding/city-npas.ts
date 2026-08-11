@@ -24,6 +24,10 @@ import { NANP_AREA_CODES, type NanpGeographicEntry } from "@loonext/shared";
  * Selection: the ~120 largest US + Canadian metros by population (2020 US
  * Census / 2021 Canadian Census metro areas). Metros already discoverable via
  * their timezone-city name are still listed for completeness and ranking.
+ *
+ * #228: the city names are KEYS somebody types against, not labels — see the
+ * note in `area-codes.ts` for why translating them is its own item rather than
+ * part of the catalogue extraction.
  */
 export const CITY_NPAS: Readonly<Record<string, readonly string[]>> = {
   // ---- United States (largest metros) ----------------------------------

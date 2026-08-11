@@ -64,6 +64,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Attachment
 import com.loonext.android.core.model.AttachmentSummary
 import com.loonext.android.core.model.CarrierFailureReason
@@ -96,16 +99,23 @@ fun bubbleTime(iso: String): String =
         Instant.parse(iso).atZone(ZoneId.systemDefault()).format(bubbleTimeFormat)
     }.getOrDefault("")
 
-/** Human delivery-state line for an outbound bubble. */
-fun deliveryLabel(message: Message): String? = when (message.status) {
-    MessageStatus.QUEUED -> "Sending…"
-    MessageStatus.SENT -> "Sent"
-    MessageStatus.DELIVERED -> "Delivered"
-    MessageStatus.FAILED ->
-        sendFailureMessage(message.error_code)
+/**
+ * Human delivery-state line for an outbound bubble.
+ *
+ * #228: [locale] defaults to English so the pure callers (and their tests) read
+ * exactly as they did; every composable call site passes the reader's. The
+ * FAILED arm is the API's own sentence, which is translated where it is written.
+ */
+fun deliveryLabel(message: Message, locale: String? = null): String? =
+    when (message.status) {
+        MessageStatus.QUEUED -> AppStrings.translate(locale, "thread.sending")
+        MessageStatus.SENT -> AppStrings.translate(locale, "thread.sent")
+        MessageStatus.DELIVERED -> AppStrings.translate(locale, "thread.delivered")
+        MessageStatus.FAILED ->
+            sendFailureMessage(message.error_code)
 
-    else -> null
-}
+        else -> null
+    }
 
 /** The cream internal-note well fill (dark theme falls back to raised paper). */
 @Composable
@@ -171,13 +181,13 @@ fun MessageBubble(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         Icons.Outlined.Lock,
-                        contentDescription = "Internal note",
+                        contentDescription = t("thread.internalNote"),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(13.dp),
                     )
                     Spacer(Modifier.width(5.dp))
                     Text(
-                        authorName ?: "Internal note",
+                        authorName ?: t("thread.internalNote"),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -249,7 +259,7 @@ fun MessageBubble(
                 val taskLink = message.task ?: message.promoted_task
                 if (taskLink != null) {
                     Text(
-                        "on: ${taskLink.title}",
+                        t("thread.noteOnTask", "title" to taskLink.title),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.padding(top = 4.dp),
@@ -279,6 +289,7 @@ private fun MessageMetaLine(
     onOpenTask: ((taskId: String) -> Unit)? = null,
 ) {
     val outbound = message.direction == MessageDirection.OUTBOUND
+    val locale = LocalAppLocale.current
     val failed = message.status == MessageStatus.FAILED
     // #241: the reason, not the vendor code it was derived from.
     val optedOut = failed &&
@@ -295,7 +306,7 @@ private fun MessageMetaLine(
         if (message.pinned_at != null) {
             Icon(
                 Icons.Outlined.PushPin,
-                contentDescription = "Pinned",
+                contentDescription = t("thread.pinned"),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(12.dp),
             )
@@ -314,7 +325,8 @@ private fun MessageMetaLine(
                 }
             Icon(
                 Icons.Outlined.TaskAlt,
-                contentDescription = if (openTask != null) "Open task" else "Has a task",
+                contentDescription = if (openTask != null) t("thread.openTask")
+                else t("thread.hasTask"),
                 tint = if (openTask != null) MaterialTheme.colorScheme.secondary
                 else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = if (openTask != null) {
@@ -333,7 +345,7 @@ private fun MessageMetaLine(
             // "Dana · 7:18 AM · Delivered", matching the web's order.
             if (outbound && authorName != null) add(authorName)
             add(bubbleTime(message.created_at))
-            if (outbound && !failed) deliveryLabel(message)?.let { add(it) }
+            if (outbound && !failed) deliveryLabel(message, locale)?.let { add(it) }
         }
         // Delivery-state swaps (Sending… → Sent → Delivered) fade instead of
         // snapping; the initial cached paint renders without animation.
@@ -369,7 +381,7 @@ private fun MessageMetaLine(
         }
         if (failed) {
             Text(
-                deliveryLabel(message).orEmpty(),
+                deliveryLabel(message, locale).orEmpty(),
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -380,7 +392,7 @@ private fun MessageMetaLine(
         }
         if (message.retryable) {
             Text(
-                "Retry",
+                t("thread.retry"),
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 10.5.sp,
                     fontWeight = FontWeight.Bold,
@@ -395,7 +407,7 @@ private fun MessageMetaLine(
         }
         if (message.done_at != null) {
             Text(
-                "Done" + (doneByName?.let { " · $it" } ?: ""),
+                t("thread.done") + (doneByName?.let { " · $it" } ?: ""),
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -434,8 +446,11 @@ fun PendingBubble(
         ) {
             if (pending.mediaCount > 0) {
                 Text(
-                    if (pending.mediaCount == 1) "1 attachment"
-                    else "${pending.mediaCount} attachments",
+                    if (pending.mediaCount == 1) t("thread.oneAttachment")
+                    else t(
+                        "thread.manyAttachments",
+                        "count" to pending.mediaCount.toString(),
+                    ),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onPrimary,
                 )
@@ -458,8 +473,8 @@ fun PendingBubble(
         Text(
             when {
                 pending.blockedReason != null -> pending.blockedReason
-                pending.queued -> "Queued — will send when you're back online"
-                else -> "Sending…"
+                pending.queued -> t("thread.queuedOffline")
+                else -> t("thread.sending")
             },
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
             color = if (pending.blockedReason != null) MaterialTheme.colorScheme.error
@@ -476,7 +491,7 @@ fun PendingBubble(
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier.heightIn(min = 32.dp),
                 ) {
-                    Text("Send now", style = MaterialTheme.typography.labelSmall)
+                    Text(t("thread.sendNow"), style = MaterialTheme.typography.labelSmall)
                 }
                 TextButton(
                     onClick = onDelete,
@@ -484,7 +499,7 @@ fun PendingBubble(
                     modifier = Modifier.heightIn(min = 32.dp),
                 ) {
                     Text(
-                        "Delete",
+                        t("common.delete"),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -643,7 +658,7 @@ fun SignedAttachmentImage(
 
     when {
         failed -> Text(
-            "Photo unavailable · tap to retry",
+            t("thread.photoUnavailable"),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = modifier.clickable {
@@ -664,7 +679,7 @@ fun SignedAttachmentImage(
 
         else -> AsyncImage(
             model = url,
-            contentDescription = "Photo",
+            contentDescription = t("thread.photo"),
             contentScale = ContentScale.Crop,
             onError = {
                 if (!autoRetried) {
@@ -728,7 +743,7 @@ fun AttachmentFileChip(
         Spacer(Modifier.width(8.dp))
         Column {
             Text(
-                kind.label,
+                t(kind.labelKey),
                 style = MaterialTheme.typography.labelMedium.copy(
                     fontSize = 12.5.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -776,7 +791,7 @@ private fun NoteFilesSection(
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            file.file_name ?: "File",
+                            file.file_name ?: t("thread.file"),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.secondary,
                             maxLines = 1,

@@ -1,3 +1,7 @@
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
+
 import { ApiError, parseErrorBody } from "./error";
 
 /**
@@ -20,6 +24,12 @@ export interface ExportDeps {
   fetch: typeof fetch;
   getToken: () => Promise<string | null>;
   baseUrl: string;
+  /**
+   * #228 — the reader's words, injected like every other dependency here. Used
+   * for the one sentence this module writes itself (no session); a failed
+   * response carries the server's own, verbatim.
+   */
+  t?: Translate;
 }
 
 /**
@@ -43,9 +53,13 @@ export async function fetchContactsExport(
   // Assigning to a local first makes the call unbound.
   const fetchImpl = deps.fetch;
 
+  // Resolved per call rather than at module load — `makeTranslate` is a client
+  // reference, and this module is deliberately importable anywhere.
+  const t = deps.t ?? makeTranslate(DEFAULT_LOCALE);
+
   const token = await deps.getToken();
   if (!token) {
-    throw new ApiError("unauthorized", "You're signed out. Log in again.", 401);
+    throw new ApiError("unauthorized", t("misc.apiSignedOut"), 401);
   }
 
   const url = new URL(`${baseUrl}/v1/contacts/export`);
@@ -69,7 +83,7 @@ export async function fetchContactsExport(
     } catch {
       payload = null;
     }
-    throw parseErrorBody(response.status, payload);
+    throw parseErrorBody(response.status, payload, t);
   }
 
   // Bytes, not text — keep the BOM intact for the downloaded file.

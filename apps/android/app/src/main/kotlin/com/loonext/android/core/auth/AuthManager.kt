@@ -42,6 +42,23 @@ class AppPrefs(private val context: Context) {
         // would put a lock on a sole operator's phone to protect a truck
         // phone in a different van.
         val APP_LOCK = booleanPreferencesKey("app_lock_enabled")
+        /*
+         * #228: the two halves of the app's language that live on the SERVER —
+         * this member's own choice and their workspace's — mirrored here.
+         *
+         * A CACHE, not a second source of truth: both are rewritten from every
+         * /v1/me the shell reads, so a language changed on the laptop lands on
+         * the phone at its next bootstrap. They exist because the alternative is
+         * an English first frame on every cold start for a French crew — the
+         * shell paints long before /v1/me answers, and "the app flashes English
+         * at me every morning" is the complaint that makes somebody stop
+         * believing the setting worked.
+         *
+         * Absent is a REAL value on both, meaning "has never said", which is
+         * what lets the chain fall through to the next step (UiLocale).
+         */
+        val UI_LOCALE = stringPreferencesKey("ui_locale")
+        val WORKSPACE_LOCALE = stringPreferencesKey("workspace_locale")
         val OAUTH_STATE = stringPreferencesKey("pending_oauth_state")
         val OAUTH_VERIFIER = stringPreferencesKey("pending_oauth_verifier")
         val OAUTH_CREATED_AT = longPreferencesKey("pending_oauth_created_at")
@@ -79,6 +96,14 @@ class AppPrefs(private val context: Context) {
     val appLockEnabled: Flow<Boolean> =
         context.appPrefs.data.map { it[Keys.APP_LOCK] ?: false }
 
+    /** #228: this member's own choice, or null for "ask the device". */
+    val uiLocale: Flow<String?> =
+        context.appPrefs.data.map { it[Keys.UI_LOCALE] }
+
+    /** #228: the active workspace's language, the last guess before English. */
+    val workspaceLocale: Flow<String?> =
+        context.appPrefs.data.map { it[Keys.WORKSPACE_LOCALE] }
+
     suspend fun currentCompanyId(): String? = activeCompanyId.first()
 
     suspend fun setActiveCompany(companyId: String?) {
@@ -90,6 +115,29 @@ class AppPrefs(private val context: Context) {
 
     suspend fun setTheme(theme: String) {
         context.appPrefs.edit { it[Keys.THEME] = theme }
+    }
+
+    /**
+     * #228: mirror the two server-side locales.
+     *
+     * Null REMOVES the key rather than storing a sentinel, because null is the
+     * value that means "has never said" and a stored "null" string would be a
+     * choice this person did not make.
+     */
+    suspend fun setUiLocale(locale: String?) {
+        context.appPrefs.edit { prefs ->
+            if (locale == null) prefs.remove(Keys.UI_LOCALE) else prefs[Keys.UI_LOCALE] = locale
+        }
+    }
+
+    suspend fun setWorkspaceLocale(locale: String?) {
+        context.appPrefs.edit { prefs ->
+            if (locale == null) {
+                prefs.remove(Keys.WORKSPACE_LOCALE)
+            } else {
+                prefs[Keys.WORKSPACE_LOCALE] = locale
+            }
+        }
     }
 
     suspend fun setDevMode(enabled: Boolean) {

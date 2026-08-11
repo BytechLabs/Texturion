@@ -254,7 +254,7 @@ export default function BillingSettingsPage() {
   // contradiction on the one screen where the number is the whole content.
   // Falls back to USD while the company is still loading, which is also what
   // every workspace that predates the column is on.
-  const planFacts = planFactsFor(company.data?.billing_currency)[
+  const planFacts = planFactsFor(company.data?.billing_currency, t)[
     company.data?.plan ?? "starter"
   ];
   /**

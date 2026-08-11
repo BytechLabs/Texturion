@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.assertAboveIme
 import com.loonext.android.ui.theme.BrandColor
 
@@ -232,7 +233,7 @@ fun ConfirmDialog(
      * codes exactly once, and a person who backs out of that screen has armed
      * a lock and thrown away the spare key. Everywhere else, leave it.
      */
-    dismissLabel: String? = "Cancel",
+    dismissLabel: String? = t("common.cancel"),
     confirmEnabled: Boolean = true,
     extraContent: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
@@ -262,7 +263,7 @@ fun ConfirmDialog(
                 } else {
                     ButtonDefaults.buttonColors()
                 },
-            ) { Text(if (pending) "Working…" else confirmLabel) }
+            ) { Text(if (pending) t("settingsMore.working") else confirmLabel) }
         },
         dismissButton = dismissLabel?.let { label ->
             { LinkButton(onClick = onDismiss, enabled = !pending) { Text(label) } }

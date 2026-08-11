@@ -23,6 +23,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.RejectionDomain
 import com.loonext.android.ui.common.relativeTime
@@ -66,17 +69,15 @@ fun RegistrationBlock(
     var submitting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
 
     SettingsCard(
-        title = "Texting registration",
-        description = "US carriers require every business texter to register (10DLC). " +
-            "Approval usually takes a few days; texting US numbers starts once both " +
-            "steps are approved.",
+        title = t("settingsMore.textingRegistration"),
+        description = t("settingsMore.textingRegistrationDesc"),
     ) {
         if (brand == null && campaign == null) {
             Text(
-                "Registration hasn't started yet. It's created automatically when " +
-                    "your subscription starts.",
+                t("settingsMore.registrationNotStarted"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -86,9 +87,9 @@ fun RegistrationBlock(
         // #352: which field the rejection notice asked the form to focus.
         var focusField by remember { mutableStateOf<String?>(null) }
 
-        RegistrationRow(label = "Business identity", detail = brand)
+        RegistrationRow(label = t("settingsMore.businessIdentity"), detail = brand)
         Spacer(Modifier.height(8.dp))
-        RegistrationRow(label = "Messaging campaign", detail = campaign)
+        RegistrationRow(label = t("settingsMore.messagingCampaign"), detail = campaign)
 
         val rejected = listOfNotNull(brand, campaign)
             .firstOrNull { it.status == RegistrationStatus.REJECTED }
@@ -118,9 +119,9 @@ fun RegistrationBlock(
                 brand = brand,
                 campaign = campaign,
                 submitLabel = if (rejected != null) {
-                    "Resubmit registration"
+                    t("settingsMore.resubmitRegistration")
                 } else {
-                    "Submit registration"
+                    t("settingsMore.submitRegistration")
                 },
                 onSubmitted = onChanged,
                 focusField = focusField,
@@ -134,7 +135,12 @@ fun RegistrationBlock(
                         coroutines.launch {
                             try {
                                 scope.repo.submitRegistration(scope.companyId)
-                                scope.showMessage("Registration resubmitted.")
+                                scope.showMessage(
+                                    AppStrings.translate(
+                                        locale,
+                                        "settingsMore.registrationResubmitted",
+                                    ),
+                                )
                                 onChanged()
                             } catch (cause: Exception) {
                                 error = cause.userMessage()
@@ -148,9 +154,9 @@ fun RegistrationBlock(
                 ) {
                     Text(
                         if (submitting) {
-                            "Resubmitting…"
+                            t("settingsMore.resubmitting")
                         } else {
-                            "Resubmit without changes"
+                            t("settingsMore.resubmitNoChanges")
                         },
                     )
                 }
@@ -170,7 +176,7 @@ fun RegistrationBlock(
 
         if (!canManage) {
             Spacer(Modifier.height(6.dp))
-            ReadOnlyLine("Only owners and admins can change registration.")
+            ReadOnlyLine(t("settingsMore.onlyAdminsRegistration"))
         }
     }
 }
@@ -210,7 +216,7 @@ private fun EnableUsCard(
     // before the pause existed rather than guessing in either direction.
     val copy = enableUsCopy(fee, pause.isPaused)
 
-    SettingsCard(title = "US texting", description = copy.description) {
+    SettingsCard(title = t("settingsMore.usTexting"), description = copy.description) {
         if (SettingsRoleGate.canEnableUsTexting(scope.role)) {
             // ABOVE THE BUTTON, because it is what pressing the button gets you
             // and when. Under it, the disclosure would be read after the press.
@@ -230,11 +236,11 @@ private fun EnableUsCard(
         ConfirmDialog(
             title = copy.confirmTitle,
             body = copy.confirmBody,
-            confirmLabel = if (pending) "Starting…" else copy.confirmLabel,
+            confirmLabel = if (pending) t("settingsMore.starting") else copy.confirmLabel,
             confirmEnabled = !pending,
             pending = pending,
             error = error,
-            dismissLabel = "Not now",
+            dismissLabel = t("settingsMore.notNow"),
             onDismiss = {
                 if (!pending) {
                     confirming = false
@@ -388,21 +394,35 @@ private fun RegistrationRow(label: String, detail: RegistrationDetail?) {
     ) {
         Column(Modifier.weight(1f)) {
             Text(label, style = MaterialTheme.typography.bodyLarge)
+            // The status word and the "how long ago" clause are separate keys:
+            // the clause is optional on every branch, and a language that puts
+            // its time expression somewhere else can move it without rewriting
+            // four status words.
             val line = when {
-                detail == null -> "Not started"
+                detail == null -> t("settingsMore.regNotStarted")
                 detail.status == RegistrationStatus.APPROVED ->
-                    "Approved" + (detail.approved_at?.let { " ${relativeTime(it)} ago" } ?: "")
+                    t("settingsMore.regApproved") + (
+                        detail.approved_at?.let {
+                            t("settingsMore.agoSuffix", "ago" to relativeTime(it))
+                        } ?: ""
+                        )
 
                 detail.status == RegistrationStatus.REJECTED ->
-                    "Rejected" + (detail.rejected_at?.let { " ${relativeTime(it)} ago" } ?: "")
+                    t("settingsMore.regRejected") + (
+                        detail.rejected_at?.let {
+                            t("settingsMore.agoSuffix", "ago" to relativeTime(it))
+                        } ?: ""
+                        )
 
                 detail.status == RegistrationStatus.SUBMITTED ||
                     detail.status == RegistrationStatus.PENDING ->
-                    "In review" + (detail.submitted_at?.let {
-                        " · submitted ${relativeTime(it)} ago"
-                    } ?: "")
+                    t("settingsMore.regInReview") + (
+                        detail.submitted_at?.let {
+                            t("settingsMore.submittedSuffix", "ago" to relativeTime(it))
+                        } ?: ""
+                        )
 
-                else -> "Draft · not submitted yet"
+                else -> t("settingsMore.regDraftLine")
             }
             Text(
                 line,
@@ -412,13 +432,17 @@ private fun RegistrationRow(label: String, detail: RegistrationDetail?) {
         }
         Spacer(Modifier.width(8.dp))
         when (detail?.status) {
-            null -> StatusPill("Not started", PillTone.Neutral)
-            RegistrationStatus.APPROVED -> StatusPill("Approved", PillTone.Positive)
-            RegistrationStatus.REJECTED -> StatusPill("Rejected", PillTone.Bad)
-            RegistrationStatus.SUBMITTED, RegistrationStatus.PENDING ->
-                StatusPill("In review", PillTone.Warn)
+            null -> StatusPill(t("settingsMore.regNotStarted"), PillTone.Neutral)
+            RegistrationStatus.APPROVED ->
+                StatusPill(t("settingsMore.regApproved"), PillTone.Positive)
 
-            else -> StatusPill("Draft", PillTone.Neutral)
+            RegistrationStatus.REJECTED ->
+                StatusPill(t("settingsMore.regRejected"), PillTone.Bad)
+
+            RegistrationStatus.SUBMITTED, RegistrationStatus.PENDING ->
+                StatusPill(t("settingsMore.regInReview"), PillTone.Warn)
+
+            else -> StatusPill(t("settingsMore.regDraft"), PillTone.Neutral)
         }
     }
 }
@@ -430,10 +454,10 @@ private fun SolePropOtpRow(scope: SettingsScope, onChanged: () -> Unit) {
     var resending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
 
     Text(
-        "One more step: the registry texted a 6-digit PIN to your registered mobile " +
-            "to confirm it's really you.",
+        t("settingsMore.solePropPin"),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -449,7 +473,7 @@ private fun SolePropOtpRow(scope: SettingsScope, onChanged: () -> Unit) {
             modifier = Modifier.weight(1f),
             singleLine = true,
             enabled = !verifying && !resending,
-            label = { Text("6-digit PIN") },
+            label = { Text(t("settingsMore.sixDigitPin")) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         )
         Spacer(Modifier.width(8.dp))
@@ -460,7 +484,9 @@ private fun SolePropOtpRow(scope: SettingsScope, onChanged: () -> Unit) {
                 coroutines.launch {
                     try {
                         scope.repo.verifyRegistrationOtp(scope.companyId, code)
-                        scope.showMessage("Verified. The registry review continues.")
+                        scope.showMessage(
+                            AppStrings.translate(locale, "settingsMore.otpVerified"),
+                        )
                         onChanged()
                     } catch (cause: Exception) {
                         error = cause.userMessage()
@@ -470,7 +496,11 @@ private fun SolePropOtpRow(scope: SettingsScope, onChanged: () -> Unit) {
                 }
             },
             enabled = !verifying && !resending && code.length == 6,
-        ) { Text(if (verifying) "Checking…" else "Verify") }
+        ) {
+            Text(
+                if (verifying) t("settingsMore.checking") else t("settingsMore.verify"),
+            )
+        }
     }
     OutlinedButton(
         onClick = {
@@ -479,7 +509,9 @@ private fun SolePropOtpRow(scope: SettingsScope, onChanged: () -> Unit) {
             coroutines.launch {
                 try {
                     scope.repo.resendRegistrationOtp(scope.companyId)
-                    scope.showMessage("A new PIN is on its way.")
+                    scope.showMessage(
+                        AppStrings.translate(locale, "settingsMore.newPinSent"),
+                    )
                 } catch (cause: Exception) {
                     error = cause.userMessage()
                 } finally {
@@ -489,6 +521,10 @@ private fun SolePropOtpRow(scope: SettingsScope, onChanged: () -> Unit) {
         },
         enabled = !verifying && !resending,
         modifier = Modifier.padding(top = 6.dp),
-    ) { Text(if (resending) "Sending…" else "Resend the PIN") }
+    ) {
+        Text(
+            if (resending) t("settingsMore.sending") else t("settingsMore.resendPin"),
+        )
+    }
     InlineError(error)
 }

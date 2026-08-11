@@ -392,6 +392,76 @@ export const settingsMoreEn = {
     "Transfer the number your customers already know to Loonext. It's free, " +
     "and it keeps working until the switch completes.",
 
+  /* The tracker, the state banners and the document hints that `porting/copy.ts`
+     holds as data (PORTING.md §8/§9).
+
+     They live in a plain module rather than in the port card because the
+     onboarding wizard and Settings both draw them, and a customer mid-transfer
+     checks whichever screen is to hand. The timing words are the load-bearing
+     part: no "instant", no invented percentage, and a window a carrier can
+     actually meet. */
+  portStepSubmittedLabel: "Transfer requested",
+  portStepSubmittedMeaning:
+    "We've sent the transfer request to your current carrier.",
+  portStepDateConfirmedLabel: "Switch-over date confirmed",
+  portStepDateConfirmedMeaning:
+    "Your carrier confirmed the date your number moves to Loonext.",
+  portStepNumberSwitchedLabel: "Number switched",
+  portStepNumberSwitchedMeaning:
+    "Your number moved to Loonext. Turning on texting now.",
+  portStepTextingLiveLabel: "Texting live",
+  portStepTextingLiveMeaning: "Text your customers straight from Loonext.",
+
+  /* The portability check, before any money changes hands. */
+  portabilityOk:
+    "Good news: {number} can move to Loonext. It'll keep working with your current carrier until the switch-over date.",
+  /** The carrier gave no reason, so the sentence says that rather than nothing. */
+  portabilityFailReasonUnknown:
+    "the carrier reports it can't be transferred right now",
+  portabilityFail:
+    "We can't transfer this number: {reason}. You can start with a new local number instead.",
+
+  /* The honest window, and the three lines of it shown before payment. */
+  portHonestWindow:
+    "Your number keeps working with your current provider until the switch completes, usually 1 to 7 business days. We'll email you when it's ready.",
+  portTimelineKeepsWorking:
+    "Your number keeps working on your current carrier the whole time.",
+  portTimelineSwitchDate:
+    "It switches to Loonext on the transfer date, usually a few business days to about two weeks (US), often faster in Canada.",
+  portTimelineTextingStarts:
+    "Texting through Loonext starts once the switch completes. We'll show you exactly where it is and email you at each step.",
+
+  /* One banner per state the transfer can be in. */
+  portStateSubmitted:
+    "Transfer in progress. We've sent the request to your current carrier. They usually respond within a couple of business days. Your number still works on your old carrier for now.",
+  portStateFocConfirmed:
+    "Locked in. Your number switches to Loonext on {date}. Nothing works differently until then. We'll email you when it switches.",
+  portStateNumberSwitched:
+    "Your number moved to Loonext. We're turning on texting now, usually about 10 minutes, occasionally a business day or two. We'll email you the moment it's ready.",
+  portStateTextingLive:
+    "Your number is live on Loonext. Text your customers straight from here.",
+  /** The carrier flagged something and did not say what. */
+  portStateVoiceExceptionReasonUnknown:
+    "they didn't say exactly what, so check your details below",
+  portStateVoiceException:
+    "Your carrier flagged something on the transfer: {reason}. Fix it and resubmit. It usually takes a couple of minutes, and there's no fee to try again.",
+  portStateMessagingException:
+    "Your number moved over, but texting is taking a bit longer. Your old provider hasn't released the texting routing yet. We're escalating with the carrier on your behalf; this usually clears within a business day or two and there's nothing you need to do.",
+  portStateAssignmentBlocked:
+    "One more step: ask your previous texting provider to remove {number} from their carrier campaign, then we'll finish connecting it. We'll retry automatically once they do.",
+  portStateDocumentsPending:
+    "Almost there. Upload your signed authorization (LOA) and a recent bill, then submit the transfer to your carrier.",
+  portStateBridgeAvailable:
+    "Your temporary number {bridge} is ready so you can text today. Once your real number finishes transferring, you can release the temporary one.",
+
+  /* What each of the two required documents actually is, in plain words. */
+  portHintLoa:
+    "A signed letter authorizing the transfer. Sign it within the last 90 days, and make sure it lists this number and your service address.",
+  portHintLoaCa:
+    "Canadian carriers use a standard letter. Download the template, sign it, and upload it here.",
+  portHintInvoice:
+    "A recent bill from your current carrier, less than 30 days old, showing this number and your service address.",
+
   /* Pay for a year (#400) */
   prepaidYearOpenTitle: "Your year",
   prepaidYearOpenLead:
@@ -1496,6 +1566,63 @@ export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
     "Transférez vers Loonext le numéro que vos clients connaissent déjà. " +
     "C'est gratuit, et il continue de fonctionner jusqu'à la fin du " +
     "basculement.",
+
+  portStepSubmittedLabel: "Transfert demandé",
+  portStepSubmittedMeaning:
+    "Nous avons envoyé la demande de transfert à votre fournisseur actuel.",
+  portStepDateConfirmedLabel: "Date de basculement confirmée",
+  portStepDateConfirmedMeaning:
+    "Votre fournisseur a confirmé la date à laquelle votre numéro passe à Loonext.",
+  portStepNumberSwitchedLabel: "Numéro basculé",
+  portStepNumberSwitchedMeaning:
+    "Votre numéro est passé à Loonext. Activation des textos en cours.",
+  portStepTextingLiveLabel: "Textos en service",
+  portStepTextingLiveMeaning:
+    "Écrivez à vos clients directement depuis Loonext.",
+
+  portabilityOk:
+    "Bonne nouvelle : le {number} peut être transféré vers Loonext. Il continuera de fonctionner chez votre fournisseur actuel jusqu'à la date de basculement.",
+  portabilityFailReasonUnknown:
+    "le fournisseur indique qu'il ne peut pas être transféré pour l'instant",
+  portabilityFail:
+    "Nous ne pouvons pas transférer ce numéro : {reason}. Vous pouvez commencer avec un nouveau numéro local.",
+
+  portHonestWindow:
+    "Votre numéro continue de fonctionner chez votre fournisseur actuel jusqu'à la fin du basculement, généralement de 1 à 7 jours ouvrables. Nous vous écrirons dès qu'il sera prêt.",
+  portTimelineKeepsWorking:
+    "Votre numéro continue de fonctionner chez votre fournisseur actuel pendant tout ce temps.",
+  portTimelineSwitchDate:
+    "Il passe à Loonext à la date du transfert, généralement de quelques jours ouvrables à environ deux semaines (États-Unis), souvent plus vite au Canada.",
+  portTimelineTextingStarts:
+    "Les textos par Loonext commencent une fois le basculement terminé. Nous vous montrerons exactement où en est la demande et nous vous écrirons à chaque étape.",
+
+  portStateSubmitted:
+    "Transfert en cours. Nous avons envoyé la demande à votre fournisseur actuel. Il répond habituellement en deux jours ouvrables. Votre numéro fonctionne encore chez votre ancien fournisseur pour l'instant.",
+  portStateFocConfirmed:
+    "C'est confirmé. Votre numéro passe à Loonext le {date}. Rien ne change d'ici là. Nous vous écrirons au moment du basculement.",
+  portStateNumberSwitched:
+    "Votre numéro est passé à Loonext. Nous activons les textos, généralement en une dizaine de minutes, parfois en un ou deux jours ouvrables. Nous vous écrirons dès que ce sera prêt.",
+  portStateTextingLive:
+    "Votre numéro est en service sur Loonext. Écrivez à vos clients directement d'ici.",
+  portStateVoiceExceptionReasonUnknown:
+    "il n'a pas précisé quoi, alors vérifiez vos renseignements ci-dessous",
+  portStateVoiceException:
+    "Votre fournisseur a signalé un problème sur le transfert : {reason}. Corrigez-le et renvoyez la demande. Cela prend habituellement quelques minutes, et il n'y a aucuns frais pour réessayer.",
+  portStateMessagingException:
+    "Votre numéro a été transféré, mais les textos prennent un peu plus de temps. Votre ancien fournisseur n'a pas encore libéré l'acheminement des textos. Nous faisons le suivi auprès du fournisseur pour vous ; cela se règle habituellement en un ou deux jours ouvrables et vous n'avez rien à faire.",
+  portStateAssignmentBlocked:
+    "Une dernière étape : demandez à votre ancien fournisseur de textos de retirer le {number} de sa campagne, puis nous terminerons le raccordement. Nous réessaierons automatiquement dès que ce sera fait.",
+  portStateDocumentsPending:
+    "Presque terminé. Téléversez votre autorisation signée (LOA) et une facture récente, puis envoyez le transfert à votre fournisseur.",
+  portStateBridgeAvailable:
+    "Votre numéro temporaire {bridge} est prêt : vous pouvez écrire à vos clients dès aujourd'hui. Une fois le transfert de votre vrai numéro terminé, vous pourrez libérer le numéro temporaire.",
+
+  portHintLoa:
+    "Une lettre signée autorisant le transfert. Signez-la dans les 90 derniers jours et assurez-vous qu'elle indique ce numéro et l'adresse de votre service.",
+  portHintLoaCa:
+    "Les fournisseurs canadiens utilisent une lettre normalisée. Téléchargez le modèle, signez-le et téléversez-le ici.",
+  portHintInvoice:
+    "Une facture récente de votre fournisseur actuel, datant de moins de 30 jours, indiquant ce numéro et l'adresse de votre service.",
 
   prepaidYearOpenTitle: "Votre année",
   prepaidYearOpenLead:

@@ -50,6 +50,7 @@ import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
 import com.loonext.android.core.diag.CallFlowLog
 import com.loonext.android.core.diag.CrashReportLog
+import com.loonext.android.core.i18n.t
 import com.loonext.android.push.PushPrefs
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.telephony.SoftphoneStatus
@@ -105,8 +106,8 @@ fun DiagnosticsScreen(
     ) {
         // ------------------------------------------------------------ call flow
         SectionRow(
-            label = "Call flow",
-            action = "Share",
+            label = t("shell.diagCallFlow"),
+            action = t("shell.diagShare"),
             onAction = {
                 haptics.tap()
                 scope.launch {
@@ -122,9 +123,9 @@ fun DiagnosticsScreen(
 
         // -------------------------------------------------------- crash reports
         SectionRow(
-            label = "Crash reports",
+            label = t("shell.diagCrashReports"),
             count = crashEntries.size,
-            action = if (crashEntries.isEmpty()) null else "Share all",
+            action = if (crashEntries.isEmpty()) null else t("shell.diagShareAll"),
             onAction = {
                 haptics.tap()
                 shareText(
@@ -136,7 +137,7 @@ fun DiagnosticsScreen(
         PaperCard(Modifier.fillMaxWidth()) {
             if (crashEntries.isEmpty()) {
                 QuietCaption(
-                    "No crash reports on this device.",
+                    t("shell.diagNoCrashReports"),
                     Modifier.padding(horizontal = 15.dp, vertical = 13.dp),
                 )
             } else {
@@ -163,11 +164,11 @@ fun DiagnosticsScreen(
         }
 
         // --------------------------------------------------------------- device
-        SectionHeader("Device")
+        SectionHeader(t("shell.diagDevice"))
         DeviceCard()
 
         // --------------------------------------------------------------- export
-        val exportLabel = "Export everything"
+        val exportLabel = t("shell.diagExport")
         PaperCard(Modifier.fillMaxWidth()) {
             Row(
                 Modifier
@@ -197,7 +198,7 @@ fun DiagnosticsScreen(
                         style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.5.sp),
                     )
                     QuietCaption(
-                        "Device facts, call flow, and crash reports in one share",
+                        t("shell.diagExportCaption"),
                         Modifier.padding(top = 1.dp),
                     )
                 }
@@ -239,7 +240,7 @@ private fun CallFlowCard() {
     PaperCard(Modifier.fillMaxWidth()) {
         if (lines.isEmpty()) {
             QuietCaption(
-                "No call events yet this session.",
+                t("shell.diagNoCallEvents"),
                 Modifier.padding(horizontal = 15.dp, vertical = 13.dp),
             )
         } else {
@@ -294,14 +295,14 @@ private fun CrashReportRow(
             .animateContentSize(),
     ) {
         Text(
-            formatCrashTime(meta.timeMs),
+            formatCrashTime(meta.timeMs, t("shell.diagUnknownTime")),
             style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp),
         )
         QuietCaption(
             listOfNotNull(
-                meta.threadName?.let { "on $it" },
-                meta.appVersion?.let { "v$it" },
-            ).joinToString(" · ").ifBlank { "Details inside" },
+                meta.threadName?.let { t("shell.diagOnThread", "thread" to it) },
+                meta.appVersion?.let { t("shell.footerVersion", "version" to it) },
+            ).joinToString(" · ").ifBlank { t("shell.diagDetailsInside") },
             Modifier.padding(top = 1.dp),
         )
         meta.firstStackLine?.let {
@@ -337,9 +338,9 @@ private fun CrashReportRow(
                 )
             }
             Row(Modifier.padding(top = 2.dp)) {
-                TextButton(onClick = onShare) { Text("Share") }
+                TextButton(onClick = onShare) { Text(t("shell.diagShare")) }
                 TextButton(onClick = { confirmingDelete = true }) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text(t("common.delete"), color = MaterialTheme.colorScheme.error)
                 }
             }
         }
@@ -348,16 +349,18 @@ private fun CrashReportRow(
     if (confirmingDelete) {
         AlertDialog(
             onDismissRequest = { confirmingDelete = false },
-            title = { Text("Delete this crash report?") },
-            text = { Text("It is removed from this device only and cannot be recovered.") },
+            title = { Text(t("shell.diagDeleteTitle")) },
+            text = { Text(t("shell.diagDeleteBody")) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmingDelete = false
                     onDelete()
-                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                }) { Text(t("common.delete"), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmingDelete = false }) { Text("Keep") }
+                TextButton(onClick = { confirmingDelete = false }) {
+                    Text(t("shell.diagKeep"))
+                }
             },
         )
     }
@@ -370,12 +373,12 @@ private fun DeviceCard() {
     val socketLabel = if (softphone != null) {
         val snapshot by softphone.state.collectAsStateWithLifecycle()
         when (snapshot.status) {
-            SoftphoneStatus.READY -> "Ready"
-            SoftphoneStatus.CONNECTING -> "Connecting"
-            SoftphoneStatus.DISCONNECTED -> "Disconnected"
+            SoftphoneStatus.READY -> t("shell.diagSocketReady")
+            SoftphoneStatus.CONNECTING -> t("shell.diagSocketConnecting")
+            SoftphoneStatus.DISCONNECTED -> t("shell.diagSocketDisconnected")
         }
     } else {
-        "Not running"
+        t("shell.diagSocketNotRunning")
     }
     val pushRegistered = remember { PushPrefs.token(context) != null }
     val notificationsAllowed = remember {
@@ -383,17 +386,32 @@ private fun DeviceCard() {
             .getOrDefault(false)
     }
     PaperCard(Modifier.fillMaxWidth()) {
-        DeviceRow("App version", BuildConfig.VERSION_NAME)
+        DeviceRow(t("shell.diagAppVersion"), BuildConfig.VERSION_NAME)
         RowDivider()
-        DeviceRow("Android", "SDK ${Build.VERSION.SDK_INT} (Android ${Build.VERSION.RELEASE})")
+        // "Android" is the platform's own name and is never translated — the
+        // row's VALUE is the fact a bug report needs to carry verbatim.
+        DeviceRow(
+            "Android",
+            t(
+                "shell.diagSdk",
+                "sdk" to "${Build.VERSION.SDK_INT}",
+                "release" to "${Build.VERSION.RELEASE}",
+            ),
+        )
         RowDivider()
-        DeviceRow("Device", "${Build.MANUFACTURER} ${Build.MODEL}")
+        DeviceRow(t("shell.diagDevice"), "${Build.MANUFACTURER} ${Build.MODEL}")
         RowDivider()
-        DeviceRow("Push token", if (pushRegistered) "Registered" else "Not registered")
+        DeviceRow(
+            t("shell.diagPushToken"),
+            if (pushRegistered) t("shell.diagRegistered") else t("shell.diagNotRegistered"),
+        )
         RowDivider()
-        DeviceRow("Notifications", if (notificationsAllowed) "Allowed" else "Blocked")
+        DeviceRow(
+            t("shell.notifications"),
+            if (notificationsAllowed) t("shell.diagAllowed") else t("shell.diagBlocked"),
+        )
         RowDivider()
-        DeviceRow("Softphone socket", socketLabel)
+        DeviceRow(t("shell.diagSocket"), socketLabel)
     }
 }
 
@@ -451,12 +469,32 @@ private fun buildExportBundle(context: Context, crashText: String?): String = bu
     appendLine(crashText?.ifBlank { null } ?: "(none)")
 }
 
-private fun formatCrashTime(timeMs: Long?): String {
-    if (timeMs == null) return "Unknown time"
+/**
+ * [unknown] is passed in because this is a plain function: it has no
+ * composition to read the reader's language out of, and threading a locale
+ * through it to reach one fallback would be worse than one parameter.
+ *
+ * The PATTERN itself is deliberately not in the catalogue. A date format is not
+ * copy — it is a machine instruction that happens to contain the word "at", and
+ * a translator handed `MMM d, yyyy 'at' h:mm a` can break the screen by editing
+ * it. Left English on this one developer surface and recorded rather than
+ * hidden.
+ */
+private fun formatCrashTime(timeMs: Long?, unknown: String): String {
+    if (timeMs == null) return unknown
     return SimpleDateFormat("MMM d, yyyy 'at' h:mm a", Locale.getDefault()).format(Date(timeMs))
 }
 
-/** ACTION_SEND chooser — same shape as the post-crash prompt's share. */
+/**
+ * ACTION_SEND chooser — same shape as the post-crash prompt's share.
+ *
+ * #228: the SUBJECT lines and the exported body stay English on purpose, and
+ * they are the only strings on this screen that do. They are not read by the
+ * person holding the phone: they are what lands in a support inbox, beside the
+ * stack traces and the `sdk=34` lines they annotate. Translating the label on an
+ * evidence file makes it harder to find and no easier to read — the same reason
+ * `buildExportBundle`'s keys are `app_version=` rather than a sentence.
+ */
 private fun shareText(context: Context, subject: String, text: String) {
     val send = Intent(Intent.ACTION_SEND)
         .setType("text/plain")

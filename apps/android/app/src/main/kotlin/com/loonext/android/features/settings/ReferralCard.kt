@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ReferralsView
 import com.loonext.android.core.referral.ReferralShare
 
@@ -58,7 +59,7 @@ fun ReferralCard(view: ReferralsView) {
             // Said rather than hidden: a card that disappears when there is
             // nothing to show is a card nobody learns exists.
             Text(
-                "Nobody has used your link yet.",
+                t("settingsMore.noReferralsYet"),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -85,10 +86,18 @@ fun ReferralCard(view: ReferralsView) {
 
         if (view.rewarded_this_year > 0) {
             Spacer(Modifier.height(8.dp))
+            // Two whole sentences rather than a stem plus "month"/"months":
+            // French agrees its adjective as well as its noun, so the singular
+            // and the plural differ by more than one letter at the end.
             Text(
-                "${view.rewarded_this_year} free " +
-                    (if (view.rewarded_this_year == 1) "month" else "months") +
-                    " earned so far.",
+                if (view.rewarded_this_year == 1) {
+                    t("settingsMore.freeMonthEarned")
+                } else {
+                    t(
+                        "settingsMore.freeMonthsEarned",
+                        "count" to "${view.rewarded_this_year}",
+                    )
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
             )

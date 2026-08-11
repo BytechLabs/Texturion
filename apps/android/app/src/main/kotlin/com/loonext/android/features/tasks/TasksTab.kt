@@ -78,6 +78,9 @@ import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.StoreCache
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Task
@@ -246,9 +249,12 @@ private fun TaskListScreen(
         }
     }
 
+    val youLabel = t("contactsTasks.you")
+    val teammateLabel = t("contactsTasks.teammate")
+
     fun memberName(userId: String?): String? = when {
         userId == null -> null
-        userId == me.user_id -> me.display_name.ifBlank { "You" }
+        userId == me.user_id -> me.display_name.ifBlank { youLabel }
         else -> members.firstOrNull { it.user_id == userId }
             ?.display_name?.ifBlank { null }
     }
@@ -262,11 +268,15 @@ private fun TaskListScreen(
                     .padding(start = 18.dp, end = 18.dp, top = 8.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
-                ScreenTitle("Tasks", Modifier.weight(1f))
+                ScreenTitle(t("contactsTasks.tasksTitle"), Modifier.weight(1f))
                 if (view != TaskViewKind.Map) {
                     PaperCircleButton(
                         icon = Icons.Outlined.Search,
-                        contentDescription = if (searchOpen) "Hide search" else "Search task titles",
+                        contentDescription = if (searchOpen) {
+                            t("contactsTasks.hideSearch")
+                        } else {
+                            t("contactsTasks.searchTaskTitles")
+                        },
                         onClick = {
                             haptics.tap()
                             searchOpen = !searchOpen
@@ -291,7 +301,7 @@ private fun TaskListScreen(
             ) {
                 ViewToggle(
                     icon = Icons.AutoMirrored.Outlined.ViewList,
-                    contentDescription = "List view",
+                    contentDescription = t("contactsTasks.viewList"),
                     checked = view == TaskViewKind.List,
                 ) {
                     haptics.tap()
@@ -299,7 +309,7 @@ private fun TaskListScreen(
                 }
                 ViewToggle(
                     icon = Icons.Outlined.ViewKanban,
-                    contentDescription = "Board view",
+                    contentDescription = t("contactsTasks.viewBoard"),
                     checked = view == TaskViewKind.Board,
                 ) {
                     haptics.tap()
@@ -307,7 +317,7 @@ private fun TaskListScreen(
                 }
                 ViewToggle(
                     icon = Icons.Outlined.CalendarMonth,
-                    contentDescription = "Calendar view",
+                    contentDescription = t("contactsTasks.viewCalendar"),
                     checked = view == TaskViewKind.Calendar,
                 ) {
                     haptics.tap()
@@ -315,7 +325,7 @@ private fun TaskListScreen(
                 }
                 ViewToggle(
                     icon = Icons.Outlined.Map,
-                    contentDescription = "Map view",
+                    contentDescription = t("contactsTasks.viewMap"),
                     checked = view == TaskViewKind.Map,
                 ) {
                     haptics.tap()
@@ -331,7 +341,7 @@ private fun TaskListScreen(
                     onValueChange = { search = it.take(TASK_SEARCH_MAX) },
                     placeholder = {
                         Text(
-                            "Search task titles",
+                            t("contactsTasks.searchTaskTitles"),
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -352,7 +362,7 @@ private fun TaskListScreen(
                             }) {
                                 Icon(
                                     Icons.Outlined.Close,
-                                    contentDescription = "Clear search",
+                                    contentDescription = t("contactsTasks.clearSearch"),
                                     modifier = Modifier.size(18.dp),
                                 )
                             }
@@ -376,7 +386,7 @@ private fun TaskListScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "Filter",
+                    t("contactsTasks.filter"),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
@@ -394,7 +404,7 @@ private fun TaskListScreen(
                 }
                 tabs.forEach { item ->
                     FilterPill(
-                        text = item.label,
+                        text = t(item.labelKey),
                         selected = tab == item,
                         onClick = {
                             haptics.tap()
@@ -403,12 +413,12 @@ private fun TaskListScreen(
                     )
                 }
                 val assigneeName = assigneeChip?.let { id ->
-                    if (id == me.user_id) "You"
+                    if (id == me.user_id) youLabel
                     else members.firstOrNull { it.user_id == id }
-                        ?.display_name?.ifBlank { null } ?: "Teammate"
+                        ?.display_name?.ifBlank { null } ?: teammateLabel
                 }
                 FilterPill(
-                    text = assigneeName ?: "Assignee",
+                    text = assigneeName ?: t("contactsTasks.assignee"),
                     selected = assigneeChip != null,
                     onClick = {
                         haptics.tap()
@@ -418,7 +428,7 @@ private fun TaskListScreen(
                         {
                             Icon(
                                 Icons.Outlined.Close,
-                                contentDescription = "Clear assignee filter",
+                                contentDescription = t("contactsTasks.clearAssigneeFilter"),
                                 modifier = Modifier
                                     .size(12.dp)
                                     .clickable {
@@ -430,7 +440,7 @@ private fun TaskListScreen(
                     } else null,
                 )
                 FilterPill(
-                    text = "Unassigned",
+                    text = t("contactsTasks.unassigned"),
                     selected = unassignedChip,
                     onClick = {
                         haptics.tap()
@@ -441,7 +451,7 @@ private fun TaskListScreen(
                 if (view != TaskViewKind.Map) {
                     DueChip.entries.forEach { chip ->
                         FilterPill(
-                            text = chip.label,
+                            text = t(chip.labelKey),
                             selected = dueChip == chip,
                             onClick = {
                                 haptics.tap()
@@ -683,6 +693,9 @@ private fun TaskList(
     var loadingMore by remember(companyId) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    // #228: read in composition so the bulk coroutine below, which is not
+    // composition, can still say its failure in the reader's language.
+    val locale = LocalAppLocale.current
 
     // #478 multi-select. The state and every rule about it come from
     // BulkSelection.kt — the same module the inbox uses — so "select all"
@@ -722,8 +735,11 @@ private fun TaskList(
             if (rows.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        if (filtersActive || tab != TasksTabKind.Open) "Nothing on this list."
-                        else "No tasks yet. Promote a message from its ⋯ menu in a conversation.",
+                        if (filtersActive || tab != TasksTabKind.Open) {
+                            t("contactsTasks.listEmptyFiltered")
+                        } else {
+                            t("contactsTasks.listEmpty")
+                        },
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 32.dp),
@@ -777,7 +793,12 @@ private fun TaskList(
                             selection = BulkSelection.EMPTY
                             onRetry()
                         } catch (_: Exception) {
-                            onMessage("That didn't go through. Nothing was changed.")
+                            onMessage(
+                                AppStrings.translate(
+                                    locale,
+                                    "contactsTasks.bulkFailed",
+                                ),
+                            )
                         } finally {
                             bulkRunning = false
                         }
@@ -802,12 +823,18 @@ private fun TaskList(
                     )
                 }
 
+                // A LazyColumn's content is a LazyListScope, not a composition,
+                // so the two section headings are read here.
+                val toDoLabel = t("contactsTasks.columnToDo")
+                val doneLabel = t("contactsTasks.columnDone")
+
                 LazyColumn(
                     Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 24.dp),
                 ) {
                     taskSection(
-                        label = "To do",
+                        sectionKey = "todo",
+                        label = toDoLabel,
                         tasks = openRows,
                         memberName = memberName,
                         onOpenTask = onOpenTask,
@@ -818,7 +845,8 @@ private fun TaskList(
                         },
                     )
                     taskSection(
-                        label = "Done",
+                        sectionKey = "done",
+                        label = doneLabel,
                         tasks = doneRows,
                         memberName = memberName,
                         onOpenTask = onOpenTask,
@@ -862,7 +890,15 @@ private fun TaskList(
                                             }
                                         }
                                     },
-                                ) { Text(if (loadingMore) "Loading…" else "Load more") }
+                                ) {
+                                    Text(
+                                        if (loadingMore) {
+                                            t("contactsTasks.loading")
+                                        } else {
+                                            t("contactsTasks.loadMore")
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
@@ -879,6 +915,12 @@ private fun TaskList(
  * card between columns.
  */
 private fun LazyListScope.taskSection(
+    /**
+     * The lazy-list key for this section's header. Separate from [label] since
+     * #228: the label is now a translated word, and a key that changes with the
+     * reader's language is a key that is not a key.
+     */
+    sectionKey: String,
     label: String,
     tasks: List<Task>,
     memberName: (String?) -> String?,
@@ -889,7 +931,7 @@ private fun LazyListScope.taskSection(
     onToggleSelected: ((String) -> Unit)? = null,
 ) {
     if (tasks.isEmpty()) return
-    item(key = "hdr-$label") {
+    item(key = "hdr-$sectionKey") {
         SectionHeader(
             label,
             Modifier
@@ -921,7 +963,11 @@ private fun LazyListScope.taskSection(
             SwipeActionRow(
                 startAction = SwipeAction(
                     icon = if (task.done) Icons.Outlined.Undo else Icons.Outlined.Check,
-                    label = if (task.done) "Not done" else "Done",
+                    label = if (task.done) {
+                        t("contactsTasks.swipeNotDone")
+                    } else {
+                        t("contactsTasks.columnDone")
+                    },
                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
                     container = MaterialTheme.colorScheme.primaryContainer,
                     // onToggleDone plays the commit haptic itself (confirm on
@@ -930,7 +976,7 @@ private fun LazyListScope.taskSection(
                 ),
                 endAction = SwipeAction(
                     icon = Icons.Outlined.Event,
-                    label = "Due date",
+                    label = t("contactsTasks.dueDate"),
                     tint = MaterialTheme.colorScheme.onSecondaryContainer,
                     container = MaterialTheme.colorScheme.secondaryContainer,
                     onCommit = {
@@ -1032,8 +1078,14 @@ internal fun TaskListRow(
                 color = MaterialTheme.colorScheme.onSurface,
             )
             val overdue = isOverdue(task)
+            val locale = LocalAppLocale.current
             val dueText = task.due_at?.let {
-                if (overdue) "Overdue · due ${formatDue(it)}" else "Due ${formatDue(it)}"
+                val when_ = formatDue(it, locale = locale)
+                if (overdue) {
+                    t("contactsTasks.overdueDueWhen", "when" to when_)
+                } else {
+                    t("contactsTasks.dueWhen", "when" to when_)
+                }
             }
             val context = task.contact?.name?.ifBlank { null }
             if (dueText != null || context != null) {
@@ -1168,7 +1220,10 @@ private fun TaskBulkBar(
         Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onClear, enabled = !running) {
-                    Icon(Icons.Outlined.Close, contentDescription = "Clear selection")
+                    Icon(
+                        Icons.Outlined.Close,
+                        contentDescription = t("contactsTasks.clearSelection"),
+                    )
                 }
                 Text(
                     selection.label(),
@@ -1176,16 +1231,28 @@ private fun TaskBulkBar(
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = onMarkDone, enabled = !running) { Text("Done") }
+                TextButton(onClick = onMarkDone, enabled = !running) {
+                    Text(t("contactsTasks.columnDone"))
+                }
                 Box {
                     IconButton(onClick = { menuOpen = true }, enabled = !running) {
-                        Icon(Icons.Outlined.MoreVert, contentDescription = "More bulk actions")
+                        Icon(
+                            Icons.Outlined.MoreVert,
+                            contentDescription = t("contactsTasks.moreBulkActions"),
+                        )
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         for (member in members) {
                             DropdownMenuItem(
                                 text = {
-                                    Text("Assign to ${member.display_name.ifBlank { "Teammate" }}")
+                                    Text(
+                                        t(
+                                            "contactsTasks.assignTo",
+                                            "who" to member.display_name.ifBlank {
+                                                t("contactsTasks.teammate")
+                                            },
+                                        ),
+                                    )
                                 },
                                 onClick = {
                                     menuOpen = false
@@ -1194,17 +1261,17 @@ private fun TaskBulkBar(
                             )
                         }
                         DropdownMenuItem(
-                            text = { Text("Unassign") },
+                            text = { Text(t("contactsTasks.unassign")) },
                             onClick = { menuOpen = false; onUnassign() },
                         )
                         DropdownMenuItem(
-                            text = { Text("Mark not done") },
+                            text = { Text(t("contactsTasks.markNotDone")) },
                             onClick = { menuOpen = false; onMarkUndone() },
                         )
                         // Destructive, and last: a delete adjacent to the
                         // assign items is a delete somebody hits by momentum.
                         DropdownMenuItem(
-                            text = { Text("Delete") },
+                            text = { Text(t("common.delete")) },
                             onClick = { menuOpen = false; onDelete() },
                         )
                     }
@@ -1215,12 +1282,12 @@ private fun TaskBulkBar(
             // "select all" that quietly means whichever of the two it feels like.
             if (showSelectLoaded) {
                 TextButton(onClick = onSelectLoaded, enabled = !running) {
-                    Text("Select these ${loadedIds.size}")
+                    Text(t("contactsTasks.selectThese", "count" to "${loadedIds.size}"))
                 }
             }
             if (selection.canEscalate(loadedIds, hasMore)) {
                 TextButton(onClick = onSelectAllMatching, enabled = !running) {
-                    Text("Select all matching")
+                    Text(t("contactsTasks.selectAllMatching"))
                 }
             }
         }

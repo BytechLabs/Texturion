@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.RejectionDomain
 import com.loonext.android.core.model.explainRejection
 import com.loonext.android.core.model.needsHumanHelp
@@ -52,7 +53,11 @@ fun RejectionNotice(
 ) {
     val guidance = explainRejection(domain, reason)
     val stuck = needsHumanHelp(submissionCount)
-    val subject = if (domain == RejectionDomain.PORT) "transfer" else "registration"
+    val subject = if (domain == RejectionDomain.PORT) {
+        t("settingsMore.subjectTransfer")
+    } else {
+        t("settingsMore.subjectRegistration")
+    }
     val uriHandler = LocalUriHandler.current
 
     Surface(
@@ -64,12 +69,11 @@ fun RejectionNotice(
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Text(
                 guidance?.what
-                    ?: "The carrier turned down this $subject and did not say why in a way we can translate.",
+                    ?: t("settingsMore.rejectionUnknownWhat", "subject" to subject),
                 style = MaterialTheme.typography.bodyMedium,
             )
             Text(
-                guidance?.fix
-                    ?: "Check the details below against your official registration paperwork, and reply to us if nothing looks wrong.",
+                guidance?.fix ?: t("settingsMore.rejectionUnknownFix"),
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 4.dp),
             )
@@ -78,7 +82,7 @@ fun RejectionNotice(
                 // Kept visible so a support conversation can quote the same
                 // string the customer is looking at.
                 Text(
-                    "The carrier said: $reason",
+                    t("settingsMore.carrierSaid", "reason" to reason),
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.padding(top = 6.dp),
                 )
@@ -95,7 +99,9 @@ fun RejectionNotice(
                     modifier = Modifier.padding(top = 2.dp),
                 ) {
                     if (field != null) {
-                        LinkButton(onClick = { onGoToField(field) }) { Text("Take me to it") }
+                        LinkButton(onClick = { onGoToField(field) }) {
+                            Text(t("settingsMore.takeMeToIt"))
+                        }
                     }
                     if (stuck) {
                         // Offered ALONGSIDE the form, not instead of it —
@@ -103,12 +109,22 @@ fun RejectionNotice(
                         // for a reply before changing it.
                         LinkButton(
                             onClick = {
+                                // The mail SUBJECT stays English and stays out of
+                                // the catalogue: it is read by our support inbox,
+                                // not by the customer, and a translated one would
+                                // put accented characters straight into a URL.
+                                val topic =
+                                    if (domain == RejectionDomain.PORT) {
+                                        "transfer"
+                                    } else {
+                                        "registration"
+                                    }
                                 uriHandler.openUri(
                                     "mailto:support@loonext.com?subject=" +
-                                        "My%20$subject%20keeps%20getting%20rejected",
+                                        "My%20$topic%20keeps%20getting%20rejected",
                                 )
                             },
-                        ) { Text("Get help from us") }
+                        ) { Text(t("settingsMore.getHelp")) }
                     }
                 }
             }

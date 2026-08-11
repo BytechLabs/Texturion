@@ -107,6 +107,8 @@ import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Attachment
 import com.loonext.android.core.model.AttachmentSummary
 import com.loonext.android.core.diag.RecentErrors
@@ -291,11 +293,11 @@ fun ThreadScreen(
                         verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
                     ) {
                         Text(
-                            "This conversation doesn't exist or was removed.",
+                            t("thread.notFound"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        TextButton(onClick = onBack) { Text("Back to inbox") }
+                        TextButton(onClick = onBack) { Text(t("thread.backToInbox")) }
                     }
                 } else {
                     CenteredError(load.message, onRetry = { controller.retryInitialLoad() })
@@ -421,7 +423,15 @@ private fun ThreadLoaded(
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
     val detail = controller.conversation ?: return
-    val names = remember(controller.members) { memberNames(controller.members) }
+    // Read in composition; the callbacks and `remember` blocks below run
+    // outside it, where a @Composable lookup cannot go.
+    val locale = LocalAppLocale.current
+    val micRefusedCopy = t("thread.micNeededForCalls")
+    val copiedCopy = t("thread.copied")
+    val teammateName = t("thread.teammate")
+    val names = remember(controller.members, teammateName) {
+        memberNames(controller.members, teammateName)
+    }
     val contactName = detail.contact.name ?: formatPhone(detail.contact.phone_e164)
 
     // #507: the wrap-up a crew member speaks into their own phone after a call
@@ -471,10 +481,7 @@ private fun ThreadLoaded(
         if (granted) {
             placeCall()
         } else {
-            onNotice(
-                "Loonext needs the microphone to place calls. " +
-                    "Allow it in Settings › Apps › Loonext › Permissions.",
-            )
+            onNotice(micRefusedCopy)
         }
     }
 
@@ -489,6 +496,7 @@ private fun ThreadLoaded(
         controller.pendingSends,
         controller.filter,
         controller.allMessagesLoaded,
+        locale,
     ) {
         buildTimeline(
             messages = controller.messages,
@@ -498,6 +506,7 @@ private fun ThreadLoaded(
             allMessagesLoaded = controller.allMessagesLoaded,
             zone = zone,
             today = LocalDate.now(zone),
+            locale = locale,
         )
     }
 
@@ -723,7 +732,7 @@ private fun ThreadLoaded(
             if (timeline.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        "No messages yet.",
+                        t("thread.noMessages"),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -767,7 +776,7 @@ private fun ThreadLoaded(
                                     authorName = when (message.direction) {
                                         MessageDirection.NOTE ->
                                             message.sent_by_user_id?.let { names[it] }
-                                                ?: "Internal note"
+                                                ?: t("thread.internalNote")
 
                                         MessageDirection.OUTBOUND ->
                                             message.sent_by_user_id?.let { names[it] }
@@ -822,8 +831,8 @@ private fun ThreadLoaded(
                                     eventType = item.event.type,
                                     transcript = voicemailTranscriptOf(item.event),
                                     clickLabel = when {
-                                        openable -> "Open the task"
-                                        jumpable -> "Go to that message"
+                                        openable -> t("thread.openTheTask")
+                                        jumpable -> t("thread.goToMessage")
                                         else -> null
                                     },
                                     onClick = when {
@@ -901,7 +910,7 @@ private fun ThreadLoaded(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            "New message",
+                            t("thread.newMessagePill"),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onPrimary,
                         )
@@ -1247,7 +1256,7 @@ private fun ThreadLoaded(
                 actionsFor = null
                 makeTaskFor = message
             },
-            onCopied = { onNotice("Copied.") },
+            onCopied = { onNotice(copiedCopy) },
             onDismiss = { actionsFor = null },
         )
     }
@@ -1317,14 +1326,13 @@ private fun ThreadLoaded(
     confirmDiscardQueued?.let { pending ->
         AlertDialog(
             onDismissRequest = { confirmDiscardQueued = null },
-            title = { Text("Delete this message?") },
+            title = { Text(t("thread.deleteQueuedTitle")) },
             text = {
                 // Quoting it back is the point: a queued row shows a couple of
                 // lines, and the person is about to lose whichever ones they
                 // cannot see.
                 Text(
-                    "It hasn't been sent, and deleting it here is the only copy gone. " +
-                        "\n\n“${pending.body}”",
+                    t("thread.deleteQueuedBody") + "\n\n“${pending.body}”",
                 )
             },
             confirmButton = {
@@ -1332,10 +1340,12 @@ private fun ThreadLoaded(
                     haptics.reject()
                     controller.discardQueued(pending.localId)
                     confirmDiscardQueued = null
-                }) { Text("Delete") }
+                }) { Text(t("common.delete")) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDiscardQueued = null }) { Text("Keep it") }
+                TextButton(onClick = { confirmDiscardQueued = null }) {
+                    Text(t("thread.keepIt"))
+                }
             },
         )
     }
@@ -1374,7 +1384,7 @@ private fun ThreadTagsRow(
                 )
                 Icon(
                     Icons.Filled.Close,
-                    contentDescription = "Remove tag ${tag.name}",
+                    contentDescription = t("thread.removeTag", "name" to tag.name),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .padding(start = 2.dp)
@@ -1397,7 +1407,7 @@ private fun ThreadTagsRow(
             )
             Spacer(Modifier.width(4.dp))
             Text(
-                if (tags.isEmpty()) "Add tag" else "Tags",
+                if (tags.isEmpty()) t("thread.addTag") else t("thread.tags"),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1439,6 +1449,8 @@ private fun ThreadHeader(
 ) {
     val detail = controller.conversation ?: return
     val haptics = rememberHaptics()
+    val locale = LocalAppLocale.current
+    val optedOutWord = t("thread.optedOut")
     var menuOpen by remember { mutableStateOf(false) }
     var assigneeSheetOpen by remember { mutableStateOf(false) }
     var confirmOptOut by remember { mutableStateOf(false) }
@@ -1472,7 +1484,7 @@ private fun ThreadHeader(
             ) {
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
+                    contentDescription = t("common.back"),
                     modifier = Modifier.size(18.dp),
                 )
             }
@@ -1530,10 +1542,13 @@ private fun ThreadHeader(
                             append(repeatBadge)
                             append(" · ")
                         }
-                        append(statusLabel(detail.status))
+                        append(statusLabel(detail.status, locale))
                         append(" · ")
                         append(assigneeName ?: phoneLabel)
-                        if (controller.contact?.opted_out == true) append(" · Opted out")
+                        if (controller.contact?.opted_out == true) {
+                            append(" · ")
+                            append(optedOutWord)
+                        }
                     }
                     Row(
                         Modifier.clickable { menuOpen = true },
@@ -1609,7 +1624,7 @@ private fun ThreadHeader(
                     } else {
                         Icon(
                             Icons.Filled.Call,
-                            contentDescription = "Call $contactName",
+                            contentDescription = t("thread.callContact", "name" to contactName),
                             tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(18.dp),
                         )
@@ -1633,7 +1648,7 @@ private fun ThreadHeader(
                 ) {
                     Icon(
                         Icons.Filled.MoreHoriz,
-                        contentDescription = "More",
+                        contentDescription = t("thread.more"),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp),
                     )
@@ -1690,44 +1705,34 @@ private fun ThreadHeader(
     if (confirmOptOut) {
         AlertDialog(
             onDismissRequest = { confirmOptOut = false },
-            title = { Text("Opt this customer out?") },
-            text = {
-                Text(
-                    "They won't receive texts from you until the opt-out is removed. " +
-                        "This is recorded in the conversation timeline.",
-                )
-            },
+            title = { Text(t("thread.optOutTitle")) },
+            text = { Text(t("thread.optOutBody")) },
             confirmButton = {
                 TextButton(onClick = {
                     haptics.reject()
                     confirmOptOut = false
                     controller.optOutContact()
-                }) { Text("Opt out") }
+                }) { Text(t("thread.optOut")) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmOptOut = false }) { Text("Cancel") }
+                TextButton(onClick = { confirmOptOut = false }) { Text(t("common.cancel")) }
             },
         )
     }
     if (confirmRevoke) {
         AlertDialog(
             onDismissRequest = { confirmRevoke = false },
-            title = { Text("Remove the opt-out?") },
-            text = {
-                Text(
-                    "You'll be able to text this customer again. Only do this if they " +
-                        "asked to hear from you.",
-                )
-            },
+            title = { Text(t("thread.revokeTitle")) },
+            text = { Text(t("thread.revokeBody")) },
             confirmButton = {
                 TextButton(onClick = {
                     haptics.confirm()
                     confirmRevoke = false
                     controller.revokeOptOut()
-                }) { Text("Remove opt-out") }
+                }) { Text(t("thread.removeOptOut")) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmRevoke = false }) { Text("Cancel") }
+                TextButton(onClick = { confirmRevoke = false }) { Text(t("common.cancel")) }
             },
         )
     }
@@ -1747,7 +1752,7 @@ private fun AssigneePickerSheet(
         // viewport height (inert on tall screens).
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             Text(
-                "Assign to",
+                t("thread.assignTo"),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             )
@@ -1759,14 +1764,14 @@ private fun AssigneePickerSheet(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "Unassigned",
+                    t("thread.unassigned"),
                     style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.weight(1f),
                 )
                 if (selectedUserId == null) {
                     Icon(
                         Icons.Filled.Check,
-                        contentDescription = "Selected",
+                        contentDescription = t("thread.selected"),
                         tint = MaterialTheme.colorScheme.primary,
                     )
                 }
@@ -1783,15 +1788,15 @@ private fun AssigneePickerSheet(
                     InitialsAvatar(member.display_name.ifBlank { null }, size = 30.dp)
                     Spacer(Modifier.width(12.dp))
                     Text(
-                        member.display_name.ifBlank { "Teammate" } +
-                            if (member.user_id == meUserId) " (you)" else "",
+                        member.display_name.ifBlank { t("thread.teammate") } +
+                            if (member.user_id == meUserId) t("thread.youSuffix") else "",
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.weight(1f),
                     )
                     if (selectedUserId == member.user_id) {
                         Icon(
                             Icons.Filled.Check,
-                            contentDescription = "Selected",
+                            contentDescription = t("thread.selected"),
                             tint = MaterialTheme.colorScheme.primary,
                         )
                     }
@@ -1834,7 +1839,7 @@ private fun SpamSuspectedBanner(
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                "This looks like spam",
+                t("thread.spamTitle"),
                 style = MaterialTheme.typography.labelMedium.copy(
                     fontWeight = FontWeight.SemiBold,
                 ),
@@ -1843,7 +1848,7 @@ private fun SpamSuspectedBanner(
             )
             if (canAct) {
                 Text(
-                    "Not spam",
+                    t("thread.notSpam"),
                     style = MaterialTheme.typography.labelMedium.copy(
                         fontWeight = FontWeight.SemiBold,
                     ),
@@ -1853,8 +1858,7 @@ private fun SpamSuspectedBanner(
             }
         }
         Text(
-            "We didn't send a notification for it. Nothing is hidden, and you " +
-                "can reply as normal.",
+            t("thread.spamBody"),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
@@ -1902,7 +1906,7 @@ private fun SnoozedBanner(label: String, onBringBack: () -> Unit) {
             modifier = Modifier.weight(1f),
         )
         Text(
-            "Bring back",
+            t("thread.bringBack"),
             style = MaterialTheme.typography.labelMedium.copy(
                 fontWeight = FontWeight.SemiBold,
             ),
@@ -1957,7 +1961,7 @@ private fun PinnedBanner(
                     label = "pinned-count",
                 ) { count ->
                     Text(
-                        "Pinned · $count",
+                        t("thread.pinnedCount", "count" to count.toString()),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1965,7 +1969,8 @@ private fun PinnedBanner(
             }
             Icon(
                 if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                contentDescription = if (expanded) "Collapse" else "Expand",
+                contentDescription = if (expanded) t("thread.collapse")
+                else t("thread.expand"),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -1979,7 +1984,7 @@ private fun PinnedBanner(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        message.body.ifBlank { "Photo" },
+                        message.body.ifBlank { t("thread.photo") },
                         style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -2019,8 +2024,9 @@ private fun ConversationSheet(
 ) {
     val contactName = controller.contact?.name
         ?: controller.contact?.phone_e164?.let(::formatPhone)
-        ?: "Contact"
+        ?: t("thread.contactFallback")
     val haptics = rememberHaptics()
+    val locale = LocalAppLocale.current
     AppSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.background,
@@ -2058,7 +2064,7 @@ private fun ConversationSheet(
                         )
                     }
                     Text(
-                        "View contact",
+                        t("thread.viewContact"),
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -2071,7 +2077,7 @@ private fun ConversationSheet(
             // Status pills.
             Column {
                 Text(
-                    "STATUS",
+                    t("thread.statusHeading"),
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
@@ -2112,7 +2118,7 @@ private fun ConversationSheet(
                             },
                         ) {
                             Text(
-                                statusLabel(status),
+                                statusLabel(status, locale),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 11.5.sp,
                                     fontWeight = FontWeight.SemiBold,
@@ -2138,14 +2144,15 @@ private fun ConversationSheet(
                         ?.display_name?.ifBlank { null }
                     SheetActionRow(
                         icon = Icons.Outlined.PersonAdd,
-                        label = assignee?.let { "Assigned to " + it } ?: "Assign to…",
+                        label = assignee?.let { t("thread.assignedTo", "name" to it) }
+                            ?: t("thread.assignToEllipsis"),
                         onClick = onAssign,
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     // #465: pinned and spam are STATES, drawn and named as such.
                     SheetToggleRow(
                         icon = Icons.Outlined.PushPin,
-                        label = "Pinned",
+                        label = t("thread.pinned"),
                         checked = detail.pinned_at != null,
                         onToggle = {
                             haptics.tap()
@@ -2156,13 +2163,13 @@ private fun ConversationSheet(
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SheetActionRow(
                         icon = Icons.Outlined.PhotoLibrary,
-                        label = "Photos & files",
+                        label = t("thread.photosAndFiles"),
                         onClick = onOpenGallery,
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SheetToggleRow(
                         icon = Icons.Outlined.Report,
-                        label = "Spam",
+                        label = t("thread.spam"),
                         checked = detail.is_spam,
                         onToggle = {
                             haptics.tap()
@@ -2180,21 +2187,18 @@ private fun ConversationSheet(
                         // they actually need: the route back, which is one the
                         // customer takes.
                         if (isCarrierEnforcedOptOut(controller.contact?.opt_out_source)) {
-                            SheetNote(
-                                "This customer texted STOP. Only they can undo it, by " +
-                                    "texting START to your number.",
-                            )
+                            SheetNote(t("thread.carrierStopNote"))
                         } else {
                             SheetActionRow(
                                 icon = Icons.Outlined.Undo,
-                                label = "Remove opt-out",
+                                label = t("thread.removeOptOut"),
                                 onClick = onRevokeOptOut,
                             )
                         }
                     } else {
                         SheetActionRow(
                             icon = Icons.Outlined.Block,
-                            label = "Opt out of texts",
+                            label = t("thread.optOutOfTexts"),
                             onClick = onOptOut,
                         )
                     }
@@ -2215,7 +2219,7 @@ private fun ConversationSheet(
                 Column {
                     SheetToggleRow(
                         icon = Icons.Outlined.ChatBubbleOutline,
-                        label = "Show messages",
+                        label = t("thread.showMessages"),
                         checked = controller.filter.messages,
                         onToggle = {
                             haptics.tap()
@@ -2225,7 +2229,7 @@ private fun ConversationSheet(
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SheetToggleRow(
                         icon = Icons.Outlined.Lock,
-                        label = "Show notes",
+                        label = t("thread.showNotes"),
                         checked = controller.filter.notes,
                         onToggle = {
                             haptics.tap()
@@ -2235,7 +2239,7 @@ private fun ConversationSheet(
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SheetToggleRow(
                         icon = Icons.Outlined.Info,
-                        label = "Show events",
+                        label = t("thread.showEvents"),
                         checked = controller.filter.events,
                         onToggle = {
                             haptics.tap()

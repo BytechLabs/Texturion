@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -17,7 +17,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
-import { useT } from "@/i18n/provider";
+import { useT, type Translate } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { ApiError } from "@/lib/api/error";
 import { useSaveOnboardingRegistration } from "@/lib/api/onboarding";
@@ -34,28 +34,48 @@ import { useWizardStepGuard } from "../use-onboarding-state";
  * the canonical Telnyx keys (messageFlow, sample1, sample2 — SPEC §4.4).
  */
 
-// TCR floors mirrored from apps/api/src/telnyx/wizard.ts campaignDraftSchema.
-const schema = z.object({
-  messageFlow: z
-    .string()
-    .trim()
-    .min(40, "Give carriers at least a sentence or two (40+ characters).")
-    .max(2048, "Keep it under 2,048 characters."),
-  sample1: z
-    .string()
-    .trim()
-    .min(20, "Make it a realistic text, at least 20 characters.")
-    .max(1024, "Keep it under 1,024 characters."),
-  sample2: z
-    .string()
-    .trim()
-    .min(20, "Make it a realistic text, at least 20 characters.")
-    .max(1024, "Keep it under 1,024 characters."),
-});
+/*
+ * TCR floors mirrored from apps/api/src/telnyx/wizard.ts campaignDraftSchema.
+ *
+ * A factory rather than a module-level constant: every message is read under
+ * the field by the person filling it in, so it is copy and belongs in the
+ * catalogue.
+ */
+function buildSchema(t: Translate) {
+  return z.object({
+    messageFlow: z
+      .string()
+      .trim()
+      .min(40, t("onboarding.textingFlowTooShort"))
+      .max(2048, t("onboarding.textingFlowTooLong")),
+    sample1: z
+      .string()
+      .trim()
+      .min(20, t("onboarding.textingSampleTooShort"))
+      .max(1024, t("onboarding.textingSampleTooLong")),
+    sample2: z
+      .string()
+      .trim()
+      .min(20, t("onboarding.textingSampleTooShort"))
+      .max(1024, t("onboarding.textingSampleTooLong")),
+  });
+}
 
-type FormValues = z.infer<typeof schema>;
+type FormValues = z.infer<ReturnType<typeof buildSchema>>;
 
-/** SPEC §4.1 step 3 — the pre-filled truthful default, verbatim. */
+/**
+ * SPEC §4.1 step 3 — the pre-filled truthful default, verbatim.
+ *
+ * #228: THIS ONE STAYS ENGLISH, and so do the sample texts below it.
+ *
+ * They are not UI copy. They are the FIELD VALUES this form submits to The
+ * Campaign Registry, where a US carrier's reviewer reads them to decide whether
+ * to approve the brand. A French default here would hand that reviewer a
+ * submission they cannot assess, and the cost of getting it wrong is a rejected
+ * registration rather than an awkward sentence. The labels, hints and floors
+ * around the fields are all in the catalogue; what goes IN the fields is the
+ * business's own words, seeded in the language the registry reads.
+ */
 const DEFAULT_MESSAGE_FLOW =
   "Customers text our business number first, or ask us in person / by phone to text them. We never send marketing blasts.";
 
@@ -79,6 +99,7 @@ export default function TextingDetailsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [seeded, setSeeded] = useState(false);
 
+  const schema = useMemo(() => buildSchema(t), [t]);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { messageFlow: "", sample1: "", sample2: "" },

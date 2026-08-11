@@ -1,5 +1,6 @@
 package com.loonext.android.features.settings
 
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.Capability
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Invite
@@ -256,11 +257,15 @@ fun capSegments(includedSegments: Long, multiplier: Double?): Long =
     Math.round(includedSegments * normalizeCapMultiplier(multiplier))
 
 /**
- * #178: which meter runs hot in the 'pacing' state, named plainly. Compares
- * each meter's use of its own allowance; names both only when both are past
- * their included amounts. Always a plural noun phrase, so "are" follows.
+ * #178: which meter runs hot in the 'pacing' state. Compares each meter's use
+ * of its own allowance; names both only when both are past their included
+ * amounts. Always a plural noun phrase, so "are" follows.
+ *
+ * #228 SPLIT THE DECISION FROM THE WORD, and it is one function rather than
+ * two copies of the comparison on purpose — a rule written twice is a rule that
+ * drifts, and this one decides what a customer is told about their bill.
  */
-fun pacingSubject(usage: Usage): String {
+fun pacingSubjectKey(usage: Usage): String {
     val messages =
         if (usage.included_segments > 0) {
             usage.used_segments.toDouble() / usage.included_segments
@@ -274,11 +279,18 @@ fun pacingSubject(usage: Usage): String {
             0.0
         }
     return when {
-        messages >= 1.0 && minutes >= 1.0 -> "Messages and calling minutes"
-        minutes > messages -> "Calling minutes"
-        else -> "Messages"
+        messages >= 1.0 && minutes >= 1.0 -> "settingsMore.pacingBoth"
+        minutes > messages -> "settingsMore.pacingMinutes"
+        else -> "settingsMore.pacingMessages"
     }
 }
+
+/**
+ * The same answer in words, for one locale. Pass null outside composition and
+ * it reads English, which is what every caller did before there was a choice.
+ */
+fun pacingSubject(usage: Usage, locale: String? = null): String =
+    AppStrings.translate(locale, pacingSubjectKey(usage))
 
 /** #178 'capped': how far along the owner-set spending cap the hotter meter is. */
 fun capUseRatio(usage: Usage): Double {

@@ -97,6 +97,9 @@ import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.StoreCache
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.snooze.isSnoozed
 import com.loonext.android.core.snooze.snoozeReturnLabel
 import com.loonext.android.core.model.ContactSummary
@@ -154,8 +157,15 @@ import androidx.compose.material3.TextButton
 
 // #280: internal rather than file-private so SavedViews.kt can translate a
 // stored view into a tab selection. Same module, same package.
-internal enum class InboxStatusTab(val label: String) {
-    Open("Open"), Mine("Mine"), All("All"), Closed("Closed")
+//
+// #228: the CATALOGUE KEY rather than the word. An enum constant is built once,
+// outside composition and before anybody's language is known, so a `String`
+// here could only ever hold English.
+internal enum class InboxStatusTab(val labelKey: String) {
+    Open("inbox.segmentOpen"),
+    Mine("inbox.segmentMine"),
+    All("inbox.segmentAll"),
+    Closed("inbox.segmentClosed"),
 }
 
 /**
@@ -282,7 +292,18 @@ private class InboxController(
     private val companyId: String,
     private val meUserId: String,
     private val scope: CoroutineScope,
+    /**
+     * #228: the reader's language, handed down from `LocalAppLocale` at the
+     * mount. The snackbars this class raises are the only sentences it owns, and
+     * they are raised from coroutines rather than from composition — so the
+     * catalogue has to be reachable without one.
+     */
+    private val locale: String,
 ) {
+    /** One line of the catalogue, for the notices below. */
+    private fun say(key: String, vars: Map<String, String> = emptyMap()): String =
+        AppStrings.translate(locale, key, vars)
+
     var tab by mutableStateOf(InboxStatusTab.Open)
         private set
     /**
@@ -635,7 +656,7 @@ private class InboxController(
             }.onSuccess {
                 loadSavedViews()
                 onDone(null)
-            }.onFailure { onDone(it.message ?: "Could not save that view.") }
+            }.onFailure { onDone(it.message ?: say("inbox.viewSaveFailed")) }
         }
     }
 
@@ -961,7 +982,7 @@ private class InboxController(
                 if (undo == null) {
                     notify(message)
                 } else {
-                    notify(message, actionLabel = "Undo") { runUndo(undo) }
+                    notify(message, actionLabel = say("inbox.undo")) { runUndo(undo) }
                 }
             } catch (cause: Exception) {
                 notify(cause.userMessage())
@@ -1063,11 +1084,14 @@ private class InboxController(
                     // `new` or `waiting` used to come back as `open`, quietly
                     // losing the fact that nobody had replied to it yet, which
                     // is the entire distinction those statuses carry.
-                    notify("Conversation closed", actionLabel = "Undo") {
+                    notify(
+                        say("inbox.conversationClosed"),
+                        actionLabel = say("inbox.undo"),
+                    ) {
                         reopen(row.id, row.status)
                     }
                 } else {
-                    notify("Conversation reopened")
+                    notify(say("inbox.conversationReopened"))
                 }
             } catch (cause: Exception) {
                 notify(cause.userMessage())
@@ -1161,8 +1185,12 @@ private fun InboxList(
     modifier: Modifier = Modifier,
 ) {
     val repo = remember(graph) { MessagingRepository(graph.api) }
-    val controller = remember(companyId) {
-        InboxController(repo, graph.storeCache, companyId, me.user_id, graph.appScope)
+    // #228: the language is part of the key. The controller's snackbars are
+    // built in coroutines, so it holds the locale rather than reading it — and a
+    // controller kept across a language change would keep saying the old one.
+    val locale = LocalAppLocale.current
+    val controller = remember(companyId, locale) {
+        InboxController(repo, graph.storeCache, companyId, me.user_id, graph.appScope, locale)
     }
     LaunchedEffect(controller) { controller.start() }
     // #508: land on the filter another surface asked for. Keyed on the token so
@@ -1192,13 +1220,14 @@ private fun InboxList(
     var startedSteps by remember(companyId, startedAudience) {
         mutableStateOf<List<StartedStep>>(emptyList())
     }
-    LaunchedEffect(companyId, startedAudience, me.company?.subscription_status) {
+    LaunchedEffect(companyId, startedAudience, me.company?.subscription_status, locale) {
         startedSteps = loadStartedSteps(
             audience = startedAudience,
             companyId = companyId,
             me = me,
             meRepo = graph.meRepo,
             repo = repo,
+            locale = locale,
         )
     }
     LaunchedEffect(controller) {
@@ -1283,7 +1312,7 @@ private fun InboxList(
                 ) {
                     InboxStatusTab.entries.forEach { item ->
                         FilterPill(
-                            text = item.label,
+                            text = t(item.labelKey),
                             selected = controller.tab == item,
                             onClick = { controller.selectTab(item) },
                         )
@@ -1306,14 +1335,16 @@ private fun InboxList(
                 // before it ever reaches its list.
                 if (startedSteps.isNotEmpty()) {
                     GettingStartedCard(
-                        title = if (startedAudience == StartedAudience.SETUP) "Getting started"
-                        else "Getting the hang of it",
+                        title = if (startedAudience == StartedAudience.SETUP) {
+                            t("inbox.startedOwnerTitle")
+                        } else {
+                            t("inbox.startedMemberTitle")
+                        },
                         steps = startedSteps,
                         companyId = companyId,
                         kind = startedAudience,
                         footer = if (startedAudience == StartedAudience.SETUP) null
-                        else "Your notification settings are yours alone. " +
-                            "Change when we buzz you in Settings.",
+                        else t("inbox.startedMemberFooter"),
                     )
                     Spacer(Modifier.height(14.dp))
                 }
@@ -1375,6 +1406,15 @@ private fun InboxList(
     }
 }
 
+/**
+ * The name Compose's animation tooling shows for the unread chip's transition.
+ *
+ * A CONSTANT rather than a literal at the call site: `label = "…"` is the shape a
+ * reader-facing string takes everywhere else in this file, and #228's ledger
+ * cannot tell the two apart. Nobody using the app ever sees this one.
+ */
+private const val UNREAD_BADGE_TRANSITION = "unreadBadge"
+
 @Composable
 private fun InboxHeader(
     unreadCount: Int,
@@ -1393,13 +1433,13 @@ private fun InboxHeader(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ScreenTitle("Inbox")
+        ScreenTitle(t("inbox.title"))
         // Animated so the chip grows in, ticks its count, and shrinks away.
-        AnimatedContent(targetState = unreadCount, label = "unreadBadge") { count ->
+        AnimatedContent(targetState = unreadCount, label = UNREAD_BADGE_TRANSITION) { count ->
             if (count > 0) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Spacer(Modifier.width(9.dp))
-                    DsChip("$count unread")
+                    DsChip(t("inbox.unreadChip", "count" to count.toString()))
                 }
             }
         }
@@ -1412,9 +1452,9 @@ private fun InboxHeader(
             PaperIconButton(
                 icon = Icons.Outlined.Schedule,
                 contentDescription = if (scheduledCount == 1) {
-                    "1 text waiting to send"
+                    t("inbox.scheduledOneAria")
                 } else {
-                    "$scheduledCount texts waiting to send"
+                    t("inbox.scheduledManyAria", "count" to scheduledCount.toString())
                 },
                 onClick = onScheduled,
             )
@@ -1422,13 +1462,13 @@ private fun InboxHeader(
         }
         PaperIconButton(
             icon = Icons.Outlined.Search,
-            contentDescription = "Search",
+            contentDescription = t("inbox.searchAria"),
             onClick = onSearch,
         )
         Spacer(Modifier.width(8.dp))
         PaperIconButton(
             icon = Icons.Outlined.Tune,
-            contentDescription = "Filters",
+            contentDescription = t("inbox.filtersAria"),
             onClick = onFilters,
             badge = filtersActive,
         )
@@ -1627,12 +1667,12 @@ private fun ConversationListPane(
                     // #508: an empty Unanswered list is the best news this
                     // screen can give, and "nothing matches these filters"
                     // reports it as an absence. Said as the result it is.
-                    controller.awaitingOnly -> "Everyone has been answered."
-                    controller.hasSecondaryFilters -> "Nothing matches these filters."
-                    controller.tab == InboxStatusTab.Open -> "Nothing waiting on you."
-                    controller.tab == InboxStatusTab.Mine -> "Nothing assigned to you."
-                    controller.tab == InboxStatusTab.Closed -> "No closed conversations."
-                    else -> "No conversations yet."
+                    controller.awaitingOnly -> t("inbox.emptyEveryoneAnswered")
+                    controller.hasSecondaryFilters -> t("inbox.emptyNoFilterMatch")
+                    controller.tab == InboxStatusTab.Open -> t("inbox.emptyNothingWaiting")
+                    controller.tab == InboxStatusTab.Mine -> t("inbox.emptyNothingAssigned")
+                    controller.tab == InboxStatusTab.Closed -> t("inbox.emptyNoClosed")
+                    else -> t("inbox.emptyNoConversations")
                 },
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1643,12 +1683,16 @@ private fun ConversationListPane(
 
     val selecting = !controller.selection.isEmpty()
     val membersById = controller.members.associateBy { it.user_id }
+    // Read once, out here: `assigneeName` is a plain local function called from
+    // inside item lambdas, which are not composition.
+    val youLabel = t("inbox.assigneeYou")
+    val teammateLabel = t("inbox.teammateFallback")
     fun assigneeName(row: ConversationListItem): String? =
         row.assigned_user_id?.let { userId ->
             if (userId == meUserId) {
-                "You"
+                youLabel
             } else {
-                membersById[userId]?.display_name?.ifBlank { "Teammate" }
+                membersById[userId]?.display_name?.ifBlank { teammateLabel }
             }
         }
 
@@ -1666,7 +1710,7 @@ private fun ConversationListPane(
         val hasPinned = controller.pinnedRows.isNotEmpty()
         if (hasPinned) {
             item(key = "pinned-header") {
-                SectionHeader("Pinned", count = controller.pinnedRows.size)
+                SectionHeader(t("inbox.sectionPinned"), count = controller.pinnedRows.size)
             }
             itemsIndexed(
                 controller.pinnedRows,
@@ -1687,7 +1731,7 @@ private fun ConversationListPane(
             if (controller.rows.isNotEmpty()) {
                 item(key = "rest-header") {
                     Spacer(Modifier.height(14.dp))
-                    SectionHeader("Conversations")
+                    SectionHeader(t("inbox.sectionConversations"))
                 }
             }
         }
@@ -1741,6 +1785,15 @@ private fun SwipeableConversationRow(
 ) {
     val haptics = rememberHaptics()
     val closed = row.status == ConversationStatus.CLOSED
+    // The two TalkBack actions are built inside `semantics { }`, which is not
+    // composition — so their words are read out here.
+    val readAction =
+        if (row.unread) t("inbox.actionMarkRead") else t("inbox.actionMarkUnread")
+    val statusAction = if (closed) {
+        t("inbox.actionReopenConversation")
+    } else {
+        t("inbox.actionCloseConversation")
+    }
     SwipeActionRow(
         // #185 says a swipe is a shortcut, never the ONLY path — but marking a
         // conversation UNREAD had no other path at all (opening the thread only
@@ -1749,12 +1802,8 @@ private fun SwipeableConversationRow(
         // them in TalkBack's actions menu without changing the visual row.
         modifier = Modifier.semantics {
             customActions = listOf(
-                CustomAccessibilityAction(
-                    if (row.unread) "Mark read" else "Mark unread",
-                ) { controller.toggleRead(row); true },
-                CustomAccessibilityAction(
-                    if (closed) "Reopen conversation" else "Close conversation",
-                ) { controller.toggleStatus(row); true },
+                CustomAccessibilityAction(readAction) { controller.toggleRead(row); true },
+                CustomAccessibilityAction(statusAction) { controller.toggleStatus(row); true },
             )
         },
         startAction = SwipeAction(
@@ -1763,7 +1812,7 @@ private fun SwipeableConversationRow(
             } else {
                 Icons.Outlined.MarkEmailUnread
             },
-            label = if (row.unread) "Read" else "Unread",
+            label = if (row.unread) t("inbox.swipeRead") else t("inbox.swipeUnread"),
             tint = MaterialTheme.colorScheme.onSecondaryContainer,
             container = MaterialTheme.colorScheme.secondaryContainer,
             onCommit = {
@@ -1773,7 +1822,7 @@ private fun SwipeableConversationRow(
         ),
         endAction = SwipeAction(
             icon = if (closed) Icons.AutoMirrored.Outlined.Undo else Icons.Outlined.Check,
-            label = if (closed) "Reopen" else "Close",
+            label = if (closed) t("inbox.swipeReopen") else t("inbox.swipeClose"),
             tint = MaterialTheme.colorScheme.onTertiaryContainer,
             container = MaterialTheme.colorScheme.tertiaryContainer,
             onCommit = {
@@ -1787,13 +1836,14 @@ private fun SwipeableConversationRow(
 @Composable
 private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
     val name = row.contact.name ?: formatPhone(row.contact.phone_e164)
+    val readState = if (row.unread) t("inbox.rowStateUnread") else t("inbox.rowStateRead")
     Row(
         Modifier
             .fillMaxWidth()
             // Unread was carried ONLY by the coral dot, so TalkBack read a read
             // and an unread conversation identically — the single most important
             // piece of state on the inbox row was invisible to screen readers.
-            .semantics { stateDescription = if (row.unread) "Unread" else "Read" }
+            .semantics { stateDescription = readState }
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.Top,
     ) {
@@ -1862,10 +1912,10 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
                     last.body
                 }
                 when (last.direction) {
-                    "note" -> "Note · $body"
+                    "note" -> t("inbox.rowPreviewNote", "body" to body)
                     // Whose turn it is, at a glance: without this a row you
                     // already answered looks exactly like one still waiting.
-                    "outbound" -> "You: $body"
+                    "outbound" -> t("inbox.rowPreviewYou", "body" to body)
                     else -> body
                 }
             }.orEmpty()
@@ -1926,14 +1976,14 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
                     row.tags.take(3).forEach { tag -> TagChip(tag) }
                     if (row.tags.size > 3) {
                         Text(
-                            "+${row.tags.size - 3}",
+                            t("inbox.tagOverflow", "count" to (row.tags.size - 3).toString()),
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     if (row.is_spam) {
                         DsChip(
-                            "Spam",
+                            t("inbox.spamLabel"),
                             container = MaterialTheme.colorScheme.surfaceContainerHigh,
                             content = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -2005,7 +2055,7 @@ private fun TagChip(tag: Tag) {
 private fun FilterResetControl(active: Boolean, onReset: () -> Unit) {
     val haptics = rememberHaptics()
     Text(
-        "Reset",
+        t("inbox.filtersReset"),
         style = MaterialTheme.typography.labelMedium.copy(
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
@@ -2053,7 +2103,7 @@ private fun FiltersSheet(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Filters",
+                    t("inbox.filtersTitle"),
                     style = MaterialTheme.typography.headlineMedium.copy(fontSize = 21.sp),
                     color = MaterialTheme.colorScheme.onBackground,
                 )
@@ -2065,14 +2115,14 @@ private fun FiltersSheet(
             }
 
             Column {
-                SectionHeader("Status")
+                SectionHeader(t("inbox.filterGroupStatus"))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(7.dp),
                     verticalArrangement = Arrangement.spacedBy(7.dp),
                 ) {
                     InboxStatusTab.entries.forEach { item ->
                         FilterPill(
-                            text = item.label,
+                            text = t(item.labelKey),
                             selected = controller.tab == item,
                             onClick = { controller.selectTab(item) },
                         )
@@ -2082,21 +2132,21 @@ private fun FiltersSheet(
 
             if (controller.tab != InboxStatusTab.Mine) {
                 Column {
-                    SectionHeader("Assignee")
+                    SectionHeader(t("inbox.filterGroupAssignee"))
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(7.dp),
                         verticalArrangement = Arrangement.spacedBy(7.dp),
                     ) {
                         FilterPill(
-                            text = "Anyone",
+                            text = t("inbox.filterAnyone"),
                             selected = controller.assigneeUserId == null,
                             onClick = { controller.setAssigneeFilter(null) },
                         )
                         controller.members.filter { it.deactivated_at == null }.forEach { member ->
                             val label = if (member.user_id == meUserId) {
-                                "Me"
+                                t("inbox.filterMe")
                             } else {
-                                member.display_name.ifBlank { "Teammate" }
+                                member.display_name.ifBlank { t("inbox.teammateFallback") }
                             }
                             FilterPill(
                                 text = label,
@@ -2116,10 +2166,10 @@ private fun FiltersSheet(
             }
 
             Column {
-                SectionHeader("Tags")
+                SectionHeader(t("inbox.filterGroupTags"))
                 if (controller.allTags.isEmpty()) {
                     Text(
-                        "No tags yet. Add tags from a conversation on the web.",
+                        t("inbox.filterNoTags"),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 4.dp),
@@ -2130,7 +2180,7 @@ private fun FiltersSheet(
                         verticalArrangement = Arrangement.spacedBy(7.dp),
                     ) {
                         FilterPill(
-                            text = "Any tag",
+                            text = t("inbox.filterAnyTag"),
                             selected = controller.tagId == null,
                             onClick = { controller.setTagFilter(null) },
                         )
@@ -2166,17 +2216,17 @@ private fun FiltersSheet(
             // can reach from exactly one card is one most of the crew never
             // learns exists.
             ToggleCard(
-                label = "Unanswered only",
+                label = t("inbox.filterUnansweredOnly"),
                 checked = controller.awaitingOnly,
                 onToggle = { controller.toggleAwaiting() },
             )
             ToggleCard(
-                label = "Unread only",
+                label = t("inbox.filterUnreadOnly"),
                 checked = controller.unreadOnly,
                 onToggle = { controller.toggleUnread() },
             )
             ToggleCard(
-                label = "Spam only",
+                label = t("inbox.filterSpamOnly"),
                 checked = controller.spamOnly,
                 onToggle = { controller.toggleSpam() },
             )
@@ -2185,7 +2235,7 @@ private fun FiltersSheet(
             // solved, and this sheet is where every other hidden population in
             // the inbox already lives.
             ToggleCard(
-                label = "Snoozed only",
+                label = t("inbox.filterSnoozedOnly"),
                 checked = controller.snoozedOnly,
                 onToggle = { controller.toggleSnoozed() },
             )
@@ -2208,7 +2258,7 @@ private fun FiltersSheet(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "Show conversations",
+                        t("inbox.filtersApply"),
                         style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
                         modifier = Modifier.weight(1f),
                     )
@@ -2274,8 +2324,11 @@ private fun ToggleCard(label: String, checked: Boolean, onToggle: () -> Unit) {
 // Search (spec 00 — texts, tasks, contacts)
 // ---------------------------------------------------------------------------
 
-private enum class SearchScope(val label: String) {
-    All("All"), Texts("Texts"), Tasks("Tasks"), Contacts("Contacts")
+private enum class SearchScope(val labelKey: String) {
+    All("inbox.searchScopeAll"),
+    Texts("inbox.searchScopeTexts"),
+    Tasks("inbox.searchScopeTasks"),
+    Contacts("inbox.searchScopeContacts"),
 }
 
 /** ts_headline wraps matches in <b>…</b>; render them as lime marks. */
@@ -2357,7 +2410,7 @@ private fun SearchSurface(
                     Box(Modifier.weight(1f)) {
                         if (controller.query.isEmpty()) {
                             Text(
-                                "Search texts, tasks, contacts…",
+                                t("inbox.searchPlaceholder"),
                                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                 maxLines = 1,
@@ -2381,7 +2434,7 @@ private fun SearchSurface(
                     if (controller.query.isNotEmpty()) {
                         Icon(
                             Icons.Outlined.Close,
-                            contentDescription = "Clear search",
+                            contentDescription = t("inbox.clearSearchAria"),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
                                 .size(16.dp)
@@ -2391,7 +2444,7 @@ private fun SearchSurface(
                 }
             }
             Text(
-                "Cancel",
+                t("common.cancel"),
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -2407,7 +2460,7 @@ private fun SearchSurface(
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             SearchScope.entries.forEach { item ->
                 FilterPill(
-                    text = item.label,
+                    text = t(item.labelKey),
                     selected = scope == item,
                     onClick = { scope = item },
                 )
@@ -2418,7 +2471,7 @@ private fun SearchSurface(
         if (!controller.searching) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
-                    "Search your texts, tasks, and contacts.",
+                    t("inbox.searchIdle"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -2472,7 +2525,7 @@ private fun SearchResultsPane(
     if (empty) {
         Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Text(
-                "Nothing matches \"${controller.query.trim()}\".",
+                t("inbox.searchNoMatches", "query" to controller.query.trim()),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -2483,7 +2536,10 @@ private fun SearchResultsPane(
     LazyColumn(modifier.fillMaxWidth(), contentPadding = PaddingValues(bottom = 24.dp)) {
         if (showTexts && result.conversations.isNotEmpty()) {
             item(key = "sh-conv") {
-                SectionHeader("Conversations", count = result.conversations.size)
+                SectionHeader(
+                    t("inbox.searchHeadingConversations"),
+                    count = result.conversations.size,
+                )
             }
             val hasMore = result.next_cursor != null
             itemsIndexed(
@@ -2528,9 +2584,10 @@ private fun SearchResultsPane(
                                 )
                             }
                             val snippet = highlightSnippet(hit.snippet)
+                            val notePrefix = t("inbox.searchNotePrefix")
                             Text(
                                 buildAnnotatedString {
-                                    if (hit.direction == "note") append("Note · ")
+                                    if (hit.direction == "note") append(notePrefix)
                                     append(snippet)
                                 },
                                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
@@ -2551,7 +2608,11 @@ private fun SearchResultsPane(
                         onClick = { controller.searchMore() },
                     ) {
                         Text(
-                            if (controller.searchLoadingMore) "Loading…" else "More results",
+                            if (controller.searchLoadingMore) {
+                                t("inbox.searchLoadingMore")
+                            } else {
+                                t("inbox.searchMoreResults")
+                            },
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontWeight = FontWeight.SemiBold,
                             ),
@@ -2566,7 +2627,7 @@ private fun SearchResultsPane(
 
         if (showTasks && result.tasks.isNotEmpty()) {
             item(key = "sh-tasks") {
-                SectionHeader("Tasks", count = result.tasks.size)
+                SectionHeader(t("inbox.searchHeadingTasks"), count = result.tasks.size)
                 PaperCard {
                     result.tasks.forEachIndexed { index, task ->
                         Row(
@@ -2588,7 +2649,7 @@ private fun SearchResultsPane(
                                     overflow = TextOverflow.Ellipsis,
                                 )
                                 Text(
-                                    if (task.done) "Done" else "Open task",
+                                    if (task.done) t("inbox.taskDone") else t("inbox.taskOpen"),
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontSize = 11.sp,
                                     ),
@@ -2606,7 +2667,7 @@ private fun SearchResultsPane(
 
         if (showContacts && result.contacts.isNotEmpty()) {
             item(key = "sh-contacts") {
-                SectionHeader("Contacts", count = result.contacts.size)
+                SectionHeader(t("inbox.searchHeadingContacts"), count = result.contacts.size)
                 PaperCard {
                     result.contacts.forEachIndexed { index, contact ->
                         SearchContactRow(contact, onClick = { onTextContact(contact.id) })
@@ -2619,7 +2680,10 @@ private fun SearchResultsPane(
 
         if (showExtras && result.attachments.isNotEmpty()) {
             item(key = "sh-att") {
-                SectionHeader("Attachments", count = result.attachments.size)
+                SectionHeader(
+                    t("inbox.searchHeadingAttachments"),
+                    count = result.attachments.size,
+                )
                 PaperCard {
                     result.attachments.forEachIndexed { index, hit ->
                         Column(
@@ -2666,7 +2730,7 @@ private fun SearchResultsPane(
         // does not.
         if (showExtras && result.voicemails.isNotEmpty()) {
             item(key = "sh-voicemails") {
-                SectionHeader("Voicemails", count = result.voicemails.size)
+                SectionHeader(t("inbox.searchHeadingVoicemails"), count = result.voicemails.size)
                 PaperCard {
                     result.voicemails.forEachIndexed { index, hit ->
                         Column(
@@ -2675,7 +2739,8 @@ private fun SearchResultsPane(
                                 .padding(horizontal = 15.dp, vertical = 12.dp),
                         ) {
                             Text(
-                                hit.caller_e164?.let { formatPhone(it) } ?: "Voicemail",
+                                hit.caller_e164?.let { formatPhone(it) }
+                                    ?: t("inbox.voicemailFallback"),
                                 style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -2697,7 +2762,7 @@ private fun SearchResultsPane(
 
         if (showExtras && result.templates.isNotEmpty()) {
             item(key = "sh-templates") {
-                SectionHeader("Saved replies", count = result.templates.size)
+                SectionHeader(t("inbox.searchHeadingTemplates"), count = result.templates.size)
                 PaperCard {
                     result.templates.forEachIndexed { index, hit ->
                         Column(
@@ -2752,7 +2817,7 @@ private fun TaskRing(done: Boolean) {
         ) {
             Icon(
                 Icons.Outlined.Check,
-                contentDescription = "Done",
+                contentDescription = t("inbox.taskDone"),
                 tint = MaterialTheme.colorScheme.onTertiary,
                 modifier = Modifier.size(13.dp),
             )
@@ -2797,7 +2862,10 @@ private fun SearchContactRow(contact: ContactSummary, onClick: () -> Unit) {
         ) {
             Icon(
                 Icons.AutoMirrored.Outlined.Chat,
-                contentDescription = "Text ${contact.name ?: "contact"}",
+                contentDescription = t(
+                    "inbox.contactTextAria",
+                    "name" to (contact.name ?: t("inbox.contactFallback")),
+                ),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(15.dp),
             )
@@ -2843,7 +2911,10 @@ private fun BulkSelectionBar(controller: InboxController) {
                     onClick = { controller.clearSelection() },
                     enabled = !running,
                 ) {
-                    Icon(Icons.Outlined.Close, contentDescription = "Clear selection")
+                    Icon(
+                        Icons.Outlined.Close,
+                        contentDescription = t("inbox.bulkClearSelectionAria"),
+                    )
                 }
                 Text(
                     selection.label(),
@@ -2854,13 +2925,23 @@ private fun BulkSelectionBar(controller: InboxController) {
                 if (running) LoadingIndicator()
                 Box {
                     IconButton(onClick = { menuOpen = true }, enabled = !running) {
-                        Icon(Icons.Outlined.MoreVert, contentDescription = "More bulk actions")
+                        Icon(
+                            Icons.Outlined.MoreVert,
+                            contentDescription = t("inbox.bulkMoreAria"),
+                        )
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         for (member in controller.members) {
                             DropdownMenuItem(
                                 text = {
-                                    Text("Assign to ${member.display_name.ifBlank { "Teammate" }}")
+                                    Text(
+                                        t(
+                                            "inbox.bulkAssignTo",
+                                            "name" to member.display_name.ifBlank {
+                                                t("inbox.teammateFallback")
+                                            },
+                                        ),
+                                    )
                                 },
                                 onClick = {
                                     menuOpen = false
@@ -2873,7 +2954,7 @@ private fun BulkSelectionBar(controller: InboxController) {
                             )
                         }
                         DropdownMenuItem(
-                            text = { Text("Unassign") },
+                            text = { Text(t("inbox.bulkUnassign")) },
                             onClick = {
                                 menuOpen = false
                                 controller.runBulk(
@@ -2893,20 +2974,24 @@ private fun BulkSelectionBar(controller: InboxController) {
                 TextButton(
                     onClick = { controller.selectAllLoaded() },
                     enabled = !running,
-                ) { Text("Select all ${loadedIds.size} loaded") }
+                ) {
+                    Text(
+                        t("inbox.bulkSelectAllLoaded", "count" to loadedIds.size.toString()),
+                    )
+                }
             }
             if (selection.canEscalate(loadedIds, hasMore = controller.hasMorePages)) {
                 TextButton(
                     onClick = { controller.selectAllMatchingFilter() },
                     enabled = !running,
-                ) { Text("Select all matching this filter") }
+                ) { Text(t("inbox.bulkSelectAllMatching")) }
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = { controller.runBulk("mark_read", "Marked read") },
                     enabled = !running,
-                ) { Text("Mark read") }
+                ) { Text(t("inbox.bulkMarkRead")) }
                 OutlinedButton(
                     onClick = {
                         controller.runBulk(
@@ -2916,7 +3001,7 @@ private fun BulkSelectionBar(controller: InboxController) {
                         )
                     },
                     enabled = !running,
-                ) { Text("Close") }
+                ) { Text(t("inbox.bulkClose")) }
                 OutlinedButton(
                     onClick = {
                         controller.runBulk(
@@ -2926,7 +3011,7 @@ private fun BulkSelectionBar(controller: InboxController) {
                         )
                     },
                     enabled = !running,
-                ) { Text("Spam") }
+                ) { Text(t("inbox.bulkSpam")) }
             }
         }
     }
@@ -2979,7 +3064,7 @@ private fun SavedViewsRow(controller: InboxController, canShare: Boolean) {
         }
         TextButton(onClick = { saveOpen = true }) {
             Text(
-                if (controller.savedViews.isEmpty()) "Save this view" else "Save",
+                if (controller.savedViews.isEmpty()) t("inbox.viewsSave") else t("common.save"),
                 style = MaterialTheme.typography.labelLarge,
             )
         }
@@ -3011,10 +3096,12 @@ private fun SaveViewSheet(
 ) {
     // Smart Defaults: never an empty field. The person already said what the
     // view is by building it, and "Open . Unread" beats what most would type.
+    val locale = LocalAppLocale.current
     var name by remember {
         mutableStateOf(
             suggestViewName(
                 controller.currentSelection,
+                locale = locale,
                 assignee = controller.assignee,
                 tag = controller.tag,
             ),
@@ -3026,18 +3113,18 @@ private fun SaveViewSheet(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Save this view") },
+        title = { Text(t("inbox.viewsSave")) },
         text = {
             Column {
                 Text(
-                    "The filters you have on now, under a name, one tap away tomorrow.",
+                    t("inbox.viewSaveDescription"),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
                     value = name,
                     onValueChange = { if (it.length <= SAVED_VIEW_NAME_MAX) name = it },
-                    label = { Text("Name") },
+                    label = { Text(t("inbox.viewNameLabel")) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -3047,12 +3134,12 @@ private fun SaveViewSheet(
                         Checkbox(checked = shared, onCheckedChange = { shared = it })
                         Spacer(Modifier.width(4.dp))
                         Text(
-                            "Share it with the crew",
+                            t("inbox.viewShareToggle"),
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
                     Text(
-                        "Everyone gets the same view, and each person sees only the numbers they already have access to.",
+                        t("inbox.viewShareNote"),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -3072,9 +3159,9 @@ private fun SaveViewSheet(
                         if (failure == null) onDismiss() else error = failure
                     }
                 },
-            ) { Text(if (saving) "Saving" else "Save") }
+            ) { Text(if (saving) t("inbox.viewSaving") else t("common.save")) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(t("common.cancel")) } },
     )
 }
 
@@ -3101,19 +3188,15 @@ private fun SavedViewMenu(
     if (confirmingDelete) {
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("Delete this crew view?") },
-            text = {
-                Text(
-                    "The whole crew uses " + view.name + ". Anyone who opens the app there will land on the ordinary inbox instead.",
-                )
-            },
+            title = { Text(t("inbox.viewDeleteTitle")) },
+            text = { Text(t("inbox.viewDeleteBody", "name" to view.name)) },
             confirmButton = {
                 TextButton(onClick = {
                     controller.deleteView(view.id)
                     onDismiss()
-                }) { Text("Delete for everyone") }
+                }) { Text(t("inbox.viewDeleteConfirm")) }
             },
-            dismissButton = { TextButton(onClick = onDismiss) { Text("Keep it") } },
+            dismissButton = { TextButton(onClick = onDismiss) { Text(t("inbox.viewDeleteKeep")) } },
         )
         return
     }
@@ -3121,12 +3204,12 @@ private fun SavedViewMenu(
     if (renaming) {
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("Rename view") },
+            title = { Text(t("inbox.viewRenameTitle")) },
             text = {
                 OutlinedTextField(
                     value = draft,
                     onValueChange = { if (it.length <= SAVED_VIEW_NAME_MAX) draft = it },
-                    label = { Text("Name") },
+                    label = { Text(t("inbox.viewNameLabel")) },
                     singleLine = true,
                 )
             },
@@ -3134,9 +3217,9 @@ private fun SavedViewMenu(
                 TextButton(enabled = draft.isNotBlank(), onClick = {
                     controller.renameView(view.id, draft)
                     onDismiss()
-                }) { Text("Save") }
+                }) { Text(t("common.save")) }
             },
-            dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = onDismiss) { Text(t("common.cancel")) } },
         )
         return
     }
@@ -3150,10 +3233,16 @@ private fun SavedViewMenu(
                     controller.setDefaultView(if (isDefault) null else view.id)
                     onDismiss()
                 }) {
-                    Text(if (isDefault) "Stop opening here" else "Open here by default")
+                    Text(
+                        if (isDefault) {
+                            t("inbox.viewStopOpeningHere")
+                        } else {
+                            t("inbox.viewOpenHereByDefault")
+                        },
+                    )
                 }
                 if (canManage) {
-                    TextButton(onClick = { renaming = true }) { Text("Rename") }
+                    TextButton(onClick = { renaming = true }) { Text(t("inbox.viewRename")) }
                     TextButton(onClick = {
                         if (view.shared) {
                             confirmingDelete = true
@@ -3161,10 +3250,10 @@ private fun SavedViewMenu(
                             controller.deleteView(view.id)
                             onDismiss()
                         }
-                    }) { Text("Delete") }
+                    }) { Text(t("common.delete")) }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(t("common.close")) } },
     )
 }

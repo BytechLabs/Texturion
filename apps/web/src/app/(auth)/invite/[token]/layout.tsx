@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { GateEscape } from "@/components/shell/gate-header";
+import { EN } from "@/i18n/catalog";
 
 /**
  * Per-route tab title for /invite/[token] (accepting a teammate invitation).
@@ -17,7 +18,7 @@ import { GateEscape } from "@/components/shell/gate-header";
  * renders INSIDE the (auth) group's centered card.
  */
 export const metadata: Metadata = {
-  title: "Accept your invitation",
+  title: EN.onboarding.tabAcceptInvitation,
 };
 
 export default function InviteTitleLayout({

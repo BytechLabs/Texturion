@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
+import { makeTranslate, useT, type Translate } from "@/i18n/provider";
+
 /**
  * #507 Phase 1 — capturing the crew member's own voice, in the browser.
  *
@@ -26,6 +30,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * as-is — transcoding in the tab would cost seconds and a megabyte of wasm to
  * arrive at a format the model already reads.
  */
+/**
+ * English, for a caller with no provider around it — `micFailureMessage` is
+ * exported and unit-tested directly. The hook itself passes the reader's own.
+ */
+const EN = makeTranslate(DEFAULT_LOCALE);
+
 const MIME_CANDIDATES = [
   "audio/webm;codecs=opus",
   "audio/webm",
@@ -72,18 +82,18 @@ export function canRecordAudio(): boolean {
  * "try again" when the browser has remembered a Block is telling them to do the
  * one thing that cannot work.
  */
-export function micFailureMessage(cause: unknown): string {
+export function micFailureMessage(cause: unknown, t: Translate = EN): string {
   const name = cause instanceof DOMException ? cause.name : "";
   if (name === "NotFoundError" || name === "DevicesNotFoundError") {
-    return "No microphone found. Connect or enable one, then try again — or type the note.";
+    return t("thread.micNotFound");
   }
   if (name === "NotAllowedError" || name === "SecurityError") {
-    return "Microphone access is blocked. Allow it for this site from your browser's address bar, then try again — or type the note.";
+    return t("thread.micBlocked");
   }
   if (name === "NotReadableError" || name === "AbortError") {
-    return "Your microphone is busy in another app. Close it and try again, or type the note.";
+    return t("thread.micBusy");
   }
-  return "Couldn't reach your microphone. Check your browser's mic permission, or type the note.";
+  return t("thread.micUnreachable");
 }
 
 export interface WrapUpRecorder {
@@ -113,6 +123,7 @@ export function useWrapUpRecorder(options: {
   /** Called once per completed recording. Never called for a cancel. */
   onAudio: (audio: Blob, seconds: number) => void;
 }): WrapUpRecorder {
+  const t = useT();
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -165,9 +176,7 @@ export function useWrapUpRecorder(options: {
     setError(null);
 
     if (!canRecordAudio()) {
-      setError(
-        "This browser can't record audio. Try a recent Chrome, Edge, Firefox, or Safari — or type the note.",
-      );
+      setError(t("thread.micNoRecorder"));
       return;
     }
 
@@ -178,7 +187,7 @@ export function useWrapUpRecorder(options: {
       // message below distinguishes it from "try again".
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (cause) {
-      setError(micFailureMessage(cause));
+      setError(micFailureMessage(cause, t));
       return;
     }
 
@@ -192,9 +201,7 @@ export function useWrapUpRecorder(options: {
         : new MediaRecorder(stream);
     } catch {
       for (const track of stream.getTracks()) track.stop();
-      setError(
-        "This browser couldn't start recording. Type the note instead — it saves the same way.",
-      );
+      setError(t("thread.micStartFailed"));
       return;
     }
 
@@ -229,17 +236,13 @@ export function useWrapUpRecorder(options: {
 
       const audio = new Blob(chunks, { type: recorder.mimeType || mimeType });
       if (audio.size === 0) {
-        setError(
-          "Nothing was recorded. Check your microphone and try again, or type the note.",
-        );
+        setError(t("thread.micNothingRecorded"));
         return;
       }
       // The server refuses this too; refusing here means a phone left in a
       // pocket never costs anybody an upload of it.
       if (audio.size > optionsRef.current.maxBytes) {
-        setError(
-          "That recording was too big to send. Keep a wrap-up to a sentence or three, or type it.",
-        );
+        setError(t("thread.micTooBig"));
         return;
       }
       optionsRef.current.onAudio(audio, elapsed);
@@ -255,9 +258,7 @@ export function useWrapUpRecorder(options: {
         setRecording(false);
         setSeconds(0);
       }
-      setError(
-        "The recording stopped unexpectedly. Try again, or type the note.",
-      );
+      setError(t("thread.micStoppedUnexpectedly"));
     };
 
     recorder.start();
@@ -277,7 +278,7 @@ export function useWrapUpRecorder(options: {
         recorderRef.current?.stop();
       }
     }, 250);
-  }, [releaseStream]);
+  }, [releaseStream, t]);
 
   const stop = useCallback(() => {
     const recorder = recorderRef.current;

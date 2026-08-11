@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.loonext.android.features.compose.usSendApproved
 import com.loonext.android.features.compose.usTextingOff
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.DayHours
 import com.loonext.android.ui.common.userMessage
@@ -108,16 +109,19 @@ private fun BusinessHoursCard(
 
     val dirty = days != initial
     val allValid = days.all { !it.enabled || isValidDayWindow(it.open, it.close) }
+    // Reported from the coroutine the Save press starts, so it is read here.
+    val savedMessage = t("settings.hoursSaved")
 
     fun patchDay(weekday: String, transform: (DayForm) -> DayForm) {
         days = days.map { if (it.weekday == weekday) transform(it) else it }
     }
 
     SettingsCard(
-        title = "Business hours",
-        description = "When you're open, in ${company.timezone.replace('_', ' ')}. " +
-            "Texts that arrive outside these hours can get your away reply. This is " +
-            "separate from each customer's texting quiet hours.",
+        title = t("settings.hoursTitle"),
+        description = t(
+            "settings.hoursIntro",
+            "timezone" to company.timezone.replace('_', ' '),
+        ),
     ) {
         days.forEach { day ->
             Row(
@@ -134,7 +138,7 @@ private fun BusinessHoursCard(
             }
         }
         if (!allValid) {
-            ReadOnlyLine("Times are 24-hour HH:MM, and open and close can't match.")
+            ReadOnlyLine(t("settings.hoursInvalid"))
         }
         InlineError(error)
         if (canEdit) {
@@ -159,7 +163,7 @@ private fun BusinessHoursCard(
                                 }
                                 val updated = scope.repo.updateCompany(scope.companyId, body)
                                 onCompanyUpdated(updated)
-                                scope.showMessage("Business hours saved.")
+                                scope.showMessage(savedMessage)
                             } catch (cause: Exception) {
                                 error = cause.userMessage()
                             } finally {
@@ -169,11 +173,11 @@ private fun BusinessHoursCard(
                     },
                     enabled = allValid && !saving,
                     modifier = Modifier.padding(top = 10.dp),
-                ) { Text(if (saving) "Saving…" else "Save hours") }
+                ) { Text(if (saving) t("common.saving") else t("settings.hoursSaveAction")) }
             }
         } else {
             Spacer(Modifier.height(4.dp))
-            ReadOnlyLine("Only owners and admins can change business hours.")
+            ReadOnlyLine(t("settings.hoursReadOnly"))
         }
     }
 }
@@ -243,14 +247,12 @@ private fun AwayReplyCard(
     )
 
     SettingsCard(
-        title = "Away reply",
-        description = "One automatic text back when someone reaches you outside your " +
-            "business hours, in your words, so you never lose an after-hours emergency.",
+        title = t("settings.awayTitle"),
+        description = t("settings.awayIntro"),
     ) {
         LabeledSwitchRow(
-            label = "Reply automatically after hours",
-            supporting = "Fires once per conversation when a customer first texts " +
-                "outside your hours.",
+            label = t("settings.awayEnable"),
+            supporting = t("settings.awayEnableHelp"),
             checked = enabled,
             onCheckedChange = { enabled = it },
             enabled = canEdit && !saving,
@@ -262,9 +264,9 @@ private fun AwayReplyCard(
         if (enabled && !usSendApproved(company)) {
             ReachNote(
                 if (usTextingOff(company)) {
-                    "Customers with US numbers won't get this reply: US texting isn't on for this workspace. Canadian numbers get it now."
+                    t("settings.awayUsTextingOff")
                 } else {
-                    "Customers with US numbers won't get this reply until your registration is approved. Canadian numbers get it now."
+                    t("settings.awayUsPending")
                 },
             )
         }
@@ -278,7 +280,13 @@ private fun AwayReplyCard(
                 minLines = 3,
                 enabled = !saving,
                 placeholder = { Text(company.away_effective_message) },
-                supportingText = { Text("${message.length}/1000 · {first_name} and {business_name} fill in automatically.") },
+                // `{first_name}` and `{business_name}` survive the catalogue's
+                // interpolation untouched — an unknown token is left visible on
+                // purpose — and they are NOT translated in either language: they
+                // are the literal merge fields an owner types into the box.
+                supportingText = {
+                    Text(t("settings.awayCount", "count" to message.length.toString()))
+                },
             )
         }
         // #414: the switch sits with the message that makes the offer, not on
@@ -286,16 +294,15 @@ private fun AwayReplyCard(
         // inviting URGENT with the mechanism off is the exact defect this
         // issue is about, and an owner can only see it if both are together.
         LabeledSwitchRow(
-            label = "Treat an emergency word as an emergency",
+            label = t("settings.awayEmergencySwitch"),
             // #460: names the words THIS workspace watches for. Hardcoding the
             // product's four was fine until an owner could change them, at
             // which point a switch naming words nothing matches is the #414
             // defect in a different place.
-            supporting = "Texts back starting with " +
-                emergencyWordList(company.effectiveEmergencyWords) +
-                " reach everyone on the crew straight away, at the priority that wakes " +
-                "a phone — no away reply, and never held back by your daily " +
-                "notification limit.",
+            supporting = t(
+                "settings.awayEmergencySwitchHelp",
+                "words" to emergencyWordList(company.effectiveEmergencyWords),
+            ),
             checked = emergency,
             onCheckedChange = { emergency = it },
             enabled = canEdit && !saving,
@@ -312,14 +319,16 @@ private fun AwayReplyCard(
                 },
             )
         }
-        PreviewBubble(label = "Preview", text = preview)
+        PreviewBubble(label = t("settings.awayPreviewLabel"), text = preview)
         InlineError(error)
         if (canEdit) {
             if (dirty) {
+                val needsMessage = t("settings.awayNeedsMessage")
+                val awaySaved = t("settings.awaySaved")
                 Button(
                     onClick = {
                         if (enabled && trimmed.isEmpty()) {
-                            error = "Write your away message before turning it on."
+                            error = needsMessage
                             return@Button
                         }
                         error = null
@@ -334,7 +343,7 @@ private fun AwayReplyCard(
                                 }
                                 val updated = scope.repo.updateCompany(scope.companyId, body)
                                 onCompanyUpdated(updated)
-                                scope.showMessage("Away reply saved.")
+                                scope.showMessage(awaySaved)
                             } catch (cause: Exception) {
                                 error = cause.userMessage()
                             } finally {
@@ -344,11 +353,11 @@ private fun AwayReplyCard(
                     },
                     enabled = !saving,
                     modifier = Modifier.padding(top = 10.dp),
-                ) { Text(if (saving) "Saving…" else "Save away reply") }
+                ) { Text(if (saving) t("common.saving") else t("settings.awaySaveAction")) }
             }
         } else {
             Spacer(Modifier.height(4.dp))
-            ReadOnlyLine("Only owners and admins can change the away reply.")
+            ReadOnlyLine(t("settings.awayReadOnly"))
         }
     }
 }
@@ -405,12 +414,12 @@ internal fun RowScope.WeekdayRow(
         TimeField(
             value = day.open,
             onValueChange = { onChange(day.copy(open = it)) },
-            label = "Open",
+            label = t("settings.hoursOpen"),
             enabled = enabled,
             modifier = Modifier.weight(1f),
         )
         Text(
-            "to",
+            t("settings.hoursTo"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 6.dp),
@@ -418,13 +427,13 @@ internal fun RowScope.WeekdayRow(
         TimeField(
             value = day.close,
             onValueChange = { onChange(day.copy(close = it)) },
-            label = "Close",
+            label = t("settings.hoursClose"),
             enabled = enabled,
             modifier = Modifier.weight(1f),
         )
     } else {
         Text(
-            "Closed",
+            t("settings.hoursClosed"),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

@@ -1,5 +1,8 @@
 package com.loonext.android.core.security
 
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.model.MessageLocale
+
 /**
  * #330 — whether the inbox should be behind a lock right now.
  *
@@ -88,11 +91,22 @@ object AppLock {
      *
      * Never "Session expired" or anything that reads as a fault. Nothing has gone
      * wrong: the person turned this on, and the phone is theirs.
+     *
+     * #228: [locale] defaults to English so the pure-logic test can keep asking
+     * the question it asks — does this sentence ever read as a fault — without
+     * knowing anything about a reader. `AppLockGate` passes the real one, which
+     * matters more here than almost anywhere: this is the screen in FRONT of the
+     * app, and a French crew that met an English wall could not navigate past it
+     * to the setting that would fix it.
      */
-    fun headline(reason: Reason): String = when (reason) {
-        Reason.COLD_START, Reason.AWAY_TOO_LONG -> "Unlock to see your inbox"
-        Reason.NEVER_UNLOCKED -> "Unlock to finish turning this on"
-    }
+    fun headline(reason: Reason, locale: String = MessageLocale.EN): String =
+        AppStrings.translate(
+            locale,
+            when (reason) {
+                Reason.COLD_START, Reason.AWAY_TOO_LONG -> "shell.lockHeadlineInbox"
+                Reason.NEVER_UNLOCKED -> "shell.lockHeadlineFinish"
+            },
+        )
 
     /**
      * Whether the lock may be turned ON, given what the device can actually do.

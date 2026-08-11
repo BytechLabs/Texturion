@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyAiSettings
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.THREAD_SUMMARY_IDLE_DAYS
@@ -85,9 +86,7 @@ fun AiSection(scope: SettingsScope) {
 
     Column {
         Text(
-            "Let the app pre-fill task details from a message. Every suggestion is " +
-                "yours to review and edit before you save — nothing is sent or applied " +
-                "on its own.",
+            t("settings.aiIntro"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
@@ -103,13 +102,10 @@ fun AiSection(scope: SettingsScope) {
 
             is LoadState.Ready -> {
                 val settings = current.value
-                SettingsCard(title = "When you make a task from a message") {
+                SettingsCard(title = t("settings.aiTaskCard")) {
                     LabeledSwitchRow(
-                        label = "Suggest an address",
-                        supporting = "Read a job location out of the message (or fall back " +
-                            "to the contact's address) and pre-fill the task's address. It " +
-                            "shows where each part came from; you can edit or clear it " +
-                            "before saving.",
+                        label = t("settings.aiSuggestAddress"),
+                        supporting = t("settings.aiSuggestAddressHelp"),
                         checked = settings.enrich_task_address,
                         enabled = canEdit,
                         onCheckedChange = { checked ->
@@ -118,10 +114,8 @@ fun AiSection(scope: SettingsScope) {
                     )
                     Spacer(Modifier.height(12.dp))
                     LabeledSwitchRow(
-                        label = "Suggest a due date & time",
-                        supporting = "Turn phrases like \"tomorrow at 2pm\" or \"next " +
-                            "Tuesday\" into a due date in your workspace's timezone. " +
-                            "Always editable before you save.",
+                        label = t("settings.aiSuggestDue"),
+                        supporting = t("settings.aiSuggestDueHelp"),
                         checked = settings.enrich_task_due,
                         enabled = canEdit,
                         onCheckedChange = { checked ->
@@ -130,7 +124,7 @@ fun AiSection(scope: SettingsScope) {
                     )
                 }
                 Spacer(Modifier.height(12.dp))
-                SettingsCard(title = "What Lou knows about your business") {
+                SettingsCard(title = t("settings.aiBusinessCard")) {
                     // Held locally while typing and saved when focus leaves, so
                     // a settings screen does not write per keystroke and a
                     // half-typed sentence never reaches a draft.
@@ -138,10 +132,7 @@ fun AiSection(scope: SettingsScope) {
                         mutableStateOf(settings.business_description.orEmpty())
                     }
                     Text(
-                        "One sentence, in your words. Without it Lou will not say " +
-                            "what your business does, because anything it said would " +
-                            "be guesswork. With it, drafts can answer \"do you do X?\" " +
-                            "honestly.",
+                        t("settings.aiBusinessHelp"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -151,9 +142,7 @@ fun AiSection(scope: SettingsScope) {
                         onValueChange = {
                             if (it.length <= BUSINESS_DESCRIPTION_MAX) description = it
                         },
-                        placeholder = {
-                            Text("We paint houses and do small renovations in Calgary.")
-                        },
+                        placeholder = { Text(t("settings.aiBusinessPlaceholder")) },
                         enabled = canEdit,
                         minLines = 2,
                         modifier = Modifier
@@ -170,7 +159,11 @@ fun AiSection(scope: SettingsScope) {
                             },
                     )
                     Text(
-                        "${description.length} / $BUSINESS_DESCRIPTION_MAX",
+                        t(
+                            "settings.aiBusinessCount",
+                            "count" to description.length.toString(),
+                            "max" to BUSINESS_DESCRIPTION_MAX.toString(),
+                        ),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.fillMaxWidth(),
@@ -181,9 +174,9 @@ fun AiSection(scope: SettingsScope) {
                 // #247. BEFORE the replying card, because that is the order the
                 // day happens in: you open a thread you have lost the thread of,
                 // you read it, and then you answer. A catch-up is a reading aid.
-                SettingsCard(title = "When you open a long thread") {
+                SettingsCard(title = t("settings.aiThreadCard")) {
                     LabeledSwitchRow(
-                        label = "Let Lou catch you up",
+                        label = t("settings.aiCatchUp"),
                         // The disclosure is the first sentence, not the last.
                         // This is the broadest thing Lou is asked to read — a
                         // whole conversation rather than one message, one field
@@ -194,14 +187,11 @@ fun AiSection(scope: SettingsScope) {
                         // constant, never typed: a number in settings copy that
                         // disagrees with the rule is how a person learns not to
                         // trust the settings screen.
-                        supporting = "On a thread of $THREAD_SUMMARY_MIN_MESSAGES messages " +
-                            "or more — or a shorter one nobody has touched in " +
-                            "$THREAD_SUMMARY_IDLE_DAYS days — offer a short catch-up: what " +
-                            "they asked, what you said, what is still open. Lou reads the " +
-                            "conversation to write it, and every line quotes a real message " +
-                            "you can tap straight to. It is only ever offered, never " +
-                            "automatic, and it changes nothing about which threads you see " +
-                            "or the order they come in.",
+                        supporting = t(
+                            "settings.aiCatchUpHelp",
+                            "messages" to THREAD_SUMMARY_MIN_MESSAGES.toString(),
+                            "days" to THREAD_SUMMARY_IDLE_DAYS.toString(),
+                        ),
                         checked = settings.summarize_threads,
                         enabled = canEdit,
                         onCheckedChange = { checked ->
@@ -210,12 +200,10 @@ fun AiSection(scope: SettingsScope) {
                     )
                 }
                 Spacer(Modifier.height(12.dp))
-                SettingsCard(title = "When you reply to a customer") {
+                SettingsCard(title = t("settings.aiReplyCard")) {
                     LabeledSwitchRow(
-                        label = "Let Lou draft replies",
-                        supporting = "Offer a few short replies you can edit before " +
-                            "sending, drawn from the conversation so far. Start typing " +
-                            "and they finish what you started instead.",
+                        label = t("settings.aiDraftReplies"),
+                        supporting = t("settings.aiDraftRepliesHelp"),
                         checked = settings.suggest_replies,
                         enabled = canEdit,
                         onCheckedChange = { checked ->
@@ -227,21 +215,15 @@ fun AiSection(scope: SettingsScope) {
                 // #507. Its own card, between replying and voicemail, because
                 // that is where it falls in a day: the customer was answered,
                 // the phone call happened, and this is the minute after it.
-                SettingsCard(title = "After you hang up") {
+                SettingsCard(title = t("settings.aiWrapUpCard")) {
                     LabeledSwitchRow(
-                        label = "Let Lou write down your wrap-up",
+                        label = t("settings.aiWrapUp"),
                         // Says exactly whose voice and for how long, because
                         // that is the question a crew asks about a microphone
                         // in a work app, and because it is the honest answer
                         // (D117): the call itself is never recorded, and the
                         // phone-call audio never reaches us at all.
-                        supporting = "Hold the microphone in the note box and say what was " +
-                            "agreed — the quote, the promise, the next step. Lou writes your " +
-                            "words down for you to check and post as an internal note. It " +
-                            "hears only you, on your own phone, after the call has ended: " +
-                            "never the call and never the customer. The recording is deleted " +
-                            "as soon as the words come back, and nothing is posted until you " +
-                            "post it.",
+                        supporting = t("settings.aiWrapUpHelp"),
                         checked = settings.call_wrapup,
                         enabled = canEdit,
                         onCheckedChange = { checked ->
@@ -250,12 +232,10 @@ fun AiSection(scope: SettingsScope) {
                     )
                 }
                 Spacer(Modifier.height(12.dp))
-                SettingsCard(title = "When someone leaves a voicemail") {
+                SettingsCard(title = t("settings.aiVoicemailCard")) {
                     LabeledSwitchRow(
-                        label = "Let Lou write voicemails down",
-                        supporting = "Show what a voicemail says next to the recording, " +
-                            "so you can read it when playing it isn't an option. The " +
-                            "recording is always kept either way.",
+                        label = t("settings.aiTranscribe"),
+                        supporting = t("settings.aiTranscribeHelp"),
                         checked = settings.transcribe_voicemail,
                         enabled = canEdit,
                         onCheckedChange = { checked ->
@@ -268,12 +248,8 @@ fun AiSection(scope: SettingsScope) {
                     // what a STRANGER hears and the copy has to be read first.
                     RowDivider()
                     LabeledSwitchRow(
-                        label = "Pull the job out of a voicemail",
-                        supporting = "Lou reads the transcript and shows what the caller " +
-                            "wanted and where, above the recording. Your greeting is " +
-                            "untouched — if you want callers to say the address, ask " +
-                            "them for it in your own greeting. Nothing books anything " +
-                            "and nobody is put through a menu.",
+                        label = t("settings.aiVoicemailIntake"),
+                        supporting = t("settings.aiVoicemailIntakeHelp"),
                         checked = settings.voicemail_intake,
                         enabled = canEdit,
                         onCheckedChange = { checked ->
@@ -283,7 +259,7 @@ fun AiSection(scope: SettingsScope) {
                 }
                 if (!canEdit) {
                     ReadOnlyLine(
-                        "Only owners and admins can change these.",
+                        t("settings.aiReadOnly"),
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
                     )
                 }

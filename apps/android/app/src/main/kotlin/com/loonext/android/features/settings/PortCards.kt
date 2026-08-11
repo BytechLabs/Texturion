@@ -34,6 +34,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.core.model.RejectionDomain
@@ -106,9 +109,21 @@ private fun PortFormFields(
     focusField: String? = null,
     onFocusHandled: () -> Unit = {},
 ) {
-    val ssnLabel = if (country == "US") "SSN" else "SIN"
-    val regionLabel = if (country == "US") "State" else "Province"
-    val postalLabel = if (country == "US") "ZIP code" else "Postal code"
+    val ssnLabel = if (country == "US") {
+        t("settingsMore.ssnLabel")
+    } else {
+        t("settingsMore.sinLabel")
+    }
+    val regionLabel = if (country == "US") {
+        t("settingsMore.stateLabel")
+    } else {
+        t("settingsMore.provinceLabel")
+    }
+    val postalLabel = if (country == "US") {
+        t("settingsMore.zipLabel")
+    } else {
+        t("settingsMore.postalLabel")
+    }
     // Keyed by the same field names the shared catalogue routes to, so the
     // vectors that pin the routing also pin what this can reach.
     val focusRequesters = remember { mutableMapOf<String, FocusRequester>() }
@@ -150,41 +165,43 @@ private fun PortFormFields(
     }
 
     Text(
-        "Enter these exactly as they appear on your current carrier's bill. " +
-            "Mismatches are the top cause of rejections.",
+        t("settingsMore.portFormIntro"),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     field(
         form.entityName,
-        "Account holder",
+        t("settingsMore.accountHolder"),
         { onForm(form.copy(entityName = it)) },
         key = "entity_name",
     )
     field(
         form.authPersonName,
-        "Authorized person",
+        t("settingsMore.authorizedPerson"),
         { onForm(form.copy(authPersonName = it)) },
         key = "auth_person_name",
     )
     field(
         form.accountNumber,
-        "Account number",
+        t("settingsMore.accountNumber"),
         { onForm(form.copy(accountNumber = it)) },
         key = "account_number",
     )
     if (wireless) {
         Text(
-            "This is a mobile number. Enter the transfer PIN and the last 4 of the " +
-                "account holder's $ssnLabel. We store only the last 4.",
+            t("settingsMore.portWirelessNote", "idLabel" to ssnLabel),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
         )
-        field(form.pinPasscode, "Transfer PIN", { onForm(form.copy(pinPasscode = it)) })
+        field(
+            form.pinPasscode,
+            t("settingsMore.transferPin"),
+            { onForm(form.copy(pinPasscode = it)) },
+        )
         field(
             form.ssnSinLast4,
-            "Last 4 of $ssnLabel",
+            t("settingsMore.last4Of", "idLabel" to ssnLabel),
             { next ->
                 if (next.length <= 4 && next.all(Char::isDigit)) {
                     onForm(form.copy(ssnSinLast4 = next))
@@ -195,11 +212,11 @@ private fun PortFormFields(
     }
     field(
         form.street,
-        "Street address",
+        t("settingsMore.streetAddress"),
         { onForm(form.copy(street = it)) },
         key = "service_street",
     )
-    field(form.locality, "City", { onForm(form.copy(locality = it)) })
+    field(form.locality, t("settingsMore.city"), { onForm(form.copy(locality = it)) })
     field(form.adminArea, regionLabel, { onForm(form.copy(adminArea = it)) })
     field(form.postalCode, postalLabel, { onForm(form.copy(postalCode = it)) })
 }
@@ -236,12 +253,12 @@ fun PortsBlock(
 
     if (canManage && company.subscriptionActive) {
         SettingsCard(
-            title = "Bring your existing number",
-            description = "Transfer a number you already own. It keeps working with " +
-                "your current carrier until the switch completes, usually a few " +
-                "business days. Transfers are free.",
+            title = t("settingsMore.bringNumber"),
+            description = t("settingsMore.bringNumberDesc"),
         ) {
-            OutlinedButton(onClick = { starting = true }) { Text("Start a transfer") }
+            OutlinedButton(onClick = { starting = true }) {
+                Text(t("settingsMore.startTransfer"))
+            }
         }
     }
 
@@ -301,8 +318,11 @@ private fun PortCard(
     var busy by remember { mutableStateOf(false) }
     var actionError by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
 
-    SettingsCard(title = "Transfer: ${formatPhone(port.phone_e164)}") {
+    SettingsCard(
+        title = t("settingsMore.transferTitle", "number" to formatPhone(port.phone_e164)),
+    ) {
         val (pillLabel, pillTone) = portPill(port.status, heldLine)
         StatusPill(pillLabel, pillTone)
         Spacer(Modifier.height(8.dp))
@@ -325,7 +345,7 @@ private fun PortCard(
 
         port.foc_date?.let { foc ->
             Text(
-                "The carriers agreed on a switch date: $foc.",
+                t("settingsMore.focDate", "date" to foc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),
@@ -352,7 +372,10 @@ private fun PortCard(
         }
         if (port.bridge_number_e164 != null) {
             Text(
-                "Temporary number while you wait: ${formatPhone(port.bridge_number_e164)}.",
+                t(
+                    "settingsMore.bridgeNumber",
+                    "number" to formatPhone(port.bridge_number_e164),
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),
@@ -360,9 +383,7 @@ private fun PortCard(
         }
         if (port.assignment_blocked) {
             Text(
-                "Your number arrived, but its texting registration is still held by " +
-                    "your previous texting provider. Ask them to release it, and " +
-                    "texting switches on automatically.",
+                t("settingsMore.registrationHeld"),
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 6.dp),
             )
@@ -390,7 +411,12 @@ private fun PortCard(
                         coroutines.launch {
                             try {
                                 scope.repo.submitPort(scope.companyId, port.id)
-                                scope.showMessage("Transfer submitted to the carriers.")
+                                scope.showMessage(
+                                    AppStrings.translate(
+                                        locale,
+                                        "settingsMore.transferSubmitted",
+                                    ),
+                                )
                                 onChanged()
                             } catch (cause: Exception) {
                                 actionError = cause.userMessage()
@@ -400,14 +426,22 @@ private fun PortCard(
                         }
                     },
                     enabled = !busy,
-                ) { Text(if (busy) "Submitting…" else "Submit transfer") }
+                ) {
+                    Text(
+                        if (busy) {
+                            t("settingsMore.submitting")
+                        } else {
+                            t("settingsMore.submitTransfer")
+                        },
+                    )
+                }
                 Spacer(Modifier.width(8.dp))
             }
             if (canManage && port.status == PortStatus.EXCEPTION) {
                 Button(
                     onClick = { fixing = true },
                     enabled = !busy,
-                ) { Text("Fix and resubmit") }
+                ) { Text(t("settingsMore.fixResubmit")) }
                 Spacer(Modifier.width(8.dp))
             }
             if (canCancel &&
@@ -415,7 +449,10 @@ private fun PortCard(
                 port.status != PortStatus.CANCEL_PENDING
             ) {
                 LinkButton(onClick = { cancelling = true }, enabled = !busy) {
-                    Text("Cancel transfer", color = MaterialTheme.colorScheme.error)
+                    Text(
+                        t("settingsMore.cancelTransfer"),
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             }
         }
@@ -439,14 +476,13 @@ private fun PortCard(
     }
     if (cancelling) {
         ConfirmDialog(
-            title = "Cancel this transfer?",
-            body = "Your number stays with your current carrier and nothing changes " +
-                "there. You can start a new transfer any time.",
-            confirmLabel = "Cancel transfer",
+            title = t("settingsMore.cancelTransferTitle"),
+            body = t("settingsMore.cancelTransferBody"),
+            confirmLabel = t("settingsMore.cancelTransfer"),
             destructive = true,
             pending = busy,
             error = actionError,
-            dismissLabel = "Keep it going",
+            dismissLabel = t("settingsMore.keepItGoing"),
             onDismiss = { cancelling = false },
             onConfirm = {
                 busy = true
@@ -455,7 +491,9 @@ private fun PortCard(
                     try {
                         scope.repo.cancelPort(scope.companyId, port.id)
                         cancelling = false
-                        scope.showMessage("Transfer cancelled.")
+                        scope.showMessage(
+                            AppStrings.translate(locale, "settingsMore.transferCancelled"),
+                        )
                         onChanged()
                     } catch (cause: Exception) {
                         actionError = cause.userMessage()
@@ -545,18 +583,12 @@ internal val PRE_CUTOVER_STATUSES = setOf(
  * going-dark), which is exactly where a customer already inside the product
  * never looks — they see "transfer in progress" and no instructions.
  */
-private val PRE_CUTOVER_STEPS = listOf(
-    "Keep your old service active." to
-        "Cancelling before the transfer finishes can release the number back to " +
-            "the carrier, and that is the one way to genuinely lose it.",
-    "Export your message history." to
-        "The number moves, your old conversations do not.",
-    "Tell the crew the switch date." to
-        "From that morning, calls and texts arrive in this inbox instead of the " +
-            "old one.",
-    "Expect texting to trail calls." to
-        "Voice and texting can finish on different clocks, so texts may take an " +
-            "extra day. We will tell you when both are live.",
+@Composable
+private fun preCutoverSteps(): List<Pair<String, String>> = listOf(
+    t("settingsMore.cutoverKeepOld") to t("settingsMore.cutoverKeepOldDetail"),
+    t("settingsMore.cutoverExport") to t("settingsMore.cutoverExportDetail"),
+    t("settingsMore.cutoverTellCrew") to t("settingsMore.cutoverTellCrewDetail"),
+    t("settingsMore.cutoverTextsTrail") to t("settingsMore.cutoverTextsTrailDetail"),
 )
 
 /**
@@ -575,11 +607,11 @@ private fun PreCutoverChecklist() {
     ) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Text(
-                "Before your number switches",
+                t("settingsMore.beforeSwitch"),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
             )
-            PRE_CUTOVER_STEPS.forEachIndexed { index, (lead, detail) ->
+            preCutoverSteps().forEachIndexed { index, (lead, detail) ->
                 // 3dp inside an item, 10dp between them: the sentence belongs
                 // to the lead above it, not to the item below. Without the gap
                 // four pairs read as one paragraph and the order stops meaning
@@ -606,6 +638,7 @@ private fun PortDocumentsRow(scope: SettingsScope, port: PortRequest, onChanged:
     var uploading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
     val picker = rememberDocumentPicker(
         onPicked = { upload ->
             uploading = true
@@ -614,8 +647,14 @@ private fun PortDocumentsRow(scope: SettingsScope, port: PortRequest, onChanged:
                 try {
                     scope.repo.uploadPortDocuments(scope.companyId, port.id, listOf(upload))
                     scope.showMessage(
-                        if (upload.fieldName == "loa") "Letter of authorization uploaded."
-                        else "Carrier bill uploaded.",
+                        AppStrings.translate(
+                            locale,
+                            if (upload.fieldName == "loa") {
+                                "settingsMore.loaUploaded"
+                            } else {
+                                "settingsMore.billUploaded"
+                            },
+                        ),
                     )
                     onChanged()
                 } catch (cause: Exception) {
@@ -629,8 +668,7 @@ private fun PortDocumentsRow(scope: SettingsScope, port: PortRequest, onChanged:
     )
 
     Text(
-        "Two documents are needed: a signed letter of authorization and a recent " +
-            "bill from your current carrier (PDF, PNG, or JPEG).",
+        t("settingsMore.portDocsNote"),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -638,16 +676,32 @@ private fun PortDocumentsRow(scope: SettingsScope, port: PortRequest, onChanged:
         OutlinedButton(
             onClick = { picker.pick("loa") },
             enabled = !uploading,
-        ) { Text(if (port.has_loa) "Replace LOA ✓" else "Upload LOA") }
+        ) {
+            Text(
+                if (port.has_loa) {
+                    t("settingsMore.replaceLoa")
+                } else {
+                    t("settingsMore.uploadLoa")
+                },
+            )
+        }
         Spacer(Modifier.width(8.dp))
         OutlinedButton(
             onClick = { picker.pick("invoice") },
             enabled = !uploading,
-        ) { Text(if (port.has_invoice) "Replace bill ✓" else "Upload bill") }
+        ) {
+            Text(
+                if (port.has_invoice) {
+                    t("settingsMore.replaceBill")
+                } else {
+                    t("settingsMore.uploadBill")
+                },
+            )
+        }
     }
     if (uploading) {
         Text(
-            "Uploading…",
+            t("settingsMore.uploading"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
@@ -676,13 +730,14 @@ private fun StartPortDialog(
     var error by remember { mutableStateOf<String?>(null) }
     val idempotencyKey = remember { UUID.randomUUID().toString() }
     val coroutines = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
 
     val verdict = check
     val wireless = verdict?.is_wireless == true
 
     AlertDialog(
         onDismissRequest = { if (!pending) onDismiss() },
-        title = { Text("Bring your existing number") },
+        title = { Text(t("settingsMore.bringNumber")) },
         text = {
             // #199: platform-positioned dialog window + debug guard on the
             // port form fields.
@@ -694,33 +749,28 @@ private fun StartPortDialog(
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         enabled = !pending,
-                        label = { Text("Number to transfer") },
-                        placeholder = { Text("(416) 555-0182") },
+                        label = { Text(t("settingsMore.numberToTransfer")) },
+                        placeholder = { Text(t("settingsMore.phoneSample")) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                     )
                     if (verdict != null && !verdict.portable) {
                         Text(
-                            verdict.reason
-                                ?: "That number can't be transferred automatically.",
+                            verdict.reason ?: t("settingsMore.notPortable"),
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(top = 8.dp),
                         )
                     }
                 } else {
                     Text(
-                        formatPhone(checkedE164) + " can be transferred." +
-                            (if (wireless) {
-                                " It's a mobile number, so a transfer PIN and ID check " +
-                                    "are required."
-                            } else {
-                                ""
-                            }),
+                        t(
+                            "settingsMore.canBeTransferred",
+                            "number" to formatPhone(checkedE164),
+                        ) + (if (wireless) t("settingsMore.wirelessRequires") else ""),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     if (!verdict.messaging_capable) {
                         Text(
-                            "Heads up: this number may not support texting after the " +
-                                "transfer. Calls will still work.",
+                            t("settingsMore.mayNotText"),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 4.dp),
@@ -735,10 +785,8 @@ private fun StartPortDialog(
                         enabled = !pending,
                     )
                     LabeledSwitchRow(
-                        label = "Give me a temporary number while it transfers",
-                        supporting = "Optional. Texting starts right away on the " +
-                            "temporary number; your own number takes over when the " +
-                            "transfer completes.",
+                        label = t("settingsMore.wantBridge"),
+                        supporting = t("settingsMore.wantBridgeSupporting"),
                         checked = wantsBridge,
                         onCheckedChange = { wantsBridge = it },
                         enabled = !pending,
@@ -753,7 +801,10 @@ private fun StartPortDialog(
                     onClick = {
                         val e164 = normalizeNanpInput(phoneInput)
                         if (e164 == null) {
-                            error = "Enter a full 10-digit US or Canadian number."
+                            error = AppStrings.translate(
+                                locale,
+                                "settingsMore.enterFullNanp",
+                            )
                             return@Button
                         }
                         pending = true
@@ -770,7 +821,15 @@ private fun StartPortDialog(
                         }
                     },
                     enabled = !pending && phoneInput.isNotBlank(),
-                ) { Text(if (pending) "Checking…" else "Check the number") }
+                ) {
+                    Text(
+                        if (pending) {
+                            t("settingsMore.checking")
+                        } else {
+                            t("settingsMore.checkNumber")
+                        },
+                    )
+                }
             } else {
                 Button(
                     onClick = {
@@ -786,7 +845,10 @@ private fun StartPortDialog(
                                 }
                                 scope.repo.createPort(scope.companyId, idempotencyKey, body)
                                 scope.showMessage(
-                                    "Transfer created. Upload the two documents to submit it.",
+                                    AppStrings.translate(
+                                        locale,
+                                        "settingsMore.transferCreated",
+                                    ),
                                 )
                                 onCreated()
                             } catch (cause: Exception) {
@@ -797,11 +859,19 @@ private fun StartPortDialog(
                         }
                     },
                     enabled = !pending && form.isComplete(wireless),
-                ) { Text(if (pending) "Creating…" else "Create the transfer") }
+                ) {
+                    Text(
+                        if (pending) {
+                            t("settingsMore.creating")
+                        } else {
+                            t("settingsMore.createTransfer")
+                        },
+                    )
+                }
             }
         },
         dismissButton = {
-            LinkButton(onClick = onDismiss, enabled = !pending) { Text("Cancel") }
+            LinkButton(onClick = onDismiss, enabled = !pending) { Text(t("common.cancel")) }
         },
     )
 }
@@ -836,10 +906,11 @@ private fun FixPortDialog(
     var error by remember { mutableStateOf<String?>(null) }
     var focus by remember { mutableStateOf(focusField) }
     val coroutines = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
 
     AlertDialog(
         onDismissRequest = { if (!pending) onDismiss() },
-        title = { Text("Fix and resubmit") },
+        title = { Text(t("settingsMore.fixResubmit")) },
         text = {
             // #199: platform-positioned dialog window + debug guard on the
             // port form fields.
@@ -855,8 +926,7 @@ private fun FixPortDialog(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "The account number and PIN are never shown back for security. " +
-                        "Re-enter them.",
+                    t("settingsMore.reenterSecrets"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 6.dp),
@@ -886,7 +956,12 @@ private fun FixPortDialog(
                                 form.fieldsJson(port.is_wireless),
                             )
                             scope.repo.resubmitPort(scope.companyId, port.id)
-                            scope.showMessage("Transfer resubmitted.")
+                            scope.showMessage(
+                                AppStrings.translate(
+                                    locale,
+                                    "settingsMore.transferResubmitted",
+                                ),
+                            )
                             onDone()
                         } catch (cause: Exception) {
                             error = cause.userMessage()
@@ -896,10 +971,18 @@ private fun FixPortDialog(
                     }
                 },
                 enabled = !pending && form.isComplete(port.is_wireless),
-            ) { Text(if (pending) "Resubmitting…" else "Resubmit") }
+            ) {
+                Text(
+                    if (pending) {
+                        t("settingsMore.resubmitting")
+                    } else {
+                        t("settingsMore.resubmit")
+                    },
+                )
+            }
         },
         dismissButton = {
-            LinkButton(onClick = onDismiss, enabled = !pending) { Text("Cancel") }
+            LinkButton(onClick = onDismiss, enabled = !pending) { Text(t("common.cancel")) }
         },
     )
 }

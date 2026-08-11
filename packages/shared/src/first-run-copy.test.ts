@@ -22,6 +22,10 @@ import { describe, expect, it } from "vitest";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
+/**
+ * Where each client's checklist LOGIC lives — the gate at the bottom is a claim
+ * about code, so it is asserted against these rather than against the words.
+ */
 const CLIENTS = {
   // #228: web owns the wording and web's wording now lives in the catalogue —
   // `components/inbox/getting-started-card.tsx` reads every line below through
@@ -34,11 +38,25 @@ const CLIENTS = {
   ios: "apps/ios/Loonext/Features/Inbox/GettingStartedCard.swift",
 } as const;
 
-/** Where each client keeps its two card TITLES (native holds them at the mount). */
-const TITLE_SOURCES = {
+/**
+ * Where each client's checklist WORDS live.
+ *
+ * #228 moved Android's out of `GettingStartedLogic.kt` and into its Kotlin
+ * catalogue, exactly as web's had already moved — that file now names keys and
+ * holds no sentences, so comparing against it would be comparing against
+ * nothing. iOS still writes them at the card, so it is unchanged.
+ */
+const COPY_SOURCES = {
   web: CLIENTS.web,
   android:
-    "apps/android/app/src/main/kotlin/com/loonext/android/features/inbox/InboxTab.kt",
+    "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/InboxStrings.kt",
+  ios: CLIENTS.ios,
+} as const;
+
+/** Where each client keeps its two card TITLES (iOS holds them at the mount). */
+const TITLE_SOURCES = {
+  web: CLIENTS.web,
+  android: COPY_SOURCES.android,
   ios: CLIENTS.ios,
 } as const;
 
@@ -48,6 +66,13 @@ const sources = Object.fromEntries(
     readFileSync(join(REPO, path), "utf8"),
   ]),
 ) as Record<keyof typeof CLIENTS, string>;
+
+const copySources = Object.fromEntries(
+  Object.entries(COPY_SOURCES).map(([client, path]) => [
+    client,
+    readFileSync(join(REPO, path), "utf8"),
+  ]),
+) as Record<keyof typeof COPY_SOURCES, string>;
 
 const titleSources = Object.fromEntries(
   Object.entries(TITLE_SOURCES).map(([client, path]) => [
@@ -89,11 +114,14 @@ describe("#476 the first-run checklist reads the same on every client", () => {
     for (const [client, text] of Object.entries(sources)) {
       expect(text.length, `${client} source is empty`).toBeGreaterThan(1000);
     }
+    for (const [client, text] of Object.entries(copySources)) {
+      expect(text.length, `${client} copy source is empty`).toBeGreaterThan(1000);
+    }
   });
 
   for (const line of [...OWNER_COPY, ...MEMBER_COPY]) {
     it(`all three say: "${line.slice(0, 48)}${line.length > 48 ? "…" : ""}"`, () => {
-      const missing = Object.entries(sources)
+      const missing = Object.entries(copySources)
         .filter(([, text]) => !text.includes(line))
         .map(([client]) => client);
       expect(missing).toEqual([]);

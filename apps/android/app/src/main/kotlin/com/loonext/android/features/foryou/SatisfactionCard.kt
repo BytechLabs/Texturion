@@ -28,6 +28,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.loonext.android.core.format.SatisfactionFormat
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.SatisfactionReport
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.ProportionRing
@@ -50,16 +53,23 @@ import com.loonext.android.ui.common.ProportionRing
  * iOS's `SatisfactionCard.swift`; `SatisfactionCopyTest` asserts the sentences.
  */
 
-/** The arc sentence, or null when there is no arc worth drawing. */
-fun satisfactionArcSentence(report: SatisfactionReport): String? {
+/**
+ * The arc sentence, or null when there is no arc worth drawing.
+ *
+ * #228: the sentences live in `InboxStrings`; the DIRECTION still comes from the
+ * shared formatter, so no client can stop reporting the bad one by rewording a
+ * string. The locale is required rather than defaulted for the same reason the
+ * navigation callbacks here are.
+ */
+fun satisfactionArcSentence(report: SatisfactionReport, locale: String): String? {
     val direction = SatisfactionFormat.arcDirection(report.improved_by) ?: return null
     val baseline = report.baseline ?: return null
     val then = SatisfactionFormat.format(baseline.average)
-    return if (direction == "better") {
-        "Up from $then the month before"
-    } else {
-        "Down from $then the month before"
-    }
+    return AppStrings.translate(
+        locale,
+        if (direction == "better") "inbox.satisfactionArcUp" else "inbox.satisfactionArcDown",
+        mapOf("then" to then),
+    )
 }
 
 /**
@@ -68,15 +78,19 @@ fun satisfactionArcSentence(report: SatisfactionReport): String? {
  * Saying "no data" for all of them is what makes an owner think the feature is
  * broken when it is working exactly as intended.
  */
-fun satisfactionGap(report: SatisfactionReport): String = when {
+fun satisfactionGap(report: SatisfactionReport, locale: String): String = when {
     report.asked == 0 ->
-        "No finished jobs have been asked about in this window. The question " +
-            "goes out a few hours after a job is marked done."
+        AppStrings.translate(locale, "inbox.satisfactionGapNoneAsked")
     report.answered == 0 ->
-        "Nobody has answered yet. Most people do not, which is why one answer " +
-            "is worth reading rather than counting."
-    else ->
-        "Too few answers to average yet — ${report.answered} of ${report.minimum_sample}"
+        AppStrings.translate(locale, "inbox.satisfactionGapNoneAnswered")
+    else -> AppStrings.translate(
+        locale,
+        "inbox.satisfactionGapTooFew",
+        mapOf(
+            "answered" to report.answered.toString(),
+            "minimum" to report.minimum_sample.toString(),
+        ),
+    )
 }
 
 @Composable
@@ -98,7 +112,7 @@ fun SatisfactionCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "SATISFACTION",
+                t("inbox.satisfactionTitle"),
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 10.5.sp,
                     fontWeight = FontWeight.Bold,
@@ -135,7 +149,7 @@ fun SatisfactionCard(
             when {
                 report == null ->
                     Text(
-                        "Reading your ratings…",
+                        t("inbox.satisfactionLoading"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(14.dp),
@@ -160,7 +174,7 @@ fun SatisfactionCard(
 private fun SatisfactionGapBody(report: SatisfactionReport, onOpenPoor: () -> Unit) {
     Column(Modifier.padding(14.dp)) {
         Text(
-            satisfactionGap(report),
+            satisfactionGap(report, LocalAppLocale.current),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -198,6 +212,7 @@ private fun SatisfactionBody(
     onOpenPoor: () -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
+    val locale = LocalAppLocale.current
 
     Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 10.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
@@ -209,8 +224,11 @@ private fun SatisfactionBody(
             ProportionRing(
                 value = (report.average ?: 0.0).toFloat(),
                 total = 5f,
-                label = "${SatisfactionFormat.format(report.average)} out of 5, " +
-                    "from ${report.answered} answers",
+                label = t(
+                    "inbox.satisfactionRingAria",
+                    "score" to SatisfactionFormat.format(report.average),
+                    "count" to report.answered.toString(),
+                ),
                 color = MaterialTheme.colorScheme.secondary,
                 size = 18.dp,
                 modifier = Modifier.padding(bottom = 2.dp),
@@ -223,21 +241,21 @@ private fun SatisfactionBody(
                 modifier = Modifier.padding(start = 7.dp, end = 6.dp),
             )
             Text(
-                "out of 5, from ${report.answered} answers",
+                t("inbox.satisfactionOutOfFive", "count" to report.answered.toString()),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 2.dp),
             )
         }
 
-        val arc = satisfactionArcSentence(report)
+        val arc = satisfactionArcSentence(report, locale)
         val direction = SatisfactionFormat.arcDirection(report.improved_by)
         if (arc == null) {
             Text(
                 if (report.baseline == null) {
-                    "No month before this one to compare against yet"
+                    t("inbox.satisfactionNoBaseline")
                 } else {
-                    "About the same as the month before"
+                    t("inbox.satisfactionSame")
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -306,7 +324,7 @@ private fun SatisfactionBody(
 
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     Text(
-        if (open) "Hide details" else "Details",
+        if (open) t("inbox.satisfactionHideDetails") else t("inbox.satisfactionDetails"),
         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
@@ -320,17 +338,26 @@ private fun SatisfactionBody(
         Column(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
             for (score in listOf(5, 4, 3, 2, 1)) {
                 SatisfactionDetailRow(
-                    if (score == 1) "1 star" else "$score stars",
+                    if (score == 1) {
+                        t("inbox.satisfactionStarsOne")
+                    } else {
+                        t("inbox.satisfactionStarsMany", "count" to score.toString())
+                    },
                     "${report.distribution[score.toString()] ?: 0}",
                 )
             }
-            SatisfactionDetailRow("Asked", "${report.asked} in $days days")
+            SatisfactionDetailRow(
+                t("inbox.satisfactionAsked"),
+                t(
+                    "inbox.satisfactionAskedValue",
+                    "count" to report.asked.toString(),
+                    "days" to days.toString(),
+                ),
+            )
 
             if (report.by_member == null) {
                 Text(
-                    "Per-person scores are off. In a small crew a bad week is " +
-                        "noise, so this stays a coaching signal rather than a " +
-                        "scoreboard — turn it on in Settings.",
+                    t("inbox.satisfactionByMemberOff"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 6.dp, bottom = 4.dp),
@@ -338,9 +365,13 @@ private fun SatisfactionBody(
             } else {
                 for (member in report.by_member) {
                     SatisfactionDetailRow(
-                        "${member.name ?: "Member"} · ${member.answered} answered",
+                        t(
+                            "inbox.satisfactionByMember",
+                            "name" to (member.name ?: t("inbox.satisfactionMemberFallback")),
+                            "count" to member.answered.toString(),
+                        ),
                         if (member.average == null) {
-                            "Too few answers to average yet"
+                            t("inbox.satisfactionMemberTooFew")
                         } else {
                             SatisfactionFormat.format(member.average)
                         },
@@ -350,7 +381,7 @@ private fun SatisfactionBody(
 
             if (report.truncated) {
                 Text(
-                    "Showing the most recent ${report.row_limit} ratings.",
+                    t("inbox.satisfactionTruncated", "count" to report.row_limit.toString()),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),

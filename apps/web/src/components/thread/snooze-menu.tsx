@@ -10,6 +10,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import {
+  DEFAULT_LOCALE,
   type DeferralKind,
   followUpPresets,
   isSnoozeTargetValid,
@@ -34,7 +35,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useT } from "@/i18n/provider";
+import { makeTranslate, useT, type Translate } from "@/i18n/provider";
+
+/** English, for a caller with no provider around it. */
+const EN = makeTranslate(DEFAULT_LOCALE);
 
 /**
  * #293 — "needs attention, but on Thursday", in the overflow menu.
@@ -277,38 +281,80 @@ function formatPresetHint(at: number): string {
 }
 
 /**
- * "Back this afternoon" / "Back Thu 8:00 AM" / "Back 12 Aug".
+ * The four sentences a return time can lead with.
  *
- * The shared module decides the SHAPE; the formatting is the browser's, so a
- * phone in French says août rather than whatever a hand-rolled month table
- * would have said.
+ * A LEAD is a whole sentence in the catalogue, not a word spliced onto the
+ * front of one. The version this replaces was
+ * `snoozeReturnLabel(until).replace("Back", "Chase")` — a rule about English
+ * grammar written as a regex, which does nothing at all once the label is
+ * French and fails silently when it does: the chip goes on saying "back" where
+ * it means "chase", and nothing in the type system notices.
  */
-export function snoozeReturnLabel(until: string, now: Date = new Date()): string {
+const DEFERRAL_LEAD_KEYS = {
+  back: "thread.snoozeLeadBack",
+  chase: "thread.snoozeLeadChase",
+  snoozedToast: "thread.snoozeLeadSnoozedToast",
+  remindToast: "thread.snoozeLeadRemindToast",
+} as const;
+
+export type DeferralLead = keyof typeof DEFERRAL_LEAD_KEYS;
+
+/**
+ * "Back at 3:00 PM" / "Chase Thursday, 8:00 AM" / "Back 12 Aug".
+ *
+ * The shared module decides the SHAPE; the day and month names are the
+ * browser's `Intl`, so a phone in French says août rather than whatever a
+ * hand-rolled month table would have said.
+ */
+export function deferralReturnLabel(
+  until: string,
+  lead: DeferralLead = "back",
+  t: Translate = EN,
+  now: Date = new Date(),
+): string {
   const date = new Date(until);
-  if (Number.isNaN(date.getTime())) return "Snoozed";
+  // Never a blank chip: the row is in this view BECAUSE it is deferred, so a
+  // timestamp we cannot read still has to say that much (#293).
+  if (Number.isNaN(date.getTime())) return t("thread.snoozedFallback");
   const time = date.toLocaleTimeString(undefined, {
     hour: "numeric",
     minute: "2-digit",
   });
-  switch (snoozeReturnShape(date, now)) {
-    case "today":
-      return `Back at ${time}`;
-    case "tomorrow":
-      return `Back tomorrow, ${time}`;
-    case "weekday":
-      return `Back ${date.toLocaleDateString(undefined, { weekday: "long" })}, ${time}`;
-    case "date":
-      return `Back ${date.toLocaleDateString(undefined, { day: "numeric", month: "short" })}`;
-  }
+  const when = ((): string => {
+    switch (snoozeReturnShape(date, now)) {
+      case "today":
+        return t("thread.snoozeWhenAt", { time });
+      case "tomorrow":
+        return t("thread.snoozeWhenTomorrow", { time });
+      case "weekday":
+        return t("thread.snoozeWhenWeekday", {
+          weekday: date.toLocaleDateString(undefined, { weekday: "long" }),
+          time,
+        });
+      case "date":
+        return t("thread.snoozeWhenDate", {
+          date: date.toLocaleDateString(undefined, {
+            day: "numeric",
+            month: "short",
+          }),
+        });
+    }
+  })();
+  return t(DEFERRAL_LEAD_KEYS[lead], { when });
 }
 
 /** Shared toast copy, so the thread and the inbox say the same thing. */
-export function toastSnoozed(until: string, kind: DeferralKind = "snooze"): void {
-  const when = snoozeReturnLabel(until);
+export function toastSnoozed(
+  until: string,
+  kind: DeferralKind = "snooze",
+  t: Translate = EN,
+): void {
   toast.success(
-    kind === "follow_up"
-      ? when.replace(/^Back/, "I'll remind you — back")
-      : when.replace(/^Back/, "Snoozed — back"),
+    deferralReturnLabel(
+      until,
+      kind === "follow_up" ? "remindToast" : "snoozedToast",
+      t,
+    ),
   );
 }
 

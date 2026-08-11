@@ -60,6 +60,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.NumberStatus
@@ -196,6 +198,9 @@ private fun NewConversationLoaded(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
+    // Read in composition; the picker callback below is a coroutine.
+    val attachLimitCopy = t("thread.attachLimitText", "max" to "$MAX_PHOTOS")
 
     // #183 part 3: a Connected-Apps "Text with Loonext" tap seeds the recipient
     // with the tapped number, formatted; the user can still edit it. Seeded once.
@@ -329,7 +334,7 @@ private fun NewConversationLoaded(
                 }
             }
             if (trimmed) {
-                snackbar.showSnackbar("You can attach up to $MAX_PHOTOS files per text.")
+                snackbar.showSnackbar(attachLimitCopy)
             }
         }
     }
@@ -349,12 +354,12 @@ private fun NewConversationLoaded(
             ) {
                 PaperCircleButton(
                     icon = Icons.Outlined.Close,
-                    contentDescription = "Back",
+                    contentDescription = t("common.back"),
                     onClick = onBack,
                     modifier = Modifier.align(Alignment.CenterStart),
                 )
                 Text(
-                    "New text",
+                    t("thread.newTextTitle"),
                     style = MaterialTheme.typography.labelMedium.copy(
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -375,12 +380,11 @@ private fun NewConversationLoaded(
                     PaperCard(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(horizontal = 18.dp, vertical = 20.dp)) {
                             Text(
-                                "Your number isn't ready yet.",
+                                t("thread.numberNotReady"),
                                 style = MaterialTheme.typography.titleSmall,
                             )
                             Text(
-                                "You need an active number to start a conversation. " +
-                                    "Check the web app for its status.",
+                                t("thread.numberNotReadyBody"),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 6.dp),
@@ -401,7 +405,7 @@ private fun NewConversationLoaded(
             ) {
                 // --- To. ---
                 Column {
-                    MicroLabel("To")
+                    MicroLabel(t("thread.toLabel"))
                     if (selectedContact != null) {
                         RecipientChip(
                             contact = selectedContact,
@@ -418,14 +422,14 @@ private fun NewConversationLoaded(
                         )
                         val hint = when {
                             rawDigits.length == 10 && rawE164 != null && !validDestination ->
-                                "US and Canadian numbers only."
+                                t("thread.nanpOnly")
 
                             rawDigits.length == 10 && rawE164 != null &&
                                 contactMatches.isEmpty() ->
-                                "No match in contacts. This starts a new conversation."
+                                t("thread.noContactMatch")
 
                             rawDigits.length == 10 && rawE164 != null ->
-                                "Will text ${formatPhone(rawE164)}"
+                                t("thread.willText", "number" to formatPhone(rawE164))
 
                             else -> null
                         }
@@ -475,7 +479,10 @@ private fun NewConversationLoaded(
                     val selected = numbers.firstOrNull { it.id == fromNumberId }
                     Box {
                         Text(
-                            "From: ${formatPhone(selected?.number_e164)}",
+                            t(
+                                "thread.fromNumber",
+                                "number" to formatPhone(selected?.number_e164),
+                            ),
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.SemiBold,
                             ),
@@ -503,7 +510,7 @@ private fun NewConversationLoaded(
 
                 // --- Message. ---
                 Column {
-                    MicroLabel("Message")
+                    MicroLabel(t("thread.messageLabel"))
                     MessageBox(
                         value = composer.text,
                         onValueChange = { composer.onTextChange(it.take(4096)) },
@@ -532,14 +539,18 @@ private fun NewConversationLoaded(
                         val meter = segmentMeter(
                             sendsAs,
                             composer.photos.isNotEmpty(),
+                            locale,
                         )
                         val chars = composer.text.length
                         val meta = when {
-                            meter.visible && chars > 0 ->
-                                "${meter.label} · $chars characters"
+                            meter.visible && chars > 0 -> t(
+                                "thread.charactersWithMeter",
+                                "meter" to meter.label,
+                                "count" to "$chars",
+                            )
 
                             meter.visible -> meter.label
-                            chars > 0 -> "$chars characters"
+                            chars > 0 -> t("thread.characters", "count" to "$chars")
                             else -> null
                         }
                         if (meta != null) {
@@ -555,7 +566,7 @@ private fun NewConversationLoaded(
                         }
                         Spacer(Modifier.weight(1f))
                         Text(
-                            "Templates",
+                            t("thread.templates"),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 10.5.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -573,7 +584,7 @@ private fun NewConversationLoaded(
                         (pendingSignature != null && composer.text.isNotBlank())
                     ) {
                         Text(
-                            "Sends as: " + Signature.append(
+                            t("thread.sendsAs") + Signature.append(
                                 MergeFields.applyMergeFields(
                                     composer.text,
                                     selectedContact?.name,
@@ -605,7 +616,7 @@ private fun NewConversationLoaded(
                 }
                 PaperCircleButton(
                     icon = Icons.Outlined.AttachFile,
-                    contentDescription = "Add to message",
+                    contentDescription = t("thread.addToMessage"),
                     onClick = { mediaPicker.launch(MMS_PICKER_MIME_TYPES) },
                     enabled = composer.photos.size < MAX_PHOTOS,
                 )
@@ -619,12 +630,17 @@ private fun NewConversationLoaded(
                     val inQuietHours = Nanp.isQuietHour(localTime.hour)
                     if (inQuietHours) {
                         QuietHoursNotice(
-                            text = "It's ${localTime.format(localTimeFormat)} for this " +
-                                "customer. We'll ask before sending this late.",
+                            text = t(
+                                "thread.theirTimeAskFirst",
+                                "time" to localTime.format(localTimeFormat),
+                            ),
                         )
                     } else {
                         Text(
-                            "It's ${localTime.format(localTimeFormat)} for them.",
+                            t(
+                                "thread.theirTime",
+                                "time" to localTime.format(localTimeFormat),
+                            ),
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontSize = 10.5.sp,
                             ),
@@ -640,7 +656,7 @@ private fun NewConversationLoaded(
 
             // --- Send bar: full-width ink pill with a lime send mark. ---
             SendPill(
-                label = if (sending) "Sending…" else "Send text",
+                label = if (sending) t("thread.sending") else t("thread.sendText"),
                 enabled = canSend,
                 onClick = { send() },
                 // Keyboard clearance comes from the route host's central
@@ -676,26 +692,26 @@ private fun NewConversationLoaded(
     quietHoursPrompt?.let { pendingBody ->
         AlertDialog(
             onDismissRequest = { quietHoursPrompt = null },
-            title = { Text("It's late where they are") },
+            title = { Text(t("thread.lateThereTitle")) },
             text = {
                 Text(
-                    buildString {
-                        append("It's ")
-                        append(
-                            localTime?.format(localTimeFormat) ?: "between 8pm and 8am",
-                        )
-                        append(" at this number. Send anyway?")
-                    },
+                    t(
+                        "thread.lateThereBody",
+                        "time" to (
+                            localTime?.format(localTimeFormat)
+                                ?: t("thread.lateThereUnknown")
+                            ),
+                    ),
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     quietHoursPrompt = null
                     send(confirmedQuietHours = true, resend = pendingBody)
-                }) { Text("Send anyway") }
+                }) { Text(t("thread.sendAnyway")) }
             },
             dismissButton = {
-                TextButton(onClick = { quietHoursPrompt = null }) { Text("Wait") }
+                TextButton(onClick = { quietHoursPrompt = null }) { Text(t("thread.wait")) }
             },
         )
     }
@@ -751,7 +767,7 @@ private fun ConsentCard(modifier: Modifier = Modifier) {
             Spacer(Modifier.width(10.dp))
             Column {
                 Text(
-                    "This customer asked us to text them.",
+                    t("thread.consentAsked"),
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontSize = 12.5.sp,
                         lineHeight = 19.sp,
@@ -759,7 +775,7 @@ private fun ConsentCard(modifier: Modifier = Modifier) {
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                 )
                 Text(
-                    "Required for new contacts. Consent is recorded with your name.",
+                    t("thread.consentRecorded"),
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontSize = 10.5.sp,
                     ),
@@ -837,7 +853,7 @@ private fun RecipientField(
                 Box {
                     if (value.isEmpty()) {
                         Text(
-                            "Name or phone number",
+                            t("thread.recipientPlaceholder"),
                             style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                 .copy(alpha = 0.7f),
@@ -871,7 +887,7 @@ private fun RecipientChip(
             Spacer(Modifier.width(10.dp))
             Text(
                 (contact.name ?: formatPhone(contact.phone_e164)) +
-                    if (contact.opted_out) " · Opted out" else "",
+                    if (contact.opted_out) " · " + t("thread.optedOut") else "",
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -882,7 +898,7 @@ private fun RecipientChip(
             )
             Icon(
                 Icons.Outlined.Close,
-                contentDescription = "Clear recipient",
+                contentDescription = t("thread.clearRecipient"),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .size(18.dp)
@@ -916,7 +932,7 @@ private fun ContactMatchRow(
             )
             Text(
                 formatPhone(contact.phone_e164) +
-                    if (contact.opted_out) " · Opted out" else "",
+                    if (contact.opted_out) " · " + t("thread.optedOut") else "",
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -958,7 +974,7 @@ private fun MessageBox(
                 Box {
                     if (value.isEmpty()) {
                         Text(
-                            "Text message",
+                            t("thread.textPlaceholder"),
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontSize = 14.sp,
                             ),

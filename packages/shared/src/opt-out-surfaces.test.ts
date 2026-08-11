@@ -151,20 +151,52 @@ describe("#407 — every surface offering a revoke asks which kind it is", () =>
    * values, and only those are searched. A surface that stops naming START
    * still fails, because its own key no longer carries the word.
    */
-  function resolvedCopy(file: string, source: string): string {
-    if (!file.replaceAll("\\", "/").includes("/apps/web/")) return source;
-    const sections = join(REPO, "apps", "web", "src", "i18n", "sections");
+  function catalogueFor(file: string): string | null {
+    const path = file.replaceAll("\\", "/");
+    const dir = path.includes("/apps/web/")
+      ? join(REPO, "apps", "web", "src", "i18n", "sections")
+      : path.includes("/apps/android/")
+        ? join(
+            REPO,
+            "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n",
+          )
+        : null;
+    if (dir === null) return null;
     let catalogue = "";
-    for (const entry of readdirSync(sections)) {
-      catalogue += readFileSync(join(sections, entry), "utf8");
+    for (const entry of readdirSync(dir)) {
+      catalogue += readFileSync(join(dir, entry), "utf8");
     }
+    return catalogue;
+  }
+
+  /**
+   * The sentence a surface RENDERS, wherever it now lives.
+   *
+   * #228 moved the copy on web and Android into catalogues, so a source grep
+   * for "text START" stopped finding it — and this guard's job is to check what
+   * a person reads, not where the bytes sit. Only the keys THIS FILE uses are
+   * resolved: searching the whole catalogue would pass every surface the moment
+   * any entry anywhere mentioned START, which is a check that cannot fail.
+   */
+  function resolvedCopy(file: string, source: string): string {
+    const catalogue = catalogueFor(file);
+    if (catalogue === null) return source;
     let resolved = source;
-    for (const use of source.matchAll(/\bt\(\s*"[\w]+\.(\w+)"/g)) {
-      // A fixed window after the key rather than a lazy match to the next
-      // comma: a catalogue value is often a concatenation across several lines,
-      // and the first comma-newline inside one would cut the sentence in half.
-      const at = catalogue.indexOf(`${use[1]}:`);
-      if (at !== -1) resolved += ` ${catalogue.slice(at, at + 400)}`;
+    for (const use of source.matchAll(/"[\w]+\.(\w+)"/g)) {
+      // A fixed window rather than a lazy match to the next comma: a catalogue
+      // value is often concatenated across lines, and the first comma-newline
+      // inside one would cut the sentence in half.
+      /*
+       * Two catalogue shapes, because the two clients store a key differently:
+       * TypeScript writes `someKey: "…"`, Kotlin writes `"section.someKey" to
+       * "…"`. Both are tried rather than branching on the client, so a third
+       * client added later works without editing this.
+       */
+      const at = [
+        catalogue.indexOf(`.${use[1]}"`),
+        catalogue.indexOf(`${use[1]}:`),
+      ].find((index) => index !== -1);
+      if (at !== undefined) resolved += ` ${catalogue.slice(at, at + 400)}`;
     }
     return resolved;
   }

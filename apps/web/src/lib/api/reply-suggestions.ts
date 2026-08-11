@@ -1,7 +1,9 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import { DEFAULT_LOCALE } from "@loonext/shared";
 
+import { makeTranslate, type Translate } from "@/i18n/provider";
 import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
@@ -11,31 +13,38 @@ import type { ReplySuggestions } from "./types";
  * Plain-language copy for an empty result. "Nothing to suggest here yet" for
  * every case hid real failures behind what looked like a shrug, so each reason
  * says what actually happened and whether trying again will help.
+ *
+ * #228: the sentences live in `i18n/sections/thread.ts`, and `t` comes from the
+ * composer that shows them. The default is English, which is what every reader
+ * saw before the catalogue existed.
  */
 export function suggestionFailureMessage(
   reason: ReplySuggestions["reason"],
+  t: Translate = makeTranslate(DEFAULT_LOCALE),
 ): string {
   switch (reason) {
     case "disabled":
-      return "Drafting is turned off for this workspace. Settings, AI turns it back on.";
+      return t("thread.draftsDisabled");
     case "spam":
-      return "This thread is marked as spam, so Lou skips it. Unmark it to draft a reply.";
+      return t("thread.draftsSpam");
     case "nothing_to_reply":
-      return "Nothing to reply to yet. Type a few words and try again.";
+      return t("thread.draftsNothingToReply");
     case "subscription_inactive":
-      // billing, not breakage — so it must not say "try again", which is not what fixes it. Same words everywhere Lou refuses for this reason (#581).
-      return "Lou is paused while the subscription is sorted out. An owner can fix that in Billing.";
+      // Billing, not breakage — so it must not say "try again", which is not
+      // what fixes it. The same KEY every feature Lou refuses for this reason
+      // reads, so the wording cannot drift between them (#581).
+      return t("thread.louPausedForBilling");
     case "over_cap":
-      return "This month's drafting is used up. It starts again next month.";
+      return t("thread.draftsOverCap");
     case "rate_limited":
-      return "That was a lot of drafts at once. Try again in a moment.";
+      return t("thread.draftsRateLimited");
     case "model_error":
     case "unavailable":
-      return "Couldn't reach Lou just now. Try again.";
+      return t("thread.louUnreachable");
     case "unusable_output":
-      return "Nothing came back worth sending. Try again, or add a few words first.";
+      return t("thread.draftsUnusable");
     default:
-      return "No drafts this time. Try again.";
+      return t("thread.draftsNone");
   }
 }
 

@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ContactMergeResult
 import com.loonext.android.core.model.DuplicatePair
 import com.loonext.android.ui.common.formatPhone
@@ -87,12 +88,15 @@ fun DuplicateContactsCard(
     ) {
         Column(Modifier.padding(14.dp)) {
             Text(
-                if (pairs.size == 1) "These two look like the same customer"
-                else "${pairs.size} pairs look like the same customer",
+                if (pairs.size == 1) {
+                    t("contactsTasks.duplicatesOnePair")
+                } else {
+                    t("contactsTasks.duplicatesManyPairs", "count" to "${pairs.size}")
+                },
                 style = MaterialTheme.typography.titleSmall,
             )
             Text(
-                "Merging keeps every message, task and photo from both, under one record.",
+                t("contactsTasks.duplicatesBlurb"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp),
@@ -102,8 +106,11 @@ fun DuplicateContactsCard(
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(
-                            describeContact(pair.name_a, pair.phone_a) +
-                                " and " + describeContact(pair.name_b, pair.phone_b),
+                            t(
+                                "contactsTasks.duplicatesPair",
+                                "a" to describeContact(pair.name_a, pair.phone_a),
+                                "b" to describeContact(pair.name_b, pair.phone_b),
+                            ),
                             style = MaterialTheme.typography.bodyMedium,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
@@ -117,7 +124,9 @@ fun DuplicateContactsCard(
                         )
                     }
                     if (canMerge) {
-                        TextButton(onClick = { merging = pair }) { Text("Merge") }
+                        TextButton(onClick = { merging = pair }) {
+                            Text(t("contactsTasks.merge"))
+                        }
                     }
                 }
             }
@@ -182,17 +191,19 @@ private fun MergeContactsDialog(
 
     AlertDialog(
         onDismissRequest = { if (!saving) onDismiss() },
-        title = { Text("Merge these two customers") },
+        title = { Text(t("contactsTasks.mergeDialogTitle")) },
         text = {
             Column {
                 Text(
-                    "Everything from both — messages, tasks, photos, notes — ends up " +
-                        "under the record you keep. Both phone numbers keep working.",
+                    t("contactsTasks.mergeDialogBody"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(10.dp))
-                Text("Which one to keep", style = MaterialTheme.typography.labelLarge)
+                Text(
+                    t("contactsTasks.mergeWhichToKeep"),
+                    style = MaterialTheme.typography.labelLarge,
+                )
                 listOf(true, false).forEach { first ->
                     val label =
                         if (first) describeContact(pair.name_a, pair.phone_a)
@@ -220,8 +231,11 @@ private fun MergeContactsDialog(
                 Spacer(Modifier.height(6.dp))
                 // Said back in the direction people get backwards.
                 Text(
-                    "$foldedLabel stops being a separate customer. Its history moves " +
-                        "to $survivorLabel.",
+                    t(
+                        "contactsTasks.mergeDirection",
+                        "folded" to foldedLabel,
+                        "survivor" to survivorLabel,
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -252,10 +266,18 @@ private fun MergeContactsDialog(
                         }
                     }
                 },
-            ) { Text(if (saving) "Merging…" else "Merge") }
+            ) {
+                Text(
+                    if (saving) {
+                        t("contactsTasks.merging")
+                    } else {
+                        t("contactsTasks.merge")
+                    },
+                )
+            }
         },
         dismissButton = {
-            TextButton(enabled = !saving, onClick = onDismiss) { Text("Cancel") }
+            TextButton(enabled = !saving, onClick = onDismiss) { Text(t("common.cancel")) }
         },
     )
 }

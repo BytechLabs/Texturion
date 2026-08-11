@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.JobPhotoLink
 import com.loonext.android.features.settings.copyToClipboard
 import com.loonext.android.ui.common.absoluteTime
@@ -80,6 +81,10 @@ fun ShareJobPhotos(
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
     val context = LocalContext.current
+    // The clipboard label is shown by Android's own paste confirmation, so it
+    // is copy — and it is read here, in composition, because the tap that uses
+    // it is not.
+    val clipboardLabel = t("contactsTasks.jobPhotosClipboardLabel")
 
     val current = link
     if (current == null) {
@@ -103,7 +108,11 @@ fun ShareJobPhotos(
                 modifier = Modifier.size(16.dp),
             )
             Text(
-                if (busy) "Making a link…" else "Share these photos",
+                if (busy) {
+                    t("contactsTasks.jobPhotosMakingLink")
+                } else {
+                    t("contactsTasks.jobPhotosShare")
+                },
                 modifier = Modifier.padding(start = 6.dp),
             )
         }
@@ -119,8 +128,10 @@ fun ShareJobPhotos(
     ) {
         Column(Modifier.padding(12.dp)) {
             Text(
-                "Anyone with this link can see the photos until " +
-                    "${absoluteTime(current.expires_at)}.",
+                t(
+                    "contactsTasks.jobPhotosExpiry",
+                    "when" to absoluteTime(current.expires_at),
+                ),
                 fontSize = 12.5.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -138,14 +149,14 @@ fun ShareJobPhotos(
                 )
                 OutlinedButton(onClick = {
                     haptics.tap()
-                    copyToClipboard(context, "Job photos", current.url)
+                    copyToClipboard(context, clipboardLabel, current.url)
                 }) {
                     Icon(
                         Icons.Outlined.ContentCopy,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
                     )
-                    Text("Copy", modifier = Modifier.padding(start = 6.dp))
+                    Text(t("contactsTasks.copy"), modifier = Modifier.padding(start = 6.dp))
                 }
             }
             TextButton(
@@ -160,7 +171,7 @@ fun ShareJobPhotos(
                 },
                 enabled = !busy,
             ) {
-                Text("Turn this link off", fontSize = 12.sp)
+                Text(t("contactsTasks.jobPhotosTurnOff"), fontSize = 12.sp)
             }
         }
     }

@@ -1,6 +1,16 @@
 import { format } from "date-fns";
 
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
 import type { ConversationEvent, Message } from "@/lib/api/types";
+
+/**
+ * English, for a caller with no provider around it — the unit tests below call
+ * every one of these directly. Every product call site passes the reader's own
+ * `t`; see the note on `taskEventSentence`, which these mirror.
+ */
+const EN = makeTranslate(DEFAULT_LOCALE);
 
 /**
  * Pure D14 done-state selectors (unit-tested directly): the strikethrough
@@ -11,9 +21,10 @@ import type { ConversationEvent, Message } from "@/lib/api/types";
 
 /** §4.3: quote + truncate a message body for the done timeline line. */
 const DONE_EXCERPT_MAX = 48;
-export function doneEventExcerpt(body: string): string {
+export function doneEventExcerpt(body: string, t: Translate = EN): string {
   const clean = body.replace(/\s+/g, " ").trim();
-  if (clean === "") return "an attachment"; // #189: MMS is not photos-only
+  // #189: MMS is not photos-only.
+  if (clean === "") return t("thread.doneExcerptAttachment");
   if (clean.length <= DONE_EXCERPT_MAX) return `"${clean}"`;
   return `"${clean.slice(0, DONE_EXCERPT_MAX).trimEnd()}…"`;
 }
@@ -31,11 +42,21 @@ export function doneEventSentence(
   event: Pick<ConversationEvent, "type" | "payload">,
   actorName: string,
   messageBody: string | undefined,
+  t: Translate = EN,
 ): string {
   const excerpt =
-    messageBody !== undefined ? doneEventExcerpt(messageBody) : "a message";
-  const verb = event.type === "message_undone" ? "not done" : "done";
-  return `${actorName} marked ${excerpt} ${verb}`;
+    messageBody !== undefined
+      ? doneEventExcerpt(messageBody, t)
+      : t("thread.doneExcerptMessage");
+  /*
+   * Two whole sentences rather than one with the verb interpolated. "done" and
+   * "not done" are a grammatical agreement in French, not a word swapped into a
+   * slot, and a catalogue that hands the translator `{by} marked {excerpt}
+   * {verb}` has handed them a sentence they cannot finish.
+   */
+  return event.type === "message_undone"
+    ? t("thread.doneMarkedNotDone", { by: actorName, excerpt })
+    : t("thread.doneMarkedDone", { by: actorName, excerpt });
 }
 
 /** A message is done exactly when done_at is set. */
@@ -62,8 +83,8 @@ export function isUnsentOutbound(
 }
 
 /** aria-pressed toggle label (D14): "Mark done" / "Mark not done". */
-export function doneToggleLabel(done: boolean): string {
-  return done ? "Mark not done" : "Mark done";
+export function doneToggleLabel(done: boolean, t: Translate = EN): string {
+  return done ? t("thread.markNotDone") : t("thread.markDone");
 }
 
 /**
@@ -88,6 +109,7 @@ export function shouldPopDone(prevDone: boolean, nextDone: boolean): boolean {
 export function doneBadgeLabel(
   message: Pick<Message, "done_at" | "done_by_user_id">,
   memberName: (userId: string) => string | undefined,
+  t: Translate = EN,
 ): string {
   if (message.done_at === null) return "";
   const time = format(new Date(message.done_at), "h:mm a");
@@ -95,5 +117,7 @@ export function doneBadgeLabel(
     message.done_by_user_id !== null
       ? memberName(message.done_by_user_id)
       : undefined;
-  return name ? `Done · ${name} · ${time}` : `Done · ${time}`;
+  return name
+    ? t("thread.doneBadgeWithName", { name, time })
+    : t("thread.doneBadge", { time });
 }

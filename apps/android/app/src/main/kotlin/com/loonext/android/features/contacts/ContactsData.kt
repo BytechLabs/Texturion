@@ -1,5 +1,6 @@
 package com.loonext.android.features.contacts
 
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ContactAddressBody
@@ -392,6 +393,9 @@ fun contactAttribution(
     createdAt: String?,
     updatedByName: String?,
     clock: Clock = Clock.systemDefaultZone(),
+    // #228: last and defaulted — the tests that pin the English still pass it
+    // nothing, and the screen passes the reader's language.
+    locale: String? = null,
 ): ContactAttribution {
     val added = createdByName?.trim()?.ifEmpty { null }
     val edited = updatedByName?.trim()?.ifEmpty { null }
@@ -399,9 +403,21 @@ fun contactAttribution(
         val date = com.loonext.android.features.tasks.parseInstant(createdAt)
             ?.atZone(clock.zone)
             ?.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))
-        if (date != null) "Added by $it on $date" else "Added by $it"
+        if (date != null) {
+            AppStrings.translate(
+                locale,
+                "contactsTasks.addedByOn",
+                mapOf("who" to it, "date" to date),
+            )
+        } else {
+            AppStrings.translate(locale, "contactsTasks.addedBy", mapOf("who" to it))
+        }
     }
-    val editedLine = if (edited != null && edited != added) "Edited by $edited" else null
+    val editedLine = if (edited != null && edited != added) {
+        AppStrings.translate(locale, "contactsTasks.editedBy", mapOf("who" to edited))
+    } else {
+        null
+    }
     return ContactAttribution(added = addedLine, edited = editedLine)
 }
 

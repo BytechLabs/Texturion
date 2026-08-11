@@ -65,6 +65,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loonext.android.AppGraph
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.StoreCache
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallOutcome
 import com.loonext.android.core.model.CompanyView
@@ -115,10 +118,19 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private enum class CallsFilter(val label: String, val outcome: String?, val filterKey: String) {
-    All("All", null, "default"),
-    Missed("Missed", CallOutcome.MISSED, "missed"),
-    Voicemail("Voicemail", CallOutcome.VOICEMAIL, "voicemail"),
+/**
+ * #228: a catalogue KEY rather than the word. The choice is
+ * `rememberSaveable`d by name and the filterKey rides the cache, so a
+ * translated word stored here would be resolved once and outlive the reader.
+ */
+private enum class CallsFilter(
+    val labelKey: String,
+    val outcome: String?,
+    val filterKey: String,
+) {
+    All("contactsTasks.filterAll", null, "default"),
+    Missed("contactsTasks.filterMissed", CallOutcome.MISSED, "missed"),
+    Voicemail("contactsTasks.filterVoicemail", CallOutcome.VOICEMAIL, "voicemail"),
 }
 
 /**
@@ -187,6 +199,8 @@ fun CallsScreen(
     }
 
     val haptics = rememberHaptics()
+    // #228: the day headings are built outside composition, from this.
+    val logLocale = LocalAppLocale.current
     var filter by rememberSaveable { mutableStateOf(CallsFilter.All) }
     var loadingMore by remember { mutableStateOf(false) }
     var refreshKey by remember { mutableStateOf(0) }
@@ -316,7 +330,7 @@ fun CallsScreen(
                         .padding(start = 18.dp, end = 18.dp, top = 14.dp),
                     verticalAlignment = Alignment.Bottom,
                 ) {
-                    ScreenTitle("Calls")
+                    ScreenTitle(t("contactsTasks.callsSection"))
                     Spacer(Modifier.width(9.dp))
                     SoftphoneStatusLine(
                         status = softphone.status,
@@ -354,7 +368,7 @@ fun CallsScreen(
             ) {
                 CallsFilter.entries.forEach { item ->
                     FilterPill(
-                        label = item.label,
+                        label = t(item.labelKey),
                         selected = filter == item,
                         onClick = {
                             haptics.tap()
@@ -394,10 +408,14 @@ fun CallsScreen(
                             if (ongoing.isEmpty()) {
                                 Text(
                                     when (filter) {
-                                        CallsFilter.Missed -> "No missed calls."
-                                        CallsFilter.Voicemail -> "No voicemails."
+                                        CallsFilter.Missed ->
+                                            t("contactsTasks.noMissedCalls")
+
+                                        CallsFilter.Voicemail ->
+                                            t("contactsTasks.noVoicemails")
+
                                         CallsFilter.All ->
-                                            "No calls yet. When customers call your number, they land here."
+                                            t("contactsTasks.noCallsYetLog")
                                     },
                                     style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -407,7 +425,7 @@ fun CallsScreen(
                         }
                     } else {
                         val groups =
-                            remember(resolved) { groupByDay(resolved) }
+                            remember(resolved, logLocale) { groupByDay(resolved, logLocale) }
                         LazyColumn(
                             Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(
@@ -506,7 +524,7 @@ fun CallsScreen(
                                                         loadingMore = false
                                                     }
                                                 }
-                                            }) { Text("Load more") }
+                                            }) { Text(t("contactsTasks.loadMore")) }
                                         }
                                     }
                                 }
@@ -528,7 +546,7 @@ fun CallsScreen(
                                             color = MaterialTheme.colorScheme.surfaceContainerHigh,
                                         ) {
                                             Text(
-                                                "Missed calls text the customer back automatically",
+                                                t("contactsTasks.missedCallAutoText"),
                                                 fontSize = 11.sp,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 modifier = Modifier.padding(
@@ -569,7 +587,7 @@ fun CallsScreen(
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     Icons.Outlined.Dialpad,
-                    contentDescription = "Dial a number",
+                    contentDescription = t("contactsTasks.dialANumber"),
                     modifier = Modifier.size(19.dp),
                 )
             }
@@ -646,25 +664,25 @@ private fun SoftphoneStatusLine(
         // #195 F7: a ring is presented but the socket is NOT ready — honest
         // over reassuring (an answer right now may stall or fail).
         ringPresented && status != SoftphoneStatus.READY -> Triple(
-            "Reconnecting your line…",
+            t("contactsTasks.reconnectingLine"),
             MaterialTheme.colorScheme.outline,
             MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         status == SoftphoneStatus.READY -> Triple(
-            "Ready to ring",
+            t("contactsTasks.readyToRing"),
             BrandColor.LimeBright,
             MaterialTheme.colorScheme.secondary,
         )
 
         status == SoftphoneStatus.CONNECTING -> Triple(
-            "Connecting…",
+            t("contactsTasks.connecting"),
             MaterialTheme.colorScheme.outline,
             MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         else -> Triple(
-            "Offline · retry",
+            t("contactsTasks.offlineRetry"),
             coral,
             MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -697,7 +715,7 @@ private fun OngoingCallsCard(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier) {
-        SectionHeader("Ongoing", count = calls.size.takeIf { it > 1 })
+        SectionHeader(t("contactsTasks.ongoing"), count = calls.size.takeIf { it > 1 })
         PaperCard(Modifier.fillMaxWidth()) {
             calls.forEachIndexed { index, call ->
                 key(call.id) {
@@ -731,7 +749,11 @@ private fun OngoingCallRow(
     val coral = if (isSystemInDarkTheme()) BrandColor.DarkCoral else BrandColor.Coral
     val name = callerDisplayName(call)
     val phase = ongoingPhase(call)
-    val status = ongoingStatusLabel(phase, memberDisplayName(call.answered_by_user_id, members))
+    val status = ongoingStatusLabel(
+        phase,
+        memberDisplayName(call.answered_by_user_id, members),
+        LocalAppLocale.current,
+    )
     val numberLabel = ongoingNumberLabel(call.phone_number_id, numbers)
     val conversationId = call.conversation_id
     Row(
@@ -894,7 +916,7 @@ private fun CallRow(
             startAction = onDialBack?.let { dial ->
                 SwipeAction(
                     icon = Icons.Outlined.Call,
-                    label = "Call back",
+                    label = t("contactsTasks.callBack"),
                     tint = MaterialTheme.colorScheme.onSecondaryContainer,
                     container = MaterialTheme.colorScheme.secondaryContainer,
                     onCommit = {
@@ -906,7 +928,7 @@ private fun CallRow(
             endAction = onOpen?.let { open ->
                 SwipeAction(
                     icon = Icons.AutoMirrored.Outlined.Message,
-                    label = "Text back",
+                    label = t("contactsTasks.textBack"),
                     tint = MaterialTheme.colorScheme.onTertiaryContainer,
                     container = MaterialTheme.colorScheme.tertiaryContainer,
                     onCommit = {
@@ -1035,7 +1057,7 @@ private fun CallRow(
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 Icons.Outlined.Call,
-                                contentDescription = "Call back",
+                                contentDescription = t("contactsTasks.callBack"),
                                 modifier = Modifier.size(15.dp),
                             )
                         }
@@ -1143,22 +1165,26 @@ private fun directionIcon(call: Call): ImageVector = when {
 }
 
 /** Newest-first log → ordered day buckets ("Today", "Yesterday", "Jul 8"). */
-private fun groupByDay(calls: List<Call>): List<Pair<String, List<Call>>> {
+private fun groupByDay(
+    calls: List<Call>,
+    locale: String? = null,
+): List<Pair<String, List<Call>>> {
     val today = LocalDate.now()
     val groups = LinkedHashMap<String, MutableList<Call>>()
     calls.forEach { call ->
-        groups.getOrPut(dayLabel(call.started_at, today)) { mutableListOf() }.add(call)
+        groups.getOrPut(dayLabel(call.started_at, today, locale)) { mutableListOf() }.add(call)
     }
     return groups.map { (label, list) -> label to list }
 }
 
-private fun dayLabel(iso: String, today: LocalDate): String {
+private fun dayLabel(iso: String, today: LocalDate, locale: String? = null): String {
     val date = runCatching {
         Instant.parse(iso).atZone(ZoneId.systemDefault()).toLocalDate()
-    }.getOrNull() ?: return "Earlier"
+    }.getOrNull() ?: return AppStrings.translate(locale, "contactsTasks.earlier")
     return when {
-        date == today -> "Today"
-        date == today.minusDays(1) -> "Yesterday"
+        date == today -> AppStrings.translate(locale, "contactsTasks.today")
+        date == today.minusDays(1) ->
+            AppStrings.translate(locale, "contactsTasks.yesterday")
         date.year == today.year -> date.format(DateTimeFormatter.ofPattern("MMM d"))
         else -> date.format(DateTimeFormatter.ofPattern("MMM d yyyy"))
     }
@@ -1193,6 +1219,11 @@ private fun VoicemailPlayerRow(
     var scrubbing by remember(sessionId) { mutableStateOf(false) }
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
+    // The MediaPlayer callbacks below are not composition.
+    val playbackFailed = AppStrings.translate(
+        LocalAppLocale.current,
+        "contactsTasks.voicemailPlayFailed",
+    )
 
     DisposableEffect(sessionId) {
         onDispose {
@@ -1243,14 +1274,14 @@ private fun VoicemailPlayerRow(
                     positionMs = durationMs
                 }
                 next.setOnErrorListener { _, _, _ ->
-                    error = "Couldn't play this voicemail."
+                    error = playbackFailed
                     playing = false
                     preparing = false
                     true
                 }
                 next.prepareAsync()
             } catch (_: Exception) {
-                error = "Couldn't play this voicemail."
+                error = playbackFailed
                 preparing = false
             }
         }
@@ -1319,9 +1350,9 @@ private fun VoicemailPlayerRow(
                                         Icons.Outlined.PlayArrow
                                     },
                                     contentDescription = if (isPlaying) {
-                                        "Pause voicemail"
+                                        t("contactsTasks.pauseVoicemail")
                                     } else {
-                                        "Play voicemail"
+                                        t("contactsTasks.playVoicemail")
                                     },
                                     modifier = Modifier.size(14.dp),
                                 )

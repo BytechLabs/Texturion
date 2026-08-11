@@ -26,6 +26,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
@@ -127,69 +130,96 @@ private fun firstProblem(
     editCampaign: Boolean,
     soleProp: Boolean,
     country: String,
+    /**
+     * #228: the reader's language, handed down from the one composable that
+     * calls this. One layer, not five — every sentence this returns is shown
+     * directly under the form, so it cannot stay English while the form is not.
+     */
+    locale: String?,
 ): String? {
-    fun blank(value: String, label: String, max: Int): String? = when {
-        value.trim().isEmpty() -> "Enter $label."
-        value.trim().length > max -> "Keep $label under $max characters."
+    fun say(key: String, vararg vars: Pair<String, String>): String =
+        AppStrings.translate(locale, key, vars.toMap())
+
+    // The field's own name, in the middle of a sentence ("Enter the city.").
+    // Kept as a key rather than a bare noun so a language that inflects it can.
+    fun blank(value: String, labelKey: String, max: Int): String? = when {
+        value.trim().isEmpty() -> say("settingsMore.enterField", "field" to say(labelKey))
+        value.trim().length > max ->
+            say(
+                "settingsMore.fieldTooLong",
+                "field" to say(labelKey),
+                "max" to "$max",
+            )
+
         else -> null
     }
 
     if (editBrand) {
-        blank(form.displayName, "the business name customers know", 255)?.let { return it }
+        blank(form.displayName, "settingsMore.fieldKnownName", 255)?.let { return it }
         if (!Regex(EMAIL_PATTERN).matches(form.email.trim()) ||
             form.email.trim().length > 320
         ) {
-            return "Enter a contact email address."
+            return say("settingsMore.enterContactEmail")
         }
         if (!Regex(CONTACT_PHONE_PATTERN).matches(form.phone.trim())) {
-            return "Enter a contact phone number."
+            return say("settingsMore.enterContactPhone")
         }
-        blank(form.street, "the street address", 255)?.let { return it }
-        blank(form.city, "the city", 100)?.let { return it }
-        blank(form.state, if (country == "US") "the state" else "the province", 20)
-            ?.let { return it }
+        blank(form.street, "settingsMore.fieldStreet", 255)?.let { return it }
+        blank(form.city, "settingsMore.fieldCity", 100)?.let { return it }
+        blank(
+            form.state,
+            if (country == "US") "settingsMore.fieldState" else "settingsMore.fieldProvince",
+            20,
+        )?.let { return it }
         blank(
             form.postalCode,
-            if (country == "US") "the ZIP code" else "the postal code",
+            if (country == "US") "settingsMore.fieldZip" else "settingsMore.fieldPostal",
             10,
         )?.let { return it }
 
         if (soleProp) {
-            blank(form.firstName, "your first name", 100)?.let { return it }
-            blank(form.lastName, "your last name", 100)?.let { return it }
+            blank(form.firstName, "settingsMore.fieldFirstName", 100)?.let { return it }
+            blank(form.lastName, "settingsMore.fieldLastName", 100)?.let { return it }
             if (!Regex("""^\d{4}$""").matches(form.ein.trim())) {
-                return "Enter the last 4 digits of your " +
-                    (if (country == "US") "SSN" else "SIN") + "."
+                return say(
+                    "settingsMore.enterLast4",
+                    "idLabel" to say(
+                        if (country == "US") {
+                            "settingsMore.ssnLabel"
+                        } else {
+                            "settingsMore.sinLabel"
+                        },
+                    ),
+                )
             }
             if (normalizeNanpInput(form.mobilePhone) == null) {
-                return "Enter a US or Canadian mobile number; it gets the verification text."
+                return say("settingsMore.enterMobileForCode")
             }
         } else {
-            blank(form.companyName, "your legal business name", 255)?.let { return it }
+            blank(form.companyName, "settingsMore.fieldLegalName", 255)?.let { return it }
             if (!Regex(EIN_PATTERN).matches(form.ein.trim())) {
                 return if (country == "US") {
-                    "Enter your 9-digit EIN (numbers only, dashes ok)."
+                    say("settingsMore.enterEin")
                 } else {
-                    "Enter your CRA business number."
+                    say("settingsMore.enterCra")
                 }
             }
         }
         if (!websiteValid(form.website)) {
-            return "Enter a web address (e.g. mikesplumbing.com) or leave it blank."
+            return say("settingsMore.enterWebsite")
         }
     }
 
     if (editCampaign) {
         val flow = form.messageFlow.trim()
         if (flow.length < 40) {
-            return "Carriers need at least 40 characters here: describe how customers " +
-                "ask you to text them."
+            return say("settingsMore.optInTooShort")
         }
-        if (flow.length > 2048) return "Keep the opt-in description under 2,048 characters."
+        if (flow.length > 2048) return say("settingsMore.optInTooLong")
         listOf(form.sample1, form.sample2).forEach { sample ->
             val value = sample.trim()
-            if (value.length < 20) return "Each sample needs at least 20 characters: a real text you'd send."
-            if (value.length > 1024) return "Keep each sample under 1,024 characters."
+            if (value.length < 20) return say("settingsMore.sampleTooShort")
+            if (value.length > 1024) return say("settingsMore.sampleTooLong")
         }
     }
     return null
@@ -302,10 +332,23 @@ fun RegistrationFixForm(
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
 
-    val regionLabel = if (country == "US") "State" else "Province"
-    val postalLabel = if (country == "US") "ZIP code" else "Postal code"
-    val idLabel = if (country == "US") "EIN" else "Business number"
+    val regionLabel = if (country == "US") {
+        t("settingsMore.stateLabel")
+    } else {
+        t("settingsMore.provinceLabel")
+    }
+    val postalLabel = if (country == "US") {
+        t("settingsMore.zipLabel")
+    } else {
+        t("settingsMore.postalLabel")
+    }
+    val idLabel = if (country == "US") {
+        t("settingsMore.einLabel")
+    } else {
+        t("settingsMore.businessNumberLabel")
+    }
 
     @Composable
     fun field(
@@ -356,37 +399,52 @@ fun RegistrationFixForm(
         Button(
             onClick = { open = true },
             modifier = Modifier.padding(top = 8.dp),
-        ) { Text("Edit your details") }
+        ) { Text(t("settingsMore.editDetails")) }
         return
     }
 
     Column(Modifier.padding(top = 8.dp)) {
         if (editBrand) {
             Text(
-                "These go to the carrier registry exactly as typed.",
+                t("settingsMore.registryExactly"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (soleProp) {
-                field(form.firstName, "First name", { form = form.copy(firstName = it) })
-                field(form.lastName, "Last name", { form = form.copy(lastName = it) })
+                field(
+                    form.firstName,
+                    t("settingsMore.firstName"),
+                    { form = form.copy(firstName = it) },
+                )
+                field(
+                    form.lastName,
+                    t("settingsMore.lastName"),
+                    { form = form.copy(lastName = it) },
+                )
             } else {
                 field(
                     form.companyName,
-                    "Legal business name",
+                    t("settingsMore.legalBusinessName"),
                     { form = form.copy(companyName = it) },
                     key = "companyName",
                 )
             }
             field(
                 form.displayName,
-                "Business name customers know",
+                t("settingsMore.knownBusinessName"),
                 { form = form.copy(displayName = it) },
             )
             field(
                 form.ein,
                 if (soleProp) {
-                    "Last 4 of ${if (country == "US") "SSN" else "SIN"}"
+                    t(
+                        "settingsMore.last4Of",
+                        "idLabel" to if (country == "US") {
+                            t("settingsMore.ssnLabel")
+                        } else {
+                            t("settingsMore.sinLabel")
+                        },
+                    )
                 } else {
                     idLabel
                 },
@@ -400,26 +458,31 @@ fun RegistrationFixForm(
             )
             field(
                 form.email,
-                "Contact email",
+                t("settingsMore.contactEmail"),
                 { form = form.copy(email = it) },
                 keyboard = KeyboardType.Email,
                 key = "email",
             )
             field(
                 form.phone,
-                "Contact phone",
+                t("settingsMore.contactPhone"),
                 { form = form.copy(phone = it) },
                 keyboard = KeyboardType.Phone,
             )
             if (soleProp) {
                 field(
                     form.mobilePhone,
-                    "Mobile for the verification text",
+                    t("settingsMore.mobileForCode"),
                     { form = form.copy(mobilePhone = it) },
                     keyboard = KeyboardType.Phone,
                 )
             }
-            field(form.website, "Website (optional)", { form = form.copy(website = it) }, key = "website")
+            field(
+                form.website,
+                t("settingsMore.websiteOptional"),
+                { form = form.copy(website = it) },
+                key = "website",
+            )
 
             ExposedDropdownMenuBox(
                 expanded = verticalOpen,
@@ -431,7 +494,7 @@ fun RegistrationFixForm(
                     onValueChange = {},
                     readOnly = true,
                     enabled = !saving,
-                    label = { Text("Industry") },
+                    label = { Text(t("settingsMore.industry")) },
                     trailingIcon = {
                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = verticalOpen)
                     },
@@ -457,8 +520,13 @@ fun RegistrationFixForm(
                 }
             }
 
-            field(form.street, "Street address", { form = form.copy(street = it) }, key = "street")
-            field(form.city, "City", { form = form.copy(city = it) })
+            field(
+                form.street,
+                t("settingsMore.streetAddress"),
+                { form = form.copy(street = it) },
+                key = "street",
+            )
+            field(form.city, t("settingsMore.city"), { form = form.copy(city = it) })
             field(form.state, regionLabel, { form = form.copy(state = it) })
             field(form.postalCode, postalLabel, { form = form.copy(postalCode = it) })
         }
@@ -466,28 +534,27 @@ fun RegistrationFixForm(
         if (editCampaign) {
             Spacer(Modifier.height(10.dp))
             Text(
-                "How customers ask you to text them, and two texts you actually send. " +
-                    "Carriers read these.",
+                t("settingsMore.campaignIntro"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             field(
                 form.messageFlow,
-                "How customers opt in",
+                t("settingsMore.howCustomersOptIn"),
                 { form = form.copy(messageFlow = it) },
                 lines = 3,
                 key = "messageFlow",
             )
             field(
                 form.sample1,
-                "Sample text 1",
+                t("settingsMore.sampleText1"),
                 { form = form.copy(sample1 = it) },
                 lines = 2,
                 key = "sample1",
             )
             field(
                 form.sample2,
-                "Sample text 2",
+                t("settingsMore.sampleText2"),
                 { form = form.copy(sample2 = it) },
                 lines = 2,
             )
@@ -496,7 +563,8 @@ fun RegistrationFixForm(
         InlineError(error)
         Button(
             onClick = {
-                val problem = firstProblem(form, editBrand, editCampaign, soleProp, country)
+                val problem =
+                    firstProblem(form, editBrand, editCampaign, soleProp, country, locale)
                 if (problem != null) {
                     error = problem
                     return@Button
@@ -511,7 +579,10 @@ fun RegistrationFixForm(
                         )
                         scope.repo.submitRegistration(scope.companyId)
                         scope.showMessage(
-                            "Submitted. We'll email you when carriers approve it.",
+                            AppStrings.translate(
+                                locale,
+                                "settingsMore.registrationSubmitted",
+                            ),
                         )
                         open = false
                         onSubmitted()
@@ -524,6 +595,6 @@ fun RegistrationFixForm(
             },
             enabled = !saving,
             modifier = Modifier.padding(top = 8.dp),
-        ) { Text(if (saving) "Submitting…" else submitLabel) }
+        ) { Text(if (saving) t("settingsMore.submitting") else submitLabel) }
     }
 }

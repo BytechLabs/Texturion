@@ -24,6 +24,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ReminderRule
 import com.loonext.android.core.reminders.AppointmentReminders
 import com.loonext.android.ui.common.userMessage
@@ -60,6 +63,7 @@ import kotlinx.coroutines.launch
 fun ReminderRulesCard(scope: SettingsScope) {
     val canEdit = SettingsRoleGate.canEditWorkspace(scope.role)
     val coroutines = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
 
     var loaded by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf<List<ReminderRule>>(emptyList()) }
@@ -91,11 +95,14 @@ fun ReminderRulesCard(scope: SettingsScope) {
                 saved = result.rules
                 draft = result.rules
                 scope.showMessage(
-                    if (result.rules.isEmpty()) {
-                        "Reminders are off. Nothing will go out automatically."
-                    } else {
-                        "Saved. New jobs will carry these reminders."
-                    },
+                    AppStrings.translate(
+                        locale,
+                        if (result.rules.isEmpty()) {
+                            "settingsMore.remindersNowOff"
+                        } else {
+                            "settingsMore.remindersSaved"
+                        },
+                    ),
                 )
             } catch (cause: Exception) {
                 scope.showMessage(cause.userMessage())
@@ -106,12 +113,12 @@ fun ReminderRulesCard(scope: SettingsScope) {
     }
 
     SettingsCard(
-        title = "Appointment reminders",
-        description = "A text before the job, so fewer people forget.",
+        title = t("settingsMore.remindersTitle"),
+        description = t("settingsMore.remindersDesc"),
     ) {
         if (!loaded) {
             Text(
-                "Loading…",
+                t("settingsMore.loading"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -121,8 +128,7 @@ fun ReminderRulesCard(scope: SettingsScope) {
         if (draft.isEmpty()) {
             // The honest empty state: off is a state, not a gap.
             Text(
-                "Reminders are off. Nothing goes out automatically until you set " +
-                    "one up — a job booked for tomorrow gets no text from us today.",
+                t("settingsMore.remindersOffBody"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -130,7 +136,7 @@ fun ReminderRulesCard(scope: SettingsScope) {
                 Button(
                     onClick = { draft = suggested.map { it.copy(enabled = true) } },
                     modifier = Modifier.padding(top = 10.dp),
-                ) { Text("Set up the usual two") }
+                ) { Text(t("settingsMore.remindersSetUpUsual")) }
             }
             return@SettingsCard
         }
@@ -163,13 +169,13 @@ fun ReminderRulesCard(scope: SettingsScope) {
                     )
                 },
                 modifier = Modifier.padding(top = 8.dp),
-            ) { Text("Add another") }
+            ) { Text(t("settingsMore.remindersAddAnother")) }
         }
 
         if (draft.size >= cap) {
             // The ceiling, shown rather than enforced by a refusal at save.
             Text(
-                "Two is the most we send. Past that, customers stop reading them.",
+                t("settingsMore.remindersCap"),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp),
@@ -183,10 +189,12 @@ fun ReminderRulesCard(scope: SettingsScope) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Button(onClick = { commit() }, enabled = dirty && !saving) {
-                    Text("Save reminders")
+                    Text(t("settingsMore.remindersSave"))
                 }
                 if (dirty) {
-                    TextButton(onClick = { draft = saved }) { Text("Discard") }
+                    TextButton(onClick = { draft = saved }) {
+                        Text(t("settingsMore.discard"))
+                    }
                 }
             }
         }
@@ -240,14 +248,14 @@ private fun ReminderRuleRow(
                 onCheckedChange = { onChange(rule.copy(enabled = it)) },
             )
             if (canEdit) {
-                TextButton(onClick = onRemove) { Text("Remove") }
+                TextButton(onClick = onRemove) { Text(t("settingsMore.remove")) }
             }
         }
         OutlinedTextField(
             value = rule.body,
             onValueChange = { onChange(rule.copy(body = it)) },
             enabled = canEdit,
-            label = { Text("What it says") },
+            label = { Text(t("settingsMore.remindersBodyLabel")) },
             modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
         )
     }

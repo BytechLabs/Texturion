@@ -46,17 +46,51 @@ const SOURCES: Record<string, string> = {
 const WEB_COPY = Object.values(inboxEn).join("\n");
 
 /**
+ * #228 moved ANDROID's sentences out of the card too, into the same shape web
+ * uses — a catalogue of `"key" to "value"` pairs. Only iOS still writes them at
+ * the card.
+ */
+const ANDROID_CATALOGUE = join(
+  REPO_ROOT,
+  "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/InboxStrings.kt",
+);
+
+/**
+ * The Kotlin catalogue's VALUES.
+ *
+ * The keys are stripped, and that is the same lesson recorded above for web:
+ * `inbox.responseDetails` contains the fragment "Details", so a catalogue read
+ * whole would let an IDENTIFIER satisfy a copy check while the sentence beside
+ * it had been reworded. Comment lines go for the same reason — a fragment
+ * quoted in a note about the code is not the code.
+ */
+function kotlinCatalogueValues(text: string): string {
+  return text
+    .replace(/"inbox\.[A-Za-z0-9_]+"\s*to\s*/g, "")
+    .split("\n")
+    .filter((line) => {
+      const trimmed = line.trim();
+      return !trimmed.startsWith("//") && !trimmed.startsWith("*");
+    })
+    .join("\n");
+}
+
+/**
  * What a platform's copy is compared against.
  *
  * For web that is the catalogue's values and NOTHING ELSE — deliberately not
- * the card as well. Also found by breaking it: the card calls
+ * the card as well. Found by breaking it: the card calls
  * `t("inbox.responseDetails")`, and the key contains the fragment "Details", so
  * appending the source made two fragments match an identifier rather than a
- * sentence. The phones still get their whole file, because that is where their
- * strings actually are.
+ * sentence. Android now reads the same way, off its own catalogue. iOS still
+ * gets its whole file, because that is where its strings actually are.
  */
 function copyOf(platform: string): string {
-  return platform === "web" ? WEB_COPY : readFileSync(SOURCES[platform], "utf8");
+  if (platform === "web") return WEB_COPY;
+  if (platform === "android") {
+    return kotlinCatalogueValues(readFileSync(ANDROID_CATALOGUE, "utf8"));
+  }
+  return readFileSync(SOURCES[platform], "utf8");
 }
 
 /**
@@ -94,6 +128,9 @@ describe("#239 response-time copy is the same on every client", () => {
     // And web's words, which are a fourth source now — an emptied section would
     // otherwise make every fragment below pass against nothing.
     expect(WEB_COPY.length).toBeGreaterThan(1000);
+    // Android's, for the same reason: its catalogue is a fifth file now, and a
+    // rename there would make every android assertion below vacuous.
+    expect(copyOf("android").length).toBeGreaterThan(1000);
   });
 
   it("carries every fragment on every platform, verbatim", () => {

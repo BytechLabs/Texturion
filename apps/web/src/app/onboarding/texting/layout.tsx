@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { EN } from "@/i18n/catalog";
+
 /**
  * Per-route tab title for the onboarding "texting" step. The step page is a
  * client component, so its title lives in this metadata-only segment layout.
@@ -7,7 +9,7 @@ import type { Metadata } from "next";
  * "%s · Loonext" template comes from the root.
  */
 export const metadata: Metadata = {
-  title: "How you'll text",
+  title: EN.onboarding.tabHowYoullText,
 };
 
 export default function TextingStepTitleLayout({

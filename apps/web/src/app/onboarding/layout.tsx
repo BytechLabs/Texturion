@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { GateHeader } from "@/components/shell/gate-header";
+import { EN } from "@/i18n/catalog";
 
 import { AppProviders } from "../app-providers";
 
@@ -28,7 +29,7 @@ export const metadata: Metadata = {
   // dispatcher/index; each step's metadata-only layout supplies its own "%s"
   // that the root "%s · Loonext" template wraps. The pages are client
   // components, so the titles cannot live on them.
-  title: { default: "Get started · Loonext", template: "%s · Loonext" },
+  title: { default: EN.onboarding.tabGetStarted, template: "%s · Loonext" },
   robots: { index: false, follow: false },
 };
 export default function OnboardingLayout({

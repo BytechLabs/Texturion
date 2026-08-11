@@ -1,5 +1,6 @@
 package com.loonext.android.features.inbox
 
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Tag
 import kotlinx.serialization.SerialName
@@ -209,22 +210,33 @@ internal fun viewMatchesSelection(filters: JsonObject, selection: ViewSelection)
  */
 internal fun suggestViewName(
     selection: ViewSelection,
+    /**
+     * #228: the reader's language. Required rather than defaulted — the name
+     * offered here is the one most people keep, so a missed locale would write
+     * an English name into a French workspace's saved views permanently.
+     */
+    locale: String,
     assignee: Member? = null,
     tag: Tag? = null,
 ): String {
+    fun say(key: String) = AppStrings.translate(locale, key)
     val parts = mutableListOf<String>()
     when (selection.tab) {
-        InboxStatusTab.Open -> parts.add("Open")
-        InboxStatusTab.Closed -> parts.add("Closed")
-        InboxStatusTab.Mine -> parts.add("Mine")
+        InboxStatusTab.Open -> parts.add(say(InboxStatusTab.Open.labelKey))
+        InboxStatusTab.Closed -> parts.add(say(InboxStatusTab.Closed.labelKey))
+        InboxStatusTab.Mine -> parts.add(say(InboxStatusTab.Mine.labelKey))
         InboxStatusTab.All -> Unit
     }
-    assignee?.let { if (selection.assigneeUserId != null) parts.add(it.display_name.ifBlank { "Assigned" }) }
+    assignee?.let {
+        if (selection.assigneeUserId != null) {
+            parts.add(it.display_name.ifBlank { say("inbox.viewNameAssigned") })
+        }
+    }
     tag?.let { if (selection.tagId != null) parts.add(it.name) }
-    if (selection.unreadOnly) parts.add("Unread")
-    if (selection.spamOnly) parts.add("Spam")
-    if (selection.snoozedOnly) parts.add("Snoozed")
-    if (selection.awaitingOnly) parts.add("Unanswered")
+    if (selection.unreadOnly) parts.add(say("inbox.viewNameUnread"))
+    if (selection.spamOnly) parts.add(say("inbox.viewNameSpam"))
+    if (selection.snoozedOnly) parts.add(say("inbox.viewNameSnoozed"))
+    if (selection.awaitingOnly) parts.add(say("inbox.viewNameUnanswered"))
     // A middot, not a dash: Law 6 bans em and en dashes in rendered copy and a
     // hyphen reads as part of a word.
     return parts.joinToString(" · ")

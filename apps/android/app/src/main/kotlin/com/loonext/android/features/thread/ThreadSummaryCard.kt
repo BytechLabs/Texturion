@@ -31,6 +31,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CarrierStanding
 import com.loonext.android.core.model.SummaryOptOut
 import com.loonext.android.core.model.THREAD_SUMMARY_ATTRIBUTION
@@ -342,6 +345,10 @@ fun ThreadSummaryCard(
 ) {
     if (state is CatchUpState.Hidden) return
 
+    // The `semantics` block below is not composition, so the language is read
+    // here and the sentence is built there.
+    val locale = LocalAppLocale.current
+
     Column(
         modifier
             .fillMaxWidth()
@@ -378,11 +385,12 @@ fun ThreadSummaryCard(
             // Principle — a micro-interaction inside a safe structure.*
             AnimatedContent(
                 targetState = when (state) {
-                    is CatchUpState.Reading -> "Reading the thread…"
-                    is CatchUpState.Ready -> "Lou's catch-up"
+                    is CatchUpState.Reading -> t("thread.summaryReading")
+                    is CatchUpState.Ready -> t("thread.summaryReady")
                     is CatchUpState.Refused ->
-                        if (state.askAgain) "Try the catch-up again" else "Catch me up"
-                    else -> "Catch me up"
+                        if (state.askAgain) t("thread.summaryRetry")
+                        else t("thread.summaryOffer")
+                    else -> t("thread.summaryOffer")
                 },
                 transitionSpec = {
                     fadeIn(tween(durationMillis = 180)) togetherWith
@@ -474,8 +482,11 @@ fun ThreadSummaryCard(
                                 .clickable { onOpenMessage(line.message_id) }
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                                 .semantics {
-                                    contentDescription =
-                                        "${line.text}. Open the message this came from."
+                                    contentDescription = AppStrings.translate(
+                                        locale,
+                                        "thread.summaryLineAria",
+                                        mapOf("text" to line.text),
+                                    )
                                 },
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
@@ -509,7 +520,7 @@ fun ThreadSummaryCard(
                     // as covering everything, and "there was nothing else" is
                     // exactly the invented fact this feature must not produce.
                     Text(
-                        "The thread is longer than this — Lou read the most recent part.",
+                        t("thread.summaryTruncated"),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 2.dp),

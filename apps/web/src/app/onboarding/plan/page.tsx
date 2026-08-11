@@ -47,7 +47,7 @@ import { cn } from "@/lib/utils";
 import { StepError, StepLoading, StepShell } from "../step-shell";
 import { owesUsRegistration, previousStepHref, stepProgress } from "../steps";
 import { useWizardStepGuard } from "../use-onboarding-state";
-import { PLANS } from "./plans";
+import { planCards } from "./plans";
 import { WorkspaceSummary } from "./workspace-summary";
 
 /**
@@ -244,7 +244,7 @@ function PlanStep() {
           aria-label={t("onboarding.planGroupAria")}
           className="grid gap-4 sm:grid-cols-2"
         >
-          {PLANS.map((plan) => {
+          {planCards(t).map((plan) => {
             const selected = selectedPlan === plan.id;
             return (
               <button

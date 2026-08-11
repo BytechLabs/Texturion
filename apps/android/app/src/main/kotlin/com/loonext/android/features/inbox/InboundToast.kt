@@ -9,6 +9,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.loonext.android.AppGraph
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.ui.common.formatPhone
@@ -45,8 +47,12 @@ fun InboundMessageToastHost(
 ) {
     val repo = remember(graph) { MessagingRepository(graph.api) }
     val snackbar = remember { SnackbarHostState() }
+    // Read here and keyed below: the collector is a suspend lambda, which is not
+    // composition, so it cannot reach the catalogue itself.
+    val locale = LocalAppLocale.current
+    val viewLabel = t("inbox.inboundToastView")
 
-    LaunchedEffect(graph, companyId) {
+    LaunchedEffect(graph, companyId, locale) {
         graph.realtime.events.collect { event ->
             val conversationId =
                 (event.payload["conversation_id"] as? JsonPrimitive)?.content
@@ -86,7 +92,7 @@ fun InboundMessageToastHost(
             )
             val result = snackbar.showSnackbar(
                 message = line,
-                actionLabel = "View",
+                actionLabel = viewLabel,
                 duration = SnackbarDuration.Short,
             )
             if (result == SnackbarResult.ActionPerformed) onView(conversationId)

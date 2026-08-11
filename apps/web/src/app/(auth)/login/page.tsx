@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -27,19 +27,27 @@ import {
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { publicEnv } from "@/env";
-import { useT } from "@/i18n/provider";
+import { useT, type Translate } from "@/i18n/provider";
 import { authErrorMessage } from "@/lib/auth/messages";
 import { needsStepUp } from "@/lib/auth/mfa-step-up";
 import { safeNextPath } from "@/lib/auth/redirects";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { endSessionOnThisDevice } from "@/lib/auth/end-session";
 
-const schema = z.object({
-  email: z.email("Enter your email address."),
-  password: z.string().min(1, "Enter your password."),
-});
+/*
+ * A factory rather than a module-level constant: every message below is read
+ * UNDER the field by the person filling it in, so it is copy and belongs in the
+ * catalogue. The type comes from the factory's return, so the form's typing does
+ * not depend on which locale built the schema.
+ */
+function makeSchema(t: Translate) {
+  return z.object({
+    email: z.email(t("onboarding.emailRequired")),
+    password: z.string().min(1, t("onboarding.passwordRequired")),
+  });
+}
 
-type FormValues = z.infer<typeof schema>;
+type FormValues = z.infer<ReturnType<typeof makeSchema>>;
 
 function LoginForm() {
   const t = useT();
@@ -65,6 +73,7 @@ function LoginForm() {
   }, [searchParams, t]);
 
   const lastUsed = useLastUsedMethod();
+  const schema = useMemo(() => makeSchema(t), [t]);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { email: "", password: "" },

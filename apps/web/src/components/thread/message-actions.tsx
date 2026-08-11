@@ -85,6 +85,7 @@ function DoneToggle({
   message: Message;
   conversationId: string;
 }) {
+  const t = useT();
   const setDone = useSetMessageDone(conversationId);
   const done = isDone(message);
   const iconRef = useRef<SVGSVGElement>(null);
@@ -119,7 +120,7 @@ function DoneToggle({
     <button
       type="button"
       aria-pressed={done}
-      aria-label={doneToggleLabel(done)}
+      aria-label={doneToggleLabel(done, t)}
       onClick={() => setDone.mutate({ messageId: message.id, done: !done })}
       className={cn(
         // tap-target: the 16px icon + p-1 is 24px; extend the hit area to

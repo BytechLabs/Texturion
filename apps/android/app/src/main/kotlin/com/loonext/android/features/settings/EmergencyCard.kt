@@ -25,6 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
@@ -111,6 +114,15 @@ fun EmergencyCard(
         if (previewBody.contains(EMERGENCY_SAFETY_LINE)) previewBody
         else "$previewBody $EMERGENCY_SAFETY_LINE"
 
+    // `addWord` and the chip's onClick both run outside composition, and one of
+    // them has to name the offending word — so the locale is captured here and
+    // the sentence is built where it is needed rather than being read from a
+    // @Composable that is no longer running.
+    val locale = LocalAppLocale.current
+    val tooManyWords = t("settings.emergencyTooManyWords")
+    val keepOneWord = t("settings.emergencyKeepOneWord")
+    val savedMessage = t("settings.emergencySaved")
+
     fun addWord() {
         val raw = draft.trim()
         val problem = emergencyKeywordError(raw)
@@ -120,9 +132,12 @@ fun EmergencyCard(
         }
         val word = raw.uppercase()
         when {
-            word in words -> error = "$word is already on the list."
-            words.size >= 10 ->
-                error = "Ten words is the limit — past that it stops being an emergency."
+            word in words -> error = AppStrings.translate(
+                locale,
+                "settings.emergencyDuplicateWord",
+                mapOf("word" to word),
+            )
+            words.size >= 10 -> error = tooManyWords
             else -> {
                 error = null
                 words = words + word
@@ -132,17 +147,15 @@ fun EmergencyCard(
     }
 
     SettingsCard(
-        title = "Emergency words and reply",
-        description = "Which words a customer can text to reach the whole crew straight " +
-            "away, and what goes back to them automatically.",
+        title = t("settings.emergencyTitle"),
+        description = t("settings.emergencyIntro"),
     ) {
         Text(
-            "Words that count as an emergency",
+            t("settings.emergencyWordsHeading"),
             style = MaterialTheme.typography.labelLarge,
         )
         Text(
-            "Matched on the first word a customer sends, so \"URGENT no heat\" counts. " +
-                "Use the words your customers would actually reach for.",
+            t("settings.emergencyWordsHelp"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 2.dp),
@@ -161,8 +174,7 @@ fun EmergencyCard(
                         // the switch reads ON is the #414 defect.
                         if (!canEdit || saving) return@AssistChip
                         if (words.size == 1) {
-                            error = "Keep at least one word. To stop treating replies as " +
-                                "emergencies, turn the switch off above."
+                            error = keepOneWord
                         } else {
                             error = null
                             words = words - word
@@ -174,7 +186,11 @@ fun EmergencyCard(
                     // to a monospaced word reads as part of the word.
                     label = {
                         Text(
-                            if (canEdit) "$word  ×" else word,
+                            if (canEdit) {
+                                t("settings.emergencyWordChip", "word" to word)
+                            } else {
+                                word
+                            },
                             fontFamily = FontFamily.Monospace,
                         )
                     },
@@ -192,16 +208,18 @@ fun EmergencyCard(
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     enabled = !saving,
-                    label = { Text("Add a word") },
-                    placeholder = { Text("LOCKEDOUT") },
+                    label = { Text(t("settings.emergencyAddWordLabel")) },
+                    placeholder = { Text(t("settings.emergencyAddWordPlaceholder")) },
                 )
                 Spacer(Modifier.width(8.dp))
-                OutlinedButton(enabled = !saving, onClick = { addWord() }) { Text("Add") }
+                OutlinedButton(enabled = !saving, onClick = { addWord() }) {
+                    Text(t("settings.emergencyAddWordAction"))
+                }
             }
         }
         if (!company.emergency_keywords_are_custom) {
             Text(
-                "These are the defaults. Change them and only your words are watched for.",
+                t("settings.emergencyDefaults"),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
@@ -209,7 +227,7 @@ fun EmergencyCard(
         }
 
         Spacer(Modifier.height(16.dp))
-        Text("Automatic reply", style = MaterialTheme.typography.labelLarge)
+        Text(t("settings.emergencyReplyHeading"), style = MaterialTheme.typography.labelLarge)
         // #553: the switch lives NEXT TO the thing it governs.
         //
         // It always existed, but under Hours — a screen away from the words and the
@@ -222,19 +240,17 @@ fun EmergencyCard(
         // one off keeps the crew escalation, the push and the inbox flag, and
         // withholds only the message.
         LabeledSwitchRow(
-            label = "Text the customer back",
+            label = t("settings.emergencyTextBack"),
             checked = replyEnabled,
             onCheckedChange = { next ->
                 replyEnabled = next
                 saveReplyEnabled(next)
             },
-            supporting = "Off means we still alert the crew and flag the thread — " +
-                "we just don't message the customer for you.",
+            supporting = t("settings.emergencyTextBackHelp"),
             modifier = Modifier.padding(top = 4.dp),
         )
         Text(
-            "Sent once per hour, at most, to a customer who texts one of these words. " +
-                "Say what is true for your business.",
+            t("settings.emergencyReplyHelp"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 2.dp),
@@ -248,8 +264,14 @@ fun EmergencyCard(
             placeholder = { Text(company.emergency_effective_message) },
             supportingText = {
                 Text(
-                    "${message.length}/1000" +
-                        if (company.emergency_message_is_custom) "" else " · using the default",
+                    if (company.emergency_message_is_custom) {
+                        t("settings.emergencyCount", "count" to message.length.toString())
+                    } else {
+                        t(
+                            "settings.emergencyCountDefault",
+                            "count" to message.length.toString(),
+                        )
+                    },
                 )
             },
         )
@@ -258,11 +280,9 @@ fun EmergencyCard(
         // that one sentence follows it whatever they write — otherwise they will
         // believe they removed it, and find out from a customer.
         Spacer(Modifier.height(12.dp))
-        PreviewBubble(label = "What the customer receives", text = preview)
+        PreviewBubble(label = t("settings.emergencyPreviewLabel"), text = preview)
         Text(
-            "\"$EMERGENCY_SAFETY_LINE\" is always added and can't be edited. You decide " +
-                "what is promised; whether someone in danger is told where else to turn " +
-                "isn't ours to leave out.",
+            t("settings.emergencySafetyLineNote", "line" to EMERGENCY_SAFETY_LINE),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
@@ -298,7 +318,7 @@ fun EmergencyCard(
                             }
                             val updated = scope.repo.updateCompany(scope.companyId, body)
                             onCompanyUpdated(updated)
-                            scope.showMessage("Emergency settings saved.")
+                            scope.showMessage(savedMessage)
                         } catch (cause: Exception) {
                             error = cause.userMessage()
                         } finally {
@@ -306,10 +326,14 @@ fun EmergencyCard(
                         }
                     }
                 },
-            ) { Text(if (saving) "Saving…" else "Save emergency settings") }
+            ) {
+                Text(
+                    if (saving) t("common.saving") else t("settings.emergencySaveAction"),
+                )
+            }
         } else if (!canEdit) {
             Spacer(Modifier.height(4.dp))
-            ReadOnlyLine("Only owners and admins can change emergency settings.")
+            ReadOnlyLine(t("settings.emergencyReadOnly"))
         }
     }
 }

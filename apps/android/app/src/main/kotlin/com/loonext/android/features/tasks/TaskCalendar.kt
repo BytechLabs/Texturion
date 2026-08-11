@@ -44,6 +44,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.StoreCache
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Task
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
@@ -400,9 +403,7 @@ internal fun TaskCalendarView(
                                 .padding(horizontal = 16.dp, vertical = 14.dp),
                         ) {
                             Text(
-                                "Nothing is scheduled in this range. A task appears " +
-                                    "here once it has a due date. Set one from the " +
-                                    "task's detail screen.",
+                                t("contactsTasks.calendarEmptyRange"),
                                 fontSize = 12.5.sp,
                                 lineHeight = 18.sp,
                                 textAlign = TextAlign.Center,
@@ -421,10 +422,21 @@ internal fun TaskCalendarView(
                             if (snapshot.undatedTruncated) "$undatedCount+" else "$undatedCount"
                         Text(
                             when {
-                                visibleRows.isNotEmpty() && undatedCount > 0 ->
-                                    "${visibleRows.size} scheduled · $undatedText without a due date"
-                                visibleRows.isNotEmpty() -> "${visibleRows.size} scheduled"
-                                else -> "$undatedText without a due date"
+                                visibleRows.isNotEmpty() && undatedCount > 0 -> t(
+                                    "contactsTasks.calendarScheduledAndUndated",
+                                    "scheduled" to "${visibleRows.size}",
+                                    "undated" to undatedText,
+                                )
+
+                                visibleRows.isNotEmpty() -> t(
+                                    "contactsTasks.calendarScheduled",
+                                    "scheduled" to "${visibleRows.size}",
+                                )
+
+                                else -> t(
+                                    "contactsTasks.calendarUndated",
+                                    "undated" to undatedText,
+                                )
                             },
                             fontSize = 11.5.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -436,7 +448,7 @@ internal fun TaskCalendarView(
                 if (selectionVisible && selectedDay != null) {
                     item(key = "day-hdr") {
                         SectionHeader(
-                            dayHeadingLabel(selectedDay),
+                            dayHeadingLabel(selectedDay, LocalAppLocale.current),
                             Modifier.padding(start = 18.dp, top = 14.dp),
                             count = dayTasks.size,
                         )
@@ -444,7 +456,7 @@ internal fun TaskCalendarView(
                     if (dayTasks.isEmpty()) {
                         item(key = "day-empty") {
                             Text(
-                                "Nothing due this day.",
+                                t("contactsTasks.calendarNothingDueThisDay"),
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 24.dp),
@@ -500,7 +512,7 @@ private fun MonthNavRow(
         IconButton(onClick = onPrevious) {
             Icon(
                 Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
-                contentDescription = "Previous month",
+                contentDescription = t("contactsTasks.calendarPreviousMonth"),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),
             )
@@ -516,13 +528,17 @@ private fun MonthNavRow(
         )
         if (!isCurrentMonth) {
             TextButton(onClick = onToday) {
-                Text("Today", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    t("contactsTasks.today"),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
         }
         IconButton(onClick = onNext) {
             Icon(
                 Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                contentDescription = "Next month",
+                contentDescription = t("contactsTasks.calendarNextMonth"),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),
             )
@@ -532,8 +548,20 @@ private fun MonthNavRow(
 
 @Composable
 private fun WeekdayHeads() {
+    // The ISO week, Monday first. Seven keys rather than one comma-joined
+    // string: a translator editing a list inside a single value has no way to
+    // be told they dropped one, and this grid silently loses a column if they do.
+    val heads = listOf(
+        t("contactsTasks.weekdayMon"),
+        t("contactsTasks.weekdayTue"),
+        t("contactsTasks.weekdayWed"),
+        t("contactsTasks.weekdayThu"),
+        t("contactsTasks.weekdayFri"),
+        t("contactsTasks.weekdaySat"),
+        t("contactsTasks.weekdaySun"),
+    )
     Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
-        WEEKDAY_HEADS.forEach { head ->
+        heads.forEach { head ->
             Text(
                 head.uppercase(),
                 modifier = Modifier.weight(1f),
@@ -562,8 +590,16 @@ private fun DayCell(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val taskWord = if (tasks.size == 1) "task" else "tasks"
-    val label = "${day.format(CELL_A11Y_DATE)}, ${tasks.size} $taskWord"
+    // Read here rather than inside the semantics lambda, which is not composition.
+    val label = t(
+        if (tasks.size == 1) {
+            "contactsTasks.calendarDayCellOne"
+        } else {
+            "contactsTasks.calendarDayCellMany"
+        },
+        "date" to day.format(CELL_A11Y_DATE),
+        "count" to "${tasks.size}",
+    )
     Column(
         modifier
             .clip(RoundedCornerShape(12.dp))
@@ -672,12 +708,13 @@ private fun TaskCalendarSkeleton(modifier: Modifier = Modifier) {
 /** "Today" / "Tomorrow" / "Tue Jul 28" (+year off-year) for the day header. */
 private fun dayHeadingLabel(
     date: LocalDate,
+    locale: String?,
     clock: Clock = Clock.systemDefaultZone(),
 ): String {
     val today = LocalDate.now(clock)
     return when (date) {
-        today -> "Today"
-        today.plusDays(1) -> "Tomorrow"
+        today -> AppStrings.translate(locale, "contactsTasks.today")
+        today.plusDays(1) -> AppStrings.translate(locale, "contactsTasks.tomorrow")
         else -> date.format(
             DateTimeFormatter.ofPattern(
                 if (date.year == today.year) "EEE MMM d" else "EEE MMM d yyyy",
@@ -692,4 +729,3 @@ private fun isoAtStartOfDay(date: LocalDate, zone: ZoneId): String =
 
 private val MONTH_TITLE = DateTimeFormatter.ofPattern("MMMM yyyy")
 private val CELL_A11Y_DATE = DateTimeFormatter.ofPattern("MMMM d")
-private val WEEKDAY_HEADS = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")

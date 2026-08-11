@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import com.loonext.android.AppGraph
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Me
 import com.loonext.android.features.calls.CallsScreen
 import com.loonext.android.features.contacts.ContactsTab
@@ -80,14 +81,23 @@ import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.theme.BrandColor
 
-enum class ShellTab(val label: String) {
-    ForYou("For you"),
-    Inbox("Inbox"),
-    Calls("Calls"),
-    Tasks("Tasks"),
+/**
+ * #228: each tab carries the KEY of its name rather than the name.
+ *
+ * It used to carry the English word, which was then written a second time at
+ * every nav slot below — two copies of "Inbox" that a translation would have had
+ * to find both of. The key is the one thing the enum can honestly own: what the
+ * destination is called is a question only composition can answer, because only
+ * composition knows who is reading.
+ */
+enum class ShellTab(val labelKey: String) {
+    ForYou("shell.navForYou"),
+    Inbox("shell.navInbox"),
+    Calls("shell.navCalls"),
+    Tasks("shell.navTasks"),
 
     /** Not a nav slot — reached from the You sheet (design IA). */
-    Contacts("Contacts"),
+    Contacts("shell.navContacts"),
 }
 
 /**
@@ -347,28 +357,28 @@ fun MainShell(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     NavSlot(
-                        Icons.Outlined.Bolt, "For you", tab == ShellTab.ForYou,
+                        Icons.Outlined.Bolt, t(ShellTab.ForYou.labelKey), tab == ShellTab.ForYou,
                         modifier = Modifier.onGloballyPositioned {
                             slotCenters[ShellTab.ForYou] =
                                 it.positionInParent().x + it.size.width / 2f
                         },
                     ) { selectTab(ShellTab.ForYou) }
                     NavSlot(
-                        Icons.Outlined.Inbox, "Inbox", tab == ShellTab.Inbox,
+                        Icons.Outlined.Inbox, t(ShellTab.Inbox.labelKey), tab == ShellTab.Inbox,
                         modifier = Modifier.onGloballyPositioned {
                             slotCenters[ShellTab.Inbox] =
                                 it.positionInParent().x + it.size.width / 2f
                         },
                     ) { selectTab(ShellTab.Inbox) }
                     NavSlot(
-                        Icons.Outlined.Call, "Calls", tab == ShellTab.Calls,
+                        Icons.Outlined.Call, t(ShellTab.Calls.labelKey), tab == ShellTab.Calls,
                         modifier = Modifier.onGloballyPositioned {
                             slotCenters[ShellTab.Calls] =
                                 it.positionInParent().x + it.size.width / 2f
                         },
                     ) { selectTab(ShellTab.Calls) }
                     NavSlot(
-                        Icons.Outlined.Checklist, "Tasks", tab == ShellTab.Tasks,
+                        Icons.Outlined.Checklist, t(ShellTab.Tasks.labelKey), tab == ShellTab.Tasks,
                         modifier = Modifier.onGloballyPositioned {
                             slotCenters[ShellTab.Tasks] =
                                 it.positionInParent().x + it.size.width / 2f
@@ -376,6 +386,13 @@ fun MainShell(
                     ) { selectTab(ShellTab.Tasks) }
                     Box(Modifier.padding(horizontal = 6.dp)) {
                         val avatarInteraction = remember { MutableInteractionSource() }
+                        // Read outside the semantics block: `t` is @Composable
+                        // and the SemanticsPropertyReceiver lambda is not.
+                        val accountLabel = if (unreadNotifications > 0) {
+                            t("shell.accountUnread", "count" to "$unreadNotifications")
+                        } else {
+                            t("shell.account")
+                        }
                         Box(
                             Modifier
                                 .size(34.dp)
@@ -389,14 +406,7 @@ fun MainShell(
                                 }
                                 // Name the account button + surface the unread
                                 // dot to screen readers (it was purely visual).
-                                .semantics {
-                                    contentDescription =
-                                        if (unreadNotifications > 0) {
-                                            "Account, $unreadNotifications unread notifications"
-                                        } else {
-                                            "Account"
-                                        }
-                                },
+                                .semantics { contentDescription = accountLabel },
                             contentAlignment = Alignment.Center,
                         ) {
                             InitialsAvatar(me.display_name.ifBlank { null }, size = 34.dp)
@@ -440,7 +450,7 @@ private fun NavSlot(
     val interaction = remember { MutableInteractionSource() }
     val tint by animateColorAsState(
         targetValue = if (selected) BrandColor.Ink else BrandColor.Paper.copy(alpha = 0.52f),
-        label = "navSlotTint",
+        label = "nav-slot-tint",
     )
     Surface(
         onClick = onClick,

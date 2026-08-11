@@ -124,7 +124,7 @@ export default function NumbersSettingsPage() {
                   company.data.billing_currency,
                 ),
               })
-            : "No plan yet.";
+            : t("appShell.numbersNoPlanYet");
           const canBuyExtra = paidExtra && extraBlockedReason === null;
           // #74: a plan-included number can be (re)provisioned in-app whenever a
           // slot is open — NOT just Pro's second number. This is what lets a

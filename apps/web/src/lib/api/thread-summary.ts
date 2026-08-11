@@ -2,11 +2,13 @@
 
 import { useMutation } from "@tanstack/react-query";
 import {
+  DEFAULT_LOCALE,
   shouldOfferThreadSummary,
   THREAD_SUMMARY_SECTIONS,
   type ThreadSummarySection,
 } from "@loonext/shared";
 
+import { makeTranslate, type Translate } from "@/i18n/provider";
 import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
@@ -131,44 +133,56 @@ export interface ThreadSummaryResult {
 }
 
 /**
+ * The reader's words, for the callers that have not been handed a lookup yet
+ * and for the tests that call these bare. English, which is what every reader
+ * saw before #228 — a wrong language is a worse failure than a familiar one.
+ */
+const EN = makeTranslate(DEFAULT_LOCALE);
+
+/**
  * The one sentence shown when a catch-up produces nothing.
  *
  * Every branch says what happened AND leaves the reader holding the thing that
  * always works — the thread itself, which is unchanged and completely readable.
  * "Nothing to show" for all eight would hide a workspace-wide toggle behind the
  * same shrug as a model timeout, and only one of those is worth a second press.
+ *
+ * #228: the sentences live in `i18n/sections/thread.ts` with the rest of the
+ * catch-up card, and `t` arrives from the card that renders them.
  */
 export function threadSummaryFailureMessage(
   reason: ThreadSummaryReason | undefined,
+  t: Translate = EN,
 ): string {
   switch (reason) {
     case "disabled":
-      return "Catch-ups are turned off for this workspace. Settings, Lou turns them back on.";
+      return t("thread.catchUpDisabled");
     case "spam":
-      return "This thread is marked as spam, so Lou skips it. Unmark it to get a catch-up.";
+      return t("thread.catchUpSpam");
     case "too_short":
-      return "There isn't enough here to catch up on yet — the thread is quicker to read.";
+      return t("thread.catchUpTooShort");
     case "rate_limited":
-      return "That was a lot of catch-ups at once. Try again in a moment.";
+      return t("thread.catchUpRateLimited");
     case "over_cap":
-      return "This month's catch-ups are used up. They start again next month — the thread is all still here.";
+      return t("thread.catchUpOverCap");
     case "model_error":
     case "unavailable":
-      return "Couldn't reach Lou just now. Try again.";
+      return t("thread.louUnreachable");
     case "unusable_output":
       // Names the citation rule as the cause, because that is what happened and
       // because it is the one sentence here that tells the reader something
       // true about how this feature works: nothing shows unless Lou can point
       // at the message it came from.
-      return "Lou couldn't point at the messages behind what it read, so there's nothing to show. The thread is still the record.";
+      return t("thread.catchUpUnusable");
     case "subscription_inactive":
       // Billing, not breakage — so it must not say "try again", which is not
-      // what fixes it. Names the one place that does, in the same words the
-      // send paths already use for a lapsed subscription, so a crew meeting
-      // both in one afternoon reads one story rather than two.
-      return "Lou is paused while the subscription is sorted out. An owner can fix that in Billing.";
+      // what fixes it. Names the one place that does, and does it with the KEY
+      // the send paths use for a lapsed subscription rather than a second copy
+      // of the sentence, so a crew meeting both in one afternoon reads one
+      // story rather than two.
+      return t("thread.louPausedForBilling");
     default:
-      return "No catch-up this time. Try again.";
+      return t("thread.catchUpNone");
   }
 }
 
@@ -257,48 +271,41 @@ export interface ThreadSummaryRequestFailure {
  */
 export function threadSummaryRequestFailure(
   error: unknown,
+  t: Translate = EN,
 ): ThreadSummaryRequestFailure {
   if (!(error instanceof ApiError)) {
-    return {
-      message:
-        "That didn't get through. Check your connection and try again — the thread is all still here.",
-      retry: true,
-    };
+    return { message: t("thread.catchUpOffline"), retry: true };
   }
   switch (error.code) {
     case "forbidden":
-      return {
-        message:
-          "Catch-ups aren't part of what your role can do here. An owner can change that, and the thread is all still here to read.",
-        retry: false,
-      };
+      return { message: t("thread.catchUpForbidden"), retry: false };
     case "not_found":
-      return {
-        message:
-          "Lou can't open this thread any more. Reload the inbox to see what's still there.",
-        retry: false,
-      };
+      return { message: t("thread.catchUpGone"), retry: false };
     case "rate_limited":
       // The same sentence as the gate's own `rate_limited`, on purpose: one
       // fact, one wording. An edge 429 and the AI gate's refusal mean the same
-      // thing to the person holding the phone.
-      return { message: threadSummaryFailureMessage("rate_limited"), retry: true };
+      // thing to the person holding the phone. Routed through the function
+      // rather than the key so the two cannot be separated by an edit here.
+      return {
+        message: threadSummaryFailureMessage("rate_limited", t),
+        retry: true,
+      };
     case "service_unavailable":
       // #283: switched off at the runtime kill switch during an incident — not
       // this workspace's fault and not permanent, which is why it retries where
       // the two refusals above do not.
-      return {
-        message: "Catch-ups are paused for a moment. Try again shortly.",
-        retry: true,
-      };
+      return { message: t("thread.catchUpPaused"), retry: true };
     default:
       return {
-        // An envelope with an empty message is a server bug, and rendering it
-        // would put us straight back in the silence this function exists to end.
+        // The SERVER's own sentence, untranslated on purpose: SPEC §7 writes
+        // one per code and translating it belongs there, not in a second copy
+        // that drifts. An envelope with an empty message is a server bug, and
+        // rendering it would put us straight back in the silence this function
+        // exists to end — so that one case falls to our words.
         message:
           error.message.trim().length > 0
             ? error.message
-            : "Lou couldn't do that just now. The thread is all still here.",
+            : t("thread.catchUpFailed"),
         retry: error.retryable,
       };
   }

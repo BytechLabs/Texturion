@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Member
 import com.loonext.android.ui.common.AppSheet
 
@@ -55,7 +56,7 @@ fun MemberPickerSheet(
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text("Search teammates") },
+                placeholder = { Text(t("contactsTasks.searchTeammates")) },
                 singleLine = true,
                 shape = CircleShape,
                 modifier = Modifier
@@ -66,7 +67,7 @@ fun MemberPickerSheet(
                 if (showUnassigned && query.isBlank()) {
                     item(key = "unassigned") {
                         PickerRow(
-                            name = "Unassigned",
+                            name = t("contactsTasks.unassigned"),
                             avatarName = null,
                             selected = selectedUserId == null,
                             onClick = { onPick(null) },
@@ -75,8 +76,8 @@ fun MemberPickerSheet(
                 }
                 items(matches, key = { it.user_id }) { member ->
                     PickerRow(
-                        name = member.display_name.ifBlank { "Teammate" } +
-                            if (member.user_id == meUserId) " (you)" else "",
+                        name = member.display_name.ifBlank { t("contactsTasks.teammate") } +
+                            if (member.user_id == meUserId) t("contactsTasks.youSuffix") else "",
                         avatarName = member.display_name.ifBlank { null },
                         selected = selectedUserId == member.user_id,
                         onClick = { onPick(member.user_id) },
@@ -85,7 +86,7 @@ fun MemberPickerSheet(
                 if (matches.isEmpty()) {
                     item(key = "empty") {
                         Text(
-                            "No teammates match.",
+                            t("contactsTasks.noTeammatesMatch"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(16.dp),
@@ -126,7 +127,7 @@ private fun PickerRow(
         if (selected) {
             Icon(
                 Icons.Outlined.Check,
-                contentDescription = "Selected",
+                contentDescription = t("contactsTasks.selected"),
                 tint = MaterialTheme.colorScheme.secondary,
             )
         }

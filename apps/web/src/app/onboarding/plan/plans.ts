@@ -1,5 +1,11 @@
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
 import { PLAN_PRICING } from "@/lib/api/types";
 import type { PlanId } from "@/lib/api/types";
+
+/** English, for the module-level cards below and for the unit tests. */
+const EN = makeTranslate(DEFAULT_LOCALE);
 
 export interface PlanCard {
   id: PlanId;
@@ -26,7 +32,12 @@ export interface PlanCard {
 // only the plan name and the fixed prose (which crew line, the always-free
 // line) are literals. `crewLine` differs per plan on purpose (G7 copy), but
 // its seat count still traces to the constant.
-function planCard(id: PlanId, name: string, crewLine: string): PlanCard {
+function planCard(
+  id: PlanId,
+  name: string,
+  crewLine: string,
+  t: Translate,
+): PlanCard {
   const p = PLAN_PRICING[id];
   return {
     id,
@@ -35,24 +46,49 @@ function planCard(id: PlanId, name: string, crewLine: string): PlanCard {
     // 30 days, not 30.44: a round month is what somebody checks on their
     // fingers, and being a cent optimistic about our own price is the wrong
     // direction to be imprecise in.
-    daily: `about $${(p.monthlyDollars / 30).toFixed(2)} a day`,
+    daily: t("onboarding.planCardDaily", {
+      amount: `$${(p.monthlyDollars / 30).toFixed(2)}`,
+    }),
     lines: [
-      "Texting included, bound by fair use",
+      t("onboarding.planCardTextingIncluded"),
       crewLine,
-      `${p.numbers} business number${p.numbers === 1 ? "" : "s"}`,
-      "Incoming texts & photos free, always",
+      p.numbers === 1
+        ? t("onboarding.planCardNumbersOne", { count: p.numbers })
+        : t("onboarding.planCardNumbersMany", { count: p.numbers }),
+      t("onboarding.planCardIncomingFree"),
       // #121: no per-text price in sales copy; the rate lives in the
       // fair-use policy the plan step links to.
-      "Busy month? Extra texts bill under fair use, capped by you",
+      t("onboarding.planCardOverage"),
     ],
   };
 }
 
-export const PLANS: PlanCard[] = [
-  planCard(
-    "starter",
-    "Starter",
-    `Your whole crew, ${PLAN_PRICING.starter.seats} teammates`,
-  ),
-  planCard("pro", "Pro", `${PLAN_PRICING.pro.seats} teammates`),
-];
+/**
+ * The two cards, in the reader's language.
+ *
+ * A function rather than the module-level constant this replaces: a constant is
+ * built once, before any locale is known, so it would have pinned whichever
+ * language happened to load the module first for everybody after. "Starter" and
+ * "Pro" stay literals — they are product names, identical in both.
+ */
+export function planCards(t: Translate = EN): PlanCard[] {
+  return [
+    planCard(
+      "starter",
+      "Starter",
+      t("onboarding.planCardCrewStarter", {
+        seats: PLAN_PRICING.starter.seats,
+      }),
+      t,
+    ),
+    planCard(
+      "pro",
+      "Pro",
+      t("onboarding.planCardCrewPro", { seats: PLAN_PRICING.pro.seats }),
+      t,
+    ),
+  ];
+}
+
+/** The English cards, for the unit tests that read the derived figures. */
+export const PLANS: PlanCard[] = planCards();

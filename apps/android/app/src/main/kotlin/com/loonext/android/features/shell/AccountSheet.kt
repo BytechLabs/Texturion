@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.ui.common.AppSheet
@@ -156,6 +157,11 @@ internal fun AccountSheetContent(
     val membership = me.memberships.firstOrNull { it.company_id == companyId }
     val company = me.company
     val workspaceName = membership?.name ?: company?.name
+    // Read here rather than inside the copy lambda: `t` is @Composable and the
+    // tap handler is not, and the clipboard's own label is the one string on
+    // this sheet that a person reads OUTSIDE the app (Android 13+ shows it in
+    // the paste toast).
+    val clipLabel = t("shell.clipPhoneNumber")
 
     Column(
         // #180: rows must stay reachable at ANY viewport height. When the
@@ -196,7 +202,7 @@ internal fun AccountSheetContent(
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
-                                workspaceName ?: me.display_name.ifBlank { "You" },
+                                workspaceName ?: me.display_name.ifBlank { t("shell.you") },
                                 style = MaterialTheme.typography.titleMedium.copy(fontSize = 14.sp),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -214,7 +220,7 @@ internal fun AccountSheetContent(
                         }
                         activeNumbers.firstOrNull()?.number_e164?.let { number ->
                             Spacer(Modifier.width(8.dp))
-                            NumberChip(number, onCopy = { copy(context, it) })
+                            NumberChip(number, onCopy = { copy(context, it, clipLabel) })
                         }
                     }
                     // Extra workspace numbers stay copyable (rare, stacked).
@@ -226,7 +232,7 @@ internal fun AccountSheetContent(
                             activeNumbers.drop(1).forEach { number ->
                                 NumberChip(
                                     number.number_e164!!,
-                                    onCopy = { copy(context, it) },
+                                    onCopy = { copy(context, it, clipLabel) },
                                 )
                             }
                         }
@@ -245,7 +251,7 @@ internal fun AccountSheetContent(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "Theme",
+                        t("shell.theme"),
                         style = MaterialTheme.typography.titleSmall.copy(fontSize = 13.sp),
                         modifier = Modifier.weight(1f),
                     )
@@ -265,12 +271,20 @@ internal fun AccountSheetContent(
                             val pillX by animateFloatAsState(
                                 targetValue = segmentX,
                                 animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                                label = "themePillX",
+                                // #228: an animation label is an IDENTIFIER for
+                                // the Animation Preview tool, never something a
+                                // person reads, so it is spelled like one — the
+                                // same kebab-case AiOrb, Composer, ThreadScreen
+                                // and MessageBubbles already use. Written as a
+                                // word it is indistinguishable from a one-word
+                                // UI label ("Spam", "Waiting") to any guard, and
+                                // to anybody skim-reading the file.
+                                label = "theme-pill-x",
                             )
                             val pillWidth by animateFloatAsState(
                                 targetValue = segmentSize.width.toFloat(),
                                 animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                                label = "themePillWidth",
+                                label = "theme-pill-width",
                             )
                             Box(
                                 Modifier
@@ -284,7 +298,13 @@ internal fun AccountSheetContent(
                             )
                         }
                         Row {
-                            listOf("system" to "System", "light" to "Light", "dark" to "Dark")
+                            // The VALUE is the stored preference and never
+                            // translated; only the label beside it is.
+                            listOf(
+                                "system" to t("shell.themeSystem"),
+                                "light" to t("shell.themeLight"),
+                                "dark" to t("shell.themeDark"),
+                            )
                                 .forEach { (value, label) ->
                                     val selected = theme == value
                                     val labelColor by animateColorAsState(
@@ -293,7 +313,7 @@ internal fun AccountSheetContent(
                                         } else {
                                             MaterialTheme.colorScheme.onSurfaceVariant
                                         },
-                                        label = "themeLabel",
+                                        label = "theme-label",
                                     )
                                     Surface(
                                         onClick = { if (!selected) onSelectTheme(value) },
@@ -327,7 +347,7 @@ internal fun AccountSheetContent(
             PaperCard(Modifier.fillMaxWidth()) {
                 SheetRow(
                     icon = Icons.Outlined.Notifications,
-                    label = "Notifications",
+                    label = t("shell.notifications"),
                     dot = unreadNotifications > 0,
                     trailing = {
                         if (unreadNotifications > 0) {
@@ -337,10 +357,10 @@ internal fun AccountSheetContent(
                                     (slideInVertically { it / 2 } + fadeIn()) togetherWith
                                         (slideOutVertically { -it / 2 } + fadeOut())
                                 },
-                                label = "unreadBadge",
+                                label = "unread-badge",
                             ) { count ->
                                 Text(
-                                    "$count new",
+                                    t("shell.unreadNew", "count" to "$count"),
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
@@ -360,7 +380,7 @@ internal fun AccountSheetContent(
                 RowDivider()
                 SheetRow(
                     icon = Icons.Outlined.Group,
-                    label = "Contacts",
+                    label = t("shell.navContacts"),
                     onClick = {
                         onOpenContacts()
                         onDismiss()
@@ -369,7 +389,7 @@ internal fun AccountSheetContent(
                 RowDivider()
                 SheetRow(
                     icon = Icons.Outlined.Settings,
-                    label = "Settings",
+                    label = t("shell.settings"),
                     onClick = {
                         onOpenSettings()
                         onDismiss()
@@ -378,7 +398,7 @@ internal fun AccountSheetContent(
                 RowDivider()
                 SheetRow(
                     icon = Icons.AutoMirrored.Outlined.Logout,
-                    label = "Sign out",
+                    label = t("shell.signOut"),
                     destructive = true,
                     trailing = {},
                     onClick = {
@@ -392,7 +412,7 @@ internal fun AccountSheetContent(
             // --- Workspace switcher (multi-membership only) ----------------
             if (me.memberships.size > 1) {
                 Column {
-                    SectionHeader("Workspaces")
+                    SectionHeader(t("shell.workspaces"))
                     PaperCard(Modifier.fillMaxWidth()) {
                         me.memberships.forEachIndexed { index, m ->
                             if (index > 0) RowDivider()
@@ -418,7 +438,7 @@ internal fun AccountSheetContent(
                                     modifier = Modifier.weight(1f),
                                 )
                                 if (m.company_id == companyId) {
-                                    DsChip("Current")
+                                    DsChip(t("shell.currentWorkspace"))
                                 }
                             }
                         }
@@ -428,8 +448,15 @@ internal fun AccountSheetContent(
 
             Text(
                 loonextWordmark(
-                    suffix = " v${BuildConfig.VERSION_NAME}" +
-                        (workspaceName?.let { " · $it workspace" } ?: ""),
+                    // The wordmark itself is a product name and is never
+                    // translated; only what trails it is.
+                    suffix = " " +
+                        t("shell.footerVersion", "version" to BuildConfig.VERSION_NAME) +
+                        (
+                            workspaceName?.let {
+                                " · " + t("shell.footerWorkspace", "name" to it)
+                            } ?: ""
+                            ),
                 ),
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
                 color = MaterialTheme.colorScheme.outline,
@@ -466,7 +493,7 @@ private fun NumberChip(numberE164: String, onCopy: (String) -> Unit) {
             Spacer(Modifier.width(6.dp))
             Icon(
                 Icons.Outlined.ContentCopy,
-                contentDescription = "Copy number",
+                contentDescription = t("shell.copyNumber"),
                 modifier = Modifier.size(11.dp),
             )
         }
@@ -552,9 +579,14 @@ private fun Chevron() {
     )
 }
 
-private fun copy(context: Context, text: String) {
+/**
+ * [label] is what Android 13+ shows in its own paste confirmation, so it is a
+ * translated string and is passed in rather than written here: this is a plain
+ * function with no composition to read the reader's language from.
+ */
+private fun copy(context: Context, text: String, label: String) {
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    clipboard.setPrimaryClip(ClipData.newPlainText("Phone number", text))
+    clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
 }
 
 /**

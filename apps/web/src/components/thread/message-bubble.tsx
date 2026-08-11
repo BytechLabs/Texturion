@@ -159,7 +159,7 @@ function PinnedBadge() {
 function DoneBadge({ message }: { message: Message }) {
   const t = useT();
   const memberNames = useMemberNames();
-  const label = doneBadgeLabel(message, (userId) => memberNames.get(userId));
+  const label = doneBadgeLabel(message, (userId) => memberNames.get(userId), t);
 
   // A labeled petrol "Done" pill — legible at a glance on touch (no hover
   // needed) and unmistakably distinct from the stone "Task" chip. The tooltip

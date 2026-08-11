@@ -45,6 +45,24 @@ class MeRepository(private val api: ApiClient) {
         api.patch("/v1/me", mapOf("display_name" to name), companyId = null)
 
     /**
+     * #228: the language THIS member reads the app in.
+     *
+     * A JsonObject rather than a map, because `null` is a real value here and
+     * not an omission: it means "ask the device, then the workspace", which is
+     * the only way back to following the phone once somebody has chosen. A
+     * `Map<String, String>` cannot carry it, and an omitted key is what the
+     * route reads as "leave it alone".
+     */
+    suspend fun updateLocale(locale: String?): JsonObject =
+        api.patch(
+            "/v1/me",
+            buildJsonObject {
+                put("locale", if (locale == null) JsonNull else JsonPrimitive(locale))
+            },
+            companyId = null,
+        )
+
+    /**
      * #476: what this member has done in this workspace. NOT company-exempt,
      * unlike [me] — the answer is scoped to the workspace they are in, so the
      * id is required rather than optional.

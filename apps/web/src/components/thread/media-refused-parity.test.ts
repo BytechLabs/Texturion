@@ -20,6 +20,7 @@ import { describe, expect, it } from "vitest";
 
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
 
+/** Where each client DECIDES which refusal a `media_refused` event is. */
 const SOURCES: Record<string, string> = {
   web: join(
     REPO_ROOT,
@@ -30,6 +31,23 @@ const SOURCES: Record<string, string> = {
     "apps/android/app/src/main/kotlin/com/loonext/android/features/thread/Timeline.kt",
   ),
   ios: join(REPO_ROOT, "apps/ios/Loonext/Features/Thread/Timeline.swift"),
+};
+
+/**
+ * And where each client keeps the WORDS.
+ *
+ * The same file on the phones, a different one on web since #228: web's English
+ * moved out of the component and into the catalogue, and a guard still reading
+ * `system-line.tsx` for sentences would have gone green on a component that no
+ * longer contains a single one of them — the decorative-guard failure this
+ * repo has now recorded more than once.
+ *
+ * The English in `sections/thread.ts` is therefore load-bearing for three
+ * clients. It carries a comment saying so, next to the keys.
+ */
+const COPY: Record<string, string> = {
+  ...SOURCES,
+  web: join(REPO_ROOT, "apps/web/src/i18n/sections/thread.ts"),
 };
 
 /**
@@ -63,6 +81,14 @@ describe("#317 refused-attachment copy is the same on every client", () => {
       expect(text.length, platform).toBeGreaterThan(1000);
       expect(text, platform).toContain("media_refused");
     }
+    // And the copy files, which on web is a different file. Anchored on a key
+    // rather than a sentence, so this stays a "did we read the right file"
+    // check and not a second copy of the verbatim one below.
+    for (const [platform, path] of Object.entries(COPY)) {
+      const text = readFileSync(path, "utf8");
+      expect(text.length, platform).toBeGreaterThan(1000);
+    }
+    expect(readFileSync(COPY.web, "utf8")).toContain("sysMediaTooLarge");
   });
 
   it("the roster covers every refusal the clients can actually show", () => {
@@ -100,7 +126,7 @@ describe("#317 refused-attachment copy is the same on every client", () => {
 
   it("carries every sentence on every platform, verbatim", () => {
     const missing: string[] = [];
-    for (const [platform, path] of Object.entries(SOURCES)) {
+    for (const [platform, path] of Object.entries(COPY)) {
       const text = readFileSync(path, "utf8");
       for (const sentence of SENTENCES) {
         if (!text.includes(sentence)) missing.push(`${platform}: ${sentence}`);

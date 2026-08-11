@@ -32,6 +32,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loonext.android.core.auth.AppPrefs
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.security.AppLock
 
 /**
@@ -115,6 +117,13 @@ fun AppLockGate(prefs: AppPrefs, content: @Composable () -> Unit) {
         return
     }
 
+    // #228: the system sheet is raised from a plain function that has no
+    // composition to read a language out of, so its two strings are resolved
+    // here and handed over. Read before the early return above would be wasted
+    // work on every unlocked frame, which is every frame.
+    val promptTitle = t("shell.lockPromptTitle")
+    val promptSubtitle = t("shell.lockPromptSubtitle")
+
     // THE CONTENT IS NOT COMPOSED WHILE LOCKED, rather than drawn behind a
     // scrim. A scrim is a screenshot away from being nothing at all.
     //
@@ -130,13 +139,17 @@ fun AppLockGate(prefs: AppPrefs, content: @Composable () -> Unit) {
                 modifier = Modifier.padding(32.dp),
             ) {
                 Text(
-                    AppLock.headline(reason),
+                    // The headline is the pure module's, in the reader's
+                    // language: it is the sentence ABOVE the two below it, and a
+                    // half-French wall is the one screen nobody can get past to
+                    // the setting that would fix it.
+                    AppLock.headline(reason, LocalAppLocale.current),
                     style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.Center,
                 )
                 Text(
                     // Says whose data it is protecting, not whose fault this is.
-                    "Your customers' conversations are on this phone.",
+                    t("shell.lockBody"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -145,12 +158,12 @@ fun AppLockGate(prefs: AppPrefs, content: @Composable () -> Unit) {
                     enabled = !prompting,
                     onClick = {
                         prompting = true
-                        showPrompt(context) { ok ->
+                        showPrompt(context, promptTitle, promptSubtitle) { ok ->
                             prompting = false
                             if (ok) unlockedAt = System.currentTimeMillis()
                         }
                     },
-                ) { Text("Unlock") }
+                ) { Text(t("shell.lockAction")) }
             }
         }
     }
@@ -161,7 +174,7 @@ fun AppLockGate(prefs: AppPrefs, content: @Composable () -> Unit) {
     LaunchedEffect(reason) {
         if (!prompting) {
             prompting = true
-            showPrompt(context) { ok ->
+            showPrompt(context, promptTitle, promptSubtitle) { ok ->
                 prompting = false
                 if (ok) unlockedAt = System.currentTimeMillis()
             }
@@ -244,6 +257,8 @@ internal fun hideFromRecents(
  */
 private fun showPrompt(
     context: android.content.Context,
+    title: String,
+    subtitle: String,
     onResult: (Boolean) -> Unit,
 ) {
     val activity = context as? FragmentActivity
@@ -274,8 +289,8 @@ private fun showPrompt(
     )
     prompt.authenticate(
         BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Unlock Loonext")
-            .setSubtitle("Your customers' conversations are on this phone")
+            .setTitle(title)
+            .setSubtitle(subtitle)
             .setAllowedAuthenticators(allowed)
             .build(),
     )

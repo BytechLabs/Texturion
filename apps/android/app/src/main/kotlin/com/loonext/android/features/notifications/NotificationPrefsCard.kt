@@ -41,6 +41,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.loonext.android.AppGraph
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.oncall.OnCall
 import java.util.TimeZone
 import com.loonext.android.core.model.NotificationPrefs
@@ -147,7 +148,7 @@ fun NotificationPrefsCard(
     }
 
     Column(modifier.fillMaxWidth()) {
-        Text("Notifications", style = MaterialTheme.typography.titleMedium)
+        Text(t("contactsTasks.notificationsHeading"), style = MaterialTheme.typography.titleMedium)
 
         when (val current = state) {
             is LoadState.Loading -> Box(
@@ -166,15 +167,14 @@ fun NotificationPrefsCard(
                 TextButton(onClick = {
                     state = LoadState.Loading
                     retryKey++
-                }) { Text("Try again") }
+                }) { Text(t("common.retry")) }
             }
 
             is LoadState.Ready -> {
                 val prefs = current.value
                 PrefToggleRow(
-                    title = "Email",
-                    supporting = "An email when a new conversation starts or a customer " +
-                        "texts back after a quiet spell. Never one per message.",
+                    title = t("contactsTasks.notifEmailTitle"),
+                    supporting = t("contactsTasks.notifEmailSupporting"),
                     checked = prefs.email_enabled,
                     onCheckedChange = { checked ->
                         // #538 (audit): warn, do not refuse. Somebody who wants a
@@ -186,8 +186,8 @@ fun NotificationPrefsCard(
                     },
                 )
                 PrefToggleRow(
-                    title = "Push",
-                    supporting = "Notifications on your devices for new texts and missed calls.",
+                    title = t("contactsTasks.notifPushTitle"),
+                    supporting = t("contactsTasks.notifPushSupporting"),
                     checked = prefs.push_enabled,
                     onCheckedChange = { checked ->
                         if (onCall && !checked) silencing = "push"
@@ -198,7 +198,7 @@ fun NotificationPrefsCard(
                 silencing?.let { channel ->
                     AlertDialog(
                         onDismissRequest = { silencing = null },
-                        title = { Text("You're on call") },
+                        title = { Text(t("contactsTasks.notifOnCallTitle")) },
                         text = {
                             Text(OnCallSilence.warning(true, true, channel) ?: "")
                         },
@@ -331,7 +331,7 @@ private fun DevicePushSection(graph: AppGraph, companyId: String, pushEnabled: B
     val firebaseAvailable = remember { PushRegistrar.isFirebaseAvailable(context) }
 
     Text(
-        "Push on this device",
+        t("contactsTasks.notifDeviceHeading"),
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
@@ -339,7 +339,7 @@ private fun DevicePushSection(graph: AppGraph, companyId: String, pushEnabled: B
 
     if (!firebaseAvailable) {
         Text(
-            "Push isn't available in this build yet. Everything still shows up in the app.",
+            t("contactsTasks.notifPushUnavailable"),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -374,16 +374,15 @@ private fun DevicePushSection(graph: AppGraph, companyId: String, pushEnabled: B
 
     when (pushState) {
         DevicePushState.On -> StatusRow(
-            body = "This device gets a notification when a customer texts or calls.",
-            action = "System settings",
+            body = t("contactsTasks.notifDeviceOnBody"),
+            action = t("contactsTasks.notifSystemSettings"),
             solidAction = false,
             onAction = { openNotificationSettings(context) },
         )
 
         DevicePushState.Off -> StatusRow(
-            body = "Get a notification on this device when a customer texts or calls, " +
-                "even with Loonext closed.",
-            action = "Turn on",
+            body = t("contactsTasks.notifDeviceOffBody"),
+            action = t("contactsTasks.notifTurnOn"),
             solidAction = true,
             onAction = {
                 if (Build.VERSION.SDK_INT >= 33) {
@@ -396,9 +395,8 @@ private fun DevicePushSection(graph: AppGraph, companyId: String, pushEnabled: B
         )
 
         DevicePushState.Blocked -> StatusRow(
-            body = "Notifications are turned off for Loonext in system settings. " +
-                "Turn them on there to get pinged.",
-            action = "Open settings",
+            body = t("contactsTasks.notifDeviceBlockedBody"),
+            action = t("contactsTasks.notifOpenSettings"),
             solidAction = false,
             onAction = { openNotificationSettings(context) },
         )

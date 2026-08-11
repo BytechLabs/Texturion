@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.InitialsAvatar
 
 /**
@@ -78,7 +79,10 @@ internal fun DoneCircle(
     ringWidth: Dp = 1.8.dp,
     touch: Dp = 36.dp,
 ) {
-    val label = if (done) "Mark not done" else "Mark done"
+    // Read here rather than inside the semantics lambda, which is not composition.
+    val label = t(
+        if (done) "contactsTasks.markNotDone" else "contactsTasks.markDone",
+    )
     Box(
         modifier
             .size(touch)

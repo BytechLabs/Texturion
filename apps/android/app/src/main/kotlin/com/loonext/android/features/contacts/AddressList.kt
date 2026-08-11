@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ContactAddress
 
 /**
@@ -109,7 +110,10 @@ fun AddressList(
                 }
                 Icon(
                     Icons.Outlined.Close,
-                    contentDescription = "Remove ${entry.address}",
+                    contentDescription = t(
+                        "contactsTasks.removeNamed",
+                        "name" to entry.address,
+                    ),
                     modifier = Modifier
                         .size(15.dp)
                         .minimumInteractiveComponentSize()
@@ -123,7 +127,11 @@ fun AddressList(
             OutlinedTextField(
                 value = draftLabel,
                 onValueChange = { draftLabel = it.take(80) },
-                label = { Text("Label") },
+                label = { Text(t("contactsTasks.labelField")) },
+                // #291/#228: this placeholder is pinned VERBATIM in
+                // apps/web/src/components/contacts/address-parity.test.ts, which
+                // reads this file's bytes. Extracting it fails that test from
+                // the web tree, so it moves when all three clients move.
                 placeholder = { Text("Unit 4, Billing, the rooftop…") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
@@ -131,7 +139,8 @@ fun AddressList(
             OutlinedTextField(
                 value = draftAddress,
                 onValueChange = { draftAddress = it.take(CONTACT_ADDRESS_MAX) },
-                label = { Text("Address") },
+                label = { Text(t("contactsTasks.address")) },
+                // Pinned verbatim by address-parity.test.ts — see above.
                 placeholder = { Text("Where the job is") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
@@ -147,14 +156,14 @@ fun AddressList(
                         adding = false
                     },
                     enabled = draftAddress.isNotBlank(),
-                ) { Text("Add") }
+                ) { Text(t("contactsTasks.add")) }
                 TextButton(
                     onClick = {
                         adding = false
                         draftLabel = ""
                         draftAddress = ""
                     },
-                ) { Text("Cancel") }
+                ) { Text(t("common.cancel")) }
             }
         } else {
             Row(

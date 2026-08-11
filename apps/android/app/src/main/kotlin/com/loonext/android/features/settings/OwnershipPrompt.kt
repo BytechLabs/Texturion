@@ -25,6 +25,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
@@ -65,6 +68,7 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
     var codeRejected by remember { mutableStateOf(false) }
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    val locale = LocalAppLocale.current
 
     // Quiet on failure: this card is an extra on somebody else's screen, and a
     // flaky read of it must not turn the settings index into an error state.
@@ -161,7 +165,7 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
     PaperCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(horizontal = 18.dp, vertical = 15.dp)) {
             Text(
-                "OWNERSHIP",
+                t("settingsMore.ownershipCaption"),
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 10.5.sp,
                     fontWeight = FontWeight.Bold,
@@ -191,7 +195,10 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
                                 attempt(
                                     HandoverProof(
                                         action = "accept",
-                                        label = "You now own this workspace.",
+                                        label = AppStrings.translate(
+                                            locale,
+                                            "settingsMore.nowOwn",
+                                        ),
                                     ) { code ->
                                         state = scope.repo.acceptOwnership(
                                             scope.companyId,
@@ -205,9 +212,9 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
                         ) {
                             Text(
                                 if (kind == HandoverPrompt.ACCEPT_OFFER) {
-                                    "Accept ownership"
+                                    t("settingsMore.acceptOwnership")
                                 } else {
-                                    "Complete the takeover"
+                                    t("settingsMore.completeTakeover")
                                 },
                             )
                         }
@@ -216,7 +223,7 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
 
                     HandoverPrompt.BACKUP_STANDING -> {
                         OutlinedButton(onClick = { confirming = true }, enabled = !busy) {
-                            Text("Ask to take over")
+                            Text(t("settingsMore.askTakeOver"))
                         }
                     }
                 }
@@ -224,7 +231,12 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
                 if (cancelLabel != null && current.can_cancel) {
                     LinkButton(
                         onClick = {
-                            run("Stopped. Nothing changed hands.") {
+                            run(
+                                AppStrings.translate(
+                                    locale,
+                                    "settingsMore.handoverStopped",
+                                ),
+                            ) {
                                 scope.repo.cancelOwnershipTransfer(scope.companyId)
                             }
                         },
@@ -243,12 +255,9 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
     // had their week.
     if (confirming) {
         ConfirmDialog(
-            title = "Ask to take over this workspace?",
-            body = "The owner will be emailed straight away and can stop this with one " +
-                "click for the next 7 days. Everyone on the team is told too. If nobody " +
-                "stops it, you can complete the takeover after 7 days. Only do this if " +
-                "the owner genuinely cannot act.",
-            confirmLabel = "Ask to take over",
+            title = t("settingsMore.claimTitle"),
+            body = t("settingsMore.claimBody"),
+            confirmLabel = t("settingsMore.askTakeOver"),
             pending = busy,
             error = actionError,
             onDismiss = { confirming = false },
@@ -256,7 +265,7 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
                 attempt(
                     HandoverProof(
                         action = "claim",
-                        label = "Asked. The owner has 7 days to stop it.",
+                        label = AppStrings.translate(locale, "settingsMore.claimAsked"),
                     ) { code ->
                         state = scope.repo.claimOwnership(scope.companyId, code)
                     },
@@ -278,7 +287,9 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
                         scope.repo.requestHandoverCode(scope.companyId, pending.action)
                     }
                     // Said either way. Whether an address exists is not ours to leak.
-                    scope.showMessage("Sent. Check your email.")
+                    scope.showMessage(
+                        AppStrings.translate(locale, "settingsMore.codeSent"),
+                    )
                 }
             },
             onDismiss = {

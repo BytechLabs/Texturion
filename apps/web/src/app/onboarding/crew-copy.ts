@@ -1,10 +1,15 @@
 import {
+  DEFAULT_LOCALE,
   isBeyondSupportedCrew,
   planFitForCrew,
   type CrewSizeBucket,
 } from "@loonext/shared";
 
+import { makeTranslate, type Translate } from "@/i18n/provider";
 import { PLAN_PRICING } from "@/lib/api/types";
+
+/** English, for a caller with no provider around it — the unit tests. */
+const EN = makeTranslate(DEFAULT_LOCALE);
 
 /**
  * #370 — what picking a crew size says back.
@@ -29,19 +34,28 @@ import { PLAN_PRICING } from "@/lib/api/types";
  * explicit that we should not market to a segment we serve worse. Stating the
  * ceiling and inviting the conversation is the honest version.
  */
-export function crewFitCopy(bucket: CrewSizeBucket): string {
+export function crewFitCopy(
+  bucket: CrewSizeBucket,
+  t: Translate = EN,
+): string {
   if (isBeyondSupportedCrew(bucket)) {
-    return `Our biggest plan covers ${PLAN_PRICING.pro.seats} people. Past that, tell us how your crew works and we'll be straight with you about the fit.`;
+    return t("onboarding.crewFitBeyond", { seats: PLAN_PRICING.pro.seats });
   }
   const plan = planFitForCrew(bucket);
   // Unreachable while 11+ is the only null bucket; a future one would fall
   // through to the neutral hint rather than to an empty description.
   if (plan === null) return "";
   const { seats, monthlyDollars } = PLAN_PRICING[plan];
+  // A product name, the same in every language.
   const name = plan === "pro" ? "Pro" : "Starter";
-  return `${name} covers up to ${seats} people at $${monthlyDollars} a month, however many customers you text.`;
+  return t("onboarding.crewFitPlan", {
+    plan: name,
+    seats,
+    amount: `$${monthlyDollars}`,
+  });
 }
 
 /** Shown before anything is picked. Says the question is skippable. */
-export const CREW_FIT_PROMPT =
-  "Everyone answers on the same number, so this only decides which plan fits. Skip it if you'd rather.";
+export function crewFitPrompt(t: Translate = EN): string {
+  return t("onboarding.crewFitPrompt");
+}

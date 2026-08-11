@@ -35,6 +35,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Member
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
@@ -133,23 +136,25 @@ private fun MyDevicesCard(
     var actionError by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    // Every sentence below is reported from a coroutine a press started, so the
+    // locale is captured while composition still has it.
+    val locale = LocalAppLocale.current
+    val signedOutOne = t("settings.devicesSignedOutThatOne")
+    val noOtherDevices = t("settings.devicesNothingElseSignedIn")
+    val unknownLocation = t("settings.devicesLocationUnknown")
 
     SettingsCard(
-        title = "Your devices",
-        description = "Anything signed in as you, in any workspace. " +
-            "Signing one out takes effect on its next tap.",
+        title = t("settings.devicesMineTitle"),
+        description = t("settings.devicesMineIntro"),
     ) {
         if (ordered.isEmpty()) {
-            ReadOnlyLine(
-                "Nothing is signed in — which cannot be true, since you are reading " +
-                    "this. Pull to refresh and check again.",
-            )
+            ReadOnlyLine(t("settings.devicesNoneSignedIn"))
         }
         ordered.forEachIndexed { index, session ->
             if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             DeviceRow(
                 client = session.client,
-                secondary = session.location ?: "Location not available",
+                secondary = session.location ?: unknownLocation,
                 signedInAt = session.signed_in_at,
                 lastActiveAt = session.last_active_at,
                 userAgent = session.user_agent,
@@ -166,7 +171,7 @@ private fun MyDevicesCard(
                                     try {
                                         scope.repo.revokeMySession(session.id)
                                         haptics.confirm()
-                                        scope.showMessage("Signed that device out.")
+                                        scope.showMessage(signedOutOne)
                                         onChanged()
                                     } catch (cause: Exception) {
                                         scope.showMessage(cause.userMessage())
@@ -177,7 +182,10 @@ private fun MyDevicesCard(
                             },
                             enabled = !busy,
                         ) {
-                            Text("Sign out", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                t("settings.devicesSignOut"),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
                 },
@@ -191,18 +199,23 @@ private fun MyDevicesCard(
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Sign out everywhere else")
+                Text(t("settings.devicesSignOutEverywhere"))
             }
         }
     }
 
     if (confirmingAll) {
         ConfirmDialog(
-            title = "Sign out everywhere else?",
-            body = "${deviceCountLabel(others)} will stop working on the next tap, and " +
-                "stop receiving your customers' messages. You stay signed in here. " +
-                "Anyone who should still have access can sign back in.",
-            confirmLabel = "Sign them out",
+            title = t("settings.devicesSignOutEverywhereTitle"),
+            // A whole sentence per count rather than a count phrase dropped into
+            // a stem: French agrees the verb and the noun with the number, so a
+            // shared tail cannot be made to read in both.
+            body = if (others == 1) {
+                t("settings.devicesSignOutEverywhereBodyOne")
+            } else {
+                t("settings.devicesSignOutEverywhereBody", "count" to others.toString())
+            },
+            confirmLabel = t("settings.devicesSignThemOut"),
             destructive = true,
             pending = busy,
             error = actionError,
@@ -216,10 +229,18 @@ private fun MyDevicesCard(
                         val result = scope.repo.revokeMyOtherSessions()
                         confirmingAll = false
                         scope.showMessage(
-                            if (result.sessions == 0) {
-                                "Nothing else was signed in."
-                            } else {
-                                "Signed out ${deviceCountLabel(result.sessions)}."
+                            when (result.sessions) {
+                                0 -> noOtherDevices
+                                1 -> AppStrings.translate(
+                                    locale,
+                                    "settings.devicesSignedOutOne",
+                                )
+
+                                else -> AppStrings.translate(
+                                    locale,
+                                    "settings.devicesSignedOutMany",
+                                    mapOf("count" to result.sessions.toString()),
+                                )
                             },
                         )
                         onChanged()
@@ -241,7 +262,10 @@ private fun CrewDevicesCard(
     members: List<Member>,
     onChanged: () -> Unit,
 ) {
-    val nameByMember = members.associate { it.id to it.display_name.ifBlank { "A crew member" } }
+    val locale = LocalAppLocale.current
+    val someoneOnTheCrew = t("settings.devicesCrewMemberFallback")
+    val nothingSignedIn = t("settings.devicesTheyHadNothing")
+    val nameByMember = members.associate { it.id to it.display_name.ifBlank { someoneOnTheCrew } }
     var target by remember { mutableStateOf<Pair<String, String>?>(null) }
     var busy by remember { mutableStateOf(false) }
     var actionError by remember { mutableStateOf<String?>(null) }
@@ -249,17 +273,15 @@ private fun CrewDevicesCard(
     val haptics = rememberHaptics()
 
     SettingsCard(
-        title = "The crew's devices",
-        description = "Everything signed in to this workspace. Removing someone already " +
-            "ends their access — this is for a phone that went missing while they are " +
-            "still on the team.",
+        title = t("settings.devicesCrewTitle"),
+        description = t("settings.devicesCrewIntro"),
     ) {
         if (sessions.isEmpty()) {
-            ReadOnlyLine("Nobody on the crew has anything signed in right now.")
+            ReadOnlyLine(t("settings.devicesCrewNoneSignedIn"))
         }
         sessions.forEachIndexed { index, session ->
             if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            val name = session.member_id?.let { nameByMember[it] } ?: "A crew member"
+            val name = session.member_id?.let { nameByMember[it] } ?: someoneOnTheCrew
             DeviceRow(
                 client = session.client,
                 // The person comes first here: an owner is looking for WHOSE
@@ -276,7 +298,10 @@ private fun CrewDevicesCard(
                             onClick = { target = memberId to name },
                             enabled = !busy,
                         ) {
-                            Text("Sign out", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                t("settings.devicesSignOut"),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                     }
                 },
@@ -289,12 +314,13 @@ private fun CrewDevicesCard(
         val (memberId, name) = current
         val count = sessions.count { it.member_id == memberId }
         ConfirmDialog(
-            title = "Sign $name out?",
-            body = "Every device they are signed in on — ${deviceCountLabel(count)} right " +
-                "now — stops working on its next tap and stops receiving this workspace's " +
-                "messages. They keep their seat and can sign back in; a call they are on " +
-                "right now is not cut off.",
-            confirmLabel = "Sign them out",
+            title = t("settings.devicesSignMemberOutTitle", "name" to name),
+            body = if (count == 1) {
+                t("settings.devicesSignMemberOutBodyOne")
+            } else {
+                t("settings.devicesSignMemberOutBody", "count" to count.toString())
+            },
+            confirmLabel = t("settings.devicesSignThemOut"),
             destructive = true,
             pending = busy,
             error = actionError,
@@ -308,10 +334,22 @@ private fun CrewDevicesCard(
                         val result = scope.repo.revokeMemberSessions(scope.companyId, memberId)
                         target = null
                         scope.showMessage(
-                            if (result.sessions == 0) {
-                                "They had nothing signed in."
-                            } else {
-                                "Signed $name out of ${deviceCountLabel(result.sessions)}."
+                            when (result.sessions) {
+                                0 -> nothingSignedIn
+                                1 -> AppStrings.translate(
+                                    locale,
+                                    "settings.devicesSignedMemberOutOne",
+                                    mapOf("name" to name),
+                                )
+
+                                else -> AppStrings.translate(
+                                    locale,
+                                    "settings.devicesSignedMemberOutMany",
+                                    mapOf(
+                                        "name" to name,
+                                        "count" to result.sessions.toString(),
+                                    ),
+                                )
                             },
                         )
                         onChanged()
@@ -363,7 +401,7 @@ private fun DeviceRow(
                     Spacer(Modifier.width(8.dp))
                     // Said before anything else about this row: the one device
                     // nobody should worry about.
-                    StatusPill("This device", PillTone.Positive)
+                    StatusPill(t("settings.devicesThisDevice"), PillTone.Positive)
                 }
             }
             Text(
@@ -374,8 +412,11 @@ private fun DeviceRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                "Last active ${relativeTime(lastActiveAt)} · signed in " +
-                    relativeTime(signedInAt),
+                t(
+                    "settings.devicesLastActive",
+                    "lastActive" to relativeTime(lastActiveAt),
+                    "signedIn" to relativeTime(signedInAt),
+                ),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline,
             )
@@ -433,15 +474,13 @@ private fun AppLockCard(scope: SettingsScope) {
     val canLock = remember(context) { deviceCanLock(context) }
 
     SettingsCard(
-        title = "Lock this app",
-        description = "This phone only. Your other devices keep their own answer.",
+        title = t("settings.devicesAppLockTitle"),
+        description = t("settings.devicesThisPhoneOnly"),
     ) {
         LabeledSwitchRow(
-            label = "Ask before showing the inbox",
+            label = t("settings.devicesAppLockLabel"),
             supporting = if (canLock) {
-                "Your fingerprint, face or screen lock, whenever the app has been " +
-                    "away for a minute. Worth it if this phone is ever handed to " +
-                    "somebody else."
+                t("settings.devicesAppLockHelp")
             } else {
                 AppLock.CANNOT_ENABLE_NOTE
             },
@@ -461,8 +500,8 @@ private fun DataUseCard(scope: SettingsScope) {
         .collectAsStateWithLifecycle(initialValue = false)
 
     SettingsCard(
-        title = "Mobile data",
-        description = "This phone only. Your other devices keep their own answer.",
+        title = t("settings.devicesMobileDataTitle"),
+        description = t("settings.devicesThisPhoneOnly"),
     ) {
         LabeledSwitchRow(
             label = MeteredMedia.SETTING_LABEL,

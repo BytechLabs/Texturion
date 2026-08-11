@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import type { MmsMediaType } from "@loonext/shared";
 
+import { useT } from "@/i18n/provider";
 import { useCompanyId } from "@/lib/company/provider";
 
 import {
@@ -375,6 +376,7 @@ export function useConversationPinnedMessages(conversationId: string) {
  * row (back to queued) replaces the failed one in the thread cache.
  */
 export function useRetryMessage(conversationId: string) {
+  const t = useT();
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
@@ -395,11 +397,10 @@ export function useRetryMessage(conversationId: string) {
     onError: (error) => {
       // The retry was fully silent before — surface the failure (e.g. a §7 409
       // for a carrier-finalized row, or a network error) so the user knows the
-      // message still didn't send.
+      // message still didn't send. The server's own sentence when there is one
+      // (SPEC §7 writes one per code); ours only when nothing came back.
       toast.error(
-        error instanceof ApiError
-          ? error.message
-          : "Couldn't retry that message. Try again.",
+        error instanceof ApiError ? error.message : t("thread.retrySendFailed"),
       );
     },
   });

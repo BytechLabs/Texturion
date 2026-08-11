@@ -32,6 +32,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -62,6 +65,9 @@ import kotlinx.coroutines.launch
 internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
     val context = LocalContext.current
     val coroutines = rememberCoroutineScope()
+    // The recorder's failures and the save confirmations are all written from
+    // callbacks and coroutines, so the reader's language is read once here.
+    val locale = LocalAppLocale.current
     val recorder = remember { GreetingRecorder(context) }
 
     var rows by remember { mutableStateOf(emptyList<VoicemailGreeting>()) }
@@ -121,7 +127,7 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
                 start()
             }
         } catch (_: Exception) {
-            error = "That recording would not play back. Record it again."
+            error = AppStrings.translate(locale, "settingsMore.takeWontPlay")
             null
         }
     }
@@ -132,7 +138,7 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
             // Almost always the mic is held by a call, or the permission was
             // revoked between the check and here. Say what to do, not that it
             // failed.
-            error = "The microphone is not available. Close any call and try again."
+            error = AppStrings.translate(locale, "settingsMore.micUnavailable")
             micRefused = true
             return
         }
@@ -146,8 +152,7 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
         if (granted) {
             begin()
         } else {
-            error = "Loonext needs the microphone to record a greeting. " +
-                "Allow it in Settings, then try again."
+            error = AppStrings.translate(locale, "settingsMore.micRefused")
             micRefused = true
         }
     }
@@ -162,7 +167,7 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
         recording = false
         take = recorder.finish()
         if (take == null) {
-            error = "Nothing was recorded. Try holding the phone closer."
+            error = AppStrings.translate(locale, "settingsMore.nothingRecorded")
         }
     }
 
@@ -184,7 +189,9 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
                 take = null
                 name = DEFAULT_GREETING_NAME
                 refresh()
-                scope.showMessage("Saved. Choose it on a number to use it.")
+                scope.showMessage(
+                    AppStrings.translate(locale, "settingsMore.greetingSaved"),
+                )
             } catch (cause: Exception) {
                 error = cause.userMessage()
             } finally {
@@ -209,7 +216,13 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
             refresh()
             if (rows.any { it.name == waiting.name }) {
                 capture = null
-                scope.showMessage("\"${waiting.name}\" saved. Choose it on a number to use it.")
+                scope.showMessage(
+                    AppStrings.translate(
+                        locale,
+                        "settingsMore.namedGreetingSaved",
+                        mapOf("name" to waiting.name),
+                    ),
+                )
                 return@LaunchedEffect
             }
         }
@@ -236,17 +249,14 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
     }
 
     SettingsCard(
-        title = "Your own voice",
-        description = "Record the greeting yourself instead of having it read " +
-            "aloud. Callers hear a person, which is the thing you are actually " +
-            "selling.",
+        title = t("settingsMore.ownVoiceTitle"),
+        description = t("settingsMore.ownVoiceDesc"),
     ) {
         Text(
             if (rows.isEmpty()) {
-                "Nothing recorded yet — callers hear the written greeting, read aloud."
+                t("settingsMore.noGreetingsYet")
             } else {
-                "Pick one on a number under Numbers to use it. Anything you have " +
-                    "not chosen stays unused."
+                t("settingsMore.pickGreetingOnNumber")
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -267,7 +277,7 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
                 Spacer(Modifier.weight(1f))
                 if (canEdit) {
                     TextButton(enabled = !pending, onClick = { confirmDelete = row }) {
-                        Text("Delete")
+                        Text(t("common.delete"))
                     }
                 }
             }
@@ -279,23 +289,26 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
                     take != null -> {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                "Recorded ${formatGreetingDuration(take!!.durationMs)}",
+                                t(
+                                    "settingsMore.recordedLength",
+                                    "length" to formatGreetingDuration(take!!.durationMs),
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                             )
                             Spacer(Modifier.weight(1f))
                             TextButton(enabled = !pending, onClick = { playTake() }) {
-                                Text("Hear it back")
+                                Text(t("settingsMore.hearItBack"))
                             }
                         }
                         Text(
-                            "This is exactly what a caller gets.",
+                            t("settingsMore.exactlyWhatCallerGets"),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         OutlinedTextField(
                             value = name,
                             onValueChange = { name = it },
-                            label = { Text("Name it") },
+                            label = { Text(t("settingsMore.nameIt")) },
                             singleLine = true,
                             enabled = !pending,
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -309,29 +322,40 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
                                     recorder.discard()
                                     take = null
                                 },
-                            ) { Text("Record again") }
+                            ) { Text(t("settingsMore.recordAgain")) }
                             Spacer(Modifier.weight(1f))
                             Button(
                                 enabled = !pending && name.isNotBlank(),
                                 onClick = { onSave() },
-                            ) { Text(if (pending) "Saving…" else "Save greeting") }
+                            ) {
+                                Text(
+                                    if (pending) {
+                                        t("common.saving")
+                                    } else {
+                                        t("settingsMore.saveGreeting")
+                                    },
+                                )
+                            }
                         }
                     }
 
                     recording -> Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Recording… speak now.", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            t("settingsMore.recordingNow"),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
                         Spacer(Modifier.weight(1f))
-                        Button(onClick = { onStop() }) { Text("Stop") }
+                        Button(onClick = { onStop() }) { Text(t("settingsMore.stop")) }
                     }
 
                     else -> Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "Up to two minutes.",
+                            t("settingsMore.upToTwoMinutes"),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(Modifier.weight(1f))
-                        Button(onClick = { onRecord() }) { Text("Record") }
+                        Button(onClick = { onRecord() }) { Text(t("settingsMore.record")) }
                     }
                 }
 
@@ -348,9 +372,9 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
                     ) {
                         Text(
                             if (micRefused) {
-                                "Have us call you instead"
+                                t("settingsMore.haveUsCallYou")
                             } else {
-                                "Rather do it on the phone?"
+                                t("settingsMore.ratherOnThePhone")
                             },
                         )
                     }
@@ -371,13 +395,10 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
     confirmDelete?.let { target ->
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
-            title = { Text("Delete \"${target.name}\"?") },
-            text = {
-                Text(
-                    "Any number using it goes back to the written words, read " +
-                        "aloud. Callers hear the change on the next call.",
-                )
+            title = {
+                Text(t("settingsMore.deleteGreetingTitle", "name" to target.name))
             },
+            text = { Text(t("settingsMore.deleteGreetingBody")) },
             confirmButton = {
                 TextButton(
                     enabled = !pending,
@@ -389,7 +410,12 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
                             try {
                                 scope.repo.deleteGreeting(scope.companyId, target.id)
                                 refresh()
-                                scope.showMessage("Deleted.")
+                                scope.showMessage(
+                                    AppStrings.translate(
+                                        locale,
+                                        "settingsMore.deletedToast",
+                                    ),
+                                )
                             } catch (cause: Exception) {
                                 error = cause.userMessage()
                             } finally {
@@ -397,10 +423,12 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
                             }
                         }
                     },
-                ) { Text("Delete") }
+                ) { Text(t("common.delete")) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = null }) { Text("Keep it") }
+                TextButton(onClick = { confirmDelete = null }) {
+                    Text(t("settingsMore.keepIt"))
+                }
             },
         )
     }
@@ -409,42 +437,38 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
         if (state.phase == CapturePhase.CALLING) {
             AlertDialog(
                 onDismissRequest = { capture = null },
-                title = { Text("Calling ${state.to} now") },
+                title = { Text(t("settingsMore.callingNow", "number" to state.to)) },
                 text = {
                     Column {
-                        Text("Answer, and you'll hear what to do.")
+                        Text(t("settingsMore.answerAndListen"))
                         Spacer(Modifier.height(8.dp))
-                        Text("1. Wait for the beep.")
-                        Text("2. Say what you want your callers to hear.")
-                        Text("3. Hang up. It saves itself.")
+                        Text(t("settingsMore.captureStep1"))
+                        Text(t("settingsMore.captureStep2"))
+                        Text(t("settingsMore.captureStep3"))
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "It'll appear above as \"${state.name}\" when it lands. " +
-                                "You can close this.",
+                            t("settingsMore.captureWillAppear", "name" to state.name),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 },
                 confirmButton = {
-                    TextButton(onClick = { capture = null }) { Text("Close") }
+                    TextButton(onClick = { capture = null }) { Text(t("common.close")) }
                 },
             )
         } else {
             AlertDialog(
                 onDismissRequest = { capture = null },
-                title = { Text("Record it on the phone") },
+                title = { Text(t("settingsMore.recordOnPhone")) },
                 text = {
                     Column {
-                        Text(
-                            "We'll ring you, you speak after the beep, and you hang " +
-                                "up. No microphone permission, nothing to hold.",
-                        )
+                        Text(t("settingsMore.recordOnPhoneBody"))
                         OutlinedTextField(
                             value = state.to,
                             onValueChange = { capture = state.copy(to = it) },
-                            label = { Text("Your number") },
-                            placeholder = { Text("(613) 555-0199") },
+                            label = { Text(t("settingsMore.yourNumber")) },
+                            placeholder = { Text(t("settingsMore.captureNumberSample")) },
                             singleLine = true,
                             enabled = !pending,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
@@ -453,7 +477,7 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
                         OutlinedTextField(
                             value = state.name,
                             onValueChange = { capture = state.copy(name = it) },
-                            label = { Text("Name it") },
+                            label = { Text(t("settingsMore.nameIt")) },
                             singleLine = true,
                             enabled = !pending,
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -464,10 +488,18 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
                     TextButton(
                         enabled = !pending && state.to.isNotBlank() && state.name.isNotBlank(),
                         onClick = { startCaptureCall() },
-                    ) { Text(if (pending) "Calling…" else "Call me") }
+                    ) {
+                        Text(
+                            if (pending) {
+                                t("settingsMore.calling")
+                            } else {
+                                t("settingsMore.callMe")
+                            },
+                        )
+                    }
                 },
                 dismissButton = {
-                    TextButton(onClick = { capture = null }) { Text("Cancel") }
+                    TextButton(onClick = { capture = null }) { Text(t("common.cancel")) }
                 },
             )
         }

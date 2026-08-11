@@ -33,6 +33,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.data.MeRepository
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Me
 import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.ui.common.PaperCard
@@ -98,10 +99,16 @@ suspend fun loadStartedSteps(
     me: Me,
     meRepo: MeRepository,
     repo: MessagingRepository,
+    /**
+     * #228: the reader's language, read from `LocalAppLocale` by the tab. No
+     * default — an omitted locale would be an English checklist on a French
+     * phone rather than a compile error.
+     */
+    locale: String,
 ): List<StartedStep> = try {
     when (audience) {
         StartedAudience.NONE -> emptyList()
-        StartedAudience.DOING_THE_JOB -> memberSteps(meRepo.firsts(companyId))
+        StartedAudience.DOING_THE_JOB -> memberSteps(meRepo.firsts(companyId), locale)
         StartedAudience.SETUP -> {
             val company = me.company
             // G7 step 7 is the POST-payment first inbox visit. Before that,
@@ -119,6 +126,7 @@ suspend fun loadStartedSteps(
                     hasConversation = hasConversation,
                     usedSegments = repo.usage(companyId).used_segments,
                     activeMemberCount = countActiveMembers(repo.members(companyId).data),
+                    locale = locale,
                 )
             }
         }
@@ -156,6 +164,16 @@ fun GettingStartedCard(
     if (dismissed || steps.isEmpty() || stepsComplete(steps)) return
 
     val doneCount = steps.count { it.done }
+    // Read out here rather than inside `semantics { }`: that lambda is not
+    // composition, so the catalogue cannot be reached from inside it.
+    val dismissLabel = t("inbox.startedDismissAria", "title" to title.lowercase())
+    val progressAria = t(
+        "inbox.startedProgressAria",
+        "done" to doneCount.toString(),
+        "total" to steps.size.toString(),
+    )
+    val stepDone = t("inbox.startedStepDone")
+    val stepNotDone = t("inbox.startedStepNotDone")
 
     PaperCard(modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp)) {
@@ -163,7 +181,11 @@ fun GettingStartedCard(
                 Column(Modifier.weight(1f)) {
                     Text(title, style = MaterialTheme.typography.titleSmall)
                     Text(
-                        "$doneCount of ${steps.size} done",
+                        t(
+                            "inbox.startedProgress",
+                            "done" to doneCount.toString(),
+                            "total" to steps.size.toString(),
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -172,7 +194,7 @@ fun GettingStartedCard(
                     color = Color.Transparent,
                     modifier = Modifier
                         .size(32.dp)
-                        .semantics { contentDescription = "Dismiss ${title.lowercase()}" },
+                        .semantics { contentDescription = dismissLabel },
                     onClick = {
                         haptics.tap()
                         markDismissed(context, companyId, kind)
@@ -198,9 +220,7 @@ fun GettingStartedCard(
                     .fillMaxWidth()
                     .height(4.dp)
                     .clip(CircleShape)
-                    .semantics {
-                        contentDescription = "$doneCount of ${steps.size} steps done"
-                    },
+                    .semantics { contentDescription = progressAria },
             )
 
             steps.forEach { step ->
@@ -239,7 +259,7 @@ fun GettingStartedCard(
                             textDecoration = if (step.done) TextDecoration.LineThrough else null,
                             modifier = Modifier.semantics {
                                 contentDescription =
-                                    step.label + if (step.done) ", done" else ", not done yet"
+                                    step.label + if (step.done) stepDone else stepNotDone
                             },
                         )
                         if (!step.done && step.hint != null) {

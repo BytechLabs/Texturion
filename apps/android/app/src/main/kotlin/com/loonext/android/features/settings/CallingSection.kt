@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.loonext.android.features.compose.usSendApproved
 import com.loonext.android.features.compose.usTextingOff
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.Usage
@@ -71,9 +72,7 @@ fun CallingSection(
 ) {
     if (onlyHostedNumbers(company)) {
         Text(
-            "In-app calling needs a number whose calls come through Loonext. Calls to " +
-                "your text-enabled landline stay with your existing carrier, so these " +
-                "settings won't apply until you add or transfer a Loonext number.",
+            t("settings.callingHostedOnly"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
@@ -150,14 +149,12 @@ private fun TextBackCard(
     }
 
     SettingsCard(
-        title = "Text back a missed call",
-        description = "When a call to your business number goes unanswered, we send the " +
-            "caller one text so they can book by reply, instead of calling the next " +
-            "number on their list.",
+        title = t("settings.textBackTitle"),
+        description = t("settings.textBackIntro"),
     ) {
         LabeledSwitchRow(
-            label = "Text back missed calls",
-            supporting = "Fires once per caller when a call goes unanswered.",
+            label = t("settings.textBackSwitch"),
+            supporting = t("settings.textBackSwitchHelp"),
             checked = enabled,
             onCheckedChange = { next ->
                 // The toggle alone decides WHETHER the text-back fires; a
@@ -183,9 +180,9 @@ private fun TextBackCard(
         if (enabled && !usSendApproved(company)) {
             ReachNote(
                 if (usTextingOff(company)) {
-                    "Callers with US numbers won't get this text: US texting isn't on for this workspace. Canadian callers get it now."
+                    t("settings.textBackUsTextingOff")
                 } else {
-                    "Callers with US numbers won't get this text until your registration is approved. Canadian callers get it now."
+                    t("settings.textBackUsPending")
                 },
             )
         }
@@ -206,24 +203,24 @@ private fun TextBackCard(
                     minLines = 3,
                     placeholder = { Text(DEFAULT_MCTB_MESSAGE) },
                     supportingText = {
+                        // `{business_name}` is a merge field the owner types, not
+                        // a catalogue token: it survives interpolation untouched
+                        // and reads the same in both languages.
                         val status = when (savedState) {
-                            false -> " · Saving…"
-                            true -> " · Saved"
+                            false -> t("settings.textBackStatusSaving")
+                            true -> t("settings.textBackStatusSaved")
                             null -> ""
                         }
-                        Text(
-                            "Leave it empty to send the default. " +
-                                "{business_name} fills in automatically.$status",
-                        )
+                        Text(t("settings.textBackHint") + status)
                     },
                 )
             }
-            PreviewBubble(label = "What the caller receives", text = preview)
+            PreviewBubble(label = t("settings.textBackPreviewLabel"), text = preview)
         }
         InlineError(error)
         if (!canEdit) {
             Spacer(Modifier.height(4.dp))
-            ReadOnlyLine("Only owners and admins can change the missed-call text-back.")
+            ReadOnlyLine(t("settings.textBackReadOnly"))
         }
     }
 }
@@ -246,11 +243,11 @@ private fun VoicemailCard(
     val dirty = trimmed != company.voicemail_greeting.orEmpty().trim()
     val spoken = trimmed.ifEmpty { defaultVoicemailGreeting(company.name) }
 
+    val greetingSaved = t("settings.voicemailSaved")
+
     SettingsCard(
-        title = "Voicemail greeting",
-        description = "When nobody answers in the app, the caller hears this greeting " +
-            "and can leave a message up to two minutes. Voicemails land in the call " +
-            "log and the caller's conversation, ready to play.",
+        title = t("settings.voicemailTitle"),
+        description = t("settings.voicemailIntro"),
     ) {
         if (canEdit) {
             OutlinedTextField(
@@ -261,14 +258,11 @@ private fun VoicemailCard(
                 enabled = !saving,
                 placeholder = { Text(defaultVoicemailGreeting(company.name)) },
                 supportingText = {
-                    Text(
-                        "${greeting.length}/500 · Spoken aloud to the caller. " +
-                            "Leave it empty to use the default.",
-                    )
+                    Text(t("settings.voicemailCount", "count" to greeting.length.toString()))
                 },
             )
         }
-        PreviewBubble(label = "What callers hear", text = spoken)
+        PreviewBubble(label = t("settings.voicemailPreviewLabel"), text = spoken)
         InlineError(error)
         if (canEdit) {
             if (dirty) {
@@ -284,7 +278,7 @@ private fun VoicemailCard(
                                 }
                                 val updated = scope.repo.updateCompany(scope.companyId, body)
                                 onCompanyUpdated(updated)
-                                scope.showMessage("Voicemail greeting saved.")
+                                scope.showMessage(greetingSaved)
                             } catch (cause: Exception) {
                                 error = cause.userMessage()
                             } finally {
@@ -294,34 +288,42 @@ private fun VoicemailCard(
                     },
                     enabled = !saving,
                     modifier = Modifier.padding(top = 10.dp),
-                ) { Text(if (saving) "Saving…" else "Save greeting") }
+                ) { Text(if (saving) t("common.saving") else t("settings.voicemailSaveAction")) }
             }
         } else {
             Spacer(Modifier.height(4.dp))
-            ReadOnlyLine("Only owners and admins can change the voicemail greeting.")
+            ReadOnlyLine(t("settings.voicemailReadOnly"))
         }
     }
 }
 
-private data class ScreeningChoice(val value: String, val label: String, val detail: String)
+/**
+ * #228: the choice carries KEYS, not sentences.
+ *
+ * This list is a top-level `val`, so it is built once at class-init — long
+ * before any composition and with no reader's locale anywhere near it. Holding
+ * English here and translating at the radio row is the only shape that can say
+ * the right thing to both readers; the alternative is a list rebuilt per
+ * recomposition, which is worse for a reason that has nothing to do with words.
+ */
+private data class ScreeningChoice(
+    val value: String,
+    val labelKey: String,
+    /** Null for the option whose label is the whole explanation. */
+    val detailKey: String?,
+)
 
 private val SCREENING_CHOICES = listOf(
-    ScreeningChoice(
-        CallScreening.OFF,
-        "Off",
-        "",
-    ),
+    ScreeningChoice(CallScreening.OFF, "settings.screeningOff", null),
     ScreeningChoice(
         CallScreening.FLAG,
-        "Label suspicious calls",
-        "The carrier's verdict shows on the call as “Spam likely”, but every " +
-            "call still rings the team.",
+        "settings.screeningFlag",
+        "settings.screeningFlagDetail",
     ),
     ScreeningChoice(
         CallScreening.DIVERT,
-        "Send suspicious calls to voicemail",
-        "Flagged callers skip the ring and go straight to voicemail. A real customer " +
-            "who gets misflagged can still leave a message.",
+        "settings.screeningDivert",
+        "settings.screeningDivertDetail",
     ),
 )
 
@@ -336,9 +338,11 @@ private fun ScreeningCard(
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
 
+    val screeningUpdated = t("settings.screeningUpdated")
+
     SettingsCard(
-        title = "Call screening",
-        description = "What happens when the carrier thinks an incoming call is spam.",
+        title = t("settings.screeningTitle"),
+        description = t("settings.screeningIntro"),
     ) {
         SCREENING_CHOICES.forEach { choice ->
             val selected = company.call_screening == choice.value
@@ -361,7 +365,7 @@ private fun ScreeningCard(
                                         },
                                     )
                                     onCompanyUpdated(updated)
-                                    scope.showMessage("Call screening updated.")
+                                    scope.showMessage(screeningUpdated)
                                 } catch (cause: Exception) {
                                     error = cause.userMessage()
                                 } finally {
@@ -380,10 +384,10 @@ private fun ScreeningCard(
                 )
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(choice.label, style = MaterialTheme.typography.bodyLarge)
-                    if (choice.detail.isNotEmpty()) {
+                    Text(t(choice.labelKey), style = MaterialTheme.typography.bodyLarge)
+                    if (choice.detailKey != null) {
                         Text(
-                            choice.detail,
+                            t(choice.detailKey),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -394,7 +398,7 @@ private fun ScreeningCard(
         InlineError(error)
         if (!canEdit) {
             Spacer(Modifier.height(4.dp))
-            ReadOnlyLine("Only owners and admins can change call screening.")
+            ReadOnlyLine(t("settings.screeningReadOnly"))
         }
     }
 }
@@ -438,11 +442,12 @@ private fun RingCard(
         }
     }
 
+    val ringingUpdated = t("settings.ringUpdated")
+    val ringLengthUpdated = t("settings.ringLengthUpdated")
+
     SettingsCard(
-        title = "How the phones ring",
-        description = "When a call comes in, every phone on the crew can ring " +
-            "together, or they can join one at a time so whoever answers most " +
-            "gets first refusal.",
+        title = t("settings.ringTitle"),
+        description = t("settings.ringIntro"),
     ) {
         RING_CHOICES.forEach { choice ->
             val selected = company.ring_strategy == choice.value
@@ -456,7 +461,7 @@ private fun RingCard(
                             if (selected) return@selectable
                             save(
                                 buildJsonObject { put("ring_strategy", choice.value) },
-                                "Ringing updated.",
+                                ringingUpdated,
                             )
                         },
                     )
@@ -466,9 +471,9 @@ private fun RingCard(
                 RadioButton(selected = selected, onClick = null, enabled = canEdit && !saving)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(choice.label, style = MaterialTheme.typography.bodyLarge)
+                    Text(t(choice.labelKey), style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        choice.detail,
+                        t(choice.detailKey),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -480,7 +485,7 @@ private fun RingCard(
             Modifier.fillMaxWidth().padding(top = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("How long they ring", style = MaterialTheme.typography.labelLarge)
+            Text(t("settings.ringHowLong"), style = MaterialTheme.typography.labelLarge)
             Spacer(Modifier.weight(1f))
             TextButton(
                 enabled = canEdit && !saving,
@@ -503,7 +508,7 @@ private fun RingCard(
                             secondsMenuOpen = false
                             save(
                                 buildJsonObject { put("ring_seconds", value) },
-                                "Ring length updated.",
+                                ringLengthUpdated,
                             )
                         },
                     )
@@ -513,13 +518,22 @@ private fun RingCard(
         Text(
             if (company.ring_strategy == "in_turn") {
                 val reached = phonesReached(company.ring_seconds)
-                "Then the caller gets your greeting. In ${company.ring_seconds} " +
-                    "seconds, $reached ${if (reached == 1) "phone gets" else "phones get"} " +
-                    "a turn — anyone after that never rings on this line."
+                // One whole sentence per count: French agrees the verb with the
+                // number, so "phone gets"/"phones get" cannot be a swappable tail.
+                if (reached == 1) {
+                    t(
+                        "settings.ringInTurnNoteOne",
+                        "seconds" to company.ring_seconds.toString(),
+                    )
+                } else {
+                    t(
+                        "settings.ringInTurnNote",
+                        "seconds" to company.ring_seconds.toString(),
+                        "phones" to reached.toString(),
+                    )
+                }
             } else {
-                "Then the caller gets your greeting. Longer than 45 seconds isn't " +
-                    "offered: the call legs themselves end there, so it would be " +
-                    "ringing nobody could hear."
+                t("settings.ringAllNote")
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -528,7 +542,7 @@ private fun RingCard(
         InlineError(error)
         if (!canEdit) {
             Spacer(Modifier.height(4.dp))
-            ReadOnlyLine("Only owners and admins can change how the phones ring.")
+            ReadOnlyLine(t("settings.ringReadOnly"))
         }
     }
 }
@@ -544,29 +558,23 @@ private const val RING_STEP_SECS = 12
 internal fun phonesReached(seconds: Int): Int =
     maxOf(1, (seconds - 1) / RING_STEP_SECS + 1)
 
-private fun ringSecondsLabel(seconds: Int): String =
-    "$seconds seconds \u00b7 about ${ringsIn(seconds)} rings"
+@Composable
+private fun ringSecondsLabel(seconds: Int): String = t(
+    "settings.ringSecondsLabel",
+    "seconds" to seconds.toString(),
+    "rings" to ringsIn(seconds).toString(),
+)
 
 /** The same four the web card offers, so the two never disagree about what a
  *  reasonable ring length is. */
 private val RING_SECOND_CHOICES = listOf(15, 20, 30, 45)
 
-private data class RingChoice(val value: String, val label: String, val detail: String)
+/** Keys rather than sentences — see [ScreeningChoice]. */
+private data class RingChoice(val value: String, val labelKey: String, val detailKey: String)
 
 private val RING_CHOICES = listOf(
-    RingChoice(
-        "all",
-        "All at once",
-        "What happens today. Every phone on the crew rings for the whole time, " +
-            "and the first to pick up takes the call.",
-    ),
-    RingChoice(
-        "in_turn",
-        "One at a time",
-        "The longest-serving member's phone rings first, alone. Twelve seconds " +
-            "later the next joins them, then the next — nobody's phone is ever " +
-            "cut off mid-reach.",
-    ),
+    RingChoice("all", "settings.ringAll", "settings.ringAllDetail"),
+    RingChoice("in_turn", "settings.ringInTurn", "settings.ringInTurnDetail"),
 )
 
 /**
@@ -597,17 +605,15 @@ private fun AfterHoursCard(
     val coroutines = rememberCoroutineScope()
     val hoursSet = company.business_hours.values.any { it != null }
 
+    val afterHoursUpdated = t("settings.afterHoursUpdated")
+
     SettingsCard(
-        title = "After hours",
-        description = "Outside your business hours a call can ring everyone, " +
-            "ring only whoever's on call, or go straight to a message. Most " +
-            "small crews are best on the first one.",
+        title = t("settings.afterHoursTitle"),
+        description = t("settings.afterHoursIntro"),
     ) {
         if (!hoursSet) {
             Text(
-                "You haven't set business hours yet, so nothing here can " +
-                    "happen — every hour is a working hour until you do. Set " +
-                    "them under Hours.",
+                t("settings.afterHoursNoHours"),
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(bottom = 8.dp),
             )
@@ -633,7 +639,7 @@ private fun AfterHoursCard(
                                         },
                                     )
                                     onCompanyUpdated(updated)
-                                    scope.showMessage("After-hours calling updated.")
+                                    scope.showMessage(afterHoursUpdated)
                                 } catch (cause: Exception) {
                                     error = cause.userMessage()
                                 } finally {
@@ -652,9 +658,9 @@ private fun AfterHoursCard(
                 )
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(choice.label, style = MaterialTheme.typography.bodyLarge)
+                    Text(t(choice.labelKey), style = MaterialTheme.typography.bodyLarge)
                     Text(
-                        choice.detail,
+                        t(choice.detailKey),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -664,7 +670,7 @@ private fun AfterHoursCard(
         InlineError(error)
         if (!canEdit) {
             Spacer(Modifier.height(4.dp))
-            ReadOnlyLine("Only owners and admins can change after-hours calling.")
+            ReadOnlyLine(t("settings.afterHoursReadOnly"))
         }
     }
 }
@@ -678,28 +684,25 @@ private fun AfterHoursCard(
  */
 private data class AfterHoursChoice(
     val value: String,
-    val label: String,
-    val detail: String,
+    val labelKey: String,
+    val detailKey: String,
 )
 
 private val AFTER_HOURS_CHOICES = listOf(
     AfterHoursChoice(
         "ring_everyone",
-        "Ring everyone, day or night",
-        "What happens today. Every call rings the whole crew whatever the clock says.",
+        "settings.afterHoursRingEveryone",
+        "settings.afterHoursRingEveryoneDetail",
     ),
     AfterHoursChoice(
         "on_call_only",
-        "Ring only whoever's on call",
-        "After hours, the phone rings for the person holding the on-call shift " +
-            "and nobody else. With no shift set, everyone rings — we never " +
-            "leave a call reaching nobody.",
+        "settings.afterHoursOnCallOnly",
+        "settings.afterHoursOnCallOnlyDetail",
     ),
     AfterHoursChoice(
         "voicemail",
-        "Take a message",
-        "After hours, the caller goes straight to your greeting instead of " +
-            "ringing out first — unless somebody is on call, who still rings.",
+        "settings.afterHoursVoicemail",
+        "settings.afterHoursVoicemailDetail",
     ),
 )
 
@@ -731,6 +734,9 @@ private fun CallerIdCard(
     val usingCompanyName = company.caller_id_source == "company_name"
     val trimmedDraft = draft.trim()
     val draftInvalid = trimmedDraft.isNotEmpty() && !isValidCnam(trimmedDraft)
+    // Both are reported from press handlers, so they are read in composition.
+    val cnamSubmitted = t("settings.callerIdSubmitted")
+    val cnamInvalid = t("settings.callerIdInvalidError")
 
     fun submit(change: CallerIdChange) {
         error = null
@@ -745,7 +751,7 @@ private fun CallerIdCard(
                 onCompanyUpdated(updated)
                 editing = false
                 confirming = null
-                scope.showMessage("Caller ID update submitted to carriers.")
+                scope.showMessage(cnamSubmitted)
             } catch (cause: Exception) {
                 error = cause.userMessage()
             } finally {
@@ -773,12 +779,11 @@ private fun CallerIdCard(
     }
 
     SettingsCard(
-        title = "Caller ID",
-        description = "What people see when you call them, and what you see when " +
-            "they call you.",
+        title = t("settings.callerIdTitle"),
+        description = t("settings.callerIdIntro"),
     ) {
         Text(
-            "Your outbound display name",
+            t("settings.callerIdOutboundHeading"),
             style = MaterialTheme.typography.labelLarge,
         )
         Row(
@@ -789,12 +794,15 @@ private fun CallerIdCard(
         ) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    company.caller_id_effective ?: "No display name",
+                    company.caller_id_effective ?: t("settings.callerIdNone"),
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Text(
-                    if (usingCompanyName) "Using your company name"
-                    else "Custom display name",
+                    if (usingCompanyName) {
+                        t("settings.callerIdUsingCompanyName")
+                    } else {
+                        t("settings.callerIdCustom")
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -808,13 +816,12 @@ private fun CallerIdCard(
                         editing = true
                     },
                     enabled = !saving,
-                ) { Text("Change") }
+                ) { Text(t("settings.callerIdChange")) }
             }
         }
         if (cnamChangePending(company.cnam_submitted_at)) {
             Text(
-                "Caller ID update submitted. Carriers usually show the new name " +
-                    "within 1 to 3 days.",
+                t("settings.callerIdPending"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
@@ -831,15 +838,15 @@ private fun CallerIdCard(
                 singleLine = true,
                 enabled = !saving,
                 isError = draftInvalid,
-                label = { Text("New display name") },
+                label = { Text(t("settings.callerIdNewNameLabel")) },
                 placeholder = { Text(cnamFromCompanyName(company.name)) },
                 supportingText = {
                     Text(
-                        if (draftInvalid) "1 to 15 letters, digits, or spaces."
-                        else "Shown on US caller ID when you call customers. Letters, " +
-                            "digits, and spaces, 15 characters max. Canadian display " +
-                            "names are set by the receiving carrier, so this mainly " +
-                            "helps your US calls.",
+                        if (draftInvalid) {
+                            t("settings.callerIdInvalid")
+                        } else {
+                            t("settings.callerIdNewNameHelp")
+                        },
                     )
                 },
             )
@@ -847,13 +854,13 @@ private fun CallerIdCard(
                 LinkButton(
                     onClick = { confirming = CallerIdChange(null) },
                     enabled = !saving,
-                ) { Text("Use company name instead") }
+                ) { Text(t("settings.callerIdUseCompanyName")) }
             }
             Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Button(
                     onClick = {
                         if (draftInvalid || trimmedDraft.isEmpty()) {
-                            error = "The display name must be 1 to 15 letters, digits, or spaces."
+                            error = cnamInvalid
                             return@Button
                         }
                         if (trimmedDraft == company.cnam_display_name) {
@@ -864,12 +871,12 @@ private fun CallerIdCard(
                         confirming = CallerIdChange(trimmedDraft)
                     },
                     enabled = !saving,
-                ) { Text("Review change") }
+                ) { Text(t("settings.callerIdReview")) }
                 Spacer(Modifier.width(8.dp))
                 LinkButton(
                     onClick = { editing = false },
                     enabled = !saving,
-                ) { Text("Cancel") }
+                ) { Text(t("common.cancel")) }
             }
         }
 
@@ -877,13 +884,15 @@ private fun CallerIdCard(
             val target = change.value ?: cnamFromCompanyName(company.name)
             Column(Modifier.padding(top = 10.dp)) {
                 Text(
-                    "Update your caller ID to \"$target\"" +
-                        (if (change.value == null) " (your company name)?" else "?"),
+                    if (change.value == null) {
+                        t("settings.callerIdConfirmCompanyName", "name" to target)
+                    } else {
+                        t("settings.callerIdConfirm", "name" to target)
+                    },
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 Text(
-                    "Carriers refresh their name databases on their own schedule, " +
-                        "so the new name can take a few days to show on calls.",
+                    t("settings.callerIdConfirmNote"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp),
@@ -895,20 +904,27 @@ private fun CallerIdCard(
                     Button(
                         onClick = { submit(change) },
                         enabled = !saving,
-                    ) { Text(if (saving) "Submitting…" else "Update caller ID") }
+                    ) {
+                        Text(
+                            if (saving) {
+                                t("settings.callerIdSubmitting")
+                            } else {
+                                t("settings.callerIdSubmit")
+                            },
+                        )
+                    }
                     Spacer(Modifier.width(8.dp))
                     LinkButton(
                         onClick = { confirming = null },
                         enabled = !saving,
-                    ) { Text("Go back") }
+                    ) { Text(t("settings.callerIdGoBack")) }
                 }
             }
         }
 
         LabeledSwitchRow(
-            label = "Look up who's calling",
-            supporting = "Shows the caller's network-registered name on incoming calls " +
-                "when they aren't in your contacts yet.",
+            label = t("settings.callerIdLookup"),
+            supporting = t("settings.callerIdLookupHelp"),
             checked = company.caller_id_lookup,
             onCheckedChange = { saveLookup(it) },
             enabled = canEdit && !saving,
@@ -916,7 +932,7 @@ private fun CallerIdCard(
         InlineError(error)
         if (!canEdit) {
             Spacer(Modifier.height(4.dp))
-            ReadOnlyLine("Only owners and admins can change caller ID settings.")
+            ReadOnlyLine(t("settings.callerIdReadOnly"))
         }
     }
 }
@@ -934,14 +950,16 @@ private fun MinutesFooter(scope: SettingsScope) {
     }
     val voice = usage?.voice ?: return
     if (voice.included_minutes <= 0) return
+    val minutes = String.format(Locale.US, "%,d", voice.included_minutes)
     Text(
-        "Your plan includes ${String.format(Locale.US, "%,d", voice.included_minutes)} " +
-            "calling minutes a month, both directions." +
-            (if (voice.overage_billed) {
-                " Past that, extra minutes bill at 1¢ each up to your spending cap."
-            } else {
-                ""
-            }) + " Details live in Settings › Usage.",
+        // Two whole sentences rather than a clause spliced into the middle of
+        // one: the overage sentence sits between the allowance and the pointer,
+        // and a French translator cannot place a fragment they never see whole.
+        if (voice.overage_billed) {
+            t("settings.minutesFooterOverage", "minutes" to minutes)
+        } else {
+            t("settings.minutesFooter", "minutes" to minutes)
+        },
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),

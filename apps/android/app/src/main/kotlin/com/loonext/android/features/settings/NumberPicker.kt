@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.assertAboveIme
 import com.loonext.android.ui.common.formatPhone
@@ -127,7 +128,7 @@ fun NumberPickerDialog(
                         modifier = Modifier.width(110.dp),
                         singleLine = true,
                         enabled = !pending,
-                        label = { Text("Area code") },
+                        label = { Text(t("settingsMore.areaCode")) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     )
                     Spacer(Modifier.width(8.dp))
@@ -139,7 +140,7 @@ fun NumberPickerDialog(
                         modifier = Modifier.weight(1f),
                         singleLine = true,
                         enabled = !pending,
-                        label = { Text("Contains digits") },
+                        label = { Text(t("settingsMore.containsDigits")) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     )
                 }
@@ -162,7 +163,7 @@ fun NumberPickerDialog(
                         OutlinedButton(
                             onClick = { fetchKey++ },
                             modifier = Modifier.padding(top = 8.dp),
-                        ) { Text("Try again") }
+                        ) { Text(t("common.retry")) }
                     }
 
                     is LoadState.Ready -> PickerResults(
@@ -182,7 +183,7 @@ fun NumberPickerDialog(
         },
         confirmButton = {},
         dismissButton = {
-            LinkButton(onClick = onDismiss, enabled = !pending) { Text("Cancel") }
+            LinkButton(onClick = onDismiss, enabled = !pending) { Text(t("common.cancel")) }
         },
     )
 }
@@ -203,15 +204,20 @@ private fun PickerResults(
     if (result.masked) {
         Column {
             Text(
-                "Canadian numbers are assigned when the order goes through, so your " +
-                    "pick here is the area code. There are numbers available" +
-                    (if (effectiveAreaCode != null) " in $effectiveAreaCode" else "") + ".",
+                t(
+                    "settingsMore.maskedPick",
+                    "where" to if (effectiveAreaCode != null) {
+                        t("settingsMore.inAreaCode", "areaCode" to effectiveAreaCode)
+                    } else {
+                        ""
+                    },
+                ),
                 style = MaterialTheme.typography.bodyMedium,
             )
             if (effectiveAreaCode == null) {
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Enter the 3-digit area code you want above.",
+                    t("settingsMore.enterAreaCode"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -220,7 +226,15 @@ private fun PickerResults(
                     onClick = { onPick(NumberChoice.AreaCode(effectiveAreaCode)) },
                     enabled = !pending,
                     modifier = Modifier.padding(top = 10.dp),
-                ) { Text(if (pending) "Ordering…" else "Use area code $effectiveAreaCode") }
+                ) {
+                    Text(
+                        if (pending) {
+                            t("settingsMore.ordering")
+                        } else {
+                            t("settingsMore.useAreaCode", "areaCode" to effectiveAreaCode)
+                        },
+                    )
+                }
             }
         }
         return
@@ -229,16 +243,17 @@ private fun PickerResults(
     if (result.best_effort_exhausted && !bestEffort) {
         Column {
             Text(
-                "No numbers in " +
-                    (effectiveAreaCode ?: "that area code") +
-                    " right now. Nearby area codes usually have plenty.",
+                t(
+                    "settingsMore.noNumbersIn",
+                    "areaCode" to (effectiveAreaCode ?: t("settingsMore.thatAreaCode")),
+                ),
                 style = MaterialTheme.typography.bodyMedium,
             )
             OutlinedButton(
                 onClick = onWiden,
                 enabled = !pending,
                 modifier = Modifier.padding(top = 8.dp),
-            ) { Text("Show nearby numbers") }
+            ) { Text(t("settingsMore.showNearby")) }
         }
         return
     }
@@ -248,11 +263,9 @@ private fun PickerResults(
         Column {
             Text(
                 if (digitFilter.isNotEmpty()) {
-                    "No available number contains \"$digitFilter\". Loosen the filter " +
-                        "or refresh for a new batch."
+                    t("settingsMore.noNumberContains", "digits" to digitFilter)
                 } else {
-                    "No numbers came back. Refresh for a new batch, or try another " +
-                        "area code."
+                    t("settingsMore.noNumbersBack")
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -261,7 +274,7 @@ private fun PickerResults(
                 onClick = onRefresh,
                 enabled = !pending,
                 modifier = Modifier.padding(top = 8.dp),
-            ) { Text("Refresh") }
+            ) { Text(t("settingsMore.refresh")) }
         }
         return
     }
@@ -269,7 +282,7 @@ private fun PickerResults(
     Column {
         if (bestEffort) {
             Text(
-                "Showing nearby numbers. The exact area code is out of stock.",
+                t("settingsMore.showingNearby"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 6.dp),
@@ -304,6 +317,8 @@ private fun PickerResults(
                 }
             }
         }
-        LinkButton(onClick = onRefresh, enabled = !pending) { Text("Refresh the list") }
+        LinkButton(onClick = onRefresh, enabled = !pending) {
+            Text(t("settingsMore.refreshList"))
+        }
     }
 }

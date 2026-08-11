@@ -1,3 +1,14 @@
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
+import {
+  makeTranslate,
+  type MessageKey,
+  type Translate,
+} from "@/i18n/provider";
+
+/** English, for a caller with no provider around it. */
+const EN = makeTranslate(DEFAULT_LOCALE);
+
 /**
  * TCR business verticals (SPEC §4.1 step 3) — the enum values MUST match
  * apps/api/src/telnyx/wizard.ts `TCR_VERTICALS` byte-for-byte (the API
@@ -32,34 +43,49 @@ export const TCR_VERTICALS = [
 
 export type TcrVertical = (typeof TCR_VERTICALS)[number];
 
-export const VERTICAL_LABELS: Record<TcrVertical, string> = {
-  PROFESSIONAL: "Professional & home services",
-  CONSTRUCTION: "Construction & trades",
-  AGRICULTURE: "Agriculture & landscaping",
-  RETAIL: "Retail",
-  HOSPITALITY: "Hospitality, food & travel",
-  REAL_ESTATE: "Real estate & property",
-  HEALTHCARE: "Healthcare & wellness",
-  TRANSPORTATION: "Transportation & moving",
-  EDUCATION: "Education",
-  FINANCIAL: "Financial services",
-  INSURANCE: "Insurance",
-  LEGAL: "Legal",
-  TECHNOLOGY: "Technology",
-  MANUFACTURING: "Manufacturing",
-  ENERGY: "Energy & utilities",
-  COMMUNICATION: "Communications & media",
-  ENTERTAINMENT: "Entertainment & events",
-  HUMAN_RESOURCES: "Staffing & HR",
-  POSTAL: "Postal & delivery",
-  NGO: "Nonprofit",
-  GOVERNMENT: "Government",
-  POLITICAL: "Political",
-  GAMBLING: "Gambling",
+/**
+ * A key per vertical, not a sentence.
+ *
+ * A title-cased enum token is English — "REAL_ESTATE" reads as "Real estate"
+ * and as nothing at all in French — and the person reading this list is picking
+ * their own trade out of it, which is the one thing on this form nobody can be
+ * asked to guess at.
+ */
+const VERTICAL_LABEL_KEYS: Record<TcrVertical, MessageKey> = {
+  PROFESSIONAL: "onboarding.verticalProfessional",
+  CONSTRUCTION: "onboarding.verticalConstruction",
+  AGRICULTURE: "onboarding.verticalAgriculture",
+  RETAIL: "onboarding.verticalRetail",
+  HOSPITALITY: "onboarding.verticalHospitality",
+  REAL_ESTATE: "onboarding.verticalRealEstate",
+  HEALTHCARE: "onboarding.verticalHealthcare",
+  TRANSPORTATION: "onboarding.verticalTransportation",
+  EDUCATION: "onboarding.verticalEducation",
+  FINANCIAL: "onboarding.verticalFinancial",
+  INSURANCE: "onboarding.verticalInsurance",
+  LEGAL: "onboarding.verticalLegal",
+  TECHNOLOGY: "onboarding.verticalTechnology",
+  MANUFACTURING: "onboarding.verticalManufacturing",
+  ENERGY: "onboarding.verticalEnergy",
+  COMMUNICATION: "onboarding.verticalCommunication",
+  ENTERTAINMENT: "onboarding.verticalEntertainment",
+  HUMAN_RESOURCES: "onboarding.verticalHumanResources",
+  POSTAL: "onboarding.verticalPostal",
+  NGO: "onboarding.verticalNgo",
+  GOVERNMENT: "onboarding.verticalGovernment",
+  POLITICAL: "onboarding.verticalPolitical",
+  GAMBLING: "onboarding.verticalGambling",
 };
 
+export function verticalLabel(
+  vertical: TcrVertical,
+  t: Translate = EN,
+): string {
+  return t(VERTICAL_LABEL_KEYS[vertical]);
+}
+
 /** ICP-first ordering: the trades the buyer actually is, then the long tail. */
-export const VERTICAL_OPTIONS: { value: TcrVertical; label: string }[] = [
+const VERTICAL_ORDER: readonly TcrVertical[] = [
   "PROFESSIONAL",
   "CONSTRUCTION",
   "AGRICULTURE",
@@ -83,7 +109,20 @@ export const VERTICAL_OPTIONS: { value: TcrVertical; label: string }[] = [
   "GOVERNMENT",
   "POLITICAL",
   "GAMBLING",
-].map((value) => ({
-  value: value as TcrVertical,
-  label: VERTICAL_LABELS[value as TcrVertical],
-}));
+];
+
+/**
+ * The picker's options, in the reader's language.
+ *
+ * A function rather than the module-level constant this replaces: a constant
+ * is built once, before any locale is known, so it would have pinned whichever
+ * language happened to load the module first for everybody after.
+ */
+export function verticalOptions(
+  t: Translate = EN,
+): { value: TcrVertical; label: string }[] {
+  return VERTICAL_ORDER.map((value) => ({
+    value,
+    label: verticalLabel(value, t),
+  }));
+}

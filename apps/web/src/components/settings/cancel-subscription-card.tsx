@@ -1,6 +1,10 @@
 "use client";
 
-import { CANCELLATION_GRACE_DAYS, cancellationOffer } from "@loonext/shared";
+import {
+  CANCELLATION_GRACE_DAYS,
+  cancellationOffer,
+  DEFAULT_LOCALE,
+} from "@loonext/shared";
 import { Download, ExternalLink } from "lucide-react";
 import { useState } from "react";
 
@@ -15,7 +19,7 @@ import {
   readSaysPaused,
 } from "@/components/settings/pause-read";
 import { SettingsCard } from "@/components/settings/section";
-import { useT } from "@/i18n/provider";
+import { makeTranslate, useT, type MessageKey } from "@/i18n/provider";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -30,19 +34,39 @@ import { ApiError } from "@/lib/api/error";
 import type { CompanyView } from "@/lib/api/types";
 
 /**
+ * #228: English is the DEFAULT on this card, not the only option.
+ *
+ * Every sentence below moved into `i18n/sections/settings.ts`, in both
+ * languages, and the card itself reads the catalogue through `useT()`. The
+ * English is still EXPORTED, because `billing.test.tsx` asserts the shipped
+ * wording — the anchor on the 30-day hold, the absence of an unqualified
+ * "texting stops" — and those guards read a constant rather than a paraphrase.
+ * Rendering with no provider gives English, so they read exactly what they read
+ * before.
+ */
+const EN = makeTranslate(DEFAULT_LOCALE);
+
+/** One answer: the code that gets recorded, and the key its label is read from. */
+function reason<C extends string, K extends MessageKey>(code: C, labelKey: K) {
+  return { code, labelKey, label: EN(labelKey) } as const;
+}
+
+/**
  * The six answers, and the codes stored for them.
  *
  * The label is only what this screen shows; the CODE is what is recorded, and
  * it is the same string on every client so one report counts one thing. Each
- * stays inside the 40 characters the route accepts.
+ * stays inside the 40 characters the route accepts — which is why the code is a
+ * literal here and never derived from the label, whose length now depends on
+ * the reader's language.
  */
 export const CANCELLATION_REASONS = [
-  { code: "too_expensive", label: "Too expensive" },
-  { code: "seasonal", label: "Quiet season, I'll be back" },
-  { code: "missing_feature", label: "Missing something I need" },
-  { code: "switched", label: "Going with something else" },
-  { code: "not_using", label: "Not using it" },
-  { code: "other", label: "Something else" },
+  reason("too_expensive", "settings.cancelReasonTooExpensive"),
+  reason("seasonal", "settings.cancelReasonSeasonal"),
+  reason("missing_feature", "settings.cancelReasonMissingFeature"),
+  reason("switched", "settings.cancelReasonSwitched"),
+  reason("not_using", "settings.cancelReasonNotUsing"),
+  reason("other", "settings.cancelReasonOther"),
 ] as const;
 
 export type CancellationReasonCode =
@@ -97,16 +121,12 @@ const DETAIL_COUNTDOWN_FROM = 200;
  * plan and to the number. One clause carries the paused reader, and it needs no
  * read to be true for either of them.
  */
-export const CANCEL_CONSEQUENCE =
-  "Cancel anytime. Your plan runs to the end of the billing period and does " +
-  "not renew — texting stops then, if it has not stopped already. We hold " +
-  `your number for ${CANCELLATION_GRACE_DAYS} days from the day you cancel, ` +
-  "not from the day the plan ends, so the hold can run out soon afterwards. " +
-  "After that the number is released for good.";
-export const CANCEL_QUESTION = "If you want to say why, it helps us fix it.";
-export const CANCEL_QUESTION_NOTE =
-  "Optional, and it changes nothing about cancelling.";
-export const CANCEL_EXPORT_TITLE = "Take your contacts with you";
+export const CANCEL_CONSEQUENCE = EN("settings.cancelConsequence", {
+  days: CANCELLATION_GRACE_DAYS,
+});
+export const CANCEL_QUESTION = EN("settings.cancelQuestion");
+export const CANCEL_QUESTION_NOTE = EN("settings.cancelQuestionNote");
+export const CANCEL_EXPORT_TITLE = EN("settings.cancelExportTitle");
 /**
  * The first sentence names the columns the CSV actually carries, and all three
  * clients say it identically, because this is a promise made to somebody who is
@@ -118,15 +138,10 @@ export const CANCEL_EXPORT_TITLE = "Take your contacts with you";
  * discover the gap after they have gone, which is the worst moment to find it
  * and the one place we have no way to make it right.
  */
-export const CANCEL_EXPORT_NOTE =
-  "Every contact in this workspace as a CSV: names, numbers, tags and when " +
-  "they opted in. It opens in a spreadsheet and imports into whatever you use " +
-  "next. Yours either way.";
-export const CANCEL_EXPORT_ACTION = "Export contacts";
-export const CANCEL_SKIP_NOTE =
-  "Nothing above has to be filled in. This takes you to Stripe either way, " +
-  "where you finish cancelling.";
-export const CANCEL_ACTION = "Continue to cancel";
+export const CANCEL_EXPORT_NOTE = EN("settings.cancelExportNote");
+export const CANCEL_EXPORT_ACTION = EN("settings.cancelExportAction");
+export const CANCEL_SKIP_NOTE = EN("settings.cancelSkipNote");
+export const CANCEL_ACTION = EN("settings.cancelAction");
 /**
  * The non-owner's version of the consequence copy.
  *
@@ -143,16 +158,10 @@ export const CANCEL_ACTION = "Continue to cancel";
  * #524: and it carries the same qualifier, for the same reason. An admin on a
  * paused workspace is looking at the paused card too.
  */
-export const CANCEL_ADMIN_CONSEQUENCE =
-  "Only the owner can cancel this plan. When they do, the plan runs to the " +
-  "end of the billing period and does not renew — texting stops then, if it " +
-  "has not stopped already. We hold the number for " +
-  `${CANCELLATION_GRACE_DAYS} days from the day they cancel, not from the ` +
-  "day the plan ends, so the hold can run out soon afterwards. After that " +
-  "the number is released for good.";
-export const CANCEL_ADMIN_NOTE =
-  "The payment portal an admin reaches is the card screen and has no " +
-  "cancellation on it, so this is not something to go looking for there.";
+export const CANCEL_ADMIN_CONSEQUENCE = EN("settings.cancelAdminConsequence", {
+  days: CANCELLATION_GRACE_DAYS,
+});
+export const CANCEL_ADMIN_NOTE = EN("settings.cancelAdminNote");
 
 /**
  * #277: asking why, on the way out, without standing in the way.
@@ -232,6 +241,18 @@ export function CancelSubscriptionCard({
   company: CompanyView;
 }) {
   const t = useT();
+  /*
+   * The exit's own label, in the reader's language.
+   *
+   * It deliberately shadows the module constant of the same name. #524's
+   * exit-path guard finds the way out by looking for the JSX element that
+   * MENTIONS the identifier `CANCEL_ACTION` (`exit-path.test.ts`), and walks up
+   * from there to prove nothing on the path to it consults the pause read. The
+   * exit has to keep announcing itself by that name for the guard to keep
+   * proving anything; the module constant stays exactly what it was, the
+   * English, for the tests that assert the shipped sentence.
+   */
+  const CANCEL_ACTION = t("settings.cancelAction");
   const portal = useBillingPortal();
   const record = useRecordCancellationReason();
   const exportContacts = useExportContacts();
@@ -378,9 +399,13 @@ export function CancelSubscriptionCard({
       <SettingsCard title={t("settings.cancelTitle")}>
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            {CANCEL_ADMIN_CONSEQUENCE}
+            {t("settings.cancelAdminConsequence", {
+              days: CANCELLATION_GRACE_DAYS,
+            })}
           </p>
-          <p className="text-sm text-muted-foreground">{CANCEL_ADMIN_NOTE}</p>
+          <p className="text-sm text-muted-foreground">
+            {t("settings.cancelAdminNote")}
+          </p>
         </div>
       </SettingsCard>
     );
@@ -392,14 +417,16 @@ export function CancelSubscriptionCard({
           the card edge is already the container, and a panel inside a panel
           reads as a thing that opened. */}
       <div className="space-y-6">
-        <p className="text-sm text-muted-foreground">{CANCEL_CONSEQUENCE}</p>
+        <p className="text-sm text-muted-foreground">
+          {t("settings.cancelConsequence", { days: CANCELLATION_GRACE_DAYS })}
+        </p>
 
         <div className="space-y-3">
           {/* One muted line, the same voice as the sentence above it. The ask
               and the reassurance are read together, so they are one paragraph
               rather than a heading with a caption under it. */}
           <p className="text-sm text-muted-foreground">
-            {CANCEL_QUESTION} {CANCEL_QUESTION_NOTE}
+            {t("settings.cancelQuestion")} {t("settings.cancelQuestionNote")}
           </p>
 
           <RadioGroup
@@ -410,14 +437,14 @@ export function CancelSubscriptionCard({
             className="gap-2.5"
             aria-label={t("settings.cancelReasonGroupAria")}
           >
-            {CANCELLATION_REASONS.map(({ code, label }) => (
+            {CANCELLATION_REASONS.map(({ code, labelKey }) => (
               <div key={code} className="flex items-center gap-2">
                 <RadioGroupItem value={code} id={`cancel-reason-${code}`} />
                 <Label
                   htmlFor={`cancel-reason-${code}`}
                   className="cursor-pointer text-sm font-normal"
                 >
-                  {label}
+                  {t(labelKey)}
                 </Label>
               </div>
             ))}
@@ -452,8 +479,12 @@ export function CancelSubscriptionCard({
         </div>
 
         <div className="space-y-2">
-          <p className="text-sm font-medium">{CANCEL_EXPORT_TITLE}</p>
-          <p className="text-sm text-muted-foreground">{CANCEL_EXPORT_NOTE}</p>
+          <p className="text-sm font-medium">
+            {t("settings.cancelExportTitle")}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {t("settings.cancelExportNote")}
+          </p>
           <Button
             variant="outline"
             onClick={runExport}
@@ -462,7 +493,7 @@ export function CancelSubscriptionCard({
             <Download strokeWidth={1.75} aria-hidden />
             {exportContacts.isPending
               ? t("settings.cancelExporting")
-              : CANCEL_EXPORT_ACTION}
+              : t("settings.cancelExportAction")}
           </Button>
           {exportError && (
             <p role="alert" className="text-sm text-destructive">
@@ -472,7 +503,9 @@ export function CancelSubscriptionCard({
         </div>
 
         <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">{CANCEL_SKIP_NOTE}</p>
+          <p className="text-sm text-muted-foreground">
+            {t("settings.cancelSkipNote")}
+          </p>
           {/* The only primary button in the card, and the last thing in it.
               Disabled by the in-flight request and by nothing else: an
               unanswered question must never hold the door shut. */}

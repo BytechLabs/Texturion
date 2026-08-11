@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.isWaitingOnRegistration
 import com.loonext.android.core.model.registrationProgress
@@ -96,10 +97,12 @@ fun WhileYouWait(
                     modifier = Modifier.size(18.dp),
                 )
                 Column {
-                    Text("Calls already work", style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        "Your number rings, takes voicemail, and texts back anyone you " +
-                            "miss. None of that waits on the carriers.",
+                        t("inbox.whileWaitCallsWork"),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        t("inbox.whileWaitCallsBody"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -107,9 +110,9 @@ fun WhileYouWait(
             }
 
             // Three, not the whole settings surface.
-            SetupStep("Bring your customers in", onOpenContacts)
-            SetupStep("Invite your crew", onOpenTeam)
-            SetupStep("Set your hours and greeting", onOpenHours)
+            SetupStep(t("inbox.whileWaitContacts"), onOpenContacts)
+            SetupStep(t("inbox.whileWaitInvite"), onOpenTeam)
+            SetupStep(t("inbox.whileWaitHours"), onOpenHours)
         }
     }
 }

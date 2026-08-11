@@ -40,7 +40,7 @@ import {
   enabledCategories,
   filterThreadItems,
   isAllOn,
-  THREAD_CATEGORY_LABELS,
+  threadCategoryLabel,
   threadFilterEmptyCopy,
   type ThreadFilter,
 } from "./thread-filter";
@@ -163,7 +163,7 @@ export function MessageList({
   );
   // #89: mobile chip label — the enabled kinds when a subset is shown.
   const shownCategoriesLabel = enabledCategories(filter)
-    .map((category) => THREAD_CATEGORY_LABELS[category])
+    .map((category) => threadCategoryLabel(category, t))
     .join(", ");
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -500,7 +500,7 @@ export function MessageList({
         {items.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <p className="text-sm text-muted-foreground">
-              {threadFilterEmptyCopy(filter)}
+              {threadFilterEmptyCopy(filter, t)}
             </p>
           </div>
         ) : (

@@ -1,4 +1,10 @@
-import { ALLOWED_IMAGE_TYPES, isAllowedImageType } from "@loonext/shared";
+import {
+  ALLOWED_IMAGE_TYPES,
+  DEFAULT_LOCALE,
+  isAllowedImageType,
+} from "@loonext/shared";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
 /**
  * Client-side note attachment validation (D19 / D28 / APP-FEATURES-V2 §2.4).
  *
@@ -93,24 +99,35 @@ export type AttachmentValidation =
  * failure (G10 — precise, calm, no codes). `currentCount` is the owner's live
  * attachment count so the soft cap is enforced client-side too. An empty file
  * is rejected here (the API 422s an empty upload).
+ *
+ * #228: both LIMITS are interpolated from the constants above rather than
+ * written into each sentence. The size one was already wrong in spirit — "over
+ * 25 MB" was typed out beside a `MAX_ATTACHMENT_BYTES` that decides it — and
+ * two translations each carrying their own number is three places to miss the
+ * day the bucket's ceiling moves.
  */
 export function validateAttachment(
   file: { name?: string; type?: string; size: number },
   currentCount = 0,
+  t: Translate = makeTranslate(DEFAULT_LOCALE),
 ): AttachmentValidation {
   if (currentCount >= MAX_ATTACHMENTS_PER_OWNER) {
     return {
       ok: false,
-      reason: `You can attach up to ${MAX_ATTACHMENTS_PER_OWNER} files here.`,
+      reason: t("thread.attachmentTooMany", {
+        count: MAX_ATTACHMENTS_PER_OWNER,
+      }),
     };
   }
   if (file.size === 0) {
-    return { ok: false, reason: "That file is empty." };
+    return { ok: false, reason: t("thread.attachmentEmpty") };
   }
   if (file.size > MAX_ATTACHMENT_BYTES) {
     return {
       ok: false,
-      reason: "That file is over 25 MB. Try a smaller one.",
+      reason: t("thread.attachmentTooBig", {
+        megabytes: MAX_ATTACHMENT_BYTES / (1024 * 1024),
+      }),
     };
   }
   // Some browsers report an empty type for known-but-unrecognized files; the
@@ -119,10 +136,7 @@ export function validateAttachment(
   // sheet all pass — an .exe does not).
   const declared = file.type ?? "";
   if (declared !== "" && !isAllowedAttachmentType(declared)) {
-    return {
-      ok: false,
-      reason: "That file type isn't allowed. Images, PDFs, and documents only.",
-    };
+    return { ok: false, reason: t("thread.attachmentTypeBlocked") };
   }
   return { ok: true };
 }
@@ -146,11 +160,12 @@ export function partitionAttachmentFiles<
 >(
   incoming: readonly T[],
   currentCount = 0,
+  t: Translate = makeTranslate(DEFAULT_LOCALE),
 ): { accepted: T[]; rejected: RejectedAttachmentFile<T>[] } {
   const accepted: T[] = [];
   const rejected: RejectedAttachmentFile<T>[] = [];
   for (const file of incoming) {
-    const check = validateAttachment(file, currentCount + accepted.length);
+    const check = validateAttachment(file, currentCount + accepted.length, t);
     if (check.ok) accepted.push(file);
     else rejected.push({ file, reason: check.reason });
   }

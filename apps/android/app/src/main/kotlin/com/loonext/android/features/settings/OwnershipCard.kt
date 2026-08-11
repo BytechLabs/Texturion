@@ -29,6 +29,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Member
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
@@ -65,13 +68,16 @@ fun OwnershipCard(
     var codeRejected by remember { mutableStateOf(false) }
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    // Every sentence below that names somebody is written from a coroutine, so
+    // the reader's language is read here and carried into them.
+    val locale = LocalAppLocale.current
 
     val others = members.filter {
         it.deactivated_at == null && it.id != state.owner_member_id
     }
     fun nameOf(memberId: String?): String =
         members.firstOrNull { it.id == memberId }?.display_name?.ifBlank { null }
-            ?: "a teammate"
+            ?: AppStrings.translate(locale, "settingsMore.aTeammate")
 
     fun run(label: String, block: suspend () -> Ownership) {
         busy = true
@@ -147,9 +153,8 @@ fun OwnershipCard(
     }
 
     SettingsCard(
-        title = "Ownership",
-        description = "The owner controls billing, the spending cap, and your numbers. " +
-            "Only they can hand that on.",
+        title = t("settingsMore.ownershipTitle"),
+        description = t("settingsMore.ownershipDesc"),
     ) {
         val pending = state.pending
         if (pending != null) {
@@ -163,13 +168,13 @@ fun OwnershipCard(
                     attempt(
                         HandoverProof(
                             action = "accept",
-                            label = "You now own this workspace.",
+                            label = AppStrings.translate(locale, "settingsMore.nowOwn"),
                         ) { code -> scope.repo.acceptOwnership(scope.companyId, code) },
                         null,
                     )
                 },
                 onCancel = {
-                    run("Stopped. Nothing changed hands.") {
+                    run(AppStrings.translate(locale, "settingsMore.handoverStopped")) {
                         scope.repo.cancelOwnershipTransfer(scope.companyId)
                     }
                 },
@@ -179,13 +184,17 @@ fun OwnershipCard(
 
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Owner",
+                t("settingsMore.owner"),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
             Text(
-                if (state.i_am_owner) "You" else nameOf(state.owner_member_id),
+                if (state.i_am_owner) {
+                    t("settingsMore.you")
+                } else {
+                    nameOf(state.owner_member_id)
+                },
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -197,38 +206,38 @@ fun OwnershipCard(
 
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Backup owner",
+                    t("settingsMore.backupOwner"),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f),
                 )
                 if (state.backup_member_id == null) {
-                    StatusPill("Nobody named", PillTone.Warn)
+                    StatusPill(t("settingsMore.nobodyNamed"), PillTone.Warn)
                 }
             }
             Spacer(Modifier.height(4.dp))
             // Loss aversion, stated once and plainly: this is the difference
             // between a bad week and a business nobody can run.
-            ReadOnlyLine(
-                "If you ever can't get in — you lose your email, or worse — this is the " +
-                    "one person who can ask to take over. They wait a week, you can stop " +
-                    "it with one click, and everyone gets told. Nothing changes today.",
-            )
+            ReadOnlyLine(t("settingsMore.backupOwnerExplain"))
             Spacer(Modifier.height(8.dp))
             if (others.isEmpty()) {
-                ReadOnlyLine("Invite someone first — a backup has to be on the team.")
+                ReadOnlyLine(t("settingsMore.inviteBackupFirst"))
             } else {
                 MemberPicker(
                     label = members.firstOrNull { it.id == state.backup_member_id }
-                        ?.display_name?.ifBlank { null } ?: "Nobody",
+                        ?.display_name?.ifBlank { null } ?: t("settingsMore.nobody"),
                     members = others,
                     includeNobody = true,
                     enabled = !busy,
                 ) { picked ->
                     run(
                         if (picked == null) {
-                            "Backup owner cleared."
+                            AppStrings.translate(locale, "settingsMore.backupCleared")
                         } else {
-                            "${nameOf(picked.id)} is your backup owner."
+                            AppStrings.translate(
+                                locale,
+                                "settingsMore.backupSet",
+                                mapOf("name" to nameOf(picked.id)),
+                            )
                         },
                     ) { scope.repo.setBackupOwner(scope.companyId, picked?.id) }
                 }
@@ -238,12 +247,16 @@ fun OwnershipCard(
                 Spacer(Modifier.height(14.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(Modifier.height(14.dp))
-                Text("Hand the workspace over", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    t("settingsMore.handOverTitle"),
+                    style = MaterialTheme.typography.titleSmall,
+                )
                 Spacer(Modifier.height(4.dp))
-                ReadOnlyLine("They have to accept. You stay on the team as an admin.")
+                ReadOnlyLine(t("settingsMore.handOverNote"))
                 Spacer(Modifier.height(8.dp))
                 MemberPicker(
-                    label = offerTo?.display_name?.ifBlank { null } ?: "Choose a teammate",
+                    label = offerTo?.display_name?.ifBlank { null }
+                        ?: t("settingsMore.chooseTeammate"),
                     members = others,
                     includeNobody = false,
                     enabled = !busy,
@@ -254,7 +267,7 @@ fun OwnershipCard(
                     enabled = !busy && offerTo != null,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Hand it over")
+                    Text(t("settingsMore.handItOver"))
                 }
             }
         }
@@ -263,19 +276,19 @@ fun OwnershipCard(
             Spacer(Modifier.height(14.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(Modifier.height(14.dp))
-            Text("You are the backup owner", style = MaterialTheme.typography.titleSmall)
-            Spacer(Modifier.height(4.dp))
-            ReadOnlyLine(
-                "If the owner can't act, you can ask to take over. They get a week to " +
-                    "stop it, and everyone on the team is told straight away.",
+            Text(
+                t("settingsMore.youAreBackup"),
+                style = MaterialTheme.typography.titleSmall,
             )
+            Spacer(Modifier.height(4.dp))
+            ReadOnlyLine(t("settingsMore.claimExplain"))
             Spacer(Modifier.height(8.dp))
             OutlinedButton(
                 onClick = { confirming = HandoverKind.CLAIM },
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Ask to take over")
+                Text(t("settingsMore.askTakeOver"))
             }
         }
     }
@@ -285,12 +298,14 @@ fun OwnershipCard(
     // before they press it.
     when (confirming) {
         HandoverKind.OFFER -> ConfirmDialog(
-            title = "Hand this workspace to ${offerTo?.display_name?.ifBlank { null } ?: "them"}?",
-            body = "Nothing changes until they accept. When they do, they control " +
-                "billing, the spending cap, and your numbers — and you stay on the team " +
-                "as an admin. You can cancel any time before they accept, and everyone " +
-                "will be told either way.",
-            confirmLabel = "Offer it",
+            title = t(
+                "settingsMore.handToTitle",
+                "name" to (
+                    offerTo?.display_name?.ifBlank { null } ?: t("settingsMore.them")
+                    ),
+            ),
+            body = t("settingsMore.handOverBody"),
+            confirmLabel = t("settingsMore.offerIt"),
             pending = busy,
             error = actionError,
             onDismiss = { confirming = null },
@@ -299,7 +314,11 @@ fun OwnershipCard(
                 attempt(
                     HandoverProof(
                         action = "offer",
-                        label = "Offered to ${nameOf(target.id)}. They have 7 days to accept.",
+                        label = AppStrings.translate(
+                            locale,
+                            "settingsMore.offeredTo",
+                            mapOf("name" to nameOf(target.id)),
+                        ),
                     ) { code ->
                         scope.repo.offerOwnership(scope.companyId, target.id, code)
                     },
@@ -309,12 +328,9 @@ fun OwnershipCard(
         )
 
         HandoverKind.CLAIM -> ConfirmDialog(
-            title = "Ask to take over this workspace?",
-            body = "The owner will be emailed straight away and can stop this with one " +
-                "click for the next 7 days. Everyone on the team is told too. If nobody " +
-                "stops it, you can complete the takeover after 7 days. Only do this if " +
-                "the owner genuinely cannot act.",
-            confirmLabel = "Ask to take over",
+            title = t("settingsMore.claimTitle"),
+            body = t("settingsMore.claimBody"),
+            confirmLabel = t("settingsMore.askTakeOver"),
             pending = busy,
             error = actionError,
             onDismiss = { confirming = null },
@@ -322,7 +338,7 @@ fun OwnershipCard(
                 attempt(
                     HandoverProof(
                         action = "claim",
-                        label = "Asked. The owner has 7 days to stop it.",
+                        label = AppStrings.translate(locale, "settingsMore.claimAsked"),
                     ) { code -> scope.repo.claimOwnership(scope.companyId, code) },
                     null,
                 )
@@ -344,7 +360,9 @@ fun OwnershipCard(
                         scope.repo.requestHandoverCode(scope.companyId, pending.action)
                     }
                     // Said either way. Whether an address exists is not ours to leak.
-                    scope.showMessage("Sent. Check your email.")
+                    scope.showMessage(
+                        AppStrings.translate(locale, "settingsMore.codeSent"),
+                    )
                 }
             },
             onDismiss = {
@@ -404,9 +422,9 @@ private fun PendingHandoverNotice(
                             Button(onClick = onAccept, enabled = !busy) {
                                 Text(
                                     if (pending.kind == HandoverKind.OFFER) {
-                                        "Accept ownership"
+                                        t("settingsMore.acceptOwnership")
                                     } else {
-                                        "Complete the takeover"
+                                        t("settingsMore.completeTakeover")
                                     },
                                 )
                             }
@@ -444,10 +462,11 @@ private fun MemberPicker(
         ) {
             Text(label)
         }
+        val fallbackName = t("settingsMore.aTeammateCapital")
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             if (includeNobody) {
                 DropdownMenuItem(
-                    text = { Text("Nobody") },
+                    text = { Text(t("settingsMore.nobody")) },
                     onClick = {
                         open = false
                         onPick(null)
@@ -456,7 +475,7 @@ private fun MemberPicker(
             }
             members.forEach { member ->
                 DropdownMenuItem(
-                    text = { Text(member.display_name.ifBlank { "A teammate" }) },
+                    text = { Text(member.display_name.ifBlank { fallbackName }) },
                     onClick = {
                         open = false
                         onPick(member)

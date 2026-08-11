@@ -51,6 +51,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.TextButton
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.features.contacts.device.DialerMatch
@@ -204,14 +207,16 @@ fun DialerSheet(
         }
     }
 
+    // #228: the permission-result callback is not composition, so the
+    // sentence it may set is resolved from a locale read here.
+    val locale = LocalAppLocale.current
     val micLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
         if (granted) {
             placeCall()
         } else {
-            error = "Loonext needs the microphone to place calls. " +
-                "Allow it in Settings › Apps › Loonext › Permissions."
+            error = AppStrings.translate(locale, "contactsTasks.micNeeded")
         }
     }
 
@@ -249,7 +254,10 @@ fun DialerSheet(
                     ) {
                         numbers.forEach { number ->
                             FromNumberPill(
-                                label = "From ${formatPhone(number.number_e164)}",
+                                label = t(
+                                    "contactsTasks.fromNumber",
+                                    "number" to formatPhone(number.number_e164),
+                                ),
                                 selected = fromId == number.id,
                                 onClick = {
                                     haptics.tap()
@@ -261,7 +269,10 @@ fun DialerSheet(
                 } else {
                     numbers.firstOrNull()?.let { number ->
                         LineStatusRow(
-                            text = "Line ready · ${formatPhone(number.number_e164)}",
+                            text = t(
+                                "contactsTasks.lineReady",
+                                "number" to formatPhone(number.number_e164),
+                            ),
                             dot = BrandColor.LimeBright,
                             textColor = MaterialTheme.colorScheme.secondary,
                             modifier = Modifier.padding(bottom = 6.dp),
@@ -270,7 +281,11 @@ fun DialerSheet(
                 }
 
                 Text(
-                    if (digits.isEmpty()) "Enter a number" else formatAsYouDial(digits),
+                    if (digits.isEmpty()) {
+                        t("contactsTasks.enterANumber")
+                    } else {
+                        formatAsYouDial(digits)
+                    },
                     style = MaterialTheme.typography.headlineMedium.copy(
                         fontSize = 31.sp * scale,
                         letterSpacing = 0.01.em,
@@ -305,7 +320,7 @@ fun DialerSheet(
                         // #183 part 2: the clear rationale + opt-in when device
                         // correlation is off. Tapping re-requests READ_CONTACTS.
                         onDeviceContactsGranted != null && !deviceContactsGranted -> Text(
-                            "Match names from your contacts",
+                            t("contactsTasks.matchNamesFromContacts"),
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontSize = 12.5.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -396,7 +411,7 @@ fun DialerSheet(
                             ) {
                                 Icon(
                                     Icons.AutoMirrored.Outlined.Message,
-                                    contentDescription = "Send a message instead",
+                                    contentDescription = t("contactsTasks.sendMessageInstead"),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
@@ -429,7 +444,7 @@ fun DialerSheet(
                             } else {
                                 Icon(
                                     Icons.Outlined.Call,
-                                    contentDescription = "Call",
+                                    contentDescription = t("contactsTasks.call"),
                                     modifier = Modifier.size(26.dp * scale),
                                 )
                             }
@@ -446,7 +461,7 @@ fun DialerSheet(
                         ) {
                             Icon(
                                 Icons.AutoMirrored.Outlined.Backspace,
-                                contentDescription = "Delete last digit",
+                                contentDescription = t("contactsTasks.deleteLastDigit"),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
@@ -476,7 +491,7 @@ fun DialerSheet(
                                     modifier = Modifier.size(17.dp),
                                 )
                                 Text(
-                                    "Contacts",
+                                    t("contactsTasks.contactsTitle"),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.padding(start = 6.dp),
@@ -494,7 +509,7 @@ fun DialerSheet(
                                 onOpenContact(openId)
                             }) {
                                 Text(
-                                    "Open contact",
+                                    t("contactsTasks.openContact"),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
                                 )
@@ -512,7 +527,7 @@ fun DialerSheet(
                                     modifier = Modifier.size(17.dp),
                                 )
                                 Text(
-                                    "Add contact",
+                                    t("contactsTasks.addContact"),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.padding(start = 6.dp),
@@ -562,7 +577,10 @@ private fun DialerBodyPreview() {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 LineStatusRow(
-                    text = "Line ready · (415) 555-0134",
+                    text = t(
+                        "contactsTasks.lineReady",
+                        "number" to "(415) 555-0134",
+                    ),
                     dot = BrandColor.LimeBright,
                     textColor = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.padding(bottom = 6.dp),
@@ -614,7 +632,7 @@ private fun DialerBodyPreview() {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 Icons.Outlined.Call,
-                                contentDescription = "Call",
+                                contentDescription = t("contactsTasks.call"),
                                 modifier = Modifier.size(26.dp * scale),
                             )
                         }
@@ -623,7 +641,7 @@ private fun DialerBodyPreview() {
                         IconButton(onClick = {}) {
                             Icon(
                                 Icons.AutoMirrored.Outlined.Backspace,
-                                contentDescription = "Delete last digit",
+                                contentDescription = t("contactsTasks.deleteLastDigit"),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }

@@ -25,6 +25,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ScheduledMessage
 import com.loonext.android.core.scheduled.ScheduledSend
 import com.loonext.android.features.compose.NoteAmber
@@ -73,7 +76,7 @@ fun ScheduledSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         Text(
-            "Scheduled",
+            t("inbox.scheduledTitle"),
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
         )
@@ -92,14 +95,14 @@ fun ScheduledSheet(
 
         LazyColumn {
             if (held.isNotEmpty()) {
-                item { ScheduledSectionLabel("Needs you") }
+                item { ScheduledSectionLabel(t("inbox.scheduledNeedsYou")) }
                 items(held, key = { it.id }) { row ->
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     ScheduledSheetRow(row, onOpenConversation, onCancel)
                 }
             }
             if (pending.isNotEmpty()) {
-                item { ScheduledSectionLabel("Going out") }
+                item { ScheduledSectionLabel(t("inbox.scheduledGoingOut")) }
                 items(pending, key = { it.id }) { row ->
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     ScheduledSheetRow(row, onOpenConversation, onCancel)
@@ -155,7 +158,7 @@ private fun ScheduledSheetRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    scheduledRecipient(row),
+                    scheduledRecipient(row, LocalAppLocale.current),
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.Medium,
@@ -165,7 +168,7 @@ private fun ScheduledSheetRow(
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    if (held) "Waiting" else sendAtOf(row),
+                    if (held) t("inbox.scheduledWaiting") else sendAtOf(row),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
                     color = if (held) {
                         NoteAmber.ink()
@@ -205,7 +208,7 @@ private fun ScheduledSheetRow(
             haptics.tap()
             onCancel(row.id)
         }) {
-            Text("Cancel", style = MaterialTheme.typography.labelMedium)
+            Text(t("common.cancel"), style = MaterialTheme.typography.labelMedium)
         }
     }
 }
@@ -217,8 +220,9 @@ private fun ScheduledSheetRow(
  * texts to DIFFERENT people and a list of bodies with no names is the surprise
  * #233 asks us to prevent rather than the answer to it.
  */
-internal fun scheduledRecipient(row: ScheduledMessage): String {
-    val contact = row.conversations?.contacts ?: return "This conversation"
+internal fun scheduledRecipient(row: ScheduledMessage, locale: String): String {
+    val contact = row.conversations?.contacts
+        ?: return AppStrings.translate(locale, "inbox.scheduledThisConversation")
     val name = contact.name?.trim()
     return if (!name.isNullOrEmpty()) name else formatE164(contact.phone_e164)
 }

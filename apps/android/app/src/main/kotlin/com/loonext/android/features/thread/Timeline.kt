@@ -1,5 +1,6 @@
 package com.loonext.android.features.thread
 
+import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.model.ConversationEvent
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Message
@@ -126,6 +127,12 @@ fun buildTimeline(
     allMessagesLoaded: Boolean,
     zone: ZoneId,
     today: LocalDate,
+    /**
+     * #228: the reader's language, for the day dividers this builds. Defaults to
+     * English so the pure callers — and the tests that pin the divider text —
+     * read exactly as they did; the screen passes `LocalAppLocale.current`.
+     */
+    locale: String? = null,
 ): List<TimelineItem> {
     val oldestMessageAt = messages.lastOrNull()?.created_at
     val shownEvents =
@@ -169,13 +176,23 @@ fun buildTimeline(
     for (item in withPending) {
         val day = localDayOf(item.createdAt, zone) ?: continue
         if (currentDay != null && day != currentDay) {
-            out.add(TimelineItem.DayDivider(dayLabel(currentDay, today), currentDay.toString()))
+            out.add(
+                TimelineItem.DayDivider(
+                    dayLabel(currentDay, today, locale),
+                    currentDay.toString(),
+                ),
+            )
         }
         currentDay = day
         out.add(item)
     }
     if (currentDay != null) {
-        out.add(TimelineItem.DayDivider(dayLabel(currentDay, today), currentDay.toString()))
+        out.add(
+            TimelineItem.DayDivider(
+                dayLabel(currentDay, today, locale),
+                currentDay.toString(),
+            ),
+        )
     }
     return out
 }
@@ -186,9 +203,9 @@ fun localDayOf(iso: String, zone: ZoneId): LocalDate? =
 private val SAME_YEAR_DAY = DateTimeFormatter.ofPattern("EEE, MMM d")
 private val OTHER_YEAR_DAY = DateTimeFormatter.ofPattern("MMM d, yyyy")
 
-fun dayLabel(day: LocalDate, today: LocalDate): String = when {
-    day == today -> "Today"
-    day == today.minusDays(1) -> "Yesterday"
+fun dayLabel(day: LocalDate, today: LocalDate, locale: String? = null): String = when {
+    day == today -> AppStrings.translate(locale, "thread.dayToday")
+    day == today.minusDays(1) -> AppStrings.translate(locale, "thread.dayYesterday")
     day.year == today.year -> day.format(SAME_YEAR_DAY)
     else -> day.format(OTHER_YEAR_DAY)
 }
@@ -378,18 +395,27 @@ private fun mediaRefusedLine(event: ConversationEvent): String =
             "A file this customer sent can't be shown here — ask them to send a photo or a PDF"
     }
 
-fun statusLabel(status: String): String = when (status) {
-    "new" -> "New"
-    "open" -> "Open"
-    "waiting" -> "Waiting"
-    "closed" -> "Closed"
+fun statusLabel(status: String, locale: String? = null): String = when (status) {
+    "new" -> AppStrings.translate(locale, "thread.statusNew")
+    "open" -> AppStrings.translate(locale, "thread.statusOpen")
+    "waiting" -> AppStrings.translate(locale, "thread.statusWaiting")
+    "closed" -> AppStrings.translate(locale, "thread.statusClosed")
     else -> status.replaceFirstChar { it.uppercase() }
 }
 
-/** display_name lookup for event lines + assignee UI. */
-fun memberNames(members: List<Member>): Map<String, String> =
+/**
+ * display_name lookup for event lines + assignee UI.
+ *
+ * [unnamed] is what somebody with a blank display name is called. Passed in
+ * rather than looked up, because this is a pure function and the word is the
+ * reader's; it defaults to English so the existing callers are unchanged.
+ */
+fun memberNames(
+    members: List<Member>,
+    unnamed: String = "Teammate",
+): Map<String, String> =
     members.associate { member ->
-        member.user_id to member.display_name.ifBlank { "Teammate" }
+        member.user_id to member.display_name.ifBlank { unnamed }
     }
 
 /**

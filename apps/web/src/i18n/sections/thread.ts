@@ -362,6 +362,26 @@ export const threadEn = {
   whySnoozingAria: "Why you are snoozing this",
   remindMe: "Remind me",
   snooze: "Snooze",
+  /*
+   * The return time, in two halves.
+   *
+   * The WHEN-clause is built first and a whole LEAD sentence wraps it, rather
+   * than one label having its first word swapped out
+   * (`label.replace(/^Back/, "Chase")`). That splice is a rule about English
+   * grammar written in a regex: it does nothing at all once the label is
+   * French, and it fails silently — the chip keeps saying "back" where it means
+   * "chase" and nothing in the type system notices.
+   */
+  snoozeWhenAt: "at {time}",
+  snoozeWhenTomorrow: "tomorrow, {time}",
+  snoozeWhenWeekday: "{weekday}, {time}",
+  snoozeWhenDate: "{date}",
+  snoozeLeadBack: "Back {when}",
+  snoozeLeadChase: "Chase {when}",
+  snoozeLeadSnoozedToast: "Snoozed — back {when}",
+  snoozeLeadRemindToast: "I'll remind you — back {when}",
+  /** A stored return time this build cannot read. Never a blank chip. */
+  snoozedFallback: "Snoozed",
 
   // --- The thread header and its menus (thread-header.tsx) ------------------
   backToInbox: "Back to inbox",
@@ -424,6 +444,219 @@ export const threadEn = {
 
   // --- In-thread filter (thread-filter-bar.tsx) -----------------------------
   showInConversationAria: "Show in conversation",
+  categoryMessages: "Messages",
+  categoryNotes: "Notes",
+  categoryEvents: "Events",
+
+  // --- The empty timeline, per filter (thread-filter.ts) --------------------
+  emptyAll: "No messages yet. Say hello below.",
+  emptyMessages: "No messages yet.",
+  emptyNotes: "No internal notes on this conversation.",
+  emptyEvents: "Nothing has happened on this conversation yet.",
+  emptyFiltered: "Nothing to show with the current filters.",
+
+  // --- Done, on one message (done.ts) ---------------------------------------
+  markDone: "Mark done",
+  markNotDone: "Mark not done",
+  /** The §4.3 excerpt for a message whose body is only an attachment (#189). */
+  doneExcerptAttachment: "an attachment",
+  /** …and for one the timeline could not join a live body for. */
+  doneExcerptMessage: "a message",
+  doneMarkedDone: "{by} marked {excerpt} done",
+  doneMarkedNotDone: "{by} marked {excerpt} not done",
+  doneBadgeWithName: "Done · {name} · {time}",
+  doneBadge: "Done · {time}",
+
+  // --- Timeline system lines (system-line.tsx) ------------------------------
+  /*
+   * Every actor is INTERPOLATED rather than concatenated. `{by}` at the front of
+   * an English sentence is not where every language puts its subject, and a
+   * catalogue that hands the translator "closed this conversation" with the name
+   * glued on outside is a catalogue that cannot be translated.
+   */
+  sysClosed: "{by} closed this conversation",
+  sysReopened: "{by} reopened this conversation",
+  sysMarkedStatus: "{by} marked this {status}",
+  sysStatusChanged: "{by} changed the status",
+  sysUnassigned: "{by} unassigned this conversation",
+  sysAssignedTo: "{by} assigned this to {name}",
+  sysAssigned: "{by} assigned this conversation",
+  sysTagAdded: "{by} added the tag “{name}”",
+  sysTagAddedGeneric: "{by} added a tag",
+  sysTagRemoved: "{by} removed a tag",
+  sysOptedOutBy: "{name} marked this customer as opted out",
+  sysOptedOut: "Opted out of texting",
+  sysOptedInBy: "{name} marked this customer as opted in",
+  sysOptedIn: "Opted back in",
+  sysConsentAttested: "{by} recorded that this customer asked to be texted",
+  sysQuietHours: "{by} sent during this customer's quiet hours",
+  sysSpamMarked: "{by} marked this conversation as spam",
+  sysSpamUnmarked: "{by} unmarked spam",
+  sysTaskUpdated: "{by} updated a task",
+  sysNoteAttachmentAdded: "{by} attached a file to a note",
+  sysNoteAttachmentRemoved: "{by} removed a file from a note",
+  // #317: a file we would not store. Every arm ends in what to DO about it,
+  // because that is the only part the crew can act on between jobs.
+  /*
+   * THE SEVEN REFUSAL SENTENCES BELOW ARE ONE LITERAL EACH, DELIBERATELY
+   * OVER-LONG.
+   *
+   * `components/thread/media-refused-parity.test.ts` compares them to the
+   * Kotlin and Swift ports with a verbatim `includes`, so a `"…" + "…"` wrap —
+   * which reads better, and which this file uses everywhere else — splits the
+   * sentence in the source and the guard reports web as the client that
+   * reworded it. Prettier does not break string literals, so leaving them long
+   * is stable. (The same trap, and the same answer, as the first-run hints in
+   * `sections/inbox.ts`.)
+   */
+  sysMediaTooLarge:
+    "A file this customer sent was too big to save — ask them to send a smaller one",
+  sysMediaEmpty:
+    "A file this customer sent arrived empty — ask them to send it again",
+  sysMediaTypeMismatch:
+    "A file this customer sent wasn't the kind of file it claimed to be, so it wasn't saved",
+  sysMediaUnsafe:
+    "A file this customer sent had something unsafe inside it, so it wasn't saved — ask them for a photo or a plain PDF",
+  sysMediaUnreadable:
+    "A file this customer sent couldn't be checked, so it wasn't saved — ask them to send it again",
+  sysMediaTooManyKept:
+    "This message came with more files than we can save — the first {kept} were kept",
+  sysMediaTooMany: "This message came with more files than we can save",
+  sysMediaUnsupported:
+    "A file this customer sent can't be shown here — ask them to send a photo or a PDF",
+  sysMissedCallTextBack:
+    "This customer called and no one picked up, so we texted them back",
+  sysCalledNoAnswer: "Called, no answer",
+  sysYouCalled: "You called",
+  sysTransferredBy: "{from} transferred the call to {to}",
+  sysTransferredTo: "Call transferred to {to}",
+  sysTransferred: "Call transferred",
+  sysLeftVoicemail: "Left a voicemail",
+  sysWentToVoicemail: "Call went to voicemail",
+  sysMissedCall: "Missed call",
+  sysAnsweredBy: "Call answered by {name}",
+  sysAnswered: "Call answered",
+  /** A call line and how long it lasted, joined. */
+  sysWithDuration: "{line} · {duration}",
+  openTheTaskAria: "{sentence}. Open the task",
+  goToThatMessageAria: "{sentence}. Go to that message",
+
+  // --- Dictating a wrap-up: why the mic did not open (use-wrap-up-recorder) --
+  micNotFound:
+    "No microphone found. Connect or enable one, then try again — or type " +
+    "the note.",
+  micBlocked:
+    "Microphone access is blocked. Allow it for this site from your browser's " +
+    "address bar, then try again — or type the note.",
+  micBusy:
+    "Your microphone is busy in another app. Close it and try again, or type " +
+    "the note.",
+  micUnreachable:
+    "Couldn't reach your microphone. Check your browser's mic permission, or " +
+    "type the note.",
+  micNoRecorder:
+    "This browser can't record audio. Try a recent Chrome, Edge, Firefox, or " +
+    "Safari — or type the note.",
+  micStartFailed:
+    "This browser couldn't start recording. Type the note instead — it saves " +
+    "the same way.",
+  micNothingRecorded:
+    "Nothing was recorded. Check your microphone and try again, or type the " +
+    "note.",
+  micTooBig:
+    "That recording was too big to send. Keep a wrap-up to a sentence or " +
+    "three, or type it.",
+  micStoppedUnexpectedly:
+    "The recording stopped unexpectedly. Try again, or type the note.",
+
+  /* ── Lou's refusals, written where they are built ─────────────────────────
+     `lib/api/thread-summary.ts`, `lib/api/reply-suggestions.ts` and
+     `lib/api/wrap-up-transcript.ts` each turn a `reason` from the shared AI
+     gate into ONE sentence. Every branch says what happened AND leaves the
+     reader holding the thing that always works — the thread itself, or a
+     keyboard. Lou is a name and is never translated. */
+
+  /** Said by all three features, deliberately in the same words (#581). */
+  louPausedForBilling:
+    "Lou is paused while the subscription is sorted out. An owner can fix " +
+    "that in Billing.",
+  /** Shared by the catch-up and the drafts; dictation has its own below. */
+  louUnreachable: "Couldn't reach Lou just now. Try again.",
+
+  // The catch-up's eight refusals (thread-summary.ts).
+  catchUpDisabled:
+    "Catch-ups are turned off for this workspace. Settings, Lou turns them " +
+    "back on.",
+  catchUpSpam:
+    "This thread is marked as spam, so Lou skips it. Unmark it to get a " +
+    "catch-up.",
+  catchUpTooShort:
+    "There isn't enough here to catch up on yet — the thread is quicker to " +
+    "read.",
+  catchUpRateLimited: "That was a lot of catch-ups at once. Try again in a moment.",
+  catchUpOverCap:
+    "This month's catch-ups are used up. They start again next month — the " +
+    "thread is all still here.",
+  catchUpUnusable:
+    "Lou couldn't point at the messages behind what it read, so there's " +
+    "nothing to show. The thread is still the record.",
+  catchUpNone: "No catch-up this time. Try again.",
+  // …and what to say when the REQUEST never landed, which is a different event.
+  catchUpOffline:
+    "That didn't get through. Check your connection and try again — the " +
+    "thread is all still here.",
+  catchUpForbidden:
+    "Catch-ups aren't part of what your role can do here. An owner can change " +
+    "that, and the thread is all still here to read.",
+  catchUpGone:
+    "Lou can't open this thread any more. Reload the inbox to see what's " +
+    "still there.",
+  catchUpPaused: "Catch-ups are paused for a moment. Try again shortly.",
+  catchUpFailed: "Lou couldn't do that just now. The thread is all still here.",
+
+  // Reply drafts (reply-suggestions.ts).
+  draftsDisabled:
+    "Drafting is turned off for this workspace. Settings, AI turns it back on.",
+  draftsSpam:
+    "This thread is marked as spam, so Lou skips it. Unmark it to draft a " +
+    "reply.",
+  draftsNothingToReply: "Nothing to reply to yet. Type a few words and try again.",
+  draftsOverCap: "This month's drafting is used up. It starts again next month.",
+  draftsRateLimited: "That was a lot of drafts at once. Try again in a moment.",
+  draftsUnusable:
+    "Nothing came back worth sending. Try again, or add a few words first.",
+  draftsNone: "No drafts this time. Try again.",
+
+  // Dictating a wrap-up (wrap-up-transcript.ts). Typing is always the way out.
+  wrapUpTooLong:
+    "That recording was too long to write down. Keep a wrap-up under " +
+    "{minutes} minutes, or type it.",
+  wrapUpDisabled:
+    "Dictation is turned off for this workspace. Type the note, or turn it " +
+    "back on in Settings, Lou.",
+  wrapUpOverCap:
+    "This month's dictation is used up. It starts again next month — type the " +
+    "note for now.",
+  wrapUpUnreachable: "Couldn't reach Lou just now. Try again, or type the note.",
+  wrapUpUnusable:
+    "Nothing came back that could be read. Say it again, closer to the mic, " +
+    "or type it.",
+  wrapUpFailed: "That didn't come back as words. Type the note instead.",
+
+  /* ── Sending, and what a file is allowed to be ────────────────────────────
+     `lib/api/messages.ts`, `lib/api/scheduled-messages.ts`,
+     `lib/attachments/validate.ts`, `lib/attachments/upload-chain.ts`. The
+     numbers are interpolated rather than written into the sentence: the
+     ceiling lives beside the API's copy of it, and a translated sentence
+     carrying its own "25" would drift the day that changes. */
+  retrySendFailed: "Couldn't retry that message. Try again.",
+  scheduledCancelled: "Cancelled. That text will not go out.",
+  attachmentTooMany: "You can attach up to {count} files here.",
+  attachmentEmpty: "That file is empty.",
+  attachmentTooBig: "That file is over {megabytes} MB. Try a smaller one.",
+  attachmentTypeBlocked:
+    "That file type isn't allowed. Images, PDFs, and documents only.",
+  attachmentUploadFailed: "That file didn't upload. Try again.",
 } as const;
 
 /**
@@ -789,6 +1022,15 @@ export const threadFr: Translated<typeof threadEn> = {
   whySnoozingAria: "Pourquoi vous reportez cette conversation",
   remindMe: "Me rappeler",
   snooze: "Reporter",
+  snoozeWhenAt: "à {time}",
+  snoozeWhenTomorrow: "demain, {time}",
+  snoozeWhenWeekday: "{weekday}, {time}",
+  snoozeWhenDate: "le {date}",
+  snoozeLeadBack: "De retour {when}",
+  snoozeLeadChase: "Relancer {when}",
+  snoozeLeadSnoozedToast: "Reportée — de retour {when}",
+  snoozeLeadRemindToast: "Je vous le rappellerai — de retour {when}",
+  snoozedFallback: "Reportée",
 
   // --- The thread header and its menus --------------------------------------
   backToInbox: "Retour à la boîte de réception",
@@ -851,4 +1093,198 @@ export const threadFr: Translated<typeof threadEn> = {
 
   // --- In-thread filter -----------------------------------------------------
   showInConversationAria: "Afficher dans la conversation",
+  categoryMessages: "Messages",
+  categoryNotes: "Notes",
+  categoryEvents: "Événements",
+
+  // --- The empty timeline, per filter ---------------------------------------
+  emptyAll: "Aucun message pour l'instant. Dites bonjour ci-dessous.",
+  emptyMessages: "Aucun message pour l'instant.",
+  emptyNotes: "Aucune note interne sur cette conversation.",
+  emptyEvents: "Rien ne s'est encore passé sur cette conversation.",
+  emptyFiltered: "Rien à afficher avec les filtres actuels.",
+
+  // --- Done, on one message -------------------------------------------------
+  markDone: "Marquer comme fait",
+  markNotDone: "Marquer comme non fait",
+  doneExcerptAttachment: "une pièce jointe",
+  doneExcerptMessage: "un message",
+  doneMarkedDone: "{by} a marqué {excerpt} comme fait",
+  doneMarkedNotDone: "{by} a marqué {excerpt} comme non fait",
+  doneBadgeWithName: "Fait · {name} · {time}",
+  doneBadge: "Fait · {time}",
+
+  // --- Timeline system lines ------------------------------------------------
+  sysClosed: "{by} a fermé cette conversation",
+  sysReopened: "{by} a rouvert cette conversation",
+  sysMarkedStatus: "{by} a marqué celle-ci comme {status}",
+  sysStatusChanged: "{by} a changé le statut",
+  sysUnassigned: "{by} a retiré l'assignation de cette conversation",
+  sysAssignedTo: "{by} a assigné celle-ci à {name}",
+  sysAssigned: "{by} a assigné cette conversation",
+  sysTagAdded: "{by} a ajouté l'étiquette « {name} »",
+  sysTagAddedGeneric: "{by} a ajouté une étiquette",
+  sysTagRemoved: "{by} a retiré une étiquette",
+  sysOptedOutBy: "{name} a marqué ce client comme désabonné",
+  sysOptedOut: "Désabonné des textos",
+  sysOptedInBy: "{name} a marqué ce client comme réabonné",
+  sysOptedIn: "Réabonné",
+  sysConsentAttested:
+    "{by} a inscrit que ce client a demandé à recevoir des textos",
+  sysQuietHours:
+    "{by} a envoyé pendant les heures de silence de ce client",
+  sysSpamMarked: "{by} a marqué cette conversation comme pourriel",
+  sysSpamUnmarked: "{by} a retiré la marque de pourriel",
+  sysTaskUpdated: "{by} a mis à jour une tâche",
+  sysNoteAttachmentAdded: "{by} a joint un fichier à une note",
+  sysNoteAttachmentRemoved: "{by} a retiré un fichier d'une note",
+  sysMediaTooLarge:
+    "Un fichier envoyé par ce client était trop gros pour être conservé — " +
+    "demandez-lui d'en envoyer un plus petit",
+  sysMediaEmpty:
+    "Un fichier envoyé par ce client est arrivé vide — demandez-lui de " +
+    "l'envoyer de nouveau",
+  sysMediaTypeMismatch:
+    "Un fichier envoyé par ce client n'était pas du type qu'il annonçait, " +
+    "alors il n'a pas été conservé",
+  sysMediaUnsafe:
+    "Un fichier envoyé par ce client contenait quelque chose de dangereux, " +
+    "alors il n'a pas été conservé — demandez-lui une photo ou un PDF ordinaire",
+  sysMediaUnreadable:
+    "Un fichier envoyé par ce client n'a pas pu être vérifié, alors il n'a " +
+    "pas été conservé — demandez-lui de l'envoyer de nouveau",
+  sysMediaTooManyKept:
+    "Ce message contenait plus de fichiers que nous pouvons conserver — les " +
+    "{kept} premiers ont été gardés",
+  sysMediaTooMany:
+    "Ce message contenait plus de fichiers que nous pouvons conserver",
+  sysMediaUnsupported:
+    "Un fichier envoyé par ce client ne peut pas être affiché ici — " +
+    "demandez-lui d'envoyer une photo ou un PDF",
+  sysMissedCallTextBack:
+    "Ce client a appelé et personne n'a répondu, alors nous lui avons texté " +
+    "en retour",
+  sysCalledNoAnswer: "Appel effectué, sans réponse",
+  sysYouCalled: "Vous avez appelé",
+  sysTransferredBy: "{from} a transféré l'appel à {to}",
+  sysTransferredTo: "Appel transféré à {to}",
+  sysTransferred: "Appel transféré",
+  sysLeftVoicemail: "Message vocal laissé",
+  sysWentToVoicemail: "L'appel s'est rendu à la boîte vocale",
+  sysMissedCall: "Appel manqué",
+  sysAnsweredBy: "Appel répondu par {name}",
+  sysAnswered: "Appel répondu",
+  sysWithDuration: "{line} · {duration}",
+  openTheTaskAria: "{sentence}. Ouvrir la tâche",
+  goToThatMessageAria: "{sentence}. Aller à ce message",
+
+  // --- Dictating a wrap-up: why the mic did not open -------------------------
+  micNotFound:
+    "Aucun microphone détecté. Branchez-en un ou activez-le, puis réessayez — " +
+    "ou tapez la note.",
+  micBlocked:
+    "L'accès au microphone est bloqué. Autorisez-le pour ce site depuis la " +
+    "barre d'adresse de votre navigateur, puis réessayez — ou tapez la note.",
+  micBusy:
+    "Votre microphone est occupé par une autre application. Fermez-la et " +
+    "réessayez, ou tapez la note.",
+  micUnreachable:
+    "Impossible d'accéder à votre microphone. Vérifiez l'autorisation du " +
+    "micro dans votre navigateur, ou tapez la note.",
+  micNoRecorder:
+    "Ce navigateur ne peut pas enregistrer d'audio. Essayez une version " +
+    "récente de Chrome, Edge, Firefox ou Safari — ou tapez la note.",
+  micStartFailed:
+    "Ce navigateur n'a pas pu démarrer l'enregistrement. Tapez la note à la " +
+    "place — elle s'enregistre de la même façon.",
+  micNothingRecorded:
+    "Rien n'a été enregistré. Vérifiez votre microphone et réessayez, ou " +
+    "tapez la note.",
+  micTooBig:
+    "Cet enregistrement était trop gros pour être envoyé. Gardez un résumé à " +
+    "une phrase ou trois, ou tapez-le.",
+  micStoppedUnexpectedly:
+    "L'enregistrement s'est arrêté de façon inattendue. Réessayez, ou tapez " +
+    "la note.",
+
+  // --- Lou's refusals -------------------------------------------------------
+  louPausedForBilling:
+    "Lou est en pause le temps de régler l'abonnement. Un propriétaire peut " +
+    "corriger cela dans Facturation.",
+  louUnreachable: "Impossible de joindre Lou pour l'instant. Réessayez.",
+
+  catchUpDisabled:
+    "Les rattrapages sont désactivés pour cet espace de travail. Paramètres, " +
+    "Lou permet de les réactiver.",
+  catchUpSpam:
+    "Cette conversation est marquée comme indésirable, alors Lou la saute. " +
+    "Retirez la marque pour obtenir un rattrapage.",
+  catchUpTooShort:
+    "Il n'y a pas encore assez de contenu à résumer — la conversation se lit " +
+    "plus vite.",
+  catchUpRateLimited:
+    "Cela fait beaucoup de rattrapages d'un coup. Réessayez dans un moment.",
+  catchUpOverCap:
+    "Les rattrapages de ce mois-ci sont épuisés. Ils reprennent le mois " +
+    "prochain — la conversation est toujours là.",
+  catchUpUnusable:
+    "Lou n'a pas pu montrer les messages derrière ce qu'il a lu, alors il n'y " +
+    "a rien à afficher. La conversation demeure la référence.",
+  catchUpNone: "Aucun rattrapage cette fois-ci. Réessayez.",
+  catchUpOffline:
+    "La demande n'a pas abouti. Vérifiez votre connexion et réessayez — la " +
+    "conversation est toujours là.",
+  catchUpForbidden:
+    "Les rattrapages ne font pas partie de ce que votre rôle permet ici. Un " +
+    "propriétaire peut changer cela, et la conversation est toujours là à lire.",
+  catchUpGone:
+    "Lou ne peut plus ouvrir cette conversation. Rechargez la boîte de " +
+    "réception pour voir ce qui reste.",
+  catchUpPaused:
+    "Les rattrapages sont en pause pour un moment. Réessayez sous peu.",
+  catchUpFailed:
+    "Lou n'a pas pu faire cela pour l'instant. La conversation est toujours là.",
+
+  draftsDisabled:
+    "La rédaction est désactivée pour cet espace de travail. Paramètres, IA " +
+    "permet de la réactiver.",
+  draftsSpam:
+    "Cette conversation est marquée comme indésirable, alors Lou la saute. " +
+    "Retirez la marque pour rédiger une réponse.",
+  draftsNothingToReply:
+    "Rien à quoi répondre pour l'instant. Écrivez quelques mots et réessayez.",
+  draftsOverCap:
+    "La rédaction de ce mois-ci est épuisée. Elle reprend le mois prochain.",
+  draftsRateLimited:
+    "Cela fait beaucoup de propositions d'un coup. Réessayez dans un moment.",
+  draftsUnusable:
+    "Rien de valable à envoyer n'est revenu. Réessayez, ou ajoutez d'abord " +
+    "quelques mots.",
+  draftsNone: "Aucune proposition cette fois-ci. Réessayez.",
+
+  wrapUpTooLong:
+    "Cet enregistrement était trop long à transcrire. Gardez un compte rendu " +
+    "de moins de {minutes} minutes, ou tapez-le.",
+  wrapUpDisabled:
+    "La dictée est désactivée pour cet espace de travail. Tapez la note, ou " +
+    "réactivez-la dans Paramètres, Lou.",
+  wrapUpOverCap:
+    "La dictée de ce mois-ci est épuisée. Elle reprend le mois prochain — " +
+    "tapez la note pour l'instant.",
+  wrapUpUnreachable:
+    "Impossible de joindre Lou pour l'instant. Réessayez, ou tapez la note.",
+  wrapUpUnusable:
+    "Rien de lisible n'est revenu. Répétez-le, plus près du micro, ou tapez-le.",
+  wrapUpFailed:
+    "Cela n'est pas revenu sous forme de mots. Tapez la note à la place.",
+
+  // --- Sending, and what a file is allowed to be ----------------------------
+  retrySendFailed: "Impossible de renvoyer ce message. Réessayez.",
+  scheduledCancelled: "Annulé. Ce texto ne partira pas.",
+  attachmentTooMany: "Vous pouvez joindre jusqu'à {count} fichiers ici.",
+  attachmentEmpty: "Ce fichier est vide.",
+  attachmentTooBig: "Ce fichier dépasse {megabytes} Mo. Essayez-en un plus petit.",
+  attachmentTypeBlocked:
+    "Ce type de fichier n'est pas autorisé. Images, PDF et documents seulement.",
+  attachmentUploadFailed: "Ce fichier n'a pas été téléversé. Réessayez.",
 };

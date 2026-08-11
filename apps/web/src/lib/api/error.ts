@@ -1,8 +1,11 @@
 import {
+  DEFAULT_LOCALE,
   ERROR_CODES,
   INTERNAL_ERROR_CODE,
   type ApiErrorCode,
 } from "@loonext/shared";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
 
 /**
  * Typed error for every non-2xx API response (SPEC §7 envelope
@@ -36,8 +39,23 @@ const KNOWN_CODES = new Set<string>([...ERROR_CODES, INTERNAL_ERROR_CODE]);
  * Parse a failed response body into an ApiError. Tolerates non-envelope
  * bodies (proxies, panics): anything unparseable becomes `internal_error`
  * with a calm generic sentence.
+ *
+ * #228: the SERVER's `message` is passed through untranslated on purpose. SPEC
+ * §7 writes a customer-facing sentence per code and all three clients render it
+ * verbatim, so translating it belongs there — a catalogue entry for one would
+ * be a second copy that drifts. Only the sentence for a body with NO server
+ * message in it is ours, and that one is keyed.
+ *
+ * `t` is resolved at CALL time rather than at module load: this file is
+ * imported by modules a server component may pull in, and `makeTranslate` is a
+ * client reference — calling one while rendering on the server is a build
+ * failure, not a fallback.
  */
-export function parseErrorBody(status: number, body: unknown): ApiError {
+export function parseErrorBody(
+  status: number,
+  body: unknown,
+  t: Translate = makeTranslate(DEFAULT_LOCALE),
+): ApiError {
   if (typeof body === "object" && body !== null && "error" in body) {
     const inner = (body as { error: unknown }).error;
     if (
@@ -57,9 +75,5 @@ export function parseErrorBody(status: number, body: unknown): ApiError {
       return new ApiError(INTERNAL_ERROR_CODE, message, status);
     }
   }
-  return new ApiError(
-    INTERNAL_ERROR_CODE,
-    "Something went wrong on our end. Try again in a moment.",
-    status,
-  );
+  return new ApiError(INTERNAL_ERROR_CODE, t("misc.apiServerError"), status);
 }

@@ -1,5 +1,6 @@
 package com.loonext.android.features.inbox
 
+import com.loonext.android.core.model.MessageLocale
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -25,6 +26,13 @@ class SavedViewsPortTest {
     private val id = "11111111-2222-4333-8444-555555555555"
     private val tag = "22222222-3333-4444-8555-666666666666"
     private val me = "aaaaaaaa-1111-4222-8333-444444444444"
+
+    /**
+     * #228 moved the suggested name's words into `InboxStrings`, so the builder
+     * now takes the reader's language. Asserted in English, which is what the
+     * web twin suggests too.
+     */
+    private val locale = MessageLocale.DEFAULT
 
     private fun obj(vararg pairs: Pair<String, Any>): JsonObject = buildJsonObject {
         for ((k, v) in pairs) {
@@ -174,12 +182,12 @@ class SavedViewsPortTest {
             snoozedOnly = false,
             awaitingOnly = false,
         )
-        assertEquals("Open · Unread", suggestViewName(filtered))
+        assertEquals("Open · Unread", suggestViewName(filtered, locale))
         // Law 6: no em or en dash in rendered copy.
-        assertFalse(suggestViewName(filtered).contains("—"))
-        assertFalse(suggestViewName(filtered).contains("–"))
+        assertFalse(suggestViewName(filtered, locale).contains("—"))
+        assertFalse(suggestViewName(filtered, locale).contains("–"))
 
         val unfiltered = filtered.copy(tab = InboxStatusTab.All, unreadOnly = false)
-        assertEquals("", suggestViewName(unfiltered))
+        assertEquals("", suggestViewName(unfiltered, locale))
     }
 }

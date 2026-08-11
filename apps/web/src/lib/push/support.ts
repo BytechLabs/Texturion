@@ -1,8 +1,17 @@
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
+
 /**
  * Pure browser-detection helpers behind the permission card's recovery copy
  * (G8: a denied permission gets honest, browser-specific instructions —
  * "what happened + what to do", G10). UA sniffing is only ever used to pick
  * a SENTENCE, never a code path, so a wrong guess costs nothing.
+ *
+ * #228: the sentences are in `i18n/sections/misc.ts`. They name MENUS, and a
+ * French reader's browser labels those menus in French — so this is one of the
+ * few places where translating changes what the instruction actually points at
+ * rather than only how it reads.
  */
 
 export type BrowserFamily =
@@ -23,18 +32,21 @@ export function browserFamily(userAgent: string): BrowserFamily {
 }
 
 /** One sentence telling this browser's user how to un-block notifications. */
-export function permissionRecoverySteps(userAgent: string): string {
+export function permissionRecoverySteps(
+  userAgent: string,
+  t: Translate = makeTranslate(DEFAULT_LOCALE),
+): string {
   switch (browserFamily(userAgent)) {
     case "ios":
-      return "Open Settings → Notifications → Loonext on your phone, allow notifications, then come back here.";
+      return t("misc.pushRecoveryIos");
     case "firefox":
-      return "Click the permissions icon next to the address bar, remove the notifications block, then reload this page.";
+      return t("misc.pushRecoveryFirefox");
     case "safari":
-      return "Open Safari → Settings → Websites → Notifications, allow this site, then reload this page.";
+      return t("misc.pushRecoverySafari");
     case "chromium":
-      return "Click the icon next to the address bar, set Notifications to Allow, then reload this page.";
+      return t("misc.pushRecoveryChromium");
     default:
-      return "Allow notifications for this site in your browser settings, then reload this page.";
+      return t("misc.pushRecoveryGeneric");
   }
 }
 

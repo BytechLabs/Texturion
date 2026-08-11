@@ -85,6 +85,9 @@ import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
 import com.loonext.android.core.contacts.ContactImport
 import com.loonext.android.core.contacts.ContactImportKind
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.contacts.ImportColumns
 import com.loonext.android.core.contacts.VCardProperties
 import com.loonext.android.core.data.CacheKeys
@@ -240,6 +243,8 @@ private fun ContactListScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    // #228: the export/import callbacks below run outside composition.
+    val locale = LocalAppLocale.current
     val haptics = rememberHaptics()
 
     var query by rememberSaveable(companyId) { mutableStateOf("") }
@@ -452,11 +457,13 @@ private fun ContactListScreen(
                         stream.write(csvExportBytes(csv))
                     } ?: throw IllegalStateException("no stream")
                 }
-                snackbar.showSnackbar("Contacts exported.")
+                snackbar.showSnackbar(
+                    AppStrings.translate(locale, "contactsTasks.contactsExported"),
+                )
             } catch (cause: Exception) {
                 snackbar.showSnackbar(
                     (cause as? com.loonext.android.core.net.ApiException)?.message
-                        ?: "The export didn't go through. Try again.",
+                        ?: AppStrings.translate(locale, "contactsTasks.exportFailed"),
                 )
             } finally {
                 exporting = false
@@ -645,7 +652,7 @@ private fun ContactListScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(Modifier.weight(1f)) {
-                    ScreenTitle("Contacts", Modifier.alignByBaseline())
+                    ScreenTitle(t("contactsTasks.contactsTitle"), Modifier.alignByBaseline())
                     if (state is LoadState.Ready && nextCursor == null && rows.isNotEmpty()) {
                         AnimatedContent(
                             targetState = rows.size,
@@ -682,7 +689,7 @@ private fun ContactListScreen(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             Icons.Outlined.Add,
-                            contentDescription = "New contact",
+                            contentDescription = t("contactsTasks.newContact"),
                             modifier = Modifier.size(18.dp),
                         )
                     }
@@ -728,16 +735,15 @@ private fun ContactListScreen(
                         ) {
                             Text(
                                 when {
-                                    debouncedQ.isNotBlank() -> "No matches for \"$debouncedQ\"."
+                                    debouncedQ.isNotBlank() ->
+                                        t("contactsTasks.noMatchesFor", "query" to debouncedQ)
                                     // #291: NOT the no-contacts-yet line. Under
                                     // an active filter those customers are
                                     // excluded, not missing, and "they're added
                                     // automatically" reads as having none.
                                     fieldFilter != null ->
                                         "$CONTACT_FILTER_EMPTY_TITLE. $CONTACT_FILTER_EMPTY_BODY"
-                                    else ->
-                                        "No contacts yet. They're added automatically when " +
-                                            "someone texts you, or add one yourself."
+                                    else -> t("contactsTasks.noContactsYet")
                                 },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -784,12 +790,14 @@ private fun ContactListScreen(
                                             // would tell them.
                                             scope.launch {
                                                 snackbar.showSnackbar(
-                                                    if (result.opted_out) {
-                                                        "Merged. This customer is opted out, " +
-                                                            "so nothing sends to either number."
-                                                    } else {
-                                                        "Merged."
-                                                    },
+                                                    AppStrings.translate(
+                                                        locale,
+                                                        if (result.opted_out) {
+                                                            "contactsTasks.mergedOptedOut"
+                                                        } else {
+                                                            "contactsTasks.merged"
+                                                        },
+                                                    ),
                                                 )
                                             }
                                         },
@@ -857,7 +865,11 @@ private fun ContactListScreen(
                                                 },
                                             ) {
                                                 Text(
-                                                    if (loadingMore) "Loading…" else "Load more",
+                                                    if (loadingMore) {
+                                                        t("contactsTasks.loading")
+                                                    } else {
+                                                        t("contactsTasks.loadMore")
+                                                    },
                                                 )
                                             }
                                         }
@@ -941,7 +953,7 @@ private fun ContactListScreen(
                                             contentAlignment = Alignment.Center,
                                         ) {
                                             TextButton(onClick = { deviceExpanded = true }) {
-                                                Text("Show all from this phone")
+                                                Text(t("contactsTasks.showAllFromPhone"))
                                             }
                                         }
                                     }
@@ -1090,16 +1102,16 @@ private fun DeviceContactsHeader(
             .padding(top = 26.dp, bottom = 10.dp),
     ) {
         Text(
-            "On this phone",
+            t("contactsTasks.onThisPhone"),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onBackground,
         )
         if (granted) {
             Text(
                 if (matchCount == 0) {
-                    "Nobody here matches."
+                    t("contactsTasks.devicePhoneNoMatch")
                 } else {
-                    "Your own contacts. They stay on your phone."
+                    t("contactsTasks.devicePhoneOwn")
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1107,15 +1119,13 @@ private fun DeviceContactsHeader(
             )
         } else {
             Text(
-                "Let Loonext read your phone's contacts and they show up here, " +
-                    "so you can text somebody without adding them first. " +
-                    "They stay on your phone.",
+                t("contactsTasks.devicePhoneAsk"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 3.dp),
             )
             TextButton(onClick = onGrant, modifier = Modifier.padding(top = 2.dp)) {
-                Text("Show my phone contacts")
+                Text(t("contactsTasks.showMyPhoneContacts"))
             }
         }
     }
@@ -1160,7 +1170,7 @@ private fun DeviceContactRowItem(
         IconButton(onClick = onAdd) {
             Icon(
                 Icons.Outlined.PersonAdd,
-                contentDescription = "Add " + row.name + " to contacts",
+                contentDescription = t("contactsTasks.addToContacts", "name" to row.name),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(19.dp),
             )
@@ -1172,6 +1182,8 @@ private fun DeviceContactRowItem(
 @Composable
 private fun SearchPill(value: String, onValueChange: (String) -> Unit) {
     val hint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f)
+    // Read outside the semantics lambda, which is not composition.
+    val searchLabel = t("contactsTasks.searchNameOrNumber")
     Surface(
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surface,
@@ -1191,7 +1203,7 @@ private fun SearchPill(value: String, onValueChange: (String) -> Unit) {
             Box(Modifier.weight(1f)) {
                 if (value.isEmpty()) {
                     Text(
-                        "Search name or number…",
+                        t("contactsTasks.searchNameOrNumberHint"),
                         style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp),
                         color = hint,
                     )
@@ -1207,7 +1219,7 @@ private fun SearchPill(value: String, onValueChange: (String) -> Unit) {
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.secondary),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .semantics { contentDescription = "Search name or number" },
+                        .semantics { contentDescription = searchLabel },
                 )
             }
         }
@@ -1243,7 +1255,7 @@ private fun ContactRow(contact: Contact, onClick: () -> Unit) {
                 )
                 if (contact.opted_out) {
                     DsChip(
-                        "Opted out",
+                        t("contactsTasks.optedOut"),
                         container = MaterialTheme.colorScheme.errorContainer,
                         content = MaterialTheme.colorScheme.onErrorContainer,
                     )
@@ -1306,11 +1318,11 @@ private fun ListFooter(
                 ) {
                     Text(
                         if (importing) {
-                            "Importing…"
+                            t("contactsTasks.importing")
                         } else {
                             // Says what the menu below it actually offers:
                             // there is no device-address-book item here.
-                            "Import CSV or vCard"
+                            t("contactsTasks.importCsvOrVcard")
                         },
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1322,14 +1334,14 @@ private fun ListFooter(
                     onDismissRequest = { onImportMenuOpenChange(false) },
                 ) {
                     DropdownMenuItem(
-                        text = { Text("CSV file") },
+                        text = { Text(t("contactsTasks.csvFile")) },
                         onClick = {
                             onImportMenuOpenChange(false)
                             onImport(ContactImportKind.CSV)
                         },
                     )
                     DropdownMenuItem(
-                        text = { Text("vCard file (.vcf)") },
+                        text = { Text(t("contactsTasks.vcardFile")) },
                         onClick = {
                             onImportMenuOpenChange(false)
                             onImport(ContactImportKind.VCARD)
@@ -1346,7 +1358,11 @@ private fun ListFooter(
             onClick = onExport,
         ) {
             Text(
-                if (exporting) "Exporting…" else "Export CSV",
+                if (exporting) {
+                    t("contactsTasks.exporting")
+                } else {
+                    t("contactsTasks.exportCsv")
+                },
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -1398,20 +1414,20 @@ internal fun CreateContactSheet(
                 .padding(horizontal = 18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text("New contact", style = MaterialTheme.typography.titleMedium)
+            Text(t("contactsTasks.newContact"), style = MaterialTheme.typography.titleMedium)
             OutlinedTextField(
                 value = phone,
                 onValueChange = {
                     phone = Nanp.formatAsYouType(it)
                     error = null
                 },
-                label = { Text("Phone") },
+                label = { Text(t("contactsTasks.phoneField")) },
                 placeholder = { Text("(416) 555-0123") },
                 singleLine = true,
                 isError = phone.isNotEmpty() && normalized == null,
                 supportingText = {
                     if (phone.isNotEmpty() && normalized == null) {
-                        Text("Enter a 10-digit US or Canada number.")
+                        Text(t("contactsTasks.nanpHint"))
                     }
                 },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
@@ -1420,24 +1436,24 @@ internal fun CreateContactSheet(
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it.take(CONTACT_NAME_MAX) },
-                label = { Text("Name") },
-                placeholder = { Text("Optional") },
+                label = { Text(t("contactsTasks.nameField")) },
+                placeholder = { Text(t("contactsTasks.optional")) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
             OutlinedTextField(
                 value = address,
                 onValueChange = { address = it.take(CONTACT_ADDRESS_MAX) },
-                label = { Text("Address") },
-                placeholder = { Text("Optional") },
+                label = { Text(t("contactsTasks.address")) },
+                placeholder = { Text(t("contactsTasks.optional")) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
             OutlinedTextField(
                 value = notes,
                 onValueChange = { notes = it.take(CONTACT_NOTES_MAX) },
-                label = { Text("Notes") },
-                placeholder = { Text("Optional") },
+                label = { Text(t("contactsTasks.notesField")) },
+                placeholder = { Text(t("contactsTasks.optional")) },
                 minLines = 2,
                 maxLines = 4,
                 modifier = Modifier.fillMaxWidth(),
@@ -1454,7 +1470,7 @@ internal fun CreateContactSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = onDismiss) { Text("Cancel") }
+                TextButton(onClick = onDismiss) { Text(t("common.cancel")) }
                 Button(
                     enabled = normalized != null && !saving,
                     onClick = {
@@ -1479,7 +1495,15 @@ internal fun CreateContactSheet(
                             }
                         }
                     },
-                ) { Text(if (saving) "Adding…" else "Add contact") }
+                ) {
+                    Text(
+                        if (saving) {
+                            t("contactsTasks.adding")
+                        } else {
+                            t("contactsTasks.addContact")
+                        },
+                    )
+                }
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -2200,16 +2224,16 @@ private fun ImportReportSheet(report: ImportReport, onDismiss: () -> Unit) {
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp),
         ) {
-            Text("Import finished", style = MaterialTheme.typography.titleMedium)
+            Text(t("contactsTasks.importFinished"), style = MaterialTheme.typography.titleMedium)
             Text(
                 // Three dispositions, and only three. The refused rows are
                 // already inside `imported`/`updated` — adding a fourth figure
                 // here would invite the reader to add it to the total and would
                 // put a compliance fact in the same breath as a tally.
                 listOf(
-                    "${result.imported} imported",
-                    "${result.updated} updated",
-                    "${result.skipped} skipped",
+                    t("contactsTasks.importImported", "count" to "${result.imported}"),
+                    t("contactsTasks.importUpdated", "count" to "${result.updated}"),
+                    t("contactsTasks.importSkipped", "count" to "${result.skipped}"),
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -2277,7 +2301,7 @@ private fun ImportReportSheet(report: ImportReport, onDismiss: () -> Unit) {
             }
             if (result.errors.isNotEmpty()) {
                 Text(
-                    "Skipped rows:",
+                    t("contactsTasks.importSkippedRows"),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 4.dp),
@@ -2290,7 +2314,7 @@ private fun ImportReportSheet(report: ImportReport, onDismiss: () -> Unit) {
                     .padding(vertical = 8.dp),
                 contentAlignment = Alignment.CenterEnd,
             ) {
-                TextButton(onClick = onDismiss) { Text("Done") }
+                TextButton(onClick = onDismiss) { Text(t("contactsTasks.done")) }
             }
             Spacer(Modifier.height(16.dp))
         }
@@ -2334,7 +2358,12 @@ private fun ImportRowList(
         val shown = rows.take(IMPORT_ERRORS_SHOWN)
         shown.forEach { rowError ->
             Text(
-                "$rowWord ${rowError.row} · ${rowError.reason}",
+                t(
+                    "contactsTasks.importRowLine",
+                    "word" to rowWord,
+                    "row" to "${rowError.row}",
+                    "reason" to rowError.reason,
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = reasonColor,
                 modifier = Modifier.padding(vertical = 2.dp),

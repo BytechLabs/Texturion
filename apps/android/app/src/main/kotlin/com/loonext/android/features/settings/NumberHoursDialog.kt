@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.userMessage
@@ -130,18 +131,17 @@ internal fun NumberHoursDialog(
 
     AlertDialog(
         onDismissRequest = { if (!pending) onDismiss() },
-        title = { Text("When this line is open") },
+        title = { Text(t("settingsMore.numberHoursTitle")) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
-                    "The after-hours reply on this number follows this clock. " +
-                        "Leave it alone and it follows your workspace.",
+                    t("settingsMore.numberHoursIntro"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 when (val state = loaded) {
                     is LoadState.Loading -> Text(
-                        "Loading…",
+                        t("settingsMore.loading"),
                         modifier = Modifier.padding(top = 12.dp),
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -155,16 +155,17 @@ internal fun NumberHoursDialog(
 
                     is LoadState.Ready -> {
                         InheritHeader(
-                            title = "Timezone",
+                            title = t("settingsMore.timezone"),
                             inherited = state.value.timezone.inherited,
                             enabled = !pending,
                             onUseWorkspace = { clear("timezone") },
                         )
+                        val chooseTimezone = t("settingsMore.chooseTimezone")
                         TextButton(enabled = !pending, onClick = { picking = true }) {
-                            Text(zone.ifEmpty { "Choose a timezone" })
+                            Text(zone.ifEmpty { chooseTimezone })
                         }
                         InheritHeader(
-                            title = "Open hours",
+                            title = t("settingsMore.openHours"),
                             inherited = state.value.business_hours.inherited,
                             enabled = !pending,
                             onUseWorkspace = { clear("business_hours") },
@@ -220,10 +221,10 @@ internal fun NumberHoursDialog(
                         }
                     }
                 },
-            ) { Text("Save") }
+            ) { Text(t("common.save")) }
         },
         dismissButton = {
-            TextButton(enabled = !pending, onClick = onDismiss) { Text("Cancel") }
+            TextButton(enabled = !pending, onClick = onDismiss) { Text(t("common.cancel")) }
         },
     )
 
@@ -256,13 +257,16 @@ private fun InheritHeader(
         Spacer(Modifier.weight(1f))
         if (inherited) {
             Text(
-                "Same as your workspace",
+                t("settingsMore.inheritSame"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
             TextButton(enabled = enabled, onClick = onUseWorkspace) {
-                Text("Use the workspace's", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    t("settingsMore.inheritUse"),
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
     }

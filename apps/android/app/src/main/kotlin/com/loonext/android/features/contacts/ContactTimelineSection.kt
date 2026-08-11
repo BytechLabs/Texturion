@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.t
 import com.loonext.android.AppGraph
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
@@ -120,7 +121,7 @@ internal fun ContactTimelineSection(
             ?.let { page -> memberNames = memberNames(page.data) }
     }
 
-    ContactSection("History", modifier) {
+    ContactSection(t("contactsTasks.historySection"), modifier) {
         when (val current = state) {
             is LoadState.Loading -> PaperCard(Modifier.fillMaxWidth()) {
                 SkeletonListRow(avatar = false)
@@ -140,14 +141,14 @@ internal fun ContactTimelineSection(
                         refreshKey++
                     },
                     contentPadding = PaddingValues(0.dp),
-                ) { Text("Try again") }
+                ) { Text(t("common.retry")) }
             }
 
             is LoadState.Ready -> {
                 val entries = current.value.entries
                 if (entries.isEmpty()) {
                     Text(
-                        "Texts, calls and jobs for this customer will collect here.",
+                        t("contactsTasks.timelineEmpty"),
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 6.dp),
@@ -212,7 +213,7 @@ internal fun ContactTimelineSection(
                                             loadingMore = false
                                         }
                                     }
-                                }) { Text("Show earlier") }
+                                }) { Text(t("contactsTasks.showEarlier")) }
                             }
                         }
                     }

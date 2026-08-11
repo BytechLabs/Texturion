@@ -4,6 +4,7 @@ import com.loonext.android.core.model.Capability
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.MemberFirsts
 import com.loonext.android.core.model.MemberRole
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.model.PhoneNumberSummary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -22,6 +23,13 @@ import org.junit.Test
  * Adding a case here means adding it there.
  */
 class GettingStartedLogicTest {
+
+    /**
+     * #228 moved the checklist's sentences into `InboxStrings`, so both builders
+     * now take the reader's language. Asserted in English because English is the
+     * wording web owns and `first-run-copy.test.ts` holds all three clients to.
+     */
+    private val locale = MessageLocale.DEFAULT
 
     private fun number(status: String) = PhoneNumberSummary(
         id = "num-1",
@@ -89,7 +97,7 @@ class GettingStartedLogicTest {
 
     @Test
     fun `credits the setup already done, so the bar never starts at zero`() {
-        val steps = ownerSteps(emptyList(), false, 0, 1)
+        val steps = ownerSteps(emptyList(), false, 0, 1, locale)
         assertEquals("signup", steps.first().key)
         assertTrue(steps.first().done)
         assertNull(steps.first().hint)
@@ -97,19 +105,19 @@ class GettingStartedLogicTest {
 
     @Test
     fun `marks the number done only when one is actually active`() {
-        val provisioning = ownerSteps(listOf(number("provisioning")), false, 0, 1)
+        val provisioning = ownerSteps(listOf(number("provisioning")), false, 0, 1, locale)
         val numberStep = provisioning.first { it.key == "number" }
         assertFalse(numberStep.done)
         assertEquals("It's on its way, usually under a minute.", numberStep.hint)
 
-        val live = ownerSteps(listOf(number("active")), false, 0, 1)
+        val live = ownerSteps(listOf(number("active")), false, 0, 1, locale)
         assertTrue(live.first { it.key == "number" }.done)
         assertNull(live.first { it.key == "number" }.hint)
     }
 
     @Test
     fun `stops promising a minute once the purchase has actually stalled`() {
-        val stalled = ownerSteps(listOf(number("provision_failed")), false, 0, 1)
+        val stalled = ownerSteps(listOf(number("provision_failed")), false, 0, 1, locale)
         assertEquals(
             "Taking a little longer than usual. You don't need to do anything.",
             stalled.first { it.key == "number" }.hint,
@@ -118,12 +126,12 @@ class GettingStartedLogicTest {
 
     @Test
     fun `derives inbound, reply and teammate from real counts`() {
-        val nothing = ownerSteps(emptyList(), false, 0, 1)
+        val nothing = ownerSteps(emptyList(), false, 0, 1, locale)
         assertFalse(nothing.first { it.key == "inbound" }.done)
         assertFalse(nothing.first { it.key == "reply" }.done)
         assertFalse(nothing.first { it.key == "teammate" }.done)
 
-        val everything = ownerSteps(listOf(number("active")), true, 3, 2)
+        val everything = ownerSteps(listOf(number("active")), true, 3, 2, locale)
         assertTrue(everything.first { it.key == "inbound" }.done)
         assertTrue(everything.first { it.key == "reply" }.done)
         assertTrue(everything.first { it.key == "teammate" }.done)
@@ -136,22 +144,23 @@ class GettingStartedLogicTest {
         assertEquals(1, countActiveMembers(listOf(member(null))))
         assertEquals(1, countActiveMembers(listOf(member(null), member("2026-01-01T00:00:00Z"))))
         assertEquals(2, countActiveMembers(listOf(member(null), member(null))))
-        assertFalse(ownerSteps(emptyList(), true, 1, 1).first { it.key == "teammate" }.done)
-        assertTrue(ownerSteps(emptyList(), true, 1, 2).first { it.key == "teammate" }.done)
+        assertFalse(ownerSteps(emptyList(), true, 1, 1, locale).first { it.key == "teammate" }.done)
+        assertTrue(ownerSteps(emptyList(), true, 1, 2, locale).first { it.key == "teammate" }.done)
     }
 
     // --- the member list --------------------------------------------------
 
     @Test
     fun `the member list empties itself as they do the things`() {
-        val fresh = memberSteps(MemberFirsts())
+        val fresh = memberSteps(MemberFirsts(), locale)
         assertEquals(listOf("reply", "note", "done"), fresh.map { it.key })
         assertTrue(fresh.none { it.done })
         assertFalse(stepsComplete(fresh))
         // Every undone row explains itself; a bare label teaches nothing.
         assertTrue(fresh.all { it.hint != null })
 
-        val allDone = memberSteps(MemberFirsts(replied = true, noted = true, marked_done = true))
+        val allDone =
+            memberSteps(MemberFirsts(replied = true, noted = true, marked_done = true), locale)
         assertTrue(stepsComplete(allDone))
         assertTrue(allDone.all { it.hint == null })
     }
@@ -160,13 +169,13 @@ class GettingStartedLogicTest {
     fun `the note row warns that a note is not a text`() {
         // The one worth learning deliberately rather than by accident: getting
         // it wrong means a customer received something meant for a colleague.
-        val note = memberSteps(MemberFirsts()).first { it.key == "note" }
+        val note = memberSteps(MemberFirsts(), locale).first { it.key == "note" }
         assertTrue(note.hint!!.contains("the customer never sees them"))
     }
 
     @Test
     fun `a partly finished list is not complete`() {
-        assertFalse(stepsComplete(memberSteps(MemberFirsts(replied = true))))
-        assertFalse(stepsComplete(memberSteps(MemberFirsts(replied = true, noted = true))))
+        assertFalse(stepsComplete(memberSteps(MemberFirsts(replied = true), locale)))
+        assertFalse(stepsComplete(memberSteps(MemberFirsts(replied = true, noted = true), locale)))
     }
 }

@@ -68,6 +68,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.loonext.android.core.data.AiRepository
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.AddressProvenance
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Message
@@ -112,7 +114,7 @@ fun MessageActionsSheet(
         // viewport height (inert on tall screens).
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             if (message.body.isNotBlank()) {
-                ActionRow(Icons.Outlined.ContentCopy, "Copy text") {
+                ActionRow(Icons.Outlined.ContentCopy, t("thread.copyText")) {
                     haptics.tap()
                     clipboard.setText(AnnotatedString(message.body))
                     onCopied()
@@ -121,7 +123,7 @@ fun MessageActionsSheet(
             }
             ActionRow(
                 icon = Icons.Outlined.CheckCircle,
-                label = "Done",
+                label = t("thread.done"),
                 on = message.done_at != null,
             ) {
                 haptics.confirm()
@@ -130,7 +132,7 @@ fun MessageActionsSheet(
             }
             ActionRow(
                 icon = Icons.Outlined.PushPin,
-                label = "Pinned",
+                label = t("thread.pinned"),
                 on = message.pinned_at != null,
             ) {
                 haptics.tap()
@@ -138,7 +140,7 @@ fun MessageActionsSheet(
                 onDismiss()
             }
             if (message.retryable) {
-                ActionRow(Icons.Outlined.Refresh, "Retry send") {
+                ActionRow(Icons.Outlined.Refresh, t("thread.retrySend")) {
                     haptics.confirm()
                     onRetry()
                     onDismiss()
@@ -147,7 +149,7 @@ fun MessageActionsSheet(
             if (!message.has_task && message.promoted_task == null &&
                 message.direction != MessageDirection.NOTE
             ) {
-                ActionRow(Icons.Outlined.AddTask, "Make a task") {
+                ActionRow(Icons.Outlined.AddTask, t("thread.makeTask")) {
                     haptics.tap()
                     onMakeTask()
                     // The sheet closes; the task sheet opens from the screen.
@@ -284,8 +286,13 @@ fun MakeTaskSheet(
     ) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // Read in composition and held: `remember` runs outside it, and so does
+    // every comparison below that has to line up with a chip's own label.
+    val fallbackTitle = t("thread.taskTitleFallback")
+    val todayLabel = t("thread.dueToday")
+    val tomorrowLabel = t("thread.dueTomorrow9")
     var title by remember {
-        mutableStateOf(message.body.trim().take(120).ifBlank { "Follow up" })
+        mutableStateOf(message.body.trim().take(120).ifBlank { fallbackTitle })
     }
     // Assigned to whoever is making it, matching the web. The default task
     // view is "open, assigned to me", so a task made on a phone and left
@@ -383,7 +390,7 @@ fun MakeTaskSheet(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "New task",
+                        t("thread.newTask"),
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontSize = 21.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -391,7 +398,7 @@ fun MakeTaskSheet(
                         ),
                     )
                     Text(
-                        "From $contactName's message · posts to the thread",
+                        t("thread.newTaskFrom", "name" to contactName),
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 3.dp),
@@ -406,7 +413,7 @@ fun MakeTaskSheet(
                 ) {
                     Icon(
                         Icons.Outlined.Close,
-                        contentDescription = "Close",
+                        contentDescription = t("common.close"),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(15.dp),
                     )
@@ -418,7 +425,7 @@ fun MakeTaskSheet(
 
             // Title.
             Column {
-                TaskFieldLabel("Title")
+                TaskFieldLabel(t("thread.taskTitle"))
                 BasicTextField(
                     value = title,
                     onValueChange = { title = it.take(200) },
@@ -450,7 +457,7 @@ fun MakeTaskSheet(
 
             // Assignee.
             Column {
-                TaskFieldLabel("Assign to")
+                TaskFieldLabel(t("thread.assignTo"))
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -459,7 +466,7 @@ fun MakeTaskSheet(
                 ) {
                     members.filter { it.deactivated_at == null }.forEach { member ->
                         AssigneeChip(
-                            name = member.display_name.ifBlank { "Teammate" },
+                            name = member.display_name.ifBlank { t("thread.teammate") },
                             selected = assigneeId == member.user_id,
                             onClick = {
                                 haptics.tap()
@@ -484,7 +491,7 @@ fun MakeTaskSheet(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    TaskFieldLabel("Due")
+                    TaskFieldLabel(t("thread.due"))
                     // #214: a due read out of the message text is flagged
                     // "Suggested" until the user changes it.
                     if (dueSuggested) SuggestedHint()
@@ -496,37 +503,38 @@ fun MakeTaskSheet(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     val today = DueChoice(
-                        label = "Today",
+                        label = todayLabel,
                         iso = LocalDate.now(zone).atTime(LocalTime.of(17, 0))
                             .atZone(zone).toInstant().toString(),
                     )
                     val tomorrow = DueChoice(
-                        label = "Tomorrow 9 AM",
+                        label = tomorrowLabel,
                         iso = LocalDate.now(zone).plusDays(1).atTime(LocalTime.of(9, 0))
                             .atZone(zone).toInstant().toString(),
                     )
                     DueChip(
-                        label = "Today",
-                        selected = due?.label == "Today",
+                        label = todayLabel,
+                        selected = due?.label == todayLabel,
                         onClick = {
                             haptics.tap()
                             dueSuggested = false
-                            due = if (due?.label == "Today") null else today
+                            due = if (due?.label == todayLabel) null else today
                         },
                     )
                     DueChip(
-                        label = "Tomorrow 9 AM",
-                        selected = due?.label == "Tomorrow 9 AM",
+                        label = tomorrowLabel,
+                        selected = due?.label == tomorrowLabel,
                         onClick = {
                             haptics.tap()
                             dueSuggested = false
-                            due = if (due?.label == "Tomorrow 9 AM") null else tomorrow
+                            due = if (due?.label == tomorrowLabel) null else tomorrow
                         },
                     )
-                    val picked = due != null && due?.label != "Today" &&
-                        due?.label != "Tomorrow 9 AM"
+                    val picked = due != null && due?.label != todayLabel &&
+                        due?.label != tomorrowLabel
                     DueChip(
-                        label = if (picked) due?.label.orEmpty() else "Pick a time…",
+                        label = if (picked) due?.label.orEmpty()
+                        else t("thread.pickATime"),
                         selected = picked,
                         onClick = {
                             haptics.tap()
@@ -615,7 +623,7 @@ fun MakeTaskSheet(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "Create task",
+                    t("thread.createTask"),
                     style = MaterialTheme.typography.titleSmall.copy(
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -663,10 +671,10 @@ fun MakeTaskSheet(
                         dueSuggested = false
                     }
                     pickerOpen = false
-                }) { Text("Set due date") }
+                }) { Text(t("thread.setDueDate")) }
             },
             dismissButton = {
-                TextButton(onClick = { pickerOpen = false }) { Text("Cancel") }
+                TextButton(onClick = { pickerOpen = false }) { Text(t("common.cancel")) }
             },
         ) { DatePicker(state = pickerState) }
     }
@@ -691,7 +699,7 @@ private fun QuotedMessageWell(message: Message, contactName: String, zone: ZoneI
         Spacer(Modifier.width(9.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                "“${message.body.trim().ifBlank { "Photo" }}”",
+                "“${message.body.trim().ifBlank { t("thread.photo") }}”",
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontSize = 12.5.sp,
                     lineHeight = 18.sp,
@@ -700,18 +708,24 @@ private fun QuotedMessageWell(message: Message, contactName: String, zone: ZoneI
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
+            val locale = LocalAppLocale.current
             val day = localDayOf(message.created_at, zone)
             val whenLabel = buildString {
                 if (day != null) {
-                    append(dayLabel(day, LocalDate.now(zone)))
+                    append(dayLabel(day, LocalDate.now(zone), locale))
                     append(" ")
                 }
                 append(bubbleTime(message.created_at))
             }
             val author =
-                if (message.direction == MessageDirection.INBOUND) contactName else "You"
+                if (message.direction == MessageDirection.INBOUND) contactName
+                else t("thread.you")
+            // Named rather than written into the call: there is no copy in this
+            // line at all — it is a name, a middle dot and a clock — and the
+            // hardcoded-string guard reads any literal inside `Text(` as one.
+            val byline = "$author · $whenLabel"
             Text(
-                "$author · $whenLabel",
+                byline,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 10.5.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -767,7 +781,7 @@ private fun AssigneeChip(name: String, selected: Boolean, onClick: () -> Unit) {
         if (selected) {
             Icon(
                 Icons.Outlined.Check,
-                contentDescription = "Selected",
+                contentDescription = t("thread.selected"),
                 tint = MaterialTheme.colorScheme.secondary,
                 modifier = Modifier.size(13.dp),
             )
@@ -779,7 +793,7 @@ private fun AssigneeChip(name: String, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun NobodyChip(selected: Boolean, onClick: () -> Unit) {
     Text(
-        "Nobody yet",
+        t("thread.nobodyYet"),
         style = MaterialTheme.typography.labelMedium.copy(
             fontSize = 12.5.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
@@ -830,7 +844,7 @@ private fun SuggestedHint() {
     ) {
         AiOrb(state = AiOrbState.Idle, size = 11.dp)
         Text(
-            "Suggested",
+            t("thread.suggested"),
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -889,7 +903,7 @@ private fun AddressSection(
                 modifier = Modifier.size(16.dp),
             )
             Text(
-                "Address",
+                t("thread.addressSection"),
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -911,7 +925,7 @@ private fun AddressSection(
             // toggles the section. Here it just resets local sheet state.
             if (!fields.isEmpty()) {
                 Text(
-                    "Clear",
+                    t("thread.clear"),
                     style = MaterialTheme.typography.labelMedium.copy(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -925,7 +939,8 @@ private fun AddressSection(
             }
             Icon(
                 Icons.Outlined.ExpandMore,
-                contentDescription = if (open) "Hide address" else "Show address",
+                contentDescription = if (open) t("thread.hideAddress")
+                else t("thread.showAddress"),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .size(18.dp)
@@ -936,20 +951,20 @@ private fun AddressSection(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 AddressField(
                     value = fields.street,
-                    placeholder = "Street",
+                    placeholder = t("thread.addrStreet"),
                     onValue = { v -> onEdit { it.copy(street = v) } },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AddressField(
                         value = fields.unit,
-                        placeholder = "Unit / suite",
+                        placeholder = t("thread.addrUnit"),
                         onValue = { v -> onEdit { it.copy(unit = v) } },
                         modifier = Modifier.weight(1f),
                     )
                     AddressField(
                         value = fields.city,
-                        placeholder = "City",
+                        placeholder = t("thread.addrCity"),
                         onValue = { v -> onEdit { it.copy(city = v) } },
                         modifier = Modifier.weight(1f),
                     )
@@ -957,13 +972,13 @@ private fun AddressSection(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AddressField(
                         value = fields.state,
-                        placeholder = "State / province",
+                        placeholder = t("thread.addrState"),
                         onValue = { v -> onEdit { it.copy(state = v) } },
                         modifier = Modifier.weight(1f),
                     )
                     AddressField(
                         value = fields.postalCode,
-                        placeholder = "Postal code",
+                        placeholder = t("thread.addrPostal"),
                         onValue = { v -> onEdit { it.copy(postalCode = v) } },
                         modifier = Modifier.weight(1f),
                     )

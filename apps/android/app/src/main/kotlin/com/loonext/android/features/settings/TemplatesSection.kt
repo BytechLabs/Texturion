@@ -30,6 +30,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.Template
 import com.loonext.android.features.compose.MergeFields
@@ -114,8 +117,7 @@ fun TemplatesSection(
 
     Column {
         Text(
-            "Replies you type all the time, saved once. Tap Templates in the composer " +
-                "to insert one. Anyone on the crew can add or change them.",
+            t("settingsMore.templatesIntro"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
@@ -131,12 +133,9 @@ fun TemplatesSection(
 
             is LoadState.Ready -> {
                 val templates = current.value
-                SettingsCard(title = "Saved replies") {
+                SettingsCard(title = t("settingsMore.savedReplies")) {
                     if (templates.isEmpty()) {
-                        ReadOnlyLine(
-                            "No templates yet. Save a reply you send often, then insert " +
-                                "it from Templates in the composer.",
-                        )
+                        ReadOnlyLine(t("settingsMore.noTemplatesYet"))
                     } else {
                         // #274: gathered under whatever headings the crew has
                         // written. A shop that never uses categories sees the
@@ -173,8 +172,11 @@ fun TemplatesSection(
                         editorOpen = true
                     }) {
                         Text(
-                            if (templates.isEmpty()) "Create your first template"
-                            else "New template",
+                            if (templates.isEmpty()) {
+                                t("settingsMore.createFirstTemplate")
+                            } else {
+                                t("settingsMore.newTemplate")
+                            },
                         )
                     }
                 }
@@ -251,9 +253,9 @@ private fun TemplateListRow(
             )
         }
         Spacer(Modifier.width(4.dp))
-        LinkButton(onClick = onEdit) { Text("Edit") }
+        LinkButton(onClick = onEdit) { Text(t("settingsMore.edit")) }
         LinkButton(onClick = onDelete) {
-            Text("Delete", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(t("common.delete"), color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -262,21 +264,26 @@ private fun TemplateListRow(
  * [relativeTime] speaks two dialects — durations ("now", "5m", "3h", "2d") and
  * calendar dates ("Jul 8") — and only a duration reads right before "ago".
  */
+@Composable
 private fun updatedLine(iso: String, editor: String? = null): String {
     val relative = relativeTime(iso)
+    // Tested BEFORE the words, so the "no edit to attribute" branch below is
+    // decided by the state rather than by comparing two translated sentences —
+    // which is the version that quietly stops working in French.
+    val unknown = relative.isEmpty()
     val base = when {
-        relative.isEmpty() -> "Saved reply"
-        relative == "now" -> "Updated just now"
-        relative.last() in "mhd" -> "Updated $relative ago"
-        else -> "Updated $relative"
+        unknown -> t("settingsMore.savedReply")
+        relative == "now" -> t("settingsMore.updatedJustNow")
+        relative.last() in "mhd" -> t("settingsMore.updatedAgo", "ago" to relative)
+        else -> t("settingsMore.updatedOn", "when" to relative)
     }
     // #419: not a permission — visibility. A template is the only object here
     // where one person's edit changes what everyone else says to customers,
     // and in a crew of ten "Sam changed this on Tuesday" settles the question
     // before it becomes a dispute. "Saved reply" takes no byline: there is no
     // edit to attribute.
-    if (editor.isNullOrBlank() || base == "Saved reply") return base
-    return "$base by $editor"
+    if (editor.isNullOrBlank() || unknown) return base
+    return t("settingsMore.updatedBy", "line" to base, "editor" to editor)
 }
 
 /** Create ([template] null) or edit a saved reply — the web dialog's twin. */
@@ -306,6 +313,7 @@ private fun TemplateEditorDialog(
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    val locale = LocalAppLocale.current
 
     val trimmedName = name.trim()
     val trimmedBody = body.trim()
@@ -330,7 +338,15 @@ private fun TemplateEditorDialog(
 
     AlertDialog(
         onDismissRequest = { if (!saving) onDismiss() },
-        title = { Text(if (template == null) "New template" else "Edit template") },
+        title = {
+            Text(
+                if (template == null) {
+                    t("settingsMore.newTemplate")
+                } else {
+                    t("settingsMore.editTemplate")
+                },
+            )
+        },
         text = {
             // #180: the dialog body scrolls so the preview below the fields is
             // never squeezed out on a short viewport. #199: the platform keeps
@@ -342,8 +358,8 @@ private fun TemplateEditorDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     enabled = !saving,
-                    label = { Text("Name") },
-                    placeholder = { Text("On my way") },
+                    label = { Text(t("settingsMore.templateName")) },
+                    placeholder = { Text(t("settingsMore.templateNameSample")) },
                 )
                 Spacer(Modifier.height(10.dp))
                 OutlinedTextField(
@@ -352,13 +368,22 @@ private fun TemplateEditorDialog(
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
                     enabled = !saving,
-                    label = { Text("Message") },
-                    placeholder = { Text("On our way. See you in about 20 minutes.") },
+                    label = { Text(t("settingsMore.templateMessage")) },
+                    placeholder = { Text(t("settingsMore.templateMessageSample")) },
                     supportingText = {
-                        val unit = if (estimate.segments == 1) "segment" else "segments"
                         Text(
-                            "${body.length}/$TEMPLATE_BODY_MAX · " +
-                                "${estimate.segments} $unit per send",
+                            t(
+                                "settingsMore.templateCounter",
+                                "used" to "${body.length}",
+                                "max" to "$TEMPLATE_BODY_MAX",
+                            ) + if (estimate.segments == 1) {
+                                t("settingsMore.oneSegmentPerSend")
+                            } else {
+                                t(
+                                    "settingsMore.segmentsPerSend",
+                                    "count" to "${estimate.segments}",
+                                )
+                            },
                         )
                     },
                 )
@@ -373,8 +398,8 @@ private fun TemplateEditorDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     enabled = !saving,
-                    label = { Text("Category (optional)") },
-                    placeholder = { Text("Quoting") },
+                    label = { Text(t("settingsMore.templateCategory")) },
+                    placeholder = { Text(t("settingsMore.templateCategorySample")) },
                 )
                 if (existingCategories.isNotEmpty()) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -392,7 +417,7 @@ private fun TemplateEditorDialog(
                 }
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    "Variables: tap to insert",
+                    t("settingsMore.variablesTapToInsert"),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -420,7 +445,7 @@ private fun TemplateEditorDialog(
                     // unresolved {address} renders as nothing — which is
                     // exactly what a broken token looks like.
                     PreviewBubble(
-                        label = "Preview for $SAMPLE_FIRST_NAME",
+                        label = t("settingsMore.previewFor", "name" to SAMPLE_FIRST_NAME),
                         text = MergeFields.previewTemplate(
                             text = trimmedBody,
                             businessName = company.name,
@@ -460,7 +485,14 @@ private fun TemplateEditorDialog(
                             }
                             haptics.confirm()
                             scope.showMessage(
-                                if (template == null) "Template created." else "Template saved.",
+                                AppStrings.translate(
+                                    locale,
+                                    if (template == null) {
+                                        "settingsMore.templateCreated"
+                                    } else {
+                                        "settingsMore.templateSaved"
+                                    },
+                                ),
                             )
                             onSaved()
                         } catch (cause: Exception) {
@@ -473,15 +505,15 @@ private fun TemplateEditorDialog(
             ) {
                 Text(
                     when {
-                        saving -> "Saving…"
-                        template == null -> "Create template"
-                        else -> "Save"
+                        saving -> t("common.saving")
+                        template == null -> t("settingsMore.createTemplate")
+                        else -> t("common.save")
                     },
                 )
             }
         },
         dismissButton = {
-            LinkButton(onClick = onDismiss, enabled = !saving) { Text("Cancel") }
+            LinkButton(onClick = onDismiss, enabled = !saving) { Text(t("common.cancel")) }
         },
     )
 }
@@ -504,13 +536,13 @@ private fun DeleteTemplateDialog(
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    val locale = LocalAppLocale.current
 
     ConfirmDialog(
-        title = "Delete \"${template.name}\"?",
-        body = "It disappears from the composer's Templates picker for the whole crew. " +
-            "This can't be undone.",
-        confirmLabel = "Delete",
-        dismissLabel = "Keep it",
+        title = t("settingsMore.deleteTemplateTitle", "name" to template.name),
+        body = t("settingsMore.deleteTemplateBody"),
+        confirmLabel = t("common.delete"),
+        dismissLabel = t("settingsMore.keepIt"),
         destructive = true,
         pending = deleting,
         error = error,
@@ -522,7 +554,9 @@ private fun DeleteTemplateDialog(
             coroutines.launch {
                 try {
                     repo.deleteTemplate(scope.companyId, template.id)
-                    scope.showMessage("Template deleted.")
+                    scope.showMessage(
+                        AppStrings.translate(locale, "settingsMore.templateDeleted"),
+                    )
                     onDeleted()
                 } catch (cause: Exception) {
                     error = cause.userMessage()

@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import coil3.compose.AsyncImage
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.StoreCache
 import com.loonext.android.core.model.GalleryItem
@@ -91,6 +92,10 @@ internal fun AttachmentsGalleryScreen(
     BackHandler(onBack = onBack)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // Read in composition, used from a plain function and a coroutine below —
+    // neither of which is a place a @Composable lookup can go.
+    val noAppForFile = t("thread.noAppForFile")
+    val reportFailed = t("thread.reportFileFailed")
 
     var view by remember { mutableStateOf(GalleryView.Images) }
     var loadingMore by remember(conversationId) { mutableStateOf(false) }
@@ -148,7 +153,7 @@ internal fun AttachmentsGalleryScreen(
         try {
             context.startActivity(Intent(Intent.ACTION_VIEW, item.url.toUri()))
         } catch (_: Exception) {
-            onNotice("No app on this device can open that file.")
+            onNotice(noAppForFile)
         }
     }
 
@@ -160,10 +165,16 @@ internal fun AttachmentsGalleryScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to conversation")
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = t("thread.backToConversation"),
+                )
             }
             Column(Modifier.weight(1f)) {
-                Text("Photos & files", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    t("thread.photosAndFiles"),
+                    style = MaterialTheme.typography.titleMedium,
+                )
                 Text(
                     contactName,
                     style = MaterialTheme.typography.labelSmall,
@@ -187,7 +198,7 @@ internal fun AttachmentsGalleryScreen(
                         index = index,
                         count = GalleryView.entries.size,
                     ),
-                ) { Text(item.label) }
+                ) { Text(t(item.labelKey)) }
             }
         }
 
@@ -208,13 +219,13 @@ internal fun AttachmentsGalleryScreen(
                         Text(
                             when {
                                 view == GalleryView.Images && nextCursor != null ->
-                                    "No photos loaded yet."
+                                    t("thread.noPhotosLoaded")
 
                                 view == GalleryView.Images ->
-                                    "No photos in this conversation yet."
+                                    t("thread.noPhotosYet")
 
-                                nextCursor != null -> "No files loaded yet."
-                                else -> "No files in this conversation yet."
+                                nextCursor != null -> t("thread.noFilesLoaded")
+                                else -> t("thread.noFilesYet")
                             },
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -254,12 +265,13 @@ internal fun AttachmentsGalleryScreen(
     reporting?.let { target ->
         AlertDialog(
             onDismissRequest = { reporting = null },
-            title = { Text("Report this file?") },
+            title = { Text(t("thread.reportFileTitle")) },
             text = {
                 Text(
-                    "Nobody on your team will be able to open " +
-                        "${galleryFileName(target)} until an owner or admin " +
-                        "releases it. Nothing is deleted.",
+                    t(
+                        "thread.reportFileBody",
+                        "name" to galleryFileName(target),
+                    ),
                 )
             },
             confirmButton = {
@@ -279,16 +291,21 @@ internal fun AttachmentsGalleryScreen(
                                     reporting = null
                                     Toast.makeText(
                                         context,
-                                        "Couldn't report that file. Try again.",
+                                        reportFailed,
                                         Toast.LENGTH_SHORT,
                                     ).show()
                                 }
                         }
                     },
-                ) { Text(if (reportInFlight) "Reporting…" else "Report file") }
+                ) {
+                    Text(
+                        if (reportInFlight) t("thread.reporting")
+                        else t("thread.reportFile"),
+                    )
+                }
             },
             dismissButton = {
-                TextButton(onClick = { reporting = null }) { Text("Cancel") }
+                TextButton(onClick = { reporting = null }) { Text(t("common.cancel")) }
             },
         )
     }
@@ -323,7 +340,7 @@ private fun ImagesGrid(
         items(items, key = { it.id }) { item ->
             AsyncImage(
                 model = item.url,
-                contentDescription = item.file_name ?: "Photo",
+                contentDescription = item.file_name ?: t("thread.photo"),
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .aspectRatio(1f)
@@ -333,7 +350,7 @@ private fun ImagesGrid(
                     .combinedClickable(
                         onClick = { onOpen(item) },
                         onLongClick = { onReport(item) },
-                        onLongClickLabel = "Report this photo",
+                        onLongClickLabel = t("thread.reportPhotoAction"),
                     ),
             )
         }
@@ -393,13 +410,16 @@ private fun FilesList(
                     IconButton(onClick = { menuOpen = true }) {
                         Icon(
                             Icons.Default.MoreVert,
-                            contentDescription = "Actions for ${galleryFileName(item)}",
+                            contentDescription = t(
+                                "thread.fileActions",
+                                "name" to galleryFileName(item),
+                            ),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
-                            text = { Text("Report this file") },
+                            text = { Text(t("thread.reportThisFile")) },
                             onClick = {
                                 menuOpen = false
                                 onReport(item)
@@ -427,7 +447,7 @@ private fun LoadMoreRow(loadingMore: Boolean, onLoadMore: () -> Unit) {
         if (loadingMore) {
             LoadingIndicator()
         } else {
-            TextButton(onClick = onLoadMore) { Text("Load more") }
+            TextButton(onClick = onLoadMore) { Text(t("thread.loadMore")) }
         }
     }
 }

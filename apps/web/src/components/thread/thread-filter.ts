@@ -1,3 +1,7 @@
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
+
 import type { ThreadItem } from "./clusters";
 
 /**
@@ -22,11 +26,22 @@ export type ThreadCategory = (typeof THREAD_CATEGORIES)[number];
 /** Which content kinds are currently shown. All-on is the default full stream. */
 export type ThreadFilter = Readonly<Record<ThreadCategory, boolean>>;
 
-export const THREAD_CATEGORY_LABELS: Record<ThreadCategory, string> = {
-  messages: "Messages",
-  notes: "Notes",
-  events: "Events",
-};
+/** English, for a caller with no provider — the unit tests read these directly. */
+const EN = makeTranslate(DEFAULT_LOCALE);
+
+const THREAD_CATEGORY_KEYS = {
+  messages: "thread.categoryMessages",
+  notes: "thread.categoryNotes",
+  events: "thread.categoryEvents",
+} as const;
+
+/** The word for one content kind, on a toggle or inside "Showing {kinds}". */
+export function threadCategoryLabel(
+  category: ThreadCategory,
+  t: Translate = EN,
+): string {
+  return t(THREAD_CATEGORY_KEYS[category]);
+}
 
 /** The default: every content kind visible (the full interleaved stream). */
 export const ALL_CATEGORIES_ON: ThreadFilter = {
@@ -131,18 +146,21 @@ export function filterThreadItems(
 }
 
 /** The §5.1 empty-view copy for a filter that matched nothing. */
-export function threadFilterEmptyCopy(filter: ThreadFilter): string {
-  if (isAllOn(filter)) return "No messages yet. Say hello below.";
+export function threadFilterEmptyCopy(
+  filter: ThreadFilter,
+  t: Translate = EN,
+): string {
+  if (isAllOn(filter)) return t("thread.emptyAll");
   const on = enabledCategories(filter);
   if (on.length === 1) {
     switch (on[0]) {
       case "messages":
-        return "No messages yet.";
+        return t("thread.emptyMessages");
       case "notes":
-        return "No internal notes on this conversation.";
+        return t("thread.emptyNotes");
       case "events":
-        return "Nothing has happened on this conversation yet.";
+        return t("thread.emptyEvents");
     }
   }
-  return "Nothing to show with the current filters.";
+  return t("thread.emptyFiltered");
 }

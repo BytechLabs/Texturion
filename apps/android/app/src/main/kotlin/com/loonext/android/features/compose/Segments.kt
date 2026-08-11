@@ -1,5 +1,7 @@
 package com.loonext.android.features.compose
 
+import com.loonext.android.core.i18n.AppStrings
+
 /**
  * SMS segment estimator — an exact Kotlin port of packages/shared/src/segments.ts
  * (SPEC §2, §9, §10). App-side estimate only; Telnyx's finalized `parts` +
@@ -167,13 +169,25 @@ data class SegmentMeterState(
  * Composer segment hint — passive text, not a control. Appears only once a
  * message actually splits into 2+ parts; MMS shows a flat 3-part note.
  */
-fun segmentMeter(text: String, hasMedia: Boolean = false): SegmentMeterState {
+fun segmentMeter(
+    text: String,
+    hasMedia: Boolean = false,
+    /**
+     * #228: the reader's language. Defaults to English so the pure callers and
+     * their tests read exactly as they did; the composers pass their own.
+     */
+    locale: String? = null,
+): SegmentMeterState {
     if (hasMedia) {
         return SegmentMeterState(
             visible = true,
             segments = MMS_SEGMENTS,
             encoding = SmsEncoding.GSM7,
-            label = "MMS · sent in $MMS_SEGMENTS parts",
+            label = AppStrings.translate(
+                locale,
+                "thread.mmsSegments",
+                mapOf("count" to MMS_SEGMENTS.toString()),
+            ),
             warn = false,
         )
     }
@@ -182,7 +196,15 @@ fun segmentMeter(text: String, hasMedia: Boolean = false): SegmentMeterState {
         visible = estimate.segments >= 2,
         segments = estimate.segments,
         encoding = estimate.encoding,
-        label = "Sent in ${estimate.segments} part${if (estimate.segments == 1) "" else "s"}",
+        label = if (estimate.segments == 1) {
+            AppStrings.translate(locale, "thread.sentInOnePart")
+        } else {
+            AppStrings.translate(
+                locale,
+                "thread.sentInParts",
+                mapOf("count" to estimate.segments.toString()),
+            )
+        },
         warn = estimate.segments >= METER_WARN_AT_SEGMENTS,
     )
 }

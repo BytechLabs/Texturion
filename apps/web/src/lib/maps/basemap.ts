@@ -1,3 +1,6 @@
+import { EN } from "@/i18n/catalog";
+import type { Translate } from "@/i18n/provider";
+
 /**
  * #428 — where map tiles come from, and the one rule about it.
  *
@@ -106,7 +109,22 @@ export function isUnlicensedTileHost(url: string): boolean {
  * Names the state and who fixes it, and does NOT apologise for a bug — this is a
  * configuration the workspace's owner can complete, not a fault. Deliberately
  * short: it sits under a working map, not in place of one.
+ *
+ * #228: the sentence is `misc.mapNoBasemap`; call this with the reader's `t`.
+ * The ATTRIBUTION beside it on screen is never translated — it is the
+ * provider's own required credit line, dictated by them, and a reworded credit
+ * is a second licensing problem rather than a copy change.
  */
-export const NO_BASEMAP_NOTICE =
-  "Job pins are exact. The street background needs a map provider configured, " +
-  "which an owner can do in one setting.";
+export function noBasemapNotice(t: Translate): string {
+  return t("misc.mapNoBasemap");
+}
+
+/**
+ * The same sentence in English, for the map island until it is handed a `t`.
+ *
+ * Read straight off the catalogue rather than through `makeTranslate`, which is
+ * exported from a `"use client"` module: a module-level call to a client
+ * reference is a build failure the moment anything server-rendered imports this
+ * file, and nothing here interpolates.
+ */
+export const NO_BASEMAP_NOTICE: string = EN.misc.mapNoBasemap;

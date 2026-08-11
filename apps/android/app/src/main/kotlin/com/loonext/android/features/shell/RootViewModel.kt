@@ -6,6 +6,8 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.loonext.android.AppGraph
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.UiLocale
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.SubscriptionStatus
@@ -281,6 +283,12 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
     private suspend fun reconnectRealtime(): Boolean {
         val ready = _state.value as? RootState.Ready ?: return false
         val refreshed = runCatching { graph.meRepo.me(ready.companyId) }.getOrNull() ?: return false
+        // #228: this runs on every return to the foreground, so it is where a
+        // language changed on the laptop reaches the phone.
+        graph.prefs.setUiLocale(refreshed.locale)
+        graph.prefs.setWorkspaceLocale(
+            refreshed.memberships.firstOrNull { it.company_id == ready.companyId }?.locale,
+        )
         val session = graph.sessionStore.session.first() ?: return false
         graph.realtime.connect(
             ready.companyId,
@@ -300,6 +308,12 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
     private suspend fun bootstrap() {
         try {
             val me = graph.meRepo.me()
+            // #228: the server has just answered the first two thirds of "what
+            // language is this app in", so write both down before anything else
+            // uses them. The mirror is what makes the NEXT cold start paint in
+            // the right language on its first frame instead of flashing English
+            // at a French crew while this call is in flight.
+            graph.prefs.setUiLocale(me.locale)
             if (me.memberships.isEmpty()) {
                 _state.value = RootState.NeedsWorkspace(me)
                 return
@@ -308,6 +322,10 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
             val membership = me.memberships.firstOrNull { it.company_id == stored }
                 ?: me.memberships.first()
             graph.prefs.setActiveCompany(membership.company_id)
+            // The WORKSPACE half, and it has to wait for the line above: which
+            // company's language matters is a question the active membership
+            // answers, and somebody in two workspaces has two answers.
+            graph.prefs.setWorkspaceLocale(membership.locale)
 
             val incomplete = membership.subscription_status == SubscriptionStatus.INCOMPLETE ||
                 membership.subscription_status == SubscriptionStatus.INCOMPLETE_EXPIRED
@@ -417,7 +435,26 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
                 _state.value = RootState.Failed(cause.message)
             }
         } catch (cause: Exception) {
-            _state.value = RootState.Failed("Couldn't load your workspace.")
+            _state.value = RootState.Failed(
+                AppStrings.translate(uiLocale(), "shell.bootstrapFailed"),
+            )
         }
     }
+
+    /**
+     * #228: the reader's language, for the one sentence on this path that is
+     * OURS.
+     *
+     * Every other [RootState.Failed] above carries `cause.message` — the API's
+     * own words, which are the API's to translate; a client-side catalogue entry
+     * for a server refusal would be a second copy that drifts. This one is the
+     * catch-all we wrote, and there is no composition here to read a locale from,
+     * so it is resolved the same way the Compose root resolves it: the mirror
+     * this class itself keeps up to date, then the device, then the workspace.
+     */
+    private suspend fun uiLocale(): String = UiLocale.resolve(
+        graph.prefs.uiLocale.first(),
+        UiLocale.deviceTag(),
+        graph.prefs.workspaceLocale.first(),
+    )
 }

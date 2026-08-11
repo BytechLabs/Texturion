@@ -92,6 +92,9 @@ import coil3.compose.AsyncImage
 import com.loonext.android.AppGraph
 import com.loonext.android.BuildConfig
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.AddressProvenance
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
@@ -166,6 +169,8 @@ internal fun TaskDetailScreen(
     // rememberCacheFirst) because a refetch 404 must EVICT and replace even
     // cached data — a teammate deleting the task must not leave a stale row
     // on screen forever.
+    // #228: read in composition; the fetch effect below is not composition.
+    val locale = LocalAppLocale.current
     val cacheKey = CacheKeys.task(companyId, taskId)
     val detailFlow = remember(cacheKey) { graph.storeCache.flowOf<TaskDetail>(cacheKey) }
     val cachedDetail by detailFlow.collectAsState()
@@ -185,7 +190,10 @@ internal fun TaskDetailScreen(
                 // evict and say so instead of showing a stale row forever.
                 code == ApiErrorCode.NOT_FOUND -> {
                     detailFlow.value = null
-                    LoadState.Failed("This task doesn't exist or was removed.", code)
+                    LoadState.Failed(
+                        AppStrings.translate(locale, "contactsTasks.taskGone"),
+                        code,
+                    )
                 }
 
                 // Keep shown data on a quiet refresh failure.
@@ -290,11 +298,11 @@ private fun DetailTopBar(
     ) {
         PaperCircleButton(
             icon = Icons.AutoMirrored.Outlined.ArrowBack,
-            contentDescription = "Back to tasks",
+            contentDescription = t("contactsTasks.backToTasks"),
             onClick = onBack,
         )
         Text(
-            "Task",
+            t("contactsTasks.taskHeading"),
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -374,6 +382,8 @@ private fun TaskDetailBody(
 ) {
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    val locale = LocalAppLocale.current
+    val teammateLabel = t("contactsTasks.teammate")
     val noAccess = detail.viewer_level == "none"
 
     val role = me.memberships.firstOrNull { it.company_id == companyId }?.role
@@ -445,7 +455,7 @@ private fun TaskDetailBody(
             } catch (cause: Exception) {
                 onActionError(
                     if ((cause as? ApiException)?.code == ApiErrorCode.FORBIDDEN) {
-                        "Only the task's creator or an admin can delete it."
+                        AppStrings.translate(locale, "contactsTasks.deleteForbidden")
                     } else {
                         cause.userMessage()
                     },
@@ -461,7 +471,7 @@ private fun TaskDetailBody(
             Box {
                 PaperCircleButton(
                     icon = Icons.Outlined.MoreHoriz,
-                    contentDescription = "Task actions",
+                    contentDescription = t("contactsTasks.taskActions"),
                     onClick = {
                         haptics.tap()
                         menuOpen = true
@@ -470,7 +480,17 @@ private fun TaskDetailBody(
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     if (!noAccess) {
                         DropdownMenuItem(
-                            text = { Text(if (detail.done) "Mark not done" else "Mark done") },
+                            text = {
+                                Text(
+                                    t(
+                                        if (detail.done) {
+                                            "contactsTasks.markNotDone"
+                                        } else {
+                                            "contactsTasks.markDone"
+                                        },
+                                    ),
+                                )
+                            },
                             onClick = {
                                 menuOpen = false
                                 toggleDone()
@@ -481,7 +501,7 @@ private fun TaskDetailBody(
                         DropdownMenuItem(
                             text = {
                                 Text(
-                                    "Delete task",
+                                    t("contactsTasks.deleteTask"),
                                     color = MaterialTheme.colorScheme.error,
                                 )
                             },
@@ -548,7 +568,7 @@ private fun TaskDetailBody(
                             key = detail.id + detail.updated_at + ":title",
                             initial = detail.title,
                             maxLength = TASK_TITLE_MAX,
-                            placeholder = "Task title",
+                            placeholder = t("contactsTasks.taskTitlePlaceholder"),
                             singleLine = true,
                             allowEmpty = false,
                             textStyle = MaterialTheme.typography.titleLarge.copy(
@@ -585,12 +605,23 @@ private fun TaskDetailBody(
                         targetState = detail.done,
                         label = "statusChip",
                     ) { done ->
-                        DsChip(if (done) "Done" else "To do")
+                        DsChip(
+                            t(
+                                if (done) {
+                                    "contactsTasks.columnDone"
+                                } else {
+                                    "contactsTasks.columnToDo"
+                                },
+                            ),
+                        )
                     }
                     Text(
                         listOfNotNull(
-                            "Created ${relativeTime(detail.created_at)}",
-                            creator?.let { "by $it" },
+                            t(
+                                "contactsTasks.createdWhen",
+                                "when" to relativeTime(detail.created_at),
+                            ),
+                            creator?.let { t("contactsTasks.createdBy", "who" to it) },
                         ).joinToString(" "),
                         fontSize = 11.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
@@ -608,7 +639,7 @@ private fun TaskDetailBody(
                 ) {
                     // Assignee row.
                     MetaRow(
-                        label = "Assignee",
+                        label = t("contactsTasks.assignee"),
                         onClick = if (noAccess) null else {
                             {
                                 haptics.tap()
@@ -618,8 +649,11 @@ private fun TaskDetailBody(
                     ) {
                         val assigneeLabel = detail.assignee?.display_name?.ifBlank { null }
                             ?: memberName(detail.assigned_user_id)
-                            ?: if (detail.assigned_user_id == null) "Unassigned"
-                            else "Teammate"
+                            ?: if (detail.assigned_user_id == null) {
+                                t("contactsTasks.unassigned")
+                            } else {
+                                teammateLabel
+                            }
                         if (detail.assigned_user_id != null) {
                             TaskAvatar(assigneeLabel, size = 24.dp)
                             Spacer(Modifier.width(7.dp))
@@ -628,7 +662,7 @@ private fun TaskDetailBody(
                             if (detail.assigned_user_id != null &&
                                 detail.assigned_user_id == me.user_id
                             ) {
-                                "You"
+                                t("contactsTasks.you")
                             } else {
                                 assigneeLabel
                             },
@@ -646,7 +680,7 @@ private fun TaskDetailBody(
                     RowDivider()
                     // Due row.
                     MetaRow(
-                        label = "Due",
+                        label = t("contactsTasks.due"),
                         onClick = if (noAccess) null else {
                             {
                                 haptics.tap()
@@ -677,7 +711,7 @@ private fun TaskDetailBody(
                                 ) {
                                     Icon(
                                         Icons.Outlined.Close,
-                                        contentDescription = "Clear due date",
+                                        contentDescription = t("contactsTasks.clearDueDate"),
                                         modifier = Modifier.size(16.dp),
                                     )
                                 }
@@ -686,9 +720,13 @@ private fun TaskDetailBody(
                     ) {
                         Text(
                             when {
-                                detail.due_at == null -> "No due date"
-                                overdue -> "Overdue · ${dueRowLabel(detail.due_at)}"
-                                else -> dueRowLabel(detail.due_at)
+                                detail.due_at == null -> t("contactsTasks.noDueDate")
+                                overdue -> t(
+                                    "contactsTasks.overdueDot",
+                                    "due" to dueRowLabel(detail.due_at, locale),
+                                )
+
+                                else -> dueRowLabel(detail.due_at, locale)
                             },
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -713,7 +751,7 @@ private fun TaskDetailBody(
                     if (detail.due_at != null) {
                         RowDivider()
                         MetaRow(
-                            label = "Remind",
+                            label = t("contactsTasks.remind"),
                             // The switch IS the control; tapping the row would
                             // be a second, invisible way to toggle it.
                             onClick = null,
@@ -744,10 +782,10 @@ private fun TaskDetailBody(
                             Text(
                                 when {
                                     detail.confirmed_at != null ->
-                                        confirmedLine(detail.confirmed_by)
+                                        confirmedLine(detail.confirmed_by, locale)
                                     detail.reminders_off ->
-                                        "Off for this job"
-                                    else -> "Uses your workspace reminders"
+                                        t("contactsTasks.remindOff")
+                                    else -> t("contactsTasks.remindWorkspace")
                                 },
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -788,9 +826,7 @@ private fun TaskDetailBody(
                             .padding(18.dp),
                     ) {
                         Text(
-                            "This task is linked to a number you don't have access to. " +
-                                "You can see the task, but not its messages, files, or " +
-                                "discussion. Ask an owner or admin for access.",
+                            t("contactsTasks.taskNoAccess"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(15.dp),
@@ -802,7 +838,7 @@ private fun TaskDetailBody(
                     val source = detail.source_message
                     if (source != null) {
                         SourceMessageCard(
-                            body = source.body.ifBlank { "A photo" },
+                            body = source.body.ifBlank { t("contactsTasks.aPhoto") },
                             createdAt = source.created_at,
                             onOpenConversation = onOpenConversation?.let { open ->
                                 { open(detail.conversation_id, detail.message_id) }
@@ -816,12 +852,12 @@ private fun TaskDetailBody(
 
                 item(key = "description") {
                     Column(Modifier.padding(horizontal = 18.dp).padding(top = 14.dp)) {
-                        SectionHeader("Description")
+                        SectionHeader(t("contactsTasks.description"))
                         InlineEditField(
                             key = detail.id + detail.updated_at + ":description",
                             initial = detail.description,
                             maxLength = TASK_DESCRIPTION_MAX,
-                            placeholder = "Add details teammates should know",
+                            placeholder = t("contactsTasks.descriptionPlaceholder"),
                             singleLine = false,
                             allowEmpty = true,
                             textStyle = MaterialTheme.typography.bodyMedium.copy(
@@ -851,7 +887,10 @@ private fun TaskDetailBody(
                     // in on, and that note has a time, an author and a label.
                     item(key = "attachments") {
                         Column(Modifier.padding(horizontal = 18.dp).padding(top = 14.dp)) {
-                            SectionHeader("Files", count = detail.attachments.size)
+                            SectionHeader(
+                                t("contactsTasks.files"),
+                                count = detail.attachments.size,
+                            )
                             groupJobPhotos(detail.attachments).forEach { group ->
                                 PhotoGroupHeader(
                                     phase = group.workPhase,
@@ -894,10 +933,10 @@ private fun TaskDetailBody(
 
                 item(key = "activity-label") {
                     Column(Modifier.padding(horizontal = 18.dp).padding(top = 16.dp)) {
-                        SectionHeader("Activity")
+                        SectionHeader(t("contactsTasks.activity"))
                         if (detail.activity.isEmpty()) {
                             Text(
-                                "No activity yet. Post a note below to start a discussion.",
+                                t("contactsTasks.activityEmpty"),
                                 fontSize = 12.5.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -913,7 +952,7 @@ private fun TaskDetailBody(
                     if (item.kind == "note") {
                         NoteCard(
                             author = item.author?.display_name?.ifBlank { null }
-                                ?: memberName(item.author_user_id) ?: "Teammate",
+                                ?: memberName(item.author_user_id) ?: teammateLabel,
                             body = item.body.orEmpty(),
                             createdAt = item.created_at,
                             modifier = Modifier.animateItem(),
@@ -924,6 +963,7 @@ private fun TaskDetailBody(
                             by = item.actor?.display_name?.ifBlank { null }
                                 ?: memberName(item.actor_user_id) ?: "Loonext",
                             memberName = ::memberName,
+                            locale = locale,
                         )
                         if (sentence != null) {
                             Row(
@@ -942,7 +982,11 @@ private fun TaskDetailBody(
                                         ),
                                 )
                                 Text(
-                                    "$sentence · ${relativeTime(item.created_at)}",
+                                    t(
+                                        "contactsTasks.activityLine",
+                                        "sentence" to sentence,
+                                        "when" to relativeTime(item.created_at),
+                                    ),
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -970,15 +1014,20 @@ private fun TaskDetailBody(
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete this task?") },
+            title = { Text(t("contactsTasks.deleteTaskTitle")) },
             text = {
                 Text(
-                    "It carries " + listOfNotNull(
-                        if (hasNotes) "discussion notes" else null,
-                        if (detail.attachments.isNotEmpty()) "files" else null,
-                    ).joinToString(" and ") +
-                        ". The conversation and its messages stay; the done mark " +
-                        "on the source message is kept.",
+                    t(
+                        "contactsTasks.deleteTaskBody",
+                        "what" to listOfNotNull(
+                            if (hasNotes) t("contactsTasks.discussionNotes") else null,
+                            if (detail.attachments.isNotEmpty()) {
+                                t("contactsTasks.filesLower")
+                            } else {
+                                null
+                            },
+                        ).joinToString(t("contactsTasks.andJoiner")),
+                    ),
                 )
             },
             confirmButton = {
@@ -988,10 +1037,12 @@ private fun TaskDetailBody(
                         confirmDelete = false
                         deleteTask()
                     },
-                ) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                ) { Text(t("common.delete"), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Keep task") }
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text(t("contactsTasks.keepTask"))
+                }
             },
         )
     }
@@ -1036,10 +1087,10 @@ private fun TaskDetailBody(
                         datePickerOpen = false
                         timePickerOpen = true
                     },
-                ) { Text("Next") }
+                ) { Text(t("contactsTasks.next")) }
             },
             dismissButton = {
-                TextButton(onClick = { datePickerOpen = false }) { Text("Cancel") }
+                TextButton(onClick = { datePickerOpen = false }) { Text(t("common.cancel")) }
             },
         ) { DatePicker(state = dateState) }
     }
@@ -1052,7 +1103,7 @@ private fun TaskDetailBody(
         )
         AlertDialog(
             onDismissRequest = { timePickerOpen = false },
-            title = { Text("Due time") },
+            title = { Text(t("contactsTasks.dueTime")) },
             text = { TimePicker(state = timeState) },
             confirmButton = {
                 TextButton(onClick = {
@@ -1073,18 +1124,18 @@ private fun TaskDetailBody(
                             onActionError(cause.userMessage())
                         }
                     }
-                }) { Text("Set due date") }
+                }) { Text(t("contactsTasks.setDueDate")) }
             },
             dismissButton = {
-                TextButton(onClick = { timePickerOpen = false }) { Text("Cancel") }
+                TextButton(onClick = { timePickerOpen = false }) { Text(t("common.cancel")) }
             },
         )
     }
 }
 
 /** "Tomorrow · 9:00 AM" — the due row value (spec 23). */
-private fun dueRowLabel(dueAt: String): String {
-    val day = formatDue(dueAt)
+private fun dueRowLabel(dueAt: String, locale: String?): String {
+    val day = formatDue(dueAt, locale = locale)
     val time = parseInstant(dueAt)
         ?.atZone(ZoneId.systemDefault())
         ?.format(DateTimeFormatter.ofPattern("h:mm a"))
@@ -1216,7 +1267,7 @@ private fun TaskAddressSection(
                 modifier = Modifier.size(16.dp),
             )
             Text(
-                "Address",
+                t("contactsTasks.address"),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -1232,7 +1283,7 @@ private fun TaskAddressSection(
             // Its own clickable consumes the tap, so it never toggles.
             if (enabled && !fields.allBlank()) {
                 Text(
-                    "Clear",
+                    t("contactsTasks.clear"),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1257,7 +1308,11 @@ private fun TaskAddressSection(
             }
             Icon(
                 Icons.Outlined.ExpandMore,
-                contentDescription = if (open) "Hide address" else "Show address",
+                contentDescription = if (open) {
+                    t("contactsTasks.hideAddress")
+                } else {
+                    t("contactsTasks.showAddress")
+                },
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .size(18.dp)
@@ -1268,7 +1323,7 @@ private fun TaskAddressSection(
         if (open) {
             AddressInput(
                 value = fields.street,
-                placeholder = "Street",
+                placeholder = t("contactsTasks.addrStreet"),
                 enabled = enabled,
                 onValue = { v -> edit { it.copy(street = v) } },
                 modifier = Modifier.fillMaxWidth(),
@@ -1276,14 +1331,14 @@ private fun TaskAddressSection(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AddressInput(
                     value = fields.unit,
-                    placeholder = "Unit / suite",
+                    placeholder = t("contactsTasks.addrUnit"),
                     enabled = enabled,
                     onValue = { v -> edit { it.copy(unit = v) } },
                     modifier = Modifier.weight(1f),
                 )
                 AddressInput(
                     value = fields.city,
-                    placeholder = "City",
+                    placeholder = t("contactsTasks.addrCity"),
                     enabled = enabled,
                     onValue = { v -> edit { it.copy(city = v) } },
                     modifier = Modifier.weight(1f),
@@ -1292,14 +1347,14 @@ private fun TaskAddressSection(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AddressInput(
                     value = fields.state,
-                    placeholder = "State / province",
+                    placeholder = t("contactsTasks.addrState"),
                     enabled = enabled,
                     onValue = { v -> edit { it.copy(state = v) } },
                     modifier = Modifier.weight(1f),
                 )
                 AddressInput(
                     value = fields.postalCode,
-                    placeholder = "Postal code",
+                    placeholder = t("contactsTasks.addrPostalCode"),
                     enabled = enabled,
                     onValue = { v -> edit { it.copy(postalCode = v) } },
                     modifier = Modifier.weight(1f),
@@ -1320,7 +1375,7 @@ private fun TaskAddressSection(
                 ) {
                     Spacer(Modifier.weight(1f))
                     Text(
-                        "Reset",
+                        t("contactsTasks.reset"),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1334,7 +1389,7 @@ private fun TaskAddressSection(
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                     )
                     Text(
-                        if (saving) "Saving…" else "Save address",
+                        if (saving) t("common.saving") else t("contactsTasks.saveAddress"),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.secondary,
@@ -1467,7 +1522,10 @@ private fun SourceMessageCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "Source message · ${relativeTime(createdAt)}",
+                        t(
+                            "contactsTasks.sourceMessageWhen",
+                            "when" to relativeTime(createdAt),
+                        ),
                         fontSize = 10.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
@@ -1475,7 +1533,7 @@ private fun SourceMessageCard(
                     )
                     if (onOpenConversation != null) {
                         Text(
-                            "Open conversation →",
+                            t("contactsTasks.openConversationArrow"),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.secondary,
@@ -1598,7 +1656,7 @@ private fun AttachmentCell(
             when {
                 url != null -> AsyncImage(
                     model = url,
-                    contentDescription = item.file_name ?: "Photo",
+                    contentDescription = item.file_name ?: t("contactsTasks.photo"),
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
@@ -1623,7 +1681,7 @@ private fun AttachmentCell(
 
                 failed -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        "Couldn't load",
+                        t("contactsTasks.couldntLoad"),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1673,7 +1731,7 @@ private fun AttachmentCell(
                 Spacer(Modifier.width(8.dp))
                 Column {
                     Text(
-                        item.file_name ?: "File",
+                        item.file_name ?: t("contactsTasks.file"),
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
@@ -1734,7 +1792,7 @@ private fun NoteCard(
             TaskAvatar(author, size = 18.dp, fontSize = 7.5.sp)
             Icon(
                 Icons.Outlined.Lock,
-                contentDescription = "Internal note",
+                contentDescription = t("contactsTasks.internalNote"),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(11.dp),
             )
@@ -1780,6 +1838,9 @@ private fun NoteComposer(
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
     val multipart = remember { MultipartClient(graph.api, BuildConfig.API_URL) }
+    // #228: the picker callback and the upload coroutine below are not
+    // composition, so their sentences are resolved from a locale read here.
+    val locale = LocalAppLocale.current
 
     var body by remember(taskId) { mutableStateOf("") }
     var staged by remember(taskId) { mutableStateOf(listOf<StagedFile>()) }
@@ -1794,8 +1855,16 @@ private fun NoteComposer(
         val next = uris.take(room).mapNotNull { uri -> describeFile(context, uri) }
         val oversize = next.filter { it.size > NOTE_FILE_MAX_BYTES }
         error = when {
-            uris.size > room -> "Up to $NOTE_FILES_MAX files per note."
-            oversize.isNotEmpty() -> "Files must be 25 MB or less."
+            uris.size > room -> AppStrings.translate(
+                locale,
+                "contactsTasks.noteFilesCap",
+                mapOf("count" to "$NOTE_FILES_MAX"),
+            )
+
+            oversize.isNotEmpty() -> AppStrings.translate(
+                locale,
+                "contactsTasks.noteFileTooBig",
+            )
             else -> null
         }
         staged = staged + next.filter { it.size <= NOTE_FILE_MAX_BYTES }
@@ -1824,7 +1893,10 @@ private fun NoteComposer(
                         trailingIcon = {
                             Icon(
                                 Icons.Outlined.Close,
-                                contentDescription = "Remove ${file.name}",
+                                contentDescription = t(
+                                    "contactsTasks.removeNamed",
+                                    "name" to file.name,
+                                ),
                                 modifier = Modifier.size(14.dp),
                             )
                         },
@@ -1859,7 +1931,7 @@ private fun NoteComposer(
                 ) {
                     Icon(
                         Icons.Outlined.AttachFile,
-                        contentDescription = "Attach files",
+                        contentDescription = t("contactsTasks.attachFiles"),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp),
                     )
@@ -1881,7 +1953,7 @@ private fun NoteComposer(
                         Box {
                             if (body.isEmpty()) {
                                 Text(
-                                    "Add a note for the crew…",
+                                    t("contactsTasks.noteComposerPlaceholder"),
                                     fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                         .copy(alpha = 0.7f),
@@ -1937,9 +2009,15 @@ private fun NoteComposer(
                                 body = ""
                                 staged = emptyList()
                                 error = if (failures > 0) {
-                                    "The note posted, but $failures " +
-                                        (if (failures == 1) "file" else "files") +
-                                        " didn't upload. Retry from the note in the thread."
+                                    AppStrings.translate(
+                                        locale,
+                                        if (failures == 1) {
+                                            "contactsTasks.noteUploadFailedOne"
+                                        } else {
+                                            "contactsTasks.noteUploadFailedMany"
+                                        },
+                                        mapOf("count" to "$failures"),
+                                    )
                                 } else null
                                 onPosted()
                             } catch (cause: Exception) {
@@ -1960,7 +2038,7 @@ private fun NoteComposer(
                 ) {
                     Icon(
                         Icons.Outlined.ArrowUpward,
-                        contentDescription = "Post note",
+                        contentDescription = t("contactsTasks.postNote"),
                         modifier = Modifier.size(16.dp),
                     )
                 }
@@ -1998,9 +2076,12 @@ private fun describeFile(context: android.content.Context, uri: Uri): StagedFile
  * A dispatcher deciding whether to send a van reads them differently, so the
  * line does too. Same wording as the web panel and the iOS screen.
  */
-internal fun confirmedLine(by: String?): String =
-    if (by == "customer") {
-        "They confirmed they'll be there."
-    } else {
-        "Marked confirmed by your crew."
-    }
+internal fun confirmedLine(by: String?, locale: String? = null): String =
+    AppStrings.translate(
+        locale,
+        if (by == "customer") {
+            "contactsTasks.confirmedByCustomer"
+        } else {
+            "contactsTasks.confirmedByCrew"
+        },
+    )

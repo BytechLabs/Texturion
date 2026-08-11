@@ -32,6 +32,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.features.payments.PayoutAccount
 import com.loonext.android.features.payments.Payments
 import com.loonext.android.features.settings.BillingCurrency
@@ -120,10 +121,14 @@ fun AskForPayment(
     val haptics = rememberHaptics()
     val coroutines = rememberCoroutineScope()
 
+    // Read once, up here: the reset below runs inside a coroutine, where a
+    // @Composable lookup cannot go.
+    val defaultDescription = t("thread.askDefaultDescription")
+
     var open by remember { mutableStateOf(false) }
     var amount by remember { mutableStateOf("") }
     // Smart Defaults: the ask this feature was built for, editable in one tap.
-    var description by remember { mutableStateOf("Deposit") }
+    var description by remember { mutableStateOf(defaultDescription) }
     var sending by remember { mutableStateOf(false) }
     // Minted once per ASK, not per tap. A tap that timed out on a cell
     // connection and the tap the person makes again are the same request, and
@@ -145,7 +150,7 @@ fun AskForPayment(
                 modifier = Modifier.size(16.dp),
             )
             Spacer(Modifier.width(6.dp))
-            Text("Ask for payment")
+            Text(t("payments.askAction"))
         }
         return
     }
@@ -159,7 +164,8 @@ fun AskForPayment(
             // A workspace whose name has not loaded yet still gets an honest
             // preview: the customer will see the real name, and a blank first
             // word would read as a broken message rather than a pending fetch.
-            businessName = businessName?.takeIf { it.isNotBlank() } ?: "Your business",
+            businessName = businessName?.takeIf { it.isNotBlank() }
+                ?: t("thread.yourBusiness"),
             amountCents = cents,
             currency = currency,
             description = description,
@@ -194,7 +200,7 @@ fun AskForPayment(
             // and it is not always the one this workspace's plan is billed in;
             // "Amount" alone would let a Canadian crew read a US figure as
             // theirs.
-            label = { Text("Amount in ${currency.name}") },
+            label = { Text(t("thread.askAmountLabel", "currency" to currency.name)) },
             // The phone keyboard a number belongs on, and the one this is typed
             // on nine times out of ten.
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -218,13 +224,13 @@ fun AskForPayment(
             onValueChange = { description = it.take(Payments.DESCRIPTION_MAX) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            label = { Text("What for") },
+            label = { Text(t("payments.descriptionLabel")) },
         )
 
         if (preview != null) {
             Spacer(Modifier.height(12.dp))
             Text(
-                "They will receive:",
+                t("payments.theyWillReceive"),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -267,7 +273,7 @@ fun AskForPayment(
                         if (sent) {
                             open = false
                             amount = ""
-                            description = "Deposit"
+                            description = defaultDescription
                             // A new key for the next ask: reusing it would let
                             // the server dedupe a genuinely different request as
                             // a retry of this one.
@@ -279,23 +285,24 @@ fun AskForPayment(
             ) {
                 Text(
                     when {
-                        sending -> "Sending…"
+                        sending -> t("thread.sending")
                         // The button says the figure, so the last thing read
                         // before the tap is the amount rather than the verb.
                         cents != null && problem == null ->
-                            "Ask for ${formatMoney(cents, currency)}"
+                            t("payments.askFor", "amount" to formatMoney(cents, currency))
 
-                        else -> "Ask for payment"
+                        else -> t("payments.askAction")
                     },
                     fontWeight = FontWeight.Medium,
                 )
             }
-            TextButton(onClick = { open = false }, enabled = !sending) { Text("Cancel") }
+            TextButton(onClick = { open = false }, enabled = !sending) {
+                Text(t("common.cancel"))
+            }
         }
         Spacer(Modifier.height(6.dp))
         Text(
-            "Goes out as a text with a secure payment link. The money lands in " +
-                "your bank account — we take nothing on top.",
+            t("thread.askFootnote"),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.outline,
         )

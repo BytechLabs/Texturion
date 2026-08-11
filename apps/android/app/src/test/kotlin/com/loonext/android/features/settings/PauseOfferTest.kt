@@ -1087,7 +1087,7 @@ class PauseOfferTest {
     fun `the pause offer renders under the exit, inside the note`() {
         val card = composable("CancelCard")
         val note = card.indexOf("CancellationOfferNote(")
-        val confirm = card.indexOf("Continue to cancel")
+        val confirm = card.indexOf(ExitPath.EXIT_KEY)
         assertTrue(note > confirm)
 
         val body = composable("CancellationOfferNote")
@@ -1351,14 +1351,19 @@ class PauseOfferTest {
             "the pill must come from the shared decision",
             card.contains("planBadge(pause, company.subscriptionActive"),
         )
+        // #228: the word itself is in `SettingsStrings` now, so the thing that
+        // may appear exactly once on this card is the KEY that fetches it. The
+        // property is unchanged and so is what it prevents — a card that can
+        // call a plan Active from anywhere other than the branch [planBadge]
+        // handed it.
         val branch = card.indexOf("PlanBadge.Active ->")
-        val label = card.indexOf("\"Active\"")
+        val label = card.indexOf("\"settings.planPillActive\"")
         assertTrue("the card must still badge a running plan", branch > 0)
         assertEquals(
             "`Active` is written more than once on this card. The word may exist " +
                 "only in the branch [planBadge] hands it",
             1,
-            Regex("\"Active\"").findAll(card).count(),
+            Regex("\"settings\\.planPillActive\"").findAll(card).count(),
         )
         assertTrue(
             "`Active` is rendered somewhere other than the branch that earned it",

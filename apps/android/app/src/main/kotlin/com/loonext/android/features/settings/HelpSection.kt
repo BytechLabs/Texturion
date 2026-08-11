@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.diag.RecentErrors
+import com.loonext.android.core.i18n.t
 import java.net.URLEncoder
 
 /**
@@ -223,9 +224,8 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
     )
 
     SettingsCard(
-        title = "Email us",
-        description = "Opens your mail app with your workspace details already filled in, " +
-            "so we can look it up without asking you first.",
+        title = t("settings.helpEmailTitle"),
+        description = t("settings.helpEmailIntro"),
     ) {
         Button(
             onClick = {
@@ -237,18 +237,14 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
                     ),
                 )
             },
-        ) { Text("Email $SUPPORT_EMAIL") }
+        ) { Text(t("settings.helpEmailAction", "email" to SUPPORT_EMAIL)) }
         Spacer(Modifier.height(10.dp))
-        ReadOnlyLine(
-            "Say what you expected and what happened instead. If it's about a " +
-                "specific text or call, the customer's number and roughly when " +
-                "it happened is usually all we need.",
-        )
+        ReadOnlyLine(t("settings.helpWhatToSay"))
     }
 
     SettingsCard(
-        title = "If that button doesn't open anything",
-        description = "Write to $SUPPORT_EMAIL from any email app and paste this in.",
+        title = t("settings.helpNoMailAppTitle"),
+        description = t("settings.helpNoMailAppIntro", "email" to SUPPORT_EMAIL),
     ) {
         ReadOnlyLine(body.trim())
     }
@@ -257,9 +253,8 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
     // from a working contractor are the highest-signal product input available
     // to us, and there was no way for one to arrive.
     SettingsCard(
-        title = "Got an idea?",
-        description = "Something we don't do yet, or do in a way that doesn't fit " +
-            "how you work.",
+        title = t("settings.helpIdeaTitle"),
+        description = t("settings.helpIdeaIntro"),
     ) {
         Button(
             onClick = {
@@ -271,20 +266,16 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
                     ),
                 )
             },
-        ) { Text("Send an idea") }
+        ) { Text(t("settings.helpIdeaAction")) }
         Spacer(Modifier.height(10.dp))
-        ReadOnlyLine(
-            "This goes to the same place, under its own subject so it doesn't get " +
-                "triaged as a fault. Half of what's in the product came from " +
-                "someone describing their day.",
-        )
+        ReadOnlyLine(t("settings.helpIdeaNote"))
     }
 
     // #253 — the answers already exist, in banners you have to hit and legal
     // pages you have to leave the app to find. The gap was the index.
     SettingsCard(
-        title = "Common questions",
-        description = "The things that confuse people most, answered straight.",
+        title = t("settings.helpFaqTitle"),
+        description = t("settings.helpFaqIntro"),
     ) {
         SUPPORT_TOPICS.forEachIndexed { index, (question, answer) ->
             if (index > 0) Spacer(Modifier.height(12.dp))
@@ -295,8 +286,8 @@ fun HelpSection(scope: SettingsScope, companyName: String?, plan: String?) {
     }
 
     SettingsCard(
-        title = "What to expect",
-        description = "An honest answer rather than a promise we'd have to break.",
+        title = t("settings.helpExpectTitle"),
+        description = t("settings.helpExpectIntro"),
     ) {
         ReadOnlyLine(
             // #253 acceptance 4: a stated commitment, from ONE mirrored

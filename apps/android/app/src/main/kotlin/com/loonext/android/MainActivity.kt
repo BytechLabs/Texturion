@@ -61,6 +61,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.UiLocale
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.MessageLocale
@@ -300,8 +302,34 @@ class MainActivity : FragmentActivity() {
             // dialogs, the in-call screen) can adapt its vertical rhythm and
             // max width to a square cover display, a foldable, or a tablet.
             val windowSizeClass = calculateWindowSizeClass(this)
+            // #228: the language every screen below reads, decided ONCE here.
+            //
+            // The two server-side halves come from the prefs mirror rather than
+            // from /v1/me directly, and that is the whole reason the mirror
+            // exists: this composes on the first frame of a cold start, minutes
+            // of a bad connection before the shell is Ready, and a French crew
+            // should not watch the app be English until then. RootViewModel
+            // rewrites both from every /v1/me, so the mirror is never the
+            // authority — only the fast answer.
+            //
+            // The DEVICE half is read once per composition: Android recreates
+            // the activity when the system language changes, so re-reading it on
+            // every recomposition would cost a lookup to learn nothing.
+            val deviceTag = remember { UiLocale.deviceTag() }
+            val userLocale by graph.prefs.uiLocale
+                .collectAsStateWithLifecycle(initialValue = null)
+            val workspaceLocale by graph.prefs.workspaceLocale
+                .collectAsStateWithLifecycle(initialValue = null)
+            val appLocale = UiLocale.resolve(userLocale, deviceTag, workspaceLocale)
             LoonextTheme(darkTheme = darkTheme) {
-                CompositionLocalProvider(LocalWindowSizeClass provides windowSizeClass) {
+                CompositionLocalProvider(
+                    LocalWindowSizeClass provides windowSizeClass,
+                    // ABOVE AppLockGate, not inside it: the lock screen is the
+                    // first thing a returning member sees, and an English wall in
+                    // front of a French app is the one screen nobody can navigate
+                    // past to fix.
+                    LocalAppLocale provides appLocale,
+                ) {
                     // #330: OUTSIDE Root, so a locked app does not compose the
                     // inbox at all rather than covering it. A scrim is one
                     // screenshot away from being nothing.

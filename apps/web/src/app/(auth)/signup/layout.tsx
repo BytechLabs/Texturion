@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import { EN } from "@/i18n/catalog";
+
 /**
  * Per-route tab title for /signup. The page is a client component, so the
  * title lives in this metadata-only segment layout (it renders children
@@ -7,7 +9,7 @@ import type { Metadata } from "next";
  * "%s · Loonext" template comes from the root.
  */
 export const metadata: Metadata = {
-  title: "Create your account",
+  title: EN.onboarding.tabSignUp,
 };
 
 export default function SignupTitleLayout({

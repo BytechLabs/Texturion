@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import { PLAN_PRICING } from "@/lib/api/types";
 
-import { CREW_FIT_PROMPT, crewFitCopy } from "./crew-copy";
+import { crewFitCopy, crewFitPrompt } from "./crew-copy";
 
 describe("#370 crewFitCopy", () => {
   it("names Starter and its real price for the crews it covers", () => {
@@ -46,7 +46,13 @@ describe("#370 crewFitCopy", () => {
   });
 
   it("renders no em or en dash anywhere (Law 6)", () => {
-    const all = [CREW_FIT_PROMPT, ...CREW_SIZE_BUCKETS.map(crewFitCopy)];
+    // `.map(crewFitCopy)` would hand the array index in as the translate
+    // function, which typechecks as nothing and reads as a silent English
+    // fallback. One argument, explicitly.
+    const all = [
+      crewFitPrompt(),
+      ...CREW_SIZE_BUCKETS.map((bucket) => crewFitCopy(bucket)),
+    ];
     for (const line of all) {
       expect(line).not.toMatch(/[–—]/);
     }
@@ -55,6 +61,6 @@ describe("#370 crewFitCopy", () => {
   it("tells the customer the question is optional", () => {
     // The column keeps "never asked" apart from "solo"; a signup that skips it
     // has to know skipping is allowed, or the distinction never appears.
-    expect(CREW_FIT_PROMPT.toLowerCase()).toContain("skip");
+    expect(crewFitPrompt().toLowerCase()).toContain("skip");
   });
 });

@@ -35,6 +35,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.jobs.MarkupPoint
 import com.loonext.android.core.jobs.PhotoMark
 import com.loonext.android.core.jobs.PhotoMarkup
@@ -122,7 +123,7 @@ fun PhotoMarkupSheet(
 
     AlertDialog(
         onDismissRequest = { if (!saving) onCancel() },
-        title = { Text("Point at something") },
+        title = { Text(t("thread.markupTitle")) },
         text = {
             Column {
                 Box(
@@ -232,11 +233,11 @@ fun PhotoMarkupSheet(
                 },
                 enabled = !saving && marks.isNotEmpty(),
             ) {
-                Text(if (saving) "Saving…" else PhotoMarkup.SAVE)
+                Text(if (saving) t("common.saving") else PhotoMarkup.SAVE)
             }
         },
         dismissButton = {
-            TextButton(onClick = onCancel, enabled = !saving) { Text("Cancel") }
+            TextButton(onClick = onCancel, enabled = !saving) { Text(t("common.cancel")) }
         },
     )
 }

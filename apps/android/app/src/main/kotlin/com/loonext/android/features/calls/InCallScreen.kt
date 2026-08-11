@@ -64,6 +64,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loonext.android.core.model.Member
 import com.loonext.android.telephony.AudioRoute
 import com.loonext.android.telephony.CallDirection
+import com.loonext.android.core.i18n.t
 import com.loonext.android.telephony.CallPhase
 import com.loonext.android.telephony.CallSnapshot
 import com.loonext.android.telephony.CallWakePolicy
@@ -244,7 +245,7 @@ fun InCallScreen(
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Outlined.KeyboardArrowDown,
-                        contentDescription = "Hide",
+                        contentDescription = t("contactsTasks.hide"),
                         modifier = Modifier.size(20.dp),
                     )
                 }
@@ -318,8 +319,16 @@ fun InCallScreen(
             Row(Modifier.fillMaxWidth()) {
                 ControlCircle(
                     icon = if (featured.muted) Icons.Outlined.MicOff else Icons.Outlined.Mic,
-                    label = if (featured.muted) "Unmute" else "Mute",
-                    contentDescription = if (featured.muted) "Unmute" else "Mute",
+                    label = if (featured.muted) {
+                        t("contactsTasks.unmute")
+                    } else {
+                        t("contactsTasks.mute")
+                    },
+                    contentDescription = if (featured.muted) {
+                        t("contactsTasks.unmute")
+                    } else {
+                        t("contactsTasks.mute")
+                    },
                     active = featured.muted,
                     onClick = {
                         haptics.tap()
@@ -329,8 +338,8 @@ fun InCallScreen(
                 )
                 ControlCircle(
                     icon = Icons.Outlined.Dialpad,
-                    label = "Keypad",
-                    contentDescription = "Keypad",
+                    label = t("contactsTasks.keypad"),
+                    contentDescription = t("contactsTasks.keypad"),
                     enabled = featured.phase == CallPhase.ACTIVE,
                     onClick = {
                         haptics.tap()
@@ -344,11 +353,15 @@ fun InCallScreen(
                     } else {
                         Icons.Outlined.Pause
                     },
-                    label = if (featured.phase == CallPhase.HELD) "Resume" else "Hold",
-                    contentDescription = if (featured.phase == CallPhase.HELD) {
-                        "Resume"
+                    label = if (featured.phase == CallPhase.HELD) {
+                        t("contactsTasks.resume")
                     } else {
-                        "Hold"
+                        t("contactsTasks.hold")
+                    },
+                    contentDescription = if (featured.phase == CallPhase.HELD) {
+                        t("contactsTasks.resume")
+                    } else {
+                        t("contactsTasks.hold")
                     },
                     active = featured.phase == CallPhase.HELD,
                     onClick = {
@@ -362,8 +375,8 @@ fun InCallScreen(
             Row(Modifier.fillMaxWidth()) {
                 ControlCircle(
                     icon = Icons.Outlined.PhoneForwarded,
-                    label = "Transfer",
-                    contentDescription = "Transfer",
+                    label = t("contactsTasks.transfer"),
+                    contentDescription = t("contactsTasks.transfer"),
                     // Transfer needs the CUSTOMER session to be serverAddressable:
                     // inbound resolves it via by-leg (presence == addressable);
                     // outbound (#211) stamps it at placement, so it also needs a
@@ -385,7 +398,7 @@ fun InCallScreen(
                         linked = conversationId != null,
                         resolving = noteResolving,
                     ),
-                    contentDescription = "Add a note in the conversation",
+                    contentDescription = t("contactsTasks.addNoteAction"),
                     active = conversationId != null,
                     enabled = conversationId != null,
                     onClick = {
@@ -400,8 +413,8 @@ fun InCallScreen(
                     routeToggleLit(AudioRoute.SPEAKER, pendingRoute, routeFacts.current)
                 ControlCircle(
                     icon = Icons.Outlined.VolumeUp,
-                    label = "Speaker",
-                    contentDescription = "Speaker",
+                    label = t("contactsTasks.speaker"),
+                    contentDescription = t("contactsTasks.speaker"),
                     active = speakerLit,
                     onClick = {
                         haptics.tap()
@@ -420,8 +433,8 @@ fun InCallScreen(
                     routeToggleLit(AudioRoute.BLUETOOTH, pendingRoute, routeFacts.current)
                 ControlCircle(
                     icon = Icons.Outlined.Bluetooth,
-                    label = "Bluetooth",
-                    contentDescription = "Bluetooth",
+                    label = t("contactsTasks.bluetooth"),
+                    contentDescription = t("contactsTasks.bluetooth"),
                     active = bluetoothLit,
                     size = 44.dp,
                     onClick = {
@@ -449,7 +462,7 @@ fun InCallScreen(
             }
             if (micNotice) {
                 Text(
-                    "Allow microphone access to answer this call.",
+                    t("contactsTasks.allowMicToAnswer"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                     textAlign = TextAlign.Center,
@@ -465,7 +478,7 @@ fun InCallScreen(
             ) {
                 RingActionCircle(
                     icon = Icons.Outlined.CallEnd,
-                    label = "Decline",
+                    label = t("contactsTasks.decline"),
                     container = MaterialTheme.colorScheme.error,
                     content = MaterialTheme.colorScheme.onError,
                     labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -478,7 +491,7 @@ fun InCallScreen(
                 )
                 RingActionCircle(
                     icon = Icons.Outlined.Call,
-                    label = "Answer",
+                    label = t("contactsTasks.answer"),
                     container = MaterialTheme.colorScheme.tertiary,
                     content = MaterialTheme.colorScheme.onTertiary,
                     labelColor = MaterialTheme.colorScheme.onBackground,
@@ -503,7 +516,7 @@ fun InCallScreen(
                     }
                 },
                 enabled = featured != null,
-                label = "End call",
+                label = t("contactsTasks.endCall"),
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -593,7 +606,7 @@ private fun CallNoteCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
                     modifier = Modifier.size(12.dp),
                 )
                 Text(
-                    "CALL NOTE · SAVES TO THE THREAD",
+                    t("contactsTasks.callNoteEyebrow"),
                     fontSize = 10.5.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.08.em,
@@ -601,7 +614,7 @@ private fun CallNoteCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
                 )
             }
             Text(
-                "Add a note in the conversation…",
+                t("contactsTasks.addNotePlaceholder"),
                 fontSize = 13.5.sp,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
                 modifier = Modifier.padding(top = 6.dp),
@@ -638,10 +651,10 @@ private fun CallPhaseLine(call: CallSnapshot, compact: Boolean = false) {
             }
         } else {
             val text = when (phase) {
-                CallPhase.RINGING -> "Incoming call"
-                CallPhase.CONNECTING -> "Calling…"
-                CallPhase.HELD -> "On hold"
-                CallPhase.ENDED -> "Call ended"
+                CallPhase.RINGING -> t("contactsTasks.phaseIncoming")
+                CallPhase.CONNECTING -> t("contactsTasks.phaseCalling")
+                CallPhase.HELD -> t("contactsTasks.phaseOnHold")
+                CallPhase.ENDED -> t("contactsTasks.phaseEnded")
                 else -> ""
             }
             if (text.isNotEmpty()) {
@@ -684,9 +697,9 @@ private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
                 Text(call.peerName, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
                 Text(
                     when (call.phase) {
-                        CallPhase.RINGING -> "Incoming call"
-                        CallPhase.HELD -> "On hold"
-                        CallPhase.CONNECTING -> "Calling…"
+                        CallPhase.RINGING -> t("contactsTasks.phaseIncoming")
+                        CallPhase.HELD -> t("contactsTasks.phaseOnHold")
+                        CallPhase.CONNECTING -> t("contactsTasks.phaseCalling")
                         else -> ""
                     },
                     fontSize = 11.sp,
@@ -703,7 +716,7 @@ private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
                     manager.declineCurrent(call.id)
                 }) {
                     Text(
-                        "Decline",
+                        t("contactsTasks.decline"),
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.error,
@@ -736,7 +749,11 @@ private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
                             modifier = Modifier.size(14.dp),
                         )
                         Spacer(Modifier.width(6.dp))
-                        Text("Answer", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            t("contactsTasks.answer"),
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
                     }
                 }
             } else if (call.phase == CallPhase.HELD) {
@@ -753,7 +770,7 @@ private fun OtherCallRow(call: CallSnapshot, manager: SoftphoneManager) {
                     modifier = Modifier.pressScale(swapInteraction),
                 ) {
                     Text(
-                        "Swap",
+                        t("contactsTasks.swap"),
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(horizontal = 15.dp, vertical = 8.dp),
@@ -802,7 +819,7 @@ private fun DtmfSheet(onDigit: (String) -> Unit, onDismiss: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    sent.ifEmpty { "Keypad" },
+                    sent.ifEmpty { t("contactsTasks.keypad") },
                     style = MaterialTheme.typography.headlineMedium.copy(
                         fontSize = 26.sp * scale,
                     ),
@@ -860,6 +877,9 @@ private fun TransferSheet(
     var transferring by remember { mutableStateOf(false) }
     var reloadKey by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
+    // Read in composition: the effect below is not, and a nameless target has
+    // to fall back to a word the reader understands.
+    val teammateLabel = t("contactsTasks.teammate")
 
     LaunchedEffect(sessionId, reloadKey) {
         loading = true
@@ -872,7 +892,7 @@ private fun TransferSheet(
                     userId = target.user_id,
                     name = members[target.user_id]?.display_name
                         ?.takeIf { it.isNotBlank() }
-                        ?: "Teammate",
+                        ?: teammateLabel,
                     busy = target.busy,
                 )
             }
@@ -894,7 +914,7 @@ private fun TransferSheet(
                 .padding(horizontal = 20.dp, vertical = 8.dp),
         ) {
             Text(
-                "Transfer this call",
+                t("contactsTasks.transferThisCall"),
                 style = MaterialTheme.typography.headlineSmall.copy(fontSize = 21.sp),
                 color = MaterialTheme.colorScheme.onBackground,
             )
@@ -912,7 +932,7 @@ private fun TransferSheet(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
-                        error ?: "Something went wrong.",
+                        error ?: t("common.somethingWentWrong"),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -920,11 +940,11 @@ private fun TransferSheet(
                     OutlinedButton(
                         onClick = { reloadKey++ },
                         modifier = Modifier.padding(vertical = 12.dp),
-                    ) { Text("Try again") }
+                    ) { Text(t("common.retry")) }
                 }
 
                 rows.isEmpty() -> Text(
-                    "No teammates can take this call right now.",
+                    t("contactsTasks.noTeammatesAvailable"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 24.dp),
@@ -956,7 +976,7 @@ private fun TransferSheet(
                 }
             }
             Text(
-                "If they decline, the call snaps back to you.",
+                t("contactsTasks.transferSnapBack"),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.outline,
                 textAlign = TextAlign.Center,
@@ -988,7 +1008,11 @@ private fun TransferTargetRow(
         Column(Modifier.weight(1f)) {
             Text(row.name, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold)
             LineStatusRow(
-                text = if (row.busy) "On a call" else "Available",
+                text = if (row.busy) {
+                    t("contactsTasks.onACall")
+                } else {
+                    t("contactsTasks.available")
+                },
                 dot = if (row.busy) {
                     MaterialTheme.colorScheme.outline
                 } else {
@@ -1015,7 +1039,7 @@ private fun TransferTargetRow(
                 .alpha(if (enabled) 1f else 0.5f),
         ) {
             Text(
-                "Transfer",
+                t("contactsTasks.transfer"),
                 fontSize = 11.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(horizontal = 15.dp, vertical = 8.dp),
@@ -1067,7 +1091,7 @@ private fun InCallScreenPreview() {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     Icons.Outlined.KeyboardArrowDown,
-                                    contentDescription = "Hide",
+                                    contentDescription = t("contactsTasks.hide"),
                                     modifier = Modifier.size(20.dp),
                                 )
                             }
@@ -1103,19 +1127,19 @@ private fun InCallScreenPreview() {
                     Row(Modifier.fillMaxWidth()) {
                         ControlCircle(
                             icon = Icons.Outlined.Mic,
-                            label = "Mute",
+                            label = t("contactsTasks.mute"),
                             onClick = {},
                             modifier = Modifier.weight(1f),
                         )
                         ControlCircle(
                             icon = Icons.Outlined.Dialpad,
-                            label = "Keypad",
+                            label = t("contactsTasks.keypad"),
                             onClick = {},
                             modifier = Modifier.weight(1f),
                         )
                         ControlCircle(
                             icon = Icons.Outlined.Pause,
-                            label = "Hold",
+                            label = t("contactsTasks.hold"),
                             onClick = {},
                             modifier = Modifier.weight(1f),
                         )
@@ -1124,19 +1148,19 @@ private fun InCallScreenPreview() {
                     Row(Modifier.fillMaxWidth()) {
                         ControlCircle(
                             icon = Icons.Outlined.PhoneForwarded,
-                            label = "Transfer",
+                            label = t("contactsTasks.transfer"),
                             onClick = {},
                             modifier = Modifier.weight(1f),
                         )
                         ControlCircle(
                             icon = Icons.AutoMirrored.Outlined.Message,
-                            label = "Note",
+                            label = t("contactsTasks.note"),
                             onClick = {},
                             modifier = Modifier.weight(1f),
                         )
                         ControlCircle(
                             icon = Icons.Outlined.VolumeUp,
-                            label = "Speaker",
+                            label = t("contactsTasks.speaker"),
                             onClick = {},
                             modifier = Modifier.weight(1f),
                         )
@@ -1144,7 +1168,7 @@ private fun InCallScreenPreview() {
                     Spacer(Modifier.height(if (compact) 10.dp else 18.dp))
                     EndCallPill(
                         onClick = {},
-                        label = "End call",
+                        label = t("contactsTasks.endCall"),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }

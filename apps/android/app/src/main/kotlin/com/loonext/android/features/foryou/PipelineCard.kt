@@ -15,6 +15,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.PipelineReportResponse
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.MeasureHeader
@@ -61,9 +64,9 @@ fun PipelineCard(report: PipelineReportResponse?) {
     // four carried their title inside the card and two above it, which read as
     // two different species of panel in one list.
     Column(Modifier.fillMaxWidth().padding(top = 15.dp)) {
-    MeasureHeader("Quotes") {
+    MeasureHeader(t("inbox.pipelineTitle")) {
         Text(
-            "last 30 days",
+            t("inbox.pipelineWindow"),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -73,7 +76,8 @@ fun PipelineCard(report: PipelineReportResponse?) {
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        report.insight ?: tooEarly(report.current.quoted),
+                        report.insight
+                            ?: tooEarly(report.current.quoted, LocalAppLocale.current),
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }
@@ -99,9 +103,17 @@ fun PipelineCard(report: PipelineReportResponse?) {
 
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                PipelineFigure("Quoted", report.current.quoted, Modifier.weight(1f))
-                PipelineFigure("Won", report.current.won, Modifier.weight(1f))
-                PipelineFigure("Still out", report.current.open, Modifier.weight(1f))
+                PipelineFigure(
+                    t("inbox.pipelineQuoted"),
+                    report.current.quoted,
+                    Modifier.weight(1f),
+                )
+                PipelineFigure(t("inbox.pipelineWon"), report.current.won, Modifier.weight(1f))
+                PipelineFigure(
+                    t("inbox.pipelineStillOut"),
+                    report.current.open,
+                    Modifier.weight(1f),
+                )
             }
 
             // #540: what the month is MADE of, under the three figures it
@@ -115,28 +127,42 @@ fun PipelineCard(report: PipelineReportResponse?) {
             ShareBar(
                 segments = listOf(
                     ShareSegment(
-                        "Won",
+                        t("inbox.pipelineWon"),
                         report.current.won.toFloat(),
                         MaterialTheme.colorScheme.secondary,
                     ),
                     ShareSegment(
-                        "Still out",
+                        t("inbox.pipelineStillOut"),
                         report.current.open.toFloat(),
                         MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f),
                     ),
                 ),
                 total = report.current.quoted.toFloat(),
-                label = "Of ${report.current.quoted} quoted, ${report.current.won} won " +
-                    "and ${report.current.open} still out",
+                label = t(
+                    "inbox.pipelineShareAria",
+                    "quoted" to report.current.quoted.toString(),
+                    "won" to report.current.won.toString(),
+                    "open" to report.current.open.toString(),
+                ),
             )
         }
     }
     }
 }
 
-/** The honest line for a workspace with quotes but nothing decided yet. */
-internal fun tooEarly(quoted: Int): String =
-    "$quoted ${if (quoted == 1) "quote" else "quotes"} sent. Too early to call a win rate."
+/**
+ * The honest line for a workspace with quotes but nothing decided yet.
+ *
+ * #228: the locale is a PARAMETER rather than a default, and that is the same
+ * rule the navigation callbacks on this screen follow — a defaulted one turns
+ * "nobody passed it" into an English sentence on a French phone rather than into
+ * a compile error.
+ */
+internal fun tooEarly(quoted: Int, locale: String): String = AppStrings.translate(
+    locale,
+    if (quoted == 1) "inbox.pipelineTooEarlyOne" else "inbox.pipelineTooEarlyMany",
+    mapOf("count" to quoted.toString()),
+)
 
 @Composable
 private fun PipelineFigure(label: String, value: Int, modifier: Modifier = Modifier) {

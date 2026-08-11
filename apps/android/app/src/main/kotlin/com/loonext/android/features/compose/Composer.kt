@@ -89,6 +89,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.time.TwoClocks
 import com.loonext.android.features.thread.MentionLogic
 import com.loonext.android.features.thread.MentionableMember
@@ -444,6 +447,17 @@ fun ThreadComposer(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    val locale = LocalAppLocale.current
+    // Read in composition. Everything below is a coroutine, a permission
+    // callback or a picker result — none of them a place a @Composable lookup
+    // can go, and all of them places this composer says something.
+    val wrapUpLostCopy = t("thread.wrapUpLost")
+    val micAllowedCopy = t("thread.micAllowed")
+    val micDeniedCopy = t("thread.micDeniedWrapUp")
+    val micStartFailedCopy = t("thread.micStartFailed")
+    val attachLimitTextCopy = t("thread.attachLimitText", "max" to "$MAX_PHOTOS")
+    val attachLimitNoteCopy = t("thread.attachLimitNote")
+    val teammateName = t("thread.teammate")
     /** #294: the staged photo open in the markup editor, if any. */
     var markingUp by remember { mutableStateOf<StagedFile?>(null) }
     var markingUpBytes by remember { mutableStateOf<ByteArray?>(null) }
@@ -537,10 +551,7 @@ fun ThreadComposer(
                     // recorder that BROKE is not the same event: somebody
                     // watched the counter tick and is owed an explanation.
                     if (finished is WrapUpFinish.Failed) {
-                        onNotice(
-                            "That recording was lost — something else may have " +
-                                "taken the microphone. Try again, or type the note.",
-                        )
+                        onNotice(wrapUpLostCopy)
                     }
                     wrapUpPhase = WrapUpPhase.Idle
                 } else {
@@ -613,14 +624,7 @@ fun ThreadComposer(
         // button was released, and there is no hold left to record. Both
         // sentences therefore say what to do next, and both leave the member in
         // the note box with a keyboard.
-        onNotice(
-            if (granted) {
-                "Microphone allowed. Hold it and say what the call was about."
-            } else {
-                "Loonext needs the microphone to write down a spoken wrap-up. Type the " +
-                    "note instead, or allow it in Settings › Apps › Loonext › Permissions."
-            },
-        )
+        onNotice(if (granted) micAllowedCopy else micDeniedCopy)
     }
 
     val askForSuggestions: () -> Unit = {
@@ -670,7 +674,7 @@ fun ThreadComposer(
                     is MmsStageResult.Rejected -> onNotice(result.reason)
                 }
             }
-            if (trimmed) onNotice("You can attach up to $MAX_PHOTOS files per text.")
+            if (trimmed) onNotice(attachLimitTextCopy)
         }
     }
 
@@ -689,7 +693,7 @@ fun ThreadComposer(
                 is FileStageResult.Rejected -> onNotice(result.reason)
             }
         }
-        if (trimmed) onNotice("Notes can carry up to 10 files.")
+        if (trimmed) onNotice(attachLimitNoteCopy)
     }
 
     val canSend = if (isNote) {
@@ -733,12 +737,16 @@ fun ThreadComposer(
                     // telling somebody what they had just scheduled was the same
                     // trap as the queued row it was confirming.
                     onNotice(
-                        "Sending ${
-                            TwoClocks.bothClocks(
-                                sendAtLabel(at, destinationZone(destinationClock)),
-                                sendAtLabel(at, ZoneId.systemDefault()),
-                            )
-                        }. " + ScheduledSend.copy("picker_reassurance"),
+                        AppStrings.translate(
+                            locale,
+                            "thread.scheduledConfirm",
+                            mapOf(
+                                "when" to TwoClocks.bothClocks(
+                                    sendAtLabel(at, destinationZone(destinationClock)),
+                                    sendAtLabel(at, ZoneId.systemDefault()),
+                                ),
+                            ),
+                        ) + " " + ScheduledSend.copy("picker_reassurance"),
                     )
                 }
 
@@ -842,24 +850,25 @@ fun ThreadComposer(
             ?.coerceAtLeast(0L) ?: 0L
         AlertDialog(
             onDismissRequest = { confirmCollision = false },
-            title = { Text("Somebody already answered") },
+            title = { Text(t("thread.collisionTitle")) },
             text = {
                 Text(
                     duplicateReplyPrompt(
-                    lastOutbound?.sent_by_user_id?.let(memberName),
-                    secondsAgo,
-                ) +
-                        " Send yours as well?",
+                        lastOutbound?.sent_by_user_id?.let(memberName),
+                        secondsAgo,
+                    ) + t("thread.collisionAsk"),
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     confirmCollision = false
                     send()
-                }) { Text("Send anyway") }
+                }) { Text(t("thread.sendAnyway")) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmCollision = false }) { Text("Let me look") }
+                TextButton(onClick = { confirmCollision = false }) {
+                    Text(t("thread.letMeLook"))
+                }
             },
         )
     }
@@ -908,7 +917,7 @@ fun ThreadComposer(
                                 sendOnMyWay(minutes)
                             }) { Text(OnMyWay.presetLabel(minutes)) }
                         }
-                        TextButton(onClick = { choosing = false }) { Text("Cancel") }
+                        TextButton(onClick = { choosing = false }) { Text(t("common.cancel")) }
                     }
                     // What the next tap does, said before it is tapped.
                     Text(
@@ -944,7 +953,7 @@ fun ThreadComposer(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 ModePill(
-                    label = "Text",
+                    label = t("thread.modeText"),
                     selected = state.mode == ComposerMode.Text,
                     selectedBg = MaterialTheme.colorScheme.primaryContainer,
                     selectedInk = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -955,7 +964,7 @@ fun ThreadComposer(
                 )
                 Spacer(Modifier.width(4.dp))
                 ModePill(
-                    label = "Note",
+                    label = t("thread.modeNote"),
                     selected = state.mode == ComposerMode.Note,
                     selectedBg = NoteAmber.bg(),
                     selectedInk = NoteAmber.ink(),
@@ -1074,11 +1083,12 @@ fun ThreadComposer(
             val recording = wrapUpPhase == WrapUpPhase.Recording
             Text(
                 if (recording) {
-                    "Say what the call was about — " +
-                        "${WrapUpDictation.elapsedLabel(wrapUpElapsed)}. " +
-                        "Let go when you're done."
+                    t(
+                        "thread.wrapUpRecording",
+                        "elapsed" to WrapUpDictation.elapsedLabel(wrapUpElapsed),
+                    )
                 } else {
-                    "Writing your words down…"
+                    t("thread.wrapUpWriting")
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = if (recording) {
@@ -1143,7 +1153,7 @@ fun ThreadComposer(
                     IconButton(onClick = { attachMenuOpen = true }) {
                         Icon(
                             Icons.Filled.Add,
-                            contentDescription = "Add to message",
+                            contentDescription = t("thread.addToMessage"),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -1152,7 +1162,7 @@ fun ThreadComposer(
                         onDismissRequest = { attachMenuOpen = false },
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Attach files") },
+                            text = { Text(t("thread.attachFiles")) },
                             leadingIcon = {
                                 Icon(Icons.Filled.AttachFile, contentDescription = null)
                             },
@@ -1163,7 +1173,7 @@ fun ThreadComposer(
                             },
                         )
                         DropdownMenuItem(
-                            text = { Text("Saved reply") },
+                            text = { Text(t("thread.savedReply")) },
                             leadingIcon = {
                                 Icon(Icons.Filled.Description, contentDescription = null)
                             },
@@ -1186,9 +1196,9 @@ fun ThreadComposer(
                         AiOrb(
                             state = if (suggesting) AiOrbState.Thinking else AiOrbState.Idle,
                             contentDescription = if (state.text.isBlank()) {
-                                "Draft with Lou"
+                                t("thread.draftWithLou")
                             } else {
-                                "Finish with Lou"
+                                t("thread.finishWithLou")
                             },
                         )
                     }
@@ -1200,7 +1210,7 @@ fun ThreadComposer(
                 ) {
                     Icon(
                         Icons.Filled.AttachFile,
-                        contentDescription = "Attach files to this note",
+                        contentDescription = t("thread.attachFilesToNote"),
                         tint = NoteAmber.ink(),
                     )
                 }
@@ -1234,10 +1244,7 @@ fun ThreadComposer(
                                 // milliseconds on a mid-range phone and would
                                 // otherwise be a stutter under the finger.
                                 !withContext(Dispatchers.IO) { wrapUpRecorder.start() } -> {
-                                    onNotice(
-                                        "Couldn't start the microphone. Something else may be " +
-                                            "using it — type the note instead.",
-                                    )
+                                    onNotice(micStartFailedCopy)
                                     false
                                 }
 
@@ -1283,7 +1290,8 @@ fun ThreadComposer(
                         if (suggestions.isNotEmpty()) suggestions = emptyList()
                     }
                 },
-                placeholder = if (isNote) "Write an internal note…" else "Text message",
+                placeholder = if (isNote) t("thread.notePlaceholder")
+                else t("thread.textPlaceholder"),
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 4.dp, vertical = 10.dp),
@@ -1310,7 +1318,7 @@ fun ThreadComposer(
                 }) {
                     Icon(
                         Icons.Outlined.Schedule,
-                        contentDescription = "Send later",
+                        contentDescription = t("thread.sendLater"),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -1331,7 +1339,8 @@ fun ThreadComposer(
             ) {
                 Icon(
                     Icons.AutoMirrored.Filled.Send,
-                    contentDescription = if (isNote) "Save note" else "Send message",
+                    contentDescription = if (isNote) t("thread.saveNote")
+                    else t("thread.sendMessage"),
                 )
             }
         }
@@ -1340,6 +1349,7 @@ fun ThreadComposer(
             ComposerHints(
                 text = state.text,
                 hasMedia = state.photos.isNotEmpty(),
+                locale = locale,
                 contactName = contactName,
                 businessName = businessName,
                 contactAddress = contactAddress,
@@ -1411,7 +1421,7 @@ fun ThreadComposer(
             onPick = { member ->
                 haptics.tap()
                 mentionPickerOpen = false
-                val name = member.display_name.trim().ifEmpty { "Teammate" }
+                val name = member.display_name.trim().ifEmpty { teammateName }
                 val next = MentionLogic.insertMention(state.text, state.text.length, name)
                 state.onTextChange(next.text)
                 state.addMention(PickedMention(member.user_id, name))
@@ -1445,7 +1455,7 @@ private fun MentionPickerSheet(
                 .padding(horizontal = 20.dp),
         ) {
             Text(
-                "Mention a teammate",
+                t("thread.mentionTeammate"),
                 style = MaterialTheme.typography.headlineMedium.copy(fontSize = 21.sp),
                 color = MaterialTheme.colorScheme.onBackground,
             )
@@ -1458,7 +1468,7 @@ private fun MentionPickerSheet(
                 )
 
                 current.isEmpty() -> Text(
-                    "No teammates can see this conversation.",
+                    t("thread.noMentionable"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 16.dp),
@@ -1467,7 +1477,7 @@ private fun MentionPickerSheet(
                 else -> Column(Modifier.padding(top = 6.dp, bottom = 12.dp)) {
                     for (member in current) {
                         Text(
-                            member.display_name.trim().ifEmpty { "Teammate" },
+                            member.display_name.trim().ifEmpty { t("thread.teammate") },
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onBackground,
                             modifier = Modifier
@@ -1504,7 +1514,7 @@ private fun ReplySuggestionsRow(
             )
             Spacer(Modifier.width(5.dp))
             Text(
-                if (loading) "Drafting…" else "Lou's drafts",
+                if (loading) t("thread.drafting") else t("thread.lousDrafts"),
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1515,7 +1525,7 @@ private fun ReplySuggestionsRow(
                 // into an unbounded one, for an answer that is a starting point
                 // you edit anyway. The next set comes when the thread moves.
                 Text(
-                    "Dismiss",
+                    t("thread.dismiss"),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.clickable(onClick = onDismiss),
@@ -1565,7 +1575,7 @@ private fun ReplySuggestionsRow(
         // to be. The setting exists either way; almost nobody goes looking.
         if (!loading && businessUnknown && onTellLou != null) {
             Text(
-                "Lou doesn't know what you do yet. Tell it, and drafts get specific.",
+                t("thread.louNeedsBusiness"),
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
@@ -1624,6 +1634,8 @@ fun ComposerHints(
     senderName: String? = null,
     ourNumberE164: String? = null,
     modifier: Modifier = Modifier,
+    /** #228: the reader's language, for the segment meter's own sentence. */
+    locale: String? = null,
 ) {
     // #415: measure what SENDS, not what was typed. This function already had
     // both names in hand for the preview below and gave the meter the raw
@@ -1644,7 +1656,7 @@ fun ComposerHints(
         senderName = senderName,
         ourNumber = ourNumberE164?.let { MergeFields.formatNanpNumber(it) },
     )
-    val meter = segmentMeter(MergeFields.applyMergeFields(text, values), hasMedia)
+    val meter = segmentMeter(MergeFields.applyMergeFields(text, values), hasMedia, locale)
     val showPreview = MergeFields.hasMergeFields(text)
     if (!meter.visible && !showPreview) return
     Column(modifier.padding(horizontal = 20.dp)) {
@@ -1658,7 +1670,7 @@ fun ComposerHints(
         }
         if (showPreview) {
             Text(
-                "Sends as: " + MergeFields.applyMergeFields(text, values),
+                t("thread.sendsAs") + MergeFields.applyMergeFields(text, values),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
@@ -1738,6 +1750,8 @@ private fun WrapUpMicButton(
     onFinish: () -> Unit,
 ) {
     val sending = phase == WrapUpPhase.Sending
+    // `semantics` is not composition, so the sentence is read here.
+    val holdLabel = t("thread.holdToDictate")
     Box(
         modifier = Modifier
             .size(WRAP_UP_TOUCH_TARGET)
@@ -1759,7 +1773,7 @@ private fun WrapUpMicButton(
             // One description for the control in every phase: TalkBack reads
             // the instruction, and the counter line above the pill carries the
             // state in words rather than in a colour.
-            .semantics { contentDescription = "Hold to say what the call was about" },
+            .semantics { contentDescription = holdLabel },
         contentAlignment = Alignment.Center,
     ) {
         if (sending) {
@@ -1806,7 +1820,7 @@ fun PhotoChipsRow(
                 Box(Modifier.padding(end = 8.dp)) {
                     AsyncImage(
                         model = photo.uri,
-                        contentDescription = "Attached photo",
+                        contentDescription = t("thread.attachedPhoto"),
                         modifier = Modifier
                             .size(56.dp)
                             .border(
@@ -1817,7 +1831,7 @@ fun PhotoChipsRow(
                     )
                     Icon(
                         Icons.Filled.Close,
-                        contentDescription = "Remove photo",
+                        contentDescription = t("thread.removePhoto"),
                         tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier
                             .align(Alignment.TopEnd)
@@ -1846,7 +1860,7 @@ private fun StagedMediaChip(
     onRemove: (String) -> Unit,
 ) {
     val kind = mmsKindOf(photo.contentType)
-    val name = info?.name?.takeIf { it.isNotBlank() } ?: kind.label
+    val name = info?.name?.takeIf { it.isNotBlank() } ?: t(kind.labelKey)
     Row(
         Modifier
             .padding(end = 8.dp)
@@ -1885,7 +1899,7 @@ private fun StagedMediaChip(
         Spacer(Modifier.width(7.dp))
         Icon(
             Icons.Filled.Close,
-            contentDescription = "Remove $name",
+            contentDescription = t("thread.removeNamed", "name" to name),
             modifier = Modifier
                 .size(16.dp)
                 .clickable { onRemove(photo.id) },
@@ -1946,7 +1960,7 @@ fun FileChipsRow(
                 Spacer(Modifier.width(6.dp))
                 Icon(
                     Icons.Filled.Close,
-                    contentDescription = "Remove ${file.name}",
+                    contentDescription = t("thread.removeNamed", "name" to file.name),
                     modifier = Modifier
                         .size(16.dp)
                         .clickable { onRemove(file.id) },
@@ -1997,7 +2011,7 @@ fun TemplatePickerSheet(
                 .padding(horizontal = 20.dp),
         ) {
             Text(
-                "Templates",
+                t("thread.templates"),
                 style = MaterialTheme.typography.headlineMedium.copy(fontSize = 21.sp),
                 color = MaterialTheme.colorScheme.onBackground,
             )
@@ -2021,7 +2035,7 @@ fun TemplatePickerSheet(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        "Try again",
+                        t("common.retry"),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier
@@ -2033,7 +2047,7 @@ fun TemplatePickerSheet(
                 is LoadState.Ready -> {
                     if (current.value.isEmpty()) {
                         Text(
-                            "No saved replies yet. Create them on the web under Settings.",
+                            t("thread.noTemplates"),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(vertical = 16.dp),
@@ -2049,7 +2063,7 @@ fun TemplatePickerSheet(
                                 it.name.contains(query.trim(), ignoreCase = true) ||
                                 it.body.contains(query.trim(), ignoreCase = true)
                         }
-                        SectionHeader("Saved replies", count = matches.size)
+                        SectionHeader(t("thread.savedReplies"), count = matches.size)
                         Surface(
                             shape = MaterialTheme.shapes.large,
                             color = MaterialTheme.colorScheme.surface,
@@ -2071,7 +2085,7 @@ fun TemplatePickerSheet(
                                 if (matches.isEmpty()) {
                                     item {
                                         Text(
-                                            "Nothing matches.",
+                                            t("thread.nothingMatches"),
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.padding(16.dp),
@@ -2081,8 +2095,7 @@ fun TemplatePickerSheet(
                             }
                         }
                         Text(
-                            "Type / in the composer to open these inline · " +
-                                "shared with the crew",
+                            t("thread.templateHint"),
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                 .copy(alpha = 0.75f),
@@ -2138,7 +2151,7 @@ private fun TemplateSearchPill(
                     Box {
                         if (query.isEmpty()) {
                             Text(
-                                "Search templates…",
+                                t("thread.searchTemplates"),
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontSize = 13.sp,
                                 ),
@@ -2193,7 +2206,7 @@ private fun TemplateRow(
             color = MaterialTheme.colorScheme.surfaceContainer,
         ) {
             Text(
-                "Insert",
+                t("thread.insert"),
                 style = MaterialTheme.typography.labelMedium.copy(
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -2263,16 +2276,23 @@ fun mmsTypeForFile(declaredType: String?, name: String?): String? {
     return MMS_EXTENSION_TYPES[extension]
 }
 
-/** Coarse media kind for icons/labels — mirrors shared `mmsMediaKind`. */
-enum class MmsKind(val label: String) {
-    Image("Image"),
-    Audio("Audio"),
-    Video("Video"),
-    Contact("Contact card"),
-    Calendar("Calendar invite"),
-    Document("PDF"),
-    Text("Text file"),
-    File("File"),
+/**
+ * Coarse media kind for icons/labels — mirrors shared `mmsMediaKind`.
+ *
+ * #228: the constant carries the catalogue KEY rather than the English word, so
+ * a chip reads in the reader's language and this pure enum never has to know
+ * what a locale is. [attachmentLabel] below still answers in English — it is
+ * read by the inbox and its toast, which are another slice's to extract.
+ */
+enum class MmsKind(val labelKey: String) {
+    Image("thread.mmsKindImage"),
+    Audio("thread.mmsKindAudio"),
+    Video("thread.mmsKindVideo"),
+    Contact("thread.mmsKindContact"),
+    Calendar("thread.mmsKindCalendar"),
+    Document("thread.mmsKindDocument"),
+    Text("thread.mmsKindText"),
+    File("thread.mmsKindFile"),
 }
 
 fun mmsKindOf(contentType: String?): MmsKind {

@@ -12,6 +12,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.features.notifications.NotificationPrefsCard
 import com.loonext.android.ui.common.userMessage
@@ -67,8 +70,7 @@ fun NotificationsSection(
     }
 
     Text(
-        "Billing, usage, and registration emails always go to owners and admins. " +
-            "They can't be turned off.",
+        t("settingsMore.notifAlwaysOn"),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
@@ -121,12 +123,13 @@ private fun LeadChaseRow(
     }
 
     LabeledSwitchRow(
-        label = "Tell the whole crew after $WIDEN_MINUTES minutes",
-        supporting = "When a conversation is assigned to one person and they still haven't " +
-            "replied, notify everyone who can see it. Business hours only, and never " +
-            "someone who has turned their own notifications off. This one is for the " +
-            "whole workspace, not just you" +
-            if (canEdit) "." else " — only owners and admins can change it.",
+        label = t("settingsMore.leadChaseLabel", "minutes" to "$WIDEN_MINUTES"),
+        supporting = t("settingsMore.leadChaseSupporting") +
+            if (canEdit) {
+                t("settingsMore.workspaceWideEnd")
+            } else {
+                t("settingsMore.workspaceWideAdminsOnly")
+            },
         checked = company.lead_chase_crew_enabled,
         enabled = canEdit && !saving,
         onCheckedChange = { save(it) },
@@ -174,13 +177,13 @@ private fun PushContentRow(
     }
 
     LabeledSwitchRow(
-        label = "Show message text on lock screens",
-        supporting = "Notifications show who texted and the first line of what they said, " +
-            "so the crew can tell a lead from a \"thanks\" without unlocking. Turn this " +
-            "off and they'll still see who it was, but never what a customer wrote — " +
-            "useful if phones are out on the job, in other people's homes. This one is " +
-            "for the whole workspace, not just you" +
-            if (canEdit) "." else " — only owners and admins can change it.",
+        label = t("settingsMore.pushContentLabel"),
+        supporting = t("settingsMore.pushContentSupporting") +
+            if (canEdit) {
+                t("settingsMore.workspaceWideEnd")
+            } else {
+                t("settingsMore.workspaceWideAdminsOnly")
+            },
         checked = company.push_include_content,
         enabled = canEdit && !saving,
         onCheckedChange = { save(it) },
@@ -206,6 +209,9 @@ private fun PushContentRow(
 @Composable
 private fun EmailReachabilityCard(scope: SettingsScope) {
     val state = scope.me.email_state ?: return
+    // Captured here rather than read inside the click handler: `t` is a
+    // composable read, and the retry confirmation is written from a coroutine.
+    val locale = LocalAppLocale.current
     val coroutines = rememberCoroutineScope()
     var cleared by remember { mutableStateOf(false) }
     var retrying by remember { mutableStateOf(false) }
@@ -216,12 +222,12 @@ private fun EmailReachabilityCard(scope: SettingsScope) {
     // this screen has no trigger for. The server has already cleared it.
     if (cleared) return
 
-    SettingsCard(title = "We can't email you at ${state.email}") {
+    SettingsCard(
+        title = t("settingsMore.emailUnreachableTitle", "email" to state.email),
+    ) {
         if (state.fixable) {
             Text(
-                "Emails to this address are bouncing, so we've stopped sending them. " +
-                    "Push notifications still work. If the address was mistyped, fix it " +
-                    "in your account first, then tell us to try again.",
+                t("settingsMore.emailBouncingBody"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -235,7 +241,10 @@ private fun EmailReachabilityCard(scope: SettingsScope) {
                             scope.repo.retryOwnEmail()
                             cleared = true
                             scope.showMessage(
-                                "We'll try that address again on your next notification.",
+                                AppStrings.translate(
+                                    locale,
+                                    "settingsMore.emailRetryQueued",
+                                ),
                             )
                         } catch (cause: Exception) {
                             error = cause.userMessage()
@@ -246,14 +255,20 @@ private fun EmailReachabilityCard(scope: SettingsScope) {
                 },
                 enabled = !retrying,
                 modifier = Modifier.padding(top = 10.dp),
-            ) { Text(if (retrying) "Trying…" else "Try this address again") }
+            ) {
+                Text(
+                    if (retrying) {
+                        t("settingsMore.emailRetrying")
+                    } else {
+                        t("settingsMore.emailRetryAction")
+                    },
+                )
+            }
         } else {
             // No button, on purpose. The address reported us as spam, and one
             // tap in our own app is not that person's consent to start again.
             Text(
-                "This address reported our email as spam, so we've stopped sending to " +
-                    "it for good. Push notifications still work. To get email again, " +
-                    "change your account to a different address.",
+                t("settingsMore.emailComplainedBody"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

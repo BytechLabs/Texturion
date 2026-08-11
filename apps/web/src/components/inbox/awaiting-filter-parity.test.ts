@@ -53,6 +53,34 @@ const CONTROLS: Record<string, string> = {
  */
 const WEB_COPY = Object.values(inboxEn).join("\n");
 
+/**
+ * #228 did the same to ANDROID: `InboxTab.kt` now calls `t("inbox.…")` and its
+ * sentences live in a Kotlin catalogue of `"key" to "value"` pairs. The two copy
+ * checks below therefore read that file for android; the behaviour checks keep
+ * reading the component, for the reason above.
+ */
+const ANDROID_CATALOGUE = join(
+  REPO_ROOT,
+  "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/InboxStrings.kt",
+);
+
+/**
+ * The Kotlin catalogue's VALUES.
+ *
+ * Keys stripped, and comment lines with them, for exactly the reason recorded
+ * below for web: `inbox.viewNameUnanswered` contains the word "Unanswered", so a
+ * catalogue read whole would let an IDENTIFIER satisfy a copy check while every
+ * sentence beside it had been reworded.
+ */
+const ANDROID_COPY = readFileSync(ANDROID_CATALOGUE, "utf8")
+  .replace(/"inbox\.[A-Za-z0-9_]+"\s*to\s*/g, "")
+  .split("\n")
+  .filter((line) => {
+    const trimmed = line.trim();
+    return !trimmed.startsWith("//") && !trimmed.startsWith("*");
+  })
+  .join("\n");
+
 /** Every .swift file under apps/ios — the APP and the TEST target. */
 function swiftSources(): string[] {
   const root = join(REPO_ROOT, "apps/ios");
@@ -93,6 +121,8 @@ describe("#508 the unanswered filter is one predicate, three clients", () => {
     // Web's words are a fourth source. An emptied catalogue would make both
     // copy checks below pass against nothing.
     expect(WEB_COPY.length).toBeGreaterThan(1000);
+    // Android's are a fifth, for the same reason.
+    expect(ANDROID_COPY.length).toBeGreaterThan(1000);
   });
 
   it("sends the same `awaiting` parameter from every client", () => {
@@ -126,8 +156,13 @@ describe("#508 the unanswered filter is one predicate, three clients", () => {
     // the first version and it could not fail: the item calls
     // `t("inbox.chipUnanswered")`, and the key contains the word, so renaming
     // the label to "No reply yet" still matched. An identifier is not copy.
-    for (const [platform, path] of Object.entries(CONTROLS)) {
-      const text = platform === "web" ? WEB_COPY : readFileSync(path, "utf8");
+    // Android reads the same way now, off its own catalogue's values.
+    const COPY: Record<string, string> = {
+      web: WEB_COPY,
+      android: ANDROID_COPY,
+      ios: readFileSync(CONTROLS.ios, "utf8"),
+    };
+    for (const [platform, text] of Object.entries(COPY)) {
       expect(text, platform).toContain("Unanswered");
     }
   });
@@ -152,7 +187,7 @@ describe("#508 the unanswered filter is one predicate, three clients", () => {
     // component that renders it is `components/inbox/empty-states.tsx`.
     const EMPTY_STATES: Record<string, string> = {
       web: WEB_COPY,
-      android: readFileSync(CONTROLS.android, "utf8"),
+      android: ANDROID_COPY,
       ios: readFileSync(CONTROLS.ios, "utf8"),
     };
     for (const [platform, text] of Object.entries(EMPTY_STATES)) {

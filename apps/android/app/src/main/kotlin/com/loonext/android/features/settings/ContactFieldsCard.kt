@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.contacts.ContactFields
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ContactFieldDef
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
@@ -67,6 +68,12 @@ fun ContactFieldsCard(scope: SettingsScope) {
     var cap by remember { mutableStateOf(ContactFields.CAP) }
     var saving by remember { mutableStateOf(false) }
 
+    // Resolved in composition because `commit` runs from a press handler, where
+    // the reader's locale is no longer in scope.
+    val nameEveryField = t("settings.contactFieldsNeedName")
+    val savedBackToStandard = t("settings.contactFieldsSavedEmpty")
+    val savedOnEveryCustomer = t("settings.contactFieldsSaved")
+
     LaunchedEffect(scope.companyId) {
         runCatching { scope.repo.contactFields(scope.companyId) }
             .onSuccess { response ->
@@ -81,7 +88,7 @@ fun ContactFieldsCard(scope: SettingsScope) {
     fun commit() {
         if (!canEdit || saving) return
         if (draft.any { it.key.isEmpty() || it.label.isBlank() }) {
-            scope.showMessage("Give every field a name first.")
+            scope.showMessage(nameEveryField)
             return
         }
         saving = true
@@ -92,11 +99,7 @@ fun ContactFieldsCard(scope: SettingsScope) {
                 draft = result.data
                 freshKeys = emptySet()
                 scope.showMessage(
-                    if (result.data.isEmpty()) {
-                        "Saved. Your contacts are back to the standard fields."
-                    } else {
-                        "Saved. These show on every customer."
-                    },
+                    if (result.data.isEmpty()) savedBackToStandard else savedOnEveryCustomer,
                 )
             } catch (cause: Exception) {
                 scope.showMessage(cause.userMessage())
@@ -112,7 +115,7 @@ fun ContactFieldsCard(scope: SettingsScope) {
     ) {
         if (!loaded) {
             Text(
-                "Loading…",
+                t("settings.contactFieldsLoading"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -121,8 +124,7 @@ fun ContactFieldsCard(scope: SettingsScope) {
 
         if (draft.isEmpty()) {
             Text(
-                "You have not added any yet. Your contacts show the standard " +
-                    "fields — name, phone, email, address and notes.",
+                t("settings.contactFieldsEmpty"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -159,8 +161,8 @@ fun ContactFieldsCard(scope: SettingsScope) {
                                 }
                             }
                         },
-                        label = { Text("Field name") },
-                        placeholder = { Text("Boiler model") },
+                        label = { Text(t("settings.contactFieldsNameLabel")) },
+                        placeholder = { Text(t("settings.contactFieldsNamePlaceholder")) },
                         enabled = canEdit,
                         singleLine = true,
                         modifier = Modifier.weight(1f),
@@ -205,7 +207,7 @@ fun ContactFieldsCard(scope: SettingsScope) {
                             freshKeys = freshKeys.filter { it != index }
                                 .map { if (it > index) it - 1 else it }
                                 .toSet()
-                        }) { Text("Remove") }
+                        }) { Text(t("settings.contactFieldsRemove")) }
                     }
                 }
 
@@ -222,7 +224,7 @@ fun ContactFieldsCard(scope: SettingsScope) {
                                 if (i == index) row.copy(options = options) else row
                             }
                         },
-                        label = { Text("The choices, one per line") },
+                        label = { Text(t("settings.contactFieldsChoices")) },
                         enabled = canEdit,
                         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                     )
@@ -233,9 +235,9 @@ fun ContactFieldsCard(scope: SettingsScope) {
                         // The key matters because it is the column head in an
                         // export, and because a saved field's key is frozen.
                         if (isNew) {
-                            "Exports as ${field.key}"
+                            t("settings.contactFieldsExportsAs", "key" to field.key)
                         } else {
-                            "Exports as ${field.key} · the name can change, the type cannot"
+                            t("settings.contactFieldsExportsAsFrozen", "key" to field.key)
                         },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -254,7 +256,7 @@ fun ContactFieldsCard(scope: SettingsScope) {
                     freshKeys = freshKeys + (draft.size - 1)
                 },
                 modifier = Modifier.padding(top = 6.dp),
-            ) { Text("Add a field") }
+            ) { Text(t("settings.contactFieldsAdd")) }
         }
 
         if (draft.size >= cap) {
@@ -288,11 +290,13 @@ fun ContactFieldsCard(scope: SettingsScope) {
                 Modifier.padding(top = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Button(onClick = { commit() }, enabled = !saving) { Text("Save fields") }
+                Button(onClick = { commit() }, enabled = !saving) {
+                    Text(t("settings.contactFieldsSave"))
+                }
                 TextButton(onClick = {
                     draft = saved
                     freshKeys = emptySet()
-                }) { Text("Discard") }
+                }) { Text(t("settings.contactFieldsDiscard")) }
             }
         }
     }

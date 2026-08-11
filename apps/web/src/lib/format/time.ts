@@ -1,4 +1,9 @@
-import { bothClocks, bothClocksSpoken } from "@loonext/shared";
+import {
+  bothClocks,
+  bothClocksSpoken,
+  DEFAULT_LOCALE,
+  type Locale as UiLocale,
+} from "@loonext/shared";
 import {
   differenceInCalendarDays,
   differenceInHours,
@@ -6,6 +11,9 @@ import {
   format,
   isSameYear,
 } from "date-fns";
+import { frCA } from "date-fns/locale";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
 
 /**
  * The browser's IANA timezone (D15: captured silently at onboarding and sent
@@ -48,24 +56,41 @@ export function formatAbsoluteDateTime(
 /**
  * Relative timestamps for list rows (G4/G10): `2m`, `1h`, `Tue` under
  * 7 days; absolute (`Jun 12`, `Jun 12 2025`) after.
+ *
+ * ## #228: one word of copy, and a pile of names that are not copy
+ *
+ * `now` is the only sentence here and it comes from the catalogue. `m` and `h`
+ * stay: they are the unit symbols, and a row this narrow reads the same in both
+ * languages — a translated `2 min` would wrap the timestamp column.
+ *
+ * The WEEKDAY and MONTH names are data, not copy, so they go through date-fns's
+ * own locale rather than into the catalogue — the same rule the catalogue
+ * header states for dates and money. `frCA` is passed rather than the format
+ * tokens being changed, so the English output is byte-for-byte what it was.
  */
-export function formatRelativeTime(iso: string, now: Date = new Date()): string {
+export function formatRelativeTime(
+  iso: string,
+  now: Date = new Date(),
+  t: Translate = makeTranslate(DEFAULT_LOCALE),
+  locale: UiLocale = DEFAULT_LOCALE,
+): string {
   const date = new Date(iso);
   // A bad/absent timestamp must render blank, not "NaNm" or a 1970 date.
   if (!iso || Number.isNaN(date.getTime())) return "";
   const minutes = differenceInMinutes(now, date);
-  if (minutes < 1) return "now";
+  if (minutes < 1) return t("misc.timeNow");
   if (minutes < 60) return `${minutes}m`;
   const hours = differenceInHours(now, date);
   if (hours < 24) return `${hours}h`;
+  const options = locale === "fr-CA" ? { locale: frCA } : undefined;
   // Calendar days, not truncated 24h periods: a message from last <weekday>
   // exactly 7 calendar days back is ~6d10h → differenceInDays truncates to 6 →
   // would render today's weekday ("Mon" for both). Calendar-days gates it to
   // the absolute date instead, so the weekday window never repeats today's.
   const days = differenceInCalendarDays(now, date);
-  if (days < 7) return format(date, "EEE");
-  if (isSameYear(date, now)) return format(date, "MMM d");
-  return format(date, "MMM d yyyy");
+  if (days < 7) return format(date, "EEE", options);
+  if (isSameYear(date, now)) return format(date, "MMM d", options);
+  return format(date, "MMM d yyyy", options);
 }
 
 /**

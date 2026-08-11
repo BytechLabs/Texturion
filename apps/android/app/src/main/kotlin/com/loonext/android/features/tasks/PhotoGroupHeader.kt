@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.ui.common.absoluteTime
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.jobs.WorkPhase
 
 /**
@@ -47,8 +48,8 @@ fun PhotoGroupHeader(
     nameOf: (String?) -> String?,
 ) {
     val who = when {
-        fromCustomer -> "From the customer"
-        else -> nameOf(addedByUserId) ?: "Added by the crew"
+        fromCustomer -> t("contactsTasks.photosFromCustomer")
+        else -> nameOf(addedByUserId) ?: t("contactsTasks.photosFromCrew")
     }
     Row(
         Modifier.padding(top = 8.dp, bottom = 4.dp),

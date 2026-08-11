@@ -4,7 +4,7 @@ import { useT } from "@/i18n/provider";
 
 import {
   THREAD_CATEGORIES,
-  THREAD_CATEGORY_LABELS,
+  threadCategoryLabel,
   toggleThreadCategory,
   type ThreadFilter,
 } from "./thread-filter";
@@ -50,7 +50,7 @@ export function ThreadFilterBar({
                 : "text-app-muted hover:text-app-ink")
             }
           >
-            {THREAD_CATEGORY_LABELS[category]}
+            {threadCategoryLabel(category, t)}
           </button>
         );
       })}

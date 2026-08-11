@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.HoursException
 import com.loonext.android.ui.common.userMessage
@@ -64,6 +65,15 @@ fun ClosedDatesCard(
 
     val existing = company.business_hours_exceptions
 
+    // Read in composition and used from the press handlers below. `t` is a
+    // @Composable read of the reader's locale, and an onClick lambda runs long
+    // after composition has finished — so the words are resolved here, where the
+    // locale is actually in scope.
+    val removedMessage = t("settings.closedDatesRemoved")
+    val addedMessage = t("settings.closedDatesAdded")
+    val needsDate = t("settings.closedDatesNeedDate")
+    val backwardsRange = t("settings.closedDatesBackwards")
+
     fun commit(next: List<HoursException>, message: String) {
         error = null
         saving = true
@@ -97,15 +107,12 @@ fun ClosedDatesCard(
     }
 
     SettingsCard(
-        title = "Closed dates",
-        description = "Holidays, a week off, a day for a funeral. On these dates your " +
-            "away reply goes out even if the weekly schedule says you're open — so a " +
-            "customer texting on Christmas morning hears something back instead of " +
-            "nothing.",
+        title = t("settings.closedDatesTitle"),
+        description = t("settings.closedDatesIntro"),
     ) {
         if (existing.isEmpty()) {
             Text(
-                "No closed dates yet. Your weekly hours apply every week.",
+                t("settings.closedDatesEmpty"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -134,10 +141,10 @@ fun ClosedDatesCard(
                             onClick = {
                                 commit(
                                     existing.filterIndexed { i, _ -> i != index },
-                                    "Closed date removed.",
+                                    removedMessage,
                                 )
                             },
-                        ) { Text("Remove") }
+                        ) { Text(t("settings.closedDatesRemove")) }
                     }
                 }
             }
@@ -152,7 +159,7 @@ fun ClosedDatesCard(
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     enabled = !saving,
-                    label = { Text("First day") },
+                    label = { Text(t("settings.closedDatesFirstDay")) },
                     placeholder = { Text("2026-12-25") },
                 )
                 Spacer(Modifier.width(8.dp))
@@ -162,9 +169,9 @@ fun ClosedDatesCard(
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     enabled = !saving,
-                    label = { Text("Last day") },
+                    label = { Text(t("settings.closedDatesLastDay")) },
                     // Empty means one day, which is what most of these are.
-                    placeholder = { Text("Same day") },
+                    placeholder = { Text(t("settings.closedDatesSameDay")) },
                 )
             }
             Spacer(Modifier.height(8.dp))
@@ -174,8 +181,8 @@ fun ClosedDatesCard(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 enabled = !saving,
-                label = { Text("What to tell customers (optional)") },
-                placeholder = { Text("Closed for the holiday, back Monday") },
+                label = { Text(t("settings.closedDatesNoteLabel")) },
+                placeholder = { Text(t("settings.closedDatesNotePlaceholder")) },
             )
             Spacer(Modifier.height(10.dp))
             Button(
@@ -186,8 +193,8 @@ fun ClosedDatesCard(
                     // type the same date twice is busywork on the common case.
                     val end = to.trim().ifEmpty { start }
                     when {
-                        start.isEmpty() -> error = "Pick the date you're closed."
-                        end < start -> error = "The last day can't be before the first day."
+                        start.isEmpty() -> error = needsDate
+                        end < start -> error = backwardsRange
                         else -> {
                             commit(
                                 existing + HoursException(
@@ -196,7 +203,7 @@ fun ClosedDatesCard(
                                     hours = null,
                                     note = note.trim().ifEmpty { null },
                                 ),
-                                "Closed date added.",
+                                addedMessage,
                             )
                             from = ""
                             to = ""
@@ -204,7 +211,7 @@ fun ClosedDatesCard(
                         }
                     }
                 },
-            ) { Text("Add closed date") }
+            ) { Text(t("settings.closedDatesAdd")) }
         }
         InlineError(error)
     }

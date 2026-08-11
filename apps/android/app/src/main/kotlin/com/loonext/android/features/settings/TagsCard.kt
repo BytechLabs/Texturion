@@ -26,6 +26,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Capability
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.MemberRole
@@ -95,9 +98,8 @@ fun TagsCard(
                     TagLockCard(scope, company, onCompanyUpdated)
                 }
                 SettingsCard(
-                    title = "Tags",
-                    description = "What the crew has been tagging, and how often. The " +
-                        "quiet ones at the bottom are usually duplicates of something above.",
+                    title = t("settingsMore.tagsTitle"),
+                    description = t("settingsMore.tagsDesc"),
                 ) {
                     rows.forEachIndexed { index, row ->
                         if (index > 0) {
@@ -184,12 +186,18 @@ private fun TagUsageRow(
                     draft = row.description.orEmpty()
                     editing = !editing
                 }) {
-                    Text(if (row.description.isNullOrBlank()) "Describe" else "Edit")
+                    Text(
+                        if (row.description.isNullOrBlank()) {
+                            t("settingsMore.describe")
+                        } else {
+                            t("settingsMore.edit")
+                        },
+                    )
                 }
             }
             if (canMerge) {
                 Spacer(Modifier.width(4.dp))
-                LinkButton(onClick = onMerge) { Text("Merge") }
+                LinkButton(onClick = onMerge) { Text(t("settingsMore.merge")) }
             }
         }
 
@@ -198,7 +206,7 @@ private fun TagUsageRow(
             OutlinedTextField(
                 value = draft,
                 onValueChange = { if (it.length <= TAG_DESCRIPTION_MAX) draft = it },
-                placeholder = { Text("What does this one mean?") },
+                placeholder = { Text(t("settingsMore.tagDescribePlaceholder")) },
                 singleLine = true,
                 enabled = !saving,
                 modifier = Modifier.fillMaxWidth(),
@@ -221,9 +229,12 @@ private fun TagUsageRow(
                             }
                         }
                     },
-                ) { Text(if (saving) "Saving…" else "Save") }
+                ) { Text(if (saving) t("common.saving") else t("common.save")) }
                 LinkButton(enabled = !saving, onClick = { editing = false }) {
-                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        t("common.cancel"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         } else if (!row.description.isNullOrBlank()) {
@@ -242,17 +253,19 @@ private fun TagUsageRow(
 private const val TAG_DESCRIPTION_MAX = 200
 
 /** " · last 2d" when it has ever been used; nothing when it has not. */
+@Composable
 private fun lastUsedSuffix(iso: String?): String {
     if (iso.isNullOrBlank()) return ""
     val relative = relativeTime(iso)
-    return if (relative.isEmpty()) "" else " · last $relative"
+    return if (relative.isEmpty()) "" else t("settingsMore.tagLastUsed", "ago" to relative)
 }
 
 /** "never used" reads as a verdict; "0 threads" reads as a loading state. */
+@Composable
 private fun usesLabel(uses: Long): String = when (uses) {
-    0L -> "never used"
-    1L -> "1 thread"
-    else -> "$uses threads"
+    0L -> t("settingsMore.tagNeverUsed")
+    1L -> t("settingsMore.tagOneThread")
+    else -> t("settingsMore.tagThreads", "count" to "$uses")
 }
 
 /**
@@ -277,15 +290,15 @@ private fun MergeTagDialog(
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    val locale = LocalAppLocale.current
 
     AlertDialog(
         onDismissRequest = { if (!merging) onDismiss() },
-        title = { Text("Merge \"${from.name}\" into another tag") },
+        title = { Text(t("settingsMore.mergeTitle", "tag" to from.name)) },
         text = {
             Column {
                 Text(
-                    "Every conversation tagged \"${from.name}\" keeps its place under " +
-                        "the tag you pick, and this one goes away. Nothing is untagged.",
+                    t("settingsMore.mergeBody", "tag" to from.name),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -312,8 +325,13 @@ private fun MergeTagDialog(
                     // naming what survives is not.
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "${usesLabel(from.uses).replaceFirstChar { it.uppercase() }} " +
-                            "moves to \"${target.name}\". \"${from.name}\" stops existing.",
+                        t(
+                            "settingsMore.mergeDirection",
+                            "uses" to usesLabel(from.uses)
+                                .replaceFirstChar { it.uppercase() },
+                            "target" to target.name,
+                            "tag" to from.name,
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -332,7 +350,13 @@ private fun MergeTagDialog(
                     coroutines.launch {
                         try {
                             repo.mergeTags(scope.companyId, from.tag_id, target.tag_id)
-                            scope.showMessage("Merged into \"${target.name}\".")
+                            scope.showMessage(
+                                AppStrings.translate(
+                                    locale,
+                                    "settingsMore.mergedInto",
+                                    mapOf("target" to target.name),
+                                ),
+                            )
                             onMerged()
                         } catch (cause: Exception) {
                             error = cause.userMessage()
@@ -342,11 +366,11 @@ private fun MergeTagDialog(
                     }
                 },
             ) {
-                Text(if (merging) "Merging…" else "Merge")
+                Text(if (merging) t("settingsMore.merging") else t("settingsMore.merge"))
             }
         },
         dismissButton = {
-            LinkButton(onClick = onDismiss, enabled = !merging) { Text("Cancel") }
+            LinkButton(onClick = onDismiss, enabled = !merging) { Text(t("common.cancel")) }
         },
     )
 }
@@ -378,14 +402,12 @@ private fun TagLockCard(
     val coroutines = rememberCoroutineScope()
 
     SettingsCard(
-        title = "Who can create tags",
-        description = "Anyone on the crew can add a tag by default. Lock it once " +
-            "your list is the list.",
+        title = t("settingsMore.tagLockTitle"),
+        description = t("settingsMore.tagLockDesc"),
     ) {
         LabeledSwitchRow(
-            label = "Only owners and admins can create tags",
-            supporting = "Everyone can still use every tag you already have. This only " +
-                "stops new ones being invented mid-job.",
+            label = t("settingsMore.tagLockLabel"),
+            supporting = t("settingsMore.tagLockSupporting"),
             checked = company.tags_locked,
             enabled = !saving,
             onCheckedChange = { next ->
@@ -405,10 +427,7 @@ private fun TagLockCard(
         )
         if (company.tags_locked) {
             Spacer(Modifier.height(6.dp))
-            ReadOnlyLine(
-                "A tech who needs a category you do not have will leave the thread " +
-                    "untagged rather than ask. Check the list below now and then.",
-            )
+            ReadOnlyLine(t("settingsMore.tagLockedNote"))
         }
         InlineError(error)
     }

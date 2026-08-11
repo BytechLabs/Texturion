@@ -4,6 +4,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
+import { useT } from "@/i18n/provider";
 import { useCompanyId } from "@/lib/company/provider";
 import {
   uploadFilesSequentially,
@@ -125,11 +126,12 @@ export interface UploadAttachmentInput {
  * attachments gallery root (§5.2) so a new note file appears in-session.
  */
 export function useUploadAttachment(noteId: string) {
+  const t = useT();
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation<Attachment, ApiError | AttachmentValidationError, UploadAttachmentInput>({
     mutationFn: async ({ file, currentCount = 0 }) => {
-      const check = validateAttachment(file, currentCount);
+      const check = validateAttachment(file, currentCount, t);
       if (!check.ok) {
         // Reject before the network — the caller shows check.reason inline.
         throw new AttachmentValidationError(check.reason);
@@ -168,6 +170,7 @@ export function useUploadAttachment(noteId: string) {
  * in-session.
  */
 export function useUploadNoteFiles() {
+  const t = useT();
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation<
@@ -193,6 +196,7 @@ export function useUploadNoteFiles() {
             ),
           }),
         files,
+        t,
       ),
     onSettled: (_result, _error, { noteId }) => {
       invalidateAfterNoteUpload(queryClient, companyId, noteId);

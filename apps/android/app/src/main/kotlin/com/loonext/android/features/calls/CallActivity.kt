@@ -47,6 +47,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loonext.android.LoonextApp
 import com.loonext.android.MainActivity
+import com.loonext.android.core.i18n.t
 import com.loonext.android.push.APP_ORIGIN
 import com.loonext.android.telephony.CallNotifier
 import com.loonext.android.telephony.CallPhase
@@ -427,7 +428,7 @@ private fun CallSurfaceContent(
             CallStatus(
                 title = callerName.ifBlank { callerNumber },
                 status = SoftphoneManager.ANSWER_FAILED_MESSAGE,
-                actionLabel = "Close",
+                actionLabel = t("common.close"),
                 onAction = {
                     manager.clearError()
                     onClose()
@@ -439,8 +440,12 @@ private fun CallSurfaceContent(
         // offers a way OUT, so a cold answer is never a controls-free dead end.
         live != null || answering -> CallStatus(
             title = (live?.peerName ?: callerName).ifBlank { callerNumber },
-            status = if (live != null) "Connected" else "Connecting…",
-            actionLabel = "Hang up",
+            status = if (live != null) {
+                t("contactsTasks.connected")
+            } else {
+                t("contactsTasks.connecting")
+            },
+            actionLabel = t("contactsTasks.hangUp"),
             onAction = {
                 val id = live?.id
                 if (id != null) manager.hangup(id) else target?.let { manager.declineIncoming(it) }
@@ -472,7 +477,7 @@ private fun CallSurfaceContent(
 
         else -> CallStatus(
             title = callerName.ifBlank { callerNumber },
-            status = "Connecting…",
+            status = t("contactsTasks.connecting"),
             actionLabel = null,
             onAction = {},
         )
@@ -521,7 +526,7 @@ private fun RingingSurface(
             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
         ) {
             Text(
-                "INCOMING CALL",
+                t("contactsTasks.incomingCallEyebrow"),
                 fontSize = 10.5.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.14.em,
@@ -553,7 +558,7 @@ private fun RingingSurface(
         if (reconnecting) {
             // #195 F7: quiet honesty while the socket is not READY.
             Text(
-                "Reconnecting your line…",
+                t("contactsTasks.reconnectingLine"),
                 fontSize = 12.5.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 10.dp),
@@ -569,7 +574,7 @@ private fun RingingSurface(
         ) {
             RingActionCircle(
                 icon = Icons.Outlined.CallEnd,
-                label = "Decline",
+                label = t("contactsTasks.decline"),
                 container = MaterialTheme.colorScheme.error,
                 content = MaterialTheme.colorScheme.onError,
                 labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -582,7 +587,7 @@ private fun RingingSurface(
             )
             RingActionCircle(
                 icon = Icons.Outlined.Call,
-                label = "Answer",
+                label = t("contactsTasks.answer"),
                 container = MaterialTheme.colorScheme.tertiary,
                 content = MaterialTheme.colorScheme.onTertiary,
                 labelColor = MaterialTheme.colorScheme.onBackground,
@@ -612,7 +617,7 @@ private fun CallStatus(
     actionLabel: String? = null,
     onAction: () -> Unit = {},
 ) {
-    val avatarName = title.ifBlank { "Call" }
+    val avatarName = title.ifBlank { t("contactsTasks.call") }
     Box(
         modifier = Modifier
             .fillMaxSize()

@@ -70,6 +70,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.ContactAddressBody
@@ -210,10 +213,10 @@ internal fun ContactDetailScreen(
         ) {
             PaperCircleButton(
                 onClick = onBack,
-                contentDescription = "Back to contacts",
+                contentDescription = t("contactsTasks.backToContacts"),
             )
             Text(
-                "Contact",
+                t("contactsTasks.contactHeading"),
                 style = MaterialTheme.typography.labelMedium.copy(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -230,7 +233,7 @@ internal fun ContactDetailScreen(
             is LoadState.Failed ->
                 if (notFound) {
                     Text(
-                        "This contact doesn't exist or was removed.",
+                        t("contactsTasks.contactGone"),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(24.dp),
@@ -276,6 +279,8 @@ private fun ContactDetailBody(
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val haptics = rememberHaptics()
+    // #228: the permission-result callback below is not composition.
+    val locale = LocalAppLocale.current
 
     var actionError by remember(contact.id) { mutableStateOf<String?>(null) }
 
@@ -337,8 +342,7 @@ private fun ContactDetailBody(
         if (granted) {
             placeCall()
         } else {
-            actionError = "Loonext needs the microphone to place calls. " +
-                "Allow it in Settings › Apps › Loonext › Permissions."
+            actionError = AppStrings.translate(locale, "contactsTasks.micNeeded")
         }
     }
 
@@ -405,7 +409,7 @@ private fun ContactDetailBody(
                 ) {
                     Icon(
                         Icons.Outlined.ContentCopy,
-                        contentDescription = "Copy number",
+                        contentDescription = t("contactsTasks.copyNumber"),
                         modifier = Modifier.size(13.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -427,7 +431,7 @@ private fun ContactDetailBody(
             }
             if (contact.opted_out) {
                 DsChip(
-                    "Opted out",
+                    t("contactsTasks.optedOut"),
                     container = MaterialTheme.colorScheme.errorContainer,
                     content = MaterialTheme.colorScheme.onErrorContainer,
                     modifier = Modifier.padding(top = 4.dp),
@@ -443,7 +447,7 @@ private fun ContactDetailBody(
             ) {
                 if (conversation != null && onOpenConversation != null) {
                     ActionPill(
-                        label = "Open conversation",
+                        label = t("contactsTasks.openConversation"),
                         icon = Icons.AutoMirrored.Outlined.Chat,
                         container = MaterialTheme.colorScheme.primary,
                         content = MaterialTheme.colorScheme.onPrimary,
@@ -454,7 +458,7 @@ private fun ContactDetailBody(
                     )
                 } else if (conversation == null && onComposeNew != null) {
                     ActionPill(
-                        label = "Text",
+                        label = t("contactsTasks.textAction"),
                         icon = Icons.AutoMirrored.Outlined.Chat,
                         container = MaterialTheme.colorScheme.primary,
                         content = MaterialTheme.colorScheme.onPrimary,
@@ -465,7 +469,11 @@ private fun ContactDetailBody(
                     )
                 }
                 ActionPill(
-                    label = if (placingCall) "Calling…" else "Call",
+                    label = if (placingCall) {
+                        t("contactsTasks.calling")
+                    } else {
+                        t("contactsTasks.call")
+                    },
                     icon = Icons.Outlined.Call,
                     container = MaterialTheme.colorScheme.surface,
                     content = MaterialTheme.colorScheme.onSurface,
@@ -496,7 +504,7 @@ private fun ContactDetailBody(
             PaperCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp)) {
                     Text(
-                        "This customer opted out of texting. Sends to them are blocked.",
+                        t("contactsTasks.optedOutBanner"),
                         style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.5.sp),
                     )
                     // Which kind of opt-out decides whether there is anything
@@ -505,8 +513,7 @@ private fun ContactDetailBody(
                     // anyway, which is what used to happen.
                     if (isCarrierEnforcedOptOut(contact.opt_out_source)) {
                         Text(
-                            "They texted STOP, so their carrier is blocking your texts. " +
-                                "Only they can undo it, by texting START to your number.",
+                            t("contactsTasks.optedOutByCarrier"),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -522,10 +529,17 @@ private fun ContactDetailBody(
                             },
                             contentPadding =
                                 androidx.compose.foundation.layout.PaddingValues(0.dp),
-                        ) { Text(if (working) "Working…" else "Mark opted in again") }
+                        ) {
+                            Text(
+                                if (working) {
+                                    t("contactsTasks.working")
+                                } else {
+                                    t("contactsTasks.markOptedInAgain")
+                                },
+                            )
+                        }
                         Text(
-                            "Someone recorded this by hand, so undoing it here is all " +
-                                "it takes.",
+                            t("contactsTasks.optedOutByHand"),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -549,10 +563,10 @@ private fun ContactDetailBody(
         PaperCard(Modifier.fillMaxWidth()) {
             AutosaveRow(
                 fieldKey = "${contact.id}:name",
-                label = "Name",
+                label = t("contactsTasks.nameField"),
                 initial = contact.name.orEmpty(),
                 maxLength = CONTACT_NAME_MAX,
-                placeholder = "Add a name",
+                placeholder = t("contactsTasks.addAName"),
                 singleLine = true,
                 save = { value ->
                     // #176: write the PATCHed row through to the cache so a
@@ -567,10 +581,10 @@ private fun ContactDetailBody(
             // record, "Dave at Maple Property Group" is.
             AutosaveRow(
                 fieldKey = "${contact.id}:business_name",
-                label = "Business",
+                label = t("contactsTasks.businessField"),
                 initial = contact.business_name.orEmpty(),
                 maxLength = CONTACT_NAME_MAX,
-                placeholder = "Who they work for, if anyone",
+                placeholder = t("contactsTasks.businessPlaceholder"),
                 singleLine = true,
                 save = { value ->
                     val updated =
@@ -581,10 +595,10 @@ private fun ContactDetailBody(
             RowDivider()
             AutosaveRow(
                 fieldKey = "${contact.id}:address",
-                label = "Address",
+                label = t("contactsTasks.address"),
                 initial = contact.address.orEmpty(),
                 maxLength = CONTACT_ADDRESS_MAX,
-                placeholder = "Add an address",
+                placeholder = t("contactsTasks.addAnAddress"),
                 singleLine = true,
                 save = { value ->
                     val updated = mutations.updateField(companyId, contact.id, "address", value)
@@ -665,10 +679,10 @@ private fun ContactDetailBody(
             // wrong shape for what we are sending.
             AutosaveRow(
                 fieldKey = "${contact.id}:email",
-                label = "Email",
+                label = t("contactsTasks.emailField"),
                 initial = contact.email.orEmpty(),
                 maxLength = CONTACT_EMAIL_MAX,
-                placeholder = "For quotes and receipts",
+                placeholder = t("contactsTasks.emailPlaceholder"),
                 singleLine = true,
                 save = { value ->
                     val updated =
@@ -679,12 +693,12 @@ private fun ContactDetailBody(
             RowDivider()
             AutosaveRow(
                 fieldKey = "${contact.id}:notes",
-                label = "Notes",
+                label = t("contactsTasks.notesField"),
                 initial = contact.notes.orEmpty(),
                 maxLength = CONTACT_NOTES_MAX,
-                placeholder = "Gate code, dog's name, preferred arrival window…",
+                placeholder = t("contactsTasks.notesPlaceholder"),
                 singleLine = false,
-                idleCaption = "Saves automatically · visible to the crew",
+                idleCaption = t("contactsTasks.notesCaption"),
                 save = { value ->
                     val updated = mutations.updateField(companyId, contact.id, "notes", value)
                     graph.storeCache.put(CacheKeys.contact(companyId, contact.id), updated)
@@ -749,6 +763,7 @@ private fun ContactDetailBody(
             createdByName = contact.created_by_name,
             createdAt = contact.created_at,
             updatedByName = contact.updated_by_name,
+            locale = locale,
         )
         if (attribution.added != null || attribution.edited != null) {
             Column(
@@ -778,7 +793,7 @@ private fun ContactDetailBody(
         val conversationRow = conversation
         if (conversationRow != null && onOpenConversation != null) {
             Column {
-                SectionHeader("Conversations")
+                SectionHeader(t("contactsTasks.conversationsSection"))
                 val cardInteraction = remember { MutableInteractionSource() }
                 PaperCard(
                     Modifier
@@ -803,7 +818,7 @@ private fun ContactDetailBody(
                             Text(
                                 conversationRow.last_message?.body
                                     ?.replace('\n', ' ')?.trim()?.ifEmpty { null }
-                                    ?: "Conversation",
+                                    ?: t("contactsTasks.conversation"),
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
@@ -825,8 +840,12 @@ private fun ContactDetailBody(
                                     MaterialTheme.colorScheme.onSecondaryContainer,
                                 )
                                 Text(
-                                    "Updated " +
-                                        relativeTime(conversationRow.last_message_at),
+                                    t(
+                                        "contactsTasks.updatedWhen",
+                                        "when" to relativeTime(
+                                            conversationRow.last_message_at,
+                                        ),
+                                    ),
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontSize = 11.sp,
                                     ),
@@ -886,8 +905,8 @@ private fun ContactDetailBody(
         ) {
             if (!contact.opted_out) {
                 FooterAction(
-                    label = "Opt out this contact",
-                    caption = "Blocks all texting to this number",
+                    label = t("contactsTasks.optOutContact"),
+                    caption = t("contactsTasks.optOutCaption"),
                     color = MaterialTheme.colorScheme.error,
                     enabled = !working,
                     onClick = { confirmOptOut = true },
@@ -895,8 +914,8 @@ private fun ContactDetailBody(
                 Spacer(Modifier.height(10.dp))
             }
             FooterAction(
-                label = "Delete contact",
-                caption = "Texting history stays. They reappear if they text you again",
+                label = t("contactsTasks.deleteContact"),
+                caption = t("contactsTasks.deleteContactCaption"),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 enabled = !working,
                 onClick = { confirmDelete = true },
@@ -909,12 +928,13 @@ private fun ContactDetailBody(
     if (confirmOptOut) {
         AlertDialog(
             onDismissRequest = { confirmOptOut = false },
-            title = { Text("Opt out this contact?") },
+            title = { Text(t("contactsTasks.optOutTitle")) },
             text = {
                 Text(
-                    "All texting to ${formatPhone(contact.phone_e164)} is blocked until " +
-                        "they're opted back in. Use this when a customer asks you to " +
-                        "stop texting them.",
+                    t(
+                        "contactsTasks.optOutBody",
+                        "number" to formatPhone(contact.phone_e164),
+                    ),
                 )
             },
             confirmButton = {
@@ -928,10 +948,12 @@ private fun ContactDetailBody(
                             onChanged()
                         }
                     },
-                ) { Text("Opt out", color = MaterialTheme.colorScheme.error) }
+                ) {
+                    Text(t("contactsTasks.optOut"), color = MaterialTheme.colorScheme.error)
+                }
             },
             dismissButton = {
-                TextButton(onClick = { confirmOptOut = false }) { Text("Cancel") }
+                TextButton(onClick = { confirmOptOut = false }) { Text(t("common.cancel")) }
             },
         )
     }
@@ -939,12 +961,10 @@ private fun ContactDetailBody(
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete this contact?") },
+            title = { Text(t("contactsTasks.deleteContactTitle")) },
             text = {
                 Text(
-                    "They disappear from your contact list. Conversations and messages " +
-                        "stay, and the contact comes back automatically if they text " +
-                        "you again.",
+                    t("contactsTasks.deleteContactBody"),
                 )
             },
             confirmButton = {
@@ -958,10 +978,14 @@ private fun ContactDetailBody(
                             onDeleted()
                         }
                     },
-                ) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+                ) {
+                    Text(t("common.delete"), color = MaterialTheme.colorScheme.error)
+                }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Keep contact") }
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text(t("contactsTasks.keepContact"))
+                }
             },
         )
     }
@@ -1011,7 +1035,7 @@ private fun DestinationClockRow(
 
     Column(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 12.dp)) {
         Text(
-            "Their time",
+            t("contactsTasks.theirTime"),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -1034,7 +1058,13 @@ private fun DestinationClockRow(
             )
             Spacer(Modifier.width(8.dp))
             TextButton(onClick = { editing = !editing }, enabled = !saving) {
-                Text(if (editing) "Done" else "Change")
+                Text(
+                    if (editing) {
+                        t("contactsTasks.doneEditing")
+                    } else {
+                        t("contactsTasks.change")
+                    },
+                )
             }
         }
 
@@ -1057,7 +1087,7 @@ private fun DestinationClockRow(
             }
             if (contact.timezone != null) {
                 TextButton(onClick = { apply(null) }, enabled = !saving) {
-                    Text("Use their area code")
+                    Text(t("contactsTasks.useAreaCode"))
                 }
             }
         }
@@ -1114,7 +1144,7 @@ private fun ContactLanguageRow(
 
     Column(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 12.dp)) {
         Text(
-            "Their language",
+            t("contactsTasks.theirLanguage"),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -1130,14 +1160,24 @@ private fun ContactLanguageRow(
             Text(MessageLocale.label(effective), style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.width(8.dp))
             Text(
-                if (contact.locale == null) "Same as your workspace" else "Set by your crew",
+                if (contact.locale == null) {
+                    t("contactsTasks.sameAsWorkspace")
+                } else {
+                    t("contactsTasks.setByCrew")
+                },
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f, fill = false),
             )
             Spacer(Modifier.width(8.dp))
             TextButton(onClick = { editing = !editing }, enabled = !saving) {
-                Text(if (editing) "Done" else "Change")
+                Text(
+                    if (editing) {
+                        t("contactsTasks.doneEditing")
+                    } else {
+                        t("contactsTasks.change")
+                    },
+                )
             }
         }
 
@@ -1170,9 +1210,7 @@ private fun ContactLanguageRow(
             // page: somebody setting a customer to French is usually imagining
             // the whole conversation changing, and it is four texts.
             Text(
-                "Automated texts only: the away reply, the missed-call text " +
-                    "back, the urgent reply, and the rating ask. Anything you " +
-                    "type is sent exactly as you wrote it.",
+                t("contactsTasks.localeCaveat"),
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
@@ -1443,9 +1481,9 @@ private fun AutosaveRow(
             Text(
                 when (state) {
                     SaveState.Idle -> idleCaption.orEmpty()
-                    SaveState.Saving -> "Saving…"
-                    SaveState.Saved -> "Saved"
-                    SaveState.Failed -> "Couldn't save. Check your connection."
+                    SaveState.Saving -> t("common.saving")
+                    SaveState.Saved -> t("common.saved")
+                    SaveState.Failed -> t("contactsTasks.saveFailed")
                 },
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                 color = if (state == SaveState.Failed) {
@@ -1509,9 +1547,9 @@ internal fun AutosaveField(
         Text(
             when (state) {
                 SaveState.Idle -> ""
-                SaveState.Saving -> "Saving…"
-                SaveState.Saved -> "Saved"
-                SaveState.Failed -> "Couldn't save. Check your connection."
+                SaveState.Saving -> t("common.saving")
+                SaveState.Saved -> t("common.saved")
+                SaveState.Failed -> t("contactsTasks.saveFailed")
             },
             style = MaterialTheme.typography.labelSmall,
             color = if (state == SaveState.Failed) MaterialTheme.colorScheme.error

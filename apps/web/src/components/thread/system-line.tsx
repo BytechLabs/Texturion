@@ -3,6 +3,7 @@
 import {
   APPOINTMENT_CONFIRMED_EVENT,
   APPOINTMENT_CONFIRMED_LINE,
+  DEFAULT_LOCALE,
   JOB_RATED_EVENT,
   jobRatedLine,
 } from "@loonext/shared";
@@ -11,12 +12,20 @@ import type { ConversationEvent } from "@/lib/api/types";
 
 import { VoicemailPlayer } from "@/components/calls/voicemail-player";
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
-import { statusLabel } from "@/components/inbox/status-pill";
+import { statusInSentence } from "@/components/inbox/status-pill";
 import { taskEventSentence } from "@/components/tasks/task-activity";
 import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
+import { makeTranslate, useT, type Translate } from "@/i18n/provider";
 import { formatCallDuration } from "@/lib/format/call";
 import type { ConversationStatus } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
+
+/**
+ * English, for a caller with no provider around it — the unit tests here and
+ * the marketing thread demo's parity test both call `eventSentence` directly.
+ * Every product call site passes the reader's own `t`.
+ */
+const EN = makeTranslate(DEFAULT_LOCALE);
 
 import { doneEventSentence } from "./done";
 import { eventTarget } from "./event-target";
@@ -46,55 +55,57 @@ export function eventSentence(
   event: ConversationEvent,
   memberName: (userId: string | null) => string | null,
   messageBody: (messageId: string) => string | undefined = () => undefined,
+  t: Translate = EN,
 ): string {
   const actor = memberName(event.actor_user_id);
+  // The product name, never translated.
   const by = actor ?? "Loonext";
   switch (event.type) {
     case "status_changed": {
       const to = event.payload.to as ConversationStatus | undefined;
-      if (to === "closed") return `${by} closed this conversation`;
+      if (to === "closed") return t("thread.sysClosed", { by });
       if (event.payload.from === "closed") {
-        return `${by} reopened this conversation`;
+        return t("thread.sysReopened", { by });
       }
       // `to` is an unsafe cast of an untrusted event payload; an unmapped
-      // status would make statusLabel(...) undefined and .toLowerCase() throw,
-      // tearing down the entire thread render. Fall back to the generic line.
-      const label = to ? (statusLabel(to) as string | undefined) : undefined;
-      return label
-        ? `${by} marked this ${label.toLowerCase()}`
-        : `${by} changed the status`;
+      // status has no word of its own, so fall back to the generic line rather
+      // than render a sentence with a hole in the middle of it.
+      const status = to ? statusInSentence(to, t) : "";
+      return status
+        ? t("thread.sysMarkedStatus", { by, status })
+        : t("thread.sysStatusChanged", { by });
     }
     case "assigned": {
       const to = event.payload.to as string | null | undefined;
-      if (!to) return `${by} unassigned this conversation`;
+      if (!to) return t("thread.sysUnassigned", { by });
       const assignee = memberName(to);
       return assignee
-        ? `${by} assigned this to ${assignee}`
-        : `${by} assigned this conversation`;
+        ? t("thread.sysAssignedTo", { by, name: assignee })
+        : t("thread.sysAssigned", { by });
     }
     case "tag_added": {
       const name = event.payload.name;
       return typeof name === "string"
-        ? `${by} added the tag “${name}”`
-        : `${by} added a tag`;
+        ? t("thread.sysTagAdded", { by, name })
+        : t("thread.sysTagAddedGeneric", { by });
     }
     case "tag_removed":
-      return `${by} removed a tag`;
+      return t("thread.sysTagRemoved", { by });
     case "opted_out":
       // #76: the timeline keeps its when/who audit role but no longer echoes the
       // composer's "This customer opted out of texting. Sends are blocked."
       // banner word-for-word (that banner stays the single present-state surface).
       return actor
-        ? `${actor} marked this customer as opted out`
-        : "Opted out of texting";
+        ? t("thread.sysOptedOutBy", { name: actor })
+        : t("thread.sysOptedOut");
     case "opt_out_revoked":
       return actor
-        ? `${actor} marked this customer as opted in`
-        : "Opted back in";
+        ? t("thread.sysOptedInBy", { name: actor })
+        : t("thread.sysOptedIn");
     case "consent_attested":
-      return `${by} recorded that this customer asked to be texted`;
+      return t("thread.sysConsentAttested", { by });
     case "quiet_hours_confirmed":
-      return `${by} sent during this customer's quiet hours`;
+      return t("thread.sysQuietHours", { by });
     // #237: the actor is the CUSTOMER, who has no user row — so this is the
     // one system line that must not be prefixed with a member's name. "Sam
     // confirmed the appointment" would credit the crew with the customer's
@@ -107,9 +118,9 @@ export function eventSentence(
     case JOB_RATED_EVENT:
       return jobRatedLine(Number(event.payload.score ?? 0));
     case "spam_marked":
-      return `${by} marked this conversation as spam`;
+      return t("thread.sysSpamMarked", { by });
     case "spam_unmarked":
-      return `${by} unmarked spam`;
+      return t("thread.sysSpamUnmarked", { by });
     // §4.2/§4.3: done audit. The body is joined live from the message the
     // event points at (payload.message_id) — never a stored excerpt.
     case "message_done":
@@ -122,6 +133,7 @@ export function eventSentence(
         event,
         by,
         messageId ? messageBody(messageId) : undefined,
+        t,
       );
     }
     // TASKS-V2 D-C: task lifecycle interwoven in the thread as quiet system
@@ -133,7 +145,10 @@ export function eventSentence(
     case "task_deleted":
     case "task_attachment_added":
     case "task_attachment_removed":
-      return taskEventSentence(event, by, memberName) ?? `${by} updated a task`;
+      return (
+        taskEventSentence(event, by, memberName, t) ??
+        t("thread.sysTaskUpdated", { by })
+      );
     // #317 — a file this customer sent that we would not store. There is no
     // attachment row to render, which is the whole point, so this line stands in
     // its place: without it the crew sees a text with no picture and concludes
@@ -144,39 +159,34 @@ export function eventSentence(
     // one they cannot does not send them back to try the same file again.
     case "media_refused": {
       const reason = event.payload.reason;
-      if (reason === "too_large")
-        return "A file this customer sent was too big to save — ask them to send a smaller one";
-      if (reason === "empty")
-        return "A file this customer sent arrived empty — ask them to send it again";
-      if (reason === "type_mismatch")
-        return "A file this customer sent wasn't the kind of file it claimed to be, so it wasn't saved";
+      if (reason === "too_large") return t("thread.sysMediaTooLarge");
+      if (reason === "empty") return t("thread.sysMediaEmpty");
+      if (reason === "type_mismatch") return t("thread.sysMediaTypeMismatch");
       // #317: the file WAS the type it claimed and the type is allowed — what
       // is inside it is the problem. The crew gets one line and one action:
       // which of a macro project, a packed program or an auto-running script
       // it turned out to be changes nothing they can do about it.
-      if (reason === "unsafe_content")
-        return "A file this customer sent had something unsafe inside it, so it wasn't saved — ask them for a photo or a plain PDF";
-      if (reason === "unreadable")
-        return "A file this customer sent couldn't be checked, so it wasn't saved — ask them to send it again";
+      if (reason === "unsafe_content") return t("thread.sysMediaUnsafe");
+      if (reason === "unreadable") return t("thread.sysMediaUnreadable");
       if (reason === "too_many_items") {
         const kept = Number(event.payload.index ?? 0);
         return kept > 0
-          ? `This message came with more files than we can save — the first ${kept} were kept`
-          : "This message came with more files than we can save";
+          ? t("thread.sysMediaTooManyKept", { kept })
+          : t("thread.sysMediaTooMany");
       }
       // unsupported_type, and anything a later server adds: the honest general
       // case, still ending in the thing that works.
-      return "A file this customer sent can't be shown here — ask them to send a photo or a PDF";
+      return t("thread.sysMediaUnsupported");
     }
     // D19 note-attachment audit — a quiet line matching the task attachment copy.
     case "note_attachment_added":
-      return `${by} attached a file to a note`;
+      return t("thread.sysNoteAttachmentAdded", { by });
     case "note_attachment_removed":
-      return `${by} removed a file from a note`;
+      return t("thread.sysNoteAttachmentRemoved", { by });
     // FEATURE-GAPS voice wave: the computed-missed call + its auto text-back,
     // in the crew's plain language (the message itself renders just below).
     case "missed_call":
-      return "This customer called and no one picked up, so we texted them back";
+      return t("thread.sysMissedCallTextBack");
     // #129 Calls feature: every threaded call leaves one honest line — the
     // thread reads as the full history, texts AND calls. A missed call with
     // text-back shows this line plus the missed_call line above.
@@ -185,10 +195,14 @@ export function eventSentence(
       const seconds = Number(event.payload.forward_seconds ?? 0);
       // D38: outbound bridge calls speak from the crew's side.
       if (event.payload.direction === "outbound") {
-        if (outcome === "missed") return "Called, no answer";
+        if (outcome === "missed") return t("thread.sysCalledNoAnswer");
+        const called = t("thread.sysYouCalled");
         return seconds > 0
-          ? `You called · ${formatCallDuration(seconds)}`
-          : "You called";
+          ? t("thread.sysWithDuration", {
+              line: called,
+              duration: formatCallDuration(seconds),
+            })
+          : called;
       }
       // D43 phase 3: the transfer journey line — who handed the call to whom.
       if (event.payload.kind === "transferred") {
@@ -202,19 +216,25 @@ export function eventSentence(
             ? event.payload.from_user_id
             : null,
         );
-        if (to && from) return `${from} transferred the call to ${to}`;
-        return to ? `Call transferred to ${to}` : "Call transferred";
+        if (to && from) return t("thread.sysTransferredBy", { from, to });
+        return to
+          ? t("thread.sysTransferredTo", { to })
+          : t("thread.sysTransferred");
       }
       // D43: the dedicated voicemail line (kind:'voicemail') carries the
       // message duration; SystemLine renders the player under it.
       if (event.payload.kind === "voicemail") {
         const vmSeconds = Number(event.payload.voicemail_seconds ?? 0);
+        const left = t("thread.sysLeftVoicemail");
         return vmSeconds > 0
-          ? `Left a voicemail · ${formatCallDuration(vmSeconds)}`
-          : "Left a voicemail";
+          ? t("thread.sysWithDuration", {
+              line: left,
+              duration: formatCallDuration(vmSeconds),
+            })
+          : left;
       }
-      if (outcome === "voicemail") return "Call went to voicemail";
-      if (outcome === "missed") return "Missed call";
+      if (outcome === "voicemail") return t("thread.sysWentToVoicemail");
+      if (outcome === "missed") return t("thread.sysMissedCall");
       // #517: WHO picked up. On a crew, "Call answered" leaves out the one
       // thing the rest of them wanted to know — and the name is what turns the
       // line from a log entry into an answer to "did anyone deal with this?".
@@ -227,9 +247,14 @@ export function eventSentence(
           ? event.payload.answered_by_user_id
           : null,
       );
-      const answered = answeredBy ? `Call answered by ${answeredBy}` : "Call answered";
+      const answered = answeredBy
+        ? t("thread.sysAnsweredBy", { name: answeredBy })
+        : t("thread.sysAnswered");
       return seconds > 0
-        ? `${answered} · ${formatCallDuration(seconds)}`
+        ? t("thread.sysWithDuration", {
+            line: answered,
+            duration: formatCallDuration(seconds),
+          })
         : answered;
     }
   }
@@ -289,8 +314,9 @@ export function SystemLine({
    */
   onJumpToMessage?: (messageId: string) => void;
 }) {
+  const t = useT();
   const { openTask } = useTaskDrawer();
-  const sentence = eventSentence(event, memberName, messageBody);
+  const sentence = eventSentence(event, memberName, messageBody, t);
 
   // Forward/backward compatibility: event types this build doesn't narrate
   // (e.g. historic `review_requested` rows from the removed one-tap review ask,
@@ -306,7 +332,7 @@ export function SystemLine({
     return (
       <ActionableLine
         onClick={() => openTask(target.id)}
-        label={`${sentence}. Open the task`}
+        label={t("thread.openTheTaskAria", { sentence })}
       >
         {sentence}
       </ActionableLine>
@@ -321,7 +347,7 @@ export function SystemLine({
     return (
       <ActionableLine
         onClick={() => onJumpToMessage(messageId)}
-        label={`${sentence}. Go to that message`}
+        label={t("thread.goToThatMessageAria", { sentence })}
       >
         {sentence}
       </ActionableLine>

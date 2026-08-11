@@ -30,14 +30,20 @@ const CLIENTS = {
 } as const;
 
 /**
- * #228 moved web's English out of the component and into the catalogue, so the
- * web "source" for this guard is now both files. Reading only the component
- * would make every assertion below fail on a change that lost nothing; reading
- * only the catalogue would stop noticing if the component quietly rendered
- * something else. Android and iOS still hold their words inline and are read
- * unchanged.
+ * #228 moved each client's English out of its screen and into a catalogue, so
+ * the "source" for this guard is both files. Reading only the screen would make
+ * every assertion below fail on a change that lost nothing; reading only the
+ * catalogue would stop noticing if the screen quietly rendered something else.
+ *
+ * Web moved first, then Android. iOS still holds its words inline and is read
+ * unchanged — the entry is simply absent for it, so the day iOS moves, the
+ * failure is loud rather than a silently vacuous pass.
  */
-const WEB_CATALOG = "apps/web/src/i18n/sections/onboarding.ts";
+const CATALOGS: Partial<Record<keyof typeof CLIENTS, string>> = {
+  web: "apps/web/src/i18n/sections/onboarding.ts",
+  android:
+    "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/ShellStrings.kt",
+};
 
 /** Where each client keeps the standalone notification primer. */
 const PRIMERS = {
@@ -56,21 +62,24 @@ function rejoin(text: string): string {
   return text.replace(/"\s*\+\s*"/g, "");
 }
 
+function read(path: string): string {
+  return readFileSync(join(REPO, path), "utf8");
+}
+
 const sources = Object.fromEntries(
-  Object.entries(CLIENTS).map(([client, path]) => [
-    client,
-    rejoin(
-      readFileSync(join(REPO, path), "utf8") +
-        (client === "web" ? readFileSync(join(REPO, WEB_CATALOG), "utf8") : ""),
-    ),
-  ]),
+  Object.entries(CLIENTS).map(([client, path]) => {
+    const catalog = CATALOGS[client as keyof typeof CLIENTS];
+    return [client, rejoin(read(path) + (catalog ? read(catalog) : ""))];
+  }),
 ) as Record<keyof typeof CLIENTS, string>;
 
 const primers = Object.fromEntries(
-  Object.entries(PRIMERS).map(([client, path]) => [
-    client,
-    rejoin(readFileSync(join(REPO, path), "utf8")),
-  ]),
+  Object.entries(PRIMERS).map(([client, path]) => {
+    // The primer's words moved to the same Android catalogue the orientation's
+    // did — one section file per surface, and the shell is one surface.
+    const catalog = CATALOGS[client as keyof typeof CLIENTS];
+    return [client, rejoin(read(path) + (catalog ? read(catalog) : ""))];
+  }),
 ) as Record<keyof typeof PRIMERS, string>;
 
 /** The four screens, titles and bodies, in order. */
@@ -141,6 +150,9 @@ const TEAM_SOURCES = {
   ],
   android: [
     "apps/android/app/src/main/kotlin/com/loonext/android/features/settings/TeamSection.kt",
+    // #228 moved the Android screen's words out too, so the guard follows them
+    // here for the same reason it follows web's into `i18n/sections/appShell.ts`.
+    "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/SettingsMoreStrings.kt",
   ],
   ios: ["apps/ios/Loonext/Features/Settings/TeamSection.swift"],
 } as const;
@@ -247,10 +259,15 @@ describe("#286 the standalone primer reads the same on both phones", () => {
 });
 
 describe("#521 the invite note asks for the same thing on all three clients", () => {
+  // `rejoin` here too, and it is not decoration: #228 moved the phones' words
+  // into catalogues, where a sentence that fitted one line inside a component
+  // is wrapped across two with a `+`. Without this the guard would report a
+  // drift that does not exist — the words are identical, only the column limit
+  // moved.
   const teamSources = Object.fromEntries(
     Object.entries(TEAM_SOURCES).map(([client, paths]) => [
       client,
-      paths.map((path) => readFileSync(join(REPO, path), "utf8")).join("\n"),
+      rejoin(paths.map((path) => read(path)).join("\n")),
     ]),
   );
 

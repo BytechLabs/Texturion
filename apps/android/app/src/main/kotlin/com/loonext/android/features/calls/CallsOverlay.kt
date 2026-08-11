@@ -34,6 +34,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loonext.android.AppGraph
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Me
 import com.loonext.android.telephony.CallPhase
 import com.loonext.android.telephony.CallSnapshot
@@ -171,7 +172,7 @@ private fun SoftphoneNotice(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onDismiss) { Text("Dismiss") }
+            TextButton(onClick = onDismiss) { Text(t("contactsTasks.dismiss")) }
         }
     }
 }
@@ -247,7 +248,7 @@ fun CallChip(
                 IconButton(onClick = { manager.dismiss(call.id) }) {
                     Icon(
                         Icons.Filled.CallEnd,
-                        contentDescription = "Dismiss",
+                        contentDescription = t("contactsTasks.dismiss"),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -255,7 +256,7 @@ fun CallChip(
                 IconButton(onClick = { manager.hangup(call.id) }) {
                     Icon(
                         Icons.Filled.CallEnd,
-                        contentDescription = "Hang up",
+                        contentDescription = t("contactsTasks.hangUp"),
                         tint = MaterialTheme.colorScheme.error,
                     )
                 }
@@ -266,10 +267,10 @@ fun CallChip(
 
 @Composable
 private fun chipStatus(call: CallSnapshot, heldCount: Int): String = when (call.phase) {
-    CallPhase.RINGING -> "Incoming call"
-    CallPhase.CONNECTING -> "Calling…"
-    CallPhase.HELD -> "On hold"
-    CallPhase.ENDED -> "Call ended"
+    CallPhase.RINGING -> t("contactsTasks.phaseIncoming")
+    CallPhase.CONNECTING -> t("contactsTasks.phaseCalling")
+    CallPhase.HELD -> t("contactsTasks.phaseOnHold")
+    CallPhase.ENDED -> t("contactsTasks.phaseEnded")
     CallPhase.ACTIVE -> {
         val anchor = call.activeSinceMs
         val timer = if (anchor == null) {

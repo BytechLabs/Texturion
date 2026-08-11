@@ -40,7 +40,11 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.StickyNote2
 import com.loonext.android.AppGraph
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.JoiningNote
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.ui.theme.BrandColor
 import kotlinx.coroutines.launch
 
@@ -74,39 +78,38 @@ import kotlinx.coroutines.launch
  *
  * Copy hand-ported from apps/web/src/components/onboarding/member-orientation.tsx
  * and held word for word by packages/shared/src/member-orientation-copy.test.ts.
+ *
+ * #228: the words themselves now live in `core/i18n/ShellStrings.kt`, and the
+ * guard above reads that file as the Android half — exactly as it already reads
+ * `apps/web/src/i18n/sections/onboarding.ts` as web's. What is left here is the
+ * ORDER and the marks beside each screen, which are this file's own decisions.
  */
 
 private data class OrientationScreen(
-    val title: String,
-    val body: String,
+    val titleKey: String,
+    val bodyKey: String,
     val icon: ImageVector,
 )
 
 private val SCREENS = listOf(
     OrientationScreen(
-        "One inbox, the whole crew",
-        "Every text your customers send lands here, and everyone on the crew " +
-            "can see it. Nothing sits unanswered in one person's phone.",
+        "shell.orientationInboxTitle",
+        "shell.orientationInboxBody",
         Icons.Outlined.Inbox,
     ),
     OrientationScreen(
-        "You answer as the business",
-        "Your replies go out from the workspace's number, so customers never " +
-            "get your personal one. If a number isn't shared with you, " +
-            "Settings tells you which and why.",
+        "shell.orientationNumberTitle",
+        "shell.orientationNumberBody",
         Icons.Outlined.Phone,
     ),
     OrientationScreen(
-        "Notes stay inside",
-        "Switch the composer to Note and only the crew sees it — the customer " +
-            "never does. Mention a teammate in one and it lands on their For you.",
+        "shell.orientationNotesTitle",
+        "shell.orientationNotesBody",
         Icons.Outlined.StickyNote2,
     ),
     OrientationScreen(
-        "You choose when we buzz you",
-        "You're joining a workspace that already has traffic. Turn on " +
-            "notifications for the work meant for you, and change them any " +
-            "time in Settings.",
+        "shell.orientationNotificationsTitle",
+        "shell.orientationNotificationsBody",
         Icons.Outlined.Notifications,
     ),
 )
@@ -194,7 +197,7 @@ fun MemberOrientation(
                 // would turn a greeting into a banner.
                 val said = joiningNoteToShow(joiningNote.note)
                 if (index == 0 && said != null) {
-                    JoiningNoteQuote(said, joiningNote.from)
+                    JoiningNoteQuote(said, joiningNote.from, LocalAppLocale.current)
                     Spacer(Modifier.height(18.dp))
                 }
                 ProgressRail(index)
@@ -214,7 +217,7 @@ fun MemberOrientation(
                 }
                 Spacer(Modifier.height(14.dp))
                 Text(
-                    screen.title,
+                    t(screen.titleKey),
                     style = MaterialTheme.typography.headlineSmall,
                     // A dialog paints its text slot in the secondary colour,
                     // which is right for the paragraph and wrong for the line
@@ -223,7 +226,7 @@ fun MemberOrientation(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Spacer(Modifier.height(8.dp))
-                Text(screen.body, style = MaterialTheme.typography.bodyLarge)
+                Text(t(screen.bodyKey), style = MaterialTheme.typography.bodyLarge)
             }
         },
         confirmButton = {
@@ -235,10 +238,16 @@ fun MemberOrientation(
                 // second label honest rather than a lie about what the button
                 // does.
                 TextButton(onClick = { ask.ask(); finish() }) {
-                    Text(if (ask.askable) "Turn on notifications" else "Start working")
+                    Text(
+                        if (ask.askable) {
+                            t("shell.notificationsTurnOn")
+                        } else {
+                            t("shell.orientationStartWorking")
+                        },
+                    )
                 }
             } else {
-                TextButton(onClick = { index += 1 }) { Text("Next") }
+                TextButton(onClick = { index += 1 }) { Text(t("shell.orientationNext")) }
             }
         },
         dismissButton = {
@@ -246,7 +255,13 @@ fun MemberOrientation(
             // flow you must finish to escape is a wall, and this one guards
             // nothing.
             TextButton(onClick = { finish() }) {
-                Text(if (last && ask.askable) "Not now" else "Skip")
+                Text(
+                    if (last && ask.askable) {
+                        t("shell.notificationsNotNow")
+                    } else {
+                        t("shell.orientationSkip")
+                    },
+                )
             }
         },
     )
@@ -262,7 +277,7 @@ fun MemberOrientation(
  * somebody else.
  */
 @Composable
-private fun JoiningNoteQuote(note: String, from: String?) {
+private fun JoiningNoteQuote(note: String, from: String?, locale: String) {
     Row(
         Modifier.height(IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -275,7 +290,7 @@ private fun JoiningNoteQuote(note: String, from: String?) {
         )
         Column(Modifier.weight(1f)) {
             Text(
-                joiningNoteAttribution(from),
+                joiningNoteAttribution(from, locale),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -308,10 +323,18 @@ private fun JoiningNoteQuote(note: String, from: String?) {
  * It lives with the four screens rather than with the flow's logic because it
  * is COPY, and every word this orientation says belongs in the one file the
  * cross-client copy guard reads.
+ *
+ * #228: [locale] defaults to English rather than being required, because the
+ * only caller that cannot supply one is a unit test asserting the RULE — which
+ * name goes where, and what an unnamed note reads as — rather than the words.
  */
-fun joiningNoteAttribution(from: String?): String {
+fun joiningNoteAttribution(from: String?, locale: String = MessageLocale.EN): String {
     val name = from?.trim()
-    return if (name.isNullOrEmpty()) "They said" else "$name says"
+    return if (name.isNullOrEmpty()) {
+        AppStrings.translate(locale, "shell.orientationTheySaid")
+    } else {
+        AppStrings.translate(locale, "shell.orientationSays", mapOf("name" to name))
+    }
 }
 
 /**
@@ -350,6 +373,15 @@ private fun ProgressRail(index: Int) {
 /** The number of screens, so a test can assert the flow stayed short. */
 val ORIENTATION_SCREEN_COUNT: Int = SCREENS.size
 
-/** Titles and bodies, in order — read by the copy-parity test. */
+/**
+ * Titles and bodies, in order, in English — read by the copy-parity test.
+ *
+ * English rather than the reader's, deliberately: this is asked by a JVM test
+ * with no composition and no member, and the question it answers is "are the
+ * four screens still four screens", not "what does this person see".
+ */
 fun orientationCopy(): List<Pair<String, String>> =
-    SCREENS.map { it.title to it.body }
+    SCREENS.map {
+        AppStrings.translate(MessageLocale.EN, it.titleKey) to
+            AppStrings.translate(MessageLocale.EN, it.bodyKey)
+    }

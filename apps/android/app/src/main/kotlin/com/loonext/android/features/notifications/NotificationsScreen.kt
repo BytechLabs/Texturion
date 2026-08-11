@@ -59,6 +59,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.NotificationItem
 import com.loonext.android.core.model.NotificationType
 import com.loonext.android.core.model.Page
@@ -107,6 +110,9 @@ fun NotificationsScreen(
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     val haptics = rememberHaptics()
+    // #228: read once IN composition, so the snackbars below — which run on
+    // appScope, outside any composition — can still speak the reader's language.
+    val locale = LocalAppLocale.current
 
     var loadingMore by remember(companyId) { mutableStateOf(false) }
     var refreshKey by remember(companyId) { mutableStateOf(0) }
@@ -242,7 +248,11 @@ fun NotificationsScreen(
                     )
                 }
                 unreadFlow.value = previousCount
-                if (mounted) snackbar.showSnackbar("Couldn't mark that read.")
+                if (mounted) {
+                    snackbar.showSnackbar(
+                        AppStrings.translate(locale, "contactsTasks.notifMarkOneFailed"),
+                    )
+                }
             } finally {
                 // When the LAST in-flight mark settles, run one guarded
                 // reconcile: mark endpoints emit no realtime event, so no
@@ -284,7 +294,11 @@ fun NotificationsScreen(
                 if (previousFeed != null) feedFlow.value = previousFeed
                 unreadFlow.value = previousCount
                 readState.localWatermark = previousWatermark
-                if (mounted) snackbar.showSnackbar("Couldn't mark all read.")
+                if (mounted) {
+                    snackbar.showSnackbar(
+                        AppStrings.translate(locale, "contactsTasks.notifMarkAllFailed"),
+                    )
+                }
             } finally {
                 if (readState.settleMark()) {
                     runCatching { repo.unreadCount(companyId) }
@@ -307,7 +321,9 @@ fun NotificationsScreen(
                 runCatching { repo.unreadCount(companyId) }
                     .onSuccess { readState.offerServerCount(unreadFlow, it.count) }
             } catch (_: Exception) {
-                snackbar.showSnackbar("Couldn't refresh.")
+                snackbar.showSnackbar(
+                    AppStrings.translate(locale, "contactsTasks.notifRefreshFailed"),
+                )
             } finally {
                 refreshing = false
             }
@@ -332,7 +348,9 @@ fun NotificationsScreen(
                     next_cursor = page.next_cursor,
                 )
             } catch (_: Exception) {
-                snackbar.showSnackbar("Couldn't load older notifications.")
+                snackbar.showSnackbar(
+                    AppStrings.translate(locale, "contactsTasks.notifLoadOlderFailed"),
+                )
             } finally {
                 loadingMore = false
             }
@@ -387,7 +405,11 @@ fun NotificationsScreen(
                             modifier = Modifier.padding(start = 6.dp),
                         ) { count ->
                             Text(
-                                if (count > 0) "$count unread" else "",
+                                if (count > 0) {
+                                    t("contactsTasks.notifUnreadCount", "count" to "$count")
+                                } else {
+                                    ""
+                                },
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontSize = 11.5.sp,
                                     fontWeight = FontWeight.SemiBold,
@@ -404,7 +426,7 @@ fun NotificationsScreen(
                             ),
                         ) {
                             Text(
-                                "Read all",
+                                t("contactsTasks.notifReadAll"),
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontSize = 11.5.sp,
                                     fontWeight = FontWeight.Bold,
@@ -421,7 +443,7 @@ fun NotificationsScreen(
                     if (items.isEmpty()) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text(
-                                "You're all caught up.",
+                                t("contactsTasks.notifCaughtUp"),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -470,9 +492,9 @@ fun NotificationsScreen(
                                             ) {
                                                 Text(
                                                     if (loadingMore) {
-                                                        "Loading older…"
+                                                        t("contactsTasks.notifLoadingOlder")
                                                     } else {
-                                                        "Show older"
+                                                        t("contactsTasks.notifShowOlder")
                                                     },
                                                 )
                                             }
@@ -493,7 +515,7 @@ fun NotificationsScreen(
                                 color = MaterialTheme.colorScheme.surfaceContainer,
                             ) {
                                 Text(
-                                    "Push and email mirror these · Settings › Notifications",
+                                    t("contactsTasks.notifMirrorHint"),
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontSize = 11.sp,
                                     ),
@@ -519,6 +541,10 @@ private fun NotificationRow(row: NotificationItem, onTap: () -> Unit) {
     // Every derived type today links to its conversation; a future type
     // without one renders disabled instead of dead-tapping.
     val enabled = row.conversation_id != null
+    // Read outside the semantics lambda, which is not composition.
+    val unreadLabel = t("contactsTasks.notifStateUnread")
+    val readLabel = t("contactsTasks.notifStateRead")
+    val summary = summaryFor(row, LocalAppLocale.current)
     Row(
         Modifier
             .fillMaxWidth()
@@ -527,14 +553,14 @@ private fun NotificationRow(row: NotificationItem, onTap: () -> Unit) {
             // Unread was carried ONLY by alpha + font weight, so TalkBack read a
             // read and an unread row identically. (iOS already exposes this via
             // .accessibilityValue on its NotificationRow.)
-            .semantics { stateDescription = if (row.unread) "Unread" else "Read" }
+            .semantics { stateDescription = if (row.unread) unreadLabel else readLabel }
             .padding(horizontal = 15.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         KindBadge(row)
         Spacer(Modifier.width(11.dp))
         Text(
-            summaryFor(row),
+            summary,
             style = MaterialTheme.typography.titleSmall.copy(
                 fontSize = 13.sp,
                 fontWeight = if (row.unread) FontWeight.Bold else FontWeight.SemiBold,
@@ -612,27 +638,30 @@ private fun KindBadge(row: NotificationItem) {
 }
 
 /** One-line summaries, mirroring the web bell popover copy exactly. */
-private fun summaryFor(row: NotificationItem): String {
+private fun summaryFor(row: NotificationItem, locale: String?): String {
     val who = row.contact?.let { it.name ?: formatPhone(it.phone_e164) }
+    fun say(key: String, named: String) =
+        who?.let { AppStrings.translate(locale, named, mapOf("who" to it)) }
+            ?: AppStrings.translate(locale, key)
     return when (row.type) {
         NotificationType.INBOUND_MESSAGE ->
-            who?.let { "New message from $it" } ?: "New message"
+            say("contactsTasks.notifNewMessage", "contactsTasks.notifNewMessageFrom")
 
         NotificationType.ASSIGNED ->
-            who?.let { "$it assigned to you" } ?: "Conversation assigned to you"
+            say("contactsTasks.notifAssigned", "contactsTasks.notifAssignedFrom")
 
         NotificationType.TASK_ASSIGNED ->
-            who?.let { "Task assigned · $it" } ?: "Task assigned to you"
+            say("contactsTasks.notifTaskAssigned", "contactsTasks.notifTaskAssignedFrom")
 
         NotificationType.MISSED_CALL ->
-            who?.let { "Missed call from $it" } ?: "Missed call"
+            say("contactsTasks.notifMissedCall", "contactsTasks.notifMissedCallFrom")
 
         NotificationType.MENTION ->
-            who?.let { "You were mentioned · $it" } ?: "You were mentioned"
+            say("contactsTasks.notifMention", "contactsTasks.notifMentionFrom")
 
         // A type added server-side after this build shipped — show something
         // honest instead of crashing or hiding it.
-        else -> who?.let { "Update · $it" } ?: "Update"
+        else -> say("contactsTasks.notifUpdate", "contactsTasks.notifUpdateFrom")
     }
 }
 
@@ -664,18 +693,20 @@ private fun NotificationPauseNotice(pause: AlertPause?) {
     if (pause == null || !pause.anyPaused) return
 
     val what = when {
-        pause.email_paused && pause.push_paused -> "Notifications are paused"
-        pause.email_paused -> "Email alerts are paused"
-        else -> "Push alerts are paused"
+        pause.email_paused && pause.push_paused -> t("contactsTasks.notifPausedBoth")
+        pause.email_paused -> t("contactsTasks.notifPausedEmail")
+        else -> t("contactsTasks.notifPausedPush")
     }
     // When only one channel is spent, saying which is the difference between
     // "we are broken" and "you are still covered".
     val still = if (pause.email_paused && !pause.push_paused) {
-        " You're still getting push."
+        t("contactsTasks.notifPausedStillPush")
     } else {
         ""
     }
-    val resumes = pause.resets_at?.let { " They resume ${relativeTime(it)}." } ?: ""
+    val resumes = pause.resets_at?.let {
+        t("contactsTasks.notifPausedResumes", "when" to relativeTime(it))
+    } ?: ""
 
     Surface(
         shape = MaterialTheme.shapes.large,
@@ -685,8 +716,12 @@ private fun NotificationPauseNotice(pause: AlertPause?) {
             .padding(bottom = 8.dp),
     ) {
         Text(
-            "$what for today — this workspace hit its daily limit.$still$resumes " +
-                "Your messages are all still here.",
+            t(
+                "contactsTasks.notifPausedBody",
+                "what" to what,
+                "still" to still,
+                "resumes" to resumes,
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onErrorContainer,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),

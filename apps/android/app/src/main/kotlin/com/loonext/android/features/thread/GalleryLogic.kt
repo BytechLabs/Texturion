@@ -3,8 +3,17 @@ package com.loonext.android.features.thread
 import com.loonext.android.core.model.GalleryItem
 import java.util.Locale
 
-/** The gallery's two views (web parity: an Images | Files toggle). */
-enum class GalleryView(val label: String) { Images("Images"), Files("Files") }
+/**
+ * The gallery's two views (web parity: an Images | Files toggle).
+ *
+ * #228: the enum carries the catalogue KEY rather than the English word, so the
+ * toggle reads in the reader's language without this pure file having to know
+ * what a locale is.
+ */
+enum class GalleryView(val labelKey: String) {
+    Images("thread.galleryImages"),
+    Files("thread.galleryFiles"),
+}
 
 /** Server-tagged kind — `kind` is authoritative ("image" vs "file"). */
 fun isGalleryImage(item: GalleryItem): Boolean = item.kind == "image"

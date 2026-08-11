@@ -52,6 +52,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.AppGraph
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Call
 import com.loonext.android.core.model.CallOutcome
 import com.loonext.android.ui.common.LoadState
@@ -140,7 +143,7 @@ internal fun ContactCallsSection(
     // revalidating on return to the foreground.
     ResyncOnResume(contactId) { refreshKey++ }
 
-    ContactSection("Calls", modifier) {
+    ContactSection(t("contactsTasks.callsSection"), modifier) {
         when (val current = state) {
             is LoadState.Loading -> PaperCard(Modifier.fillMaxWidth()) {
                 SkeletonListRow(avatar = false)
@@ -160,13 +163,13 @@ internal fun ContactCallsSection(
                         refreshKey++
                     },
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-                ) { Text("Try again") }
+                ) { Text(t("common.retry")) }
             }
 
             is LoadState.Ready -> {
                 if (current.value.calls.isEmpty()) {
                     Text(
-                        "No calls with this contact yet.",
+                        t("contactsTasks.noCallsYet"),
                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 6.dp),
@@ -236,7 +239,7 @@ internal fun ContactCallsSection(
                                             loadingMore = false
                                         }
                                     }
-                                }) { Text("Show more") }
+                                }) { Text(t("contactsTasks.showMore")) }
                             }
                         }
                     }
@@ -271,7 +274,7 @@ private fun ContactCallRow(
             startAction = onCallBack?.let { back ->
                 SwipeAction(
                     icon = Icons.Outlined.Call,
-                    label = "Call back",
+                    label = t("contactsTasks.callBack"),
                     tint = MaterialTheme.colorScheme.onSecondaryContainer,
                     container = MaterialTheme.colorScheme.secondaryContainer,
                     onCommit = {
@@ -283,7 +286,7 @@ private fun ContactCallRow(
             endAction = onOpen?.let { open ->
                 SwipeAction(
                     icon = Icons.AutoMirrored.Outlined.Message,
-                    label = "Text back",
+                    label = t("contactsTasks.textBack"),
                     tint = MaterialTheme.colorScheme.onTertiaryContainer,
                     container = MaterialTheme.colorScheme.tertiaryContainer,
                     onCommit = {
@@ -350,7 +353,7 @@ private fun ContactCallRow(
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 Icons.Outlined.Call,
-                                contentDescription = "Call back",
+                                contentDescription = t("contactsTasks.callBack"),
                                 modifier = Modifier.size(15.dp),
                             )
                         }
@@ -403,6 +406,9 @@ private fun ContactVoicemailPlayerRow(
     var scrubbing by remember(sessionId) { mutableStateOf(false) }
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
+    // The MediaPlayer callbacks below are not composition.
+    val locale = LocalAppLocale.current
+    val playbackFailed = AppStrings.translate(locale, "contactsTasks.voicemailPlayFailed")
 
     DisposableEffect(sessionId) {
         onDispose {
@@ -456,14 +462,14 @@ private fun ContactVoicemailPlayerRow(
                     positionMs = durationMs
                 }
                 next.setOnErrorListener { _, _, _ ->
-                    error = "Couldn't play this voicemail."
+                    error = playbackFailed
                     playing = false
                     preparing = false
                     true
                 }
                 next.prepareAsync()
             } catch (_: Exception) {
-                error = "Couldn't play this voicemail."
+                error = playbackFailed
                 preparing = false
             }
         }
@@ -532,9 +538,9 @@ private fun ContactVoicemailPlayerRow(
                                         Icons.Outlined.PlayArrow
                                     },
                                     contentDescription = if (isPlaying) {
-                                        "Pause voicemail"
+                                        t("contactsTasks.pauseVoicemail")
                                     } else {
-                                        "Play voicemail"
+                                        t("contactsTasks.playVoicemail")
                                     },
                                     modifier = Modifier.size(14.dp),
                                 )

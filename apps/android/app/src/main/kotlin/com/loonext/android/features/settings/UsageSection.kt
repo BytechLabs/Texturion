@@ -36,6 +36,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.AiFeatureUsage
 import com.loonext.android.core.model.UsageStorage
 import com.loonext.android.core.model.CompanyView
@@ -117,10 +120,9 @@ fun UsageSection(
         is LoadState.Ready -> {
             val usage = current.value
             if (company.plan == null || usage.included_segments == 0L) {
-                SettingsCard(title = "Usage") {
+                SettingsCard(title = t("settingsMore.usageTitle")) {
                     Text(
-                        "No usage yet. Finish setup under Billing to pick a plan and " +
-                            "get your number.",
+                        t("settingsMore.usageNone"),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -164,16 +166,14 @@ fun UsageSection(
 @Composable
 private fun QuietCard() {
     val context = LocalContext.current
-    SettingsCard(title = "Usage") {
+    SettingsCard(title = t("settingsMore.usageTitle")) {
         Text(
-            "Well within fair use this month. Almost every crew stays inside " +
-                "what their plan covers, and we reach out early if usage ever " +
-                "paces past it.",
+            t("settingsMore.usageQuiet"),
             style = MaterialTheme.typography.bodyMedium,
         )
         Spacer(Modifier.height(4.dp))
         LinkButton(onClick = { openExternal(context, FAIR_USE_URL) }) {
-            Text("See the fair use policy")
+            Text(t("settingsMore.seeFairUse"))
         }
     }
 }
@@ -182,23 +182,21 @@ private fun QuietCard() {
 @Composable
 private fun PacingCard(usage: Usage) {
     val projected = usage.overage_projection.projected_overage_cents
-    SettingsCard(title = "Heads up") {
+    SettingsCard(title = t("settingsMore.headsUp")) {
         Text(
-            "${pacingSubject(usage)} are pacing past what your plan includes " +
-                "this period." +
-                if (projected > 0) {
-                    " At the current pace, that adds about ${formatCents(projected)} " +
-                        "in overage to your next invoice."
-                } else {
-                    ""
-                },
+            t(
+                "settingsMore.pacingBody",
+                "subject" to t(pacingSubjectKey(usage)),
+            ) + if (projected > 0) {
+                t("settingsMore.pacingProjection", "amount" to formatCents(projected))
+            } else {
+                ""
+            },
             style = MaterialTheme.typography.bodyMedium,
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "This is the early flag, not a surprise bill. Your spending cap " +
-                "below is the backstop: sending and calling pause there, and " +
-                "nothing bills past it.",
+            t("settingsMore.pacingReassurance"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -210,16 +208,17 @@ private fun PacingCard(usage: Usage) {
 private fun CappedCard(usage: Usage) {
     val reached = capUseRatio(usage) >= 1.0
     SettingsCard(
-        title = if (reached) "At your spending cap" else "Approaching your spending cap",
+        title = if (reached) {
+            t("settingsMore.atCapTitle")
+        } else {
+            t("settingsMore.nearCapTitle")
+        },
     ) {
         Text(
             if (reached) {
-                "You've reached the spending cap you set. Sending and calling " +
-                    "are paused until you raise the cap. Nothing bills past it."
+                t("settingsMore.atCapBody")
             } else {
-                "You've used ${capUsePercent(usage)}% of the spending cap you " +
-                    "set. At the cap, sending and calling pause until you " +
-                    "raise it. Nothing bills past it."
+                t("settingsMore.nearCapBody", "percent" to "${capUsePercent(usage)}")
             },
             style = MaterialTheme.typography.bodyMedium,
         )
@@ -240,17 +239,15 @@ private fun CapCard(
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    val locale = LocalAppLocale.current
 
     SettingsCard(
-        title = "Spending cap",
-        description = "Your protection against surprise bills. The cap is a " +
-            "multiple of your included usage. At the cap, sending and calling " +
-            "pause until you raise it. Nothing bills past it.",
+        title = t("settingsMore.spendingCap"),
+        description = t("settingsMore.spendingCapDesc"),
     ) {
         if (!isOwner) {
             ReadOnlyLine(
-                "Spending cap: ${capLabel(current)} your included usage. " +
-                    "Only the account owner can change it.",
+                t("settingsMore.capReadOnly", "cap" to capLabel(current)),
             )
         } else {
             // A slider, matching the web: the multiple is the mechanism but the
@@ -269,7 +266,7 @@ private fun CapCard(
                 ) {
                     Column {
                         Text(
-                            "SENDING PAUSES AT",
+                            t("settingsMore.sendingPausesAt"),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -279,7 +276,7 @@ private fun CapCard(
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         Text(
-                            "messages this period",
+                            t("settingsMore.messagesThisPeriod"),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -306,12 +303,12 @@ private fun CapCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        "1x included",
+                        t("settingsMore.oneTimesIncluded"),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        "${capLabel(MAX_CAP_MULTIPLIER)} max",
+                        t("settingsMore.capMax", "cap" to capLabel(MAX_CAP_MULTIPLIER)),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -334,11 +331,19 @@ private fun CapCard(
                                 proposed = pending
                             },
                             enabled = !saving,
-                        ) { Text(if (saving) "Saving…" else "Save cap") }
+                        ) {
+                            Text(
+                                if (saving) {
+                                    t("common.saving")
+                                } else {
+                                    t("settingsMore.saveCap")
+                                },
+                            )
+                        }
                         LinkButton(
                             onClick = { pending = current },
                             enabled = !saving,
-                        ) { Text("Cancel") }
+                        ) { Text(t("common.cancel")) }
                     }
                 }
                 error?.let {
@@ -359,7 +364,7 @@ private fun CapCard(
         ConfirmDialog(
             title = change.title,
             body = change.summary,
-            confirmLabel = "Set the cap",
+            confirmLabel = t("settingsMore.setTheCap"),
             pending = saving,
             error = error,
             onDismiss = { proposed = null },
@@ -375,7 +380,13 @@ private fun CapCard(
                         onCompanyUpdated(updated)
                         proposed = null
                         haptics.confirm()
-                        scope.showMessage("Spending cap set to ${capLabel(next)}.")
+                        scope.showMessage(
+                            AppStrings.translate(
+                                locale,
+                                "settingsMore.capSetTo",
+                                mapOf("cap" to capLabel(next)),
+                            ),
+                        )
                     } catch (cause: Exception) {
                         error = cause.userMessage()
                     } finally {
@@ -430,7 +441,15 @@ private fun AiUsageBars(features: List<AiFeatureUsage>) {
                         color = MaterialTheme.colorScheme.onSurface,
                     )
                     Text(
-                        if (feature.enabled) "${feature.used} of ${feature.cap}" else "Off",
+                        if (feature.enabled) {
+                            t(
+                                "settingsMore.usedOfCap",
+                                "used" to "${feature.used}",
+                                "cap" to "${feature.cap}",
+                            )
+                        } else {
+                            t("settingsMore.off")
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -460,7 +479,7 @@ private fun AiUsageBars(features: List<AiFeatureUsage>) {
                 if (nearCap) {
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Close to this month's limit. It resets on the 1st.",
+                        t("settingsMore.aiNearLimit"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.tertiary,
                     )
@@ -473,7 +492,7 @@ private fun AiUsageBars(features: List<AiFeatureUsage>) {
                     if (feature.enabled && feature.outcomesRecorded > 0) {
                         feature.outcomes.joinToString(" · ") { "${it.count} ${it.label}" }
                     } else if (feature.enabled && feature.used > 0) {
-                        "Nothing recorded yet about whether these got used."
+                        t("settingsMore.aiNoOutcomes")
                     } else {
                         null
                     }
@@ -492,25 +511,27 @@ private fun AiUsageBars(features: List<AiFeatureUsage>) {
 
 @Composable
 private fun StorageBreakdown(storage: UsageStorage) {
+    // The CATCH-ALL is filtered on its key rather than on its words: comparing
+    // two translated labels is a test that quietly stops matching in French.
     val rows = listOf(
-        "Attachments received" to storage.received_media_bytes,
-        "Attachments sent" to storage.sent_media_bytes,
-        "Files on notes" to storage.attachments_bytes,
-        "Voicemail recordings" to storage.voicemail_bytes,
-        "Other files" to storage.other_bytes,
-    ).filter { (label, bytes) -> bytes > 0 || label != "Other files" }
+        "settingsMore.storageReceived" to storage.received_media_bytes,
+        "settingsMore.storageSent" to storage.sent_media_bytes,
+        "settingsMore.storageNotes" to storage.attachments_bytes,
+        "settingsMore.storageVoicemail" to storage.voicemail_bytes,
+        "settingsMore.storageOther" to storage.other_bytes,
+    ).filter { (key, bytes) -> bytes > 0 || key != "settingsMore.storageOther" }
 
     DetailLine(
-        "${formatBytes(storage.totalStored)} stored. Free on every plan, no caps.",
+        t("settingsMore.storedFree", "size" to formatBytes(storage.totalStored)),
     )
     Spacer(Modifier.height(6.dp))
-    rows.forEach { (label, bytes) ->
+    rows.forEach { (key, bytes) ->
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                label,
+                t(key),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -555,9 +576,12 @@ private fun DetailsCard(usage: Usage) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text("Details", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "The raw numbers, month by month, if you want them.",
+                    t("settingsMore.details"),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    t("settingsMore.detailsBlurb"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp),
@@ -566,7 +590,11 @@ private fun DetailsCard(usage: Usage) {
             Spacer(Modifier.width(8.dp))
             Icon(
                 if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                contentDescription = if (expanded) "Hide the numbers" else "Show the numbers",
+                contentDescription = if (expanded) {
+                    t("settingsMore.hideNumbers")
+                } else {
+                    t("settingsMore.showNumbers")
+                },
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -576,33 +604,25 @@ private fun DetailsCard(usage: Usage) {
                 Spacer(Modifier.height(14.dp))
                 VoiceDetail(usage)
                 Spacer(Modifier.height(14.dp))
-                DetailHeader("Storage")
+                DetailHeader(t("settingsMore.storage"))
                 StorageBreakdown(usage.storage)
                 if (usage.ai.isNotEmpty()) {
                     Spacer(Modifier.height(14.dp))
-                    DetailHeader("Lou this month")
-                    DetailLine(
-                        "What Lou has drafted, filled in, and written down. " +
-                            "Each resets on the 1st.",
-                    )
+                    DetailHeader(t("settingsMore.louThisMonth"))
+                    DetailLine(t("settingsMore.louThisMonthLine"))
                     Spacer(Modifier.height(8.dp))
                     AiUsageBars(usage.ai)
                 }
                 if (usage.history.isNotEmpty()) {
                     Spacer(Modifier.height(14.dp))
-                    DetailHeader("Last 6 months")
-                    DetailLine("Outbound messages by calendar month.")
+                    DetailHeader(t("settingsMore.lastSixMonths"))
+                    DetailLine(t("settingsMore.lastSixMonthsLine"))
                     Spacer(Modifier.height(8.dp))
                     HistoryBars(usage.history)
                 }
                 Spacer(Modifier.height(14.dp))
-                DetailHeader("How messages are counted")
-                DetailLine(
-                    "A text up to 160 characters counts as one message; longer texts " +
-                        "split into 160-character segments (70 with emoji or accents). " +
-                        "A photo message counts as three. Incoming messages are always " +
-                        "free.",
-                )
+                DetailHeader(t("settingsMore.howCounted"))
+                DetailLine(t("settingsMore.howCountedLine"))
             }
         }
     }
@@ -610,35 +630,42 @@ private fun DetailsCard(usage: Usage) {
 
 @Composable
 private fun MessagesDetail(usage: Usage) {
-    DetailHeader("Messages")
+    DetailHeader(t("settingsMore.messages"))
     val range = periodRange(usage)
     DetailLine(
-        "${groupDigits(usage.used_segments)} of " +
-            "${groupDigits(usage.included_segments)} included messages used" +
-            (range?.let { ", $it" } ?: "") + ".",
+        t(
+            "settingsMore.messagesUsed",
+            "used" to groupDigits(usage.used_segments),
+            "included" to groupDigits(usage.included_segments),
+            "range" to (range?.let { t("settingsMore.commaRange", "range" to it) } ?: ""),
+        ),
     )
     if (usage.overage_segments > 0) {
         DetailLine(
-            "${groupDigits(usage.overage_segments)} over your included amount: " +
-                "${formatCents(usage.projected_overage_cents)} in overage on your " +
-                "next invoice.",
+            t(
+                "settingsMore.messagesOverage",
+                "over" to groupDigits(usage.overage_segments),
+                "amount" to formatCents(usage.projected_overage_cents),
+            ),
         )
     } else {
-        DetailLine("No overage this period. $0.00 extra so far.")
+        DetailLine(t("settingsMore.messagesNoOverage"))
     }
     val pausePoint = usage.cap_segments ?: capSegments(usage.included_segments, null)
     DetailLine(
-        "Sending pauses at ${groupDigits(pausePoint)} messages" +
-            (if (usage.cap_segments == null) {
-                ", the maximum, which is 10 times your included messages."
+        t("settingsMore.messagesPauseAt", "count" to groupDigits(pausePoint)) +
+            if (usage.cap_segments == null) {
+                t("settingsMore.messagesPauseMax")
             } else {
-                "."
-            }),
+                t("settingsMore.fullStop")
+            },
     )
     if (usage.inbound_segments > 0) {
         DetailLine(
-            "${groupDigits(usage.inbound_segments)} messages received this period. " +
-                "Inbound is always free.",
+            t(
+                "settingsMore.messagesInbound",
+                "count" to groupDigits(usage.inbound_segments),
+            ),
         )
     }
 }
@@ -647,23 +674,28 @@ private fun MessagesDetail(usage: Usage) {
 private fun VoiceDetail(usage: Usage) {
     val voice = usage.voice
     if (voice.included_minutes <= 0 && voice.used_minutes <= 0) return
-    DetailHeader("Calling minutes")
+    DetailHeader(t("settingsMore.callingMinutes"))
     DetailLine(
-        "${groupDigits(voice.used_minutes)} of " +
-            "${groupDigits(voice.included_minutes)} included minutes used.",
+        t(
+            "settingsMore.minutesUsed",
+            "used" to groupDigits(voice.used_minutes),
+            "included" to groupDigits(voice.included_minutes),
+        ),
     )
     if (voice.overage_minutes > 0) {
         DetailLine(
-            "${groupDigits(voice.overage_minutes)} extra minutes so far: " +
-                "${formatCents(voice.projected_overage_cents)} on your next invoice.",
+            t(
+                "settingsMore.minutesOverage",
+                "extra" to groupDigits(voice.overage_minutes),
+                "amount" to formatCents(voice.projected_overage_cents),
+            ),
         )
     }
     DetailLine(
         if (voice.overage_billed) {
-            "Past your included minutes, extra minutes bill at 1¢ each. Calling " +
-                "pauses at your spending cap, never mid-call."
+            t("settingsMore.minutesBilled")
         } else {
-            "Extra minutes aren't billed on your plan."
+            t("settingsMore.minutesNotBilled")
         },
     )
 }
@@ -733,10 +765,11 @@ private fun HistoryBars(history: List<UsageMonth>) {
 }
 
 /** Human name for a destination bucket. */
+@Composable
 private fun countryLabel(code: String): String = when (code) {
-    "US" -> "United States"
-    "CA" -> "Canada"
-    else -> "Elsewhere"
+    "US" -> t("settingsMore.countryUs")
+    "CA" -> t("settingsMore.countryCa")
+    else -> t("settingsMore.countryElsewhere")
 }
 
 /**
@@ -764,17 +797,23 @@ private fun DeliveryCard(usage: Usage) {
     }
 
     SettingsCard(
-        title = "Are your texts arriving?",
-        description = "Carrier-reported delivery this period. A carrier confirming it " +
-            "took the message is not the same as someone reading it, so this is the " +
-            "most we can honestly tell you.",
+        title = t("settingsMore.deliveryTitle"),
+        description = t("settingsMore.deliveryDesc"),
     ) {
+        val deliveredPart =
+            t("settingsMore.deliveryDelivered", "count" to "${delivery.delivered}")
+        val failedPart = if (delivery.failed > 0) {
+            t("settingsMore.deliveryFailed", "count" to "${delivery.failed}")
+        } else {
+            ""
+        }
+        val pendingPart = if (delivery.pending > 0) {
+            t("settingsMore.deliveryPending", "count" to "${delivery.pending}")
+        } else {
+            ""
+        }
         Text(
-            buildString {
-                append("${delivery.delivered} confirmed delivered")
-                if (delivery.failed > 0) append(" · ${delivery.failed} didn't get through")
-                if (delivery.pending > 0) append(" · ${delivery.pending} still on their way")
-            },
+            deliveredPart + failedPart + pendingPart,
             style = MaterialTheme.typography.bodyMedium,
         )
         // Only split when there IS more than one destination — a single-country
@@ -783,23 +822,31 @@ private fun DeliveryCard(usage: Usage) {
             Spacer(Modifier.height(8.dp))
             countries.forEach { row ->
                 ReadOnlyLine(
-                    "${countryLabel(row.country)}: " +
-                        if (row.rate == null) {
-                            "${row.delivered} of ${row.delivered + row.failed}"
+                    t(
+                        "settingsMore.deliveryByCountry",
+                        "country" to countryLabel(row.country),
+                        "figure" to if (row.rate == null) {
+                            t(
+                                "settingsMore.deliveryCounts",
+                                "delivered" to "${row.delivered}",
+                                "total" to "${row.delivered + row.failed}",
+                            )
                         } else {
-                            "${(row.rate * 100).roundToInt()}%"
+                            t(
+                                "settingsMore.deliveryPercent",
+                                "percent" to "${(row.rate * 100).roundToInt()}",
+                            )
                         },
+                    ),
                 )
             }
         }
         Spacer(Modifier.height(8.dp))
         ReadOnlyLine(
             if (delivery.failed > 0) {
-                "A text that doesn't get through is usually a disconnected number " +
-                    "or a handset that has been off for days. Open the conversation " +
-                    "and the message itself says what the carrier reported."
+                t("settingsMore.deliveryFailureNote")
             } else {
-                "Nothing has bounced this period."
+                t("settingsMore.deliveryNothingBounced")
             },
         )
     }

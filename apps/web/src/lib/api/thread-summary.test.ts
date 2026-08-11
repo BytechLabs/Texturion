@@ -189,7 +189,12 @@ describe("threadSummaryFailureMessage — one sentence per reason", () => {
     // model_error and unavailable are deliberately the same sentence — both
     // mean "Lou could not be reached", and splitting them would make the
     // reader guess at a distinction that changes nothing they can do.
-    const distinct = new Set(REASONS.map(threadSummaryFailureMessage));
+    // Called through a lambda rather than passed to `.map` directly: the
+    // function's second parameter is now the reader's lookup (#228), and a bare
+    // reference would hand it the array index.
+    const distinct = new Set(
+      REASONS.map((reason) => threadSummaryFailureMessage(reason)),
+    );
     expect(distinct.size).toBe(REASONS.length - 1);
   });
 

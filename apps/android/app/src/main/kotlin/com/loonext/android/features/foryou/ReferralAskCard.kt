@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ReferralMoment
 import com.loonext.android.core.model.ReferralsView
 import com.loonext.android.core.referral.ReferralShare
@@ -86,7 +87,7 @@ fun ReferralAskCard(
                     // The one place a wait is worth showing: they pressed a button
                     // and are owed an answer about it.
                     Text(
-                        "Getting your link…",
+                        t("inbox.referralGettingLink"),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.time.TwoClocks
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -132,7 +133,7 @@ fun SendLaterSheet(
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            SendLaterRow("Pick a time…") {
+            SendLaterRow(t("thread.pickATime")) {
                 haptics.tap()
                 onPickCustom()
             }
@@ -200,10 +201,10 @@ fun SendLaterPicker(
                                 .toLocalDate()
                             stage = PickerStage.Time
                         },
-                    ) { Text("Next") }
+                    ) { Text(t("thread.next")) }
                 },
                 dismissButton = {
-                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                    TextButton(onClick = onDismiss) { Text(t("common.cancel")) }
                 },
             ) { DatePicker(state = dateState) }
         }
@@ -215,7 +216,7 @@ fun SendLaterPicker(
             )
             AlertDialog(
                 onDismissRequest = onDismiss,
-                title = { Text("Send at") },
+                title = { Text(t("thread.sendAt")) },
                 text = {
                     Column {
                         TimePicker(state = timeState)
@@ -269,10 +270,10 @@ fun SendLaterPicker(
                             haptics.confirm()
                             onConfirm(at)
                         }
-                    }) { Text("Schedule") }
+                    }) { Text(t("thread.schedule")) }
                 },
                 dismissButton = {
-                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                    TextButton(onClick = onDismiss) { Text(t("common.cancel")) }
                 },
             )
         }
@@ -295,7 +296,7 @@ fun QuietHoursScheduleDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("That lands late where they are") },
+        title = { Text(t("thread.quietHoursTitle")) },
         text = {
             Text(
                 if (localHour == null) {
@@ -306,10 +307,10 @@ fun QuietHoursScheduleDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text("Schedule it anyway") }
+            TextButton(onClick = onConfirm) { Text(t("thread.scheduleAnyway")) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Pick another time") }
+            TextButton(onClick = onDismiss) { Text(t("thread.pickAnotherTime")) }
         },
     )
 }

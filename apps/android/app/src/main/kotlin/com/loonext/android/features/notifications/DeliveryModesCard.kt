@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.NotificationPrefs
 import com.loonext.android.core.oncall.OnCall
 
@@ -153,7 +154,7 @@ fun DeliveryModesCard(
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "Group them every",
+                    t("contactsTasks.deliveryGroupEvery"),
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(end = 8.dp),
                 )
@@ -162,7 +163,11 @@ fun DeliveryModesCard(
                         onClick = { pickingWindow = true },
                     ) {
                         Text(
-                            "${prefs.batch_window_minutes ?: OnCall.DEFAULT_BATCH_WINDOW} minutes",
+                            t(
+                                "contactsTasks.deliveryMinutes",
+                                "minutes" to
+                                    "${prefs.batch_window_minutes ?: OnCall.DEFAULT_BATCH_WINDOW}",
+                            ),
                         )
                     }
                     DropdownMenu(
@@ -171,7 +176,14 @@ fun DeliveryModesCard(
                     ) {
                         for (minutes in OnCall.BATCH_WINDOW_CHOICES) {
                             DropdownMenuItem(
-                                text = { Text("$minutes minutes") },
+                                text = {
+                                    Text(
+                                        t(
+                                            "contactsTasks.deliveryMinutes",
+                                            "minutes" to "$minutes",
+                                        ),
+                                    )
+                                },
                                 onClick = {
                                     pickingWindow = false
                                     onSave(prefs.copy(batch_window_minutes = minutes))

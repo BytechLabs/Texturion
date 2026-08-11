@@ -31,6 +31,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ContactPhone
 
 /**
@@ -111,7 +112,7 @@ fun PhoneList(
             OutlinedTextField(
                 value = draftLabel,
                 onValueChange = { draftLabel = it.take(80) },
-                label = { Text("Label") },
+                label = { Text(t("contactsTasks.labelField")) },
                 placeholder = { Text(PHONE_LABEL_PLACEHOLDER) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
@@ -119,7 +120,7 @@ fun PhoneList(
             OutlinedTextField(
                 value = draftPhone,
                 onValueChange = { draftPhone = it.take(32) },
-                label = { Text("Number") },
+                label = { Text(t("contactsTasks.numberField")) },
                 placeholder = { Text(PHONE_NUMBER_PLACEHOLDER) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
@@ -143,14 +144,14 @@ fun PhoneList(
                         adding = false
                     },
                     enabled = draftPhone.isNotBlank(),
-                ) { Text("Add") }
+                ) { Text(t("contactsTasks.add")) }
                 TextButton(
                     onClick = {
                         adding = false
                         draftLabel = ""
                         draftPhone = ""
                     },
-                ) { Text("Cancel") }
+                ) { Text(t("common.cancel")) }
             }
         } else {
             Row(
@@ -178,7 +179,16 @@ fun PhoneList(
     }
 }
 
-/** The sentences this surface owns, kept where the parity test can read them. */
+/**
+ * The sentences this surface owns, kept where the parity test can read them.
+ *
+ * #228: these four are NOT in the catalogue, and that is deliberate rather than
+ * missed. `apps/web/src/components/contacts/phone-parity.test.ts` reads THIS
+ * FILE'S BYTES and asserts both the `const val PHONE_MATCH_NOTE` declaration
+ * and its use inside the adding branch, plus the `Remove ${entry.phone_e164}`
+ * label above. Moving them into `ContactsTasksStrings` fails a test that lives
+ * in a tree this change may not touch, so they move when all three clients do.
+ */
 const val PHONE_ADD_LABEL = "Add another number"
 const val PHONE_LABEL_PLACEHOLDER = "Landline, the wife, the shop…"
 const val PHONE_NUMBER_PLACEHOLDER = "Another number they answer"

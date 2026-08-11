@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.features.payments.PaymentRequest
 import com.loonext.android.features.payments.PaymentState
 import com.loonext.android.features.payments.Payments
@@ -195,15 +196,17 @@ private fun PaymentRow(row: PaymentRequest, onCancel: (() -> Unit)?, cancelling:
                 // and "Refunded" alone would let a crew believe the whole
                 // deposit had gone back when half of it had.
                 Text(
-                    "${formatMoney(refunded, row.money)} went back to them.",
+                    t(
+                        "payments.refundedBack",
+                        "amount" to formatMoney(refunded, row.money),
+                    ),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             if (state == PaymentState.DISPUTED) {
                 Text(
-                    "Their bank has pulled this back. Stripe has emailed you " +
-                        "what it needs.",
+                    t("payments.disputedNote"),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                     color = accent,
                 )
@@ -221,8 +224,11 @@ private fun PaymentRow(row: PaymentRequest, onCancel: (() -> Unit)?, cancelling:
                     Icons.Filled.Close,
                     // Spelled out for TalkBack: an unlabelled X on a row that
                     // is one of several is a control nobody can aim.
-                    contentDescription =
-                        "Cancel the $amount request for ${row.description}",
+                    contentDescription = t(
+                        "payments.cancelAria",
+                        "amount" to amount,
+                        "description" to row.description,
+                    ),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(15.dp),
                 )

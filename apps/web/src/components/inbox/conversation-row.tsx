@@ -29,7 +29,7 @@ import { formatAbsoluteDateTime, formatRelativeTime } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
 import { isSnoozed } from "@/lib/api/filters";
-import { snoozeReturnLabel } from "../thread/snooze-menu";
+import { deferralReturnLabel } from "../thread/snooze-menu";
 
 import { avatarColorClass } from "../shell/avatar-color";
 import { useMemberNames } from "./member-avatar";
@@ -210,7 +210,7 @@ export const ConversationRow = memo(function ConversationRow({
       }${spamView ? t("inbox.rowAriaSpam") : ""}${
         snoozedUntil
           ? `${t("inbox.rowAriaSnoozed", {
-              until: snoozeReturnLabel(snoozedUntil),
+              until: deferralReturnLabel(snoozedUntil, "back", t),
             })}${
               conversation.snooze_note ? `, ${conversation.snooze_note}` : ""
             }`
@@ -312,7 +312,7 @@ export const ConversationRow = memo(function ConversationRow({
             {snoozedUntil && (
               <span className="inline-flex items-center gap-1 rounded-full border border-app-line bg-app-ground px-2 py-[2.5px] text-[11px] font-semibold leading-none text-app-muted">
                 <AlarmClock className="size-3" strokeWidth={1.75} aria-hidden />
-                {snoozeReturnLabel(snoozedUntil)}
+                {deferralReturnLabel(snoozedUntil, "back", t)}
                 {/* The reason, when one was left. "Waiting on the supplier"
                     three days later is the difference between a list you can
                     read and a list of names. */}

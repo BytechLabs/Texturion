@@ -1,3 +1,10 @@
+import { DEFAULT_LOCALE } from "@loonext/shared";
+
+import { makeTranslate, type Translate } from "@/i18n/provider";
+
+/** English, for a caller with no provider around it — the unit tests. */
+const EN = makeTranslate(DEFAULT_LOCALE);
+
 /**
  * The status line under the setting-up heading. Pure so the claim it makes can
  * be pinned against the rows below it: the number landing is only the first of
@@ -14,17 +21,16 @@ export interface SetupHeadlineInput {
   aRowNeedsYou: boolean;
 }
 
-export function setupHeadline(input: SetupHeadlineInput): string {
+export function setupHeadline(
+  input: SetupHeadlineInput,
+  t: Translate = EN,
+): string {
   // Waiting on the reader outranks the rest: a step that needs them must not
   // sit under a sentence saying everything is handled.
-  if (input.aRowNeedsYou) {
-    return "One step below needs you. The rest updates itself.";
-  }
+  if (input.aRowNeedsYou) return t("onboarding.setupNeedsYou");
   if (input.numberReady && input.everyRowDone) {
-    return "Everything below is live. Text your new number to see it land.";
+    return t("onboarding.setupAllLive");
   }
-  if (input.numberReady) {
-    return "Text your new number to see it land. One step below is still finishing.";
-  }
-  return "This screen updates itself. No refreshing needed.";
+  if (input.numberReady) return t("onboarding.setupNumberReady");
+  return t("onboarding.setupUpdatesItself");
 }

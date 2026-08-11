@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.core.dashboard.DashboardPanels
+import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.AppSheet
 
 /**
@@ -70,20 +71,20 @@ fun CustomiseSheet(
     AppSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 28.dp)) {
             Text(
-                "What's on this screen",
+                t("inbox.customiseTitle"),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             // Says what is NOT on offer, once, here — rather than leaving somebody
             // hunting for a switch that does not exist.
             Text(
-                "The queue always stays. Work isn't something you can switch off.",
+                t("inbox.customiseQueueStays"),
                 modifier = Modifier.padding(top = 4.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            GroupHeading("Measures", top = 20.dp)
+            GroupHeading(t("inbox.customiseGroupMeasures"), top = 20.dp)
             DashboardPanels.Panel.entries
                 .filter { it != DashboardPanels.Panel.RECENT_CALLS }
                 .forEach { panel ->
@@ -91,7 +92,7 @@ fun CustomiseSheet(
                 }
 
             HorizontalDivider(Modifier.padding(top = 16.dp))
-            GroupHeading("History", top = 14.dp)
+            GroupHeading(t("inbox.customiseGroupHistory"), top = 14.dp)
             PanelRow(DashboardPanels.Panel.RECENT_CALLS, hidden, onToggle)
 
             // One line, and only when a write actually failed. The toggle is
@@ -99,8 +100,7 @@ fun CustomiseSheet(
             // something is still pending.
             if (failed) {
                 Text(
-                    "We couldn't save that — it's back the way it was. " +
-                        "Try again in a moment.",
+                    t("inbox.customiseSaveFailed"),
                     modifier = Modifier.padding(top = 16.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
@@ -128,6 +128,10 @@ private fun PanelRow(
     onToggle: (panel: DashboardPanels.Panel, visible: Boolean) -> Unit,
 ) {
     val visible = DashboardPanels.isVisible(hidden, panel)
+    // Read here rather than inside `semantics { }`: that lambda is not
+    // composition, so the catalogue cannot be reached from inside it.
+    val switchState =
+        if (visible) t("inbox.customiseStateOn") else t("inbox.customiseStatePutAway")
     Row(
         Modifier
             .fillMaxWidth()
@@ -158,9 +162,7 @@ private fun PanelRow(
             // TalkBack announces the switch by the row it is in; the state has to
             // be said in the product's own words rather than as "on"/"off", which
             // does not say on WHAT.
-            modifier = Modifier.semantics {
-                stateDescription = if (visible) "On this screen" else "Put away"
-            },
+            modifier = Modifier.semantics { stateDescription = switchState },
         )
     }
 }

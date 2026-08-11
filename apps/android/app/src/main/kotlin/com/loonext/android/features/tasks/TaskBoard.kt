@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.StoreCache
+import com.loonext.android.core.i18n.LocalAppLocale
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Task
 import com.loonext.android.ui.common.CenteredError
 import com.loonext.android.ui.common.LoadState
@@ -185,12 +187,12 @@ internal fun TaskBoard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 BoardColumn(
-                    title = "To do",
+                    title = t("contactsTasks.columnToDo"),
                     count = snapshot.todo.size,
                     tasks = snapshot.todo,
-                    emptyCopy = "Nothing to do here.",
+                    emptyCopy = t("contactsTasks.columnToDoEmpty"),
                     hasMore = snapshot.todoHasMore,
-                    moveLabel = "Move to Done",
+                    moveLabel = t("contactsTasks.moveToDone"),
                     moveIcon = { Icons.AutoMirrored.Outlined.ArrowForward },
                     onLoadMore = {
                         scope.launch {
@@ -213,12 +215,12 @@ internal fun TaskBoard(
                     modifier = Modifier.weight(1f),
                 )
                 BoardColumn(
-                    title = "Done",
+                    title = t("contactsTasks.columnDone"),
                     count = snapshot.done.size,
                     tasks = snapshot.done,
-                    emptyCopy = "Nothing marked done yet.",
+                    emptyCopy = t("contactsTasks.columnDoneEmpty"),
                     hasMore = snapshot.doneHasMore,
-                    moveLabel = "Move to To do",
+                    moveLabel = t("contactsTasks.moveToToDo"),
                     moveIcon = { Icons.AutoMirrored.Outlined.Undo },
                     onLoadMore = {
                         scope.launch {
@@ -301,7 +303,7 @@ private fun BoardColumn(
                             TextButton(onClick = {
                                 haptics.tap()
                                 onLoadMore()
-                            }) { Text("Load more") }
+                            }) { Text(t("contactsTasks.loadMore")) }
                         }
                     }
                 }
@@ -355,8 +357,11 @@ private fun BoardCard(
                 Text(
                     when {
                         task.due_at == null -> ""
-                        overdue -> "Overdue"
-                        else -> "Due ${formatDue(task.due_at)}"
+                        overdue -> t("contactsTasks.overdue")
+                        else -> t(
+                            "contactsTasks.dueWhen",
+                            "when" to formatDue(task.due_at, locale = LocalAppLocale.current),
+                        )
                     },
                     fontSize = 11.5.sp,
                     fontWeight = if (overdue) FontWeight.SemiBold else FontWeight.Normal,

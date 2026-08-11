@@ -25,6 +25,16 @@ import {
  * address, and a list that is full.
  *
  * No `export const runtime` — the OpenNext adapter runs the Node runtime (D1).
+ *
+ * #228: THE FOUR SENTENCES BELOW STAY ENGLISH, AND STAY HERE.
+ *
+ * They are only ever read by `components/marketing/status-subscribe-card.tsx`
+ * on `/status`, which is the Bill 96 marketing deliverable — a different
+ * problem with a different answer (real French URLs and `hreflang`, resolved by
+ * routing) from the app catalogue's, which is a per-PERSON setting read from a
+ * session. This request has no session, no company and no member, so there is
+ * nothing here to resolve a language from: filing these under `i18n/sections/`
+ * would record them as handled by a scheme that can never reach them.
  */
 
 /** The response every non-actionable outcome gets. */

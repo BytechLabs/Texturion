@@ -44,6 +44,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.rememberCacheFirst
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -498,18 +499,21 @@ private fun ForYouList(
                     CircleIconButton(
                         icon = Icons.Outlined.Tune,
                         contentDescription = if (hidden.isEmpty()) {
-                            "Customise this screen"
+                            t("inbox.customiseAria")
                         } else {
                             val n = DashboardPanels.normalise(hidden).size
-                            "Customise this screen — $n " +
-                                (if (n == 1) "panel" else "panels") + " put away"
+                            t(
+                                if (n == 1) "inbox.customiseAriaPutAwayOne"
+                                else "inbox.customiseAriaPutAwayMany",
+                                "count" to n.toString(),
+                            )
                         },
                         onClick = onCustomise,
                         showDot = hidden.isNotEmpty(),
                     )
                     CircleIconButton(
                         icon = Icons.Outlined.Notifications,
-                        contentDescription = "Notifications",
+                        contentDescription = t("inbox.forYouNotificationsAria"),
                         onClick = onOpenNotifications,
                         showDot = unreadNotifications > 0,
                     )
@@ -593,12 +597,12 @@ private fun ForYouList(
 
         item(key = "title") {
             Column(Modifier.padding(top = 15.dp)) {
-                ScreenTitle("For you")
+                ScreenTitle(t("inbox.forYouTitle"))
                 Text(
                     when {
-                        total == 0 -> "You're all caught up"
-                        total == 1 -> "1 thing needs you · otherwise you're caught up"
-                        else -> "$total things need you · otherwise you're caught up"
+                        total == 0 -> t("inbox.forYouAllCaughtUp")
+                        total == 1 -> t("inbox.forYouWorkOne")
+                        else -> t("inbox.forYouWorkMany", "count" to total.toString())
                     },
                     modifier = Modifier.padding(top = 5.dp),
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
@@ -612,7 +616,7 @@ private fun ForYouList(
         if (spamReview.isNotEmpty()) {
             item(key = "spam-review") {
                 QueueSection(
-                    "Marked spam, still texting",
+                    t("inbox.forYouSectionSpamReview"),
                     count = spamReview.size,
                     modifier = Modifier.animateItem(),
                 ) {
@@ -674,7 +678,7 @@ private fun ForYouList(
                             // section only owners could see. It is the whole
                             // crew's queue now, and the word for it everywhere
                             // else in the product is "unassigned".
-                            "Unassigned",
+                            t("inbox.forYouSectionUnassigned"),
                             count = triageCount,
                             // Sections glide as queues above them empty or fill.
                             modifier = Modifier.animateItem(),
@@ -685,7 +689,7 @@ private fun ForYouList(
                                     name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
                                     why = relativeTime(row.last_message_at),
                                     unread = row.unread,
-                                    chipLabel = if (row.unread) "New lead" else null,
+                                    chipLabel = if (row.unread) t("inbox.forYouNewLead") else null,
                                     onClick = { onOpenConversation(row.conversation_id) },
                                 )
                             }
@@ -706,7 +710,7 @@ private fun ForYouList(
             if (forYou.waiting_on_you.isNotEmpty()) {
                 item(key = "waiting") {
                     QueueSection(
-                        "Waiting on you",
+                        t("inbox.forYouSectionWaiting"),
                         count = waitingTotal,
                         modifier = Modifier.animateItem(),
                     ) {
@@ -727,7 +731,7 @@ private fun ForYouList(
             if (forYou.my_tasks.isNotEmpty()) {
                 item(key = "tasks") {
                     QueueSection(
-                        "My tasks",
+                        t("inbox.forYouSectionTasks"),
                         count = tasksTotal,
                         modifier = Modifier.animateItem(),
                     ) {
@@ -748,7 +752,7 @@ private fun ForYouList(
             if (forYou.unread.isNotEmpty()) {
                 item(key = "unread") {
                     QueueSection(
-                        "Unread",
+                        t("inbox.forYouSectionUnread"),
                         count = unreadTotal,
                         modifier = Modifier.animateItem(),
                     ) {
@@ -776,7 +780,7 @@ private fun ForYouList(
         if (forYou.follow_ups.isNotEmpty()) {
             item(key = "follow-ups") {
                 QueueSection(
-                    "Chase these",
+                    t("inbox.forYouSectionChaseThese"),
                     count = followUpTotal,
                     modifier = Modifier.animateItem(),
                 ) {
@@ -791,7 +795,10 @@ private fun ForYouList(
                             // "Chase the quote" is a job; "Chase this" is a
                             // chore.
                             why = row.note?.takeIf { it.isNotBlank() }
-                                ?: "No reply since ${relativeTime(row.last_message_at)}",
+                                ?: t(
+                                    "inbox.forYouWhyNoReply",
+                                    "when" to relativeTime(row.last_message_at),
+                                ),
                             unread = row.unread,
                             onClick = { onOpenConversation(row.conversation_id) },
                         )
@@ -822,7 +829,7 @@ private fun ForYouList(
                     Column(Modifier.animateItem().padding(top = 14.dp)) {
                         RecentCallsHeader(onOpenCalls)
                         Text(
-                            "Couldn't load recent calls.",
+                            t("inbox.forYouCallsLoadFailed"),
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = 6.dp, top = 2.dp),
@@ -875,7 +882,7 @@ private fun RecentCallsHeader(onOpenCalls: (() -> Unit)?) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            "RECENT CALLS",
+            t("inbox.forYouRecentCalls"),
             style = MaterialTheme.typography.labelSmall.copy(
                 fontSize = 10.5.sp,
                 fontWeight = FontWeight.Bold,
@@ -886,7 +893,7 @@ private fun RecentCallsHeader(onOpenCalls: (() -> Unit)?) {
         )
         if (onOpenCalls != null) {
             Text(
-                "View all",
+                t("inbox.forYouViewAllCalls"),
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 10.5.sp,
                     fontWeight = FontWeight.Bold,
@@ -934,7 +941,7 @@ private fun PersonRow(
                 horizontalArrangement = Arrangement.spacedBy(7.dp),
             ) {
                 Text(
-                    name?.takeIf { it.isNotBlank() } ?: "Unknown",
+                    name?.takeIf { it.isNotBlank() } ?: t("inbox.forYouUnknownCaller"),
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -998,11 +1005,11 @@ private fun TaskQueueRow(title: String, overdue: Boolean, dueAt: String?, onClic
             )
             Text(
                 when {
-                    overdue -> "Overdue task"
+                    overdue -> t("inbox.forYouWhyOverdueTask")
                     // formatDue, NOT relativeTime: relativeTime measures time
                     // ELAPSED, so every future due date came out as "Due now".
-                    dueAt != null -> "Due ${formatDue(dueAt)}"
-                    else -> "Open task"
+                    dueAt != null -> t("inbox.forYouWhyDue", "when" to formatDue(dueAt))
+                    else -> t("inbox.forYouWhyOpenTask")
                 },
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontSize = 11.5.sp,
@@ -1097,7 +1104,7 @@ private fun CaughtUpWell(modifier: Modifier = Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                "ALL CAUGHT UP",
+                t("inbox.forYouCaughtUpHeading"),
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 10.5.sp,
                     fontWeight = FontWeight.Bold,
@@ -1106,7 +1113,7 @@ private fun CaughtUpWell(modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                "Nothing needs you right now. New messages, tasks, and missed calls land here first.",
+                t("inbox.forYouCaughtUpBody"),
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontSize = 13.sp,
                     lineHeight = 20.sp,
@@ -1149,6 +1156,17 @@ private fun ForYouSkeleton(modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * The name Compose's animation tooling shows for the dot's transition.
+ *
+ * A CONSTANT rather than a literal at the call site, because `label = "…"` is the
+ * shape a reader-facing string takes everywhere else in this file and #228's
+ * ledger cannot tell the two apart. Nobody using the app ever sees this one — it
+ * is for the Animation Preview inspector — so naming it here says so once
+ * instead of leaving a translator to guess.
+ */
+private const val ATTENTION_DOT_TRANSITION = "attentionDot"
+
 /** 44dp paper circle icon button; optional coral dot (unread notifications). */
 @Composable
 private fun CircleIconButton(
@@ -1177,7 +1195,7 @@ private fun CircleIconButton(
             AnimatedContent(
                 targetState = showDot,
                 modifier = Modifier.align(Alignment.TopEnd).padding(top = 9.dp, end = 9.dp),
-                label = "attentionDot",
+                label = ATTENTION_DOT_TRANSITION,
             ) { dot ->
                 if (dot) AttentionDot(size = 8.dp)
             }
@@ -1255,8 +1273,8 @@ private fun SpamReviewRow(
         )
         Spacer(Modifier.height(6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { onAnswer(true) }) { Text("Not spam") }
-            TextButton(onClick = { onAnswer(false) }) { Text("Still spam") }
+            OutlinedButton(onClick = { onAnswer(true) }) { Text(t("inbox.forYouNotSpam")) }
+            TextButton(onClick = { onAnswer(false) }) { Text(t("inbox.forYouStillSpam")) }
         }
     }
 }

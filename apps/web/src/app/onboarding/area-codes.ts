@@ -14,6 +14,21 @@ import { cityNpaMatches } from "./city-npas";
  * name (Houston, Calgary, Charlotte…) surfaces the NPAs that actually serve it
  * via the curated index, with the IANA timezone-city name as a last-resort
  * fallback for anything the curated list misses.
+ *
+ * #228: THE PLACE NAMES BELOW ARE NOT IN THE CATALOGUE, AND THIS IS NOT AN
+ * OVERSIGHT.
+ *
+ * They are a SEARCH INDEX as much as a label — `areaCodeHints` matches what
+ * somebody types against these exact strings, and `city-npas.ts` is keyed on
+ * the same names. Translating the display half alone would leave a French
+ * reader looking at "Ontario" and unable to find it by typing anything, which
+ * is worse than an English label on a picker whose input is a three-digit code.
+ *
+ * Doing it properly means a French name AND a French match arm for all ~180
+ * entries, in both directions, so a Quebecker can type either "Quebec" or
+ * "Québec" — real work with real sources (Canada Post and the Commission de
+ * toponymie for the provinces; there is no French name for a US state code).
+ * Recorded as its own item rather than half-done here.
  */
 
 export const US_REGION_NAMES: Readonly<Record<string, string>> = {

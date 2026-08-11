@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.SubscriptionStatus
@@ -291,7 +292,7 @@ fun ComposerBannerCard(
         )
         if (onCallInstead != null && offersCallInstead(banner)) {
             Text(
-                "Call them instead",
+                t("thread.callThemInstead"),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
@@ -309,7 +310,7 @@ fun ComposerBannerCard(
         // exists, taking it is the right move and the layout has to say so.
         if (onReport != null) {
             Text(
-                "Report this",
+                t("thread.reportThis"),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
