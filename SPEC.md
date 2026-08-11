@@ -950,7 +950,7 @@ There is **no** `POST /auth/*` on the Worker — all auth flows (signup, login, 
 
 ### Broadcast-from-Database
 
-**Supabase Realtime Broadcast**, never `postgres_changes` (single-threaded, per-client RLS reads — rejected). Postgres triggers publish into the **private topic `company:{company_id}`** with **ID-only payloads**, and clients refetch via the API. Because `realtime.broadcast_changes()`'s default payload includes row data, the triggers call the underlying **`realtime.send()`** primitive with a minimal JSON body — same mechanism, ID-only payload as D9 requires:
+**Supabase Realtime Broadcast**, never `postgres_changes` (single-threaded, per-client RLS reads — rejected). Postgres triggers publish into **private per-workspace topics** with **ID-only payloads**, and clients refetch via the API. Because `realtime.broadcast_changes()`'s default payload includes row data, the triggers call the underlying **`realtime.send()`** primitive with a minimal JSON body — same mechanism, ID-only payload as D9 requires. **There are two topic shapes and the note below is which:** an event that belongs to a NUMBER goes to `company:{company_id}:number:{phone_number_id}`, and only a genuinely workspace-wide event goes to `company:{company_id}`:
 
 > **Delivery and reading are now authorized at the SAME granularity (#484).** This
 > note used to describe two, because they were: joining was checked per company
@@ -976,6 +976,8 @@ There is **no** `POST /auth/*` on the Worker — all auth flows (signup, login, 
 > honour, because `number_access.phone_number_id` cascades. A leak requires a
 > restriction. It goes to the company topic; dropping it would lose a state update
 > to protect nothing. `number_scoped_topics.test.sql` NT-4 pins both halves of that.
+
+The sketch below is the MECHANISM — `realtime.send` with a hand-built minimal body — and it predates #484: every conversation-scoped trigger now calls the one helper `public.broadcast_number_scoped(payload, event, company, number)` instead of spelling `'company:' || …` eight times, which is what made the boundary change one edit. The migrations are the authority.
 
 ```sql
 create or replace function public.broadcast_message_change() returns trigger
@@ -1028,9 +1030,24 @@ create trigger registrations_broadcast after insert or update on public.messagin
   for each row execute function public.broadcast_provisioning_change();
 ```
 
-**Events:** `message.created {conversation_id, message_id, direction}` · `conversation.updated {conversation_id}` · `message.status {message_id, status}` · `number.updated {number_id, status}` · `registration.updated {kind, status}` · `call.updated {call_id, conversation_id}` (#133 — /calls + the For You Recent-calls section refresh live).
+**Events.** Every one that ships, with the topic it goes to — the two shapes are the boundary described above, so the column is load-bearing rather than decorative. This list stood at five for a long time after it had stopped being five; `apps/web/src/lib/realtime/events.ts` (`REALTIME_EVENTS`) is the client-side twin and `provider-lifecycle.test.tsx` holds it equal to the bindings the provider actually registers.
 
-**Topic authorization** — RLS on `realtime.messages` (the only end-user policy in the system):
+| Event | Payload | Topic |
+|---|---|---|
+| `message.created` | `{conversation_id, message_id, direction}` | number |
+| `message.status` | `{message_id, status}` + the D14 done fields and the #3 pin fields when present (done and pin toggles ride this same event) | number |
+| `conversation.updated` | `{conversation_id}` | number |
+| `task.changed` | `{conversation_id}` (TASKS.md T1.3 — create / assign / reschedule / soft-delete; **not** done, which rides `message.status`) | number |
+| `call.updated` | `{call_id, conversation_id, call_session_id, state, answered_by_user_id}` (#133 — /calls + the For You Recent-calls section refresh live) | number, **or company when the call's number was deleted** — the one deliberate exception above |
+| `read.conversation` | `{conversation_id, user_id}` (#358 — carries the `user_id` so a client ignores a colleague's reading) | number |
+| `port.updated` | `{port_request_id, status, messaging_port_status}` (PORTING.md §8.2) | number |
+| `payment.updated` | `{conversation_id, payment_request_id, type}` (#607 — a deposit cleared, was refunded or was disputed; `type` is the `conversation_event_type` label verbatim, and `payment_request_id` is null unless the row's jsonb held a scalar the uuid parser accepts) | number |
+| `number.updated` | `{number_id, status}` | company |
+| `registration.updated` | `{kind, status}` (a 10DLC registration authorizes every number) | company |
+| `read.notifications` | `{user_id}` (one watermark per person) | company |
+| `access.changed` | `{company_id}` (#480/#484 — somebody's number access moved, or the number set did, so the topic set must be re-derived; company-wide on purpose, since a number nobody has joined yet has no topic to be told on) | company |
+
+**Topic authorization** — RLS on `realtime.messages` (the only end-user policy in the system). The original policy is below and it is the SHAPE, not the current text: it admits the company topic alone, and the shipped predicate now also admits `company:{id}:number:{n}` through `is_company_topic_member` (per-number, D88), refuses a revoked session, and refuses a session that has not stepped up. Each of those is its own migration and the migrations are the authority.
 
 ```sql
 create policy company_topic_read on realtime.messages

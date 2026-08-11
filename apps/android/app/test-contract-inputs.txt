@@ -1,0 +1,59 @@
+# #607 A4 — the repo trees the unit tests read, declared as Gradle task inputs.
+#
+# A guard that reads a file Gradle does not track reports the LAST RUN'S ANSWER,
+# forever. Proved on `PaymentRealtimeTest`, which pins the realtime event name
+# this client listens for against the migration that publishes it: rename the
+# published event in the `.sql`, run `:app:testDebugUnitTest`, and Gradle answers
+# `UP-TO-DATE` / `BUILD SUCCESSFUL`. Nothing under `app/` changed, so the tests
+# did not run, and the green is a cached verdict about the previous contents of
+# a file that no longer says that.
+#
+# It was never one test's problem. A dozen suites here are cross-language parity
+# guards BY DESIGN — their whole reason to exist is that the source of truth
+# lives outside this Gradle build — and every one of them was unpinned the same
+# way.
+#
+# This file is read by TWO things, which is the point of it being a file:
+#
+#   app/build.gradle.kts   declares each line as an input of the Test task, so
+#                          editing one of these re-runs the tests that read it.
+#   TestContractInputsTest scans app/src/test for repo-relative paths and fails
+#                          if one is not covered here — so the NEXT guard that
+#                          reaches outside this build cannot quietly go stale
+#                          the way these all had.
+#
+# KEEP THE ROOTS NARROW. Every path here is hashed on every build, and each one
+# also re-runs the whole Android suite whenever it changes. `apps/web/src` as a
+# whole would mean an unrelated web edit costs a full Android test run; the
+# thread component below is the only web file a test actually reads.
+#
+# One repo-relative path per line — a file or a directory. Blank lines and
+# `#` comments ignored.
+
+# The hand-ported rules, and the vectors generated from the TypeScript.
+packages/shared/src
+packages/shared/vectors
+
+# The trigger, the enum, and every wire name they publish.
+supabase/migrations
+
+# Server-side unions and price books the ports are checked against.
+apps/api/src
+
+# #607 A3: web's timeline, for the payment-line agreement guard.
+apps/web/src/components/thread
+# DeepLinkTest lists these directories to prove every settings slug it maps has
+# a route on the server's side of the link.
+apps/web/src/app/(app)/settings
+
+# #607 A3: the third client's timeline, same agreement guard.
+apps/ios/Loonext/Features/Thread
+
+# Read as TEXT by the guards that scan this app's own sources — and, for the
+# test tree, by the completeness check itself. Both are already tracked through
+# compilation; they are listed because the completeness check makes no
+# exceptions, and a list with a special case in it is a list somebody will add a
+# second special case to.
+apps/android/app/src/main/kotlin
+apps/android/app/src/test/kotlin
+apps/android/app/test-contract-inputs.txt

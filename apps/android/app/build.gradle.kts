@@ -160,3 +160,57 @@ dependencies {
     // `debugImplementation`.
     debugImplementation(libs.compose.ui.test.manifest)
 }
+
+// ---------------------------------------------------------------------------
+// #607 A4 — the contracts this suite reads, declared as the inputs they are
+// ---------------------------------------------------------------------------
+
+/**
+ * The trees `app/test-contract-inputs.txt` names, declared so that editing one
+ * of them re-runs the tests that read it.
+ *
+ * The reasoning lives in that file, next to the list, because the list is the
+ * part that has to be kept true. `TestContractInputsTest` reads the same file
+ * and fails if a test reaches for a path it does not cover.
+ */
+val loonextRepoRoot: java.io.File = rootProject.projectDir.parentFile.parentFile
+
+val loonextContractRoots: List<String> = layout.projectDirectory
+    .file("test-contract-inputs.txt").asFile
+    .readLines()
+    .map { it.substringBefore('#').trim() }
+    .filter { it.isNotEmpty() }
+
+/**
+ * An input that resolves to nothing is this bug wearing the fix's clothes: the
+ * declaration is present, the hash is of an empty set, and the task goes
+ * UP-TO-DATE exactly as before. So a moved or renamed root fails the BUILD here
+ * rather than quietly restoring the defect — the same reason `check-open-lists`
+ * skipping silently was worth fixing. A guard that can no-op has to say so.
+ */
+loonextContractRoots.forEach { path ->
+    require(loonextRepoRoot.resolve(path).exists()) {
+        "#607 A4: '$path' does not exist under $loonextRepoRoot. It is listed " +
+            "in app/test-contract-inputs.txt because guards in app/src/test " +
+            "read it, and an input that resolves to nothing puts " +
+            ":app:testDebugUnitTest back to reporting the previous run's " +
+            "answer. Re-point it, or delete the line and the guard together."
+    }
+}
+
+tasks.withType<Test>().configureEach {
+    inputs
+        .files(loonextContractRoots.map { loonextRepoRoot.resolve(it) })
+        .withPropertyName("loonextCrossLanguageContracts")
+        // RELATIVE, not ABSOLUTE: the contents and the repo-relative paths are
+        // what the guards read, so a CI checkout under a different directory
+        // still hits the build cache.
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+
+    // The list itself, so deleting a line re-runs the completeness check that
+    // would object to it.
+    inputs
+        .file(layout.projectDirectory.file("test-contract-inputs.txt"))
+        .withPropertyName("loonextContractInputManifest")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}

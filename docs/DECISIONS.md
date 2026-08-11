@@ -444,6 +444,36 @@ marketing page when a broader pass is wanted.
   Events: `message.created {conversation_id, message_id, direction}`,
   `conversation.updated {conversation_id}`, `message.status {message_id, status}`.
   Clients refetch page 1 on reconnect.
+  - **AMENDED 2026-08-11 (#484, #607) — there are TWO topic shapes now, and the
+    event list above is three of twelve.** The bullet above is the decision as it
+    was taken and the ID-only half of it is untouched; the topic and the roster
+    have both moved, and this is where they are recorded so the original does not
+    have to be read as current.
+    - **The topic.** A conversation-scoped event goes to
+      `company:{company_id}:number:{phone_number_id}` and NOWHERE else — #484
+      deleted the company-topic send, which is how D85's accepted exposure was
+      closed. `company:{company_id}` now carries genuinely workspace-wide events
+      only (`number.updated`, `registration.updated`, `read.notifications`,
+      `access.changed`), plus the single `call.updated` whose number was deleted
+      and therefore has no restriction left to honour.
+    - **The mechanism.** Triggers call `realtime.send()` through one helper,
+      `public.broadcast_number_scoped(payload, event, company, number)` — never
+      `realtime.broadcast_changes()`, whose default payload includes row data,
+      which is the opposite of ID-only. One helper is what made the #484 boundary
+      change a single edit rather than eight.
+    - **The roster.** Twelve events, tabulated in SPEC §8 with the topic each
+      uses. Beside the three above: `task.changed`, `call.updated`,
+      `read.conversation`, `port.updated`, `payment.updated`, `number.updated`,
+      `registration.updated`, `read.notifications`, `access.changed`.
+    - **`payment.updated` (#607) is the newest and the only one whose news is
+      MONEY**, so its rule is stated here and not only in the migration:
+      `{conversation_id, payment_request_id, type}` on the thread's per-number
+      topic, where `type` is the `conversation_event_type` label verbatim and
+      `payment_request_id` reaches the wire only when the source row's jsonb held
+      a scalar the uuid parser accepts. Enforced in the trigger rather than in the
+      writers, because `conversation_events.payload` is an untyped `jsonb` column
+      and `->>` on an OBJECT serialises the object — which put a sentence a
+      customer had typed onto the wire in testing.
 - **Send lifecycle**: API inserts message row `status='queued'` (that insert IS the
   optimistic UI via Broadcast) → calls Telnyx → stores `telnyx_message_id` → status webhook
   updates by telnyx_message_id → `sent`/`delivered`/`failed` badges push live.

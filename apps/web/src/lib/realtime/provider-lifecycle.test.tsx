@@ -26,15 +26,24 @@
  * this file would look fine while the real thing registered a second set of
  * handlers on a dying channel.
  */
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  QueryObserver,
+} from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { eventSentence } from "@/components/thread/system-line";
 import { keys } from "@/lib/api/keys";
+import type { ConversationEvent } from "@/lib/api/types";
+
+import { PAYMENT_EVENT_TYPES, REALTIME_EVENTS } from "./events";
 
 const COMPANY = "11111111-1111-1111-1111-111111111111";
 const USER = "22222222-2222-2222-2222-222222222222";
+const CONVERSATION = "33333333-3333-3333-3333-333333333333";
 const COMPANY_TOPIC = `company:${COMPANY}`;
 const numberTopic = (id: string) => `${COMPANY_TOPIC}:number:${id}`;
 
@@ -200,6 +209,12 @@ function setup() {
   };
 
   return {
+    /**
+     * #607 A6: the client itself, for the two tests that assert a COST rather
+     * than a call. `refetchType: "active"` is only observable as the absence of
+     * a request, which a spy on `invalidateQueries` cannot see.
+     */
+    queryClient,
     /** Re-renders with whatever `visibleNumbers` now says. */
     rerender: () => view.rerender(tree()),
     report,
@@ -225,6 +240,16 @@ function setup() {
           filters.queryKey.length === 1 &&
           filters.queryKey[0] === keys.me[0],
       ).length,
+    /**
+     * EVERY key invalidated so far, in order.
+     *
+     * `meInvalidations` counts one key; this one exists for the opposite
+     * question — what a handler invalidates AND what it does not. An assertion
+     * that only checks the wanted key passes just as happily when a handler
+     * also refetches three other things.
+     */
+    invalidatedKeys: () =>
+      invalidate.mock.calls.map(([filters]) => filters?.queryKey),
   };
 }
 
@@ -579,6 +604,194 @@ describe("a bootstrap number list that failed to read", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("the subscribed event set", () => {
+  it("is exactly REALTIME_EVENTS, in both directions, on every topic", async () => {
+    // REALTIME_EVENTS was documentation with no consumer and it had drifted:
+    // `call.updated` and `access.changed` were both being received and neither
+    // was in the list. Set equality BOTH ways is the point — a listed event with
+    // no binding is an event this client silently never receives, and a binding
+    // with no entry is how the list rotted in the first place.
+    //
+    // Per channel, because #480 registers the SAME handler set on the company
+    // topic and every per-number topic, and that uniformity is what lets the
+    // server move an event between topics without a client edit.
+    visibleNumbers = [{ id: "n1" }, { id: "n2" }];
+    setup();
+    await flush();
+
+    expect(fake.live.size).toBe(3);
+    for (const channel of fake.live.values()) {
+      expect(new Set(channel.bindings.keys())).toEqual(new Set(REALTIME_EVENTS));
+    }
+  });
+});
+
+describe("payment.updated", () => {
+  it("refetches that thread's payment requests, and only those", async () => {
+    // #607. The deposit clearing is the one broadcast somebody is actively
+    // waiting on, and until this handler existed it arrived on the next fetch.
+    visibleNumbers = [{ id: "n1" }];
+    const { emit, report, invalidatedKeys } = setup();
+    await flush();
+    report(COMPANY_TOPIC, "SUBSCRIBED");
+    report(numberTopic("n1"), "SUBSCRIBED");
+    const before = invalidatedKeys().length;
+
+    emit(numberTopic("n1"), "payment.updated", {
+      conversation_id: CONVERSATION,
+      payment_request_id: "44444444-4444-4444-4444-444444444444",
+      // The shipped constant, not the string retyped — the three labels are the
+      // `conversation_event_type` values the trigger publishes verbatim.
+      type: PAYMENT_EVENT_TYPES[0],
+    });
+
+    // EXACTLY two invalidations, in order. `toEqual` on the whole slice rather
+    // than a `toContainEqual`, so an extra refetch nobody asked for fails here.
+    // The timeline is the second (#607 A3): the same insert is an audit row and
+    // every client now narrates it, so refreshing the strip alone would leave
+    // "Paid" above a transcript with no line saying so.
+    expect(invalidatedKeys().slice(before)).toEqual([
+      keys.payments.requests(COMPANY, CONVERSATION),
+      keys.conversations.events(COMPANY, CONVERSATION),
+    ]);
+  });
+
+  it("reaches the same handler for a refund and a dispute", async () => {
+    // The handler deliberately does not branch on `type` — the strip renders all
+    // three outcomes and re-reads the whole row for each. This pins that the
+    // OTHER two are handled at all, which a single happy-path test would not:
+    // a future `if (type === 'payment_paid')` would leave a refund silently on
+    // screen as Paid, which is the worst of the three to be wrong about.
+    visibleNumbers = [{ id: "n1" }];
+    const { emit, report, invalidatedKeys } = setup();
+    await flush();
+    report(numberTopic("n1"), "SUBSCRIBED");
+
+    for (const type of PAYMENT_EVENT_TYPES) {
+      const before = invalidatedKeys().length;
+      emit(numberTopic("n1"), "payment.updated", {
+        conversation_id: CONVERSATION,
+        payment_request_id: null,
+        type,
+      });
+      expect(invalidatedKeys().slice(before)).toEqual([
+        keys.payments.requests(COMPANY, CONVERSATION),
+        keys.conversations.events(COMPANY, CONVERSATION),
+      ]);
+    }
+  });
+
+  it("refreshes the timeline because there is now a line to refresh", () => {
+    // THE PREMISE behind the second invalidation, asserted rather than trusted —
+    // a comment about another module's switch statement is exactly the kind that
+    // outlives its fact, and this one did. Round one omitted the events refetch
+    // and argued the omission at length: web narrated no payment line, because
+    // the five labels were missing from `ConversationEventType` and
+    // `eventSentence` fell off the end of its switch. That was true and is not
+    // now (#607 A3), which is why this test is the INVERSE of the one it
+    // replaces rather than a deletion.
+    //
+    // Every BROADCAST type must narrate: those are the three that arrive without
+    // a fetch, so a type that rendered nothing would have the handler buying a
+    // page of history per payment for a blank row.
+    for (const type of PAYMENT_EVENT_TYPES) {
+      const event: ConversationEvent = {
+        id: "e1",
+        conversation_id: CONVERSATION,
+        actor_user_id: null,
+        type,
+        payload: { amount_cents: 25_000, currency: "usd" },
+        created_at: "2026-08-11T10:00:00Z",
+      };
+      expect(eventSentence(event, () => null), type).toBeTruthy();
+    }
+  });
+
+  it("costs no request for a thread nobody has open", async () => {
+    // #607 A6 — `refetchType: "active"` is a COST CLAIM ("a payment on a thread
+    // nobody has open costs a cache mark and no request") and nothing asserted
+    // it. Widening it to "all" refetches EVERY cached thread's payment list on
+    // every payment in the workspace — verified by making that edit, which
+    // fails here with two calls where the claim allows one.
+    //
+    // Proved as an ABSENCE OF A FETCH rather than by retyping the option: the
+    // spy on `invalidateQueries` sees the call either way, so it cannot tell
+    // the two apart. ("active" is also React Query's default, so a test that
+    // watched for the word would pass on a handler that omitted it and fail on
+    // one that stated it — the opposite of what is worth knowing.)
+    visibleNumbers = [{ id: "n1" }];
+    const { emit, report, queryClient } = setup();
+    await flush();
+    report(numberTopic("n1"), "SUBSCRIBED");
+
+    // A real query with a real fetcher, cached and then left unobserved — which
+    // is every thread the reader is not currently looking at.
+    const fetcher = vi.fn().mockResolvedValue({ payment_requests: [] });
+    await act(async () => {
+      await queryClient.fetchQuery({
+        queryKey: keys.payments.requests(COMPANY, CONVERSATION),
+        queryFn: fetcher,
+      });
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    emit(numberTopic("n1"), "payment.updated", {
+      conversation_id: CONVERSATION,
+      payment_request_id: null,
+      type: PAYMENT_EVENT_TYPES[0],
+    });
+    await flush();
+    await flush();
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    // …and the MARK is there, so the strip is right the moment that thread is
+    // opened. Without this half, the test would pass just as happily on a
+    // handler that did nothing at all.
+    expect(
+      queryClient
+        .getQueryCache()
+        .find({ queryKey: keys.payments.requests(COMPANY, CONVERSATION) })
+        ?.isStale(),
+    ).toBe(true);
+  });
+
+  it("does refetch the thread somebody is looking at", async () => {
+    // The other side of the same claim, and the reason the option is "active"
+    // rather than "none": the whole point of #607 is the strip changing under
+    // the reader while they watch it.
+    visibleNumbers = [{ id: "n1" }];
+    const { emit, report, queryClient } = setup();
+    await flush();
+    report(numberTopic("n1"), "SUBSCRIBED");
+
+    const fetcher = vi.fn().mockResolvedValue({ payment_requests: [] });
+    const observer = new QueryObserver(queryClient, {
+      queryKey: keys.payments.requests(COMPANY, CONVERSATION),
+      queryFn: fetcher,
+    });
+    // A subscribed observer is what "active" MEANS to React Query — the same
+    // state a mounted `usePaymentRequests` puts the query in.
+    const unsubscribe = observer.subscribe(() => {});
+    // WAIT FOR THE FIRST FETCH TO SETTLE, not merely to start. A query still in
+    // flight with no data yet DEDUPES the next fetch onto the promise it
+    // already has, so invalidating a millisecond too early counts one call and
+    // looks exactly like the bug this test is for.
+    await vi.waitFor(() =>
+      expect(observer.getCurrentResult().isSuccess).toBe(true),
+    );
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    emit(numberTopic("n1"), "payment.updated", {
+      conversation_id: CONVERSATION,
+      payment_request_id: null,
+      type: PAYMENT_EVENT_TYPES[0],
+    });
+
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+    unsubscribe();
   });
 });
 

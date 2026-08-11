@@ -1,4 +1,5 @@
 import type {
+  ConversationEventType,
   Message,
   MessageDirection,
   MessageStatus,
@@ -97,16 +98,95 @@ export interface ReadStateEvent {
   conversation_id?: string;
 }
 
+/**
+ * #607 — the three `conversation_event_type` labels the database broadcasts a
+ * `payment.updated` for, VERBATIM.
+ *
+ * The full enum labels and not a trimmed 'paid'/'refunded'/'disputed', because
+ * the trimmed form would be a third vocabulary: the SQL enum and
+ * `ConversationEventType` in the API already hold these exact strings equal in
+ * both directions (`scripts/check-conversation-events.mjs`), and every timeline
+ * row on every client is already keyed on them.
+ *
+ * `payment_requested` and `payment_cancelled` are deliberately not broadcast —
+ * the first rides `message.created` (the request IS an outbound text) and the
+ * second is somebody in this app doing it on purpose. The database asserts that
+ * exact set in both directions (supabase/tests/payment_requests.test.sql PR-10),
+ * so a fourth type cannot land here quietly.
+ *
+ * Not the same set as `NARRATED_PAYMENT_EVENT_TYPES` in
+ * `components/thread/payment-line.ts`, which is the FIVE the timeline reads.
+ * Broadcasting is about what arrives without a fetch; narrating is about what
+ * the transcript says once it has been fetched.
+ *
+ * ## This list is checked, in both directions, against two other lists
+ *
+ * It used to be checked against neither, and a list with no consumer is a list
+ * that drifts (#607 A6): `handlePaymentUpdated` ignores `event.type`, so
+ * deleting a label here left both this file and its test green.
+ *
+ * `satisfies` is the first half — every label must be one the server can write,
+ * and `ConversationEventType` is itself held to the SQL enum in both directions
+ * by `scripts/check-conversation-events.mjs`. A typo fails tsc.
+ *
+ * The half that catches a DELETION is `events.test.ts`, which reads the trigger's
+ * own `when (...)` clause out of the migration and asserts set equality. A
+ * shorter list still satisfies a type; only the database can say the set is
+ * wrong.
+ */
+export const PAYMENT_EVENT_TYPES = [
+  "payment_paid",
+  "payment_refunded",
+  "payment_disputed",
+] as const satisfies readonly ConversationEventType[];
+
+export type PaymentEventType = (typeof PAYMENT_EVENT_TYPES)[number];
+
+/**
+ * #607 — money moved on a payment request in this thread.
+ *
+ * ID-only like the rest of §8: two ids and a discriminator, never an amount or
+ * a customer. The topic is the per-number one (`company:{id}:number:{n}`), the
+ * same boundary `message.created` inherits — a payment names a thread, a thread
+ * belongs to a number, and a member denied that line must not learn money
+ * arrived on it.
+ */
+export interface PaymentUpdatedEvent {
+  /** The thread to refetch. Always present — a request belongs to its thread. */
+  conversation_id: string;
+  /**
+   * The row that moved, read out of the event's jsonb payload. Null when the
+   * writer omitted it, which is why nothing here is keyed on it.
+   */
+  payment_request_id: string | null;
+  type: PaymentEventType;
+}
+
+/**
+ * Every broadcast event this client subscribes to.
+ *
+ * Load-bearing, not documentation: `provider-lifecycle.test.tsx` asserts this
+ * list and the set of bindings the provider actually registers are EQUAL IN
+ * BOTH DIRECTIONS. It was documentation once and had drifted — `call.updated`
+ * and `access.changed` were both received and neither was listed — which is the
+ * state a list with no consumer always ends up in.
+ */
 export const REALTIME_EVENTS = [
   "message.created",
   "message.status",
   "conversation.updated",
   "task.changed",
+  // #133: the calls read model moved (a new session, an outcome merge).
+  "call.updated",
+  // #607: a deposit cleared, was refunded, or was disputed.
+  "payment.updated",
   "number.updated",
   "registration.updated",
   // #358: read state, so clearing the bell on a phone clears it on the laptop.
   "read.conversation",
   "read.notifications",
+  // #480: somebody's number access moved, so the topic set must be re-derived.
+  "access.changed",
 ] as const;
 
 export type RealtimeEventName = (typeof REALTIME_EVENTS)[number];

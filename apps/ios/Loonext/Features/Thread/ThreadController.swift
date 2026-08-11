@@ -89,6 +89,21 @@ final class ThreadController {
     /// Bumps when an inbound message lands while this thread is open.
     private(set) var newInboundTick = 0
 
+    /// #607: bumps when a payment on THIS thread is paid, refunded or disputed.
+    ///
+    /// A TICK RATHER THAN THE PAYMENT ITSELF. The strip above the composer is
+    /// `ThreadPaymentsPane` and it owns the list it renders; a copy of that list
+    /// here would be a second answer to "what is this thread owed", and the one
+    /// nobody refetched would be the one on screen. So this carries no payment
+    /// state at all — it is the routing hint, forwarded, and the pane turns it
+    /// into one refetch of the list it already reads.
+    ///
+    /// Read by `ThreadView`, which passes it into the pane. Nothing else may
+    /// read it: a second consumer would make this a general-purpose "payments
+    /// changed" bus, and a bus is what stops anybody being able to say which
+    /// screen a broadcast reaches.
+    private(set) var paymentChangedTick = 0
+
     /// Per-note generic file attachments, fetched lazily per bubble.
     private(set) var noteFiles: [String: LoadState<[Attachment]>] = [:]
 
@@ -541,6 +556,46 @@ final class ThreadController {
                 try? await self.refreshMessagesFirstPage()
                 try? await self.refreshEvents()
             }
+
+        // #607 — the card cleared, and the crew hears it while they are still
+        // standing in the driveway. Stripe tells the server, the server writes a
+        // `payment_paid` row into `conversation_events`, and (since
+        // 20260813110000) the database broadcasts that row. Before it, "Paid"
+        // appeared on the NEXT FETCH: opening the thread again, some other
+        // mutation, or coming back to the app.
+        //
+        // TWO THINGS MOVE, because a settled payment shows in two places on this
+        // screen. The strip above the composer is one — `paymentChangedTick` is
+        // how it hears, since `ThreadPaymentsPane` owns that list. The timeline
+        // is the other: the same insert wrote an audit row, and `refreshEvents`
+        // is exactly what `task.changed` above does for the same reason.
+        //
+        // The timeline half only started being worth its round trip in round
+        // two. Until #607 A3 that row rendered through `humanizedEventType` as
+        // "Payment paid" — a column value with the underscore taken out, no
+        // amount, no context — while web rendered no row for it at all. All
+        // three clients now narrate the five payment types in the same words
+        // (`paymentEventLine`), which is what makes this refetch a fact arriving
+        // rather than a label being redrawn.
+        //
+        // Refunds and disputes ride this event too and want precisely the same
+        // two refreshes — which is why the arm keys on the event and not on the
+        // `type` discriminator inside it. Nothing here reads that value: the
+        // strip renders each row's own state from the API, so branching on the
+        // payload would be this client deciding a question the row answers.
+        //
+        // `payment_request_id` is in the payload and is deliberately unused.
+        // There is no route that reads ONE request — the strip renders the list
+        // from `GET /v1/conversations/:id/payment-requests` — so the id would
+        // only be a value to get wrong. ID-only hint, one list refetch,
+        // authorization left on the server: SPEC §8, same as every arm above.
+        case "payment.updated":
+            guard payloadString(event, "conversation_id") == conversationId else { return }
+            // Bumped SYNCHRONOUSLY, ahead of the refetch it triggers. The pane's
+            // reload and this refetch are independent reads of two different
+            // routes, and neither waits on the other.
+            paymentChangedTick += 1
+            Task { try? await self.refreshEvents() }
 
         default:
             break

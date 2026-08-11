@@ -5,11 +5,16 @@ import com.loonext.android.core.model.ConversationEvent
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
+import com.loonext.android.features.settings.BillingCurrency
+import com.loonext.android.features.settings.billingCurrencyOrNull
+import com.loonext.android.features.settings.formatMoney
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import com.loonext.android.features.calls.formatCallDuration
 
 /**
@@ -214,8 +219,32 @@ fun dayLabel(day: LocalDate, today: LocalDate, locale: String? = null): String =
 // System event lines
 // ---------------------------------------------------------------------------
 
+/**
+ * A string off the payload, or null when there isn't one.
+ *
+ * `contentOrNull`, NOT `content`: a JSON null is itself a `JsonPrimitive` and
+ * `.content` answers the four-letter string `"null"` for it. Every caller here
+ * treats a non-null answer as something worth putting on screen, so the careless
+ * read renders the word "null" to a crew — proved by
+ * `PaymentTimelineTest.a JSON null amount is absent, not the string null`, where
+ * a null `description` printed "They paid — null". `PaymentRealtime.kt` states
+ * the same rule for the realtime frame; this is the timeline's half of it.
+ */
 private fun ConversationEvent.payloadString(key: String): String? =
-    (payload[key] as? JsonPrimitive)?.content
+    (payload[key] as? JsonPrimitive)?.contentOrNull
+
+/**
+ * A JSON NUMBER off the payload — `amount_cents` and its refund twin.
+ *
+ * `isString` is checked because #270 is exactly this read done carelessly: the
+ * server writes these as numbers, and a quoted `"25000"` would be a payload
+ * shape nobody designed. Refusing it yields the no-amount line, which says less
+ * and nothing false. Absent, JSON null (whose `.content` is the four-letter
+ * string "null") and anything non-numeric answer null the same way — there is
+ * no figure it would be safe to guess.
+ */
+private fun ConversationEvent.payloadCents(key: String): Int? =
+    (payload[key] as? JsonPrimitive)?.takeIf { !it.isString }?.intOrNull
 
 /**
  * What a voicemail on this timeline line SAYS, when it was transcribed. Null
@@ -348,9 +377,130 @@ fun eventLine(
         // shapes have to be tested before the generic ones.
         "call_completed" -> callCompletedLine(event, memberNames)
         "auto_reply_sent" -> "Away auto-reply sent"
+        // #607/#224 — money. See `paymentLine`: these five had no arm, so they
+        // fell through to the generic reading below and the transcript said
+        // "Payment paid" where web said nothing at all.
+        in PAYMENT_EVENT_TYPES -> paymentLine(event, actor)
         else -> event.type.replace('_', ' ').replaceFirstChar { it.uppercase() }
     }
 }
+
+/**
+ * #607 A3 — the five timeline types text-to-pay writes, narrated.
+ *
+ * ## Why they are narrated at all, on every client
+ *
+ * Because `20260813040000_the_timeline_can_talk_about_money.sql` says so, in the
+ * prose it shipped with: refunded and disputed are events rather than statuses
+ * "because they are the two events a crew most needs to see WHERE THE JOB IS —
+ * a refund discussed in Stripe and invisible in the thread is how two people end
+ * up telling a customer different things". `apps/api/src/routes/core/events.ts`
+ * repeats the commitment. Rows are written, with the amount on them, for the
+ * express purpose of being read here.
+ *
+ * Three clients disagreed about that. Web narrated nothing — `eventSentence`
+ * returned falsy and `SystemLine` rendered null. Both phones fell through to the
+ * generic arm and rendered `"Payment paid"`: the type name with its underscore
+ * combed out, which is the fallback for a row from a NEWER SERVER THIS BUILD HAS
+ * NEVER HEARD OF. It was neither the designed line nor silence, it named no
+ * figure, and a crew comparing a phone against a laptop read two different
+ * histories of one conversation.
+ *
+ * ## Why with the amount
+ *
+ * The amount is the whole content of the event — "Payment paid" answers a
+ * question nobody asked, while "They paid $250" is the line somebody scrolls
+ * back for. `amount_cents`, `currency` and `description` are on every one of
+ * these payloads already (payments.ts and stripe-connect.ts both write them),
+ * so this costs no fetch.
+ *
+ * The strip above the composer shows the same figures for as long as the
+ * request is live; this is where they go afterwards. `Payments.kt`'s own window
+ * comment has said so since #224 — "After it, the request is history and the
+ * timeline holds it" — and until now the timeline did not.
+ *
+ * ## The words are not this client's to choose
+ *
+ * Every line below is the shared #607 A3 wording, decided once and implemented
+ * identically on web, iOS and here. `PaymentTimelineTest` asserts each type has
+ * an arm on all three clients, because a line that is right on one screen and
+ * absent on another is the defect, not the fix.
+ */
+private fun paymentLine(event: ConversationEvent, actor: String): String {
+    // Through the money formatter, never typed, at the PAYLOAD's currency as
+    // both amount and audience — the same rule PaymentStrip states: this figure
+    // is in the STRIPE ACCOUNT's currency, which need not be the one the
+    // workspace is billed in, and a bare "$" at the wrong reader is #522 with a
+    // new figure.
+    val money = billingCurrencyOrNull(event.payloadString("currency")) ?: BillingCurrency.USD
+    val cents = event.payloadCents("amount_cents")
+    val amount = cents?.let { formatMoney(it, money) }
+
+    val head = when (event.type) {
+        // The crew, who have a user row, so these two carry their name.
+        "payment_requested" ->
+            if (amount != null) "$actor asked for $amount" else "$actor asked for a payment"
+
+        "payment_cancelled" ->
+            if (amount != null) "$actor called off the $amount request"
+            else "$actor called off the request"
+
+        // The customer, and then their bank. `actor_user_id` is null on all
+        // three of these — the Connect webhook writes them, and stamping a crew
+        // member would put a name against somebody else's action — so they name
+        // nobody, the way `appointment_confirmed` and `job_rated` already do.
+        "payment_paid" -> if (amount != null) "They paid $amount" else "They paid"
+
+        "payment_refunded" -> {
+            // What actually went back, when the webhook recorded it: a PARTIAL
+            // refund is a real event, and the figure that moved is the one the
+            // crew needs. Falls back to the charge for a payload that recorded
+            // no refund figure, which is the shared decision's rule across all
+            // three clients.
+            val back = event.payloadCents("amount_refunded_cents")?.takeIf { it > 0 } ?: cents
+            if (back != null) "${formatMoney(back, money)} went back to them"
+            else "The money went back to them"
+        }
+
+        // Same words as `payments.disputedNote` on the strip, which says "Their
+        // bank has pulled this back": one event, one vocabulary.
+        "payment_disputed" ->
+            if (amount != null) "Their bank pulled back $amount"
+            else "Their bank pulled this payment back"
+
+        // Unreachable — `PAYMENT_EVENT_TYPES` is the set of arms above and
+        // `PaymentTimelineTest` holds the two to each other in both directions.
+        // Falls back to the generic reading rather than throwing, because a
+        // crash is a worse answer than a plain one on a screen that is only
+        // being read.
+        else -> event.type.replace('_', ' ').replaceFirstChar { it.uppercase() }
+    }
+
+    // WHAT IT WAS FOR, when the crew typed one. `payment_cancelled` carries no
+    // description today, so its arm simply never appends — that is a fact about
+    // the payload rather than a rule about the line, which is why this is one
+    // shared suffix and not five branches that would drift the moment the
+    // cancel route started writing it.
+    val description = event.payloadString("description")?.takeIf { it.isNotBlank() }
+    return if (description != null) "$head — $description" else head
+}
+
+/**
+ * The payment types this timeline narrates.
+ *
+ * Public, and matched against rather than re-listed at the `when`, so
+ * `PaymentTimelineTest` can hold it to `ConversationEventType` in
+ * `apps/api/src/routes/core/events.ts` — SET EQUALITY, both directions. A
+ * missing member is a row that silently falls back to its own type name (the
+ * #607 A3 defect); an extra member is an arm for a row the server cannot write.
+ */
+val PAYMENT_EVENT_TYPES = setOf(
+    "payment_requested",
+    "payment_paid",
+    "payment_cancelled",
+    "payment_refunded",
+    "payment_disputed",
+)
 
 /**
  * The #317 refused-attachment line.

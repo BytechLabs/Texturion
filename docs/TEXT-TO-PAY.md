@@ -175,6 +175,58 @@ standing and no facts — the business does.
 
 ---
 
+## The moment it lands (#607)
+
+**The three post-payment events are live.** A `payment_paid`, `payment_refunded`
+or `payment_disputed` row landing in `conversation_events` publishes a broadcast,
+and the strip above the composer moves without anybody refreshing. Until #607 it
+did not: this document's "what this deliberately does not have" list led with
+*"any live signal that a customer paid"*, which was true when it was written and
+described somebody standing in a driveway pulling to refresh to find out whether
+they could start work.
+
+| | |
+|---|---|
+| Event | `payment.updated` |
+| Topic | `company:{company_id}:number:{phone_number_id}` — the thread's line, never the workspace |
+| Payload | `{ conversation_id, payment_request_id, type }` |
+
+`type` is the `conversation_event_type` label VERBATIM — `payment_paid`,
+`payment_refunded`, `payment_disputed`. A trimmed `paid`/`refunded` would be a
+third vocabulary beside the SQL enum and the API union that
+`scripts/check-conversation-events.mjs` already holds equal in both directions,
+and a list written three times is the one that drifts.
+
+**ID-only, and enforced rather than trusted.** `payment_request_id` reaches the
+wire only when the row's jsonb holds a scalar that the uuid parser accepts;
+anything else — an object, an array, a Stripe id — is sent as null. That is the
+trigger's rule and not the writer's, because `conversation_events.payload` is an
+untyped `jsonb` column written from many places, and `->>` on an OBJECT
+serialises the object. No amount, currency, description or customer name is ever
+broadcast; clients refetch through the API so authorization stays in one place.
+`supabase/tests/payment_requests.test.sql` PR-13 asserts it with a payload
+carrying a sentence a customer typed.
+
+**Why the number's topic and not the workspace's.** A payment names a thread and
+a thread belongs to a line. Publishing to `company:{company_id}` would tell a
+member who was denied that line that money had just arrived on it — the exposure
+#484 closed, reopened for the one event where the amount is the news.
+
+**`payment_requested` and `payment_cancelled` deliberately stay quiet.** The
+request IS an outbound text, so `message.created` already fires for it; a
+cancellation is somebody in this app doing it on purpose. PR-10 derives the
+payment family from the enum itself and asserts which members are loud in BOTH
+directions, so a sixth type cannot land quietly on either side of that line.
+
+**Push is still not part of this.** A phone that is asleep learns about the
+payment when it next opens the thread. Push kinds are a vocabulary all three
+clients share (`scripts/check-push-kinds.mjs`) and adding one is its own change.
+
+The SQL is `supabase/migrations/20260813110000_the_deposit_lands_before_anyone_refreshes.sql`,
+amended by `supabase/migrations/20260813130000_the_payment_broadcast_enforces_its_own_contract.sql`.
+
+---
+
 ## Who can do what
 
 | Action | Capability | Why |
@@ -218,17 +270,11 @@ keyboard.
 
 ## What this deliberately does not have
 
-- **Any live signal that a customer paid.** Worth being exact, because the
-  first draft of this document was wrong about it: the webhook writes a
-  `payment_paid` row to `conversation_events`, and **that table has no broadcast
-  trigger** — the realtime triggers fire on `messages`, `conversations`,
-  `phone_numbers` and registrations only. So a crew sees the payment when the
-  thread next fetches, not the moment it lands.
-  That meets the acceptance criterion ("a paid request records the payment
-  against the conversation") and is short of what the moment deserves. Making it
-  live means either a new broadcast event kind or a new push kind, both of which
-  are vocabularies all three clients share (`scripts/check-push-kinds.mjs`), so
-  it is its own change rather than a detail of this one.
+- **A push notification when a customer pays.** The *in-app* signal is live —
+  see "The moment it lands" above, which is what #607 built and what this bullet
+  used to deny. A phone with the app closed still learns about it on the next
+  open. Push kinds are a shared vocabulary (`scripts/check-push-kinds.mjs`) and
+  adding one is its own decision.
 - **Invoices.** A payment request is a bill for an amount, not a line-item
   document. Quotes are #287 and they are a different object with a different
   lifecycle.

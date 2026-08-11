@@ -29,6 +29,7 @@ const EN = makeTranslate(DEFAULT_LOCALE);
 
 import { doneEventSentence } from "./done";
 import { eventTarget } from "./event-target";
+import { paymentEventLine } from "./payment-line";
 
 /** Day divider (mockup .daymark): a centered bordered stone chip, not a rule. */
 export function DayDivider({ label }: { label: string }) {
@@ -183,6 +184,19 @@ export function eventSentence(
       return t("thread.sysNoteAttachmentAdded", { by });
     case "note_attachment_removed":
       return t("thread.sysNoteAttachmentRemoved", { by });
+    // #224/#607 A3 — money moved. Five arms, delegated to one function so the
+    // shared trailing clause is written once (`paymentEventLine` below).
+    //
+    // Before this, every payment row fell off the end of this switch and
+    // rendered NOTHING on web, while the phones rendered a machine-cased
+    // `event.type` — one insert, three different screens, and a strip whose own
+    // doc promised "the request is history and the timeline holds it".
+    case "payment_requested":
+    case "payment_paid":
+    case "payment_cancelled":
+    case "payment_refunded":
+    case "payment_disputed":
+      return paymentEventLine(event, event.type, by, t);
     // FEATURE-GAPS voice wave: the computed-missed call + its auto text-back,
     // in the crew's plain language (the message itself renders just below).
     case "missed_call":

@@ -2,6 +2,7 @@ package com.loonext.android.features.thread
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -37,19 +38,18 @@ import kotlinx.coroutines.launch
  * shared with the settings card. The REQUESTS belong to one conversation and
  * change when a customer pays, which is a webhook nobody here initiated.
  *
- * ## What refreshes this, and what honestly does not
+ * ## What refreshes this
  *
- * A payment landing produces NO realtime event, and that is worth stating
- * because docs/TEXT-TO-PAY.md reads as though it does. `stripe-connect.ts`
- * inserts a `conversation_event`, and the broadcast triggers in
- * supabase/migrations/20260701000400_triggers.sql fire on messages,
- * conversations, numbers and registrations — not on that table.
+ * Opening the thread, our own mutations, coming back to the app after a real
+ * absence — and, since #607, the card clearing.
  *
- * So the triggers here are: opening the thread, our own mutations, and coming
- * back to the app after a real absence. That is the same set the web client
- * has, and saying so beats leaving somebody to discover it: a crew watching
- * this strip for a payment sees it on their next return to the app, not the
- * instant the card clears.
+ * That last one used to be missing and the omission was the feature's worst
+ * moment: `stripe-connect.ts` inserted a `conversation_event` and no trigger
+ * watched that table, so a crew standing in a driveway waiting to know whether
+ * they could start work had to leave the app and come back to find out. The
+ * migration named at the top of `PaymentRealtime.kt` gives that insert a
+ * broadcast, and the collector below turns it into the read this composable
+ * already knows how to do.
  */
 @Composable
 fun ThreadPayments(
@@ -83,6 +83,27 @@ fun ThreadPayments(
     ResyncOnResume(conversationId) {
         accountRefresh++
         requestsRefresh++
+    }
+
+    // #607: the deposit lands, and this strip says so without anybody touching
+    // the phone.
+    //
+    // INVALIDATE, don't patch. The frame is ID-only — no amount, no currency,
+    // no state — so there is nothing in it to paint; and patching would mean a
+    // second place that decides what "Paid" looks like, when the row this
+    // already renders carries the four timestamps `Payments.state` derives the
+    // six-state answer from. Bumping the key re-reads through
+    // [rememberCacheFirst], which writes the fresh rows into the process cache
+    // on the way past — so the settled row is also what the NEXT cold start
+    // paints in its first frame, before any fetch.
+    //
+    // Only the requests are re-read. The Stripe account is a fact about the
+    // workspace that a customer paying cannot change, and it costs a live call
+    // to Stripe on the server (see the two lifetimes above).
+    LaunchedEffect(conversationId) {
+        graph.realtime.events.collect { event ->
+            if (paymentMovedOnThread(event, conversationId)) requestsRefresh++
+        }
     }
 
     val accountState = rememberCacheFirst(

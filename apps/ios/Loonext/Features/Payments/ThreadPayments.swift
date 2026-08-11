@@ -45,6 +45,16 @@ struct ThreadPaymentsPane: View {
     /// is still loading — the composer stands in a neutral word rather than
     /// showing a text that starts with a colon.
     let businessName: String?
+    /// #607: `ThreadController.paymentChangedTick`, which moves when the
+    /// database says a payment on this thread was paid, refunded or disputed.
+    ///
+    /// A number rather than the event, and taken from the controller rather than
+    /// read off the socket here, because the thread has exactly ONE realtime
+    /// subscription — `ThreadView` opens it and routes it into the controller.
+    /// A second subscription in this pane would be a second style of listening
+    /// on one screen, and the two would drift the first time an event was
+    /// renamed.
+    let paymentChangedTick: Int
     /// Called after a request has actually gone out.
     ///
     /// The ask SENDS A TEXT, so the transcript above has a message it does not
@@ -108,10 +118,37 @@ struct ThreadPaymentsPane: View {
             await created.load()
         }
         // #215: a frame missed while this thread was backgrounded self-heals on
-        // return. A payment is PAID by a webhook we did not initiate and there
-        // is no realtime event for it, so coming back to the app is the moment
-        // the strip is most likely to be stale.
+        // return. This used to read "there is no realtime event for a payment,
+        // so coming back to the app is the moment the strip is most likely to be
+        // stale" — #607 gave it one, and the second half of that sentence is
+        // still true anyway: a payment is settled by a webhook we did not
+        // initiate, and a suspended app holds no socket to hear the broadcast on.
         .resyncOnForeground {
+            Task { await model?.reloadRequests() }
+        }
+        // #607: and now it does not wait for the foreground either — the
+        // database announces a payment the moment the card clears, and this is
+        // where the strip hears it.
+        //
+        // ONE REFETCH OF THE LIST, not a patch of one row. The broadcast names
+        // the request, but there is no route that reads a single one, and the
+        // list is the shape this pane already renders — so the cheapest correct
+        // move is the read it does on load. It also keeps the API the only
+        // authority on what a row says: a payload-driven patch would have this
+        // client writing "Paid" onto a row from a hint.
+        //
+        // `reloadRequests` ASSIGNS the fetched page, so the rows stay on screen
+        // and change in place. Re-keying the `.task` above would have been the
+        // shorter diff and the wrong one: it rebuilds the model, which empties
+        // `requests`, so the strip would blank for the length of a round trip —
+        // on the single event this whole change exists to make instant.
+        .onChange(of: paymentChangedTick) { _, tick in
+            // A tick of zero is a RESET, not an event: opening a different
+            // thread builds a fresh controller whose counter starts at zero, and
+            // that drop is a change like any other. The `.task` above has just
+            // read this thread's list, so acting on it would be a second read of
+            // what is already on screen.
+            guard tick > 0 else { return }
             Task { await model?.reloadRequests() }
         }
         .sheet(isPresented: $asking) {

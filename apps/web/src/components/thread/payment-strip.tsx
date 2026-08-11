@@ -43,6 +43,23 @@ import { cn } from "@/lib/utils";
  * that counts (ask again), and it is only offered while the request is
  * genuinely cancellable. *Applying: Ethical Friction, calibrated — friction
  * belongs on the ask, which is customer-visible, not on calling it off.*
+ *
+ * ## #607: this now changes while somebody is looking at it
+ *
+ * The `payment.updated` broadcast refetches this list the moment the card
+ * clears, so a row goes from Requested to Paid with nobody touching anything —
+ * the one moment in this product worth watching for. The row keeps its `key`
+ * across that, so React reuses the node and the tone crossfades instead of
+ * snapping, which is the difference between reading as an event and reading as
+ * a render glitch. *Applying: the Excitement Principle — a micro-interaction
+ * inside a structure that does not move.*
+ *
+ * NO TOAST AND NO SOUND, and that is now a settled decision rather than an open
+ * one (#607 A3). What the same broadcast also does is refresh the TIMELINE,
+ * where every client narrates the payment in the same words — which is the
+ * second surface this comment used to leave undecided. The strip states the
+ * present, the timeline records the event; announcing it a third time over the
+ * top of both would be the notification nobody asked for.
  */
 export function PaymentStrip({ conversationId }: { conversationId: string }) {
   const t = useT();
@@ -110,6 +127,12 @@ function PaymentRow({
     <li
       className={cn(
         "flex items-start gap-2 rounded-app-ctrl border px-2.5 py-1.5 text-xs",
+        // #607: the tone changes under the reader when a payment lands, so it
+        // crossfades. Same duration and easing as the cancel button beside it —
+        // one motion vocabulary per row. The global prefers-reduced-motion rule
+        // in globals.css zeroes every transition-duration, so this needs no
+        // opt-out of its own.
+        "transition-colors duration-150 ease-out",
         tone === "attention"
           ? "border-app-amber/40 bg-app-amber/10 text-foreground"
           : tone === "settled"

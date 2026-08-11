@@ -16,10 +16,12 @@ import com.loonext.android.core.model.OPT_OUT_SOURCE_STOP
 import com.loonext.android.core.model.Page
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.net.ApiErrorCode
+import com.loonext.android.core.realtime.RealtimeEvent
 import com.loonext.android.features.compose.NoteFileUploader
 import com.loonext.android.ui.common.LoadState
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +30,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -97,6 +101,9 @@ class ThreadControllerTest {
     /** Set to hold the next POST /summary open; null lets it answer at once. */
     private val summaryGate = AtomicReference<CountDownLatch?>(null)
 
+    /** #607: how many times the audit timeline has been read from the server. */
+    private val eventFetches = AtomicInteger(0)
+
     @Before
     fun setUp() {
         server = MockWebServer()
@@ -123,6 +130,13 @@ class ThreadControllerTest {
                     request.method == "POST" && path == "/v1/conversations/c1/summary" -> {
                         summaryGate.get()?.await(5, TimeUnit.SECONDS)
                         MockResponse(code = summaryStatus, body = summaryBody)
+                    }
+
+                    // #607: counted, because the audit timeline re-reading is
+                    // the whole observable effect of a payment frame.
+                    request.method == "GET" && path == "/v1/conversations/c1/events" -> {
+                        eventFetches.incrementAndGet()
+                        MockResponse(code = 200, body = """{"data":[]}""")
                     }
 
                     // Every other secondary read is refetched inside runCatching,
@@ -280,6 +294,43 @@ class ThreadControllerTest {
             shown,
             noteOnScreen(controller),
         )
+    }
+
+    /**
+     * #607 — a payment frame re-reads the audit timeline on the open thread.
+     *
+     * The strip above the composer has its own read (ThreadPayments), and this is
+     * the OTHER half of the same insert: `stripe-connect.ts` writes one
+     * `conversation_events` row, and it is both the money and a line of history.
+     * A wiring that refreshed only the strip would put "Paid" above a transcript
+     * that still had nothing to say about it until the next fetch.
+     *
+     * Driven through [ThreadController.onRealtime] rather than through
+     * [paymentMovedOnThread], which already has the rule under vectors: what can
+     * be wrong HERE is that nothing calls it — a `when` with no arm for this
+     * event compiles, runs, and silently does nothing at all.
+     */
+    @Test
+    fun `a payment frame re-reads the thread's audit timeline`() {
+        val controller = controller()
+        controller.start()
+        awaitUntil { controller.load is LoadState.Ready }
+        // The opening reads have to be finished before a baseline means anything.
+        awaitUntil { eventFetches.get() > 0 }
+        val before = eventFetches.get()
+
+        controller.onRealtime(
+            RealtimeEvent(
+                PAYMENT_UPDATED,
+                buildJsonObject {
+                    put("conversation_id", "c1")
+                    put("payment_request_id", "pr-1")
+                    put("type", "payment_paid")
+                },
+            ),
+        )
+
+        awaitUntil { eventFetches.get() > before }
     }
 
     // --- Harness --------------------------------------------------------------

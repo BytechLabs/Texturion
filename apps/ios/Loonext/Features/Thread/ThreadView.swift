@@ -342,6 +342,11 @@ private struct ThreadBody: View {
                     role: viewerRole,
                     viewerLevel: detail.viewer_level,
                     businessName: controller.company?.name,
+                    // #607: the strip's live wire. The controller is the thread's
+                    // only realtime listener, so a `payment.updated` naming this
+                    // conversation arrives there and is handed down as a tick —
+                    // which the pane turns into one refetch of its list.
+                    paymentChangedTick: controller.paymentChangedTick,
                     // The ask sends an ordinary text, so the transcript has a
                     // message it has not seen. The same catch-up the socket
                     // re-JOIN runs, rather than a second refetch path that could
@@ -2686,6 +2691,28 @@ private func previewMessage(
         onCopied: {},
         onOpenTask: { _ in }
     )
+    // #607 A3: what the thread says when a deposit clears. Rendered THROUGH
+    // `eventLine` rather than typed, so the only preview anybody can open on a
+    // Mac shows the shipped sentence and cannot drift from it. Hoisted out of
+    // the `ViewBuilder` below because a construction this size inline is how a
+    // body stops type-checking in reasonable time.
+    let paidLine = eventLine(
+        ConversationEvent(
+            id: "ev-paid",
+            conversation_id: "c1",
+            actor_user_id: nil,
+            type: "payment_paid",
+            payload: .object([
+                "payment_request_id": .string("pr1"),
+                "amount_cents": .number(25_000),
+                "currency": .string("usd"),
+                "description": .string("Deposit"),
+            ]),
+            created_at: "2026-07-15T15:12:00Z"
+        ),
+        memberNames: [:],
+        contactName: "Marco Alvarez"
+    )
     return ScrollView {
         VStack(spacing: 0) {
             PinnedBanner(
@@ -2746,6 +2773,7 @@ private func previewMessage(
                 actions: actions
             )
             EventLine(text: "Dana Fields moved this to Waiting", timeIso: "2026-07-15T15:10:00Z")
+            EventLine(text: paidLine, timeIso: "2026-07-15T15:12:00Z")
         }
     }
 }

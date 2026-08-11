@@ -38,6 +38,7 @@ import {
   type ConversationUpdatedEvent,
   type MessageCreatedEvent,
   type MessageStatusEvent,
+  type PaymentUpdatedEvent,
   type TaskChangedEvent,
 } from "./events";
 import { activeConversationFromPath } from "./path";
@@ -168,10 +169,12 @@ const NUMBER_LIST_RETRY_DELAYS_MS = [1_000, 4_000, 12_000];
  * `realtime.setAuth(session token)`. The §8 events patch/invalidate the Query
  * cache by ID (including `task.changed`, TASKS.md T1.3 — the cross-client task
  * signal that refetches the affected conversation's checklist + the /tasks
- * lists, and `call.updated`, #133 — the calls read model changed, so the
- * /calls log and the for-you Recent calls section refetch); reconnect
- * refetches page 1 of active queries; inbound messages in conversations you
- * are NOT viewing raise a quiet toast (G9).
+ * lists, `call.updated`, #133 — the calls read model changed, so the
+ * /calls log and the for-you Recent calls section refetch, and
+ * `payment.updated`, #607 — a deposit cleared, so the thread's payment strip
+ * AND its timeline refetch, the two halves of that screen that both moved);
+ * reconnect refetches page 1 of active queries; inbound messages in
+ * conversations you are NOT viewing raise a quiet toast (G9).
  */
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const { companyId } = useActiveCompany();
@@ -669,6 +672,67 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
+    /**
+     * #607: the deposit landed — or was refunded, or disputed — on this thread.
+     *
+     * The one event in §8 that somebody is actively waiting on. A tech standing
+     * in a driveway wants to know whether they can start work, and until this
+     * existed the answer arrived on the next fetch: reopening the thread, or
+     * coming back to the tab. They were refreshing to watch for it.
+     *
+     * INVALIDATE, DO NOT PATCH, and that is not laziness. `message.status`
+     * patches because the status IS the payload; this payload is ID-only by
+     * contract while the strip renders `state`, `paid_at`, `refunded_at` and
+     * `amount_refunded_cents`. Deriving those from the discriminator would mean
+     * inventing a timestamp, guessing a refunded amount the server deliberately
+     * did not send, and keeping a second copy of the shared `paymentRequestState`
+     * rule here. One refetch of one small list is the honest price.
+     *
+     * The `type` is not branched on, on purpose: the strip shows all three
+     * outcomes and re-reads the whole row for each. It is on the wire because
+     * two other clients decode the same payload, and because a discriminator a
+     * receiver ignores is still what makes the event self-describing in a log.
+     *
+     * `refetchType: "active"` so a payment on a thread nobody has open costs a
+     * cache mark and no request — the strip refetches when that thread is next
+     * mounted, which is exactly what the mark is for. That is a COST CLAIM, so
+     * it is asserted from both sides in provider-lifecycle.test.tsx ("costs no
+     * request for a thread nobody has open" / "does refetch the thread somebody
+     * is looking at") rather than left as a sentence. Written out although it
+     * IS React Query's default, because the sentence above is a promise about
+     * request volume: widening it to "all" would refetch every cached thread's
+     * payment list on every payment in the workspace, and the difference is
+     * invisible at this call site without the word.
+     */
+    function handlePaymentUpdated(event: PaymentUpdatedEvent) {
+      void queryClient.invalidateQueries({
+        queryKey: keys.payments.requests(companyId, event.conversation_id),
+        refetchType: "active",
+      });
+      // AND THE TIMELINE, because the same insert is also an audit row and both
+      // halves are on the screen at once (#607 A3). Leaving it out put "Paid"
+      // above a composer whose transcript still had no line saying so until the
+      // next fetch — one event, two halves of one screen, disagreeing about
+      // whether it happened.
+      //
+      // This was DELIBERATELY OMITTED in round one, on a premise that was true
+      // at the time and is not now: web narrated no payment line, because the
+      // five labels were missing from its `ConversationEventType` union and
+      // `eventSentence` fell through. The phones narrated a machine-cased
+      // `event.type` instead, which made one broadcast produce three different
+      // screens. All three clients now say the same five sentences, so the
+      // refetch buys the line it always should have.
+      //
+      // Two invalidations and no detail fetch: no message was written (the
+      // request went out as a text when it was ASKED for, which
+      // `message.created` already covered) and the conversation row is
+      // untouched, so the third round trip would buy nothing.
+      void queryClient.invalidateQueries({
+        queryKey: keys.conversations.events(companyId, event.conversation_id),
+        refetchType: "active",
+      });
+    }
+
     function handleProvisioningUpdate() {
       // number.updated / registration.updated (§8): onboarding + settings
       // states re-read their sources of truth.
@@ -872,6 +936,11 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         // #133: {call_id, conversation_id} — ID-only like everything else, and
         // the handler needs neither: the calls list refetches whole.
         .on("broadcast", { event: "call.updated" }, handleCallUpdated)
+        // #607: {conversation_id, payment_request_id, type} — ID-only like the
+        // rest, and the handler needs only the conversation.
+        .on("broadcast", { event: "payment.updated" }, ({ payload }) =>
+          handlePaymentUpdated(payload as PaymentUpdatedEvent),
+        )
         .on("broadcast", { event: "number.updated" }, handleProvisioningUpdate)
         .on(
           "broadcast",

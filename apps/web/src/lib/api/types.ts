@@ -145,7 +145,46 @@ export type ConversationEventType =
   //   message_id, index, content_type, size_bytes }. Deliberately carries
   // neither the file name nor the source URL — the name is attacker-controlled
   // text we would render, and the URL is a live handle to bytes we refused.
-  | "media_refused";
+  | "media_refused"
+  // #224/#607 — text-to-pay. FIVE labels, and this client narrates all five.
+  //
+  // They were absent from this union for as long as text-to-pay has shipped,
+  // and the absence was not a decision: `eventSentence` has no arm it cannot
+  // reach, so five audit rows the API returns rendered NOTHING on web while the
+  // phones rendered a machine-cased `event.type` ("Payment paid"). One insert,
+  // three different screens — #607 A3.
+  //
+  // Money is the most audit-worthy thing that happens in a thread, and the
+  // strip beside the composer is deliberately not the record: it drops a
+  // settled request after a week and says so in its own doc ("After it, the
+  // request is history and the timeline holds it"). This is what makes that
+  // sentence true.
+  //
+  // The actor splits the five in half, and the split is the reason each line is
+  // phrased the way it is: a crew member ASKS and CANCELS (actor_user_id is the
+  // member), while paid / refunded / disputed are the customer and their bank
+  // (actor_user_id NULL — routes/payments.ts and webhooks/stripe-connect.ts).
+  // Naming a member on those three would credit the crew with somebody else's
+  // action, which is the rule `appointment_confirmed` and `job_rated` already
+  // follow.
+  //
+  //   payment_requested  payload: { payment_request_id, amount_cents, currency,
+  //                                 description }
+  //   payment_paid       payload: as above (actor NULL)
+  //   payment_cancelled  payload: { payment_request_id, amount_cents, currency }
+  //   payment_refunded   payload: { payment_request_id, amount_cents,
+  //                                 amount_refunded_cents, currency, description }
+  //   payment_disputed   payload: as refunded (actor NULL)
+  //
+  // Only the middle three are BROADCAST (`PAYMENT_EVENT_TYPES` in
+  // lib/realtime/events.ts, pinned to the migration's trigger `WHEN`); all five
+  // are narrated, because narration is about what the timeline READS and the
+  // broadcast is about what arrives without a fetch.
+  | "payment_requested"
+  | "payment_paid"
+  | "payment_cancelled"
+  | "payment_refunded"
+  | "payment_disputed";
 
 /** SPEC §7 list envelope — cursor-based only, opaque cursor. */
 export interface Page<T> {

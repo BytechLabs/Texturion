@@ -649,6 +649,22 @@ class ThreadController(
                     }
                 }
             }
+
+            // #607: the same insert the payment strip reacts to is also an AUDIT
+            // ROW, and both are on this screen at once. Refreshing only the strip
+            // would leave "Paid" above a composer whose transcript still has no
+            // line saying so until the next fetch — one event, two halves of one
+            // screen, disagreeing about whether it happened.
+            //
+            // The events read alone. No message was written (the request went out
+            // as a text when it was ASKED for, which `message.created` already
+            // covered), the conversation row is untouched, and the strip does its
+            // own read — so a detail refetch here would be three round trips for
+            // one line of history.
+            PAYMENT_UPDATED -> {
+                if (!paymentMovedOnThread(event, conversationId)) return
+                scope.launch { runCatching { refreshEvents() } }
+            }
         }
     }
 

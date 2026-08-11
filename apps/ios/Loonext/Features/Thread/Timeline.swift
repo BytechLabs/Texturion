@@ -323,6 +323,41 @@ func eventTarget(of event: ConversationEvent) -> EventTarget? {
     return nil
 }
 
+/// #607 A3 — the `payment_*` types this timeline narrates, and the ONLY list of
+/// them on this client.
+///
+/// A named set rather than five case labels alone, because the set is what a
+/// guard can hold against the API's own `ConversationEventType` union in BOTH
+/// directions (`PaymentTimelineLineTests`). #548's lesson is that a per-client
+/// copy of a shared vocabulary drifts silently, and that an incomplete union is
+/// one the next writer routes around; the failure this prevents is a sixth
+/// `payment_*` type landing on the server and rendering here as "Payment held"
+/// while web renders nothing at all.
+///
+/// All five, not the three the database broadcasts. The broadcast set is about
+/// which changes arrive live; this set is about which facts the history states,
+/// and a thread that narrates a refund but not the ask it refunded would be a
+/// history with a hole in the middle of it.
+let paymentTimelineEventTypes: Set<String> = [
+    "payment_requested",
+    "payment_paid",
+    "payment_cancelled",
+    "payment_refunded",
+    "payment_disputed",
+]
+
+/// An event type read as words — the line for something this build does not
+/// narrate.
+///
+/// Extracted from `eventLine`'s `default` so the payment guards can name the
+/// thing they refuse rather than retyping "Payment paid" and pinning a phrase
+/// that would still pass if the arm were deleted and the fallback re-appeared
+/// spelled the same way.
+func humanizedEventType(_ type: String) -> String {
+    let plain = type.replacingOccurrences(of: "_", with: " ")
+    return plain.prefix(1).uppercased() + plain.dropFirst()
+}
+
 /// Human line for an audit event. Unknown types fall back to a plain reading
 /// of the type name so a lagging app build never renders raw snake_case.
 func eventLine(
@@ -395,10 +430,126 @@ func eventLine(
     case "call_completed":
         return callCompletedLine(event, memberNames: memberNames)
     case "auto_reply_sent": return "Away auto-reply sent"
+    // #607 A3 — money, said out loud. Same five arms and the same words on web
+    // (system-line.tsx) and Android (Timeline.kt); see `paymentEventLine`.
+    case "payment_requested",
+         "payment_paid",
+         "payment_cancelled",
+         "payment_refunded",
+         "payment_disputed":
+        return paymentEventLine(event, actor: actor)
     default:
-        let plain = event.type.replacingOccurrences(of: "_", with: " ")
-        return plain.prefix(1).uppercased() + plain.dropFirst()
+        return humanizedEventType(event.type)
     }
+}
+
+/**
+ #607 A3 — what a payment did, in the history that outlives the strip.
+
+ ## Why the timeline says this at all
+
+ `ThreadPaymentsPane` is the live surface and it is deliberately short-lived:
+ `paymentRequestWorthShowing` keeps a settled request for a week and its own
+ comment already states where it goes afterwards — "the request is history and
+ the timeline holds it". It did not hold it. All five `payment_*` rows fell
+ through to `humanizedEventType`, so the phones showed "Payment refunded" — a
+ column value with the underscore taken out, no amount, no context — while web
+ narrated nothing at all and rendered no row. One conversation, two histories,
+ and the worse of the two on the device the crew actually carries.
+
+ So every fact the server already writes into the payload is read here: the
+ amount, what it was for, and for a refund the amount that actually went back.
+ Nothing is invented — a field the payload does not carry drops out of the
+ sentence rather than being guessed at.
+
+ ## Who each line credits
+
+ `payment_paid`, `payment_refunded` and `payment_disputed` carry
+ `actor_user_id: null` because NOBODY IN THE WORKSPACE DID THEM — the customer
+ paid, the business refunded from Stripe's own dashboard, the customer's bank
+ pulled the money back. So those three name nobody, exactly as
+ `appointment_confirmed` and `job_rated` name nobody. The two that a crew member
+ really does perform in this app, `payment_requested` and `payment_cancelled`,
+ carry their name.
+
+ Every verb here is one this feature already ships: "asked for" is the composer's
+ own button, "called off" is what `ThreadPaymentsPane` calls cancelling an ask,
+ "went back to them" is the strip's refund line verbatim, and the strip's dispute
+ row already says their bank pulled it back.
+
+ Word for word with web and Android, like `mediaRefusedLine` and
+ `callCompletedLine` above and for the same reason.
+ */
+func paymentEventLine(_ event: ConversationEvent, actor: String) -> String {
+    // #270: these are JSON NUMBERS. Read through `intValue`, never
+    // `stringValue` — which returns nil for `.number` and would make every
+    // amount silently vanish into the no-amount arms below.
+    let cents = event.payload["amount_cents"]?.intValue
+    let refunded = event.payload["amount_refunded_cents"]?.intValue
+
+    // What the figure is written in, decided exactly as `PaymentRequest.amountLabel`
+    // decides it: the CONNECTED account's currency, and the reader is that
+    // account. Passing it as both amount and audience is what drops the "US$" /
+    // "CA$" qualifier — a business reading its own money in its own thread is
+    // not the case #522 exists for. Unknown or absent reads as USD, matching
+    // `billingCurrencyOf` on the server: a figure must never fail to render
+    // because a field was missing from an older row.
+    let currency = BillingCurrency(
+        rawValue: (event.payload["currency"]?.stringValue ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    ) ?? .usd
+
+    // Through the formatter, never typed. `check-money-literals.mjs` refuses a
+    // signed amount in a phone string literal precisely because a typed price is
+    // a price in a currency nobody chose.
+    func money(_ amount: Int?) -> String? {
+        guard let amount = amount else { return nil }
+        return formatMoneyIn(amount, currency, audience: currency)
+    }
+
+    let head: String
+    switch event.type {
+    case "payment_requested":
+        head = money(cents).map { "\(actor) asked for \($0)" }
+            ?? "\(actor) asked for a payment"
+
+    case "payment_paid":
+        head = money(cents).map { "They paid \($0)" } ?? "They paid"
+
+    case "payment_cancelled":
+        head = money(cents).map { "\(actor) called off the \($0) request" }
+            ?? "\(actor) called off the request"
+
+    case "payment_refunded":
+        // THE AMOUNT THAT WENT BACK, not the amount that was charged. A partial
+        // refund is the ordinary case — a deposit returned less a call-out fee —
+        // and quoting the original here would tell the crew the customer got
+        // more back than they did. Zero is treated as absent rather than
+        // rendered: `amount_refunded_cents` is nullable and a stored zero means
+        // the webhook did not know the figure, never that nothing moved.
+        let back = (refunded ?? 0) > 0 ? refunded : cents
+        head = money(back).map { "\($0) went back to them" }
+            ?? "The money went back to them"
+
+    case "payment_disputed":
+        head = money(cents).map { "Their bank pulled back \($0)" }
+            ?? "Their bank pulled this payment back"
+
+    default:
+        // Unreachable through `eventLine`, which routes only the five above.
+        // The fallback rather than an empty string, so a future caller that
+        // mis-routes a type gets today's behaviour instead of a blank row — and
+        // `PaymentTimelineLineTests` asserts none of the five can reach it.
+        return humanizedEventType(event.type)
+    }
+
+    // ONE rule for the trailing clause rather than five. `payment_cancelled` is
+    // the only payload the API writes without a description, so its arm simply
+    // never appends — which is a fact about the writer, not a fourth branch to
+    // keep in step across three clients.
+    let description = event.payload["description"]?.stringValue ?? ""
+    return description.isBlank ? head : head + " — " + description
 }
 
 /**

@@ -200,6 +200,32 @@ export const keys = {
       [companyId, "notifications", "unread-count"] as const,
   },
 
+  /**
+   * #224 text-to-pay. The two keys are shaped DIFFERENTLY on purpose, and #607
+   * is what made the difference load-bearing.
+   *
+   * `requests` is one thread's payment requests, and it sits INSIDE the
+   * `[companyId]` prefix. Since #607 the payment strip is live off the
+   * `payment.updated` broadcast, and every self-heal path in the realtime
+   * provider — the reconnect backfill and the away-tab resync — invalidates that
+   * prefix and nothing else. A key outside it would receive the broadcast and
+   * have no net under it, so one dropped frame would leave "Requested" on screen
+   * for money that already arrived, until somebody reopened the thread. Of every
+   * surface in this app that is the worst one to be quietly wrong on.
+   *
+   * `account` is deliberately OUTSIDE it and must stay there. GET
+   * /v1/payments/account refreshes from Stripe on EVERY read (routes/payments.ts
+   * says so and means it), and `usePayoutAccount` is mounted by the composer —
+   * so on every open thread, for every member. Under the company prefix, each
+   * away-tab resync would spend a Stripe API call per member to re-read a
+   * workspace setting that only moves when an owner finishes onboarding.
+   */
+  payments: {
+    requests: (companyId: string, conversationId: string) =>
+      [companyId, "payments", "requests", conversationId] as const,
+    account: (companyId: string) => ["payments", "account", companyId] as const,
+  },
+
   search: (companyId: string, q: string) => [companyId, "search", q] as const,
   /**
    * #240: the variant is part of the key. A row has two objects behind one id —

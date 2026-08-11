@@ -495,6 +495,48 @@ export const threadEn = {
   sysTaskUpdated: "{by} updated a task",
   sysNoteAttachmentAdded: "{by} attached a file to a note",
   sysNoteAttachmentRemoved: "{by} removed a file from a note",
+  /*
+   * #607 A3 — THE FIVE PAYMENT LINES. LOAD-BEARING FOR THREE CLIENTS.
+   *
+   * The same five sentences are hand-ported into `Timeline.kt` and
+   * `Timeline.swift`. A crew comparing the phone and the laptop must not read
+   * two different histories for one conversation (#273), so a reword here is a
+   * reword in three places or it is a defect.
+   *
+   * WHO IS NAMED, AND WHY IT CHANGES HALFWAY DOWN. Asking and cancelling are
+   * things a crew member does, so those two carry `{by}`. Paid, refunded and
+   * disputed are the customer and their bank — the server writes them with a
+   * null actor on purpose — so naming a member would credit the crew with
+   * somebody else's action. Same rule as `appointment_confirmed` above.
+   *
+   * WHY EACH HAS AN AMOUNT-LESS TWIN. The payload is untyped jsonb and one
+   * writer reads its figures out of an optional RPC result, so the figure can
+   * genuinely be absent. The twin is said then — never a sentence with a hole
+   * in it. `paymentEventAmount` decides which (components/thread/payment-line.ts).
+   *
+   * ONE VOCABULARY WITH THE STRIP. "asked for" matches `payments.askFor`,
+   * "went back to" matches `payments.refundedBack`, and "pulled back" matches
+   * `payments.disputedNote` — the timeline is the same product speaking about
+   * the same money, not a second glossary for it.
+   */
+  sysPaymentRequested: "{by} asked for {amount}",
+  sysPaymentRequestedGeneric: "{by} asked for a payment",
+  sysPaymentPaid: "They paid {amount}",
+  sysPaymentPaidGeneric: "They paid",
+  sysPaymentCancelled: "{by} called off the {amount} request",
+  sysPaymentCancelledGeneric: "{by} called off the request",
+  sysPaymentRefunded: "{amount} went back to them",
+  sysPaymentRefundedGeneric: "The money went back to them",
+  sysPaymentDisputed: "Their bank pulled back {amount}",
+  sysPaymentDisputedGeneric: "Their bank pulled this payment back",
+  /**
+   * …and what it was for, appended to any of the ten above.
+   *
+   * The em-dash join is one rule for five lines, exactly as `sysWithDuration`
+   * is one rule for the call lines. Kept as its own key so a language that
+   * punctuates an apposition differently can say so.
+   */
+  sysPaymentWithDescription: "{line} — {description}",
   // #317: a file we would not store. Every arm ends in what to DO about it,
   // because that is the only part the crew can act on between jobs.
   /*
@@ -1138,6 +1180,21 @@ export const threadFr: Translated<typeof threadEn> = {
   sysTaskUpdated: "{by} a mis à jour une tâche",
   sysNoteAttachmentAdded: "{by} a joint un fichier à une note",
   sysNoteAttachmentRemoved: "{by} a retiré un fichier d'une note",
+  // #607 A3. « repris » is the verb `payments.disputedNote` already uses for a
+  // chargeback, and « remboursé » the one `payments.refundedBack` uses — the
+  // French timeline speaks the French strip's vocabulary, not a translation of
+  // the English one.
+  sysPaymentRequested: "{by} a demandé {amount}",
+  sysPaymentRequestedGeneric: "{by} a demandé un paiement",
+  sysPaymentPaid: "Le client a payé {amount}",
+  sysPaymentPaidGeneric: "Le client a payé",
+  sysPaymentCancelled: "{by} a annulé la demande de {amount}",
+  sysPaymentCancelledGeneric: "{by} a annulé la demande",
+  sysPaymentRefunded: "{amount} lui a été remboursé",
+  sysPaymentRefundedGeneric: "L'argent lui a été remboursé",
+  sysPaymentDisputed: "Sa banque a repris {amount}",
+  sysPaymentDisputedGeneric: "Sa banque a repris ce paiement",
+  sysPaymentWithDescription: "{line} — {description}",
   sysMediaTooLarge:
     "Un fichier envoyé par ce client était trop gros pour être conservé — " +
     "demandez-lui d'en envoyer un plus petit",

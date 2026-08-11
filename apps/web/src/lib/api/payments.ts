@@ -6,6 +6,11 @@
  * screen; the REQUESTS belong to one conversation and change when a customer
  * pays, which is a webhook we did not initiate. Sharing a key would mean
  * re-reading Stripe every time a thread opened.
+ *
+ * #607: both now live in the shared key factory rather than here. The realtime
+ * provider has to name the requests key to make a landing deposit live, and a
+ * private copy in this file would have been a second place to keep it right.
+ * `keys.payments` also records why only ONE of the two is company-prefixed.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -14,6 +19,7 @@ import type { PaymentRequestState, PayoutReadiness } from "@loonext/shared";
 import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
+import { keys } from "./keys";
 
 export interface PayoutAccount {
   connected: boolean;
@@ -52,17 +58,11 @@ export interface PaymentRequest {
   created_by: string | null;
 }
 
-const keys = {
-  account: (companyId: string) => ["payments", "account", companyId] as const,
-  requests: (companyId: string, conversationId: string) =>
-    ["payments", "requests", companyId, conversationId] as const,
-};
-
 /** GET /v1/payments/account — refreshed from Stripe on the server. */
 export function usePayoutAccount(enabled = true) {
   const companyId = useCompanyId();
   return useQuery({
-    queryKey: keys.account(companyId),
+    queryKey: keys.payments.account(companyId),
     queryFn: () => apiFetch<PayoutAccount>("/v1/payments/account", { companyId }),
     enabled,
   });
@@ -79,7 +79,9 @@ export function useStartPayoutOnboarding() {
         companyId,
       }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: keys.account(companyId) });
+      void queryClient.invalidateQueries({
+        queryKey: keys.payments.account(companyId),
+      });
     },
   });
 }
@@ -96,7 +98,7 @@ export function useStripeDashboardLink() {
 export function usePaymentRequests(conversationId: string, enabled = true) {
   const companyId = useCompanyId();
   return useQuery({
-    queryKey: keys.requests(companyId, conversationId),
+    queryKey: keys.payments.requests(companyId, conversationId),
     queryFn: () =>
       apiFetch<{ payment_requests: PaymentRequest[] }>(
         `/v1/conversations/${conversationId}/payment-requests`,
@@ -126,12 +128,20 @@ export function useCreatePaymentRequest(conversationId: string) {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: keys.requests(companyId, conversationId),
+        queryKey: keys.payments.requests(companyId, conversationId),
       });
       // The request went out as an ordinary text, so the thread has a new
       // message the timeline does not know about yet.
+      //
+      // This was written as a literal `["messages", companyId, conversationId]`,
+      // which is the thread key with its first two segments swapped and
+      // therefore matches no query at all — the refetch it names has never once
+      // run. It was invisible because the outbound message also arrives as a
+      // `message.created` broadcast, which appends it live; the hole only opens
+      // for a sender whose socket is down, who then sees the request they just
+      // sent nowhere in the thread.
       void queryClient.invalidateQueries({
-        queryKey: ["messages", companyId, conversationId],
+        queryKey: keys.thread(companyId, conversationId),
       });
     },
   });
@@ -148,7 +158,7 @@ export function useCancelPaymentRequest(conversationId: string) {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: keys.requests(companyId, conversationId),
+        queryKey: keys.payments.requests(companyId, conversationId),
       });
     },
   });
