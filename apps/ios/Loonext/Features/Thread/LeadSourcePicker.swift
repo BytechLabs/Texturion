@@ -36,8 +36,6 @@ struct LeadSourcePicker: View {
     @State private var origin: String?
     @State private var pending = false
 
-    @Environment(\.appLocale) private var appLocale
-
     private var options: [LeadSource] {
         sources.filter { $0.archived_at == nil }
     }
@@ -55,21 +53,11 @@ struct LeadSourcePicker: View {
         if !options.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 if origin == "number", let currentName {
-                    Text(
-                        AppStrings.translate(
-                            appLocale, "thread.leadFromLine", ["name": currentName]
-                        )
-                    )
-                    .font(.callout)
+                    Text("\(currentName) · the line they called").font(.callout)
                 } else if let currentName {
-                    Text(
-                        AppStrings.translate(
-                            appLocale, "thread.leadSaidSo", ["name": currentName]
-                        )
-                    )
-                    .font(.callout)
+                    Text("\(currentName) · somebody said so").font(.callout)
                 } else {
-                    Text(AppStrings.translate(appLocale, "thread.leadAsk"))
+                    Text("Ask them: how did you hear about us?")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -111,8 +99,6 @@ private struct LeadSourceChips: View {
     let pending: Bool
     let onChoose: (String?) -> Void
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
         // A wrapping row of chips. `Flow` is not available on the deployment
         // target, so this is the same shape the tag sheet next door uses.
@@ -147,9 +133,7 @@ private struct LeadSourceChips: View {
                     .disabled(pending)
                 }
                 if current != nil {
-                    Button(AppStrings.translate(appLocale, "thread.dontKnow")) {
-                        onChoose(nil)
-                    }
+                    Button("Don't know") { onChoose(nil) }
                         .font(.caption)
                         .buttonStyle(.plain)
                         .foregroundStyle(.secondary)

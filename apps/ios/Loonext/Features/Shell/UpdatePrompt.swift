@@ -44,7 +44,6 @@ private struct UpdateCard: View {
     let onDismiss: () -> Void
 
     @Environment(\.openURL) private var openURL
-    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         VStack {
@@ -54,24 +53,17 @@ private struct UpdateCard: View {
                     .font(.title3)
                     .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(AppStrings.translate(appLocale, "shell.updateReadyTitle"))
+                    Text("A newer version of Loonext is ready")
                         .font(.subheadline.weight(.semibold))
                     // The server's reason when it gave one. Never invented
                     // here: a demand we cannot explain is one nobody should
-                    // trust. Not translated either, for the same reason every
-                    // other client renders an API sentence verbatim — that copy
-                    // is the server's to word and to translate.
-                    Text(
-                        policy?.message
-                            ?? AppStrings.translate(appLocale, "shell.updateReadyBody")
-                    )
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    Button(AppStrings.translate(appLocale, "shell.updateAction")) {
-                        openUpdate()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .padding(.top, 8)
+                    // trust.
+                    Text(policy?.message ?? "Update to pick up the latest fixes.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Button("Update") { openUpdate() }
+                        .buttonStyle(.borderedProminent)
+                        .padding(.top, 8)
                 }
                 Spacer(minLength: 0)
                 Button {
@@ -81,7 +73,7 @@ private struct UpdateCard: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                .accessibilityLabel(AppStrings.translate(appLocale, "shell.updateDismiss"))
+                .accessibilityLabel("Dismiss update notice")
             }
             .padding(16)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
@@ -104,7 +96,6 @@ private struct UpdateBlock: View {
     let policy: AppReleasePolicy?
 
     @Environment(\.openURL) private var openURL
-    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         ZStack {
@@ -112,19 +103,19 @@ private struct UpdateBlock: View {
             VStack(spacing: 0) {
                 Image(systemName: "arrow.down.circle")
                     .font(.scaled(40))
-                Text(AppStrings.translate(appLocale, "shell.updateBlockTitle"))
+                Text("Loonext needs an update")
                     .font(.title3.weight(.semibold))
                     .padding(.top, 24)
                 Text(
                     policy?.message
-                        ?? AppStrings.translate(appLocale, "shell.updateBlockBody")
+                        ?? "This version can no longer connect safely. Update to continue."
                 )
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.top, 12)
 
-                Button(AppStrings.translate(appLocale, "shell.updateBlockAction")) {
+                Button("Update Loonext") {
                     if let raw = policy?.update_url, let url = URL(string: raw) {
                         openURL(url)
                     }
@@ -143,20 +134,9 @@ private struct UpdateBlock: View {
     }
 
     private var versionLine: String {
-        var line = AppStrings.translate(
-            appLocale,
-            "shell.updateVersion",
-            [
-                "version": AppVersion.current
-                    ?? AppStrings.translate(appLocale, "shell.updateUnknownVersion"),
-            ]
-        )
+        var line = "You are on \(AppVersion.current ?? "an unknown version")"
         if let minimum = policy?.minimum_version {
-            line += AppStrings.translate(
-                appLocale,
-                "shell.updateMinimum",
-                ["version": minimum]
-            )
+            line += " · \(minimum) or newer is required"
         }
         return line
     }

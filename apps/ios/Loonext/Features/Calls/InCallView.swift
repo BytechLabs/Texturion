@@ -42,9 +42,6 @@ struct InCallView: View {
     /// — collapse the identity block's rhythm so the controls and End-call pill
     /// stay on screen (and the scroll backstop guarantees reachability below).
     @Environment(\.verticalSizeClass) private var vSizeClass
-    @Environment(\.appLocale) private var appLocale
-
-    private func t(_ key: String) -> String { AppStrings.translate(appLocale, key) }
 
     private var compactHeight: Bool { vSizeClass == .compact }
     private var avatarSize: CGFloat { compactHeight ? 76 : 112 }
@@ -212,7 +209,7 @@ struct InCallView: View {
 
             Spacer().frame(height: 14)
             HStack {
-                Button(t("contactsTasks.hide"), action: onClose)
+                Button("Hide", action: onClose)
                     .font(.golos(13, weight: .semibold))
                     .foregroundStyle(BrandColor.muted700)
                 Spacer()
@@ -232,7 +229,7 @@ struct InCallView: View {
             if let featured { manager.hangup(featured.id) }
         } label: {
             HStack(spacing: 10) {
-                Text(t("contactsTasks.endCall"))
+                Text("End call")
                     .font(.golos(15, weight: .semibold))
                 Spacer()
                 Image(systemName: "phone.down")
@@ -248,7 +245,7 @@ struct InCallView: View {
         }
         .buttonStyle(.plain)
         .disabled(featured == nil)
-        .accessibilityLabel(t("contactsTasks.hangUp"))
+        .accessibilityLabel("Hang up")
         .padding(.horizontal, 22)
     }
 
@@ -267,8 +264,8 @@ struct InCallView: View {
                         .background(BrandColor.destructive, in: Circle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(t("contactsTasks.decline"))
-                Text(t("contactsTasks.decline"))
+                .accessibilityLabel("Decline")
+                Text("Decline")
                     .font(.golos(11, weight: .semibold))
                     .foregroundStyle(BrandColor.muted700)
             }
@@ -284,8 +281,8 @@ struct InCallView: View {
                         .background(BrandColor.lime, in: Circle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(t("contactsTasks.answer"))
-                Text(t("contactsTasks.answer"))
+                .accessibilityLabel("Answer")
+                Text("Answer")
                     .font(.golos(11, weight: .bold))
                     .foregroundStyle(BrandColor.ink)
             }

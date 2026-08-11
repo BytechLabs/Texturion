@@ -30,8 +30,6 @@ struct WhileYouWait: View {
     let onOpenContacts: () -> Void
     let onOpenSettings: (SettingsSection) -> Void
 
-    @Environment(\.appLocale) private var appLocale
-
     private var brand: String? { company?.registration.brand?.status }
     private var campaign: String? { company?.registration.campaign?.status }
 
@@ -65,9 +63,12 @@ struct WhileYouWait: View {
                     Image(systemName: "phone")
                         .font(.footnote)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(AppStrings.translate(appLocale, "inbox.whileWaitCallsWork"))
+                        Text("Calls already work")
                             .font(.subheadline)
-                        Text(AppStrings.translate(appLocale, "inbox.whileWaitCallsBody"))
+                        Text(
+                            "Your number rings, takes voicemail, and texts back anyone "
+                                + "you miss. None of that waits on the carriers."
+                        )
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     }
@@ -75,16 +76,9 @@ struct WhileYouWait: View {
                 .padding(.top, 12)
 
                 // Three, not the whole settings surface.
-                setupStep(
-                    AppStrings.translate(appLocale, "inbox.whileWaitContacts"),
-                    onOpenContacts
-                )
-                setupStep(AppStrings.translate(appLocale, "inbox.whileWaitInvite")) {
-                    onOpenSettings(.team)
-                }
-                setupStep(AppStrings.translate(appLocale, "inbox.whileWaitHours")) {
-                    onOpenSettings(.hours)
-                }
+                setupStep("Bring your customers in", onOpenContacts)
+                setupStep("Invite your crew") { onOpenSettings(.team) }
+                setupStep("Set your hours and greeting") { onOpenSettings(.hours) }
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)

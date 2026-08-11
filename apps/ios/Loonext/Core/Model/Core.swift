@@ -182,12 +182,6 @@ struct Membership: Codable, Sendable {
     /// decodes, and so the three places that construct a Membership for a preview
     /// keep compiling. `nil` and `[]` mean the same thing: the whole screen.
     var dashboard_hidden: [String]? = nil
-    /// #228: the language the BUSINESS works in — the LAST step of
-    /// `UiLocale.resolve`, after the member's own setting and their phone's.
-    ///
-    /// Optional and defaulted, at the end, so every existing construction site
-    /// (three previews and the tests) keeps compiling untouched.
-    var locale: String? = nil
 }
 
 /// GET /v1/me — optionally hydrated with `company` when X-Company-Id is sent.
@@ -214,17 +208,6 @@ struct Me: Codable, Sendable {
     /// kotlinx.serialization treats a default the opposite way, which is
     /// exactly how this got hand-ported wrong once already.
     var flags: [String: Bool]? = nil
-    /// #228: the language THIS PERSON reads the app in — the first step of
-    /// `UiLocale.resolve`.
-    ///
-    /// `nil` is a REAL value and not an absence: it means "ask the device, then
-    /// the workspace". The route sends null rather than resolving, because the
-    /// device half of that answer only exists here.
-    ///
-    /// Optional so a build running against an older Worker still decodes — a
-    /// synthesized `init(from:)` reads an Optional with `decodeIfPresent`, which
-    /// a defaulted non-Optional does not get (see `flags` above).
-    var locale: String? = nil
 }
 
 /// #386: why we cannot email this member, and whether they can fix it.

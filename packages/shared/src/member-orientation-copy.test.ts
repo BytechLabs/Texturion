@@ -43,7 +43,6 @@ const CATALOGS: Partial<Record<keyof typeof CLIENTS, string>> = {
   web: "apps/web/src/i18n/sections/onboarding.ts",
   android:
     "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/ShellStrings.kt",
-  ios: "apps/ios/Loonext/Core/I18n/ShellStrings.swift",
 };
 
 /** Where each client keeps the standalone notification primer. */

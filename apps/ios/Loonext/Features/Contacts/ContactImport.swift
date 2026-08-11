@@ -552,7 +552,6 @@ struct ContactImportConsentSheet: View {
     @State private var seeded = false
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.appLocale) private var appLocale
 
     /// The sentence being sworn to. Held apart from the row that draws it so
     /// the VoiceOver label and the printed label cannot drift.
@@ -648,18 +647,14 @@ struct ContactImportConsentSheet: View {
             }
             .scrollBounceBehavior(.basedOnSize)
             .background(BrandColor.canvas.ignoresSafeArea())
-            .navigationTitle(
-                AppStrings.translate(appLocale, "contactsTasks.beforeImporting")
-            )
+            .navigationTitle("Before importing")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(AppStrings.translate(appLocale, "common.cancel")) { dismiss() }
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(
-                        AppStrings.translate(appLocale, "contactsTasks.importAction")
-                    ) { confirm() }
+                    Button("Import") { confirm() }
                         .disabled(!canConfirm)
                 }
             }

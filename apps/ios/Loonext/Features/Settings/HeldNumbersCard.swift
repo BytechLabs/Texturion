@@ -69,8 +69,6 @@ struct HeldNumbersCard: View {
     @State private var pending = false
     @State private var dialogError: String?
 
-    @Environment(\.appLocale) private var appLocale
-
     private var canManage: Bool { SettingsRoleGate.canManageBilling(scope.role) }
 
     /// Whether there is an answer to be had at all.
@@ -150,10 +148,7 @@ struct HeldNumbersCard: View {
                 // The same control the cancellation answer uses for the same
                 // job, so "get to a person" looks like one thing in this app
                 // rather than two.
-                NavigationLink(
-                    AppStrings.translate(appLocale, "settings.heldGetInTouch"),
-                    value: SettingsSection.help
-                )
+                NavigationLink("Get in touch", value: SettingsSection.help)
                     .buttonStyle(.bordered)
                     .padding(.top, 10)
             }
@@ -177,18 +172,14 @@ struct HeldNumbersCard: View {
                 Text(rowLabel(row))
                     .font(.golos(14, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
-                StatusPill(
-                    label: AppStrings.translate(appLocale, "settings.heldOnHold"), tone: .warn
-                )
+                StatusPill(label: "On hold", tone: .warn)
                 Spacer()
             }
             if case .buy(let price) = offer {
                 // The price is ON the control that charges it. A button whose
                 // cost is a paragraph away is a button somebody presses without
                 // having read the cost.
-                Button(AppStrings.translate(
-                    appLocale, "settings.heldBringBackPriced", ["price": price]
-                )) {
+                Button("Bring it back · \(price)") {
                     dialogError = nil
                     idempotencyKey = UUID().uuidString
                     confirming = row
@@ -234,9 +225,7 @@ struct HeldNumbersCard: View {
     /// yet, rather than an empty string where a phone number should be.
     private func rowLabel(_ row: HeldNumber) -> String {
         let formatted = formatPhone(row.number_e164)
-        return formatted.isEmpty
-            ? AppStrings.translate(appLocale, "settings.heldThisNumber")
-            : formatted
+        return formatted.isEmpty ? "Your number" : formatted
     }
 
     /// Buy the capacity, then say what actually happened.

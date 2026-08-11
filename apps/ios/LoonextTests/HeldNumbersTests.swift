@@ -670,11 +670,8 @@ final class HeldNumbersTests: XCTestCase {
                 + "phone. Gate was: \(gate)"
         )
         let row = try window(source, from: "if manageable {", to: "\n            }")
-        // #228 moved the label into the catalogue, so the key IS the shipped
-        // constant now — a guard quoting the English would fail on a French
-        // release that lost nothing, and pass on a rename that lost the button.
         XCTAssertTrue(
-            row.contains("\"settingsMore.release\""),
+            row.contains("Button(\"Release\")"),
             "the action row is drawn for a held number but Release is not in it"
         )
         XCTAssertTrue(
@@ -1040,12 +1037,9 @@ final class HeldNumbersTests: XCTestCase {
         // The positive arm is still there for an ordinary finished transfer —
         // this is not a guard against saying "Ported", it is a guard against
         // saying it over a line that cannot send.
-        // #228 moved the label into the catalogue. The key is the shipped
-        // constant, and the TONE is the half that carries the claim — a lime
-        // pill over a line that can neither send nor answer is the defect.
-        XCTAssertTrue(pill.contains("\"settingsMore.portStepPorted\""))
+        XCTAssertTrue(pill.contains("StatusPill(label: \"Ported\", tone: .positive)"))
         guard let holdAt = pill.range(of: "if onHold {"),
-              let portedAt = pill.range(of: "\"settingsMore.portStepPorted\"")
+              let portedAt = pill.range(of: "StatusPill(label: \"Ported\", tone: .positive)")
         else {
             XCTFail("the pill was rewritten — re-point this guard")
             return

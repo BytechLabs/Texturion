@@ -30,8 +30,6 @@ struct PhoneList: View {
     @State private var draftLabel = ""
     @State private var draftPhone = ""
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(phones) { entry in
@@ -50,13 +48,7 @@ struct PhoneList: View {
                             .foregroundStyle(BrandColor.muted500)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(
-                        AppStrings.translate(
-                            appLocale,
-                            "contactsTasks.phoneRemove",
-                            ["number": entry.phone_e164]
-                        )
-                    )
+                    .accessibilityLabel("Remove \(entry.phone_e164)")
                 }
             }
 
@@ -64,31 +56,21 @@ struct PhoneList: View {
                 // The placeholder IS the hint, as it is on the other two
                 // clients. A separate line under the field would be the same
                 // words taking twice the room on the smallest screen.
-                TextField(
-                    AppStrings.translate(appLocale, "contactsTasks.phoneLabelPlaceholder"),
-                    text: $draftLabel
-                )
+                TextField(phoneLabelPlaceholder, text: $draftLabel)
                     .font(.golos(13))
                     .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel(
-                        AppStrings.translate(appLocale, "contactsTasks.labelField")
-                    )
-                TextField(
-                    AppStrings.translate(appLocale, "contactsTasks.phonePlaceholder"),
-                    text: $draftPhone
-                )
+                    .accessibilityLabel("Label")
+                TextField(phoneNumberPlaceholder, text: $draftPhone)
                     .font(.golos(13))
                     .textFieldStyle(.roundedBorder)
                     .keyboardType(.phonePad)
-                    .accessibilityLabel(
-                        AppStrings.translate(appLocale, "contactsTasks.numberField")
-                    )
+                    .accessibilityLabel("Number")
                 // What this actually does, said before it is done.
-                Text(AppStrings.translate(appLocale, "contactsTasks.phoneMatchNote"))
+                Text(phoneMatchNote)
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted500)
                 HStack(spacing: 8) {
-                    Button(AppStrings.translate(appLocale, "contactsTasks.add")) {
+                    Button("Add") {
                         let phone = draftPhone.trimmingCharacters(in: .whitespaces)
                         guard !phone.isEmpty else { return }
                         let label = draftLabel.trimmingCharacters(in: .whitespaces)
@@ -101,7 +83,7 @@ struct PhoneList: View {
                     .disabled(
                         draftPhone.trimmingCharacters(in: .whitespaces).isEmpty
                     )
-                    Button(AppStrings.translate(appLocale, "common.cancel")) {
+                    Button("Cancel") {
                         adding = false
                         draftLabel = ""
                         draftPhone = ""
@@ -116,8 +98,7 @@ struct PhoneList: View {
                     HStack(spacing: 5) {
                         Image(systemName: "plus")
                             .font(.scaled(10, weight: .semibold))
-                        Text(AppStrings.translate(appLocale, "contactsTasks.phoneAddAnother"))
-                            .font(.golos(13))
+                        Text(phoneAddLabel).font(.golos(13))
                     }
                     .foregroundStyle(BrandColor.muted600)
                 }
@@ -132,8 +113,10 @@ struct PhoneList: View {
     }
 }
 
-// The sentences this surface owns now live in the catalogue, as
-// `contactsTasks.phoneAddAnother`, `phoneLabelPlaceholder`, `phonePlaceholder`
-// and `phoneMatchNote`. The module-level `let`s that used to hold them are gone:
-// nothing outside this file read them, and English pinned in a constant is
-// English no translator can reach.
+/// The sentences this surface owns, kept where the parity test can read them.
+let phoneAddLabel = "Add another number"
+let phoneLabelPlaceholder = "Landline, the wife, the shop…"
+let phoneNumberPlaceholder = "Another number they answer"
+let phoneMatchNote =
+    "Texts and calls from this number will show up under this customer, in "
+    + "their own thread."

@@ -29,8 +29,6 @@ struct MessageBubble: View {
     let mintAttachmentUrl: @MainActor (String, String) async throws -> String
     let actions: MessageBubbleActions
 
-    @Environment(\.appLocale) private var appLocale
-
     private var outbound: Bool { message.direction == MessageDirection.outbound }
     private var note: Bool { message.direction == MessageDirection.note }
     private var done: Bool { message.done_at != nil }
@@ -69,14 +67,9 @@ struct MessageBubble: View {
                     Image(systemName: "lock")
                         .font(.scaled(10, weight: .medium))
                         .foregroundStyle(BrandColor.muted700)
-                    Text(
-                        authorName
-                            ?? AppStrings.translate(
-                                appLocale, "thread.internalNote"
-                            )
-                    )
-                    .font(.golos(11, weight: .semibold))
-                    .foregroundStyle(BrandColor.muted700)
+                    Text(authorName ?? "Internal note")
+                        .font(.golos(11, weight: .semibold))
+                        .foregroundStyle(BrandColor.muted700)
                 }
             }
 
@@ -118,26 +111,14 @@ struct MessageBubble: View {
                     Button {
                         actions.onOpenTask(taskLink.id)
                     } label: {
-                        Text(
-                            AppStrings.translate(
-                                appLocale,
-                                "thread.noteOnTask",
-                                ["title": taskLink.title]
-                            )
-                        )
-                        .font(.golos(11, weight: .semibold))
-                        .foregroundStyle(BrandColor.olive)
-                        .padding(.top, 2)
-                        .contentShape(Rectangle())
+                        Text("on: \(taskLink.title)")
+                            .font(.golos(11, weight: .semibold))
+                            .foregroundStyle(BrandColor.olive)
+                            .padding(.top, 2)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(
-                        AppStrings.translate(
-                            appLocale,
-                            "thread.openTaskNamed",
-                            ["title": taskLink.title]
-                        )
-                    )
+                    .accessibilityLabel("Open task \(taskLink.title)")
                 }
             }
         }
@@ -202,10 +183,7 @@ struct MessageBubble: View {
                 UIPasteboard.general.string = message.body
                 actions.onCopied()
             } label: {
-                Label(
-                    AppStrings.translate(appLocale, "thread.copyText"),
-                    systemImage: "doc.on.doc"
-                )
+                Label("Copy text", systemImage: "doc.on.doc")
             }
         }
         // #465: done and pinned are STATES, not commands, and as plain Buttons
@@ -218,10 +196,7 @@ struct MessageBubble: View {
                 set: { _ in actions.onToggleDone() }
             )
         ) {
-            Label(
-                AppStrings.translate(appLocale, "thread.done"),
-                systemImage: "checkmark.circle"
-            )
+            Label("Done", systemImage: "checkmark.circle")
         }
         Toggle(
             isOn: Binding(
@@ -229,19 +204,13 @@ struct MessageBubble: View {
                 set: { _ in actions.onTogglePin() }
             )
         ) {
-            Label(
-                AppStrings.translate(appLocale, "thread.pinned"),
-                systemImage: "pin"
-            )
+            Label("Pinned", systemImage: "pin")
         }
         if message.retryable {
             Button {
                 actions.onRetry()
             } label: {
-                Label(
-                    AppStrings.translate(appLocale, "thread.retrySend"),
-                    systemImage: "arrow.clockwise"
-                )
+                Label("Retry send", systemImage: "arrow.clockwise")
             }
         }
         if !message.has_task, message.promoted_task == nil,
@@ -249,10 +218,7 @@ struct MessageBubble: View {
             Button {
                 actions.onMakeTask()
             } label: {
-                Label(
-                    AppStrings.translate(appLocale, "thread.makeTask"),
-                    systemImage: "checklist"
-                )
+                Label("Make a task", systemImage: "checklist")
             }
         }
     }
@@ -266,8 +232,6 @@ private struct MessageMetaLine: View {
     let doneByName: String?
     let onRetry: @MainActor () -> Void
     let onOpenTask: @MainActor (String) -> Void
-
-    @Environment(\.appLocale) private var appLocale
 
     /// The stone task indicator (shared by the plain and tappable arms so the
     /// visual is identical whether or not a link id resolved).
@@ -284,8 +248,7 @@ private struct MessageMetaLine: View {
             parts.append(authorName)
         }
         parts.append(bubbleTime(message.created_at))
-        if message.direction == MessageDirection.outbound,
-           let delivery = deliveryLabel(message, locale: appLocale) {
+        if message.direction == MessageDirection.outbound, let delivery = deliveryLabel(message) {
             parts.append(delivery)
         }
         return parts.joined(separator: " · ")
@@ -302,9 +265,7 @@ private struct MessageMetaLine: View {
                 Image(systemName: "pin.fill")
                     .font(.scaled(10))
                     .foregroundStyle(BrandColor.muted300)
-                    .accessibilityLabel(
-                        AppStrings.translate(appLocale, "thread.pinned")
-                    )
+                    .accessibilityLabel("Pinned")
             }
             if message.has_task || message.promoted_task != nil {
                 if let taskId = message.linkedTaskId {
@@ -320,13 +281,9 @@ private struct MessageMetaLine: View {
                             .padding(-6)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(
-                        AppStrings.translate(appLocale, "thread.openTask")
-                    )
+                    .accessibilityLabel("Open task")
                 } else {
-                    taskIcon.accessibilityLabel(
-                        AppStrings.translate(appLocale, "thread.hasTask")
-                    )
+                    taskIcon.accessibilityLabel("Has a task")
                 }
             }
             Text(metaText)
@@ -338,7 +295,7 @@ private struct MessageMetaLine: View {
                 )
             if message.retryable {
                 Button(action: onRetry) {
-                    Text(AppStrings.translate(appLocale, "thread.retry"))
+                    Text("Retry")
                         .font(.golos(10.5, weight: .bold))
                         .foregroundStyle(BrandColor.destructive)
                         .padding(.horizontal, 10)
@@ -348,12 +305,9 @@ private struct MessageMetaLine: View {
                 .buttonStyle(.plain)
             }
             if message.done_at != nil {
-                Text(
-                    AppStrings.translate(appLocale, "thread.done")
-                        + (doneByName.map { " · \($0)" } ?? "")
-                )
-                .font(.golos(10.5))
-                .foregroundStyle(BrandColor.muted300)
+                Text("Done" + (doneByName.map { " · \($0)" } ?? ""))
+                    .font(.golos(10.5))
+                    .foregroundStyle(BrandColor.muted300)
             }
         }
     }
@@ -371,14 +325,9 @@ struct PendingBubble: View {
     var onSendNow: @MainActor () -> Void = {}
     var onDelete: @MainActor () -> Void = {}
 
-    @Environment(\.appLocale) private var appLocale
-
     private var statusLine: String {
         if let reason = pending.blockedReason { return reason }
-        return AppStrings.translate(
-            appLocale,
-            pending.queued ? "thread.queuedOffline" : "thread.sending"
-        )
+        return pending.queued ? "Queued — will send when you're back online" : "Sending…"
     }
 
     private var isWaiting: Bool { pending.queued || pending.blockedReason != nil }
@@ -387,17 +336,9 @@ struct PendingBubble: View {
         VStack(alignment: .trailing, spacing: 2) {
             VStack(alignment: .leading, spacing: 2) {
                 if pending.mediaCount > 0 {
-                    Text(
-                        pending.mediaCount == 1
-                            ? AppStrings.translate(appLocale, "thread.onePhoto")
-                            : AppStrings.translate(
-                                appLocale,
-                                "thread.manyPhotos",
-                                ["count": String(pending.mediaCount)]
-                            )
-                    )
-                    .font(.golos(11))
-                    .foregroundStyle(BrandColor.canvas)
+                    Text(pending.mediaCount == 1 ? "1 photo" : "\(pending.mediaCount) photos")
+                        .font(.golos(11))
+                        .foregroundStyle(BrandColor.canvas)
                 }
                 if !pending.body.isBlank {
                     Text(pending.body)
@@ -436,16 +377,10 @@ struct PendingBubble: View {
                     // "Send now" leads because it is what the person wants in
                     // every case that put a control here: the bars came back,
                     // the cap reset, the old message still matters.
-                    Button(
-                        AppStrings.translate(appLocale, "thread.sendNow"),
-                        action: onSendNow
-                    )
+                    Button("Send now", action: onSendNow)
                         .font(.golos(11, weight: .semibold))
                         .foregroundStyle(BrandColor.olive)
-                    Button(
-                        AppStrings.translate(appLocale, "common.delete"),
-                        action: onDelete
-                    )
+                    Button("Delete", action: onDelete)
                         .font(.golos(11))
                         .foregroundStyle(BrandColor.muted500)
                 }
@@ -540,12 +475,10 @@ struct SignedAttachmentImage: View {
     @State private var autoRetried = false
     @State private var failed = false
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
         Group {
             if failed {
-                Text(AppStrings.translate(appLocale, "thread.photoUnavailable"))
+                Text("Photo unavailable — tap to retry")
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted500)
                     .onTapGesture {
@@ -610,8 +543,6 @@ struct NoteFilesSection: View {
     let onLoad: @MainActor () -> Void
     let onOpenFile: @MainActor (Attachment) -> Void
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
         Group {
             switch state {
@@ -625,15 +556,10 @@ struct NoteFilesSection: View {
                                 Image(systemName: "doc")
                                     .font(.scaled(12, weight: .medium))
                                     .foregroundStyle(BrandColor.olive)
-                                Text(
-                                    file.file_name
-                                        ?? AppStrings.translate(
-                                            appLocale, "thread.file"
-                                        )
-                                )
-                                .font(.golos(11.5, weight: .medium))
-                                .foregroundStyle(BrandColor.olive)
-                                .lineLimit(1)
+                                Text(file.file_name ?? "File")
+                                    .font(.golos(11.5, weight: .medium))
+                                    .foregroundStyle(BrandColor.olive)
+                                    .lineLimit(1)
                             }
                         }
                         .buttonStyle(.plain)

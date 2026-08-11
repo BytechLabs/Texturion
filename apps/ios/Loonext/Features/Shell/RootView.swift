@@ -12,16 +12,6 @@ struct RootView: View {
     @State private var updates: UpdateRepository
     @Environment(\.scenePhase) private var scenePhase
 
-    /// #228: the language this app draws itself in, resolved once here and
-    /// published to every screen below.
-    ///
-    /// Read from the store rather than from `me` because the router has four
-    /// states that hold no `me` at all — signed out, the two-factor wall, both
-    /// web hand-offs — and every one of them is a screen somebody reads. The
-    /// store answers for all of them: the member's own setting once `/v1/me`
-    /// has landed, and the phone's own language before that.
-    private var appLocale: String { UiLocaleStore.shared.resolved }
-
     init(graph: AppGraph) {
         self.graph = graph
         _model = State(initialValue: RootViewModel(graph: graph))
@@ -50,9 +40,10 @@ struct RootView: View {
 
             case .needsWorkspace:
                 ExternalStepView(
-                    headline: AppStrings.translate(appLocale, "shell.needsWorkspaceTitle"),
-                    body: AppStrings.translate(appLocale, "shell.needsWorkspaceBody"),
-                    cta: AppStrings.translate(appLocale, "shell.needsWorkspaceCta"),
+                    headline: "Let's set up your workspace",
+                    body: "Workspace creation and checkout live on the web for now. "
+                        + "Create yours at app.loonext.com, then come back and refresh.",
+                    cta: "Open app.loonext.com",
                     url: ExternalStepView.onboardingURL,
                     onRefresh: model.retry,
                     onSignOut: model.signOut
@@ -60,9 +51,10 @@ struct RootView: View {
 
             case .needsCheckout:
                 ExternalStepView(
-                    headline: AppStrings.translate(appLocale, "shell.needsCheckoutTitle"),
-                    body: AppStrings.translate(appLocale, "shell.needsCheckoutBody"),
-                    cta: AppStrings.translate(appLocale, "shell.needsCheckoutCta"),
+                    headline: "Finish setting up",
+                    body: "Your workspace hasn't completed checkout yet. Finish on the web "
+                        + "and your number, texting, and calling light up here.",
+                    cta: "Finish checkout",
                     url: ExternalStepView.planURL,
                     onRefresh: model.retry,
                     onSignOut: model.signOut
@@ -82,14 +74,6 @@ struct RootView: View {
         // bare system background. AuthFlow / ExternalStepView paint their own
         // canvas; the ready shell draws edge-to-edge over this.
         .background(BrandColor.canvas.ignoresSafeArea())
-        // #228: the one place the app's language is published. Everything below
-        // this line — the auth screens, the gates, the whole shell — reads it
-        // out of the environment rather than resolving it again.
-        //
-        // NOT the whole app: `AppLockGate` and the app-switcher cover are
-        // MOUNTED ABOVE this view (a locked app must not build the inbox at
-        // all), so they read `UiLocaleStore` directly. Same store, same answer.
-        .environment(\.appLocale, appLocale)
         // #339: ambient when an update is merely available; a full stop only
         // below the server-set floor (D71). An overlay on the ROUTER, not on
         // the shell, so the block also covers the signed-out and interstitial
@@ -138,7 +122,6 @@ struct ExternalStepView: View {
     let onSignOut: @MainActor () -> Void
 
     @Environment(\.openURL) private var openURL
-    @Environment(\.appLocale) private var appLocale
 
     init(
         headline: String,
@@ -176,18 +159,12 @@ struct ExternalStepView: View {
                     PrimaryButton(title: cta, enabled: true) {
                         openURL(url)
                     }
-                    Button(
-                        AppStrings.translate(appLocale, "shell.externalRefresh"),
-                        action: onRefresh
-                    )
-                    .font(.golos(13, weight: .medium))
-                    .padding(.top, 12)
-                    Button(
-                        AppStrings.translate(appLocale, "shell.signOut"),
-                        action: onSignOut
-                    )
-                    .font(.golos(13, weight: .medium))
-                    .padding(.top, 8)
+                    Button("I've done this — refresh", action: onRefresh)
+                        .font(.golos(13, weight: .medium))
+                        .padding(.top, 12)
+                    Button("Sign out", action: onSignOut)
+                        .font(.golos(13, weight: .medium))
+                        .padding(.top, 8)
                 }
                 .frame(maxWidth: 440)
                 .padding(.horizontal, 28)

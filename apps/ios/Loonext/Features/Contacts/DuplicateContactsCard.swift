@@ -28,8 +28,6 @@ struct DuplicateContactsCard: View {
     @State private var refreshKey = 0
     @State private var merging: DuplicatePair?
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
         // The card is absent, not empty: no skeleton and no "you have no
         // duplicates" state. Both would be a screenful of nothing for the
@@ -85,16 +83,12 @@ struct DuplicateContactsCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(
                     pairs.count == 1
-                        ? AppStrings.translate(appLocale, "contactsTasks.duplicatesOnePair")
-                        : AppStrings.translate(
-                            appLocale,
-                            "contactsTasks.duplicatesManyPairs",
-                            ["count": "\(pairs.count)"]
-                        )
+                        ? "These two look like the same customer"
+                        : "\(pairs.count) pairs look like the same customer"
                 )
                 .font(.golos(13.5, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
-                Text(AppStrings.translate(appLocale, "contactsTasks.duplicatesBlurb"))
+                Text("Merging keeps every message, task and photo from both, under one record.")
                     .font(.golos(11.5))
                     .foregroundStyle(BrandColor.muted500)
                     .fixedSize(horizontal: false, vertical: true)
@@ -109,14 +103,9 @@ struct DuplicateContactsCard: View {
         HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(
-                    AppStrings.translate(
-                        appLocale,
-                        "contactsTasks.duplicatesPair",
-                        [
-                            "a": describeContact(pair.name_a, pair.phone_a),
-                            "b": describeContact(pair.name_b, pair.phone_b),
-                        ]
-                    )
+                    describeContact(pair.name_a, pair.phone_a)
+                        + " and "
+                        + describeContact(pair.name_b, pair.phone_b)
                 )
                 .font(.golos(13))
                 .foregroundStyle(BrandColor.ink)
@@ -130,9 +119,7 @@ struct DuplicateContactsCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if canMerge {
-                Button(AppStrings.translate(appLocale, "contactsTasks.merge")) {
-                    merging = pair
-                }
+                Button("Merge") { merging = pair }
                     .buttonStyle(.plain)
                     .font(.golos(11, weight: .semibold))
                     .foregroundStyle(BrandColor.muted700)
@@ -140,14 +127,8 @@ struct DuplicateContactsCard: View {
                     .padding(.vertical, 7)
                     .background(BrandColor.insetDeep, in: Capsule())
                     .accessibilityLabel(
-                        AppStrings.translate(
-                            appLocale,
-                            "contactsTasks.mergeAria",
-                            [
-                                "a": describeContact(pair.name_a, pair.phone_a),
-                                "b": describeContact(pair.name_b, pair.phone_b),
-                            ]
-                        )
+                        "Merge \(describeContact(pair.name_a, pair.phone_a)) and "
+                            + describeContact(pair.name_b, pair.phone_b)
                     )
             }
         }
@@ -187,7 +168,6 @@ private struct MergeContactsSheet: View {
     @State private var saving = false
     @State private var error: String?
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.appLocale) private var appLocale
 
     private var survivorId: String { keepFirst ? pair.contact_a : pair.contact_b }
     private var foldedId: String { keepFirst ? pair.contact_b : pair.contact_a }
@@ -204,15 +184,18 @@ private struct MergeContactsSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(AppStrings.translate(appLocale, "contactsTasks.mergeDialogTitle"))
+            Text("Merge these two customers")
                 .font(.golos(15, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
-            Text(AppStrings.translate(appLocale, "contactsTasks.mergeDialogBody"))
-                .font(.golos(12.5))
-                .foregroundStyle(BrandColor.muted600)
-                .fixedSize(horizontal: false, vertical: true)
+            Text(
+                "Everything from both — messages, tasks, photos, notes — ends up "
+                    + "under the record you keep. Both phone numbers keep working."
+            )
+            .font(.golos(12.5))
+            .foregroundStyle(BrandColor.muted600)
+            .fixedSize(horizontal: false, vertical: true)
 
-            Text(AppStrings.translate(appLocale, "contactsTasks.mergeWhichToKeep"))
+            Text("Which one to keep")
                 .font(.golos(11.5, weight: .semibold))
                 .foregroundStyle(BrandColor.muted700)
                 .padding(.top, 2)
@@ -248,13 +231,7 @@ private struct MergeContactsSheet: View {
             }
 
             // Said back in the direction people get backwards.
-            Text(
-                AppStrings.translate(
-                    appLocale,
-                    "contactsTasks.mergeDirection",
-                    ["folded": foldedLabel, "survivor": survivorLabel]
-                )
-            )
+            Text("\(foldedLabel) stops being a separate customer. Its history moves to \(survivorLabel).")
                 .font(.golos(11.5))
                 .foregroundStyle(BrandColor.muted500)
                 .fixedSize(horizontal: false, vertical: true)
@@ -269,16 +246,12 @@ private struct MergeContactsSheet: View {
 
             HStack(spacing: 10) {
                 Spacer()
-                Button(AppStrings.translate(appLocale, "common.cancel")) { dismiss() }
+                Button("Cancel") { dismiss() }
                     .buttonStyle(.plain)
                     .font(.golos(12, weight: .semibold))
                     .foregroundStyle(BrandColor.muted600)
                     .disabled(saving)
-                Button(
-                    saving
-                        ? AppStrings.translate(appLocale, "contactsTasks.merging")
-                        : AppStrings.translate(appLocale, "contactsTasks.merge")
-                ) { merge() }
+                Button(saving ? "Merging…" : "Merge") { merge() }
                     .buttonStyle(.plain)
                     .font(.golos(12, weight: .semibold))
                     .foregroundStyle(BrandColor.paper)

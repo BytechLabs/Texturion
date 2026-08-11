@@ -35,8 +35,6 @@ struct OwnershipPrompt: View {
     @State private var proof: HandoverProof?
     @State private var codeRejected = false
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
         Group {
             if let current = state, let kind = viewerHandoverPrompt(current) {
@@ -58,9 +56,7 @@ struct OwnershipPrompt: View {
     private func card(_ current: Ownership, kind: String) -> some View {
         PaperCard {
             VStack(alignment: .leading, spacing: 8) {
-                SectionHeader(
-                    label: AppStrings.translate(appLocale, "settingsMore.ownershipCaption")
-                )
+                SectionHeader(label: "Ownership")
                 Text(handoverPromptHeadline(kind))
                     .font(.golos(13, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
@@ -75,21 +71,15 @@ struct OwnershipPrompt: View {
                     if kind == HandoverPrompt.acceptOffer
                         || kind == HandoverPrompt.completeClaim {
                         Button(
-                            AppStrings.translate(
-                                appLocale,
-                                kind == HandoverPrompt.acceptOffer
-                                    ? "settingsMore.acceptOwnership"
-                                    : "settingsMore.completeTakeover"
-                            )
+                            kind == HandoverPrompt.acceptOffer
+                                ? "Accept ownership" : "Complete the takeover"
                         ) { accept() }
                             .buttonStyle(.borderedProminent)
                             .tint(BrandColor.olive)
                             .disabled(busy)
                     }
                     if kind == HandoverPrompt.backupStanding {
-                        Button(AppStrings.translate(appLocale, "settingsMore.askTakeOver")) {
-                            confirmingClaim = true
-                        }
+                        Button("Ask to take over") { confirmingClaim = true }
                             .buttonStyle(.bordered)
                             .disabled(busy)
                     }
@@ -126,9 +116,12 @@ struct OwnershipPrompt: View {
                 )
             } else {
                 ConfirmSheet(
-                    title: AppStrings.translate(appLocale, "settingsMore.claimTitle"),
-                    message: AppStrings.translate(appLocale, "settingsMore.claimBody"),
-                    confirmLabel: AppStrings.translate(appLocale, "settingsMore.askTakeOver"),
+                    title: "Ask to take over this workspace?",
+                    message: "The owner will be emailed straight away and can stop this with "
+                        + "one click for the next 7 days. Everyone on the team is told too. "
+                        + "If nobody stops it, you can complete the takeover after 7 days. "
+                        + "Only do this if the owner genuinely cannot act.",
+                    confirmLabel: "Ask to take over",
                     pending: busy,
                     error: actionError,
                     onConfirm: { claim() },
@@ -243,7 +236,7 @@ struct OwnershipPrompt: View {
                 scope.companyId, action: pending.action
             )
             // Said either way. Whether an address exists is not ours to leak.
-            scope.showMessage(AppStrings.translate(appLocale, "settingsMore.codeSent"))
+            scope.showMessage("Sent. Check your email.")
         }
     }
 
@@ -251,10 +244,7 @@ struct OwnershipPrompt: View {
         let companyId = scope.companyId
         let repo = scope.repo
         attempt(
-            HandoverProof(
-                action: "accept",
-                label: AppStrings.translate(appLocale, "settingsMore.nowOwn")
-            ) { code in
+            HandoverProof(action: "accept", label: "You now own this workspace.") { code in
                 state = try await repo.acceptOwnership(companyId, code: code)
             },
             code: nil
@@ -262,7 +252,7 @@ struct OwnershipPrompt: View {
     }
 
     private func cancel() {
-        run(AppStrings.translate(appLocale, "settingsMore.handoverStopped")) {
+        run("Stopped. Nothing changed hands.") {
             try await scope.repo.cancelOwnershipTransfer(scope.companyId)
         }
     }
@@ -273,7 +263,7 @@ struct OwnershipPrompt: View {
         attempt(
             HandoverProof(
                 action: "claim",
-                label: AppStrings.translate(appLocale, "settingsMore.claimAsked")
+                label: "Asked. The owner has 7 days to stop it."
             ) { code in
                 state = try await repo.claimOwnership(companyId, code: code)
             },

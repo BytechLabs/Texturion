@@ -17,13 +17,7 @@ struct AiSectionView: View {
     @FocusState private var descriptionFocused: Bool
     @State private var reloadKey = 0
 
-    @Environment(\.appLocale) private var appLocale
-
     private var canEdit: Bool { SettingsRoleGate.canManageAiSettings(scope.role) }
-
-    private func t(_ key: String) -> String {
-        AppStrings.translate(appLocale, key)
-    }
 
     var body: some View {
         Group {
@@ -44,18 +38,26 @@ struct AiSectionView: View {
     @ViewBuilder
     private func content(_ settings: CompanyAiSettings) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(t("settings.aiIntro"))
-                .font(.golos(12.5))
-                .foregroundStyle(BrandColor.muted600)
-                .padding(.horizontal, 20)
-                .padding(.top, 4)
-                .padding(.bottom, 2)
+            Text(
+                "Lou is the assistant built into Loonext. It drafts replies, fills "
+                    + "in task details from what a customer already wrote, and reads "
+                    + "a long thread back to you. Every suggestion is yours to review "
+                    + "and edit; Lou never sends anything on its own."
+            )
+            .font(.golos(12.5))
+            .foregroundStyle(BrandColor.muted600)
+            .padding(.horizontal, 20)
+            .padding(.top, 4)
+            .padding(.bottom, 2)
 
-            SettingsCard(title: t("settings.aiTaskCard")) {
+            SettingsCard(title: "When you make a task from a message") {
                 VStack(alignment: .leading, spacing: 0) {
                     LabeledToggleRow(
-                        label: t("settings.aiSuggestAddress"),
-                        supporting: t("settings.aiSuggestAddressHelp"),
+                        label: "Suggest an address",
+                        supporting: "Read a job location out of the message (or fall "
+                            + "back to the contact's address) and pre-fill the task's "
+                            + "address. It shows where each part came from; you can "
+                            + "edit or clear it before saving.",
                         isOn: settings.enrich_task_address,
                         enabled: canEdit && !saving,
                         onChange: {
@@ -72,8 +74,10 @@ struct AiSectionView: View {
                     )
                     RowDivider()
                     LabeledToggleRow(
-                        label: t("settings.aiSuggestDue"),
-                        supporting: t("settings.aiSuggestDueHelp"),
+                        label: "Suggest a due date & time",
+                        supporting: "Turn phrases like \u{201C}tomorrow at 2pm\u{201D} "
+                            + "or \u{201C}next Tuesday\u{201D} into a due date in your "
+                            + "workspace's timezone. Always editable before you save.",
                         isOn: settings.enrich_task_due,
                         enabled: canEdit && !saving,
                         onChange: {
@@ -91,17 +95,22 @@ struct AiSectionView: View {
                 }
             }
 
-            SettingsCard(title: t("settings.aiBusinessCard")) {
+            SettingsCard(title: "What Lou knows about your business") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(t("settings.aiBusinessHelp"))
-                        .font(.golos(12.5))
-                        .foregroundStyle(BrandColor.muted600)
+                    Text(
+                        "One sentence, in your words. Without it Lou will not say "
+                            + "what your business does, because anything it said would "
+                            + "be guesswork. With it, drafts can answer \"do you do "
+                            + "X?\" honestly."
+                    )
+                    .font(.golos(12.5))
+                    .foregroundStyle(BrandColor.muted600)
 
                     // Held locally while typing and saved when focus leaves, so
                     // a settings screen does not write per keystroke and a
                     // half-typed sentence never reaches a draft.
                     TextField(
-                        t("settings.aiBusinessPlaceholder"),
+                        "We paint houses and do small renovations in Calgary.",
                         text: $description,
                         axis: .vertical
                     )
@@ -122,24 +131,19 @@ struct AiSectionView: View {
                         if next != stored { saveDescription(next) }
                     }
 
-                    Text(AppStrings.translate(
-                        appLocale,
-                        "settings.aiBusinessCount",
-                        [
-                            "count": "\(description.count)",
-                            "max": "\(businessDescriptionMax)",
-                        ]
-                    ))
+                    Text("\(description.count) / \(businessDescriptionMax)")
                         .font(.golos(10.5))
                         .foregroundStyle(BrandColor.muted500)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
 
-            SettingsCard(title: t("settings.aiReplyCard")) {
+            SettingsCard(title: "When you reply to a customer") {
                 LabeledToggleRow(
-                    label: t("settings.aiDraftReplies"),
-                    supporting: t("settings.aiDraftRepliesHelp"),
+                    label: "Let Lou draft replies",
+                    supporting: "Offer a few short replies you can edit before "
+                        + "sending, drawn from the conversation so far. Start typing "
+                        + "and they finish what you started instead.",
                     isOn: settings.suggest_replies,
                     enabled: canEdit && !saving,
                     onChange: {
@@ -156,10 +160,12 @@ struct AiSectionView: View {
                 )
             }
 
-            SettingsCard(title: t("settings.aiVoicemailCard")) {
+            SettingsCard(title: "When someone leaves a voicemail") {
                 LabeledToggleRow(
-                    label: t("settings.aiTranscribe"),
-                    supporting: t("settings.aiTranscribeHelp"),
+                    label: "Let Lou write voicemails down",
+                    supporting: "Show what a voicemail says next to the recording, "
+                        + "so you can read it when playing it isn't an option. The "
+                        + "recording is always kept either way.",
                     isOn: settings.transcribe_voicemail,
                     enabled: canEdit && !saving,
                     onChange: {
@@ -181,8 +187,12 @@ struct AiSectionView: View {
                 // flipped.
                 RowDivider()
                 LabeledToggleRow(
-                    label: t("settings.aiVoicemailIntake"),
-                    supporting: t("settings.aiVoicemailIntakeHelp"),
+                    label: "Pull the job out of a voicemail",
+                    supporting: "Lou reads the transcript and shows what the caller "
+                        + "wanted and where, above the recording. Your greeting is "
+                        + "untouched \u{2014} if you want callers to say the address, "
+                        + "ask them for it in your own greeting. Nothing books "
+                        + "anything and nobody is put through a menu.",
                     isOn: settings.voicemail_intake,
                     enabled: canEdit && !saving,
                     onChange: {
@@ -210,10 +220,15 @@ struct AiSectionView: View {
             // of those left out is a sentence a member could read as "Loonext
             // hears my calls", which would be false — and this card is exactly
             // where somebody who believed that would come looking.
-            SettingsCard(title: t("settings.aiWrapUpCard")) {
+            SettingsCard(title: "After you hang up") {
                 LabeledToggleRow(
-                    label: t("settings.aiWrapUp"),
-                    supporting: t("settings.aiWrapUpHelp"),
+                    label: "Let Lou write down your wrap-up",
+                    supporting: "Hold the mic in the note box and say what was "
+                        + "agreed \u{2014} \u{201C}quoted him $2,400 for the tank, "
+                        + "parts Thursday\u{201D}. Lou writes your words down as you "
+                        + "said them, for you to check and post as an internal note. "
+                        + "It hears only you, only when you hold the button, and "
+                        + "never the call itself.",
                     isOn: settings.call_wrapup,
                     enabled: canEdit && !saving,
                     onChange: {
@@ -239,21 +254,15 @@ struct AiSectionView: View {
             // "Never a record" is the load-bearing sentence. A wrong summary is
             // worse than none, because a crew ACTS on it, and this card is
             // exactly where somebody deciding whether to trust it would look.
-            SettingsCard(title: t("settings.aiThreadCard")) {
+            SettingsCard(title: "When you open a thread you've lost track of") {
                 LabeledToggleRow(
-                    label: t("settings.aiCatchUp"),
-                    // The thresholds are interpolated from the shipped
-                    // constants, never typed: a number in settings copy that
-                    // disagrees with the rule is how somebody learns not to
-                    // trust the settings screen.
-                    supporting: AppStrings.translate(
-                        appLocale,
-                        "settings.aiCatchUpHelp",
-                        [
-                            "messages": "\(threadSummaryMinMessages)",
-                            "days": "\(threadSummaryIdleDays)",
-                        ]
-                    ),
+                    label: "Let Lou catch you up",
+                    supporting: "On a long or long-forgotten thread, offer a short "
+                        + "read of what they asked, what you said, and what's still "
+                        + "open. Every line points at the message it came from, so "
+                        + "you can check it in one tap. It's Lou's reading of the "
+                        + "thread, never a record of it \u{2014} and it never hides "
+                        + "or reorders anything in your inbox.",
                     isOn: settings.summarize_threads,
                     enabled: canEdit && !saving,
                     onChange: {
@@ -271,7 +280,7 @@ struct AiSectionView: View {
             }
 
             if !canEdit {
-                ReadOnlyLine(t("settings.aiReadOnly"))
+                ReadOnlyLine("Only owners and admins can change these.")
                     .padding(.horizontal, 20)
                     .padding(.top, 4)
             }

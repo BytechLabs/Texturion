@@ -21,12 +21,6 @@ import SwiftUI
 
  Copy hand-ported from apps/web/src/components/onboarding/member-orientation.tsx
  and held word for word by packages/shared/src/member-orientation-copy.test.ts.
-
- #228: the words themselves now live in `Core/I18n/ShellStrings.swift`, and the
- guard above reads that file as the iOS half — exactly as it already reads
- `apps/web/src/i18n/sections/onboarding.ts` as web's and
- `core/i18n/ShellStrings.kt` as Android's. What is left here is the ORDER and
- the marks beside each screen, which are this file's own decisions.
  */
 
 // MARK: - The decision
@@ -98,54 +92,46 @@ func joiningNoteText(_ answer: JoiningNote?) -> String? {
  `from` can be null while the note is not, and the fallback still names a person
  rather than the workspace: somebody wrote this, and "Your workspace says" would
  turn a colleague's sentence into product copy.
-
- #228: `locale` defaults to English rather than being required, because the only
- caller that cannot supply one is a unit test asserting the RULE — which name
- goes where, and what an unnamed note reads as — rather than the words. Same
- shape as the Kotlin twin, for the same reason.
  */
-func joiningNoteAttribution(
-    _ from: String?,
-    locale: String = MessageLocale.en
-) -> String {
-    guard let from, !from.isBlank else {
-        return AppStrings.translate(locale, "shell.orientationTheySaid")
-    }
-    return AppStrings.translate(locale, "shell.orientationSays", ["name": from])
+func joiningNoteAttribution(_ from: String?) -> String {
+    guard let from, !from.isBlank else { return "They said" }
+    return "\(from) says"
 }
 
 // MARK: - The screens
 
-/// One screen: which words, and which mark beside them.
-///
-/// #228: KEYS rather than sentences. The four screens are one feature on three
-/// clients and the copy guard reads all three, so the words live in the
-/// catalogue and the order and the glyphs live here.
 struct OrientationScreen: Sendable {
-    let titleKey: String
-    let bodyKey: String
+    let title: String
+    let body: String
     let icon: String
 }
 
 let orientationScreens: [OrientationScreen] = [
     OrientationScreen(
-        titleKey: "shell.orientationInboxTitle",
-        bodyKey: "shell.orientationInboxBody",
+        title: "One inbox, the whole crew",
+        body: "Every text your customers send lands here, and everyone on the "
+            + "crew can see it. Nothing sits unanswered in one person's phone.",
         icon: "tray.full"
     ),
     OrientationScreen(
-        titleKey: "shell.orientationNumberTitle",
-        bodyKey: "shell.orientationNumberBody",
+        title: "You answer as the business",
+        body: "Your replies go out from the workspace's number, so customers "
+            + "never get your personal one. If a number isn't shared with you, "
+            + "Settings tells you which and why.",
         icon: "phone"
     ),
     OrientationScreen(
-        titleKey: "shell.orientationNotesTitle",
-        bodyKey: "shell.orientationNotesBody",
+        title: "Notes stay inside",
+        body: "Switch the composer to Note and only the crew sees it — the "
+            + "customer never does. Mention a teammate in one and it lands on "
+            + "their For you.",
         icon: "note.text"
     ),
     OrientationScreen(
-        titleKey: "shell.orientationNotificationsTitle",
-        bodyKey: "shell.orientationNotificationsBody",
+        title: "You choose when we buzz you",
+        body: "You're joining a workspace that already has traffic. Turn on "
+            + "notifications for the work meant for you, and change them any "
+            + "time in Settings.",
         icon: "bell.badge"
     ),
 ]
@@ -171,7 +157,6 @@ struct MemberOrientationSheet: View {
 
     @State private var index = 0
     @State private var ask = NotificationAsk()
-    @Environment(\.appLocale) private var appLocale
 
     private var screen: OrientationScreen { orientationScreens[index] }
     private var last: Bool { index == orientationScreens.count - 1 }
@@ -215,27 +200,12 @@ struct MemberOrientationSheet: View {
                 // Skippable from the very first screen, per the Acceptance
                 // line. A flow you must finish to escape is a wall, and this
                 // one guards nothing.
-                Button(
-                    AppStrings.translate(
-                        appLocale,
-                        last && ask.askable
-                            ? "shell.notificationsNotNow"
-                            : "shell.orientationSkip"
-                    ),
-                    action: onFinished
-                )
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                Button(last && ask.askable ? "Not now" : "Skip", action: onFinished)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
                 Spacer()
                 if last {
-                    Button(
-                        AppStrings.translate(
-                            appLocale,
-                            ask.askable
-                                ? "shell.notificationsTurnOn"
-                                : "shell.orientationStartWorking"
-                        )
-                    ) {
+                    Button(ask.askable ? "Turn on notifications" : "Start working") {
                         Task {
                             // The one action that reaches past the app, and by
                             // now three screens have said what it is for. A
@@ -247,10 +217,8 @@ struct MemberOrientationSheet: View {
                     }
                     .buttonStyle(.borderedProminent)
                 } else {
-                    Button(AppStrings.translate(appLocale, "shell.orientationNext")) {
-                        index += 1
-                    }
-                    .buttonStyle(.borderedProminent)
+                    Button("Next") { index += 1 }
+                        .buttonStyle(.borderedProminent)
                 }
             }
         }
@@ -283,11 +251,8 @@ struct MemberOrientationSheet: View {
                 .frame(width: 44, height: 44)
                 .background(Color.accentColor.opacity(0.12), in: Circle())
             VStack(alignment: .leading, spacing: 8) {
-                Text(AppStrings.translate(appLocale, screen.titleKey))
-                    .font(.title2.weight(.semibold))
-                Text(AppStrings.translate(appLocale, screen.bodyKey))
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                Text(screen.title).font(.title2.weight(.semibold))
+                Text(screen.body).font(.body).foregroundStyle(.secondary)
             }
         }
     }
@@ -308,11 +273,9 @@ private struct JoiningNoteBlock: View {
     let note: String
     let from: String?
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(joiningNoteAttribution(from, locale: appLocale))
+            Text(joiningNoteAttribution(from))
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)
             Text(note)
@@ -344,8 +307,6 @@ private struct JoiningNoteBlock: View {
 private struct ProgressRail: View {
     let index: Int
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
         let filled = orientationProgress(index) * Double(orientationScreens.count)
         HStack(spacing: 4) {
@@ -360,12 +321,6 @@ private struct ProgressRail: View {
             }
         }
         .accessibilityElement()
-        .accessibilityLabel(
-            AppStrings.translate(
-                appLocale,
-                "shell.orientationStepOf",
-                ["index": "\(index + 1)", "total": "\(orientationScreens.count)"]
-            )
-        )
+        .accessibilityLabel("Step \(index + 1) of \(orientationScreens.count)")
     }
 }

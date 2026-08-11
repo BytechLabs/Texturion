@@ -33,15 +33,6 @@ extension Error {
     /// they cannot see.
     ///
     /// Word for word the same as the Android twin in `ui/common/Ui.kt`.
-    ///
-    /// #228: STILL ENGLISH, and it is the largest thing this extraction left
-    /// behind. A computed property on `Error` takes no arguments, so there is
-    /// nowhere for a locale to enter; turning it into a function would rewrite
-    /// roughly fifty call sites across every feature in the app, most of them
-    /// owned by somebody else. Its two sentences belong in the catalogue and the
-    /// change belongs in one commit that can move all of those call sites
-    /// together. (The first branch is already fine in any language: it renders
-    /// the SERVER's own sentence, which is the API's to word and to translate.)
     var userMessage: String {
         if let api = self as? ApiError {
             // #555: a 500 carries the server's own reference, and saying it is what
@@ -114,8 +105,6 @@ struct CenteredError: View {
     let message: String
     let onRetry: @MainActor () -> Void
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
         VStack(spacing: 16) {
             Text(message)
@@ -123,7 +112,7 @@ struct CenteredError: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
-            Button(AppStrings.translate(appLocale, "common.retry"), action: onRetry)
+            Button("Try again", action: onRetry)
                 .buttonStyle(.bordered)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -24,29 +24,27 @@ struct SpamSuspectedBanner: View {
     let canAct: Bool
     let onNotSpam: @MainActor () -> Void
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.shield")
                     .font(.scaled(12, weight: .medium))
                     .foregroundStyle(BrandColor.muted500)
-                Text(AppStrings.translate(appLocale, "thread.spamTitle"))
+                Text("This looks like spam")
                     .font(.golos(12.5, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
                 Spacer(minLength: 8)
                 if canAct {
-                    Button(
-                        AppStrings.translate(appLocale, "thread.notSpam"),
-                        action: onNotSpam
-                    )
+                    Button("Not spam", action: onNotSpam)
                         .buttonStyle(.plain)
                         .font(.golos(12.5, weight: .semibold))
                         .foregroundStyle(BrandColor.olive)
                 }
             }
-            Text(AppStrings.translate(appLocale, "thread.spamBody"))
+            Text(
+                "We didn't send a notification for it. Nothing is hidden, and "
+                    + "you can reply as normal."
+            )
             .font(.golos(11.5))
             .foregroundStyle(BrandColor.muted500)
             .fixedSize(horizontal: false, vertical: true)

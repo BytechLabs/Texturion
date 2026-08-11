@@ -46,11 +46,6 @@ struct DialerSheet: View {
     var onOpenContacts: (@MainActor () -> Void)?
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.appLocale) private var appLocale
-
-    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
-        AppStrings.translate(appLocale, key, vars)
-    }
 
     @State private var digits = ""
     @State private var fromId: String?
@@ -133,11 +128,7 @@ struct DialerSheet: View {
                 .frame(width: 36, height: 5)
                 .padding(.top, 8)
 
-            Text(
-                digits.isEmpty
-                    ? t("contactsTasks.enterANumber")
-                    : formatAsYouDial(digits)
-            )
+            Text(digits.isEmpty ? "Enter a number" : formatAsYouDial(digits))
                 .font(.display(31 * scale))
                 .foregroundStyle(digits.isEmpty ? BrandColor.muted400 : BrandColor.ink)
                 .lineLimit(1)
@@ -180,12 +171,7 @@ struct DialerSheet: View {
                             Button {
                                 fromId = number.id
                             } label: {
-                                Text(
-                                    t(
-                                        "contactsTasks.fromNumber",
-                                        ["number": formatPhone(number.number_e164)]
-                                    )
-                                )
+                                Text("From \(formatPhone(number.number_e164))")
                                     .font(.golos(11.5, weight: .semibold))
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 8)
@@ -258,7 +244,7 @@ struct DialerSheet: View {
                                 .foregroundStyle(BrandColor.muted500)
                         }
                         .disabled(dialable == nil && picked == nil)
-                        .accessibilityLabel(t("contactsTasks.sendMessageInstead"))
+                        .accessibilityLabel("Send a message instead")
                     }
                     Spacer()
                 }
@@ -280,7 +266,7 @@ struct DialerSheet: View {
                 .buttonStyle(.plain)
                 .disabled(dialable == nil || calling)
                 .opacity(dialable == nil ? 0.4 : 1)
-                .accessibilityLabel(t("contactsTasks.call"))
+                .accessibilityLabel("Call")
                 HStack {
                     Spacer()
                     Button {
@@ -292,7 +278,7 @@ struct DialerSheet: View {
                             .foregroundStyle(BrandColor.muted500)
                     }
                     .disabled(digits.isEmpty)
-                    .accessibilityLabel(t("contactsTasks.deleteLastDigit"))
+                    .accessibilityLabel("Delete last digit")
                     Spacer()
                 }
                 .frame(maxWidth: .infinity)
@@ -308,7 +294,7 @@ struct DialerSheet: View {
                         dismiss()
                         onOpenContacts()
                     } label: {
-                        Label(t("contactsTasks.contactsTitle"), systemImage: "person.2")
+                        Label("Contacts", systemImage: "person.2")
                             .font(.golos(13, weight: .semibold))
                             .foregroundStyle(BrandColor.muted700)
                     }
@@ -320,7 +306,7 @@ struct DialerSheet: View {
                         dismiss()
                         onOpenContact(contactId)
                     } label: {
-                        Text(t("contactsTasks.openContact"))
+                        Text("Open contact")
                             .font(.golos(13, weight: .semibold))
                             .foregroundStyle(BrandColor.olive)
                     }
@@ -329,10 +315,7 @@ struct DialerSheet: View {
                     Button {
                         onAddContact(addTarget)
                     } label: {
-                        Label(
-                            t("contactsTasks.addContact"),
-                            systemImage: "person.badge.plus"
-                        )
+                        Label("Add contact", systemImage: "person.badge.plus")
                             .font(.golos(13, weight: .semibold))
                             .foregroundStyle(BrandColor.olive)
                     }
@@ -414,7 +397,8 @@ struct DialerSheet: View {
             if await manager.requestMicPermission() {
                 placeCall()
             } else {
-                errorText = t("contactsTasks.micNeededToPlace")
+                errorText = "Loonext needs the microphone to place calls. "
+                    + "Allow it in Settings › Loonext."
             }
         }
     }

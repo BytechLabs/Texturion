@@ -16,8 +16,6 @@ struct RegistrationBlock: View {
     /// #352: which field the rejection notice asked the form to focus.
     @State private var focusField: String?
 
-    @Environment(\.appLocale) private var appLocale
-
     private var canManage: Bool { SettingsRoleGate.canManageNumbers(scope.role) }
 
     var body: some View {
@@ -34,33 +32,24 @@ struct RegistrationBlock: View {
             )
         } else {
             SettingsCard(
-                title: AppStrings.translate(appLocale, "settingsMore.textingRegistration"),
-                description: AppStrings.translate(
-                    appLocale, "settingsMore.textingRegistrationDesc"
-                )
+                title: "Texting registration",
+                description: "US carriers require every business texter to register (10DLC). "
+                    + "Approval usually takes a few days; texting US numbers starts once both "
+                    + "steps are approved."
             ) {
                 let brand = registration.brand
                 let campaign = registration.campaign
                 if brand == nil && campaign == nil {
                     Text(
-                        AppStrings.translate(appLocale, "settingsMore.registrationNotStarted")
+                        "Registration hasn't started yet. It's created automatically when "
+                            + "your subscription starts."
                     )
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 } else {
-                    RegistrationRow(
-                        label: AppStrings.translate(
-                            appLocale, "settingsMore.businessIdentity"
-                        ),
-                        detail: brand
-                    )
+                    RegistrationRow(label: "Business identity", detail: brand)
                     Spacer().frame(height: 8)
-                    RegistrationRow(
-                        label: AppStrings.translate(
-                            appLocale, "settingsMore.messagingCampaign"
-                        ),
-                        detail: campaign
-                    )
+                    RegistrationRow(label: "Messaging campaign", detail: campaign)
 
                     let rejected = [brand, campaign]
                         .compactMap { $0 }
@@ -91,23 +80,17 @@ struct RegistrationBlock: View {
                             country: company.country,
                             brand: brand,
                             campaign: campaign,
-                            submitLabel: AppStrings.translate(
-                                appLocale,
-                                rejected != nil
-                                    ? "settingsMore.resubmitRegistration"
-                                    : "settingsMore.submitRegistration"
-                            ),
+                            submitLabel: rejected != nil
+                                ? "Resubmit registration"
+                                : "Submit registration",
                             onSubmitted: onChanged,
                             focusField: $focusField
                         )
                         if rejected != nil {
                             Button(
-                                AppStrings.translate(
-                                    appLocale,
-                                    submitting
-                                        ? "settingsMore.resubmitting"
-                                        : "settingsMore.resubmitNoChanges"
-                                )
+                                submitting
+                                    ? "Resubmitting…"
+                                    : "Resubmit without changes"
                             ) { resubmit() }
                                 .buttonStyle(.bordered)
                                 .disabled(submitting)
@@ -128,11 +111,7 @@ struct RegistrationBlock: View {
 
                     if !canManage {
                         Spacer().frame(height: 6)
-                        ReadOnlyLine(
-                            AppStrings.translate(
-                                appLocale, "settingsMore.onlyAdminsRegistration"
-                            )
-                        )
+                        ReadOnlyLine("Only owners and admins can change registration.")
                     }
                 }
             }
@@ -145,9 +124,7 @@ struct RegistrationBlock: View {
         Task {
             do {
                 _ = try await scope.repo.submitRegistration(scope.companyId)
-                scope.showMessage(
-                    AppStrings.translate(appLocale, "settingsMore.registrationResubmitted")
-                )
+                scope.showMessage("Registration resubmitted.")
                 onChanged()
             } catch {
                 self.error = error.userMessage
@@ -161,39 +138,17 @@ private struct RegistrationRow: View {
     let label: String
     let detail: RegistrationDetail?
 
-    @Environment(\.appLocale) private var appLocale
-
-    /// " 3 days ago", or nothing when there is no timestamp.
-    private func ago(_ iso: String?) -> String {
-        iso.map {
-            AppStrings.translate(
-                appLocale, "settingsMore.agoSuffix", ["ago": relativeTime($0)]
-            )
-        } ?? ""
-    }
-
     private var line: String {
-        guard let detail else {
-            return AppStrings.translate(appLocale, "settingsMore.regNotStarted")
-        }
+        guard let detail else { return "Not started" }
         switch detail.status {
         case RegistrationStatus.approved:
-            return AppStrings.translate(appLocale, "settingsMore.regApproved")
-                + ago(detail.approved_at)
+            return "Approved" + (detail.approved_at.map { " \(relativeTime($0)) ago" } ?? "")
         case RegistrationStatus.rejected:
-            return AppStrings.translate(appLocale, "settingsMore.regRejected")
-                + ago(detail.rejected_at)
+            return "Rejected" + (detail.rejected_at.map { " \(relativeTime($0)) ago" } ?? "")
         case RegistrationStatus.submitted, RegistrationStatus.pending:
-            return AppStrings.translate(appLocale, "settingsMore.regInReview")
-                + (detail.submitted_at.map {
-                    AppStrings.translate(
-                        appLocale,
-                        "settingsMore.submittedSuffix",
-                        ["ago": relativeTime($0)]
-                    )
-                } ?? "")
+            return "In review" + (detail.submitted_at.map { " · submitted \(relativeTime($0)) ago" } ?? "")
         default:
-            return AppStrings.translate(appLocale, "settingsMore.regDraftLine")
+            return "Draft · not submitted yet"
         }
     }
 
@@ -215,30 +170,15 @@ private struct RegistrationRow: View {
     private var pill: some View {
         switch detail?.status {
         case nil:
-            StatusPill(
-                label: AppStrings.translate(appLocale, "settingsMore.regNotStarted"),
-                tone: .neutral
-            )
+            StatusPill(label: "Not started", tone: .neutral)
         case RegistrationStatus.approved:
-            StatusPill(
-                label: AppStrings.translate(appLocale, "settingsMore.regApproved"),
-                tone: .positive
-            )
+            StatusPill(label: "Approved", tone: .positive)
         case RegistrationStatus.rejected:
-            StatusPill(
-                label: AppStrings.translate(appLocale, "settingsMore.regRejected"),
-                tone: .bad
-            )
+            StatusPill(label: "Rejected", tone: .bad)
         case RegistrationStatus.submitted, RegistrationStatus.pending:
-            StatusPill(
-                label: AppStrings.translate(appLocale, "settingsMore.regInReview"),
-                tone: .warn
-            )
+            StatusPill(label: "In review", tone: .warn)
         default:
-            StatusPill(
-                label: AppStrings.translate(appLocale, "settingsMore.regDraft"),
-                tone: .neutral
-            )
+            StatusPill(label: "Draft", tone: .neutral)
         }
     }
 }
@@ -252,44 +192,32 @@ private struct SolePropOtpRow: View {
     @State private var resending = false
     @State private var error: String?
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
-        Text(AppStrings.translate(appLocale, "settingsMore.solePropPin"))
+        Text(
+            "One more step: the registry texted a 6-digit PIN to your registered mobile "
+                + "to confirm it's really you."
+        )
         .font(.footnote)
         .foregroundStyle(.secondary)
         HStack(spacing: 8) {
-            TextField(
-                AppStrings.translate(appLocale, "settingsMore.sixDigitPin"),
-                text: Binding(
-                    get: { code },
-                    set: { next in
-                        if next.count <= 6 && next.allSatisfy(\.isNumber) {
-                            code = next
-                        }
+            TextField("6-digit PIN", text: Binding(
+                get: { code },
+                set: { next in
+                    if next.count <= 6 && next.allSatisfy(\.isNumber) {
+                        code = next
                     }
-                )
-            )
+                }
+            ))
             .textFieldStyle(.roundedBorder)
             .keyboardType(.numberPad)
             .disabled(verifying || resending)
-            Button(
-                AppStrings.translate(
-                    appLocale,
-                    verifying ? "settingsMore.checking" : "settingsMore.verify"
-                )
-            ) { verify() }
+            Button(verifying ? "Checking…" : "Verify") { verify() }
                 .buttonStyle(.borderedProminent)
                 .tint(BrandColor.olive)
                 .disabled(verifying || resending || code.count != 6)
         }
         .padding(.top, 6)
-        Button(
-            AppStrings.translate(
-                appLocale,
-                resending ? "settingsMore.sending" : "settingsMore.resendPin"
-            )
-        ) { resend() }
+        Button(resending ? "Sending…" : "Resend the PIN") { resend() }
             .buttonStyle(.bordered)
             .disabled(verifying || resending)
             .padding(.top, 6)
@@ -302,9 +230,7 @@ private struct SolePropOtpRow: View {
         Task {
             do {
                 _ = try await scope.repo.verifyRegistrationOtp(scope.companyId, code: code)
-                scope.showMessage(
-                    AppStrings.translate(appLocale, "settingsMore.otpVerified")
-                )
+                scope.showMessage("Verified — the registry review continues.")
                 onChanged()
             } catch {
                 self.error = error.userMessage
@@ -319,7 +245,7 @@ private struct SolePropOtpRow: View {
         Task {
             do {
                 try await scope.repo.resendRegistrationOtp(scope.companyId)
-                scope.showMessage(AppStrings.translate(appLocale, "settingsMore.newPinSent"))
+                scope.showMessage("A new PIN is on its way.")
             } catch {
                 self.error = error.userMessage
             }
@@ -376,8 +302,6 @@ private struct EnableUsCard: View {
     /// billing screen, one file over.
     @State private var pauseFetch: PauseFetch = .loading
 
-    @Environment(\.appLocale) private var appLocale
-
     /// The one reader this card has a button for.
     private var canEnable: Bool { SettingsRoleGate.canEnableUsTexting(scope.role) }
 
@@ -407,8 +331,9 @@ private struct EnableUsCard: View {
 
     var body: some View {
         SettingsCard(
-            title: AppStrings.translate(appLocale, "settingsMore.usTexting"),
-            description: AppStrings.translate(appLocale, "settingsMore.usTextingDesc")
+            title: "US texting",
+            description: "Texting Canadian numbers already works. Texting US numbers "
+                + "needs a one-time carrier registration."
         ) {
             // ABOVE the button, because it is the answer to the question a
             // paused owner has before pressing anything — "is this even open to
@@ -426,16 +351,13 @@ private struct EnableUsCard: View {
         }
         .sheet(isPresented: $confirming) {
             ConfirmSheet(
-                title: AppStrings.translate(appLocale, "settingsMore.enableUsConfirmTitle"),
+                title: "Enable US texting?",
                 message: cardCopy.confirmMessage,
-                confirmLabel: AppStrings.translate(
-                    appLocale,
-                    pending ? "settingsMore.starting" : "settingsMore.enableUs"
-                ),
+                confirmLabel: pending ? "Starting…" : "Enable US texting",
                 pending: pending,
                 error: error,
                 confirmEnabled: !pending,
-                dismissLabel: AppStrings.translate(appLocale, "settingsMore.notNow"),
+                dismissLabel: "Not now",
                 onConfirm: { enable() },
                 onDismiss: {
                     guard !pending else { return }

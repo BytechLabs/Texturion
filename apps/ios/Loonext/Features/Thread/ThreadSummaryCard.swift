@@ -64,8 +64,6 @@ struct ThreadSummaryCard: View {
     let onOpenMessage: @MainActor (String) -> Void
     let onHide: @MainActor () -> Void
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
         Group {
             if offer.isOffered {
@@ -118,7 +116,7 @@ struct ThreadSummaryCard: View {
         Button(action: onAsk) {
             HStack(spacing: 8) {
                 AiOrb(state: .idle, size: 14)
-                Text(AppStrings.translate(appLocale, "thread.summaryOffer"))
+                Text("Catch me up")
                     .font(.golos(12.5, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
                 if let reason = threadCatchUpOfferLabel(offer) {
@@ -137,18 +135,17 @@ struct ThreadSummaryCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(
-            AppStrings.translate(appLocale, "thread.summaryOfferAria")
-        )
+        .accessibilityLabel("Catch me up on this thread")
         .accessibilityHint(
-            AppStrings.translate(appLocale, "thread.summaryOfferHint")
+            "Lou reads the thread and shows what they asked, what you said, and "
+                + "what's still open."
         )
     }
 
     private var loadingRow: some View {
         HStack(spacing: 8) {
             AiOrb(state: .thinking, size: 14)
-            Text(AppStrings.translate(appLocale, "thread.summaryReading"))
+            Text("Reading the thread\u{2026}")
                 .font(.golos(12.5))
                 .foregroundStyle(BrandColor.muted600)
             Spacer(minLength: 0)
@@ -173,14 +170,11 @@ struct ThreadSummaryCard: View {
     private func header(mark: AiOrbState) -> some View {
         HStack(spacing: 6) {
             AiOrb(state: mark, size: 12)
-            Text(AppStrings.translate(appLocale, "thread.summaryReady"))
+            Text("Lou's catch-up")
                 .font(.golos(11, weight: .semibold))
                 .foregroundStyle(BrandColor.muted500)
             Spacer(minLength: 8)
-            Button(
-                AppStrings.translate(appLocale, "thread.summaryHide"),
-                action: onHide
-            )
+            Button("Hide", action: onHide)
                 .buttonStyle(.plain)
                 .font(.golos(11.5, weight: .semibold))
                 .foregroundStyle(BrandColor.olive)
@@ -311,9 +305,7 @@ struct ThreadSummaryCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(line.text)
-        .accessibilityHint(
-            AppStrings.translate(appLocale, "thread.summaryLineHint")
-        )
+        .accessibilityHint("Opens the message this came from.")
     }
 }
 

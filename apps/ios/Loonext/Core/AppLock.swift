@@ -78,15 +78,10 @@ enum AppLock {
     ///
     /// Never "Session expired" or anything that reads as a fault. Nothing has gone
     /// wrong: the person turned this on, and the phone is theirs.
-    /// #228: `locale` defaults to English rather than being required, because
-    /// the only caller that cannot supply one is the unit test asserting the
-    /// RULE — that this never reads as a fault — rather than the words.
-    static func headline(_ reason: Reason, locale: String = MessageLocale.en) -> String {
+    static func headline(_ reason: Reason) -> String {
         switch reason {
-        case .coldStart, .awayTooLong:
-            return AppStrings.translate(locale, "shell.lockHeadlineInbox")
-        case .neverUnlocked:
-            return AppStrings.translate(locale, "shell.lockHeadlineFinish")
+        case .coldStart, .awayTooLong: return "Unlock to see your inbox"
+        case .neverUnlocked: return "Unlock to finish turning this on"
         }
     }
 

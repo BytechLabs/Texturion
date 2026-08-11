@@ -280,25 +280,12 @@ final class RootViewModel {
         do {
             let me = try await graph.meApi.me()
             guard !me.memberships.isEmpty else {
-                // #228: their own setting still decides, even with no workspace
-                // to fall back to — the hand-off screen is a screen.
-                UiLocaleStore.shared.apply(user: me.locale, company: nil)
                 state = .needsWorkspace(me)
                 return
             }
             let stored = graph.prefs.activeCompanyId
             let membership = me.memberships.first { $0.company_id == stored } ?? me.memberships[0]
             graph.prefs.setActiveCompany(membership.company_id)
-            // #228: the whole locale chain, settled before anything paints —
-            // their own setting, then their phone (which the store holds), then
-            // this workspace's. Applied on EVERY bootstrap, so a language
-            // changed on their laptop corrects here without a sign-out, and a
-            // workspace switch moves the last step to the new one.
-            //
-            // Deliberately not cleared on sign-out: the member's own choice is
-            // theirs and outlives the session, and the workspace's is only ever
-            // consulted when the other two say nothing.
-            UiLocaleStore.shared.apply(user: me.locale, company: membership.locale)
 
             let incomplete = membership.subscription_status == SubscriptionStatus.incomplete ||
                 membership.subscription_status == SubscriptionStatus.incompleteExpired
@@ -396,17 +383,7 @@ final class RootViewModel {
                 state = .failed(error.message)
             }
         } catch {
-            // #228: the one sentence on this path that is ours rather than the
-            // server's, so it is the one that has to be translated. Read off the
-            // store rather than the environment — there is no view here, and
-            // threading a locale down to one catch block would be worse than
-            // asking the app's single answer for it.
-            state = .failed(
-                AppStrings.translate(
-                    UiLocaleStore.shared.resolved,
-                    "shell.bootstrapFailed"
-                )
-            )
+            state = .failed("Couldn't load your workspace.")
         }
     }
 

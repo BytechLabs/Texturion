@@ -17,14 +17,10 @@ import SwiftUI
 struct ReferralCard: View {
     let view: ReferralsView
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
         SettingsCard(title: ReferralShare.title) {
             VStack(alignment: .leading, spacing: 12) {
-                // The reward line is `ReferralShare`'s, asserted against the
-                // shared TypeScript; only the full stop is ours.
-                Text(ReferralShare.rewardLine + ".")
+                Text("\(ReferralShare.rewardLine).")
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted600)
 
@@ -33,7 +29,7 @@ struct ReferralCard: View {
                 if view.referrals.isEmpty {
                     // Said rather than hidden: a card that disappears when there
                     // is nothing to show is a card nobody learns exists.
-                    Text(AppStrings.translate(appLocale, "settingsMore.noReferralsYet"))
+                    Text("Nobody has used your link yet.")
                         .font(.golos(13))
                         .foregroundStyle(BrandColor.muted600)
                 } else {
@@ -54,19 +50,10 @@ struct ReferralCard: View {
                 }
 
                 if view.rewarded_this_year > 0 {
-                    // Two whole sentences rather than a spliced plural: French
-                    // agrees the adjective as well as the noun, so a shared stem
-                    // with a swapped word cannot be translated.
                     Text(
-                        view.rewarded_this_year == 1
-                            ? AppStrings.translate(
-                                appLocale, "settingsMore.freeMonthEarned"
-                            )
-                            : AppStrings.translate(
-                                appLocale,
-                                "settingsMore.freeMonthsEarned",
-                                ["count": String(view.rewarded_this_year)]
-                            )
+                        "\(view.rewarded_this_year) free "
+                            + (view.rewarded_this_year == 1 ? "month" : "months")
+                            + " earned so far."
                     )
                     .font(.golos(13, weight: .medium))
                     .foregroundStyle(BrandColor.ink)

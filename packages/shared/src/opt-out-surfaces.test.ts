@@ -110,12 +110,7 @@ const OFFERS_REVOKE =
  * question gets asked wherever a person can press something.
  */
 const IS_CATALOGUE = (file: string) =>
-  // Case-INSENSITIVELY, because the three clients disagree about the folder's
-  // capitalisation and only iOS spells it `Core/I18n/`. Written lowercase, this
-  // matched web and Android and silently missed iOS the day iOS moved, so every
-  // iOS catalogue section was read as a surface that offers a revoke without
-  // asking which kind it is — three failures naming files nobody can press.
-  file.replaceAll("\\", "/").toLowerCase().includes("/i18n/");
+  file.replaceAll("\\", "/").includes("/i18n/");
 
 describe("#407 — every surface offering a revoke asks which kind it is", () => {
   const offering = CLIENT_ROOTS.flatMap(walk).filter(
@@ -165,9 +160,7 @@ describe("#407 — every surface offering a revoke asks which kind it is", () =>
             REPO,
             "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n",
           )
-        : path.includes("/apps/ios/")
-          ? join(REPO, "apps/ios/Loonext/Core/I18n")
-          : null;
+        : null;
     if (dir === null) return null;
     let catalogue = "";
     for (const entry of readdirSync(dir)) {

@@ -208,22 +208,10 @@ struct GettingStartedCard: View {
     @State private var steps: [StartedStep] = []
     @State private var dismissed = false
 
-    @Environment(\.appLocale) private var appLocale
-
     private var audience: StartedAudience {
         startedAudience(me.memberships.first { $0.company_id == companyId }?.role)
     }
 
-    /// #228 — STILL ENGLISH, and deliberately.
-    ///
-    /// `packages/shared/src/first-run-copy.test.ts` reads THIS FILE as one of
-    /// its three title sources and as iOS's copy source for every step label
-    /// and hint in `ownerSteps`/`memberSteps` below. It compares web's
-    /// catalogue against the two hand-ports; for iOS it still compares against
-    /// the source, the way it did for Android before that client's sentences
-    /// moved. Lifting these into `InboxStrings` would fail that guard rather
-    /// than help a French reader, so they wait for it to be re-pointed at
-    /// `Core/I18n/InboxStrings.swift`.
     private var title: String {
         audience == .setup ? "Getting started" : "Getting the hang of it"
     }
@@ -243,9 +231,8 @@ struct GettingStartedCard: View {
                         }
                         if audience == .doingTheJob {
                             Text(
-                                AppStrings.translate(
-                                    appLocale, "inbox.startedMemberFooter"
-                                )
+                                "Your notification settings are yours alone. "
+                                    + "Change when we buzz you in Settings."
                             )
                             .font(.golos(11.5))
                             .foregroundStyle(BrandColor.muted500)
@@ -273,16 +260,7 @@ struct GettingStartedCard: View {
                 Text(title)
                     .font(.golos(13.5, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
-                Text(
-                    AppStrings.translate(
-                        appLocale,
-                        "inbox.startedProgress",
-                        [
-                            "done": String(steps.filter(\.done).count),
-                            "total": String(steps.count),
-                        ]
-                    )
-                )
+                Text("\(steps.filter(\.done).count) of \(steps.count) done")
                     .font(.golos(11.5))
                     .monospacedDigit()
                     .foregroundStyle(BrandColor.muted500)
@@ -298,16 +276,7 @@ struct GettingStartedCard: View {
                     .frame(width: 30, height: 30)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(
-                AppStrings.translate(
-                    appLocale,
-                    "inbox.startedDismissAria",
-                    // The title is still English (see its note), so this frame
-                    // is translated and the name inside it is not — which is
-                    // the honest half-state rather than a hidden one.
-                    ["title": title.lowercased()]
-                )
-            )
+            .accessibilityLabel("Dismiss \(title.lowercased())")
         }
         .padding(.horizontal, 15)
         .padding(.top, 13)
@@ -321,13 +290,7 @@ struct GettingStartedCard: View {
             .tint(BrandColor.olive)
             .padding(.horizontal, 15)
             .padding(.top, 10)
-            .accessibilityLabel(
-                AppStrings.translate(
-                    appLocale,
-                    "inbox.startedProgressAria",
-                    ["done": String(done), "total": String(steps.count)]
-                )
-            )
+            .accessibilityLabel("\(done) of \(steps.count) steps done")
     }
 
     private func row(_ step: StartedStep) -> some View {
@@ -341,15 +304,7 @@ struct GettingStartedCard: View {
                     .font(.golos(13))
                     .foregroundStyle(step.done ? BrandColor.muted500 : BrandColor.ink)
                     .strikethrough(step.done, color: BrandColor.muted500)
-                    .accessibilityLabel(
-                        step.label
-                            + AppStrings.translate(
-                                appLocale,
-                                step.done
-                                    ? "inbox.startedStepDone"
-                                    : "inbox.startedStepNotDone"
-                            )
-                    )
+                    .accessibilityLabel(step.label + (step.done ? ", done" : ", not done yet"))
                 if !step.done, let hint = step.hint {
                     Text(hint)
                         .font(.golos(11.5))

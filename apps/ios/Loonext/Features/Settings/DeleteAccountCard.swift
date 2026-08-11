@@ -28,27 +28,21 @@ struct DeleteAccountCard: View {
     @State private var typed = ""
     @State private var deleting = false
 
-    @Environment(\.appLocale) private var appLocale
-
     private var confirmed: Bool {
         typed.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == confirmWord
     }
 
-    private func t(_ key: String) -> String {
-        AppStrings.translate(appLocale, key)
-    }
-
     var body: some View {
         SettingsCard(
-            title: t("settings.deleteTitle"),
-            description: t("settings.deleteIntro")
+            title: "Delete your account",
+            description: "Removes you from Loonext entirely. This cannot be undone."
         ) {
             if !expanded {
-                Button(t("settings.deleteAction")) { load() }
+                Button("Delete my account") { load() }
                     .buttonStyle(.bordered)
                     .tint(BrandColor.destructive)
             } else if loading {
-                Text(t("settings.deleteChecking"))
+                Text("Checking your account…")
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted600)
             } else if let error {
@@ -62,11 +56,15 @@ struct DeleteAccountCard: View {
         // The typed gate lives in the card, not in this alert: SwiftUI ignores
         // most modifiers on alert buttons, so a `.disabled` confirm there would
         // look gated and not be. The alert is the last plain "are you sure".
-        .alert(t("settings.deleteConfirmTitle"), isPresented: $confirming) {
-            Button(t("settings.deleteKeep"), role: .cancel) {}
-            Button(t("settings.deleteAction"), role: .destructive) { remove() }
+        .alert("Delete your account?", isPresented: $confirming) {
+            Button("Keep my account", role: .cancel) {}
+            Button("Delete my account", role: .destructive) { remove() }
         } message: {
-            Text(t("settings.deleteConfirmBody"))
+            Text(
+                "You will be signed out everywhere and will not be able to sign back in. "
+                    + "Your work stays with the business, without your name on it. "
+                    + "Nobody can undo this."
+            )
         }
     }
 
@@ -76,19 +74,19 @@ struct DeleteAccountCard: View {
     /// rather than counted: the owner needs to know WHICH.
     private var ownedNames: String {
         let names = preview?.owned_workspaces.map(\.name) ?? []
-        return names.isEmpty
-            ? t("settings.deleteOwnedFallback")
-            : names.joined(separator: ", ")
+        return names.isEmpty ? "a workspace" : names.joined(separator: ", ")
     }
 
     private var blockedByOwnership: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(AppStrings.translate(
-                appLocale, "settings.deleteBlockedByOwnership", ["workspaces": ownedNames]
-            ))
+            Text(
+                "You own \(ownedNames). "
+                    + "A workspace cannot be left without an owner, so hand it to someone else "
+                    + "or close it first — then you can delete your account."
+            )
             .font(.golos(13))
             .foregroundStyle(BrandColor.ink)
-            Text(t("settings.deleteClosingIsElsewhere"))
+            Text("Closing a workspace is on the workspace settings screen.")
                 .font(.golos(12))
                 .foregroundStyle(BrandColor.muted600)
         }
@@ -97,9 +95,12 @@ struct DeleteAccountCard: View {
 
     private var consequences: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(t("settings.deleteSignedOut"))
-                .font(.golos(12))
-                .foregroundStyle(BrandColor.muted600)
+            Text(
+                "You are signed out everywhere and cannot sign back in. Your name comes "
+                    + "off the app, and notifications stop."
+            )
+            .font(.golos(12))
+            .foregroundStyle(BrandColor.muted600)
 
             if let preview, preview.memberships > 0 {
                 Text(leavingSentence(preview))
@@ -107,32 +108,34 @@ struct DeleteAccountCard: View {
                     .foregroundStyle(BrandColor.muted600)
             }
 
-            Text(t("settings.deleteRecordStays"))
-                .font(.golos(12))
-                .foregroundStyle(BrandColor.muted600)
+            Text(
+                "Texts you sent to customers, jobs you logged and notes you wrote stay with "
+                    + "the business. They have to — that record is theirs, and some of it we "
+                    + "are required by law to keep. They will no longer carry your name."
+            )
+            .font(.golos(12))
+            .foregroundStyle(BrandColor.muted600)
 
             // #371: said here rather than after the fact, because the moment
             // this succeeds you are signed out and there is no screen left to
             // read a confirmation on.
-            Text(t("settings.deleteConfirmationEmail"))
-                .font(.golos(12))
-                .foregroundStyle(BrandColor.muted600)
+            Text(
+                "We email you a confirmation before your address is removed. It is the "
+                    + "last thing you will get from us, and it is worth keeping."
+            )
+            .font(.golos(12))
+            .foregroundStyle(BrandColor.muted600)
 
             // The deliberate pause. This is the one place in the product where
             // slowing someone down is the right thing to do.
-            TextField(
-                AppStrings.translate(
-                    appLocale, "settings.deleteTypeToConfirm", ["word": confirmWord]
-                ),
-                text: $typed
-            )
+            TextField("Type \(confirmWord) to confirm", text: $typed)
                 .textFieldStyle(.roundedBorder)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .font(.golos(13))
                 .padding(.top, 6)
 
-            Button(t("settings.deleteAction"), role: .destructive) { confirming = true }
+            Button("Delete my account", role: .destructive) { confirming = true }
                 .buttonStyle(.borderedProminent)
                 .tint(BrandColor.destructive)
                 .disabled(!confirmed || deleting)
@@ -141,24 +144,14 @@ struct DeleteAccountCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Four whole sentences rather than a stem and a tail.
-    ///
-    /// The English reads as one sentence with a clause bolted on, and it cannot
-    /// be translated that way: French agrees the verb with the count and puts
-    /// the clause somewhere else. A shared stem would have printed half a
-    /// sentence in one language and half in the other. Same split as Android's.
     private func leavingSentence(_ preview: AccountDeletionPreview) -> String {
-        let openWork = preview.openWork > 0
-        if preview.memberships == 1 {
-            return t(
-                openWork ? "settings.deleteLeaveOneOpenWork" : "settings.deleteLeaveOne"
-            )
-        }
-        return AppStrings.translate(
-            appLocale,
-            openWork ? "settings.deleteLeaveManyOpenWork" : "settings.deleteLeaveMany",
-            ["count": "\(preview.memberships)"]
-        )
+        let where_ = preview.memberships == 1
+            ? "You leave your workspace"
+            : "You leave all \(preview.memberships) of your workspaces"
+        let work = preview.openWork > 0
+            ? ", and anything you are still working on goes back to the crew so nothing is lost."
+            : "."
+        return where_ + work
     }
 
     private func load() {
@@ -171,7 +164,7 @@ struct DeleteAccountCard: View {
             } catch {
                 // `self.` is load-bearing: the caught `error` shadows the
                 // property of the same name.
-                self.error = t("settings.deletePreviewFailed")
+                self.error = "Couldn't check your account. Try again in a moment."
             }
             loading = false
         }
@@ -190,7 +183,8 @@ struct DeleteAccountCard: View {
                 deleting = false
                 typed = ""
                 scope.showMessage(
-                    (failure as? ApiError)?.message ?? t("settings.deleteFailed")
+                    (failure as? ApiError)?.message
+                        ?? "Couldn't delete your account. Try again in a moment."
                 )
             }
         }

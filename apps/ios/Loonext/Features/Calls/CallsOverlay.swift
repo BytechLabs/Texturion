@@ -77,8 +77,6 @@ private struct SoftphoneNotice: View {
     let message: String
     let onDismiss: @MainActor () -> Void
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Text(message)
@@ -93,7 +91,7 @@ private struct SoftphoneNotice: View {
                     .frame(width: 28, height: 28)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(AppStrings.translate(appLocale, "contactsTasks.dismiss"))
+            .accessibilityLabel("Dismiss")
         }
         .padding(.leading, 14)
         .padding(.trailing, 4)
@@ -112,8 +110,6 @@ private struct SoftphoneNotice: View {
 struct CallChip: View {
     let manager: CallsManager
     let onExpand: @MainActor () -> Void
-
-    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         let snapshot = manager.state
@@ -173,7 +169,7 @@ struct CallChip: View {
                     .background(BrandColor.destructive, in: Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(AppStrings.translate(appLocale, "contactsTasks.decline"))
+            .accessibilityLabel("Decline")
             Button {
                 answerWithMicPreflight(call.id)
             } label: {
@@ -184,7 +180,7 @@ struct CallChip: View {
                     .background(BrandColor.lime, in: Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(AppStrings.translate(appLocale, "contactsTasks.answer"))
+            .accessibilityLabel("Answer")
         } else if call.phase == .ended {
             Button {
                 manager.dismiss(call.id)
@@ -196,7 +192,7 @@ struct CallChip: View {
                     .background(BrandColor.inset, in: Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(AppStrings.translate(appLocale, "contactsTasks.dismiss"))
+            .accessibilityLabel("Dismiss")
         } else {
             Button {
                 manager.hangup(call.id)
@@ -208,7 +204,7 @@ struct CallChip: View {
                     .background(BrandColor.destructive, in: Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(AppStrings.translate(appLocale, "contactsTasks.hangUp"))
+            .accessibilityLabel("Hang up")
         }
     }
 
@@ -225,7 +221,8 @@ struct CallChip: View {
                 // kept looking tappable, and nothing said why. (The place-call
                 // paths already report this; the answer paths did not.)
                 manager.reportUiError(
-                    AppStrings.translate(appLocale, "contactsTasks.micNeededToAnswer")
+                    "Loonext needs the microphone to answer calls. "
+                        + "Allow it in Settings › Loonext."
                 )
             }
         }
@@ -238,18 +235,16 @@ private struct ChipStatus: View {
     let call: CallSnapshot
     let heldCount: Int
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
         switch call.phase {
         case .ringing:
-            statusText(AppStrings.translate(appLocale, "contactsTasks.phaseIncoming"))
+            statusText("Incoming call")
         case .connecting:
-            statusText(AppStrings.translate(appLocale, "contactsTasks.phaseCalling"))
+            statusText("Calling…")
         case .held:
-            statusText(AppStrings.translate(appLocale, "contactsTasks.phaseOnHold"))
+            statusText("On hold")
         case .ended:
-            statusText(AppStrings.translate(appLocale, "contactsTasks.phaseEnded"))
+            statusText("Call ended")
         case .active:
             if let anchor = call.activeSince {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -257,13 +252,7 @@ private struct ChipStatus: View {
                         elapsedMs: Int(context.date.timeIntervalSince(anchor) * 1000)
                     )
                     statusText(
-                        heldCount > 0
-                            ? AppStrings.translate(
-                                appLocale,
-                                "contactsTasks.timerOnHold",
-                                ["timer": timer, "count": "\(heldCount)"]
-                            )
-                            : timer
+                        heldCount > 0 ? "\(timer) · \(heldCount) on hold" : timer
                     )
                 }
             }

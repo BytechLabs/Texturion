@@ -60,14 +60,6 @@ final class AuthViewModel {
         self.authManager = authManager
     }
 
-    /// #228: the language for the four sentences this model writes itself.
-    ///
-    /// Read from the store rather than taken from the environment, because
-    /// nothing here is a view — and because at the front door the answer is the
-    /// PHONE's language anyway: there is no session yet, so there is no member
-    /// setting to prefer over it.
-    private var locale: String { UiLocaleStore.shared.resolved }
-
     // MARK: - Password paths (captcha-aware)
 
     func signIn(email: String, password: String) {
@@ -122,7 +114,7 @@ final class AuthViewModel {
                     // The minted token was rejected (expired or consumed —
                     // they're single-use). The next tap re-mints from scratch.
                     busy = false
-                    error = AppStrings.translate(locale, "shell.authCaptchaRejected")
+                    error = "That security check didn't go through. Please try again."
                 }
             } catch let failure {
                 busy = false
@@ -156,9 +148,9 @@ final class AuthViewModel {
 
     private func fallbackMessage(for action: PasswordAuthAction) -> String {
         switch action {
-        case .signIn: AppStrings.translate(locale, "shell.authSignInFailed")
-        case .signUp: AppStrings.translate(locale, "shell.authSignUpFailed")
-        case .reset: AppStrings.translate(locale, "shell.authResetFailed")
+        case .signIn: "Sign-in failed."
+        case .signUp: "Sign-up failed."
+        case .reset: "Couldn't send the reset email."
         }
     }
 
@@ -276,15 +268,6 @@ struct AuthFlow: View {
 /// BrandColor.olive's adaptive pair). Always exactly the second o, always
 /// text spans, never an image.
 private struct Wordmark: View {
-    /// #228: the product's own name, which is the same word in every language.
-    ///
-    /// A constant rather than a catalogue key: an entry saying "Loonext" in both
-    /// columns is an invitation for somebody to translate it one day, and the
-    /// rule on all three clients is that product names are never translated. It
-    /// is a value rather than a literal in the modifier only so the hardcoded-
-    /// string ledger does not have to carry a permanent entry for it.
-    private static let name = "Loonext"
-
     var body: some View {
         (
             Text("Lo").foregroundStyle(BrandColor.ink)
@@ -293,7 +276,7 @@ private struct Wordmark: View {
         )
         .font(.golos(20, weight: .semibold))
         .kerning(-0.4)
-        .accessibilityLabel(Self.name)
+        .accessibilityLabel("Loonext")
     }
 }
 
@@ -374,7 +357,6 @@ private struct SsoButtons: View {
     let appleLabel: SignInWithAppleButton.Label
 
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         VStack(spacing: 10) {
@@ -391,7 +373,7 @@ private struct SsoButtons: View {
             Button {
                 model.signInWithGoogle()
             } label: {
-                Text(AppStrings.translate(appLocale, "shell.authContinueGoogle"))
+                Text("Continue with Google")
                     .font(.golos(13.5, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
                     .frame(maxWidth: .infinity)
@@ -408,7 +390,7 @@ private struct SsoButtons: View {
 
             HStack(spacing: 10) {
                 Rectangle().fill(BrandColor.insetDeep).frame(height: 1)
-                Text(AppStrings.translate(appLocale, "shell.authOr"))
+                Text("or")
                     .font(.golos(11, weight: .semibold))
                     .foregroundStyle(BrandColor.muted300)
                 Rectangle().fill(BrandColor.insetDeep).frame(height: 1)
@@ -426,47 +408,27 @@ private struct LoginForm: View {
 
     @State private var email = ""
     @State private var password = ""
-    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         VStack(spacing: 12) {
             AuthHeadline(
-                title: AppStrings.translate(appLocale, "shell.authLoginTitle"),
-                sub: AppStrings.translate(appLocale, "shell.authLoginSub")
+                title: "The whole crew,\none business number.",
+                sub: "Texts, calls, and the jobs that come from them — together in one inbox."
             )
             SsoButtons(model: model, appleLabel: .signIn)
-            AuthField(
-                AppStrings.translate(appLocale, "shell.authEmail"),
-                text: $email,
-                kind: .email
-            )
-            AuthField(
-                AppStrings.translate(appLocale, "shell.authPassword"),
-                text: $password,
-                kind: .password
-            )
+            AuthField("Email", text: $email, kind: .email)
+            AuthField("Password", text: $password, kind: .password)
             ErrorLine(error: model.error)
             PrimaryButton(
-                title: AppStrings.translate(
-                    appLocale,
-                    model.busy ? "shell.authSigningIn" : "shell.authSignIn"
-                ),
+                title: model.busy ? "Signing in…" : "Sign in",
                 enabled: !model.busy && !email.isBlank && !password.isBlank
             ) {
                 model.signIn(email: email, password: password)
             }
-            LinkButton(
-                AppStrings.translate(appLocale, "shell.authForgot"),
-                tint: BrandColor.muted500,
-                action: onForgot
-            )
-            .padding(.top, 6)
-            LinkButton(
-                AppStrings.translate(appLocale, "shell.authNewHere"),
-                tint: BrandColor.ink,
-                action: onSignUp
-            )
-            .padding(.top, 10)
+            LinkButton("Forgot password?", tint: BrandColor.muted500, action: onForgot)
+                .padding(.top, 6)
+            LinkButton("New to Loonext? Create your account", tint: BrandColor.ink, action: onSignUp)
+                .padding(.top, 10)
         }
         .frame(maxWidth: .infinity)
     }
@@ -480,68 +442,43 @@ private struct SignUpForm: View {
     @State private var name = ""
     @State private var email = ""
     @State private var password = ""
-    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         if model.confirmationSent {
             VStack(spacing: 16) {
                 AuthHeadline(
-                    title: AppStrings.translate(appLocale, "shell.authCheckEmailTitle"),
-                    sub: AppStrings.translate(appLocale, "shell.authCheckEmailSub")
+                    title: "Check your email",
+                    sub: "Confirm your account from the email we just sent, then sign in."
                 )
-                SentNote(
-                    text: AppStrings.translate(appLocale, "shell.authCheckEmailNote")
-                )
-                LinkButton(
-                    AppStrings.translate(appLocale, "shell.authBackToSignIn"),
-                    action: onLogin
-                )
+                SentNote(text: "Check your email to confirm your account, then sign in.")
+                LinkButton("Back to sign in", action: onLogin)
             }
             .frame(maxWidth: .infinity)
         } else {
             VStack(spacing: 12) {
                 AuthHeadline(
-                    title: AppStrings.translate(appLocale, "shell.authSignUpTitle"),
-                    sub: AppStrings.translate(appLocale, "shell.authSignUpSub")
+                    title: "Create your account",
+                    sub: "Your business number in minutes."
                 )
                 SsoButtons(model: model, appleLabel: .signUp)
-                AuthField(
-                    AppStrings.translate(appLocale, "shell.authName"),
-                    text: $name,
-                    kind: .name
-                )
-                AuthField(
-                    AppStrings.translate(appLocale, "shell.authEmail"),
-                    text: $email,
-                    kind: .email
-                )
+                AuthField("Your name", text: $name, kind: .name)
+                AuthField("Email", text: $email, kind: .email)
                 VStack(alignment: .leading, spacing: 5) {
-                    AuthField(
-                        AppStrings.translate(appLocale, "shell.authPassword"),
-                        text: $password,
-                        kind: .newPassword
-                    )
-                    Text(AppStrings.translate(appLocale, "shell.authPasswordHint"))
+                    AuthField("Password", text: $password, kind: .newPassword)
+                    Text("At least 8 characters.")
                         .font(.golos(10.5))
                         .foregroundStyle(BrandColor.muted300)
                         .padding(.horizontal, 4)
                 }
                 ErrorLine(error: model.error)
                 PrimaryButton(
-                    title: AppStrings.translate(
-                        appLocale,
-                        model.busy ? "shell.authCreating" : "shell.authCreateAccount"
-                    ),
+                    title: model.busy ? "Creating account…" : "Create account",
                     enabled: !model.busy && !name.isBlank && !email.isBlank && password.count >= 8
                 ) {
                     model.signUp(name: name, email: email, password: password)
                 }
-                LinkButton(
-                    AppStrings.translate(appLocale, "shell.authHaveAccount"),
-                    tint: BrandColor.ink,
-                    action: onLogin
-                )
-                .padding(.top, 10)
+                LinkButton("Already have an account? Sign in", tint: BrandColor.ink, action: onLogin)
+                    .padding(.top, 10)
             }
             .frame(maxWidth: .infinity)
         }
@@ -554,49 +491,34 @@ private struct ForgotForm: View {
     let onLogin: @MainActor () -> Void
 
     @State private var email = ""
-    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         if model.resetSent {
             VStack(spacing: 16) {
                 AuthHeadline(
-                    title: AppStrings.translate(appLocale, "shell.authResetTitle"),
-                    sub: AppStrings.translate(appLocale, "shell.authResetSub")
+                    title: "Reset your password",
+                    sub: "We'll email you a reset link. It works for an hour."
                 )
-                SentNote(text: AppStrings.translate(appLocale, "shell.authResetNote"))
-                LinkButton(
-                    AppStrings.translate(appLocale, "shell.authBackToSignIn"),
-                    action: onLogin
-                )
+                SentNote(text: "If that email has an account, a reset link is on its way. Didn't get it? Check spam.")
+                LinkButton("Back to sign in", action: onLogin)
             }
             .frame(maxWidth: .infinity)
         } else {
             VStack(spacing: 12) {
                 AuthHeadline(
-                    title: AppStrings.translate(appLocale, "shell.authResetTitle"),
-                    sub: AppStrings.translate(appLocale, "shell.authResetSub")
+                    title: "Reset your password",
+                    sub: "We'll email you a reset link. It works for an hour."
                 )
-                AuthField(
-                    AppStrings.translate(appLocale, "shell.authEmail"),
-                    text: $email,
-                    kind: .email
-                )
+                AuthField("Email", text: $email, kind: .email)
                 ErrorLine(error: model.error)
                 PrimaryButton(
-                    title: AppStrings.translate(
-                        appLocale,
-                        model.busy ? "shell.authSending" : "shell.authSendResetLink"
-                    ),
+                    title: model.busy ? "Sending…" : "Send reset link",
                     enabled: !model.busy && !email.isBlank
                 ) {
                     model.sendReset(email: email)
                 }
-                LinkButton(
-                    AppStrings.translate(appLocale, "shell.authRemembered"),
-                    tint: BrandColor.ink,
-                    action: onLogin
-                )
-                .padding(.top, 10)
+                LinkButton("Remembered it? Back to sign in", tint: BrandColor.ink, action: onLogin)
+                    .padding(.top, 10)
             }
             .frame(maxWidth: .infinity)
         }

@@ -43,15 +43,13 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
     @State private var onCall = false
     @State private var silencing: SilencedChannel?
 
-    @Environment(\.appLocale) private var appLocale
-
     private var feedApi: NotificationsFeedApi {
         NotificationsFeedApi(api: graph.api)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(AppStrings.translate(appLocale, "inbox.notificationsHeading"))
+            Text("Notifications")
                 .font(.golos(15, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
 
@@ -69,7 +67,7 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
                     Text(message)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    Button(AppStrings.translate(appLocale, "common.retry")) {
+                    Button("Try again") {
                         state = .loading
                         retryKey += 1
                     }
@@ -79,10 +77,9 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
 
             case .ready(let prefs):
                 PrefToggleRow(
-                    title: AppStrings.translate(appLocale, "inbox.notifEmailTitle"),
-                    supporting: AppStrings.translate(
-                        appLocale, "inbox.notifEmailSupporting"
-                    ),
+                    title: "Email",
+                    supporting: "An email when a new conversation starts or a customer "
+                        + "texts back after a quiet spell. Never one per message.",
                     isOn: prefs.email_enabled
                 ) { checked in
                     // #538 (audit): warn, do not refuse. Somebody who wants a quiet
@@ -103,10 +100,8 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
                     save(next, previous: prefs)
                 }
                 PrefToggleRow(
-                    title: AppStrings.translate(appLocale, "inbox.notifPushTitle"),
-                    supporting: AppStrings.translate(
-                        appLocale, "inbox.notifPushSupporting"
-                    ),
+                    title: "Push",
+                    supporting: "Notifications on your devices for new texts and missed calls.",
                     isOn: prefs.push_enabled
                 ) { checked in
                     if onCall, !checked {
@@ -177,10 +172,7 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
         // nothing. Every other irreversible-ish action in settings already named
         // its consequence; going quiet while on call did not, and it is the one
         // where silence IS the failure.
-        .alert(
-            AppStrings.translate(appLocale, "inbox.notifOnCallTitle"),
-            isPresented: silencingBinding
-        ) {
+        .alert("You're on call", isPresented: silencingBinding) {
             Button(OnCallSilence.cancel, role: .cancel) { silencing = nil }
             Button(OnCallSilence.confirm, role: .destructive) {
                 let channel = silencing?.id
@@ -332,13 +324,12 @@ private struct DevicePushSection: View {
 
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
-    @Environment(\.appLocale) private var appLocale
     @State private var pushState: DevicePushState = .checking
     @State private var requesting = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(AppStrings.translate(appLocale, "inbox.notifDeviceHeading"))
+            Text("Push on this device")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .padding(.top, 12)
@@ -349,33 +340,32 @@ private struct DevicePushSection: View {
                     .controlSize(.small)
 
             case .unavailable:
-                Text(AppStrings.translate(appLocale, "inbox.notifPushUnavailable"))
+                Text("Push isn't available in this build yet. Everything still shows up in the app.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
             case .on:
                 statusRow(
-                    text: AppStrings.translate(appLocale, "inbox.notifDeviceOnBody"),
-                    action: AppStrings.translate(appLocale, "inbox.notifSystemSettings"),
+                    text: "This device gets a notification when a customer texts or calls.",
+                    action: "System settings",
                     solid: false,
                     onAction: openSystemSettings
                 )
 
             case .off:
                 statusRow(
-                    text: AppStrings.translate(appLocale, "inbox.notifDeviceOffBody"),
-                    action: AppStrings.translate(
-                        appLocale,
-                        requesting ? "inbox.notifTurningOn" : "inbox.notifTurnOn"
-                    ),
+                    text: "Get a notification on this device when a customer texts or calls, "
+                        + "even with Loonext closed.",
+                    action: requesting ? "Turning on…" : "Turn on",
                     solid: true,
                     onAction: turnOn
                 )
 
             case .blocked:
                 statusRow(
-                    text: AppStrings.translate(appLocale, "inbox.notifDeviceBlockedBody"),
-                    action: AppStrings.translate(appLocale, "inbox.notifOpenSettings"),
+                    text: "Notifications are turned off for Loonext in system settings. "
+                        + "Turn them on there to get pinged.",
+                    action: "Open settings",
                     solid: false,
                     onAction: openSystemSettings
                 )

@@ -32,14 +32,13 @@ struct DiagnosticsView: View {
     @State private var entries: [DiagnosticsEntry] = []
     @State private var crashes: [CrashReport] = []
     @State private var confirmingClear = false
-    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 13) {
-                ScreenTitle(text: AppStrings.translate(appLocale, "shell.diagTitle"))
+                ScreenTitle(text: "Diagnostics")
 
-                SectionHeader(label: AppStrings.translate(appLocale, "shell.diagDevice"))
+                SectionHeader(label: "Device")
                 PaperCard {
                     ForEach(Array(snapshot.rows.enumerated()), id: \.offset) { index, row in
                         if index > 0 { RowDivider() }
@@ -47,13 +46,10 @@ struct DiagnosticsView: View {
                     }
                 }
 
-                SectionHeader(
-                    label: AppStrings.translate(appLocale, "shell.diagRecentEvents"),
-                    count: entries.count
-                )
+                SectionHeader(label: "Recent events", count: entries.count)
                 PaperCard {
                     if entries.isEmpty {
-                        Text(AppStrings.translate(appLocale, "shell.diagNoEvents"))
+                        Text("Nothing recorded on this device.")
                             .font(.golos(12.5))
                             .foregroundStyle(BrandColor.muted500)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -69,10 +65,7 @@ struct DiagnosticsView: View {
 
                 // #485. Below the events, because a crash is rarer and the
                 // events are what somebody scrolls for day to day.
-                SectionHeader(
-                    label: AppStrings.translate(appLocale, "shell.diagCrashes"),
-                    count: crashes.count
-                )
+                SectionHeader(label: "Crashes", count: crashes.count)
                 PaperCard {
                     if crashes.isEmpty {
                         // Says WHY it might be empty. MetricKit hands crashes
@@ -81,13 +74,17 @@ struct DiagnosticsView: View {
                         // yet" — and without this line it reads as "the
                         // capture is broken", which is the wrong conclusion to
                         // invite on a diagnostics screen.
-                        Text(AppStrings.translate(appLocale, "shell.diagNoCrashes"))
-                            .font(.golos(12.5))
-                            .foregroundStyle(BrandColor.muted500)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 15)
-                            .padding(.vertical, 13)
+                        Text(
+                            "None captured. iOS hands crash reports over on its "
+                                + "own schedule, usually within a day, so a crash "
+                                + "from just now may not be here yet."
+                        )
+                        .font(.golos(12.5))
+                        .foregroundStyle(BrandColor.muted500)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 15)
+                        .padding(.vertical, 13)
                     } else {
                         ForEach(Array(crashes.enumerated()), id: \.element.id) { index, crash in
                             if index > 0 { RowDivider() }
@@ -113,20 +110,12 @@ struct DiagnosticsView: View {
                                 .font(.scaled(15, weight: .medium))
                                 .foregroundStyle(BrandColor.muted500)
                             VStack(alignment: .leading, spacing: 1) {
-                                Text(
-                                    AppStrings.translate(
-                                        appLocale, "shell.diagShareEverything"
-                                    )
-                                )
-                                .font(.golos(13.5, weight: .semibold))
-                                .foregroundStyle(BrandColor.ink)
-                                Text(
-                                    AppStrings.translate(
-                                        appLocale, "shell.diagShareCaption"
-                                    )
-                                )
-                                .font(.golos(11.5))
-                                .foregroundStyle(BrandColor.muted500)
+                                Text("Share everything")
+                                    .font(.golos(13.5, weight: .semibold))
+                                    .foregroundStyle(BrandColor.ink)
+                                Text("Device facts and recent events in one message")
+                                    .font(.golos(11.5))
+                                    .foregroundStyle(BrandColor.muted500)
                             }
                             Spacer(minLength: 0)
                         }
@@ -141,7 +130,7 @@ struct DiagnosticsView: View {
                         Button {
                             confirmingClear = true
                         } label: {
-                            Text(AppStrings.translate(appLocale, "shell.diagClearEvents"))
+                            Text("Clear events")
                                 .font(.golos(13.5, weight: .semibold))
                                 .foregroundStyle(BrandColor.coral)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -167,14 +156,11 @@ struct DiagnosticsView: View {
         // Ethical friction: clearing is the one destructive thing here, and the
         // events it destroys are the evidence somebody came to this screen for.
         .confirmationDialog(
-            AppStrings.translate(appLocale, "shell.diagClearTitle"),
+            "Clear recorded events?",
             isPresented: $confirmingClear,
             titleVisibility: .visible
         ) {
-            Button(
-                AppStrings.translate(appLocale, "shell.diagClearEvents"),
-                role: .destructive
-            ) {
+            Button("Clear events", role: .destructive) {
                 DiagnosticsLog.clear()
                 entries = []
             }
@@ -182,18 +168,15 @@ struct DiagnosticsView: View {
             // events button. They are the rarer, more valuable artefact, and a
             // person tidying a noisy event list should not lose the one stack
             // somebody has been waiting for.
-            Button(
-                AppStrings.translate(appLocale, "shell.diagClearAll"),
-                role: .destructive
-            ) {
+            Button("Clear events and crashes", role: .destructive) {
                 DiagnosticsLog.clear()
                 CrashReportStore.clear()
                 entries = []
                 crashes = []
             }
-            Button(AppStrings.translate(appLocale, "shell.diagKeep"), role: .cancel) {}
+            Button("Keep", role: .cancel) {}
         } message: {
-            Text(AppStrings.translate(appLocale, "shell.diagClearBody"))
+            Text("This is the only copy. Share it first if somebody asked for it.")
         }
     }
 
@@ -231,16 +214,12 @@ struct DiagnosticsView: View {
                     .font(.scaled(10.5, design: .monospaced))
                     .foregroundStyle(BrandColor.muted400)
                 if let version = crash.appVersion {
-                    Text(
-                        AppStrings.translate(
-                            appLocale, "shell.diagBuild", ["version": version]
-                        )
-                    )
-                    .font(.scaled(10.5, design: .monospaced))
-                    .foregroundStyle(BrandColor.muted400)
+                    Text("build \(version)")
+                        .font(.scaled(10.5, design: .monospaced))
+                        .foregroundStyle(BrandColor.muted400)
                 }
             }
-            Text(crash.reason ?? AppStrings.translate(appLocale, "shell.diagNoReason"))
+            Text(crash.reason ?? "No reason reported")
                 .font(.scaled(12, design: .monospaced))
                 .foregroundStyle(BrandColor.ink)
                 .fixedSize(horizontal: false, vertical: true)

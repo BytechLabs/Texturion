@@ -84,114 +84,80 @@ private func matches(_ value: String, _ pattern: String) -> Bool {
 /// The first thing wrong with the form, in the reader's words, or nil when it is
 /// ready to send. One message at a time: a wall of red on a phone form is noise,
 /// and the server re-validates anyway.
-///
-/// #228: `locale` is the reader's language, defaulted so no existing caller has
-/// to change. It is threaded ONE layer — the view that renders this sentence is
-/// the view that calls this — rather than reaching for an environment a plain
-/// function does not have.
-///
-/// The field NAME is a key too, not an English fragment glued into a template:
-/// "Enter the city." is one sentence in English and "Entrez la ville." in
-/// French, and only a whole-sentence substitution can agree the article.
 func registrationFixProblem(
     _ form: RegistrationFixValues,
     editBrand: Bool,
     editCampaign: Bool,
     soleProp: Bool,
-    country: String,
-    locale: String = MessageLocale.en
+    country: String
 ) -> String? {
-    func say(_ key: String, _ vars: [String: String] = [:]) -> String {
-        AppStrings.translate(locale, key, vars)
-    }
-
-    func blank(_ value: String, _ fieldKey: String, _ max: Int) -> String? {
+    func blank(_ value: String, _ label: String, _ max: Int) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        let field = say(fieldKey)
-        if trimmed.isEmpty { return say("settingsMore.enterField", ["field": field]) }
-        if trimmed.count > max {
-            return say(
-                "settingsMore.fieldTooLong", ["field": field, "max": String(max)]
-            )
-        }
+        if trimmed.isEmpty { return "Enter \(label)." }
+        if trimmed.count > max { return "Keep \(label) under \(max) characters." }
         return nil
     }
 
     if editBrand {
-        if let problem = blank(form.displayName, "settingsMore.fieldKnownName", 255) {
+        if let problem = blank(form.displayName, "the business name customers know", 255) {
             return problem
         }
         let email = form.email.trimmingCharacters(in: .whitespacesAndNewlines)
         if !matches(email, "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$") || email.count > 320 {
-            return say("settingsMore.enterContactEmail")
+            return "Enter a contact email address."
         }
         let phone = form.phone.trimmingCharacters(in: .whitespacesAndNewlines)
         if !matches(phone, "^\\+?[0-9()\\-. ]{10,20}$") {
-            return say("settingsMore.enterContactPhone")
+            return "Enter a contact phone number."
         }
-        if let problem = blank(form.street, "settingsMore.fieldStreet", 255) { return problem }
-        if let problem = blank(form.city, "settingsMore.fieldCity", 100) { return problem }
+        if let problem = blank(form.street, "the street address", 255) { return problem }
+        if let problem = blank(form.city, "the city", 100) { return problem }
         if let problem = blank(
-            form.state,
-            country == "US" ? "settingsMore.fieldState" : "settingsMore.fieldProvince",
-            20
+            form.state, country == "US" ? "the state" : "the province", 20
         ) { return problem }
         if let problem = blank(
-            form.postalCode,
-            country == "US" ? "settingsMore.fieldZip" : "settingsMore.fieldPostal",
-            10
+            form.postalCode, country == "US" ? "the ZIP code" : "the postal code", 10
         ) { return problem }
 
         let ein = form.ein.trimmingCharacters(in: .whitespacesAndNewlines)
         if soleProp {
-            if let problem = blank(form.firstName, "settingsMore.fieldFirstName", 100) {
-                return problem
-            }
-            if let problem = blank(form.lastName, "settingsMore.fieldLastName", 100) {
-                return problem
-            }
+            if let problem = blank(form.firstName, "your first name", 100) { return problem }
+            if let problem = blank(form.lastName, "your last name", 100) { return problem }
             if !matches(ein, "^\\d{4}$") {
-                return say(
-                    "settingsMore.enterLast4",
-                    [
-                        "idLabel": say(
-                            country == "US"
-                                ? "settingsMore.ssnLabel"
-                                : "settingsMore.sinLabel"
-                        )
-                    ]
-                )
+                return "Enter the last 4 digits of your "
+                    + (country == "US" ? "SSN" : "SIN") + "."
             }
             if normalizeNanpInput(form.mobilePhone) == nil {
-                return say("settingsMore.enterMobileForCode")
+                return "Enter a US or Canadian mobile number; it gets the verification text."
             }
         } else {
-            if let problem = blank(form.companyName, "settingsMore.fieldLegalName", 255) {
+            if let problem = blank(form.companyName, "your legal business name", 255) {
                 return problem
             }
             if !matches(ein, "^[0-9A-Za-z][0-9A-Za-z-]{7,14}$") {
-                return say(
-                    country == "US" ? "settingsMore.enterEin" : "settingsMore.enterCra"
-                )
+                return country == "US"
+                    ? "Enter your 9-digit EIN (numbers only, dashes ok)."
+                    : "Enter your CRA business number."
             }
         }
         if !websiteValid(form.website) {
-            return say("settingsMore.enterWebsite")
+            return "Enter a web address (e.g. mikesplumbing.com) or leave it blank."
         }
     }
 
     if editCampaign {
         let flow = form.messageFlow.trimmingCharacters(in: .whitespacesAndNewlines)
         if flow.count < 40 {
-            return say("settingsMore.optInTooShort")
+            return "Carriers need at least 40 characters here: describe how customers "
+                + "ask you to text them."
         }
-        if flow.count > 2048 { return say("settingsMore.optInTooLong") }
+        if flow.count > 2048 { return "Keep the opt-in description under 2,048 characters." }
         for sample in [form.sample1, form.sample2] {
             let value = sample.trimmingCharacters(in: .whitespacesAndNewlines)
             if value.count < 20 {
-                return say("settingsMore.sampleTooShort")
+                return "Each sample needs at least 20 characters: a real text you'd send."
             }
-            if value.count > 1024 { return say("settingsMore.sampleTooLong") }
+            if value.count > 1024 { return "Keep each sample under 1,024 characters." }
         }
     }
     return nil

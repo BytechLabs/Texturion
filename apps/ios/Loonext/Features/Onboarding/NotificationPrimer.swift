@@ -76,8 +76,6 @@ struct NotificationPrimerSheet: View {
     let ask: NotificationAsk
     let onDone: () -> Void
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Image(systemName: "bell.badge")
@@ -86,22 +84,26 @@ struct NotificationPrimerSheet: View {
                 .frame(width: 44, height: 44)
                 .background(Color.accentColor.opacity(0.12), in: Circle())
             VStack(alignment: .leading, spacing: 8) {
-                Text(AppStrings.translate(appLocale, "shell.primerTitle"))
+                Text("Want a nudge when work comes in?")
                     .font(.title2.weight(.semibold))
-                Text(AppStrings.translate(appLocale, "shell.primerBody"))
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                Text(
+                    "We'll buzz you for new customer texts, missed calls and "
+                        + "the work assigned to you — nothing else. You can "
+                        + "change what reaches you, and when, in Settings."
+                )
+                .font(.body)
+                .foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
             HStack {
-                Button(AppStrings.translate(appLocale, "shell.notificationsNotNow")) {
+                Button("Not now") {
                     ask.decline()
                     onDone()
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 Spacer()
-                Button(AppStrings.translate(appLocale, "shell.notificationsTurnOn")) {
+                Button("Turn on notifications") {
                     Task {
                         await ask.request()
                         onDone()

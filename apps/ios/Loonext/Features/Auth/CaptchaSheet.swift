@@ -18,19 +18,18 @@ struct CaptchaSheet: View {
 
     @State private var loading = true
     @State private var failed = false
-    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         NavigationStack {
             ZStack {
                 if failed {
                     VStack(spacing: 16) {
-                        Text(AppStrings.translate(appLocale, "shell.captchaLoadFailed"))
+                        Text("Couldn't load the security check. Check your connection.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 32)
-                        Button(AppStrings.translate(appLocale, "common.retry")) {
+                        Button("Try again") {
                             // Leaving and re-entering the else branch below
                             // rebuilds the web view from scratch.
                             failed = false
@@ -54,13 +53,11 @@ struct CaptchaSheet: View {
                     }
                 }
             }
-            .navigationTitle(AppStrings.translate(appLocale, "shell.captchaTitle"))
+            .navigationTitle("Quick security check")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(AppStrings.translate(appLocale, "common.cancel")) {
-                        onResult(nil)
-                    }
+                    Button("Cancel") { onResult(nil) }
                 }
             }
         }

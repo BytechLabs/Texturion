@@ -8,16 +8,7 @@ enum GalleryViewMode: String, CaseIterable, Identifiable, Sendable {
     case files = "Files"
 
     var id: String { rawValue }
-
-    /// #228: the raw value is the WIRE word and stays English; what the segment
-    /// says is a separate answer, and the two were one string until a French
-    /// reader met the toggle.
-    func label(_ locale: String?) -> String {
-        switch self {
-        case .images: AppStrings.translate(locale, "thread.galleryImages")
-        case .files: AppStrings.translate(locale, "thread.galleryFiles")
-        }
-    }
+    var label: String { rawValue }
 }
 
 /// Server-tagged kind — `kind` is authoritative ("image" vs "file").
@@ -77,18 +68,14 @@ struct AttachmentsGalleryView: View {
     @State private var reportInFlight = false
 
     @Environment(\.openURL) private var openURL
-    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         ZStack(alignment: .bottom) {
             VStack(spacing: 0) {
                 header
-                Picker(
-                    AppStrings.translate(appLocale, "thread.galleryView"),
-                    selection: $view
-                ) {
+                Picker("View", selection: $view) {
                     ForEach(GalleryViewMode.allCases) { mode in
-                        Text(mode.label(appLocale)).tag(mode)
+                        Text(mode.label).tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -115,29 +102,21 @@ struct AttachmentsGalleryView: View {
         // anything longer and the person hesitates, and hesitating is how
         // somebody opens the file instead of flagging it.
         .confirmationDialog(
-            AppStrings.translate(appLocale, "thread.reportFileTitle"),
+            "Report this file?",
             isPresented: Binding(
                 get: { reporting != nil },
                 set: { if !$0 { reporting = nil } }
             ),
             titleVisibility: .visible
         ) {
-            Button(
-                AppStrings.translate(appLocale, "thread.reportFile"),
-                role: .destructive
-            ) { confirmReport() }
-            Button(
-                AppStrings.translate(appLocale, "common.cancel"),
-                role: .cancel
-            ) { reporting = nil }
+            Button("Report file", role: .destructive) { confirmReport() }
+            Button("Cancel", role: .cancel) { reporting = nil }
         } message: {
             if let reporting {
                 Text(
-                    AppStrings.translate(
-                        appLocale,
-                        "thread.reportFileBody",
-                        ["name": galleryFileName(reporting)]
-                    )
+                    "Nobody on your team will be able to open "
+                        + "\(galleryFileName(reporting)) until an owner or admin "
+                        + "releases it. Nothing is deleted."
                 )
             }
         }
@@ -164,11 +143,9 @@ struct AttachmentsGalleryView: View {
                     .foregroundStyle(BrandColor.ink)
                     .frame(width: 36, height: 36)
             }
-            .accessibilityLabel(
-                AppStrings.translate(appLocale, "thread.backToConversation")
-            )
+            .accessibilityLabel("Back to conversation")
             VStack(alignment: .leading, spacing: 1) {
-                Text(AppStrings.translate(appLocale, "thread.photosAndFiles"))
+                Text("Photos & files")
                     .font(.golos(14.5, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
                 Text(contactName)
@@ -214,14 +191,12 @@ struct AttachmentsGalleryView: View {
     }
 
     private var emptyLabel: String {
-        let key: String
         switch (view, nextCursor != nil) {
-        case (.images, true): key = "thread.noPhotosLoaded"
-        case (.images, false): key = "thread.noPhotosYet"
-        case (.files, true): key = "thread.noFilesLoaded"
-        case (.files, false): key = "thread.noFilesYet"
+        case (.images, true): "No photos loaded yet."
+        case (.images, false): "No photos in this conversation yet."
+        case (.files, true): "No files loaded yet."
+        case (.files, false): "No files in this conversation yet."
         }
-        return AppStrings.translate(appLocale, key)
     }
 
     private func imagesGrid(_ items: [GalleryItem]) -> some View {
@@ -252,10 +227,7 @@ struct AttachmentsGalleryView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(
-                        item.file_name
-                            ?? AppStrings.translate(appLocale, "thread.photo")
-                    )
+                    .accessibilityLabel(item.file_name ?? "Photo")
                     .contextMenu { reportButton(item) }
                 }
             }
@@ -317,10 +289,7 @@ struct AttachmentsGalleryView: View {
         Button(role: .destructive) {
             reporting = item
         } label: {
-            Label(
-                AppStrings.translate(appLocale, "thread.reportThisFile"),
-                systemImage: "exclamationmark.shield"
-            )
+            Label("Report this file", systemImage: "exclamationmark.shield")
         }
     }
 
@@ -330,9 +299,7 @@ struct AttachmentsGalleryView: View {
             if loadingMore {
                 ProgressView()
             } else {
-                Button(AppStrings.translate(appLocale, "thread.loadMore")) {
-                    loadMore()
-                }
+                Button("Load more") { loadMore() }
                     .font(.golos(12.5, weight: .semibold))
                     .foregroundStyle(BrandColor.olive)
             }
@@ -359,9 +326,7 @@ struct AttachmentsGalleryView: View {
                 refreshKey += 1
             } catch {
                 reporting = nil
-                notify(
-                    AppStrings.translate(appLocale, "thread.reportFileFailed")
-                )
+                notify("Couldn't report that file. Try again.")
             }
             reportInFlight = false
         }
@@ -390,7 +355,7 @@ struct AttachmentsGalleryView: View {
 
     private func open(_ item: GalleryItem) {
         guard let url = URL(string: item.url) else {
-            notify(AppStrings.translate(appLocale, "thread.fileCantOpen"))
+            notify("This file can't be opened.")
             return
         }
         openURL(url)

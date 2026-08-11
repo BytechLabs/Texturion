@@ -49,8 +49,6 @@ private struct ScheduledStripRow: View {
     let row: ScheduledMessage
     let onCancel: @MainActor () -> Void
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: row.isHeld ? "exclamationmark.triangle" : "clock")
@@ -59,10 +57,7 @@ private struct ScheduledStripRow: View {
                 .padding(.top, 1)
 
             VStack(alignment: .leading, spacing: 2) {
-                let lead = row.isHeld
-                    ? AppStrings.translate(appLocale, "thread.scheduledWaiting")
-                    : sendAtOf(row)
-                Text("\(lead) — \(row.body)")
+                Text("\(row.isHeld ? "Waiting" : sendAtOf(row)) — \(row.body)")
                     .font(.caption)
                     .lineLimit(2)
 
@@ -87,13 +82,7 @@ private struct ScheduledStripRow: View {
                     .foregroundStyle(BrandColor.muted500)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(
-                AppStrings.translate(
-                    appLocale,
-                    "thread.cancelScheduledAria",
-                    ["when": sendAtSpokenOf(row)]
-                )
-            )
+            .accessibilityLabel("Cancel the message scheduled for \(sendAtSpokenOf(row))")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)

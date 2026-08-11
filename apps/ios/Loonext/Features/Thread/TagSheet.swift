@@ -51,8 +51,6 @@ struct ThreadTagsRow: View {
     let onManage: @MainActor () -> Void
     let onRemove: @MainActor (Tag) -> Void
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
@@ -70,11 +68,7 @@ struct ThreadTagsRow: View {
                                 .frame(width: 18, height: 18)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(
-                            AppStrings.translate(
-                                appLocale, "thread.removeTag", ["name": tag.name]
-                            )
-                        )
+                        .accessibilityLabel("Remove tag \(tag.name)")
                     }
                     .padding(.leading, 10)
                     .padding(.trailing, 4)
@@ -85,25 +79,15 @@ struct ThreadTagsRow: View {
                     HStack(spacing: 4) {
                         Image(systemName: "tag")
                             .font(.scaled(11))
-                        Text(
-                            AppStrings.translate(
-                                appLocale,
-                                tags.isEmpty ? "thread.addTag" : "thread.tags"
-                            )
-                        )
-                        .font(.golos(11, weight: .medium))
+                        Text(tags.isEmpty ? "Add tag" : "Tags")
+                            .font(.golos(11, weight: .medium))
                     }
                     .foregroundStyle(BrandColor.muted500)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(
-                    AppStrings.translate(
-                        appLocale,
-                        tags.isEmpty ? "thread.addTag" : "thread.manageTags"
-                    )
-                )
+                .accessibilityLabel(tags.isEmpty ? "Add tag" : "Manage tags")
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 4)
@@ -138,14 +122,12 @@ struct TagManageSheet: View {
     @State private var retryKey = 0
     @State private var input = ""
 
-    @Environment(\.appLocale) private var appLocale
-
     private var attachedIds: Set<String> { Set(attached.map(\.id)) }
 
     var body: some View {
         NavigationStack {
             content
-                .navigationTitle(AppStrings.translate(appLocale, "thread.tags"))
+                .navigationTitle("Tags")
                 .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium, .large])
@@ -183,10 +165,7 @@ struct TagManageSheet: View {
             List {
                 HStack(spacing: 8) {
                     TextField(
-                        AppStrings.translate(
-                            appLocale,
-                            mayCreate ? "thread.addOrCreateTag" : "thread.findTag"
-                        ),
+                        mayCreate ? "Add or create a tag" : "Find a tag",
                         text: $input
                     )
                         .textInputAutocapitalization(.never)
@@ -202,13 +181,8 @@ struct TagManageSheet: View {
                             input = ""
                         }
                     } label: {
-                        Text(
-                            AppStrings.translate(
-                                appLocale,
-                                creating ? "thread.create" : "thread.add"
-                            )
-                        )
-                        .font(.subheadline.weight(.medium))
+                        Text(creating ? "Create" : "Add")
+                            .font(.subheadline.weight(.medium))
                     }
                     .disabled(plan == nil || blocked)
                 }
@@ -223,32 +197,26 @@ struct TagManageSheet: View {
                         onAttach(.existing(suggestion.tag))
                         input = ""
                     } label: {
-                        Text(
-                            AppStrings.translate(
-                                appLocale,
-                                "thread.didYouMean",
-                                ["name": suggestion.tag.name]
-                            )
-                        )
-                        .font(.subheadline)
-                        .foregroundStyle(BrandColor.olive)
+                        Text("Did you mean \u{201C}\(suggestion.tag.name)\u{201D}?")
+                            .font(.subheadline)
+                            .foregroundStyle(BrandColor.olive)
                     }
                 }
 
                 if blocked {
-                    Text(AppStrings.translate(appLocale, "thread.tagsLocked"))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    Text(
+                        "No tag by that name. Ask an admin to add it — this "
+                            + "workspace keeps a set list."
+                    )
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                 }
 
                 if tags.isEmpty {
                     Text(
-                        AppStrings.translate(
-                            appLocale,
-                            mayCreate
-                                ? "thread.noTagsCreate"
-                                : "thread.noTagsAdmin"
-                        )
+                        mayCreate
+                            ? "No tags yet. Create the first one above."
+                            : "No tags yet. An admin adds the first one."
                     )
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -284,11 +252,7 @@ struct TagManageSheet: View {
                         }
                     }
                     .accessibilityLabel(
-                        AppStrings.translate(
-                            appLocale,
-                            isAttached ? "thread.removeTag" : "thread.addTagNamed",
-                            ["name": tag.name]
-                        )
+                        isAttached ? "Remove tag \(tag.name)" : "Add tag \(tag.name)"
                     )
                 }
             }

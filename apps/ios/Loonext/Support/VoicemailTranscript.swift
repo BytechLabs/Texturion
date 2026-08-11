@@ -40,8 +40,6 @@ import SwiftUI
 struct VoicemailTranscript: View {
     let text: String
 
-    @Environment(\.appLocale) private var appLocale
-
     var body: some View {
         Text(text)
             .font(.golos(12.5))
@@ -61,19 +59,14 @@ struct VoicemailTranscript: View {
                 Button {
                     UIPasteboard.general.string = text
                 } label: {
-                    Label(
-                        AppStrings.translate(appLocale, "shell.copyTranscript"),
-                        systemImage: "doc.on.doc"
-                    )
+                    Label("Copy transcript", systemImage: "doc.on.doc")
                 }
             }
             // A context menu is a long press, which a VoiceOver user never
             // performs — so the action is also published as one they can reach.
             // Without this the gesture does not exist for them at all, which is
             // the complaint #505 opened with, one surface further in.
-            .accessibilityAction(
-                named: Text(AppStrings.translate(appLocale, "shell.copyTranscript"))
-            ) {
+            .accessibilityAction(named: "Copy transcript") {
                 UIPasteboard.general.string = text
             }
     }
