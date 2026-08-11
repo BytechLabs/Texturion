@@ -25,8 +25,15 @@ final class NotificationsFeedModel {
     private(set) var alertPause: AlertPause?
     private(set) var nextCursor: String?
     private(set) var loadingMore = false
-    /// Transient bottom notice (the Android snackbar equivalent).
-    private(set) var toast: String?
+    /// Transient bottom notice (the Android snackbar equivalent), as a CATALOGUE
+    /// KEY rather than a sentence.
+    ///
+    /// #228: this model is constructed in `NotificationsView.init`, where the
+    /// environment — and so the reader's language — is not readable yet, and a
+    /// locale captured at init would go stale the moment somebody changed it.
+    /// So the model names the failure and the view says it, which is the same
+    /// division the inbox's `ThreadNotice.actionLabel` uses.
+    private(set) var toastKey: String?
 
     /// The shared, app-lifetime unread state (#201) — the SAME instance the
     /// shell avatar dot and the account sheet read, so a mark-read here clears
@@ -101,7 +108,7 @@ final class NotificationsFeedModel {
                 readState.localReadIds.remove(item.id)
                 items = previousItems
                 readState.setUnreadCount(previousCount)
-                showToast("Couldn't mark that read.")
+                showToast("inbox.notifMarkOneFailed")
             }
             // The last mark to settle runs one guarded reconcile — no realtime
             // event follows a mark, so this is the only thing that corrects the
@@ -144,7 +151,7 @@ final class NotificationsFeedModel {
                 items = previousItems
                 readState.setUnreadCount(previousCount)
                 readState.localWatermark = previousWatermark
-                showToast("Couldn't mark all read.")
+                showToast("inbox.notifMarkAllFailed")
             }
             if readState.settleMark() {
                 await pollUnread()
@@ -169,18 +176,18 @@ final class NotificationsFeedModel {
                 items = merged
                 nextCursor = page.next_cursor
             } catch {
-                showToast("Couldn't load older notifications.")
+                showToast("inbox.notifLoadOlderFailed")
             }
         }
     }
 
-    private func showToast(_ message: String) {
+    private func showToast(_ key: String) {
         toastTask?.cancel()
-        toast = message
+        toastKey = key
         toastTask = Task {
             try? await Task.sleep(for: .seconds(3))
             if !Task.isCancelled {
-                toast = nil
+                toastKey = nil
             }
         }
     }

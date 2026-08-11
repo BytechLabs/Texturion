@@ -106,6 +106,7 @@ struct ShellView: View {
     /// tab roots and the sheets they present read their own vertical size class
     /// (AccountSheet, InCallView) for compact-height rhythm.
     @Environment(\.horizontalSizeClass) private var hSizeClass
+    @Environment(\.appLocale) private var appLocale
 
     /// The pill's max width — capped and centered on a regular-width window,
     /// full-bleed (minus its inset) on a compact phone.
@@ -376,6 +377,13 @@ struct ShellView: View {
     /// it (pill, FAB, call chip, toast included) — the Android `Box` where the
     /// route host draws above the shell.
     private var tabShell: some View {
+        // #228: the five `Tab` titles below are deliberately NOT extracted.
+        // Every one of them carries `.toolbar(.hidden, for: .tabBar)`, so the
+        // system tab bar never draws and these strings never reach a reader —
+        // the labels somebody actually sees and hears are the pill nav's
+        // `.accessibilityLabel`s, which ARE translated. Leaving them English
+        // costs nothing; reaching for a `Tab` initializer overload that cannot
+        // be compiled on this machine costs a red `Gate / iOS`.
         TabView(selection: $tab) {
             Tab("For you", systemImage: "bolt", value: ShellTab.forYou) {
                 ForYouTab(
@@ -512,10 +520,26 @@ struct ShellView: View {
     /// the safe area. Four 46pt slots + the avatar; no labels, no numerals.
     private var pillNav: some View {
         HStack(spacing: 0) {
-            navSlot(.forYou, icon: "bolt", label: "For you")
-            navSlot(.inbox, icon: "tray", label: "Inbox")
-            navSlot(.calls, icon: "phone", label: "Calls")
-            navSlot(.tasks, icon: "checklist", label: "Tasks")
+            navSlot(
+                .forYou,
+                icon: "bolt",
+                label: AppStrings.translate(appLocale, "shell.navForYou")
+            )
+            navSlot(
+                .inbox,
+                icon: "tray",
+                label: AppStrings.translate(appLocale, "shell.navInbox")
+            )
+            navSlot(
+                .calls,
+                icon: "phone",
+                label: AppStrings.translate(appLocale, "shell.navCalls")
+            )
+            navSlot(
+                .tasks,
+                icon: "checklist",
+                label: AppStrings.translate(appLocale, "shell.navTasks")
+            )
             avatarButton
                 .padding(.horizontal, 6)
         }
@@ -582,8 +606,12 @@ struct ShellView: View {
         // visual coral dot before).
         .accessibilityLabel(
             notifReadState.unreadCount > 0
-                ? "You, \(notifReadState.unreadCount) unread notifications"
-                : "You"
+                ? AppStrings.translate(
+                    appLocale,
+                    "shell.youUnread",
+                    ["count": "\(notifReadState.unreadCount)"]
+                )
+                : AppStrings.translate(appLocale, "shell.you")
         )
     }
 
@@ -625,7 +653,7 @@ struct ShellView: View {
         }
         .buttonStyle(.plain)
         .shadow(color: BrandColor.inkFixed.opacity(0.3), radius: 15, x: 0, y: 7)
-        .accessibilityLabel("New message")
+        .accessibilityLabel(AppStrings.translate(appLocale, "shell.newMessage"))
         .padding(.trailing, 18)
         .padding(.bottom, 96)
     }

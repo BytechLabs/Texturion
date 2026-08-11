@@ -65,6 +65,15 @@ struct AppLockGate<Content: View>: View {
     /// what the switcher card will be.
     @State private var awayFromForeground = false
 
+    /// #228: this gate is MOUNTED ABOVE `RootView`, which is where the app's
+    /// language is published into the environment — a locked app must not build
+    /// the inbox at all, so the injection cannot be above this. It therefore
+    /// asks `UiLocaleStore` directly, which is the same value `RootView` will
+    /// publish a moment later. Before any session exists that is the phone's own
+    /// language, which is the right answer for a screen shown to whoever is
+    /// holding the phone.
+    private var appLocale: String { UiLocaleStore.shared.resolved }
+
     private var reason: AppLock.Reason? {
         _ = activeTick
         return AppLock.reasonToLock(
@@ -119,7 +128,7 @@ struct AppLockGate<Content: View>: View {
             // same gate as the overlay, so the two can never disagree about
             // whether the app is supposed to be covered.
             if prefs.appLockEnabled, phase != .active {
-                PrivacyCoverWindow.shared.show()
+                PrivacyCoverWindow.shared.show(locale: appLocale)
             } else {
                 PrivacyCoverWindow.shared.hide()
             }
@@ -143,7 +152,7 @@ struct AppLockGate<Content: View>: View {
             Image(systemName: "lock.fill")
                 .font(.scaled(34))
                 .foregroundStyle(BrandColor.ink)
-            Text("Locked")
+            Text(AppStrings.translate(appLocale, "shell.lockedCover"))
                 .font(.golos(17, weight: .semibold))
                 .foregroundStyle(BrandColor.muted700)
         }
@@ -154,15 +163,15 @@ struct AppLockGate<Content: View>: View {
 
     private func locked(_ reason: AppLock.Reason) -> some View {
         VStack(spacing: 12) {
-            Text(AppLock.headline(reason))
+            Text(AppLock.headline(reason, locale: appLocale))
                 .font(.golos(17, weight: .semibold))
                 .multilineTextAlignment(.center)
             // Says whose data it is protecting, not whose fault this is.
-            Text("Your customers' conversations are on this phone.")
+            Text(AppStrings.translate(appLocale, "shell.lockBody"))
                 .font(.golos(14))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("Unlock") { authenticate() }
+            Button(AppStrings.translate(appLocale, "shell.lockAction")) { authenticate() }
                 .buttonStyle(.borderedProminent)
                 .disabled(prompting)
         }
@@ -186,7 +195,10 @@ struct AppLockGate<Content: View>: View {
         // refuse it to everyone else.
         context.evaluatePolicy(
             .deviceOwnerAuthentication,
-            localizedReason: "Your customers' conversations are on this phone"
+            // #228: the system draws this sentence itself, in its own sheet, so
+            // it is the one string here that has to be handed over already
+            // translated rather than resolved by a view.
+            localizedReason: AppStrings.translate(appLocale, "shell.lockPromptSubtitle")
         ) { success, _ in
             Task { @MainActor in
                 prompting = false

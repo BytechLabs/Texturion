@@ -48,6 +48,7 @@ struct MfaGateView: View {
     @State private var busy = false
     @State private var error: String?
     @Environment(\.openURL) private var openURL
+    @Environment(\.appLocale) private var appLocale
 
     private var repo: SettingsRepository {
         SettingsRepository(api: graph.api, sessionStore: graph.sessionStore)
@@ -93,12 +94,14 @@ struct MfaGateView: View {
                     // useless, so the URI is handed to whatever authenticator
                     // is installed instead.
                     guard let url = URL(string: uri) else {
-                        error = "No authenticator app answered. Copy the key below instead."
+                        error = AppStrings.translate(
+                            appLocale, "shell.mfaNoAuthenticatorApp"
+                        )
                         return
                     }
                     openURL(url)
                 } label: {
-                    Text("Open my authenticator")
+                    Text(AppStrings.translate(appLocale, "shell.mfaOpenAuthenticator"))
                         .font(.golos(13, weight: .semibold))
                         .foregroundStyle(BrandColor.olive)
                 }
@@ -122,7 +125,7 @@ struct MfaGateView: View {
             }
 
             PrimaryButton(
-                title: busy ? "Checking…" : (step == .recovery ? "Use this code" : "Continue"),
+                title: AppStrings.translate(appLocale, primaryActionKey),
                 enabled: !busy && !code.trimmingCharacters(in: .whitespaces).isEmpty
             ) {
                 Task { await submit() }
@@ -138,9 +141,12 @@ struct MfaGateView: View {
                     error = nil
                 } label: {
                     Text(
-                        step == .recovery
-                            ? "I have my authenticator after all"
-                            : "I don't have my authenticator"
+                        AppStrings.translate(
+                            appLocale,
+                            step == .recovery
+                                ? "shell.mfaHaveItAfterAll"
+                                : "shell.mfaNoAuthenticator"
+                        )
                     )
                     .font(.golos(12.5, weight: .semibold))
                     .foregroundStyle(BrandColor.olive)
@@ -152,7 +158,7 @@ struct MfaGateView: View {
             // Sign-out stays reachable on every gate in this app (#207): a
             // person who can satisfy neither path must still be able to get out.
             Button(action: onSignOut) {
-                Text("Sign out")
+                Text(AppStrings.translate(appLocale, "shell.signOut"))
                     .font(.golos(12.5, weight: .semibold))
                     .foregroundStyle(BrandColor.muted600)
             }
@@ -163,11 +169,19 @@ struct MfaGateView: View {
 
     private var codeField: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text((step == .recovery ? "Recovery code" : "Six-digit code").uppercased())
-                .font(.golos(10.5, weight: .bold))
-                .kerning(1.0)
-                .foregroundStyle(BrandColor.muted500)
-                .padding(.horizontal, 4)
+            Text(
+                AppStrings.translate(
+                    appLocale,
+                    step == .recovery
+                        ? "shell.mfaRecoveryCodeLabel"
+                        : "shell.mfaSixDigitLabel"
+                )
+                .uppercased()
+            )
+            .font(.golos(10.5, weight: .bold))
+            .kerning(1.0)
+            .foregroundStyle(BrandColor.muted500)
+            .padding(.horizontal, 4)
             Group {
                 if step == .recovery {
                     TextField("ABCDE-FGHJK", text: $code)
@@ -202,20 +216,29 @@ struct MfaGateView: View {
     }
 
     private var title: String {
-        if isEnrolStep { return "This workspace needs two-factor" }
-        return step == .recovery ? "Use a recovery code" : "Enter your code"
+        if isEnrolStep {
+            return AppStrings.translate(appLocale, "shell.mfaEnrolTitle")
+        }
+        return AppStrings.translate(
+            appLocale,
+            step == .recovery ? "shell.mfaRecoveryTitle" : "shell.mfaChallengeTitle"
+        )
     }
 
     private var blurb: String {
         if isEnrolStep {
-            return "The owner turned it on, and the grace period has ended. Open your "
-                + "authenticator app, add the key below, then type the six digits it shows."
+            return AppStrings.translate(appLocale, "shell.mfaEnrolBody")
         }
-        if step == .recovery {
-            return "One of the ten codes you saved when you set two-factor up. Using one "
-                + "turns two-factor OFF so you can get in and set it up again."
-        }
-        return "Open your authenticator app and type the six digits it shows."
+        return AppStrings.translate(
+            appLocale,
+            step == .recovery ? "shell.mfaRecoveryBody" : "shell.mfaChallengeBody"
+        )
+    }
+
+    /// The one filled button, which says three different things.
+    private var primaryActionKey: String {
+        if busy { return "shell.mfaChecking" }
+        return step == .recovery ? "shell.mfaUseThisCode" : "shell.mfaContinue"
     }
 
     // MARK: - Work
@@ -237,7 +260,7 @@ struct MfaGateView: View {
                 secret: enrolment.secret
             )
         } catch {
-            self.error = "Couldn't start setup. Try again."
+            self.error = AppStrings.translate(appLocale, "shell.mfaSetupFailed")
             step = .challenge
         }
     }
@@ -257,7 +280,7 @@ struct MfaGateView: View {
                 code = ""
                 onSatisfied()
             } catch {
-                self.error = "That code is not valid."
+                self.error = AppStrings.translate(appLocale, "shell.mfaCodeInvalid")
             }
             return
         }
@@ -272,7 +295,7 @@ struct MfaGateView: View {
             } else if let id = try await repo.mfa().allFactors.first?.id {
                 factorId = id
             } else {
-                self.error = "We couldn't find an authenticator on this account. Sign out and back in."
+                self.error = AppStrings.translate(appLocale, "shell.mfaNoFactorFound")
                 return
             }
 
@@ -301,7 +324,7 @@ struct MfaGateView: View {
             // One message for every failure mode: telling a wrong code apart
             // from an expired one helps an attacker more than the person
             // holding the phone, who tries the next one either way.
-            self.error = "That code didn't match. Check your app and try the next one."
+            self.error = AppStrings.translate(appLocale, "shell.mfaCodeMismatch")
         }
     }
 }

@@ -21,6 +21,8 @@ struct ClosedDatesCard: View {
     let company: CompanyView
     let onCompanyUpdated: @MainActor (CompanyView) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     @State private var saving = false
     @State private var error: String?
     @State private var from = ""
@@ -30,16 +32,17 @@ struct ClosedDatesCard: View {
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
     private var existing: [HoursException] { company.business_hours_exceptions }
 
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
+
     var body: some View {
         SettingsCard(
-            title: "Closed dates",
-            description: "Holidays, a week off, a day for a funeral. On these dates your "
-                + "away reply goes out even if the weekly schedule says you're open — so a "
-                + "customer texting on Christmas morning hears something back instead of "
-                + "nothing."
+            title: t("settings.closedDatesTitle"),
+            description: t("settings.closedDatesIntro")
         ) {
             if existing.isEmpty {
-                Text("No closed dates yet. Your weekly hours apply every week.")
+                Text(t("settings.closedDatesEmpty"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else {
@@ -56,7 +59,7 @@ struct ClosedDatesCard: View {
                         }
                         Spacer()
                         if canEdit {
-                            Button("Remove") { remove(at: pair.offset) }
+                            Button(t("settings.closedDatesRemove")) { remove(at: pair.offset) }
                                 .font(.footnote)
                                 .disabled(saving)
                         }
@@ -68,25 +71,33 @@ struct ClosedDatesCard: View {
             if canEdit {
                 Spacer().frame(height: 10)
                 HStack(spacing: 8) {
-                    DateField(label: "First day", value: $from, enabled: !saving)
+                    DateField(
+                        label: t("settings.closedDatesFirstDay"), value: $from, enabled: !saving
+                    )
                     // Empty means one day, which is what most of these are.
-                    DateField(label: "Last day", value: $to, enabled: !saving)
+                    DateField(
+                        label: t("settings.closedDatesLastDay"), value: $to, enabled: !saving
+                    )
                 }
                 Spacer().frame(height: 8)
-                TextField("Closed for the holiday, back Monday", text: $note)
+                TextField(t("settings.closedDatesNotePlaceholder"), text: $note)
                     .textFieldStyle(.roundedBorder)
                     .disabled(saving)
                     .onChange(of: note) { _, value in
                         if value.count > 200 { note = String(value.prefix(200)) }
                     }
                 Spacer().frame(height: 10)
-                Button(saving ? "Saving…" : "Add closed date") { add() }
+                Button(
+                    saving
+                        ? AppStrings.translate(appLocale, "common.saving")
+                        : t("settings.closedDatesAdd")
+                ) { add() }
                     .buttonStyle(.borderedProminent)
                     .tint(BrandColor.olive)
                     .disabled(saving)
             } else {
                 Spacer().frame(height: 4)
-                ReadOnlyLine("Only owners and admins can change closed dates.")
+                ReadOnlyLine(t("settings.closedDatesReadOnly"))
             }
 
             InlineError(error)
@@ -100,11 +111,11 @@ struct ClosedDatesCard: View {
         let trimmedTo = to.trimmingCharacters(in: .whitespaces)
         let end = trimmedTo.isEmpty ? start : trimmedTo
         if start.isEmpty {
-            error = "Pick the date you're closed."
+            error = t("settings.closedDatesNeedDate")
             return
         }
         if end < start {
-            error = "The last day can't be before the first day."
+            error = t("settings.closedDatesBackwards")
             return
         }
         let trimmedNote = note.trimmingCharacters(in: .whitespaces)
@@ -116,7 +127,7 @@ struct ClosedDatesCard: View {
             hours: nil,
             note: trimmedNote.isEmpty ? nil : trimmedNote
         )
-        commit(existing + [entry], message: "Closed date added.") {
+        commit(existing + [entry], message: t("settings.closedDatesAdded")) {
             from = ""
             to = ""
             note = ""
@@ -127,7 +138,7 @@ struct ClosedDatesCard: View {
         var next = existing
         guard next.indices.contains(index) else { return }
         next.remove(at: index)
-        commit(next, message: "Closed date removed.") {}
+        commit(next, message: t("settings.closedDatesRemoved")) {}
     }
 
     private func commit(

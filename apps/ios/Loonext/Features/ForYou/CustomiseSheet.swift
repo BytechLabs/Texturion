@@ -44,6 +44,7 @@ struct CustomiseSheet: View {
     let failed: Bool
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLocale) private var appLocale
 
     private var measures: [DashboardPanels.Panel] {
         DashboardPanels.Panel.allCases.filter { $0 != .recentCalls }
@@ -57,14 +58,14 @@ struct CustomiseSheet: View {
                         PanelRow(panel: panel, hidden: hidden, onToggle: onToggle)
                     }
                 } header: {
-                    Text("Measures")
+                    Text(AppStrings.translate(appLocale, "inbox.customiseGroupMeasures"))
                 } footer: {
                     // Says what is NOT on offer, once, here — rather than leaving
                     // somebody hunting for a toggle that does not exist.
-                    Text("The queue always stays. Work isn't something you can switch off.")
+                    Text(AppStrings.translate(appLocale, "inbox.customiseQueueStays"))
                 }
 
-                Section("History") {
+                Section(AppStrings.translate(appLocale, "inbox.customiseGroupHistory")) {
                     PanelRow(panel: .recentCalls, hidden: hidden, onToggle: onToggle)
                 }
 
@@ -73,22 +74,19 @@ struct CustomiseSheet: View {
                 // something is still pending.
                 if failed {
                     Section {
-                        Text(
-                            "We couldn't save that — it's back the way it was. "
-                                + "Try again in a moment."
-                        )
+                        Text(AppStrings.translate(appLocale, "inbox.customiseSaveFailed"))
                         .font(.footnote)
                         .foregroundStyle(BrandColor.destructive)
                     }
                 }
             }
-            .navigationTitle("What's on this screen")
+            .navigationTitle(AppStrings.translate(appLocale, "inbox.customiseTitle"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     // Closes the sheet. It does not commit anything — every toggle
                     // has already taken effect behind it.
-                    Button("Done") { dismiss() }
+                    Button(AppStrings.translate(appLocale, "inbox.done")) { dismiss() }
                 }
             }
         }
@@ -100,6 +98,8 @@ private struct PanelRow: View {
     let panel: DashboardPanels.Panel
     let hidden: [String]
     let onToggle: @MainActor (DashboardPanels.Panel, Bool) -> Void
+
+    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         Toggle(
@@ -120,7 +120,12 @@ private struct PanelRow: View {
         }
         // VoiceOver announces a Toggle as "on"/"off", which does not say on WHAT.
         .accessibilityValue(
-            DashboardPanels.isVisible(hidden, panel) ? "On this screen" : "Put away"
+            AppStrings.translate(
+                appLocale,
+                DashboardPanels.isVisible(hidden, panel)
+                    ? "inbox.customiseStateOn"
+                    : "inbox.customiseStatePutAway"
+            )
         )
     }
 }

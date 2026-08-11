@@ -9,6 +9,8 @@ struct ProfileSectionView: View {
     let scope: SettingsScope
     let onSignOut: @MainActor () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         DisplayNameCard(scope: scope)
         ThemeCard(prefs: scope.graph.prefs)
@@ -16,9 +18,12 @@ struct ProfileSectionView: View {
         // #314: directly under the password, because it is the same question —
         // how somebody proves they are you.
         TwoFactorCard(scope: scope)
-        SettingsCard(title: "Sign out") {
+        SettingsCard(title: AppStrings.translate(appLocale, "settingsMore.signOut")) {
             // Destructive (red) — the founder-feedback sign-out styling (#186).
-            Button("Sign out on this device", role: .destructive) { onSignOut() }
+            Button(
+                AppStrings.translate(appLocale, "settingsMore.signOutThisDevice"),
+                role: .destructive
+            ) { onSignOut() }
                 .buttonStyle(.bordered)
                 .tint(BrandColor.destructive)
         }
@@ -36,6 +41,8 @@ private struct DisplayNameCard: View {
     @State private var saving = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     init(scope: SettingsScope) {
         self.scope = scope
         _name = State(initialValue: scope.me.display_name)
@@ -47,20 +54,27 @@ private struct DisplayNameCard: View {
 
     var body: some View {
         SettingsCard(
-            title: "Your name",
-            description: "Shown to teammates on messages, notes, tasks, and the members list."
+            title: AppStrings.translate(appLocale, "settingsMore.yourName"),
+            description: AppStrings.translate(appLocale, "settingsMore.yourNameDesc")
         ) {
-            TextField("Your name", text: $name)
+            TextField(
+                AppStrings.translate(appLocale, "settingsMore.yourName"),
+                text: $name
+            )
                 .textFieldStyle(.roundedBorder)
             if dirty && !valid {
-                Text("1 to 80 characters.")
+                Text(AppStrings.translate(appLocale, "settingsMore.nameLength"))
                     .font(.footnote)
                     .foregroundStyle(BrandColor.destructive)
                     .padding(.top, 4)
             }
             InlineError(error)
             if dirty {
-                Button(saving ? "Saving…" : "Save") { save() }
+                Button(
+                    AppStrings.translate(
+                        appLocale, saving ? "common.saving" : "common.save"
+                    )
+                ) { save() }
                     .buttonStyle(.borderedProminent)
                     .tint(BrandColor.olive)
                     .disabled(!valid || saving)
@@ -76,7 +90,7 @@ private struct DisplayNameCard: View {
         Task {
             do {
                 try await scope.graph.meApi.updateDisplayName(value)
-                scope.showMessage("Name saved.")
+                scope.showMessage(AppStrings.translate(appLocale, "settingsMore.nameSaved"))
             } catch {
                 self.error = error.userMessage
             }
@@ -90,8 +104,10 @@ private struct DisplayNameCard: View {
 private struct ThemeCard: View {
     @Bindable var prefs: AppPrefs
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
-        SettingsCard(title: "Theme") {
+        SettingsCard(title: AppStrings.translate(appLocale, "settingsMore.theme")) {
             // Styled segmented control (ink pill), matching Android/web (#186).
             ThemeSegmentedControl(theme: $prefs.theme)
         }
@@ -103,6 +119,8 @@ private struct ThemeCard: View {
 private struct AccountCard: View {
     let scope: SettingsScope
 
+    @Environment(\.appLocale) private var appLocale
+
     private var email: String? {
         let value = scope.graph.sessionStore.current()?.email
         return (value?.isEmpty == false) ? value : nil
@@ -110,8 +128,12 @@ private struct AccountCard: View {
 
     var body: some View {
         SettingsCard(
-            title: "Account",
-            description: email.map { "Signed in as \($0)." }
+            title: AppStrings.translate(appLocale, "settingsMore.account"),
+            description: email.map {
+                AppStrings.translate(
+                    appLocale, "settingsMore.signedInAs", ["email": $0]
+                )
+            }
         ) {
             ChangeEmailBlock(scope: scope)
             Spacer().frame(height: 16)
@@ -128,20 +150,32 @@ private struct ChangeEmailBlock: View {
     @State private var saving = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         if !editing {
-            Button("Change email") { editing = true }
+            Button(AppStrings.translate(appLocale, "settingsMore.changeEmail")) {
+                editing = true
+            }
                 .buttonStyle(.bordered)
         } else {
             VStack(alignment: .leading, spacing: 0) {
-                TextField("New email", text: $newEmail)
+                TextField(
+                    AppStrings.translate(appLocale, "settingsMore.newEmail"),
+                    text: $newEmail
+                )
                     .textFieldStyle(.roundedBorder)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .disabled(saving)
                 InlineError(error)
-                Button(saving ? "Sending…" : "Send confirmation links") { submit() }
+                Button(
+                    AppStrings.translate(
+                        appLocale,
+                        saving ? "settingsMore.sending" : "settingsMore.sendConfirmLinks"
+                    )
+                ) { submit() }
                     .buttonStyle(.borderedProminent)
                     .tint(BrandColor.olive)
                     .disabled(saving || newEmail.isBlank)
@@ -153,7 +187,7 @@ private struct ChangeEmailBlock: View {
     private func submit() {
         let trimmed = newEmail.trimmingCharacters(in: .whitespaces)
         guard trimmed.contains("@"), trimmed.count >= 3 else {
-            error = "Enter your new email address."
+            error = AppStrings.translate(appLocale, "settingsMore.enterNewEmail")
             return
         }
         saving = true
@@ -165,8 +199,7 @@ private struct ChangeEmailBlock: View {
                 editing = false
                 newEmail = ""
                 scope.showMessage(
-                    "Check both inboxes — confirmation links went to your old "
-                        + "and new address. Nothing changes until you confirm."
+                    AppStrings.translate(appLocale, "settingsMore.emailConfirmSent")
                 )
             } catch {
                 self.error = error.userMessage
@@ -186,42 +219,53 @@ private struct ChangePasswordBlock: View {
     @State private var saving = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         if !editing {
             VStack(alignment: .leading, spacing: 4) {
-                Button("Change or set password") { editing = true }
+                Button(AppStrings.translate(appLocale, "settingsMore.changePassword")) {
+                    editing = true
+                }
                     .buttonStyle(.bordered)
                 ReadOnlyLine(
-                    "If you signed up with Google or Apple, this sets a password you can "
-                        + "also sign in with."
+                    AppStrings.translate(appLocale, "settingsMore.passwordOauthNote")
                 )
             }
         } else {
             VStack(alignment: .leading, spacing: 0) {
-                SecureField("New password", text: $password)
+                SecureField(
+                    AppStrings.translate(appLocale, "settingsMore.newPassword"),
+                    text: $password
+                )
                     .textFieldStyle(.roundedBorder)
                     .textContentType(.newPassword)
                     .disabled(saving)
-                Text("At least 8 characters.")
+                Text(AppStrings.translate(appLocale, "settingsMore.atLeast8"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.top, 2)
                 if nonceNeeded {
-                    Text(
-                        "To confirm it's you, we emailed you a one-time code. Enter it here "
-                            + "and save again."
-                    )
+                    Text(AppStrings.translate(appLocale, "settingsMore.reauthCodeNote"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .padding(.top, 8)
-                    TextField("Code from the email", text: $nonce)
+                    TextField(
+                        AppStrings.translate(appLocale, "settingsMore.codeFromEmail"),
+                        text: $nonce
+                    )
                         .textFieldStyle(.roundedBorder)
                         .keyboardType(.numberPad)
                         .disabled(saving)
                         .padding(.top, 4)
                 }
                 InlineError(error)
-                Button(saving ? "Saving…" : "Save password") { submit() }
+                Button(
+                    AppStrings.translate(
+                        appLocale,
+                        saving ? "common.saving" : "settingsMore.savePassword"
+                    )
+                ) { submit() }
                     .buttonStyle(.borderedProminent)
                     .tint(BrandColor.olive)
                     .disabled(saving || password.isEmpty || (nonceNeeded && nonce.isBlank))
@@ -232,7 +276,7 @@ private struct ChangePasswordBlock: View {
 
     private func submit() {
         guard password.count >= 8 else {
-            error = "Use at least 8 characters."
+            error = AppStrings.translate(appLocale, "settingsMore.passwordTooShort")
             return
         }
         saving = true
@@ -251,7 +295,9 @@ private struct ChangePasswordBlock: View {
                 password = ""
                 nonce = ""
                 nonceNeeded = false
-                scope.showMessage("Password updated.")
+                scope.showMessage(
+                    AppStrings.translate(appLocale, "settingsMore.passwordUpdated")
+                )
             } catch let cause as ApiError where cause.code == reauthenticationNeededCode && !nonceNeeded {
                 // Stale session: GoTrue wants a fresh proof. Email the
                 // one-time code, then retry the same change with it.

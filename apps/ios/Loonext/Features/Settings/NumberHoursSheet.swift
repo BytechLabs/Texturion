@@ -29,14 +29,13 @@ struct NumberHoursSheet: View {
     @State private var pending = false
     @State private var error: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(
-                        "The after-hours reply on this number follows this clock. "
-                            + "Leave it alone and it follows your workspace."
-                    )
+                    Text(AppStrings.translate(appLocale, "settingsMore.numberHoursIntro"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
@@ -50,22 +49,28 @@ struct NumberHoursSheet: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                             .padding(.top, 12)
-                        Button("Try again") { retryKey += 1 }
+                        Button(AppStrings.translate(appLocale, "common.retry")) {
+                            retryKey += 1
+                        }
                             .buttonStyle(.bordered)
                             .padding(.top, 8)
                     case .ready(let identity):
                         inheritHeader(
-                            title: "Timezone",
+                            title: AppStrings.translate(appLocale, "settingsMore.timezone"),
                             inherited: identity.timezone.inherited,
                             restore: { restore("timezone") }
                         )
-                        Button(zone.isEmpty ? "Choose a timezone" : zone) {
+                        Button(
+                            zone.isEmpty
+                                ? AppStrings.translate(appLocale, "settingsMore.chooseTimezone")
+                                : zone
+                        ) {
                             picking = true
                         }
                         .disabled(pending)
 
                         inheritHeader(
-                            title: "Open hours",
+                            title: AppStrings.translate(appLocale, "settingsMore.openHours"),
                             inherited: identity.business_hours.inherited,
                             restore: { restore("business_hours") }
                         )
@@ -78,15 +83,20 @@ struct NumberHoursSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
             }
-            .navigationTitle("When this line is open")
+            .navigationTitle(AppStrings.translate(appLocale, "settingsMore.numberHoursTitle"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { onDismiss() }
+                    Button(AppStrings.translate(appLocale, "common.cancel")) { onDismiss() }
                         .disabled(pending)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(pending ? "Saving…" : "Save") { save() }
+                    Button(
+                        AppStrings.translate(
+                            appLocale,
+                            pending ? "common.saving" : "common.save"
+                        )
+                    ) { save() }
                         .disabled(!isReady || pending)
                 }
             }
@@ -127,11 +137,11 @@ struct NumberHoursSheet: View {
             Text(title).font(.subheadline.weight(.medium))
             Spacer()
             if inherited {
-                Text("Same as your workspace")
+                Text(AppStrings.translate(appLocale, "settingsMore.inheritSame"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                Button("Use the workspace's") { restore() }
+                Button(AppStrings.translate(appLocale, "settingsMore.inheritUse")) { restore() }
                     .font(.caption)
                     .disabled(pending)
             }

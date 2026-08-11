@@ -145,6 +145,7 @@ private struct ThreadBody: View {
     @State private var galleryOpen = false
     @State private var placingCall = false
     @Environment(\.openURL) private var openURL
+    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -181,11 +182,14 @@ private struct ThreadBody: View {
         case .failed(let message):
             if controller.loadErrorCode == ApiErrorCode.notFound {
                 VStack(spacing: 12) {
-                    Text("This conversation doesn't exist or was removed.")
+                    Text(AppStrings.translate(appLocale, "thread.notFound"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    Button("Back to inbox", action: onBack)
-                        .buttonStyle(.bordered)
+                    Button(
+                        AppStrings.translate(appLocale, "thread.backToInbox"),
+                        action: onBack
+                    )
+                    .buttonStyle(.bordered)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -497,23 +501,33 @@ private struct ThreadBody: View {
                     onBack: { galleryOpen = false }
                 )
             }
-            .alert("Opt this customer out?", isPresented: $confirmOptOut) {
-                Button("Cancel", role: .cancel) {}
-                Button("Opt out") { controller.optOutContact() }
+            .alert(
+                AppStrings.translate(appLocale, "thread.optOutTitle"),
+                isPresented: $confirmOptOut
+            ) {
+                Button(
+                    AppStrings.translate(appLocale, "common.cancel"),
+                    role: .cancel
+                ) {}
+                Button(AppStrings.translate(appLocale, "thread.optOut")) {
+                    controller.optOutContact()
+                }
             } message: {
-                Text(
-                    "They won't receive texts from you until the opt-out is removed. "
-                        + "This is recorded in the conversation timeline."
-                )
+                Text(AppStrings.translate(appLocale, "thread.optOutBody"))
             }
-            .alert("Remove the opt-out?", isPresented: $confirmRevoke) {
-                Button("Cancel", role: .cancel) {}
-                Button("Remove opt-out") { controller.revokeOptOut() }
+            .alert(
+                AppStrings.translate(appLocale, "thread.revokeTitle"),
+                isPresented: $confirmRevoke
+            ) {
+                Button(
+                    AppStrings.translate(appLocale, "common.cancel"),
+                    role: .cancel
+                ) {}
+                Button(AppStrings.translate(appLocale, "thread.removeOptOut")) {
+                    controller.revokeOptOut()
+                }
             } message: {
-                Text(
-                    "You'll be able to text this customer again. Only do this if they "
-                        + "asked to hear from you."
-                )
+                Text(AppStrings.translate(appLocale, "thread.revokeBody"))
             }
             // #234: deleting a queued message throws away words the person
             // wrote and that nothing else holds — the draft is long gone by
@@ -522,25 +536,32 @@ private struct ThreadBody: View {
             // *Applying: Ethical Friction — a deliberate pause before the
             // irreversible.*
             .alert(
-                "Delete this message?",
+                AppStrings.translate(appLocale, "thread.deleteQueuedTitle"),
                 isPresented: Binding(
                     get: { confirmDiscardQueued != nil },
                     set: { if !$0 { confirmDiscardQueued = nil } }
                 ),
                 presenting: confirmDiscardQueued
             ) { pending in
-                Button("Keep it", role: .cancel) { confirmDiscardQueued = nil }
-                Button("Delete", role: .destructive) {
+                Button(
+                    AppStrings.translate(appLocale, "thread.keepIt"),
+                    role: .cancel
+                ) { confirmDiscardQueued = nil }
+                Button(
+                    AppStrings.translate(appLocale, "common.delete"),
+                    role: .destructive
+                ) {
                     controller.discardQueued(pending.localId)
                     confirmDiscardQueued = nil
                 }
             } message: { pending in
                 // Quoting it back is the point: a queued row shows a couple of
                 // lines, and the person is about to lose whichever ones they
-                // cannot see.
+                // cannot see. The quotation marks are punctuation around the
+                // customer's own words, so they stay out of the catalogue.
                 Text(
-                    "It hasn't been sent, and deleting it here is the only copy gone.\n\n"
-                        + "“\(pending.body)”"
+                    AppStrings.translate(appLocale, "thread.deleteQueuedBody")
+                        + "\n\n“\(pending.body)”"
                 )
             }
             .sheet(
@@ -554,6 +575,7 @@ private struct ThreadBody: View {
                         controller: controller,
                         message: message,
                         contactName: contactName,
+                        locale: appLocale,
                         onDismiss: { makeTaskFor = nil }
                     )
                 }
@@ -571,11 +593,12 @@ private struct ThreadBody: View {
             filter: controller.filter,
             allMessagesLoaded: controller.allMessagesLoaded,
             calendar: .current,
-            now: Date()
+            now: Date(),
+            locale: appLocale
         )
         return ZStack(alignment: .bottom) {
             if timeline.isEmpty {
-                Text("No messages yet.")
+                Text(AppStrings.translate(appLocale, "thread.noMessages"))
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -672,8 +695,12 @@ private struct ThreadBody: View {
                                 }
                             } label: {
                                 HStack(spacing: 4) {
-                                    Text("New message")
-                                        .font(.golos(12, weight: .semibold))
+                                    Text(
+                                        AppStrings.translate(
+                                            appLocale, "thread.newMessagePill"
+                                        )
+                                    )
+                                    .font(.golos(12, weight: .semibold))
                                     Image(systemName: "chevron.down")
                                         .font(.scaled(12, weight: .semibold))
                                 }
@@ -739,11 +766,17 @@ private struct ThreadBody: View {
         sentence: String
     ) -> String? {
         guard let target = eventTarget(of: event) else { return nil }
+        // The sentence is the event line's, which is composed elsewhere; only
+        // the destination is ours to translate, so it is appended rather than
+        // interpolated into a catalogue string that would then have to carry
+        // somebody else's grammar.
         switch target {
         case .openTask:
-            return "\(sentence). Open the task"
+            return "\(sentence). "
+                + AppStrings.translate(appLocale, "thread.openTheTask")
         case .jumpToMessage:
-            return "\(sentence). Go to that message"
+            return "\(sentence). "
+                + AppStrings.translate(appLocale, "thread.goToMessage")
         }
     }
 
@@ -768,7 +801,8 @@ private struct ThreadBody: View {
                 // question about an outbound text is who already answered this
                 // customer, so sends carry the teammate's name like the web.
                 authorName: message.direction == MessageDirection.note
-                    ? (message.sent_by_user_id.flatMap { names[$0] } ?? "Internal note")
+                    ? (message.sent_by_user_id.flatMap { names[$0] }
+                        ?? AppStrings.translate(appLocale, "thread.internalNote"))
                     : (message.direction == MessageDirection.outbound
                         ? message.sent_by_user_id.flatMap { names[$0] }
                         : nil),
@@ -837,7 +871,7 @@ private struct ThreadBody: View {
         ) else {
             controller.notifyExternally(
                 MeteredMedia.meteredHint,
-                actionLabel: "Load",
+                actionLabel: AppStrings.translate(appLocale, "thread.loadAnyway"),
                 action: { openFile(attachment, requested: true) }
             )
             return
@@ -874,8 +908,9 @@ private struct ThreadBody: View {
             if !manager.hasMicPermission {
                 guard await manager.requestMicPermission() else {
                     controller.notifyExternally(
-                        "Loonext needs the microphone to place calls. "
-                            + "Allow it in Settings › Loonext."
+                        AppStrings.translate(
+                            appLocale, "thread.micNeededForCalls"
+                        )
                     )
                     return
                 }
@@ -1232,16 +1267,20 @@ private struct ThreadHeader: View {
     let onOpenSheet: @MainActor () -> Void
     let onCall: @MainActor () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     /// The one status line under the name: status · assignee (or number), plus
     /// an opted-out tail — the Android header subtitle.
     private var subtitle: String {
-        var parts = statusLabel(detail.status)
+        var parts = statusLabel(detail.status, locale: appLocale)
         let assigneeName = controller.members
             .first { $0.user_id == detail.assigned_user_id }?
             .display_name
         let trailing = (assigneeName?.isBlank == false) ? assigneeName! : phoneLabel
         parts += " · \(trailing)"
-        if controller.contact?.opted_out == true { parts += " · Opted out" }
+        if controller.contact?.opted_out == true {
+            parts += " · " + AppStrings.translate(appLocale, "thread.optedOut")
+        }
         return parts
     }
 
@@ -1264,8 +1303,16 @@ private struct ThreadHeader: View {
     /// a screen-reader user — which is the same complaint #505 opened with, one
     /// surface further in.
     private var identityLabel: String {
-        guard let badge = repeatBadge else { return "Conversation options for \(contactName)" }
-        return "Conversation options for \(contactName), \(badge)"
+        guard let badge = repeatBadge else {
+            return AppStrings.translate(
+                appLocale, "thread.conversationOptions", ["name": contactName]
+            )
+        }
+        return AppStrings.translate(
+            appLocale,
+            "thread.conversationOptionsBadge",
+            ["name": contactName, "badge": badge]
+        )
     }
 
     var body: some View {
@@ -1276,7 +1323,7 @@ private struct ThreadHeader: View {
                     .foregroundStyle(BrandColor.ink)
                     .frame(width: 36, height: 36)
             }
-            .accessibilityLabel("Back")
+            .accessibilityLabel(AppStrings.translate(appLocale, "common.back"))
 
             // Avatar + name + status line all open the conversation info sheet.
             Button(action: onOpenSheet) {
@@ -1362,7 +1409,11 @@ private struct ThreadHeader: View {
                     }
                 }
                 .disabled(calling)
-                .accessibilityLabel("Call \(contactName)")
+                .accessibilityLabel(
+                    AppStrings.translate(
+                        appLocale, "thread.callContact", ["name": contactName]
+                    )
+                )
             }
         }
         .padding(.horizontal, 8)
@@ -1397,6 +1448,8 @@ private struct ConversationSheet: View {
     /// is WHICH ladder it is completing; nil is closed.
     @State private var snoozePickerKind: DeferralKind?
 
+    @Environment(\.appLocale) private var appLocale
+
     private let statuses = [
         ConversationStatus.new,
         ConversationStatus.open,
@@ -1408,7 +1461,12 @@ private struct ConversationSheet: View {
         let name = controller.members
             .first { $0.user_id == detail.assigned_user_id }?
             .display_name
-        return (name?.isBlank == false) ? "Assigned to \(name!)" : "Assign to…"
+        guard let name, !name.isBlank else {
+            return AppStrings.translate(appLocale, "thread.assignToEllipsis")
+        }
+        return AppStrings.translate(
+            appLocale, "thread.assignedTo", ["name": name]
+        )
     }
 
     var body: some View {
@@ -1445,7 +1503,7 @@ private struct ConversationSheet: View {
                         .foregroundStyle(BrandColor.muted500)
                 }
                 Spacer(minLength: 8)
-                Text("View contact")
+                Text(AppStrings.translate(appLocale, "thread.viewContact"))
                     .font(.golos(11.5, weight: .semibold))
                     .foregroundStyle(BrandColor.olive)
             }
@@ -1459,7 +1517,7 @@ private struct ConversationSheet: View {
 
     private var statusSection: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text("STATUS")
+            Text(AppStrings.translate(appLocale, "thread.statusHeading"))
                 .font(.golos(10.5, weight: .bold))
                 .kerning(0.6)
                 .foregroundStyle(BrandColor.muted500)
@@ -1471,7 +1529,7 @@ private struct ConversationSheet: View {
                         if !selected { controller.setStatus(status) }
                         onDismiss()
                     } label: {
-                        Text(statusLabel(status))
+                        Text(statusLabel(status, locale: appLocale))
                             .font(.golos(11.5, weight: .semibold))
                             .foregroundStyle(selected ? BrandColor.paper : BrandColor.muted700)
                             .padding(.horizontal, 13)
@@ -1497,16 +1555,31 @@ private struct ConversationSheet: View {
             // sheet already had a toggleRow used only by the view filters. Same
             // vocabulary everywhere now: a trailing mark means state, and the
             // label names the state rather than flipping between two verbs.
-            toggleRow("Pinned", icon: "pin", on: detail.pinned_at != nil) {
+            toggleRow(
+                AppStrings.translate(appLocale, "thread.pinned"),
+                icon: "pin",
+                on: detail.pinned_at != nil
+            ) {
                 controller.toggleConversationPin()
                 onDismiss()
             }
             RowDivider()
-            sheetRow("Photos & files", icon: "photo.on.rectangle", action: onOpenGallery)
+            sheetRow(
+                AppStrings.translate(appLocale, "thread.photosAndFiles"),
+                icon: "photo.on.rectangle",
+                action: onOpenGallery
+            )
             RowDivider()
-            sheetRow("Refresh", icon: "arrow.clockwise") { onRefresh() }
+            sheetRow(
+                AppStrings.translate(appLocale, "thread.refresh"),
+                icon: "arrow.clockwise"
+            ) { onRefresh() }
             RowDivider()
-            toggleRow("Spam", icon: "exclamationmark.octagon", on: detail.is_spam) {
+            toggleRow(
+                AppStrings.translate(appLocale, "thread.spam"),
+                icon: "exclamationmark.octagon",
+                on: detail.is_spam
+            ) {
                 controller.setSpam(!detail.is_spam)
                 onDismiss()
             }
@@ -1520,18 +1593,21 @@ private struct ConversationSheet: View {
                 // the customer takes.
                 if isCarrierEnforcedOptOut(controller.contact?.opt_out_source) {
                     sheetNote(
-                        "This customer texted STOP. Only they can undo it, by "
-                            + "texting START to your number."
+                        AppStrings.translate(appLocale, "thread.carrierStopNote")
                     )
                 } else {
                     sheetRow(
-                        "Remove opt-out",
+                        AppStrings.translate(appLocale, "thread.removeOptOut"),
                         icon: "arrow.uturn.backward",
                         action: onRevokeOptOut
                     )
                 }
             } else {
-                sheetRow("Opt out of texts", icon: "nosign", action: onOptOut)
+                sheetRow(
+                    AppStrings.translate(appLocale, "thread.optOutOfTexts"),
+                    icon: "nosign",
+                    action: onOptOut
+                )
             }
         }
         .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -1561,14 +1637,19 @@ private struct ConversationSheet: View {
                 )
                 RowDivider()
                 sheetRow(
-                    isFollowUp ? "Cancel the reminder" : "Bring back now",
+                    AppStrings.translate(
+                        appLocale,
+                        isFollowUp
+                            ? "thread.cancelReminder"
+                            : "thread.bringBackNow"
+                    ),
                     icon: "alarm.slash"
                 ) {
                     controller.unsnooze()
                     onDismiss()
                 }
             } else {
-                sheetNote("Snooze until")
+                sheetNote(AppStrings.translate(appLocale, "thread.snoozeUntil"))
                 ForEach(snoozePresets()) { preset in
                     RowDivider()
                     sheetRow(preset.label, trailing: presetClock(preset.at)) {
@@ -1577,14 +1658,19 @@ private struct ConversationSheet: View {
                     }
                 }
                 RowDivider()
-                sheetRow("Pick a date…", icon: "calendar") { snoozePickerKind = .snooze }
+                sheetRow(
+                    AppStrings.translate(appLocale, "thread.pickADate"),
+                    icon: "calendar"
+                ) { snoozePickerKind = .snooze }
 
                 // #293: a SECOND ladder, not a second label on the first.
                 // "This afternoon" is a sensible time to pick a thread back up
                 // and a meaningless time to chase a quote — one ladder for both
                 // would put three useless options in front of whichever job you
                 // were actually doing.
-                sheetNote("Remind me to chase")
+                sheetNote(
+                    AppStrings.translate(appLocale, "thread.remindMeToChase")
+                )
                 ForEach(followUpPresets()) { preset in
                     RowDivider()
                     sheetRow(preset.label, trailing: presetClock(preset.at)) {
@@ -1596,7 +1682,10 @@ private struct ConversationSheet: View {
                     }
                 }
                 RowDivider()
-                sheetRow("Pick a date…", icon: "calendar") { snoozePickerKind = .followUp }
+                sheetRow(
+                    AppStrings.translate(appLocale, "thread.pickADate"),
+                    icon: "calendar"
+                ) { snoozePickerKind = .followUp }
             }
         }
         .background(BrandColor.paper, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -1619,15 +1708,27 @@ private struct ConversationSheet: View {
 
     private var timelineCard: some View {
         VStack(spacing: 0) {
-            toggleRow("Show messages", icon: "bubble.left", on: controller.filter.messages) {
+            toggleRow(
+                AppStrings.translate(appLocale, "thread.showMessages"),
+                icon: "bubble.left",
+                on: controller.filter.messages
+            ) {
                 controller.filter = controller.filter.toggledMessages()
             }
             RowDivider()
-            toggleRow("Show notes", icon: "lock", on: controller.filter.notes) {
+            toggleRow(
+                AppStrings.translate(appLocale, "thread.showNotes"),
+                icon: "lock",
+                on: controller.filter.notes
+            ) {
                 controller.filter = controller.filter.toggledNotes()
             }
             RowDivider()
-            toggleRow("Show events", icon: "info.circle", on: controller.filter.events) {
+            toggleRow(
+                AppStrings.translate(appLocale, "thread.showEvents"),
+                icon: "info.circle",
+                on: controller.filter.events
+            ) {
                 controller.filter = controller.filter.toggledEvents()
             }
         }
@@ -1764,6 +1865,8 @@ struct AssigneePickerSheet: View {
     let selectedUserId: String?
     let onPick: @MainActor (String?) -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         NavigationStack {
             List {
@@ -1771,7 +1874,7 @@ struct AssigneePickerSheet: View {
                     onPick(nil)
                 } label: {
                     HStack {
-                        Text("Unassigned")
+                        Text(AppStrings.translate(appLocale, "thread.unassigned"))
                             .foregroundStyle(.primary)
                         Spacer()
                         if selectedUserId == nil {
@@ -1789,11 +1892,18 @@ struct AssigneePickerSheet: View {
                                 name: member.display_name.isBlank ? nil : member.display_name,
                                 size: 30
                             )
-                            Text(
-                                (member.display_name.isBlank ? "Teammate" : member.display_name)
-                                    + (member.user_id == meUserId ? " (you)" : "")
-                            )
-                            .foregroundStyle(.primary)
+                            let name = member.display_name.isBlank
+                                ? AppStrings.translate(
+                                    appLocale, "thread.teammate"
+                                )
+                                : member.display_name
+                            let suffix = member.user_id == meUserId
+                                ? AppStrings.translate(
+                                    appLocale, "thread.youSuffix"
+                                )
+                                : ""
+                            Text(name + suffix)
+                                .foregroundStyle(.primary)
                             Spacer()
                             if selectedUserId == member.user_id {
                                 Image(systemName: "checkmark")
@@ -1804,7 +1914,7 @@ struct AssigneePickerSheet: View {
                 }
             }
             .listStyle(.plain)
-            .navigationTitle("Assign to")
+            .navigationTitle(AppStrings.translate(appLocale, "thread.assignTo"))
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium, .large])
@@ -1820,6 +1930,8 @@ private struct SnoozedBanner: View {
     let label: String
     let onBringBack: @MainActor () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         Button(action: onBringBack) {
             HStack(spacing: 8) {
@@ -1830,7 +1942,7 @@ private struct SnoozedBanner: View {
                     .font(.golos(11.5, weight: .semibold))
                     .foregroundStyle(BrandColor.muted900)
                 Spacer()
-                Text("Bring back")
+                Text(AppStrings.translate(appLocale, "thread.bringBack"))
                     .font(.golos(11.5, weight: .semibold))
                     .foregroundStyle(BrandColor.olive)
             }
@@ -1845,7 +1957,9 @@ private struct SnoozedBanner: View {
         .buttonStyle(.plain)
         .padding(.horizontal, 18)
         .padding(.vertical, 5)
-        .accessibilityHint("Brings this conversation back to your inbox now")
+        .accessibilityHint(
+            AppStrings.translate(appLocale, "thread.bringBackHint")
+        )
     }
 }
 
@@ -1857,6 +1971,7 @@ private struct PinnedBanner: View {
     let onJump: @MainActor (String) -> Void
 
     @State private var expanded = false
+    @Environment(\.appLocale) private var appLocale
 
     /// A media-only pinned message is named by what it carries, not "Photo".
     private func pinnedPreview(_ message: Message) -> String {
@@ -1878,8 +1993,14 @@ private struct PinnedBanner: View {
                     Image(systemName: "pin.fill")
                         .font(.scaled(12))
                         .foregroundStyle(BrandColor.muted700)
-                    Text("Pinned · \(pinned.count)")
-                        .font(.golos(11.5, weight: .semibold))
+                    Text(
+                        AppStrings.translate(
+                            appLocale,
+                            "thread.pinnedCount",
+                            ["count": String(pinned.count)]
+                        )
+                    )
+                    .font(.golos(11.5, weight: .semibold))
                         .foregroundStyle(BrandColor.muted900)
                     Spacer()
                     Image(systemName: expanded ? "chevron.up" : "chevron.down")
@@ -1890,7 +2011,12 @@ private struct PinnedBanner: View {
                 .padding(.vertical, 8)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(expanded ? "Collapse pinned" : "Expand pinned")
+            .accessibilityLabel(
+                AppStrings.translate(
+                    appLocale,
+                    expanded ? "thread.collapsePinned" : "thread.expandPinned"
+                )
+            )
 
             if expanded {
                 ForEach(pinned, id: \.id) { message in
@@ -1962,6 +2088,9 @@ private struct MakeTaskSheet: View {
     let controller: ThreadController
     let message: Message
     let contactName: String
+    /// #228: the reader's language, handed in rather than read from the
+    /// environment because `init` seeds the editable title from it.
+    let locale: String
     let onDismiss: @MainActor () -> Void
 
     @State private var title: String
@@ -1994,21 +2123,30 @@ private struct MakeTaskSheet: View {
         controller: ThreadController,
         message: Message,
         contactName: String,
+        locale: String,
         onDismiss: @escaping @MainActor () -> Void
     ) {
         self.controller = controller
         self.message = message
         self.contactName = contactName
+        self.locale = locale
         self.onDismiss = onDismiss
-        _title = State(initialValue: Self.seededTitle(message.body))
+        _title = State(initialValue: Self.seededTitle(message.body, locale: locale))
         _assigneeId = State(initialValue: controller.meUserId)
     }
 
     /// The web's message-snippet default title, editable: the trimmed body
     /// (first 120 chars), or "Follow up" for a picture-only message.
-    private static func seededTitle(_ body: String) -> String {
+    ///
+    /// #228: the fallback is a task TITLE that gets posted, so it has to be in
+    /// the writer's language — and it is seeded in `init`, where no environment
+    /// value exists yet. Hence the passed-in locale rather than `\.appLocale`;
+    /// this sheet has one construction site, and it hands over the same value.
+    private static func seededTitle(_ body: String, locale: String) -> String {
         let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "Follow up" : String(trimmed.prefix(120))
+        return trimmed.isEmpty
+            ? AppStrings.translate(locale, "thread.taskTitleFallback")
+            : String(trimmed.prefix(120))
     }
 
     var body: some View {
@@ -2021,7 +2159,7 @@ private struct MakeTaskSheet: View {
                 dueRow
                 addressBlock
                 createButton
-                Text("The thread shows the task line")
+                Text(AppStrings.translate(locale, "thread.taskLineNote"))
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted300)
                     .frame(maxWidth: .infinity)
@@ -2034,7 +2172,7 @@ private struct MakeTaskSheet: View {
         .presentationDragIndicator(.visible)
         .task { await enrichIfNeeded() }
         .sheet(isPresented: $duePickerOpen) {
-            MakeTaskDueSheet(initial: due) { picked in
+            MakeTaskDueSheet(initial: due, locale: locale) { picked in
                 due = picked
                 dueSuggested = false
             }
@@ -2046,11 +2184,15 @@ private struct MakeTaskSheet: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("New task")
+                Text(AppStrings.translate(locale, "thread.newTask"))
                     .font(.golos(21, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
-                Text("From \(contactName)'s message · posts to the thread")
-                    .font(.golos(12))
+                Text(
+                    AppStrings.translate(
+                        locale, "thread.newTaskFrom", ["name": contactName]
+                    )
+                )
+                .font(.golos(12))
                     .foregroundStyle(BrandColor.muted500)
             }
             Spacer()
@@ -2062,7 +2204,7 @@ private struct MakeTaskSheet: View {
                     .background(Circle().fill(BrandColor.inset))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Cancel")
+            .accessibilityLabel(AppStrings.translate(locale, "common.cancel"))
         }
     }
 
@@ -2091,8 +2233,14 @@ private struct MakeTaskSheet: View {
 
     private var titleField: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(label: "Title")
-            TextField("Task title", text: $title, axis: .vertical)
+            SectionHeader(
+                label: AppStrings.translate(locale, "thread.taskTitle")
+            )
+            TextField(
+                AppStrings.translate(locale, "thread.taskTitlePlaceholder"),
+                text: $title,
+                axis: .vertical
+            )
                 .font(.golos(14.5, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
                 .lineLimit(1 ... 3)
@@ -2110,7 +2258,9 @@ private struct MakeTaskSheet: View {
     /// from the sheet that is already open, not three.
     private var assigneeRow: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(label: "Assign to")
+            SectionHeader(
+                label: AppStrings.translate(locale, "thread.assignTo")
+            )
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(
@@ -2118,7 +2268,8 @@ private struct MakeTaskSheet: View {
                         id: \.user_id
                     ) { member in
                         let name = member.display_name.isBlank
-                            ? "Teammate" : member.display_name
+                            ? AppStrings.translate(locale, "thread.teammate")
+                            : member.display_name
                         AssigneeChoiceChip(
                             name: name,
                             showsAvatar: true,
@@ -2129,7 +2280,7 @@ private struct MakeTaskSheet: View {
                         }
                     }
                     AssigneeChoiceChip(
-                        name: "Nobody",
+                        name: AppStrings.translate(locale, "thread.nobody"),
                         showsAvatar: false,
                         selected: assigneeId == nil
                     ) { assigneeId = nil }
@@ -2143,7 +2294,9 @@ private struct MakeTaskSheet: View {
     private var dueRow: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
-                SectionHeader(label: "Due (optional)")
+                SectionHeader(
+                    label: AppStrings.translate(locale, "thread.dueOptional")
+                )
                 if dueSuggested { suggestedHint }
                 Spacer(minLength: 0)
             }
@@ -2178,7 +2331,9 @@ private struct MakeTaskSheet: View {
                             .foregroundStyle(BrandColor.muted300)
                     }
                     .buttonStyle(.borderless)
-                    .accessibilityLabel("Clear due date")
+                    .accessibilityLabel(
+                        AppStrings.translate(locale, "thread.clearDueDate")
+                    )
                 }
             }
         }
@@ -2187,7 +2342,7 @@ private struct MakeTaskSheet: View {
     private var suggestedHint: some View {
         HStack(spacing: 3) {
             AiOrb(state: .idle, size: 11)
-            Text("Suggested")
+            Text(AppStrings.translate(locale, "thread.suggested"))
                 .font(.golos(10.5, weight: .semibold))
         }
         .foregroundStyle(BrandColor.muted500)
@@ -2203,7 +2358,7 @@ private struct MakeTaskSheet: View {
                         Image(systemName: "mappin.and.ellipse")
                             .font(.scaled(13, weight: .medium))
                             .foregroundStyle(BrandColor.muted500)
-                        Text("Address")
+                        Text(AppStrings.translate(locale, "thread.addressSection"))
                             .font(.golos(13.5, weight: .semibold))
                             .foregroundStyle(BrandColor.ink)
                         if enriching {
@@ -2222,11 +2377,16 @@ private struct MakeTaskSheet: View {
                 // #220: one-tap clear of a suggested/typed address — shown
                 // whenever the address has content (mirrors the web MakeTaskForm).
                 if !addr.isEmpty {
-                    Button("Clear", action: clearAddress)
+                    Button(
+                        AppStrings.translate(locale, "thread.clear"),
+                        action: clearAddress
+                    )
                         .font(.golos(12.5, weight: .semibold))
                         .foregroundStyle(BrandColor.muted500)
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Clear address")
+                        .accessibilityLabel(
+                            AppStrings.translate(locale, "thread.clearAddress")
+                        )
                 }
 
                 // Disclosure chevron stays the trailing affordance (parity with
@@ -2240,14 +2400,34 @@ private struct MakeTaskSheet: View {
 
             if addrOpen {
                 VStack(spacing: 8) {
-                    addrField("Street", keyPath: \.street, field: .street)
+                    addrField(
+                        AppStrings.translate(locale, "thread.addrStreet"),
+                        keyPath: \.street,
+                        field: .street
+                    )
                     HStack(spacing: 8) {
-                        addrField("Unit / suite", keyPath: \.unit, field: .unit)
-                        addrField("City", keyPath: \.city, field: .city)
+                        addrField(
+                            AppStrings.translate(locale, "thread.addrUnit"),
+                            keyPath: \.unit,
+                            field: .unit
+                        )
+                        addrField(
+                            AppStrings.translate(locale, "thread.addrCity"),
+                            keyPath: \.city,
+                            field: .city
+                        )
                     }
                     HStack(spacing: 8) {
-                        addrField("State / province", keyPath: \.state, field: .state)
-                        addrField("Postal code", keyPath: \.postalCode, field: .postal)
+                        addrField(
+                            AppStrings.translate(locale, "thread.addrState"),
+                            keyPath: \.state,
+                            field: .state
+                        )
+                        addrField(
+                            AppStrings.translate(locale, "thread.addrPostal"),
+                            keyPath: \.postalCode,
+                            field: .postal
+                        )
                     }
                     // #214: the country is a typable, searchable picker. A
                     // selection is a user edit → mark the address "manual" (an
@@ -2306,7 +2486,7 @@ private struct MakeTaskSheet: View {
     private var createButton: some View {
         Button(action: create) {
             HStack(spacing: 10) {
-                Text("Create task")
+                Text(AppStrings.translate(locale, "thread.createTask"))
                     .font(.golos(15, weight: .semibold))
                     .foregroundStyle(BrandColor.canvas)
                 Spacer()
@@ -2323,7 +2503,9 @@ private struct MakeTaskSheet: View {
         }
         .buttonStyle(.plain)
         .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        .accessibilityLabel("Create task")
+        .accessibilityLabel(
+            AppStrings.translate(locale, "thread.createTask")
+        )
     }
 
     // MARK: Logic
@@ -2332,7 +2514,9 @@ private struct MakeTaskSheet: View {
     /// Reuses the tested `dueSentenceTime` helper (round-trips through the same
     /// offset-ISO encoder the create body uses).
     private var dueDisplayLabel: String {
-        guard let due else { return "Add a due date" }
+        guard let due else {
+            return AppStrings.translate(locale, "thread.addDueDate")
+        }
         return dueSentenceTime(isoOffsetString(due, timeZone: .current))
     }
 
@@ -2410,13 +2594,21 @@ private struct MakeTaskSheet: View {
 @MainActor
 private struct MakeTaskDueSheet: View {
     let initial: Date?
+    /// Handed in beside `MakeTaskSheet`'s own, so the two sheets in one flow
+    /// cannot end up reading different catalogues.
+    let locale: String
     let onSet: @MainActor (Date) -> Void
 
     @State private var draft: Date
     @Environment(\.dismiss) private var dismiss
 
-    init(initial: Date?, onSet: @escaping @MainActor (Date) -> Void) {
+    init(
+        initial: Date?,
+        locale: String,
+        onSet: @escaping @MainActor (Date) -> Void
+    ) {
         self.initial = initial
+        self.locale = locale
         self.onSet = onSet
         let fallback = Calendar.current.date(
             bySettingHour: 9, minute: 0, second: 0, of: Date()
@@ -2427,16 +2619,18 @@ private struct MakeTaskDueSheet: View {
     var body: some View {
         VStack(spacing: 12) {
             DatePicker(
-                "Due",
+                AppStrings.translate(locale, "thread.due"),
                 selection: $draft,
                 displayedComponents: [.date, .hourAndMinute]
             )
             .datePickerStyle(.graphical)
             HStack {
-                Button("Cancel") { dismiss() }
-                    .foregroundStyle(.secondary)
+                Button(AppStrings.translate(locale, "common.cancel")) {
+                    dismiss()
+                }
+                .foregroundStyle(.secondary)
                 Spacer()
-                Button("Set due date") {
+                Button(AppStrings.translate(locale, "thread.setDueDate")) {
                     onSet(draft)
                     dismiss()
                 }

@@ -135,6 +135,14 @@ struct ContactsTab: View {
     @State private var deviceExpanded = false
     @State private var addFromDevice: DeviceContactListRow?
 
+    @Environment(\.appLocale) private var appLocale
+
+    /// This screen's words. Short because the alternative is
+    /// `AppStrings.translate(appLocale, …)` twenty times in one layout.
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
+
     private var mutations: ContactMutations {
         ContactMutations(
             api: graph.api,
@@ -290,7 +298,7 @@ struct ContactsTab: View {
     private var headerBar: some View {
         HStack(alignment: .center) {
             HStack(alignment: .firstTextBaseline, spacing: 9) {
-                ScreenTitle(text: "Contacts")
+                ScreenTitle(text: t("contactsTasks.contactsTitle"))
                 // The spec count is the total — only honest once every page
                 // has loaded (no server-side total on the wire).
                 if case .ready = state, nextCursor == nil, !rows.isEmpty {
@@ -311,7 +319,7 @@ struct ContactsTab: View {
                     .background(BrandColor.ink, in: Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("New contact")
+            .accessibilityLabel(t("contactsTasks.newContact"))
         }
         .padding(.horizontal, 18)
         .padding(.top, 8)
@@ -322,7 +330,7 @@ struct ContactsTab: View {
             Image(systemName: "magnifyingglass")
                 .font(.scaled(15, weight: .medium))
                 .foregroundStyle(BrandColor.muted300)
-            TextField("Search name or number", text: $query)
+            TextField(t("contactsTasks.searchNameOrNumber"), text: $query)
                 .font(.golos(13.5))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -339,7 +347,7 @@ struct ContactsTab: View {
                         .foregroundStyle(BrandColor.muted300)
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel("Clear search")
+                .accessibilityLabel(t("contactsTasks.clearSearch"))
             }
         }
         .padding(.horizontal, 16)
@@ -353,7 +361,11 @@ struct ContactsTab: View {
     /// spec 27's footer hint made functional. New contact moved to the header.
     private var actionsRow: some View {
         HStack(spacing: 10) {
-            Button(exporting ? "Exporting…" : "Export CSV") {
+            Button(
+                exporting
+                    ? t("contactsTasks.exporting")
+                    : t("contactsTasks.exportCsv")
+            ) {
                 exportCsv()
             }
             .buttonStyle(.plain)
@@ -365,16 +377,20 @@ struct ContactsTab: View {
             .disabled(exporting)
             if canImport {
                 Menu {
-                    Button("CSV file") {
+                    Button(t("contactsTasks.csvFile")) {
                         pendingImport = .csv
                         importPresented = true
                     }
-                    Button("vCard file (.vcf)") {
+                    Button(t("contactsTasks.vcardFile")) {
                         pendingImport = .vcard
                         importPresented = true
                     }
                 } label: {
-                    Text(importing ? "Importing…" : "Import CSV or vCard")
+                    Text(
+                        importing
+                            ? t("contactsTasks.importing")
+                            : t("contactsTasks.importCsvOrVcard")
+                    )
                         .font(.golos(11, weight: .semibold))
                         .foregroundStyle(BrandColor.muted700)
                         .padding(.horizontal, 14)
@@ -395,12 +411,15 @@ struct ContactsTab: View {
     /// "They're added automatically when someone texts you" reads as having
     /// none at all, which is alarming and wrong.
     private var emptyMessage: String {
-        if !debouncedQ.isEmpty { return "No matches for \"\(debouncedQ)\"." }
+        if !debouncedQ.isEmpty {
+            return t("contactsTasks.noMatchesFor", ["query": debouncedQ])
+        }
         if fieldFilter != nil {
+            // Still English: the two halves are constants in ContactFilter.swift,
+            // which this slice does not own. Reported with the extraction.
             return "\(contactFilterEmptyTitle). \(contactFilterEmptyBody)"
         }
-        return "No contacts yet. They're added automatically when "
-            + "someone texts you, or add one yourself."
+        return t("contactsTasks.noContactsYet")
     }
 
     @ViewBuilder
@@ -443,8 +462,8 @@ struct ContactsTab: View {
                             // user kept was not, and nothing else on screen
                             // would tell them.
                             notice = result.opted_out
-                                ? "Merged. This customer is opted out, so nothing sends to either number."
-                                : "Merged."
+                                ? t("contactsTasks.mergedOptedOut")
+                                : t("contactsTasks.merged")
                         }
                     )
 
@@ -460,7 +479,11 @@ struct ContactsTab: View {
                             }
                             if nextCursor != nil {
                                 RowDivider()
-                                Button(loadingMore ? "Loading…" : "Load more") {
+                                Button(
+                                    loadingMore
+                                        ? t("contactsTasks.loading")
+                                        : t("contactsTasks.loadMore")
+                                ) {
                                     loadMore()
                                 }
                                 .buttonStyle(.plain)
@@ -501,7 +524,7 @@ struct ContactsTab: View {
             : Array(matches.prefix(devicePreviewRows))
 
         VStack(alignment: .leading, spacing: 0) {
-            Text("On this phone")
+            Text(t("contactsTasks.onThisPhone"))
                 .font(.golos(14, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
                 .padding(.horizontal, 4)
@@ -509,8 +532,8 @@ struct ContactsTab: View {
             if deviceAuthorized {
                 Text(
                     matches.isEmpty
-                        ? "Nobody here matches."
-                        : "Your own contacts. They stay on your phone."
+                        ? t("contactsTasks.devicePhoneNoMatch")
+                        : t("contactsTasks.devicePhoneOwn")
                 )
                 .font(.golos(12))
                 .foregroundStyle(BrandColor.muted500)
@@ -530,7 +553,7 @@ struct ContactsTab: View {
                 }
 
                 if debouncedQ.isEmpty, !deviceExpanded, matches.count > devicePreviewRows {
-                    Button("Show all from this phone") { deviceExpanded = true }
+                    Button(t("contactsTasks.showAllFromPhone")) { deviceExpanded = true }
                         .buttonStyle(.plain)
                         .font(.golos(12, weight: .semibold))
                         .foregroundStyle(BrandColor.olive)
@@ -538,18 +561,14 @@ struct ContactsTab: View {
                         .padding(.top, 10)
                 }
             } else {
-                Text(
-                    "Let Loonext read your phone's contacts and they show up here, "
-                        + "so you can text somebody without adding them first. "
-                        + "They stay on your phone."
-                )
+                Text(t("contactsTasks.devicePhoneAsk"))
                 .font(.golos(12))
                 .foregroundStyle(BrandColor.muted500)
                 .padding(.horizontal, 4)
                 .padding(.top, 3)
 
                 if DeviceContactsAccess.canAsk {
-                    Button("Show my phone contacts") {
+                    Button(t("contactsTasks.showMyPhoneContacts")) {
                         Task { deviceAuthorized = await DeviceContactsAccess.request() }
                     }
                     .buttonStyle(.plain)
@@ -561,7 +580,7 @@ struct ContactsTab: View {
                     // iOS never prompts twice. A button claiming it will is a
                     // button that lies, so this says where the switch actually
                     // lives.
-                    Text("Turn Contacts on for Loonext in Settings.")
+                    Text(t("contactsTasks.contactsNeedSettings"))
                         .font(.golos(12, weight: .semibold))
                         .foregroundStyle(BrandColor.muted700)
                         .padding(.horizontal, 4)
@@ -605,7 +624,7 @@ struct ContactsTab: View {
                     .foregroundStyle(BrandColor.muted500)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Add \(row.name) to contacts")
+            .accessibilityLabel(t("contactsTasks.addToContacts", ["name": row.name]))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
@@ -827,6 +846,8 @@ struct ContactSquareAvatar: View {
 private struct ContactRow: View {
     let contact: Contact
 
+    @Environment(\.appLocale) private var appLocale
+
     private var name: String {
         contact.name ?? formatPhone(contact.phone_e164)
     }
@@ -849,7 +870,7 @@ private struct ContactRow: View {
                         .lineLimit(1)
                     if contact.opted_out {
                         DsChip(
-                            text: "Opted out",
+                            text: AppStrings.translate(appLocale, "contactsTasks.optedOut"),
                             container: BrandColor.insetDeep,
                             content: BrandColor.muted700
                         )
@@ -898,6 +919,9 @@ struct CreateContactSheet: View {
     @State private var saving = false
     @State private var error: String?
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLocale) private var appLocale
+
+    private func t(_ key: String) -> String { AppStrings.translate(appLocale, key) }
 
     init(
         mutations: ContactMutations,
@@ -929,35 +953,35 @@ struct CreateContactSheet: View {
                             error = nil
                         }
                     if !phone.isEmpty && normalized == nil {
-                        Text("Enter a 10-digit US or Canada number.")
+                        Text(t("contactsTasks.nanpHint"))
                             .font(.caption)
                             .foregroundStyle(BrandColor.destructive)
                     }
                 } header: {
-                    Text("Phone")
+                    Text(t("contactsTasks.phoneField"))
                 }
                 Section {
-                    TextField("Optional", text: $name)
+                    TextField(t("contactsTasks.optional"), text: $name)
                         .onChange(of: name) { _, next in
                             if next.count > contactNameMax {
                                 name = String(next.prefix(contactNameMax))
                             }
                         }
                 } header: {
-                    Text("Name")
+                    Text(t("contactsTasks.nameField"))
                 }
                 Section {
-                    TextField("Optional", text: $address)
+                    TextField(t("contactsTasks.optional"), text: $address)
                         .onChange(of: address) { _, next in
                             if next.count > contactAddressMax {
                                 address = String(next.prefix(contactAddressMax))
                             }
                         }
                 } header: {
-                    Text("Address")
+                    Text(t("contactsTasks.address"))
                 }
                 Section {
-                    TextField("Optional", text: $notes, axis: .vertical)
+                    TextField(t("contactsTasks.optional"), text: $notes, axis: .vertical)
                         .lineLimit(2 ... 4)
                         .onChange(of: notes) { _, next in
                             if next.count > contactNotesMax {
@@ -965,7 +989,7 @@ struct CreateContactSheet: View {
                             }
                         }
                 } header: {
-                    Text("Notes")
+                    Text(t("contactsTasks.notesField"))
                 }
                 if let error {
                     Text(error)
@@ -975,14 +999,18 @@ struct CreateContactSheet: View {
             }
             .scrollContentBackground(.hidden)
             .background(BrandColor.canvas.ignoresSafeArea())
-            .navigationTitle("New contact")
+            .navigationTitle(t("contactsTasks.newContact"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button(t("common.cancel")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(saving ? "Adding…" : "Add contact") { create() }
+                    Button(
+                        saving
+                            ? t("contactsTasks.adding")
+                            : t("contactsTasks.addContact")
+                    ) { create() }
                         .disabled(normalized == nil || saving)
                 }
             }
@@ -1045,6 +1073,8 @@ private struct ImportReportSheet: View {
     /// START, it does not trap anybody.
     @State private var detent: PresentationDetent
 
+    @Environment(\.appLocale) private var appLocale
+
     init(report: ImportReport) {
         self.report = report
         let consent = ImportConsentOutcome(report.result)
@@ -1073,7 +1103,7 @@ private struct ImportReportSheet: View {
 
     private var summary: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Import finished")
+            Text(AppStrings.translate(appLocale, "contactsTasks.importFinished"))
                 .font(.golos(15, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
             Text(report.result.volumeSummary)
@@ -1137,7 +1167,7 @@ private struct ImportReportSheet: View {
 
     private var skippedSection: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text("Skipped rows")
+            Text(AppStrings.translate(appLocale, "contactsTasks.skippedRowsHeading"))
                 .font(.golos(11, weight: .semibold))
                 .foregroundStyle(BrandColor.muted500)
             PaperCard {
@@ -1161,7 +1191,13 @@ private struct ImportReportSheet: View {
             }
             let hidden = rows.count - importErrorsShown
             if hidden > 0 {
-                Text("…and \(hidden) more.")
+                Text(
+                    AppStrings.translate(
+                        appLocale,
+                        "contactsTasks.andMore",
+                        ["count": "\(hidden)"]
+                    )
+                )
                     .font(.golos(11))
                     .foregroundStyle(BrandColor.muted500)
             }
@@ -1172,7 +1208,7 @@ private struct ImportReportSheet: View {
     private var doneBar: some View {
         HStack {
             Spacer()
-            Button("Done") { dismiss() }
+            Button(AppStrings.translate(appLocale, "contactsTasks.done")) { dismiss() }
                 .tint(BrandColor.olive)
         }
         .padding(.horizontal, 16)
@@ -1197,15 +1233,22 @@ private struct ImportRefusedSheet: View {
     let refusal: ImportRefusal
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Nothing was imported")
+                    Text(AppStrings.translate(appLocale, "contactsTasks.nothingWasImported"))
                         .font(.golos(15, weight: .semibold))
                         .foregroundStyle(BrandColor.ink)
-                    Text(refusal.kind.label + " · no contacts were added or changed")
+                    // `kind.label` is CSV / vCard — a file format, not a word.
+                    Text(
+                        refusal.kind.label
+                            + AppStrings.translate(
+                                appLocale, "contactsTasks.noContactsAddedOrChanged"
+                            )
+                    )
                         .font(.golos(12.5))
                         .foregroundStyle(BrandColor.muted600)
                 }
@@ -1232,7 +1275,7 @@ private struct ImportRefusedSheet: View {
         .safeAreaInset(edge: .bottom) {
             HStack {
                 Spacer()
-                Button("Done") { dismiss() }
+                Button(AppStrings.translate(appLocale, "contactsTasks.done")) { dismiss() }
                     .tint(BrandColor.olive)
             }
             .padding(.horizontal, 16)

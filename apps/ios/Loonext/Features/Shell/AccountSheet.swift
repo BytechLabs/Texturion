@@ -26,6 +26,7 @@ struct AccountSheet: View {
     /// (landscape / square) so every card — including Sign out — stays reachable
     /// without a long scroll.
     @Environment(\.verticalSizeClass) private var vSizeClass
+    @Environment(\.appLocale) private var appLocale
 
     private var compactHeight: Bool { vSizeClass == .compact }
 
@@ -40,7 +41,9 @@ struct AccountSheet: View {
     }
 
     private var displayName: String {
-        me.display_name.isBlank ? (me.memberships.first?.name ?? "You") : me.display_name
+        me.display_name.isBlank
+            ? (me.memberships.first?.name ?? AppStrings.translate(appLocale, "shell.you"))
+            : me.display_name
     }
 
     private var activeNumbers: [PhoneNumberSummary] {
@@ -100,9 +103,19 @@ struct AccountSheet: View {
                     .font(.golos(14, weight: .semibold))
                     .foregroundStyle(BrandColor.paper)
                 if let membership {
-                    Text("\(displayName) · \(membership.role)")
-                        .font(.golos(11))
-                        .foregroundStyle(BrandColor.paper.opacity(0.55))
+                    // The ROLE is still the server's own token ("owner"), as it
+                    // has always been on this screen — web translates it and the
+                    // phones do not, which is a copy change rather than an
+                    // extraction and belongs to whoever makes it on all three.
+                    Text(
+                        AppStrings.translate(
+                            appLocale,
+                            "shell.identityLine",
+                            ["name": displayName, "role": membership.role]
+                        )
+                    )
+                    .font(.golos(11))
+                    .foregroundStyle(BrandColor.paper.opacity(0.55))
                 }
             }
             Spacer(minLength: 0)
@@ -131,7 +144,7 @@ struct AccountSheet: View {
                             .foregroundStyle(BrandColor.muted500)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Copy number")
+                    .accessibilityLabel(AppStrings.translate(appLocale, "shell.copyNumber"))
                 }
                 .padding(.horizontal, 15)
                 .padding(.vertical, 12)
@@ -141,7 +154,10 @@ struct AccountSheet: View {
 
     private var workspacesCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(label: "Workspaces", count: me.memberships.count)
+            SectionHeader(
+                label: AppStrings.translate(appLocale, "shell.workspaces"),
+                count: me.memberships.count
+            )
             PaperCard {
                 ForEach(Array(me.memberships.enumerated()), id: \.element.company_id) { index, workspace in
                     if index > 0 { RowDivider() }
@@ -157,7 +173,12 @@ struct AccountSheet: View {
                                 .foregroundStyle(BrandColor.ink)
                             Spacer()
                             if workspace.company_id == companyId {
-                                DsChip(text: "Current")
+                                DsChip(
+                                    text: AppStrings.translate(
+                                        appLocale,
+                                        "shell.currentWorkspace"
+                                    )
+                                )
                             }
                         }
                         .padding(.horizontal, 15)
@@ -174,7 +195,7 @@ struct AccountSheet: View {
     private var themeCard: some View {
         PaperCard {
             HStack(spacing: 12) {
-                Text("Theme")
+                Text(AppStrings.translate(appLocale, "shell.theme"))
                     .font(.golos(13.5, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
                 Spacer()
@@ -191,22 +212,36 @@ struct AccountSheet: View {
         PaperCard {
             linkRow(
                 icon: "bell",
-                label: "Notifications",
-                trailing: unreadNotifications > 0 ? "\(unreadNotifications) new" : nil,
+                label: AppStrings.translate(appLocale, "shell.notifications"),
+                trailing: unreadNotifications > 0
+                    ? AppStrings.translate(
+                        appLocale,
+                        "shell.unreadNew",
+                        ["count": "\(unreadNotifications)"]
+                    )
+                    : nil,
                 showDot: unreadNotifications > 0,
                 action: onOpenNotifications
             )
             RowDivider()
             // Spec 08 row order: Notifications · Contacts · Settings · Sign out.
             // Calls left this sheet when it became a nav tab (#redesign IA).
-            linkRow(icon: "person.2", label: "Contacts", action: onOpenContacts)
+            linkRow(
+                icon: "person.2",
+                label: AppStrings.translate(appLocale, "shell.navContacts"),
+                action: onOpenContacts
+            )
             RowDivider()
-            linkRow(icon: "gearshape", label: "Settings", action: onOpenSettings)
+            linkRow(
+                icon: "gearshape",
+                label: AppStrings.translate(appLocale, "shell.settings"),
+                action: onOpenSettings
+            )
             RowDivider()
             // Sign out styled destructive (red) — founder-feedback polish (#186).
             linkRow(
                 icon: "rectangle.portrait.and.arrow.right",
-                label: "Sign out",
+                label: AppStrings.translate(appLocale, "shell.signOut"),
                 destructive: true
             ) {
                 onSignOut()

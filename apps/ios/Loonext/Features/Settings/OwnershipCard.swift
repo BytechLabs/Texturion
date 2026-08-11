@@ -28,6 +28,8 @@ struct OwnershipCard: View {
     @State private var proof: HandoverProof?
     @State private var codeRejected = false
 
+    @Environment(\.appLocale) private var appLocale
+
     private var others: [Member] {
         members.filter { $0.deactivated_at == nil && $0.id != state.owner_member_id }
     }
@@ -36,15 +38,22 @@ struct OwnershipCard: View {
         guard let memberId,
               let found = members.first(where: { $0.id == memberId }),
               !found.display_name.isBlank
-        else { return "a teammate" }
+        else { return AppStrings.translate(appLocale, "settingsMore.aTeammate") }
         return found.display_name
+    }
+
+    /// A member's name, or the stand-in that opens a line rather than sits in
+    /// the middle of one.
+    private func capitalName(for member: Member) -> String {
+        member.display_name.isBlank
+            ? AppStrings.translate(appLocale, "settingsMore.aTeammateCapital")
+            : member.display_name
     }
 
     var body: some View {
         SettingsCard(
-            title: "Ownership",
-            description: "The owner controls billing, the spending cap, and your numbers. "
-                + "Only they can hand that on."
+            title: AppStrings.translate(appLocale, "settingsMore.ownershipTitle"),
+            description: AppStrings.translate(appLocale, "settingsMore.ownershipDesc")
         ) {
             VStack(alignment: .leading, spacing: 14) {
                 if let pending = state.pending {
@@ -60,11 +69,15 @@ struct OwnershipCard: View {
                 }
 
                 HStack {
-                    Text("Owner")
+                    Text(AppStrings.translate(appLocale, "settingsMore.owner"))
                         .font(.golos(13))
                         .foregroundStyle(BrandColor.muted600)
                     Spacer()
-                    Text(state.isOwner ? "You" : name(for: state.owner_member_id))
+                    Text(
+                        state.isOwner
+                            ? AppStrings.translate(appLocale, "settingsMore.you")
+                            : name(for: state.owner_member_id)
+                    )
                         .font(.golos(13))
                         .foregroundStyle(BrandColor.ink)
                 }
@@ -117,19 +130,24 @@ struct OwnershipCard: View {
             } else {
                 ConfirmSheet(
                     title: current.kind == HandoverKind.offer
-                        ? "Hand this workspace to \(current.who)?"
-                        : "Ask to take over this workspace?",
-                    message: current.kind == HandoverKind.offer
-                        ? "Nothing changes until they accept. When they do, they control "
-                            + "billing, the spending cap, and your numbers — and you stay on "
-                            + "the team as an admin. You can cancel any time before they "
-                            + "accept, and everyone will be told either way."
-                        : "The owner will be emailed straight away and can stop this with one "
-                            + "click for the next 7 days. Everyone on the team is told too. If "
-                            + "nobody stops it, you can complete the takeover after 7 days. "
-                            + "Only do this if the owner genuinely cannot act.",
-                    confirmLabel: current.kind == HandoverKind.offer
-                        ? "Offer it" : "Ask to take over",
+                        ? AppStrings.translate(
+                            appLocale,
+                            "settingsMore.handToTitle",
+                            ["name": current.who]
+                        )
+                        : AppStrings.translate(appLocale, "settingsMore.claimTitle"),
+                    message: AppStrings.translate(
+                        appLocale,
+                        current.kind == HandoverKind.offer
+                            ? "settingsMore.handOverBody"
+                            : "settingsMore.claimBody"
+                    ),
+                    confirmLabel: AppStrings.translate(
+                        appLocale,
+                        current.kind == HandoverKind.offer
+                            ? "settingsMore.offerIt"
+                            : "settingsMore.askTakeOver"
+                    ),
                     pending: busy,
                     error: actionError,
                     onConfirm: { confirm(current) },
@@ -144,33 +162,41 @@ struct OwnershipCard: View {
     private var backupSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Backup owner")
+                Text(AppStrings.translate(appLocale, "settingsMore.backupOwner"))
                     .font(.golos(13, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
                 Spacer()
                 if state.backup_member_id == nil {
-                    StatusPill(label: "Nobody named", tone: .warn)
+                    StatusPill(
+                        label: AppStrings.translate(appLocale, "settingsMore.nobodyNamed"),
+                        tone: .warn
+                    )
                 }
             }
             // Loss aversion, stated once and plainly: this is the difference
             // between a bad week and a business nobody can run.
             ReadOnlyLine(
-                "If you ever can't get in — you lose your email, or worse — this is the "
-                    + "one person who can ask to take over. They wait a week, you can stop "
-                    + "it with one click, and everyone gets told. Nothing changes today."
+                AppStrings.translate(appLocale, "settingsMore.backupOwnerExplain")
             )
             if others.isEmpty {
-                ReadOnlyLine("Invite someone first — a backup has to be on the team.")
+                ReadOnlyLine(
+                    AppStrings.translate(appLocale, "settingsMore.inviteBackupFirst")
+                )
             } else {
                 Menu {
-                    Button("Nobody") { setBackup(nil) }
+                    Button(AppStrings.translate(appLocale, "settingsMore.nobody")) {
+                        setBackup(nil)
+                    }
                     ForEach(others, id: \.id) { member in
-                        Button(member.display_name.isBlank ? "A teammate" : member.display_name) {
+                        Button(capitalName(for: member)) {
                             setBackup(member)
                         }
                     }
                 } label: {
-                    PickerLabel(text: state.backup_member_id.map { name(for: $0) } ?? "Nobody")
+                    PickerLabel(
+                        text: state.backup_member_id.map { name(for: $0) }
+                            ?? AppStrings.translate(appLocale, "settingsMore.nobody")
+                    )
                 }
                 .disabled(busy)
             }
@@ -179,28 +205,30 @@ struct OwnershipCard: View {
 
     private var offerSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Hand the workspace over")
+            Text(AppStrings.translate(appLocale, "settingsMore.handOverTitle"))
                 .font(.golos(13, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
-            ReadOnlyLine("They have to accept. You stay on the team as an admin.")
+            ReadOnlyLine(AppStrings.translate(appLocale, "settingsMore.handOverNote"))
             Menu {
                 ForEach(others, id: \.id) { member in
-                    Button(member.display_name.isBlank ? "A teammate" : member.display_name) {
+                    Button(capitalName(for: member)) {
                         offerTo = member
                     }
                 }
             } label: {
                 PickerLabel(
-                    text: offerTo.map { $0.display_name.isBlank ? "A teammate" : $0.display_name }
-                        ?? "Choose a teammate"
+                    text: offerTo.map { capitalName(for: $0) }
+                        ?? AppStrings.translate(appLocale, "settingsMore.chooseTeammate")
                 )
             }
             .disabled(busy)
-            Button("Hand it over") {
+            Button(AppStrings.translate(appLocale, "settingsMore.handItOver")) {
                 guard let target = offerTo else { return }
                 confirming = HandoverConfirm(
                     kind: HandoverKind.offer,
-                    who: target.display_name.isBlank ? "them" : target.display_name
+                    who: target.display_name.isBlank
+                        ? AppStrings.translate(appLocale, "settingsMore.them")
+                        : target.display_name
                 )
             }
             .buttonStyle(.bordered)
@@ -210,14 +238,11 @@ struct OwnershipCard: View {
 
     private var claimSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("You are the backup owner")
+            Text(AppStrings.translate(appLocale, "settingsMore.youAreBackup"))
                 .font(.golos(13, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
-            ReadOnlyLine(
-                "If the owner can't act, you can ask to take over. They get a week to "
-                    + "stop it, and everyone on the team is told straight away."
-            )
-            Button("Ask to take over") {
+            ReadOnlyLine(AppStrings.translate(appLocale, "settingsMore.claimExplain"))
+            Button(AppStrings.translate(appLocale, "settingsMore.askTakeOver")) {
                 confirming = HandoverConfirm(kind: HandoverKind.claim, who: "")
             }
             .buttonStyle(.bordered)
@@ -319,13 +344,16 @@ struct OwnershipCard: View {
                 scope.companyId, action: pending.action
             )
             // Said either way. Whether an address exists is not ours to leak.
-            scope.showMessage("Sent. Check your email.")
+            scope.showMessage(AppStrings.translate(appLocale, "settingsMore.codeSent"))
         }
     }
 
     private func setBackup(_ member: Member?) {
-        let label = member.map { "\(name(for: $0.id)) is your backup owner." }
-            ?? "Backup owner cleared."
+        let label = member.map {
+            AppStrings.translate(
+                appLocale, "settingsMore.backupSet", ["name": name(for: $0.id)]
+            )
+        } ?? AppStrings.translate(appLocale, "settingsMore.backupCleared")
         run(label) {
             try await scope.repo.setBackupOwner(scope.companyId, memberId: member?.id)
         }
@@ -335,7 +363,10 @@ struct OwnershipCard: View {
         let companyId = scope.companyId
         let repo = scope.repo
         attempt(
-            HandoverProof(action: "accept", label: "You now own this workspace.") { code in
+            HandoverProof(
+                action: "accept",
+                label: AppStrings.translate(appLocale, "settingsMore.nowOwn")
+            ) { code in
                 _ = try await repo.acceptOwnership(companyId, code: code)
             },
             code: nil
@@ -343,7 +374,7 @@ struct OwnershipCard: View {
     }
 
     private func cancel() {
-        run("Stopped. Nothing changed hands.") {
+        run(AppStrings.translate(appLocale, "settingsMore.handoverStopped")) {
             try await scope.repo.cancelOwnershipTransfer(scope.companyId)
         }
     }
@@ -358,7 +389,11 @@ struct OwnershipCard: View {
             attempt(
                 HandoverProof(
                     action: "offer",
-                    label: "Offered to \(name(for: target.id)). They have 7 days to accept."
+                    label: AppStrings.translate(
+                        appLocale,
+                        "settingsMore.offeredTo",
+                        ["name": name(for: target.id)]
+                    )
                 ) { code in
                     _ = try await repo.offerOwnership(companyId, memberId: memberId, code: code)
                 },
@@ -369,7 +404,7 @@ struct OwnershipCard: View {
             attempt(
                 HandoverProof(
                     action: "claim",
-                    label: "Asked. The owner has 7 days to stop it."
+                    label: AppStrings.translate(appLocale, "settingsMore.claimAsked")
                 ) { code in
                     _ = try await repo.claimOwnership(companyId, code: code)
                 },
@@ -421,6 +456,8 @@ private struct PendingHandoverNotice: View {
     let onAccept: @MainActor () -> Void
     let onCancel: @MainActor () -> Void
 
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "exclamationmark.shield")
@@ -445,8 +482,12 @@ private struct PendingHandoverNotice: View {
                     HStack(spacing: 10) {
                         if pending.isMine, pending.isReady {
                             Button(
-                                pending.kind == HandoverKind.offer
-                                    ? "Accept ownership" : "Complete the takeover"
+                                AppStrings.translate(
+                                    appLocale,
+                                    pending.kind == HandoverKind.offer
+                                        ? "settingsMore.acceptOwnership"
+                                        : "settingsMore.completeTakeover"
+                                )
                             ) { onAccept() }
                                 .buttonStyle(.borderedProminent)
                                 .tint(BrandColor.olive)

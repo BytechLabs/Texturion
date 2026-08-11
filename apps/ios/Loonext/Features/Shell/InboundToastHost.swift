@@ -28,6 +28,16 @@ func shouldToastInbound(
 /// The toast's one line: "Dana: Sure, 3pm works" — name (or formatted
 /// number), a colon, and the message body trimmed to one line. A media-only
 /// text says what arrived instead of showing an empty snippet.
+///
+/// #228: STILL ENGLISH, and deliberately left out of the catalogue for now.
+/// The media half of this sentence is assembled from `attachmentLabel` — which
+/// lives outside this file and is read by the inbox, the thread and the media
+/// view too — and then given an English article by a rule that reads the noun's
+/// first letter. French needs gender rather than a vowel ("une photo", "un
+/// PDF", "un message vocal"), so translating this is a rewrite of a shared
+/// label vocabulary rather than an extraction of these lines. Recorded here
+/// rather than half-done: a French toast with an English noun in the middle of
+/// it is worse than an English toast.
 /// Lowercase a label's first letter for mid-sentence use — unless it is an
 /// ACRONYM, which must keep its capitals.
 ///
@@ -116,6 +126,7 @@ struct InboundToastHost: View {
     let onView: @MainActor (String) -> Void
 
     @State private var toast: InboundToast?
+    @Environment(\.appLocale) private var appLocale
 
     var body: some View {
         ZStack {
@@ -129,7 +140,7 @@ struct InboundToastHost: View {
                         self.toast = nil
                         onView(toast.conversationId)
                     } label: {
-                        Text("View")
+                        Text(AppStrings.translate(appLocale, "shell.toastView"))
                             .font(.golos(13, weight: .semibold))
                             .foregroundStyle(BrandColor.olive)
                     }

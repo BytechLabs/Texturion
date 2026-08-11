@@ -384,9 +384,20 @@ func matchesDigitFilter(e164: String, filter: String) -> Bool {
 
 // MARK: - Port tracker stepper
 
-let portSteps = ["Draft", "Submitted", "In progress", "Ported"]
+/// #228: catalogue KEYS rather than the four words.
+///
+/// The list is read from a plain `let` outside any view, which has no locale to
+/// look a sentence up with — so it holds the keys and the tracker translates
+/// them where it draws them. `portStepIndex` below is what every test asserts,
+/// and it is untouched: the index is the model, the words are the rendering.
+let portStepKeys = [
+    "settingsMore.portStepDraft",
+    "settingsMore.portStepSubmitted",
+    "settingsMore.portStepInProgress",
+    "settingsMore.portStepPorted",
+]
 
-/// Index into `portSteps` for the calm 4-step tracker; -1 = terminal/off-track.
+/// Index into `portStepKeys` for the calm 4-step tracker; -1 = terminal/off-track.
 func portStepIndex(_ status: String) -> Int {
     switch status {
     case PortStatus.draft:

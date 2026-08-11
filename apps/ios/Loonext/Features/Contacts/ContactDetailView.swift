@@ -58,6 +58,15 @@ struct ContactDetailView: View {
     @State private var companyLocale: String?
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLocale) private var appLocale
+
+    /// This screen's words, read once per call site. `t` rather than the full
+    /// `AppStrings.translate(appLocale, …)` because the alternative is that
+    /// expression forty times in one file, and a row's layout stops being
+    /// readable at a glance.
+    private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
+        AppStrings.translate(appLocale, key, vars)
+    }
 
     private var mutations: ContactMutations {
         ContactMutations(
@@ -91,7 +100,7 @@ struct ContactDetailView: View {
             }
         }
         .background(BrandColor.canvas.ignoresSafeArea())
-        .navigationTitle("Contact")
+        .navigationTitle(t("contactsTasks.contactHeading"))
         .navigationBarTitleDisplayMode(.inline)
         // The tab's list screen hides the bar; the pushed detail shows it.
         .toolbar(.visible, for: .navigationBar)
@@ -126,35 +135,32 @@ struct ContactDetailView: View {
                 conversationId = found.id
             }
         }
-        .alert("Opt out this contact?", isPresented: $confirmOptOut) {
-            Button("Opt out", role: .destructive) {
+        .alert(t("contactsTasks.optOutTitle"), isPresented: $confirmOptOut) {
+            Button(t("contactsTasks.optOut"), role: .destructive) {
                 runAction {
                     _ = try await mutations.optOut(companyId: companyId, contactId: contactId)
                     refreshKey += 1
                 }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(t("common.cancel"), role: .cancel) {}
         } message: {
             Text(
-                "All texting to \(formatPhone(contact?.phone_e164)) is blocked until "
-                    + "they're opted back in. Use this when a customer asks you to "
-                    + "stop texting them."
+                t(
+                    "contactsTasks.optOutBody",
+                    ["number": formatPhone(contact?.phone_e164)]
+                )
             )
         }
-        .alert("Delete this contact?", isPresented: $confirmDelete) {
-            Button("Delete", role: .destructive) {
+        .alert(t("contactsTasks.deleteContactTitle"), isPresented: $confirmDelete) {
+            Button(t("common.delete"), role: .destructive) {
                 runAction {
                     try await mutations.delete(companyId: companyId, contactId: contactId)
                     dismiss()
                 }
             }
-            Button("Keep contact", role: .cancel) {}
+            Button(t("contactsTasks.keepContact"), role: .cancel) {}
         } message: {
-            Text(
-                "They disappear from your contact list. Conversations and messages "
-                    + "stay, and the contact comes back automatically if they text "
-                    + "you again."
-            )
+            Text(t("contactsTasks.deleteContactBody"))
         }
     }
 
@@ -165,7 +171,7 @@ struct ContactDetailView: View {
             )
         } catch let error as ApiError where error.code == ApiErrorCode.notFound {
             state = .failed(
-                message: "This contact doesn't exist or was removed.", notFound: true
+                message: t("contactsTasks.contactGone"), notFound: true
             )
         } catch {
             if case .ready = state {
@@ -210,8 +216,7 @@ struct ContactDetailView: View {
             if await manager.requestMicPermission() {
                 placeCall(contact, manager: manager)
             } else {
-                actionError = "Loonext needs the microphone to place calls. "
-                    + "Allow it in Settings › Loonext."
+                actionError = t("contactsTasks.micNeededToPlace")
             }
         }
     }
@@ -316,9 +321,9 @@ struct ContactDetailView: View {
                         .foregroundStyle(BrandColor.muted400)
                 }
                 .buttonStyle(.borderless)
-                .accessibilityLabel("Copy number")
+                .accessibilityLabel(t("contactsTasks.copyNumber"))
                 if contact.opted_out {
-                    Text("Opted out")
+                    Text(t("contactsTasks.optedOut"))
                         .font(.golos(11, weight: .semibold))
                         .foregroundStyle(BrandColor.destructive)
                 }
@@ -355,7 +360,7 @@ struct ContactDetailView: View {
                     textPillLabel
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Open conversation")
+                .accessibilityLabel(t("contactsTasks.openConversation"))
             } else if conversationId == nil, let onComposeNew {
                 Button {
                     onComposeNew(contact.id)
@@ -363,7 +368,7 @@ struct ContactDetailView: View {
                     textPillLabel
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Message")
+                .accessibilityLabel(t("contactsTasks.messageAria"))
             }
             // Call (#165) — deliberately NOT gated on opted_out: voice
             // consent is separate from SMS consent.
@@ -378,8 +383,12 @@ struct ContactDetailView: View {
                         Image(systemName: "phone")
                             .font(.scaled(13, weight: .medium))
                     }
-                    Text(placingCall ? "Calling…" : "Call")
-                        .font(.golos(12, weight: .semibold))
+                    Text(
+                        placingCall
+                            ? t("contactsTasks.calling")
+                            : t("contactsTasks.call")
+                    )
+                    .font(.golos(12, weight: .semibold))
                 }
                 .foregroundStyle(BrandColor.ink)
                 .padding(.horizontal, 17)
@@ -388,7 +397,11 @@ struct ContactDetailView: View {
             }
             .buttonStyle(.plain)
             .disabled(placingCall)
-            .accessibilityLabel(placingCall ? "Calling" : "Call")
+            .accessibilityLabel(
+                placingCall
+                    ? t("contactsTasks.callingAria")
+                    : t("contactsTasks.call")
+            )
         }
         .frame(maxWidth: .infinity)
     }
@@ -397,7 +410,7 @@ struct ContactDetailView: View {
         HStack(spacing: 7) {
             Image(systemName: "message")
                 .font(.scaled(13, weight: .medium))
-            Text("Text")
+            Text(t("contactsTasks.textAction"))
                 .font(.golos(12, weight: .semibold))
         }
         .foregroundStyle(BrandColor.paper)
@@ -408,7 +421,7 @@ struct ContactDetailView: View {
 
     private func optedOutCard(_ contact: Contact) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("This customer opted out of texting. Sends to them are blocked.")
+            Text(t("contactsTasks.optedOutBanner"))
                 .font(.golos(12.5))
                 .foregroundStyle(BrandColor.muted900)
             // Which kind of opt-out decides whether there is anything to press.
@@ -416,14 +429,15 @@ struct ContactDetailView: View {
             // and the next send comes back rejected anyway, which is what used
             // to happen.
             if isCarrierEnforcedOptOut(contact.opt_out_source) {
-                Text(
-                    "They texted STOP, so their carrier is blocking your texts. "
-                        + "Only they can undo it, by texting START to your number."
-                )
-                .font(.golos(10.5))
-                .foregroundStyle(BrandColor.muted500)
+                Text(t("contactsTasks.optedOutByCarrier"))
+                    .font(.golos(10.5))
+                    .foregroundStyle(BrandColor.muted500)
             } else {
-                Button(working ? "Working…" : "Mark opted in again") {
+                Button(
+                    working
+                        ? t("contactsTasks.working")
+                        : t("contactsTasks.markOptedInAgain")
+                ) {
                     runAction {
                         _ = try await mutations.revokeOptOut(
                             companyId: companyId, contactId: contactId
@@ -435,7 +449,7 @@ struct ContactDetailView: View {
                 .foregroundStyle(BrandColor.olive)
                 .buttonStyle(.plain)
                 .disabled(working)
-                Text("Someone recorded this by hand, so undoing it here is all it takes.")
+                Text(t("contactsTasks.optedOutByHand"))
                     .font(.golos(10.5))
                     .foregroundStyle(BrandColor.muted500)
             }
@@ -452,10 +466,10 @@ struct ContactDetailView: View {
     private func detailsCard(_ contact: Contact) -> some View {
         PaperCard {
             AutosaveField(
-                label: "Name",
+                label: t("contactsTasks.nameField"),
                 initial: contact.name ?? "",
                 maxLength: contactNameMax,
-                placeholder: "Add a name",
+                placeholder: t("contactsTasks.addAName"),
                 multiline: false
             ) { value in
                 _ = try await mutations.updateField(
@@ -468,10 +482,10 @@ struct ContactDetailView: View {
             // a general contractor it IS the name — "Dave" is not a useful
             // record, "Dave at Maple Property Group" is.
             AutosaveField(
-                label: "Business",
+                label: t("contactsTasks.businessField"),
                 initial: contact.business_name ?? "",
                 maxLength: contactNameMax,
-                placeholder: "Who they work for, if anyone",
+                placeholder: t("contactsTasks.businessPlaceholder"),
                 multiline: false
             ) { value in
                 _ = try await mutations.updateField(
@@ -484,10 +498,10 @@ struct ContactDetailView: View {
             .id("\(contact.id)|business_name")
             RowDivider()
             AutosaveField(
-                label: "Address",
+                label: t("contactsTasks.address"),
                 initial: contact.address ?? "",
                 maxLength: contactAddressMax,
-                placeholder: "Add an address",
+                placeholder: t("contactsTasks.addAnAddress"),
                 multiline: false
             ) { value in
                 _ = try await mutations.updateField(
@@ -589,10 +603,10 @@ struct ContactDetailView: View {
             // answers the same question — how we reach them when a text is the
             // wrong shape for what we are sending.
             AutosaveField(
-                label: "Email",
+                label: t("contactsTasks.emailField"),
                 initial: contact.email ?? "",
                 maxLength: contactEmailMax,
-                placeholder: "For quotes and receipts",
+                placeholder: t("contactsTasks.emailPlaceholder"),
                 multiline: false
             ) { value in
                 _ = try await mutations.updateField(
@@ -605,10 +619,10 @@ struct ContactDetailView: View {
             .id("\(contact.id)|email")
             RowDivider()
             AutosaveField(
-                label: "Notes",
+                label: t("contactsTasks.notesField"),
                 initial: contact.notes ?? "",
                 maxLength: contactNotesMax,
-                placeholder: "Gate code, dog's name, preferred arrival window…",
+                placeholder: t("contactsTasks.notesPlaceholder"),
                 multiline: true
             ) { value in
                 _ = try await mutations.updateField(
@@ -663,7 +677,7 @@ struct ContactDetailView: View {
     private func destinationClockRow(_ contact: Contact) -> some View {
         if let zone = contact.timezone_resolved {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Their time")
+                Text(t("contactsTasks.theirTime"))
                     .font(.golos(10.5, weight: .semibold))
                     .foregroundStyle(BrandColor.muted500)
                 HStack(spacing: 6) {
@@ -677,14 +691,22 @@ struct ContactDetailView: View {
                         .font(.golos(10.5))
                         .foregroundStyle(BrandColor.muted500)
                     Spacer(minLength: 6)
-                    Button(editingTimezone ? "Done" : "Change") {
+                    Button(
+                        editingTimezone
+                            ? t("contactsTasks.done")
+                            : t("contactsTasks.change")
+                    ) {
                         editingTimezone.toggle()
                     }
                     .font(.golos(11, weight: .semibold))
                     .foregroundStyle(BrandColor.olive)
                     .buttonStyle(.plain)
                     .disabled(working)
-                    .accessibilityLabel(editingTimezone ? "Done" : "Change timezone")
+                    .accessibilityLabel(
+                        editingTimezone
+                            ? t("contactsTasks.done")
+                            : t("contactsTasks.changeTimezone")
+                    )
                 }
                 if editingTimezone {
                     Menu {
@@ -698,7 +720,7 @@ struct ContactDetailView: View {
                     }
                     .disabled(working)
                     if contact.timezone != nil {
-                        Button("Use their area code") { saveTimezone(nil) }
+                        Button(t("contactsTasks.useAreaCode")) { saveTimezone(nil) }
                             .font(.golos(11))
                             .foregroundStyle(BrandColor.muted500)
                             .buttonStyle(.plain)
@@ -769,7 +791,7 @@ struct ContactDetailView: View {
             contact: contact.locale, company: companyLocale
         )
         VStack(alignment: .leading, spacing: 4) {
-            Text("Their language")
+            Text(t("contactsTasks.theirLanguage"))
                 .font(.golos(10.5, weight: .semibold))
                 .foregroundStyle(BrandColor.muted500)
             HStack(spacing: 6) {
@@ -781,8 +803,8 @@ struct ContactDetailView: View {
                     .foregroundStyle(BrandColor.muted900)
                 Text(
                     contact.locale == nil
-                        ? "Same as your workspace"
-                        : "Set on this contact"
+                        ? t("contactsTasks.sameAsWorkspace")
+                        : t("contactsTasks.setOnThisContact")
                 )
                 .font(.golos(10.5))
                 .foregroundStyle(BrandColor.muted500)
@@ -790,14 +812,22 @@ struct ContactDetailView: View {
                 // This card now holds two "Change" buttons, so each names
                 // what it changes. To VoiceOver they would otherwise be the
                 // same control twice.
-                Button(editingLanguage ? "Done" : "Change") {
+                Button(
+                    editingLanguage
+                        ? t("contactsTasks.done")
+                        : t("contactsTasks.change")
+                ) {
                     editingLanguage.toggle()
                 }
                 .font(.golos(11, weight: .semibold))
                 .foregroundStyle(BrandColor.olive)
                 .buttonStyle(.plain)
                 .disabled(working)
-                .accessibilityLabel(editingLanguage ? "Done" : "Change language")
+                .accessibilityLabel(
+                    editingLanguage
+                        ? t("contactsTasks.done")
+                        : t("contactsTasks.changeLanguage")
+                )
             }
             if editingLanguage {
                 Menu {
@@ -881,13 +911,13 @@ struct ContactDetailView: View {
     private var conversationSection: some View {
         if let conversationId, let onOpenConversation {
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeader(label: "Conversations", count: 1)
+                SectionHeader(label: t("contactsTasks.conversationsSection"), count: 1)
                 PaperCard {
                     Button {
                         onOpenConversation(conversationId)
                     } label: {
                         HStack(spacing: 11) {
-                            Text("Open the conversation")
+                            Text(t("contactsTasks.openTheConversation"))
                                 .font(.golos(13, weight: .semibold))
                                 .foregroundStyle(BrandColor.ink)
                             Spacer()
@@ -940,20 +970,19 @@ struct ContactDetailView: View {
     /// stays muted.
     private func manageCard(_ contact: Contact) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            SectionHeader(label: "Manage this contact")
+            SectionHeader(label: t("contactsTasks.manageThisContact"))
             PaperCard {
                 if !contact.opted_out {
                     manageRow(
-                        text: "Stop all texting to this customer.",
-                        actionLabel: "Opt out this contact",
+                        text: t("contactsTasks.stopAllTexting"),
+                        actionLabel: t("contactsTasks.optOutContact"),
                         destructive: true
                     ) { confirmOptOut = true }
                     RowDivider()
                 }
                 manageRow(
-                    text: "Hide this contact from your list. Texting history stays, "
-                        + "and they reappear if they text you again.",
-                    actionLabel: "Delete contact",
+                    text: t("contactsTasks.hideThisContact"),
+                    actionLabel: t("contactsTasks.deleteContact"),
                     destructive: false
                 ) { confirmDelete = true }
             }
@@ -1004,6 +1033,8 @@ private struct AutosaveField: View {
     @State private var value: String
     @State private var lastSaved: String
     @State private var saveState: SaveState = .idle
+
+    @Environment(\.appLocale) private var appLocale
 
     init(
         label: String,
@@ -1074,9 +1105,9 @@ private struct AutosaveField: View {
     private var statusLine: String {
         switch saveState {
         case .idle: ""
-        case .saving: "Saving…"
-        case .saved: "Saved"
-        case .failed: "Couldn't save. Check your connection."
+        case .saving: AppStrings.translate(appLocale, "common.saving")
+        case .saved: AppStrings.translate(appLocale, "common.saved")
+        case .failed: AppStrings.translate(appLocale, "contactsTasks.saveFailed")
         }
     }
 }
@@ -1254,10 +1285,12 @@ private struct ContactCallsSection: View {
     @State private var loadingMore = false
     @State private var refreshKey = 0
 
+    @Environment(\.appLocale) private var appLocale
+
     private var service: CallsService { CallsService(api: graph.api) }
 
     var body: some View {
-        ContactSection(title: "Calls") {
+        ContactSection(title: AppStrings.translate(appLocale, "contactsTasks.callsSection")) {
             content
         }
         .task(id: "\(contactId)|\(refreshKey)") { await reload() }
@@ -1295,7 +1328,7 @@ private struct ContactCallsSection: View {
                 Text(message)
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted500)
-                Button("Try again") { refreshKey += 1 }
+                Button(AppStrings.translate(appLocale, "common.retry")) { refreshKey += 1 }
                     .font(.golos(12, weight: .semibold))
                     .foregroundStyle(BrandColor.olive)
                     .buttonStyle(.plain)
@@ -1304,7 +1337,7 @@ private struct ContactCallsSection: View {
         case .ready(let calls):
             if calls.isEmpty {
                 // The quiet one-line empty state.
-                Text("No calls with this contact yet.")
+                Text(AppStrings.translate(appLocale, "contactsTasks.noCallsYet"))
                     .font(.golos(12.5))
                     .foregroundStyle(BrandColor.muted500)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1340,7 +1373,9 @@ private struct ContactCallsSection: View {
                     if loadingMore {
                         ProgressView().controlSize(.small)
                     } else {
-                        Button("Show more") { loadMore() }
+                        Button(
+                            AppStrings.translate(appLocale, "contactsTasks.showMore")
+                        ) { loadMore() }
                             .font(.golos(12, weight: .semibold))
                             .foregroundStyle(BrandColor.olive)
                             .buttonStyle(.plain)
@@ -1499,6 +1534,8 @@ private struct ContactVoicemailPlayerRow: View {
     @State private var scrubbing = false
     @State private var errorText: String?
 
+    @Environment(\.appLocale) private var appLocale
+
     init(
         service: CallsService,
         companyId: String,
@@ -1533,7 +1570,11 @@ private struct ContactVoicemailPlayerRow: View {
                     .background(BrandColor.ink, in: Circle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(playing ? "Pause voicemail" : "Play voicemail")
+                .accessibilityLabel(
+                    playing
+                        ? AppStrings.translate(appLocale, "contactsTasks.pauseVoicemail")
+                        : AppStrings.translate(appLocale, "contactsTasks.playVoicemail")
+                )
 
                 Slider(
                     value: Binding(
@@ -1582,7 +1623,9 @@ private struct ContactVoicemailPlayerRow: View {
                         let total = item.duration.seconds
                         if total.isFinite && total > 0 { durationMs = Int(total * 1000) }
                         if item.error != nil {
-                            errorText = "Couldn't play this voicemail."
+                            errorText = AppStrings.translate(
+                                appLocale, "contactsTasks.voicemailPlayFailed"
+                            )
                             playing = false
                         }
                     }
@@ -1634,7 +1677,9 @@ private struct ContactVoicemailPlayerRow: View {
                     sessionId: sessionId
                 )
                 guard let url = URL(string: playback.url) else {
-                    errorText = "Couldn't play this voicemail."
+                    errorText = AppStrings.translate(
+                        appLocale, "contactsTasks.voicemailPlayFailed"
+                    )
                     return
                 }
                 // Recordings from before transcription existed, and any whose
@@ -1692,7 +1737,11 @@ private func previewDetailContact(optedOut: Bool) -> Contact {
             onComposeNew: { _ in }
         )
         .readyBody(previewDetailContact(optedOut: false))
-        .navigationTitle("Contact")
+        // The catalogue, read at English explicitly: a preview has no
+        // environment above it to carry a reader's locale.
+        .navigationTitle(
+            AppStrings.translate(MessageLocale.en, "contactsTasks.contactHeading")
+        )
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -1707,7 +1756,11 @@ private func previewDetailContact(optedOut: Bool) -> Contact {
             onComposeNew: nil
         )
         .readyBody(previewDetailContact(optedOut: true))
-        .navigationTitle("Contact")
+        // The catalogue, read at English explicitly: a preview has no
+        // environment above it to carry a reader's locale.
+        .navigationTitle(
+            AppStrings.translate(MessageLocale.en, "contactsTasks.contactHeading")
+        )
         .navigationBarTitleDisplayMode(.inline)
     }
 }

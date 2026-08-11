@@ -31,6 +31,8 @@ struct OnCallCard: View {
     @State private var chosen: String?
     @State private var busy = false
 
+    @Environment(\.appLocale) private var appLocale
+
     private var canEdit: Bool { SettingsRoleGate.canEditWorkspace(scope.role) }
 
     private var live: OnCallShift? {
@@ -45,9 +47,12 @@ struct OnCallCard: View {
     }
 
     var body: some View {
-        SettingsCard(title: "On call", description: OnCall.escalation) {
+        SettingsCard(
+            title: AppStrings.translate(appLocale, "settingsMore.onCallTitle"),
+            description: OnCall.escalation
+        ) {
             if !loaded {
-                Text("Checking the rota…")
+                Text(AppStrings.translate(appLocale, "settingsMore.onCallChecking"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } else if let live {
@@ -56,7 +61,9 @@ struct OnCallCard: View {
                         .font(.subheadline)
                     Spacer(minLength: 8)
                     if canEdit {
-                        Button("End shift") { end(live.id) }
+                        Button(
+                            AppStrings.translate(appLocale, "settingsMore.onCallEndShift")
+                        ) { end(live.id) }
                             .font(.footnote)
                             .disabled(busy)
                     }
@@ -80,7 +87,9 @@ struct OnCallCard: View {
                         .foregroundStyle(.secondary)
                         Spacer(minLength: 8)
                         if canEdit {
-                            Button("Remove") { end(shift.id) }
+                            Button(
+                                AppStrings.translate(appLocale, "settingsMore.remove")
+                            ) { end(shift.id) }
                                 .font(.footnote)
                                 .disabled(busy)
                         }
@@ -90,10 +99,10 @@ struct OnCallCard: View {
 
             if canEdit {
                 Divider().padding(.vertical, 8)
-                Text("Put somebody on call")
+                Text(AppStrings.translate(appLocale, "settingsMore.onCallPut"))
                     .font(.caption.weight(.medium))
                 Picker(
-                    "Who",
+                    AppStrings.translate(appLocale, "settingsMore.onCallWho"),
                     selection: Binding(
                         get: { chosen ?? roster.first?.user_id ?? "" },
                         set: { chosen = $0 }
@@ -139,7 +148,8 @@ struct OnCallCard: View {
     }
 
     private func name(of userId: String) -> String {
-        roster.first { $0.user_id == userId }?.display_name ?? "Someone"
+        roster.first { $0.user_id == userId }?.display_name
+            ?? AppStrings.translate(appLocale, "settingsMore.someone")
     }
 
     private func reload() async {
@@ -169,7 +179,13 @@ struct OnCallCard: View {
                     )
                 )
                 await reload()
-                scope.showMessage("\(name(of: target)) is on call")
+                scope.showMessage(
+                    AppStrings.translate(
+                        appLocale,
+                        "settingsMore.onCallNowOn",
+                        ["name": name(of: target)]
+                    )
+                )
             } catch {
                 scope.showMessage(error.userMessage)
             }
