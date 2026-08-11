@@ -14,6 +14,67 @@
  */
 import type { Env } from "../env";
 
+/**
+ * #576 (2) — the hosts a push endpoint may name.
+ *
+ * A subscription's `endpoint` is supplied by the browser and then POSTed to by
+ * this Worker. Constrained only to `https://` and 2048 characters, any
+ * authenticated member could store any URL and have us send a request to it —
+ * a request-forwarding primitive with our egress IP and our retry behaviour
+ * behind it. Nothing about the body helps an attacker (it is AES-GCM sealed to
+ * a key they chose), but the REQUEST is the point, not the payload.
+ *
+ * ENUMERATED RATHER THAN SNIFFED, the same argument #558 made for the token
+ * redaction list. There is no property of a URL that says "this is a push
+ * service" — the set is four vendors long, published, and changes on the order
+ * of years. A heuristic here would be a classifier, and this session has spent
+ * three rounds learning what those cost.
+ *
+ * Suffix matching on a leading dot is deliberate and narrow: Microsoft shards
+ * WNS across `wns2-*.notify.windows.com`, so the exact-host list cannot express
+ * it. `endsWith(".notify.windows.com")` cannot match `notify.windows.com.evil`
+ * because the comparison is against the parsed `URL.hostname`, which ends where
+ * the host ends.
+ */
+const PUSH_HOSTS: readonly string[] = [
+  // Chrome, Edge and every Chromium derivative.
+  "fcm.googleapis.com",
+  "android.googleapis.com",
+  // Safari, iOS and macOS.
+  "web.push.apple.com",
+  // Firefox.
+  "updates.push.services.mozilla.com",
+];
+
+/** Vendor-sharded suffixes, which an exact host list cannot express. */
+const PUSH_HOST_SUFFIXES: readonly string[] = [
+  ".notify.windows.com",
+  ".push.services.mozilla.com",
+];
+
+/**
+ * Is this an endpoint we are willing to POST to?
+ *
+ * Exported and used at BOTH doors — the subscribe schema and the send itself.
+ * Checking only at subscribe would leave every row stored before this shipped
+ * fetchable forever, and checking only at send would accept rows we already
+ * know we will refuse. One predicate, so the two cannot drift.
+ */
+export function isAllowedPushEndpoint(endpoint: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "https:") return false;
+  const host = url.hostname.toLowerCase();
+  return (
+    PUSH_HOSTS.includes(host) ||
+    PUSH_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix))
+  );
+}
+
 /** The §6 push_subscriptions columns a send needs. */
 export interface PushTarget {
   endpoint: string;
@@ -285,6 +346,26 @@ export async function sendWebPush(
   /** Coalescing key (#266) — hashed into the RFC 8030 `Topic` header. */
   collapseKey?: string,
 ): Promise<PushResult> {
+  /*
+   * #576 (2) — refuse before the fetch, not only at subscribe.
+   *
+   * Every row stored before that gate existed is still in the table, and the
+   * relay is only a relay at the moment we make the request. Reported as
+   * `gone` so the caller DELETES the row, which is the honest disposition: an
+   * endpoint we will never POST to is exactly as useful as a 410, and leaving
+   * it would mean re-deciding this on every notification forever.
+   *
+   * Deliberately BEFORE the VAPID signature and the payload encryption, which
+   * are the expensive half — there is nothing to sign for a host we refuse.
+   */
+  if (!isAllowedPushEndpoint(target.endpoint)) {
+    return {
+      ok: false,
+      status: 0,
+      gone: true,
+      errorBody: "endpoint host is not a known push service",
+    };
+  }
   const [authorization, body, topic] = await Promise.all([
     vapidAuthorization(env, target.endpoint),
     encryptPushPayload(target, payload),

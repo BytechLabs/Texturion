@@ -29,7 +29,7 @@ const ACTOR = "aaaaaaaa-0000-4000-8000-00000000000a";
 const ASSIGNEE = "bbbbbbbb-0000-4000-8000-00000000000b";
 const CONVERSATION_ID = "11111111-0000-4000-8000-000000000011";
 const TASK_ID = "22222222-0000-4000-8000-000000000022";
-const PUSH_ORIGIN = "https://push.example.net";
+const PUSH_ORIGIN = "https://fcm.googleapis.com";
 
 afterEach(() => {
   vi.unstubAllGlobals();

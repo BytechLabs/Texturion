@@ -21,7 +21,7 @@ vi.mock("@sentry/cloudflare", () => ({
 const env = completeEnv();
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
 const USER_A = "aaaaaaaa-0000-4000-8000-00000000000a";
-const PUSH_ORIGIN = "https://push.example.net";
+const PUSH_ORIGIN = "https://fcm.googleapis.com";
 
 afterEach(() => {
   vi.unstubAllGlobals();

@@ -69,7 +69,11 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { buildPage } from "../http/pagination";
-import { decodeAuthSecret, decodeSubscriberKey } from "../notifications/webpush";
+import {
+  decodeAuthSecret,
+  decodeSubscriberKey,
+  isAllowedPushEndpoint,
+} from "../notifications/webpush";
 import {
   parseCursor,
   parseJsonBody,
@@ -175,8 +179,19 @@ const subscriptionSchema = z.object({
   endpoint: z
     .url()
     .max(2048)
-    .refine((value) => value.startsWith("https://"), {
-      message: "push endpoints must be https URLs.",
+    /*
+     * #576 (2): the HOST, not just the scheme.
+     *
+     * `https://` alone made this a request-forwarding primitive — any member
+     * could store any URL and have the Worker POST to it, with our egress and
+     * our retries behind the request. The same predicate runs again at the
+     * send, because rows stored before this gate existed are still in the
+     * table; refusing here is the courtesy, refusing there is the protection.
+     */
+    .refine(isAllowedPushEndpoint, {
+      message:
+        "push endpoints must be https URLs at a known push service " +
+        "(FCM, Apple, Mozilla or WNS).",
     }),
   keys: z.object({
     p256dh: z.string().min(1).max(256),

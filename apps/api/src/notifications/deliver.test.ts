@@ -15,7 +15,7 @@ import { pushTopic } from "./webpush";
 const env = completeEnv();
 const USER = "10000000-aaaa-4000-8000-000000000001";
 const SUB_ID = "50000000-0000-4000-8000-000000000001";
-const PUSH_ENDPOINT = "https://push.example.net/send/";
+const PUSH_ENDPOINT = "https://fcm.googleapis.com/fcm/send/";
 /** Minimum viable notification content for the mechanics under test. */
 const ALERT = { title: "Sam", body: "On my way", url: "https://app.test/inbox/t1" };
 

@@ -35,7 +35,7 @@ vi.mock("@sentry/cloudflare", () => ({
 const env = completeEnv();
 const COMPANY = "cccccccc-0000-4000-8000-00000000000c";
 const USER = "aaaaaaaa-0000-4000-8000-00000000000a";
-const PUSH_ENDPOINT = "https://push.example.net/send/";
+const PUSH_ENDPOINT = "https://fcm.googleapis.com/fcm/send/";
 
 const ALERT = {
   title: "Dana Smith",

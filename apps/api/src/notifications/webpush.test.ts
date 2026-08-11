@@ -12,12 +12,19 @@ import {
   decodeBase64Url,
   encodeBase64Url,
   encryptPushPayload,
+  isAllowedPushEndpoint,
   sendWebPush,
   vapidAuthorization,
 } from "./webpush";
 
 const env = completeEnv();
-const ENDPOINT = "https://push.example.net/send/abc123";
+/**
+ * A REAL push-service host, because #576 (2) made that a requirement rather
+ * than a detail. `push.example.net` was fine while any https URL was accepted
+ * and is now exactly the shape the Worker refuses — a fixture that could not
+ * happen in production is a fixture that proves nothing about it.
+ */
+const ENDPOINT = "https://fcm.googleapis.com/fcm/send/abc123";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -241,7 +248,10 @@ describe("sendWebPush (RFC 8291 + RFC 8292)", () => {
     const decodedClaims = JSON.parse(
       new TextDecoder().decode(decodeBase64Url(claims)),
     );
-    expect(decodedClaims.aud).toBe("https://push.example.net");
+    // Derived from ENDPOINT rather than typed out: the audience IS the
+    // endpoint's origin, so a literal here pins the fixture instead of the
+    // rule, and moving the fixture to a real push host broke it.
+    expect(decodedClaims.aud).toBe(new URL(ENDPOINT).origin);
     expect(decodedClaims.sub).toBe(env.APP_ORIGIN);
     const now = Math.floor(Date.now() / 1000);
     expect(decodedClaims.exp).toBeGreaterThan(now);
@@ -311,5 +321,85 @@ describe("sendWebPush (RFC 8291 + RFC 8292)", () => {
       new TextDecoder().decode(decodeBase64Url(jwt.split(".")[1])),
     );
     expect(claims.aud).toBe("https://fcm.googleapis.com");
+  });
+});
+
+describe("#576 the endpoint host is enumerated, not sniffed", () => {
+  it("accepts the four vendors that actually run a push service", () => {
+    for (const endpoint of [
+      "https://fcm.googleapis.com/fcm/send/abc",
+      "https://android.googleapis.com/gcm/send/abc",
+      "https://web.push.apple.com/abc",
+      "https://updates.push.services.mozilla.com/wpush/v2/abc",
+      // WNS shards its host, which is why a suffix is matched at all.
+      "https://wns2-by3p.notify.windows.com/w/?token=abc",
+    ]) {
+      expect(isAllowedPushEndpoint(endpoint), endpoint).toBe(true);
+    }
+  });
+
+  it("refuses everything else, which is the whole point", () => {
+    for (const endpoint of [
+      // The original defect: any https URL at all.
+      // The original defect: any https URL at all. Spelled out here rather
+      // than reached for from a constant, because a repo-wide rewrite of the
+      // push fixtures turned this very line into an ALLOWED host and the
+      // assertion inverted itself — a refusal list has to be written where a
+      // sweep over "test endpoints" will not helpfully repair it.
+      "https://push.example.invalid/send/abc123",
+      "https://attacker.test/collect",
+      // Internal and metadata targets, the reason a relay is worth having.
+      "https://169.254.169.254/latest/meta-data/",
+      "https://localhost/admin",
+      // Scheme downgrades.
+      "http://fcm.googleapis.com/fcm/send/abc",
+      "file:///etc/passwd",
+      // Not a URL at all.
+      "fcm.googleapis.com",
+      "",
+    ]) {
+      expect(isAllowedPushEndpoint(endpoint), endpoint).toBe(false);
+    }
+  });
+
+  /**
+   * The suffix rule is the only fuzzy half, so it gets the adversarial cases.
+   *
+   * `endsWith(".notify.windows.com")` is evaluated against the parsed
+   * `URL.hostname`, which ends where the host ends — so a suffix cannot be
+   * smuggled into a path, a query, or a longer domain that merely contains it.
+   */
+  it("cannot be talked into a suffix that is not the host", () => {
+    for (const endpoint of [
+      "https://notify.windows.com.evil.test/w/",
+      "https://evil.test/wns2-by3p.notify.windows.com",
+      "https://evil.test/?x=.notify.windows.com",
+      "https://evil.test#.notify.windows.com",
+      // A userinfo section, which reads like a host to a person and is not one.
+      "https://wns2-by3p.notify.windows.com@evil.test/w/",
+    ]) {
+      expect(isAllowedPushEndpoint(endpoint), endpoint).toBe(false);
+    }
+  });
+
+  it("refuses at the SEND, so a row stored before the gate is still refused", async () => {
+    // The subscribe schema cannot help with rows that predate it, and the
+    // relay is only a relay at the moment the request is made. Reported as
+    // `gone` so the caller deletes the row rather than re-deciding this on
+    // every notification forever.
+    let fetched = false;
+    stubFetch(() => {
+      fetched = true;
+      return new Response(null, { status: 201 });
+    });
+    const subscription = await makeSubscription();
+    const result = await sendWebPush(
+      env,
+      { ...subscription.target, endpoint: "https://attacker.test/collect" },
+      JSON.stringify({ title: "x" }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.gone).toBe(true);
+    expect(fetched, "the Worker made the request anyway").toBe(false);
   });
 });

@@ -19,7 +19,7 @@ const NUMBER_ID = "dddddddd-0000-4000-8000-00000000000d";
 const OWNER = "10000000-aaaa-4000-8000-000000000001";
 const MEMBER = "10000000-aaaa-4000-8000-000000000002";
 const SUB_ID = "20000000-aaaa-4000-8000-000000000001";
-const PUSH_ENDPOINT = "https://push.example.net/send/";
+const PUSH_ENDPOINT = "https://fcm.googleapis.com/fcm/send/";
 
 afterEach(() => {
   vi.unstubAllGlobals();

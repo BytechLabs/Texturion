@@ -24,7 +24,7 @@ const env = completeEnv();
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
 const USER_A = "aaaaaaaa-0000-4000-8000-00000000000a";
 const USER_B = "bbbbbbbb-0000-4000-8000-00000000000b";
-const PUSH_ORIGIN = "https://push.example.net";
+const PUSH_ORIGIN = "https://fcm.googleapis.com";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -136,7 +136,11 @@ describe("notifyIncomingCall — observability + prune (#142)", () => {
     expect(Sentry.captureMessage).not.toHaveBeenCalled();
     const line = log.mock.calls.map((c) => String(c[0])).find((m) => m.includes("pruned"));
     expect(line).toBeDefined();
-    expect(line).toContain("push.example.net");
+    // The HOST of the fixture endpoint, which #576 (2) made a real push
+    // service. The assertion is that the log names the host and not the
+    // per-device path, so it follows the fixture rather than pinning a
+    // literal that moves whenever the fixture does.
+    expect(line).toContain(new URL(PUSH_ORIGIN).hostname);
     expect(line).toContain("410");
     expect(line).not.toContain("/send/abc");
     log.mockRestore();

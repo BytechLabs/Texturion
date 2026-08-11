@@ -86,7 +86,7 @@ async function subscriptionBody() {
       .replace(/\//g, "_")
       .replace(/=+$/, "");
   return {
-    endpoint: "https://push.example.net/send/device-1",
+    endpoint: "https://fcm.googleapis.com/fcm/send/device-1",
     keys: {
       p256dh: b64u(raw),
       auth: b64u(crypto.getRandomValues(new Uint8Array(16))),
@@ -352,7 +352,7 @@ describe("POST /v1/push-subscriptions", () => {
         [
           {
             id: SUB_ID,
-            endpoint: "https://push.example.net/send/device-1",
+            endpoint: "https://fcm.googleapis.com/fcm/send/device-1",
             created_at: "2026-07-01T12:00:00+00:00",
           },
         ],
@@ -381,7 +381,7 @@ describe("POST /v1/push-subscriptions", () => {
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({
       id: SUB_ID,
-      endpoint: "https://push.example.net/send/device-1",
+      endpoint: "https://fcm.googleapis.com/fcm/send/device-1",
       created_at: "2026-07-01T12:00:00+00:00",
     });
 
@@ -406,7 +406,7 @@ describe("POST /v1/push-subscriptions", () => {
         [
           {
             id: SUB_ID,
-            endpoint: "https://push.example.net/send/device-new",
+            endpoint: "https://fcm.googleapis.com/fcm/send/device-new",
             created_at: "2026-07-07T12:00:00+00:00",
           },
         ],
@@ -453,7 +453,7 @@ describe("POST /v1/push-subscriptions", () => {
     const sb = memberStub();
     sb.on("POST", "/rest/v1/push_subscriptions", () =>
       Response.json(
-        [{ id: SUB_ID, endpoint: "https://p.example.net/x", created_at: "2026-07-07T12:00:00+00:00" }],
+        [{ id: SUB_ID, endpoint: "https://fcm.googleapis.com/fcm/send/x", created_at: "2026-07-07T12:00:00+00:00" }],
         { status: 201 },
       ),
     );
@@ -475,13 +475,42 @@ describe("POST /v1/push-subscriptions", () => {
     expect(sb.find("DELETE", "/rest/v1/push_subscriptions")).toHaveLength(0);
   });
 
+  it("422s an endpoint that is not a push service (#576: no blind relay)", async () => {
+    // The stored endpoint is later POSTed to by the Worker, so accepting any
+    // https URL made this a request-forwarding primitive with our egress
+    // behind it. The same predicate runs again at the send — this door is the
+    // courtesy, that one is the protection.
+    const sb = memberStub();
+    stubFetch(jwksRoute(auth), sb.route);
+    const valid = await subscriptionBody();
+
+    for (const endpoint of [
+      "https://attacker.test/collect",
+      "https://169.254.169.254/latest/meta-data/",
+      "https://notify.windows.com.evil.test/w/",
+    ]) {
+      const res = await apiRequest(
+        app,
+        env,
+        await auth.token(),
+        "/v1/push-subscriptions",
+        {
+          method: "POST",
+          companyId: COMPANY_ID,
+          body: { ...valid, endpoint },
+        },
+      );
+      expect(res.status, endpoint).toBe(422);
+    }
+  });
+
   it("422s non-https endpoints and keys that could never be encrypted to", async () => {
     const sb = memberStub();
     stubFetch(jwksRoute(auth), sb.route);
 
     const valid = await subscriptionBody();
     const bad = [
-      { ...valid, endpoint: "http://push.example.net/send/x" },
+      { ...valid, endpoint: "http://fcm.googleapis.com/fcm/send/x" },
       { ...valid, keys: { ...valid.keys, p256dh: "bm90LWEta2V5" } }, // wrong length
       { ...valid, keys: { ...valid.keys, auth: "c2hvcnQ" } }, // not 16 bytes
       { endpoint: valid.endpoint }, // keys missing entirely
