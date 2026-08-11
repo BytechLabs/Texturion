@@ -492,4 +492,102 @@ exception
     raise;
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- #576 (1), second half: assurance, not only revocation.
+--
+--   PT-9   a user with a VERIFIED factor on an aal1 session joins nothing
+--   PT-10  the same user at aal2 joins normally
+--   PT-11  a user with NO factor at aal1 is untouched, which is most of the
+--          product and the reason this cannot be a blanket demand
+--   PT-12  an ABSENT aal claim is REFUSED for a factor-holder — the opposite of
+--          the session_id rule above, and deliberately so
+-- ---------------------------------------------------------------------------
+
+/* Presence with an assurance level. Separate from `pg_temp.present` so the
+ * existing cases keep asserting exactly what they asserted before — adding a
+ * claim to that helper would have silently changed eight tests. */
+create or replace function pg_temp.present_aal(
+  p_user text, p_session text, p_aal text
+) returns void language plpgsql as $$
+begin
+  perform set_config('request.jwt.claims',
+    case
+      when p_aal is null then
+        json_build_object('sub', p_user, 'role', 'authenticated',
+                          'session_id', p_session)::text
+      else
+        json_build_object('sub', p_user, 'role', 'authenticated',
+                          'session_id', p_session, 'aal', p_aal)::text
+    end, true);
+end $$;
+
+do $$
+declare
+  v_owner  text := '2e000000-0000-4000-8000-00000000000a';
+  -- A session id NOBODY has heard of, which PT-4 proves is admitted by the
+  -- revocation clause. That makes assurance the only variable below: the
+  -- owner's seeded device (d5) is revoked, so borrowing it would refuse
+  -- for the wrong reason and PT-9 would pass while proving nothing.
+  v_sess   text := '2e000000-0000-4000-8000-0000000000d9';
+  v_joined boolean;
+begin
+  -- The owner enrols a factor. `status = 'verified'`, because an abandoned
+  -- enrolment leaves an `unverified` row and must demand nothing.
+  insert into auth.mfa_factors (id, user_id, friendly_name, factor_type,
+                                status, created_at, updated_at)
+  values (gen_random_uuid(), v_owner::uuid, 'phone', 'totp',
+          'verified', now(), now());
+
+  -- PT-9 — a factor-holder on a password-only session.
+  perform pg_temp.present_aal(v_owner, v_sess, 'aal1');
+  v_joined := public.is_company_topic_member(pg_temp.company_topic());
+  -- `is distinct from false`, not `if v_joined`: the predicate can return NULL,
+  -- and a plpgsql `if NULL then` takes the false branch — so a NULL reads as a
+  -- refusal and this assertion would pass without the gate doing anything.
+  if v_joined is distinct from false then
+    raise exception 'PT-9 FAILED: a password-only session joined the company '
+      'topic while its owner holds a verified factor. Every /v1 call from that '
+      'session is refused, so realtime would be the one way round the step-up.';
+  end if;
+
+  -- PT-10 — and the same person, stepped up, is not locked out.
+  perform pg_temp.present_aal(v_owner, v_sess, 'aal2');
+  v_joined := public.is_company_topic_member(pg_temp.company_topic());
+  if v_joined is distinct from true then
+    raise exception 'PT-10 FAILED: an aal2 session was refused. The rule is a '
+      'step-up demand, not a ban.';
+  end if;
+
+  -- PT-12 — an absent aal claim, for somebody who holds a factor.
+  --
+  -- REFUSED, unlike an absent session_id. GoTrue mints `aal` on every access
+  -- token and apps/api/src/auth/jwt.ts reads it on every request, so a token
+  -- arriving here without one is not a token we issued.
+  perform pg_temp.present_aal(v_owner, v_sess, null);
+  v_joined := public.is_company_topic_member(pg_temp.company_topic());
+  -- THE ONE THAT CAUGHT IT. Written as `if v_joined` this passed against a
+  -- clause using `<>`, because NULL <> 'aal2' is NULL, the whole predicate
+  -- yields NULL, and NULL is not true so no exception fired. The mutation
+  -- survived and the suite called itself green.
+  if v_joined is distinct from false then
+    raise exception 'PT-12 FAILED: a token with no aal claim joined while its '
+      'owner holds a factor. NULL is distinct from ''aal2'' — if this passes, '
+      'the clause was probably written with <>, which yields NULL and takes '
+      'the false branch.';
+  end if;
+
+  delete from auth.mfa_factors where user_id = v_owner::uuid;
+
+  -- PT-11 — no factor, no demand. This is most of the product.
+  perform pg_temp.present_aal(v_owner, v_sess, 'aal1');
+  v_joined := public.is_company_topic_member(pg_temp.company_topic());
+  if v_joined is distinct from true then
+    raise exception 'PT-11 FAILED: a user with NO enrolled factor was refused '
+      'at aal1, which is their normal and correct state.';
+  end if;
+
+  raise notice 'PT-9..12 PASSED: assurance is demanded of the people who '
+    'enrolled and of nobody else, and an unsigned assurance reads as none';
+end $$;
+
 rollback;
