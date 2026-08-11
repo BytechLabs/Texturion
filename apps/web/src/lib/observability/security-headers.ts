@@ -16,12 +16,48 @@
  * types, so none of these headers changes their behavior in a browser.
  */
 export const SECURITY_HEADERS: ReadonlyArray<{ key: string; value: string }> = [
-  // Clickjacking: no site may frame the app or the marketing pages. The CSP
-  // directive is the modern control; X-Frame-Options is the legacy fallback
-  // for older engines. A fuller CSP (script-src etc.) needs per-request
-  // nonces threaded through Next's inline runtime scripts — tracked as a
-  // follow-up, not silently half-shipped here.
-  { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+  /*
+   * The policy, in the order it grew.
+   *
+   * `frame-ancestors` is clickjacking: no site may frame the app or the
+   * marketing pages. X-Frame-Options below is the legacy fallback for older
+   * engines.
+   *
+   * #577 added the three directives that need NO per-request nonce, which is
+   * the whole reason they could ship on their own:
+   *
+   *   base-uri 'self'     an injected `<base href>` silently re-points every
+   *                       relative URL on the page — every script src, every
+   *                       form target — without touching any of them. It is
+   *                       the cheapest way to turn one injected tag into a
+   *                       whole-page rewrite, and nothing here sets `<base>`.
+   *   object-src 'none'   `<object>`/`<embed>` are plugin content with their
+   *                       own execution rules. The product has none; a repo
+   *                       scan finds zero tags (the one `object` hit is a
+   *                       TypeScript type annotation).
+   *   form-action 'self'  stops an injected form POSTing credentials to
+   *                       another origin. Verified safe first: every form in
+   *                       this app is `method="post"` with NO `action`, so
+   *                       they all already submit to their own URL, and the
+   *                       Stripe and OAuth flows are redirects rather than
+   *                       cross-origin form posts.
+   *
+   * STILL ABSENT, deliberately: `script-src`. It needs per-request nonces
+   * threaded through Next's inline runtime, which is a middleware change on
+   * both hosts. It is not half-shipped here because the only way to make a
+   * `script-src` pass without that work is `unsafe-inline`, and a policy that
+   * permits what it exists to forbid is worse than an honest short one — it
+   * reads as protection in every audit that greps for the header.
+   */
+  {
+    key: "Content-Security-Policy",
+    value: [
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "form-action 'self'",
+    ].join("; "),
+  },
   { key: "X-Frame-Options", value: "DENY" },
   // Never MIME-sniff a response into an executable type.
   { key: "X-Content-Type-Options", value: "nosniff" },

@@ -10,8 +10,51 @@ describe("SECURITY_HEADERS (issue #33 response-header hardening)", () => {
   const byKey = new Map(SECURITY_HEADERS.map((h) => [h.key, h.value]));
 
   it("forbids framing via both the CSP directive and the legacy header", () => {
-    expect(byKey.get("Content-Security-Policy")).toBe("frame-ancestors 'none'");
+    expect(byKey.get("Content-Security-Policy")).toContain("frame-ancestors 'none'");
     expect(byKey.get("X-Frame-Options")).toBe("DENY");
+  });
+
+  /**
+   * #577 — the three directives that need no per-request nonce.
+   *
+   * Pinned individually rather than as one string so a future `script-src`
+   * can be added without rewriting this, and so a failure names the directive
+   * that went missing rather than diffing a sixty-character line.
+   */
+  it.each([
+    ["base-uri 'self'", "an injected <base href> re-points every relative URL"],
+    ["object-src 'none'", "plugin content executes under its own rules"],
+    ["form-action 'self'", "an injected form must not POST credentials away"],
+  ])("carries %s, because %s", (directive) => {
+    expect(byKey.get("Content-Security-Policy")).toContain(directive);
+  });
+
+  /**
+   * The policy may not permit what it exists to forbid.
+   *
+   * #577's own argument: a `script-src` made to pass with `unsafe-inline`
+   * reads as protection to every audit that greps for the header while
+   * enforcing nothing. An honest short policy is better than a dishonest long
+   * one, so if `script-src` ever appears here it has to arrive without these.
+   */
+  it("never buys a directive with unsafe-inline or unsafe-eval", () => {
+    const csp = byKey.get("Content-Security-Policy") ?? "";
+    expect(csp).not.toContain("unsafe-inline");
+    expect(csp).not.toContain("unsafe-eval");
+  });
+
+  /**
+   * Semicolon-separated, which is the only shape a browser parses.
+   *
+   * A comma joins two POLICIES rather than two directives, and a browser then
+   * enforces the INTERSECTION — so a comma here would silently apply
+   * `frame-ancestors` and nothing else, which is exactly the state this issue
+   * exists to leave behind.
+   */
+  it("separates directives with semicolons rather than commas", () => {
+    const csp = byKey.get("Content-Security-Policy") ?? "";
+    expect(csp).not.toContain(",");
+    expect(csp.split(";").length).toBeGreaterThanOrEqual(4);
   });
 
   it("forbids MIME sniffing", () => {
