@@ -30,13 +30,26 @@ const ANDROID_SCREEN = join(
   "apps/android/app/src/main/kotlin/com/loonext/android/features/settings/PortCards.kt",
 );
 
-const SOURCES: Record<string, string> = {
+/** The iOS SCREEN, for the same reason — iOS moved its copy out too. */
+const IOS_SCREEN = join(
+  REPO_ROOT,
+  "apps/ios/Loonext/Features/Settings/PortCards.swift",
+);
+
+/*
+ * A LIST per client, because #228 did not move every client's copy to the same
+ * place. Android's whole checklist went to the catalogue; iOS moved only the
+ * HEADING and still declares the four items as literals in `preCutoverSteps`.
+ * Reading one file per client would have made this guard pass on a client that
+ * had lost half its checklist, which is the failure it exists to catch.
+ */
+const SOURCES: Record<string, readonly string[]> = {
   // #248: the TypeScript definition moved to the shared package, which is where
   // a contract three clients depend on belongs — `copy.ts` re-exports it, so
   // every call site on web is unchanged. This path follows the definition; the
   // guard is unaffected, because what it checks is that all three languages say
   // the same sentences and that is still hand-kept on two of them.
-  web: join(REPO_ROOT, "packages/shared/src/porting.ts"),
+  web: [join(REPO_ROOT, "packages/shared/src/porting.ts")],
   /*
    * #228: Android's copy moved into the string catalogue, so the screen file no
    * longer contains these sentences — it contains the KEYS that reach them.
@@ -45,22 +58,33 @@ const SOURCES: Record<string, string> = {
    *
    * The catalogue is read whole rather than resolved key-by-key: what #319
    * protects is that the SENTENCES exist and are in order, and both facts are
-   * as true of a catalogue as they were of a Composable. iOS has not been
-   * extracted yet and still holds its literals inline.
+   * as true of a catalogue as they were of a Composable.
+   *
+   * iOS followed, so all three now point at wherever the words actually live.
+   * Its state gate moved to `IOS_SCREEN` for the same reason Android's did.
    */
-  android: join(
-    REPO_ROOT,
-    "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/SettingsMoreStrings.kt",
-  ),
-  ios: join(REPO_ROOT, "apps/ios/Loonext/Features/Settings/PortCards.swift"),
+  android: [
+    join(
+      REPO_ROOT,
+      "apps/android/app/src/main/kotlin/com/loonext/android/core/i18n/SettingsMoreStrings.kt",
+    ),
+  ],
+  ios: [
+    join(REPO_ROOT, "apps/ios/Loonext/Core/I18n/SettingsMoreStrings.swift"),
+    IOS_SCREEN,
+  ],
 };
 
 /**
  * Source with cross-line string concatenation folded away, so a sentence split
  * over two lines in Kotlin or Swift still matches the one written whole in TS.
  */
-function flattened(path: string): string {
-  return readFileSync(path, "utf8")
+function flattened(paths: readonly string[]): string {
+  return paths
+    .map((path) => readFileSync(path, "utf8"))
+    // A space, not a newline: everything below collapses runs of whitespace
+    // anyway, and a literal escape here is how this file got a parse error.
+    .join(" ")
     // `"…a " +\n  "b…"` and `"…a "\n  + "b…"` both become `"…ab…"`.
     .replace(/"\s*\+\s*\n\s*"/g, "")
     .replace(/"\s*\n\s*\+\s*"/g, "")
@@ -154,7 +178,7 @@ describe("#319 the pre-cutover checklist is the same on every client", () => {
     ]) {
       expect(android, `android gate missing ${status}`).toContain(status);
     }
-    const ios = readFileSync(SOURCES.ios, "utf8");
+    const ios = readFileSync(IOS_SCREEN, "utf8");
     for (const status of [
       "submitted",
       "inProcess",
