@@ -16,8 +16,11 @@
  * locally — the Telnyx order is the source of truth.
  *
  * Abuse budgets (SPEC §10), two layers on the Telnyx-committing actions:
- *   - RATE: VERIFY_RATE_LIMITER, 3/min keyed on the TARGET number — the
- *     cross-order guard (a cancel-and-recreate cycle never resets it).
+ *   - RATE: VERIFY_RATE_LIMITER, 3/min keyed on the WORKSPACE and the TARGET
+ *     number — the cross-order guard (a cancel-and-recreate cycle never resets
+ *     it). The workspace half is #576 (4): on the number alone the bucket
+ *     belonged to the victim, so a caller working through a list of landlines
+ *     got a fresh budget for every one.
  *   - LIFETIME: durable per-ORDER caps consumed by an atomic guarded
  *     increment (bump_text_enablement_counter): 10 verification-code sends
  *     and 5 resubmits per order, 409 conflict once exhausted. Per order row
@@ -634,9 +637,16 @@ async function consumeOrderBudget(
  * number the company has NOT yet proven it owns — and the verify endpoint
  * accepts code guesses, so without a bound these are a call/SMS-bombing and
  * code-brute-force primitive against an arbitrary victim landline. The limiter
- * (VERIFY_RATE_LIMITER, 3/min) is keyed on the TARGET number with a
- * per-endpoint prefix, never the order id, so a cancel-and-recreate cycle can
- * never reset the budget. Absent binding (local dev/tests) → gate skipped,
+ * (VERIFY_RATE_LIMITER, 3/min) is keyed on the WORKSPACE and the TARGET
+ * number with a per-endpoint prefix, never the order id, so a
+ * cancel-and-recreate cycle can never reset the budget.
+ *
+ * #576 (4) added the workspace half. Keyed on the number alone, the bucket
+ * belonged to the victim rather than to the caller: a workspace walking a list
+ * of landlines got a fresh 3/min for each one, so the limiter bounded how often
+ * ONE person could be bothered and said nothing about how many people one
+ * workspace could bother. Both halves are wanted — the number's bucket protects
+ * the person, the workspace's bounds the sender. Absent binding (local dev/tests) → gate skipped,
  * exactly like SEND_RATE_LIMITER at the dispatch choke point. The limiter
  * bounds the RATE only; the durable per-order lifetime cap
  * (consumeOrderBudget + MAX_VERIFICATION_REQUESTS) bounds the total.
@@ -645,11 +655,12 @@ async function verificationRateLimit(
   c: Context<AppEnv>,
   env: Env,
   action: "send" | "check",
+  companyId: string,
   phoneE164: string,
 ): Promise<Response | null> {
   if (!env.VERIFY_RATE_LIMITER) return null;
   const { success } = await env.VERIFY_RATE_LIMITER.limit({
-    key: `te-verify-${action}:${phoneE164}`,
+    key: `te-verify-${action}:${companyId}:${phoneE164}`,
   });
   if (success) return null;
   return errorResponse(
@@ -711,7 +722,13 @@ textEnablementRoutes.post(
     if (!order) return errorResponse(c, "not_found", "No such text-enablement.");
     const gate = verificationGate(c, order);
     if (gate) return gate;
-    const limited = await verificationRateLimit(c, env, "send", order.phone_e164);
+    const limited = await verificationRateLimit(
+      c,
+      env,
+      "send",
+      c.get("companyId"),
+      order.phone_e164,
+    );
     if (limited) return limited;
     const withinCap = await consumeOrderBudget(
       db,
@@ -770,6 +787,7 @@ textEnablementRoutes.post(
       c,
       env,
       "check",
+      c.get("companyId"),
       order.phone_e164,
     );
     if (limited) return limited;

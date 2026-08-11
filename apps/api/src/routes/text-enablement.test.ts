@@ -798,7 +798,7 @@ describe("verification codes (number-ownership check)", () => {
   });
 });
 
-describe("verification rate limit (VERIFY_RATE_LIMITER, per target number)", () => {
+describe("verification rate limit (VERIFY_RATE_LIMITER, per workspace and target)", () => {
   function fakeLimiter(success: boolean): RateLimiter & {
     limit: ReturnType<typeof vi.fn>;
   } {
@@ -818,10 +818,12 @@ describe("verification rate limit (VERIFY_RATE_LIMITER, per target number)", () 
     expect(res.status).toBe(429);
     const body = (await res.json()) as { error: { code: string } };
     expect(body.error.code).toBe("rate_limited");
-    // Keyed on the TARGET number (the would-be victim), not the order id — a
-    // cancel-and-recreate cycle can never reset the budget.
+    // Keyed on the WORKSPACE and the TARGET number, never the order id — a
+    // cancel-and-recreate cycle can never reset the budget, and #576 (4) added
+    // the workspace half so the bucket belongs to the caller as well as to the
+    // person being rung.
     expect(limiter.limit).toHaveBeenCalledExactlyOnceWith({
-      key: `te-verify-send:${NUMBER_E164}`,
+      key: `te-verify-send:${COMPANY_ID}:${NUMBER_E164}`,
     });
     expect(h.telnyx.calls).toHaveLength(0);
   });
@@ -856,7 +858,7 @@ describe("verification rate limit (VERIFY_RATE_LIMITER, per target number)", () 
     // A separate key from the send path: requesting codes never burns the
     // check budget (and vice versa).
     expect(limiter.limit).toHaveBeenCalledExactlyOnceWith({
-      key: `te-verify-check:${NUMBER_E164}`,
+      key: `te-verify-check:${COMPANY_ID}:${NUMBER_E164}`,
     });
     expect(h.telnyx.calls).toHaveLength(0);
   });
@@ -873,6 +875,38 @@ describe("verification rate limit (VERIFY_RATE_LIMITER, per target number)", () 
     );
     expect(res.status).toBe(200);
   });
+
+  /**
+   * #576 (4) — the workspace is IN the key, so walking a list of numbers does
+   * not hand the caller a fresh budget for each one.
+   *
+   * Asserted as a PREFIX rather than by counting calls: what the limiter does
+   * with two keys is Cloudflare's business, and a test that stubbed the bucket
+   * arithmetic would be checking its own fake. What this repo controls is
+   * whether the workspace reaches the key at all, and on the old spelling it
+   * did not — every number was its own bucket, so the gate bounded how often
+   * ONE landline could be rung and never how many landlines one workspace
+   * could ring.
+   */
+  it("keys on the workspace, so a new target number is not a new budget", async () => {
+    const h = buildHarness();
+    const order = seedOrder(h);
+    const limiter = fakeLimiter(false);
+    h.env.VERIFY_RATE_LIMITER = limiter;
+
+    await h.request(
+      `/v1/text-enablements/${order.id}/verification-codes`,
+      jsonInit("POST", { verification_method: "sms" }),
+    );
+
+    const key = limiter.limit.mock.calls[0]?.[0]?.key as string;
+    expect(key, "the workspace is not in the key").toContain(COMPANY_ID);
+    expect(key, "the target number is still in the key").toContain(NUMBER_E164);
+    // Order matters only in that both are present and separable; pinning the
+    // exact shape here would duplicate the two assertions above.
+    expect(key.indexOf(COMPANY_ID)).toBeLessThan(key.indexOf(NUMBER_E164));
+  });
+
 });
 
 describe("lifetime caps (durable per-order budgets, §10)", () => {
@@ -998,11 +1032,15 @@ describe("lifetime caps (durable per-order budgets, §10)", () => {
     expect(rows.find((o) => o.id === capped.id)?.verification_requests).toBe(10);
     expect(rows.find((o) => o.id === freshId)?.verification_requests).toBe(1);
 
-    // The cross-order guard is the per-NUMBER rate-limit key: both orders'
-    // sends hit the SAME key, so recreation never resets the RATE budget.
+    // The cross-order guard is the rate-limit key: both orders' sends hit the
+    // SAME key, so recreation never resets the RATE budget. #576 (4) put the
+    // workspace in that key alongside the number, which does not weaken this —
+    // the order id is still absent, which is the whole property.
     expect(limiter.limit).toHaveBeenCalledTimes(2);
     for (const call of limiter.limit.mock.calls) {
-      expect(call[0]).toEqual({ key: `te-verify-send:${NUMBER_E164}` });
+      expect(call[0]).toEqual({
+        key: `te-verify-send:${COMPANY_ID}:${NUMBER_E164}`,
+      });
     }
   });
 });
