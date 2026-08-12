@@ -446,17 +446,38 @@ export function findSwiftLiterals(source) {
   return found;
 }
 
+/**
+ * The literals themselves, per file — not merely how many there are.
+ *
+ * This used to return `{file: count}` and drop the strings on the floor, so a
+ * failing run said "14 hardcoded string(s)" and left you to re-find all 14 by
+ * hand. A gate that reports a COUNT rather than a FINDING makes you redo the
+ * work it already did, and with #228's backlog in the hundreds that is the
+ * difference between a tractable chore and one nobody starts.
+ */
 function scan(client) {
-  const counts = {};
+  const literalsByFile = {};
   const all = walk(client.root);
   for (const file of all) {
     if (!isScannable(file, client.exts)) continue;
     const literals = client.find(readFileSync(file, "utf8"));
     if (literals.length > 0) {
-      counts[relative(client.root, file).replaceAll("\\", "/")] = literals.length;
+      literalsByFile[relative(client.root, file).replaceAll("\\", "/")] =
+        literals;
     }
   }
-  return counts;
+  return literalsByFile;
+}
+
+/** The offending strings, quoted, so the fix is a copy-paste rather than a hunt. */
+function nameThem(literals, limit = 12) {
+  const shown = literals
+    .slice(0, limit)
+    .map((text) => `      · ${JSON.stringify(text)}`);
+  if (literals.length > limit) {
+    shown.push(`      · …and ${literals.length - limit} more`);
+  }
+  return `\n${shown.join("\n")}`;
 }
 
 function readLedger(path) {
@@ -471,14 +492,40 @@ const baseline = process.argv.includes("--baseline");
 /** `--only web` narrows a run while one client is being worked on. */
 const onlyIndex = process.argv.indexOf("--only");
 const only = onlyIndex === -1 ? null : process.argv[onlyIndex + 1];
+/**
+ * `--show AuthScreens` lists what is still hardcoded in the matching files.
+ *
+ * Files inside their budget are silent by design — that is what a ratchet is —
+ * so without this there is no way to ask "what is left in here?" short of
+ * editing the ledger to zero and reading the failure. Picking up a file from
+ * the backlog should not require breaking the gate first.
+ */
+const showIndex = process.argv.indexOf("--show");
+const show = showIndex === -1 ? null : process.argv[showIndex + 1];
 
 let failed = 0;
 const summary = [];
 
 for (const [name, client] of Object.entries(CLIENTS)) {
   if (only && only !== name) continue;
-  const counts = scan(client);
+  const literalsByFile = scan(client);
+  const counts = Object.fromEntries(
+    Object.entries(literalsByFile).map(([file, list]) => [file, list.length]),
+  );
   const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+
+  if (show) {
+    const matching = Object.entries(literalsByFile).filter(([file]) =>
+      file.toLowerCase().includes(show.toLowerCase()),
+    );
+    if (matching.length === 0) {
+      console.log(`${name}: nothing hardcoded matches ${JSON.stringify(show)}`);
+    }
+    for (const [file, list] of matching) {
+      console.log(`\n${name} · ${file} — ${list.length} left${nameThem(list, list.length)}`);
+    }
+    continue;
+  }
 
   if (baseline) {
     const sorted = Object.fromEntries(
@@ -501,7 +548,8 @@ for (const [name, client] of Object.entries(CLIENTS)) {
       problems.push(
         `  ${file}: ${count} hardcoded user-facing string(s) in a file that had none.
 ` +
-          `    → ${client.fix}.`,
+          `    → ${client.fix}.` +
+          nameThem(literalsByFile[file]),
       );
       continue;
     }
@@ -510,7 +558,8 @@ for (const [name, client] of Object.entries(CLIENTS)) {
         `  ${file}: ${count} hardcoded string(s), the ledger allows ${allowed}.
 ` +
           "    → a NEW literal joined a file that was already waiting to be " +
-          "extracted. Translate it now rather than adding to the backlog.",
+          "extracted. Translate it now rather than adding to the backlog." +
+          nameThem(literalsByFile[file]),
       );
     } else if (count < allowed) {
       problems.push(
@@ -541,7 +590,9 @@ for (const [name, client] of Object.entries(CLIENTS)) {
   );
 }
 
-if (baseline) process.exit(0);
+// `--show` is a question, not a verdict: it prints the backlog and exits clean
+// rather than falling through to a summary line with no clients in it.
+if (baseline || show) process.exit(0);
 
 if (failed > 0) {
   console.error(
