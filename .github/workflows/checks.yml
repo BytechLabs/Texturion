@@ -455,6 +455,16 @@ jobs:
       - name: Guard native text scaling
         run: node scripts/check-native-a11y.mjs
 
+      # #238: the phone palettes state their contrast as a RULE and, until this,
+      # nothing re-measured it. #320 worked the ratios out by hand and wrote the
+      # answers into Color.kt and BrandColor.swift as comments — correct, and a
+      # photograph. The tightest pair in the set clears its bar by 0.05, so a
+      # nudge to one hex is all it takes. Break-proven against #320's own bug:
+      # reverting DarkMuted500 to 0xFF909090 fails on the two container-tint
+      # pairings its comment names.
+      - name: Guard phone palette contrast
+        run: node scripts/check-palette-contrast.mjs
+
       # #522: three passes over the same class. #328 found plan prices typed as
       # "$29/mo" on both phones; #522 found the registration fee typed as "$29"
       # while Stripe invoices a Canadian workspace CA$39, and the extra-number
