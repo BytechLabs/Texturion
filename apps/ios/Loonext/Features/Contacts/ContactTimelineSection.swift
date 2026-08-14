@@ -57,7 +57,7 @@ struct ContactTimelineSection: View {
             if let page = try? await mutations.members(companyId: companyId) {
                 // Named `answererNames` so the property cannot shadow the
                 // free `memberNames(_:)` this line calls.
-                answererNames = memberNames(page.data)
+                answererNames = memberNames(page.data, locale: appLocale)
             }
         }
         // The history changes when a text lands, a call ends, or a job moves,

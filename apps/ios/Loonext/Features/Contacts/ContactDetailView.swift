@@ -687,7 +687,11 @@ struct ContactDetailView: View {
                     Text(localReading(zone))
                         .font(.golos(12.5))
                         .foregroundStyle(BrandColor.muted900)
-                    Text(timezoneProvenanceLabel(contact.timezone_source))
+                    Text(
+                        timezoneProvenanceLabel(
+                            contact.timezone_source, locale: appLocale
+                        )
+                    )
                         .font(.golos(10.5))
                         .foregroundStyle(BrandColor.muted500)
                     Spacer(minLength: 6)

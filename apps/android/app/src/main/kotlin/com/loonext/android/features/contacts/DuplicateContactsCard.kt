@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ContactMergeResult
 import com.loonext.android.core.model.DuplicatePair
@@ -179,6 +180,9 @@ private fun MergeContactsDialog(
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    // #228: the merge below is a coroutine, and the failure it reports is read
+    // in this dialog.
+    val locale = LocalAppLocale.current
 
     val survivorId = if (keepFirst) pair.contact_a else pair.contact_b
     val foldedId = if (keepFirst) pair.contact_b else pair.contact_a
@@ -260,7 +264,7 @@ private fun MergeContactsDialog(
                         try {
                             onMerged(repo.merge(companyId, foldedId, survivorId))
                         } catch (cause: Exception) {
-                            error = cause.userMessage()
+                            error = cause.userMessage(locale)
                         } finally {
                             saving = false
                         }

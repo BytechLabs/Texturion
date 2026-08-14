@@ -13,6 +13,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.ui.common.userMessage
@@ -43,6 +44,8 @@ fun LeaveWorkspaceCard(
     var leaving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    // #228: the failure is written from a coroutine, outside composition.
+    val locale = LocalAppLocale.current
 
     SettingsCard(
         title = t("settings.leaveTitle"),
@@ -75,7 +78,7 @@ fun LeaveWorkspaceCard(
                                 confirming = false
                                 onLeft()
                             } catch (cause: Exception) {
-                                error = cause.userMessage()
+                                error = cause.userMessage(locale)
                                 confirming = false
                             } finally {
                                 leaving = false

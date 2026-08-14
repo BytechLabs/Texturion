@@ -454,7 +454,12 @@ private struct NumberCard: View {
             // (apps/api/src/routes/numbers.ts), so the ceiling is nil for a
             // held row. The order is here so this card does not depend on that
             // staying true.
-            Text(suspendedNumberLine(canManageBilling: SettingsRoleGate.canManageBilling(scope.role)))
+            // Kept on ONE line through `canManageBilling:`: HeldNumbersTests
+            // reads this file raw and asserts the literal
+            // `suspendedNumberLine(canManageBilling:`, so a wrap after the
+            // paren retires that guard silently.
+            Text(suspendedNumberLine(canManageBilling: SettingsRoleGate.canManageBilling(scope.role),
+                                     locale: appLocale))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -468,11 +473,11 @@ private struct NumberCard: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         } else if number.status == NumberStatus.provisioning {
-            Text(provisioningWaitCopy(number.created_at))
+            Text(provisioningWaitCopy(number.created_at, locale: appLocale))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         } else if number.status == NumberStatus.provisionFailed {
-            Text(failedNumberCopy(number))
+            Text(failedNumberCopy(number, locale: appLocale))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             if canManage && needsNumberChoice(number) {
@@ -961,7 +966,8 @@ private struct AddNumberCard: View {
             let extraBlockedReason = extraNumberBlockedReason(
                 country: company.country,
                 usTextingEnabled: company.us_texting_enabled,
-                billingCurrency: company.billing_currency
+                billingCurrency: company.billing_currency,
+                locale: appLocale
             )
             if !starterAtCap, nextIsExtra, let extraBlockedReason {
                 SettingsCard(
@@ -1159,7 +1165,7 @@ private struct MyAccessCard: View {
     @Environment(\.appLocale) private var appLocale
 
     var body: some View {
-        if let note = numberAccessSelfNote(rows) {
+        if let note = numberAccessSelfNote(rows, locale: appLocale) {
             SettingsCard(
                 title: AppStrings.translate(appLocale, "settingsMore.whatYouReach"),
                 description: AppStrings.translate(
@@ -1177,11 +1183,13 @@ private struct MyAccessCard: View {
                                     )
                             )
                                 .font(.body)
-                            Text(numberAccessLevelLabel(row.level))
+                            Text(numberAccessLevelLabel(row.level, locale: appLocale))
                                 .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
-                        Text(numberAccessReason(row.decided_by, row.principal, isSelf: true))
+                        Text(numberAccessReason(
+                            row.decided_by, row.principal, isSelf: true, locale: appLocale
+                        ))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }

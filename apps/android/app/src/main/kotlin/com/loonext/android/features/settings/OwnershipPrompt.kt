@@ -96,8 +96,8 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
                 // rather than leaving the screen to imply it.
                 onChanged()
             } catch (cause: Exception) {
-                actionError = cause.userMessage()
-                if (!confirming) scope.showMessage(cause.userMessage())
+                actionError = cause.userMessage(locale)
+                if (!confirming) scope.showMessage(cause.userMessage(locale))
             } finally {
                 busy = false
                 refreshKey++
@@ -120,7 +120,11 @@ fun OwnershipPrompt(scope: SettingsScope, onChanged: () -> Unit) {
         coroutines.launch {
             when (
                 val outcome =
-                    attemptHandover(scope, pending, code, alreadyOpen = proof != null)
+                    attemptHandover(
+                        scope, pending, code,
+                        alreadyOpen = proof != null,
+                        locale = locale,
+                    )
             ) {
                 is HandoverOutcome.Done -> {
                     proof = null

@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.core.ownership.HandoverConfirmation
 import com.loonext.android.ui.common.userMessage
@@ -87,19 +88,31 @@ internal suspend fun attemptHandover(
     proof: HandoverProof,
     code: String?,
     alreadyOpen: Boolean,
+    /**
+     * #228: the reader's language, threaded rather than read. This is a suspend
+     * function with no composition behind it, so [HandoverOutcome.Failed] — the
+     * one outcome carrying words rather than a state — would otherwise always be
+     * English on a French phone. All three screens that call this hold the
+     * reader's language already.
+     *
+     * DEFAULTED, and English, for the same reason [userMessage] itself is: the
+     * funnel's own tests drive it without a reader, and the default is exactly
+     * what every caller got before there was a choice.
+     */
+    locale: String = MessageLocale.EN,
 ): HandoverOutcome {
     // Digits that are not ours to check must not be sent to us. The kind held here is
     // the one the server named on the refusal that opened the dialog, so on the retry
     // this is already known before anything goes over the wire.
     if (code != null && !HandoverConfirmation.goesToOurApi(proof.kind)) {
-        return proveFactorThenRetry(scope, proof, proof.kind, code)
+        return proveFactorThenRetry(scope, proof, proof.kind, code, locale)
     }
     try {
         proof.attempt(code)
         return HandoverOutcome.Done
     } catch (cause: Exception) {
         val kind = (cause as? ApiException)?.let { HandoverConfirmation.kindOf(it.code) }
-            ?: return HandoverOutcome.Failed(cause.userMessage())
+            ?: return HandoverOutcome.Failed(cause.userMessage(locale))
         // The refusal NAMES the kind, and that name outranks whatever we arrived
         // holding: a screen that rebuilds its request for each attempt gets here still
         // carrying the default one. So if the digits in hand turn out to have never
@@ -107,7 +120,7 @@ internal suspend fun attemptHandover(
         // posting them a second time is the forever loop, and the person is told their
         // own correct code is wrong.
         if (code != null && !HandoverConfirmation.goesToOurApi(kind)) {
-            return proveFactorThenRetry(scope, proof, kind, code)
+            return proveFactorThenRetry(scope, proof, kind, code, locale)
         }
         if (!alreadyOpen && kind == HandoverConfirmation.Kind.EMAIL) {
             // Best effort. A send that fails must not replace the demand with a
@@ -139,6 +152,8 @@ private suspend fun proveFactorThenRetry(
     proof: HandoverProof,
     kind: HandoverConfirmation.Kind,
     code: String,
+    /** #228: carried in from [attemptHandover], for its one worded outcome. */
+    locale: String,
 ): HandoverOutcome {
     try {
         val token = scope.graph.api.freshSession()?.accessToken ?: error("signed out")
@@ -161,7 +176,7 @@ private suspend fun proveFactorThenRetry(
         HandoverOutcome.Done
     } catch (cause: Exception) {
         val again = (cause as? ApiException)?.let { HandoverConfirmation.kindOf(it.code) }
-            ?: return HandoverOutcome.Failed(cause.userMessage())
+            ?: return HandoverOutcome.Failed(cause.userMessage(locale))
         // Still refused with a proof this fresh — a clock a long way out, or a factor
         // that is not the one this workspace is asking about. Say so once and stop:
         // proving again from here would be this same paragraph forever.

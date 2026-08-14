@@ -312,7 +312,11 @@ final class ThreadController {
         Task {
             do {
                 try await repo.cancelScheduledMessage(companyId: companyId, id: id)
-                notify(ScheduledSend.copyLine("canceled_confirmation"))
+                notify(
+                    ScheduledSend.copyLine(
+                        "canceled_confirmation", locale: locale
+                    )
+                )
                 try? await refreshScheduled()
             } catch {
                 // It is still queued. Putting it back is the only honest state:
@@ -342,8 +346,12 @@ final class ThreadController {
                 )
                 notify(
                     result.outcome == "already_acknowledged"
-                        ? OnCall.alertTakenLine("Somebody else")
-                        : OnCall.bannerYours
+                        // "Somebody else" is the NAME slot of the sentence and
+                        // has no key on any client — an extraction gap, not a
+                        // dropped argument. The sentence around it is the
+                        // reader's now.
+                        ? OnCall.alertTakenLine("Somebody else", locale: locale)
+                        : AppStrings.translate(locale, OnCall.bannerYoursKey)
                 )
             } catch {
                 conversation = before

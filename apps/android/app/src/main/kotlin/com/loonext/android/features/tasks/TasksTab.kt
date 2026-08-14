@@ -171,6 +171,9 @@ private fun TaskListScreen(
     var refreshKey by remember(companyId) { mutableIntStateOf(0) }
     var pickerOpen by remember { mutableStateOf(false) }
     var pullRefreshing by remember(companyId) { mutableStateOf(false) }
+    // #228: the done-toggle below writes from a coroutine, and the failure it
+    // raises is a snackbar on this screen.
+    val locale = LocalAppLocale.current
 
     val dueChip = dueChipName?.let { name -> DueChip.entries.firstOrNull { it.name == name } }
     val scope = rememberCoroutineScope()
@@ -244,7 +247,7 @@ private fun TaskListScreen(
         scope.launch {
             // Derived-done invariant: the write path is the SOURCE MESSAGE.
             val result = runCatching { mutations.setDone(companyId, task.message_id, done) }
-            result.onFailure { snackbar.showSnackbar(it.userMessage()) }
+            result.onFailure { snackbar.showSnackbar(it.userMessage(locale)) }
             refreshKey++
         }
     }
@@ -1226,7 +1229,7 @@ private fun TaskBulkBar(
                     )
                 }
                 Text(
-                    selection.label(),
+                    selection.label(LocalAppLocale.current),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )

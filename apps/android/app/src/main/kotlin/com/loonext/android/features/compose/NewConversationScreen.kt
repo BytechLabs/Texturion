@@ -120,6 +120,9 @@ fun NewConversationScreen(
     val repo = remember(graph) { MessagingRepository(graph.api) }
     val drafts = remember { ComposerDrafts(context.applicationContext) }
     val snackbar = remember { SnackbarHostState() }
+    // #228: read in composition — the bootstrap below is a suspend lambda, and
+    // the failure sentence it writes is read by the person holding the phone.
+    val locale = LocalAppLocale.current
 
     BackHandler(onBack = onBack)
 
@@ -145,7 +148,7 @@ fun NewConversationScreen(
             }
             LoadState.Ready(numbers)
         } catch (cause: Exception) {
-            LoadState.Failed(cause.userMessage())
+            LoadState.Failed(cause.userMessage(locale))
         }
     }
 
@@ -266,7 +269,7 @@ private fun NewConversationLoaded(
             quietHoursPrompt = body
             return
         }
-        scope.launch { snackbar.showSnackbar(cause.userMessage()) }
+        scope.launch { snackbar.showSnackbar(cause.userMessage(locale)) }
     }
 
     fun dispatch(body: ComposeBody, key: String) {

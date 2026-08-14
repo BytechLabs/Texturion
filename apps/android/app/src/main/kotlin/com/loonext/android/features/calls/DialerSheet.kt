@@ -152,6 +152,11 @@ fun DialerSheet(
     var calling by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    // #228: neither the call coroutine below nor the permission-result callback
+    // further down is composition, so the sentences they may set are resolved
+    // from a locale read here. Declared above both, because a local `val` is
+    // only in scope after its declaration.
+    val locale = LocalAppLocale.current
     val dialable = dialableE164(digits)
 
     // #183 part 2: contacts access is requested HERE, at the point of use, not
@@ -198,18 +203,15 @@ fun DialerSheet(
                 // Gate refusals arrive coded (usage_cap_reached,
                 // subscription_inactive, conflict "line on another call",
                 // validation_failed) with honest server copy — show it.
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } finally {
                 calling = false
             }
         }
     }
 
-    // #228: the permission-result callback is not composition, so the
-    // sentence it may set is resolved from a locale read here.
-    val locale = LocalAppLocale.current
     val micLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->

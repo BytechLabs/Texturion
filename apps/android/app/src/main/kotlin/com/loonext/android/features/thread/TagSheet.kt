@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Tag
 import com.loonext.android.ui.common.AppSheet
@@ -66,6 +67,9 @@ internal fun TagManageSheet(
     var allTags by remember { mutableStateOf<LoadState<List<Tag>>>(LoadState.Loading) }
     var retryKey by remember { mutableIntStateOf(0) }
     var input by remember { mutableStateOf("") }
+    // #228: the fetch below is a suspend lambda, and the sentence it may leave
+    // in the list's place is read on this sheet.
+    val locale = LocalAppLocale.current
 
     // Keyed on [attached] too: a create-on-attach lands the new tag in the
     // conversation's rows first — refetching keeps the full list in step.
@@ -73,7 +77,7 @@ internal fun TagManageSheet(
         allTags = try {
             LoadState.Ready(repo.tags(companyId).data)
         } catch (cause: Exception) {
-            if (allTags !is LoadState.Ready) LoadState.Failed(cause.userMessage())
+            if (allTags !is LoadState.Ready) LoadState.Failed(cause.userMessage(locale))
             else allTags // keep the loaded list on a quiet refresh failure
         }
     }

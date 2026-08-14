@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.JobPhotoLink
 import com.loonext.android.features.settings.copyToClipboard
@@ -85,6 +86,8 @@ fun ShareJobPhotos(
     // is copy — and it is read here, in composition, because the tap that uses
     // it is not.
     val clipboardLabel = t("contactsTasks.jobPhotosClipboardLabel")
+    // #228: same reason — the failures the taps below report are read here.
+    val locale = LocalAppLocale.current
 
     val current = link
     if (current == null) {
@@ -95,7 +98,7 @@ fun ShareJobPhotos(
                 coroutines.launch {
                     runCatching { mutations.shareJobPhotos(companyId, taskId) }
                         .onSuccess { link = it }
-                        .onFailure { onError(it.userMessage()) }
+                        .onFailure { onError(it.userMessage(locale)) }
                     busy = false
                 }
             },
@@ -165,7 +168,7 @@ fun ShareJobPhotos(
                     coroutines.launch {
                         runCatching { mutations.revokeJobPhotos(companyId, taskId) }
                             .onSuccess { link = null }
-                            .onFailure { onError(it.userMessage()) }
+                            .onFailure { onError(it.userMessage(locale)) }
                         busy = false
                     }
                 },

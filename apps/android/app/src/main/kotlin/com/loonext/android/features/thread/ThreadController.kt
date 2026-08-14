@@ -24,6 +24,7 @@ import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
+import com.loonext.android.core.model.MessageLocale
 import com.loonext.android.core.model.MessageTaskLink
 import com.loonext.android.core.model.OutboundMedia
 import com.loonext.android.core.model.ScheduledMessage
@@ -235,6 +236,18 @@ class ThreadController(
     private fun say(key: String, vararg vars: Pair<String, String>): String =
         AppStrings.translate(locale, key, vars.toMap())
 
+    /**
+     * #228 — a failure's sentence, in the reader's language.
+     *
+     * Every `catch` in this controller ends in a snackbar, and a snackbar is
+     * read by the person holding the phone. `userMessage` defaults to English
+     * because most of its callers are coroutines with no reader; this one HAS
+     * one ([locale]), so it is passed rather than dropped. Null stays English,
+     * which is what every test and every non-UI caller already gets.
+     */
+    private fun Throwable.userMessageForReader(): String =
+        userMessage(locale ?: MessageLocale.EN)
+
     // --- Loading -------------------------------------------------------------
 
     fun start() {
@@ -257,7 +270,7 @@ class ThreadController(
         } catch (cause: Exception) {
             if (!seeded) {
                 load = LoadState.Failed(
-                    cause.userMessage(),
+                    cause.userMessageForReader(),
                     (cause as? ApiException)?.code,
                 )
             }
@@ -353,7 +366,7 @@ class ThreadController(
         ) {
             ScheduleOutcome.NeedsQuietHoursConfirm
         } else {
-            notify(cause.userMessage())
+            notify(cause.userMessageForReader())
             ScheduleOutcome.Failed
         }
     }
@@ -378,7 +391,7 @@ class ThreadController(
                 // a row that vanished from the strip while still being due to
                 // send is the silent disappearance DECISIONS.md rules out.
                 scheduled = before
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
             }
         }
     }
@@ -400,14 +413,14 @@ class ThreadController(
                 val result = repo.acknowledgeAlert(companyId, alertId)
                 notify(
                     if (result.outcome == "already_acknowledged") {
-                        OnCall.alertTakenLine("Somebody else")
+                        OnCall.alertTakenLine("Somebody else", locale)
                     } else {
-                        OnCall.BANNER_YOURS
+                        say(OnCall.BANNER_YOURS_KEY)
                     },
                 )
             } catch (cause: Exception) {
                 conversation = before
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
             }
         }
     }
@@ -463,7 +476,7 @@ class ThreadController(
                 ensureEventsCoverMessages()
                 persistSnapshot()
             } catch (cause: Exception) {
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
             } finally {
                 loadingOlder = false
             }
@@ -791,7 +804,7 @@ class ThreadController(
                 pendingSends = pendingSends - pendingRow
                 lastFailedIntent = FailedSendIntent(body, photoIds, key)
                 onRestore()
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
                 if (code == ApiErrorCode.RECIPIENT_OPTED_OUT ||
                     code == ApiErrorCode.SUBSCRIPTION_INACTIVE ||
                     code == ApiErrorCode.REGISTRATION_PENDING ||
@@ -865,9 +878,9 @@ class ThreadController(
                 } catch (cause: Exception) {
                     val code = (cause as? ApiException)?.code
                     if (code == ApiErrorCode.NETWORK) {
-                        SendOutcome.Unreachable(cause.userMessage())
+                        SendOutcome.Unreachable(cause.userMessageForReader())
                     } else {
-                        SendOutcome.Refused(cause.userMessage())
+                        SendOutcome.Refused(cause.userMessageForReader())
                     }
                 }
             }
@@ -946,10 +959,10 @@ class ThreadController(
                     // the server message here; this is the parity fix. The
                     // refresh stays: both cases mean our copy of the row is
                     // behind.
-                    notify(cause.userMessage())
+                    notify(cause.userMessageForReader())
                     runCatching { refreshMessagesFirstPage() }
                 } else {
-                    notify(cause.userMessage())
+                    notify(cause.userMessageForReader())
                 }
             }
         }
@@ -979,7 +992,7 @@ class ThreadController(
                 )
             } catch (cause: Exception) {
                 onRestore()
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
                 return@launch
             }
             messages = mergeMessagesFirstPage(messages, listOf(note))
@@ -1002,7 +1015,7 @@ class ThreadController(
             val landed = runCatching { repo.noteAttachments(companyId, note.id).data }
             noteFiles = noteFiles + (note.id to landed.fold(
                 { LoadState.Ready(it) },
-                { LoadState.Failed(it.userMessage()) },
+                { LoadState.Failed(it.userMessageForReader()) },
             ))
             if (failedCount > 0) {
                 notify(
@@ -1042,7 +1055,7 @@ class ThreadController(
                 runCatching { refreshEvents() }
             } catch (cause: Exception) {
                 replaceMessage(message)
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
             }
         }
     }
@@ -1054,7 +1067,7 @@ class ThreadController(
                 replaceMessage(repo.setMessagePinned(companyId, message.id, pinning))
                 refreshPinned()
             } catch (cause: Exception) {
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
             }
         }
     }
@@ -1087,7 +1100,7 @@ class ThreadController(
                     notify(say("thread.alreadyHasTask"))
                     runCatching { refreshMessagesFirstPage() }
                 } else {
-                    notify(cause.userMessage())
+                    notify(cause.userMessageForReader())
                 }
             }
         }
@@ -1114,7 +1127,7 @@ class ThreadController(
                 applyConversationRow(repo.setStatus(companyId, conversationId, status))
                 runCatching { refreshEvents() }
             } catch (cause: Exception) {
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
             }
         }
     }
@@ -1125,7 +1138,7 @@ class ThreadController(
                 applyConversationRow(repo.setAssignee(companyId, conversationId, userId))
                 runCatching { refreshEvents() }
             } catch (cause: Exception) {
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
             }
         }
     }
@@ -1161,7 +1174,7 @@ class ThreadController(
                     notify(say("thread.markedAsNotSpam"))
                 }
             } catch (cause: Exception) {
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
             }
         }
     }
@@ -1221,7 +1234,7 @@ class ThreadController(
                 applyConversationRow(repo.clearSpamSuspicion(companyId, conversationId))
                 notify(say("thread.spamCleared"))
             } catch (cause: Exception) {
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
             }
         }
     }
@@ -1268,7 +1281,7 @@ class ThreadController(
                     ),
                 )
             } catch (cause: Exception) {
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
             }
         }
     }
@@ -1291,7 +1304,7 @@ class ThreadController(
                     else say("thread.backInYourInbox"),
                 )
             } catch (cause: Exception) {
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
             }
         }
     }
@@ -1304,7 +1317,7 @@ class ThreadController(
                     repo.setConversationPinned(companyId, conversationId, pinning),
                 )
             } catch (cause: Exception) {
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
             }
         }
     }
@@ -1317,7 +1330,7 @@ class ThreadController(
                 runCatching { refreshContact() }
                 runCatching { refreshEvents() }
             } catch (cause: Exception) {
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
             }
         }
     }
@@ -1330,7 +1343,7 @@ class ThreadController(
                 runCatching { refreshContact() }
                 runCatching { refreshEvents() }
             } catch (cause: Exception) {
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
             }
         }
     }
@@ -1356,7 +1369,7 @@ class ThreadController(
                 runCatching { refreshConversationDetail() }
                 runCatching { refreshEvents() }
             } catch (cause: Exception) {
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
             }
         }
     }
@@ -1377,7 +1390,7 @@ class ThreadController(
                 } else {
                     conversation = before
                     persistSnapshot()
-                    notify(cause.userMessage())
+                    notify(cause.userMessageForReader())
                 }
             }
         }
@@ -1397,7 +1410,7 @@ class ThreadController(
                         .filter { it.id != conversationId }
                     LoadState.Ready(rows)
                 } catch (cause: Exception) {
-                    LoadState.Failed(cause.userMessage())
+                    LoadState.Failed(cause.userMessageForReader())
                 }
             }
         }
@@ -1406,7 +1419,7 @@ class ThreadController(
             conversationTasks = try {
                 LoadState.Ready(repo.conversationTasks(companyId, conversationId).data)
             } catch (cause: Exception) {
-                LoadState.Failed(cause.userMessage())
+                LoadState.Failed(cause.userMessageForReader())
             }
         }
     }
@@ -1456,7 +1469,7 @@ class ThreadController(
                 if (current != null) {
                     conversationTasks = LoadState.Ready(swap(current.value, task.done))
                 }
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
             }
         }
     }
@@ -1470,7 +1483,7 @@ class ThreadController(
             val result = runCatching { repo.noteAttachments(companyId, noteId).data }
             noteFiles = noteFiles + (noteId to result.fold(
                 { LoadState.Ready(it) },
-                { LoadState.Failed(it.userMessage()) },
+                { LoadState.Failed(it.userMessageForReader()) },
             ))
         }
     }
@@ -1486,7 +1499,7 @@ class ThreadController(
                 messagesCursor = page.next_cursor
                 if (page.next_cursor == null) allMessagesLoaded = true
             } catch (cause: Exception) {
-                notify(cause.userMessage())
+                notify(cause.userMessageForReader())
                 return false
             }
             guard++

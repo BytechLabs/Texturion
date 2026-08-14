@@ -64,6 +64,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.loonext.android.core.model.Member
 import com.loonext.android.telephony.AudioRoute
 import com.loonext.android.telephony.CallDirection
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.telephony.CallPhase
 import com.loonext.android.telephony.CallSnapshot
@@ -880,6 +881,9 @@ private fun TransferSheet(
     // Read in composition: the effect below is not, and a nameless target has
     // to fall back to a word the reader understands.
     val teammateLabel = t("contactsTasks.teammate")
+    // #228: same reason — the failures the effect and the transfer report are
+    // read here, and neither is composition.
+    val locale = LocalAppLocale.current
 
     LaunchedEffect(sessionId, reloadKey) {
         loading = true
@@ -897,7 +901,7 @@ private fun TransferSheet(
                 )
             }
         } catch (cause: Exception) {
-            error = cause.userMessage()
+            error = cause.userMessage(locale)
         } finally {
             loading = false
         }
@@ -964,7 +968,7 @@ private fun TransferSheet(
                                         manager.blindTransfer(sessionId, row.userId)
                                         onDismiss()
                                     } catch (cause: Exception) {
-                                        error = cause.userMessage()
+                                        error = cause.userMessage(locale)
                                     } finally {
                                         transferring = false
                                     }

@@ -368,8 +368,11 @@ private fun ContactListScreen(
             searchSnapshot = ContactsSnapshot(page.data, page.next_cursor)
             searchState = LoadState.Ready(Unit)
         } catch (cause: Exception) {
-            if (searchSnapshot == null) searchState = LoadState.Failed(cause.userMessage())
-            else snackbar.showSnackbar(cause.userMessage())
+            if (searchSnapshot == null) {
+                searchState = LoadState.Failed(cause.userMessage(locale))
+            } else {
+                snackbar.showSnackbar(cause.userMessage(locale))
+            }
         }
     }
 
@@ -432,7 +435,7 @@ private fun ContactListScreen(
                     searchState = LoadState.Ready(Unit)
                 }
             } catch (cause: Exception) {
-                snackbar.showSnackbar(cause.userMessage())
+                snackbar.showSnackbar(cause.userMessage(locale))
             } finally {
                 refreshing = false
             }
@@ -542,7 +545,7 @@ private fun ContactListScreen(
                     },
                 )
             } else {
-                snackbar.showSnackbar(cause.userMessage())
+                snackbar.showSnackbar(cause.userMessage(locale))
             }
         } finally {
             importing = false
@@ -578,7 +581,7 @@ private fun ContactListScreen(
                     }
                 }
             } catch (cause: Exception) {
-                snackbar.showSnackbar(cause.userMessage())
+                snackbar.showSnackbar(cause.userMessage(locale))
                 null
             }
             importing = false
@@ -857,7 +860,7 @@ private fun ContactListScreen(
                                                             appendPage(q, page)
                                                         } catch (cause: Exception) {
                                                             snackbar.showSnackbar(
-                                                                cause.userMessage(),
+                                                                cause.userMessage(locale),
                                                             )
                                                         } finally {
                                                             loadingMore = false
@@ -1401,6 +1404,9 @@ internal fun CreateContactSheet(
     var notes by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    // #228: read in composition — the save below is a coroutine, and the
+    // failure it reports is read by the person holding the phone.
+    val locale = LocalAppLocale.current
 
     val normalized = Nanp.normalize(phone)
 
@@ -1490,7 +1496,7 @@ internal fun CreateContactSheet(
                                 haptics.confirm()
                                 onCreated(created)
                             } catch (cause: Exception) {
-                                error = cause.userMessage()
+                                error = cause.userMessage(locale)
                             } finally {
                                 saving = false
                             }

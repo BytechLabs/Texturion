@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.contacts.ContactFields
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ContactFieldDef
 import com.loonext.android.ui.common.userMessage
@@ -60,6 +61,8 @@ import kotlinx.coroutines.launch
 fun ContactFieldsCard(scope: SettingsScope) {
     val canEdit = SettingsRoleGate.canEditWorkspace(scope.role)
     val coroutines = rememberCoroutineScope()
+    // #228: the save failure is written from a coroutine, outside composition.
+    val locale = LocalAppLocale.current
 
     var loaded by remember { mutableStateOf(false) }
     var saved by remember { mutableStateOf<List<ContactFieldDef>>(emptyList()) }
@@ -102,7 +105,7 @@ fun ContactFieldsCard(scope: SettingsScope) {
                     if (result.data.isEmpty()) savedBackToStandard else savedOnEveryCustomer,
                 )
             } catch (cause: Exception) {
-                scope.showMessage(cause.userMessage())
+                scope.showMessage(cause.userMessage(locale))
             } finally {
                 saving = false
             }

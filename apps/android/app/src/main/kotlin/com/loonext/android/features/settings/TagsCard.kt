@@ -68,6 +68,9 @@ fun TagsCard(
 ) {
     val repo = remember(scope.graph) { MessagingRepository(scope.graph.api) }
     val canManage = MemberRole.has(scope.role, Capability.SETTINGS_MANAGE)
+    // #228: the list load runs in a LaunchedEffect, so its failure sentence is
+    // composed where `t` cannot be called.
+    val locale = LocalAppLocale.current
     var refreshKey by remember { mutableIntStateOf(0) }
     var state by remember { mutableStateOf<LoadState<List<TagUsage>>>(LoadState.Loading) }
     var merging by remember { mutableStateOf<TagUsage?>(null) }
@@ -78,8 +81,8 @@ fun TagsCard(
         } catch (cause: CancellationException) {
             throw cause
         } catch (cause: Exception) {
-            if (state is LoadState.Ready) scope.showMessage(cause.userMessage())
-            else state = LoadState.Failed(cause.userMessage())
+            if (state is LoadState.Ready) scope.showMessage(cause.userMessage(locale))
+            else state = LoadState.Failed(cause.userMessage(locale))
         }
     }
 
@@ -163,6 +166,8 @@ private fun TagUsageRow(
     var draft by remember(row.tag_id) { mutableStateOf(row.description.orEmpty()) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    // #228: the save failure is written from a coroutine, outside composition.
+    val locale = LocalAppLocale.current
     val coroutines = rememberCoroutineScope()
 
     Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
@@ -223,7 +228,7 @@ private fun TagUsageRow(
                                 editing = false
                                 onChanged()
                             } catch (cause: Exception) {
-                                error = cause.userMessage()
+                                error = cause.userMessage(locale)
                             } finally {
                                 saving = false
                             }
@@ -359,7 +364,7 @@ private fun MergeTagDialog(
                             )
                             onMerged()
                         } catch (cause: Exception) {
-                            error = cause.userMessage()
+                            error = cause.userMessage(locale)
                         } finally {
                             merging = false
                         }
@@ -400,6 +405,8 @@ private fun TagLockCard(
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    // #228: the save failure is written from a coroutine, outside composition.
+    val locale = LocalAppLocale.current
 
     SettingsCard(
         title = t("settingsMore.tagLockTitle"),
@@ -418,7 +425,7 @@ private fun TagLockCard(
                         val body = buildJsonObject { put("tags_locked", next) }
                         onCompanyUpdated(scope.repo.updateCompany(scope.companyId, body))
                     } catch (cause: Exception) {
-                        error = cause.userMessage()
+                        error = cause.userMessage(locale)
                     } finally {
                         saving = false
                     }

@@ -91,7 +91,7 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
         rows = try {
             scope.repo.voicemailGreetings(scope.companyId)
         } catch (cause: Exception) {
-            error = cause.userMessage()
+            error = cause.userMessage(locale)
             rows
         }
     }
@@ -194,7 +194,7 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
                     AppStrings.translate(locale, "settingsMore.greetingSaved"),
                 )
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } finally {
                 pending = false
             }
@@ -242,7 +242,7 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
                 )
                 capture = current.copy(phase = CapturePhase.CALLING)
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } finally {
                 pending = false
             }
@@ -418,7 +418,7 @@ internal fun VoiceGreetingCard(scope: SettingsScope, canEdit: Boolean) {
                                     ),
                                 )
                             } catch (cause: Exception) {
-                                error = cause.userMessage()
+                                error = cause.userMessage(locale)
                             } finally {
                                 pending = false
                             }

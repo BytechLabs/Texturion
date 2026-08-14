@@ -249,10 +249,13 @@ struct MfaGateView: View {
             return
         }
         do {
-            let token = try await repo.freshAccessToken()
+            let token = try await repo.freshAccessToken(locale: appLocale)
             let enrolment = try await SettingsAuthClient().enrollTotp(
                 accessToken: token,
-                friendlyName: "Loonext"
+                // NOT translated: this is the label the member's authenticator
+                // app shows beside the code, and it is the product's name.
+                friendlyName: "Loonext",
+                locale: appLocale
             )
             step = .enrol(
                 factorId: enrolment.factorId,
@@ -286,7 +289,7 @@ struct MfaGateView: View {
         }
 
         do {
-            let token = try await repo.freshAccessToken()
+            let token = try await repo.freshAccessToken(locale: appLocale)
             var enrolling = false
             let factorId: String
             if case .enrol(let id, _, _) = step {

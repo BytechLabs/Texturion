@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.PhoneNumberSummary
@@ -78,6 +79,10 @@ fun WebsiteWidgetCard(
     val coroutines = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
     val haptics = rememberHaptics()
+    // #228: every failure on this card is written from a coroutine, outside
+    // composition — including the one [saveLine] reports, which is why that
+    // helper takes the locale rather than reading one it cannot see.
+    val locale = LocalAppLocale.current
 
     var open by remember { mutableStateOf(false) }
     var key by remember { mutableStateOf<String?>(null) }
@@ -103,7 +108,7 @@ fun WebsiteWidgetCard(
             // Named rather than silent: a card that opens to nothing reads as a
             // broken app, and the person is one tap from trying again.
             loadFailed = true
-            error = cause.userMessage()
+            error = cause.userMessage(locale)
         }
     }
 
@@ -188,7 +193,7 @@ fun WebsiteWidgetCard(
                                 confirming = false
                                 scope.showMessage(rotatedMessage)
                             } catch (cause: Exception) {
-                                error = cause.userMessage()
+                                error = cause.userMessage(locale)
                             } finally {
                                 busy = false
                             }
@@ -247,7 +252,7 @@ fun WebsiteWidgetCard(
                         onClick = {
                             lineMenuOpen = false
                             saveLine(
-                                scope, coroutines, null, lineSavedMessage,
+                                scope, coroutines, null, lineSavedMessage, locale,
                                 onCompanyUpdated, { busy = it }, { error = it },
                             )
                         },
@@ -258,7 +263,7 @@ fun WebsiteWidgetCard(
                             onClick = {
                                 lineMenuOpen = false
                                 saveLine(
-                                    scope, coroutines, number.id, lineSavedMessage,
+                                    scope, coroutines, number.id, lineSavedMessage, locale,
                                     onCompanyUpdated, { busy = it }, { error = it },
                                 )
                             },
@@ -292,6 +297,14 @@ private fun saveLine(
     coroutines: kotlinx.coroutines.CoroutineScope,
     numberId: String?,
     savedMessage: String,
+    /**
+     * #228: threaded rather than read, for the reason rule 3 gives — this is a
+     * plain function with no composition to read a reader out of. It sits beside
+     * [savedMessage] because they are the same decision twice: the sentence that
+     * lands on success is composed by the caller, and the one that lands on
+     * failure has to come from the same reader.
+     */
+    locale: String,
     onCompanyUpdated: (CompanyView) -> Unit,
     setBusy: (Boolean) -> Unit,
     setError: (String?) -> Unit,
@@ -307,7 +320,7 @@ private fun saveLine(
             onCompanyUpdated(scope.repo.updateCompany(scope.companyId, body))
             scope.showMessage(savedMessage)
         } catch (cause: Exception) {
-            setError(cause.userMessage())
+            setError(cause.userMessage(locale))
         } finally {
             setBusy(false)
         }

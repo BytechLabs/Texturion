@@ -109,7 +109,7 @@ fun SendLaterSheet(
     // Resolved on composition rather than remembered: the pair only changes
     // when the clock crosses 8am there, and on that recomposition the NEW pair
     // is the correct one.
-    val presets = ScheduledSend.presets(Instant.now(), zone)
+    val presets = ScheduledSend.presets(Instant.now(), zone, LocalAppLocale.current)
 
     // #199 host type 3: AppSheet, never a raw ModalBottomSheet. The sheet opens
     // over a composer whose keyboard is up, so pinned inset handling is not a
@@ -242,7 +242,7 @@ fun SendLaterPicker(
                                             index = index,
                                             count = TwoClocks.Choice.entries.size,
                                         ),
-                                    ) { Text(option.label) }
+                                    ) { Text(option.labelFor(LocalAppLocale.current)) }
                                 }
                             }
                         }
@@ -497,19 +497,28 @@ internal fun pickerClockNote(
     locale: String? = null,
 ): String {
     if (!canSwitch) return senderClockNote(clock, device, locale)
-    // `TwoClocks.HERE` / `.THERE` are core/time's words, not this section's;
-    // when they move into a catalogue this sentence needs no second pass.
+    // `TwoClocks.HERE` / `.THERE` are core/time's words, not this section's.
+    // #228: they are catalogue keys now, so the clock name is resolved against
+    // the SAME reader as the sentence it is interpolated into — the English
+    // properties beside them are for a caller that has no reader, and this one
+    // was handed one.
     return if (choice == TwoClocks.Choice.THEIRS) {
         AppStrings.translate(
             locale,
             "thread.pickerThats",
-            mapOf("time" to clockOf(at, device), "clock" to TwoClocks.HERE),
+            mapOf(
+                "time" to clockOf(at, device),
+                "clock" to AppStrings.translate(locale, TwoClocks.HERE_KEY),
+            ),
         )
     } else {
         AppStrings.translate(
             locale,
             "thread.pickerThats",
-            mapOf("time" to clockOf(at, theirZone), "clock" to TwoClocks.THERE),
+            mapOf(
+                "time" to clockOf(at, theirZone),
+                "clock" to AppStrings.translate(locale, TwoClocks.THERE_KEY),
+            ),
         )
     }
 }

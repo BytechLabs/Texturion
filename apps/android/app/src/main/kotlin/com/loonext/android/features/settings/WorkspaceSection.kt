@@ -144,7 +144,7 @@ private fun NameCard(
                                     ),
                                 )
                             } catch (cause: Exception) {
-                                error = cause.userMessage()
+                                error = cause.userMessage(locale)
                             } finally {
                                 saving = false
                             }
@@ -371,7 +371,7 @@ private fun TimezoneCard(
                             AppStrings.translate(locale, "settingsMore.timezoneSaved"),
                         )
                     } catch (cause: Exception) {
-                        error = cause.userMessage()
+                        error = cause.userMessage(locale)
                     } finally {
                         saving = false
                     }
@@ -502,7 +502,7 @@ private fun SignTextsCard(
                         }
                         onCompanyUpdated(scope.repo.updateCompany(scope.companyId, body))
                     } catch (cause: Exception) {
-                        error = cause.userMessage()
+                        error = cause.userMessage(locale)
                     } finally {
                         saving = false
                     }
@@ -571,7 +571,7 @@ private fun QuietHoursCard(
                         }
                         onCompanyUpdated(scope.repo.updateCompany(scope.companyId, body))
                     } catch (cause: Exception) {
-                        error = cause.userMessage()
+                        error = cause.userMessage(locale)
                     } finally {
                         saving = false
                     }
@@ -660,7 +660,7 @@ private fun LanguageCard(
                                         ),
                                     )
                                 } catch (cause: Exception) {
-                                    error = cause.userMessage()
+                                    error = cause.userMessage(locale)
                                 } finally {
                                     saving = false
                                 }

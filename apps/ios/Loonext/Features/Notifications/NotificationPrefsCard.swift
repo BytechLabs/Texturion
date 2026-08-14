@@ -123,8 +123,10 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
                 // itself at 7am, and a page still comes through — which is the
                 // sentence that decides whether anybody switches it on.
                 PrefToggleRow(
-                    title: OnCall.quietHeading,
-                    supporting: OnCall.quietReassurance,
+                    title: AppStrings.translate(appLocale, OnCall.quietHeadingKey),
+                    supporting: AppStrings.translate(
+                        appLocale, OnCall.quietReassuranceKey
+                    ),
                     isOn: prefs.quiet_from != nil && prefs.quiet_to != nil
                 ) { checked in
                     var next = prefs
@@ -182,8 +184,14 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
             AppStrings.translate(appLocale, "inbox.notifOnCallTitle"),
             isPresented: silencingBinding
         ) {
-            Button(OnCallSilence.cancel, role: .cancel) { silencing = nil }
-            Button(OnCallSilence.confirm, role: .destructive) {
+            Button(
+                AppStrings.translate(appLocale, OnCallSilence.cancelKey),
+                role: .cancel
+            ) { silencing = nil }
+            Button(
+                AppStrings.translate(appLocale, OnCallSilence.confirmKey),
+                role: .destructive
+            ) {
                 // #556: reject(). Silencing your own on-call channel is the one
                 // press here somebody can regret, and Android gives the same
                 // weight to the same class of decision.
@@ -200,7 +208,8 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
                 OnCallSilence.warning(
                     onCall: true,
                     turningOff: true,
-                    channel: silencing?.id ?? "push"
+                    channel: silencing?.id ?? "push",
+                    locale: appLocale
                 ) ?? ""
             )
         }
@@ -259,9 +268,11 @@ struct NotificationPrefsCard<ExtraRows: View>: View {
 
     private func quietSummary(_ prefs: NotificationPrefs) -> String {
         guard let from = prefs.quiet_from, let to = prefs.quiet_to else {
-            return OnCall.quietOff
+            return AppStrings.translate(appLocale, OnCall.quietOffKey)
         }
-        return OnCall.quietHoursLine(from: from, to: to) + " · " + OnCall.quietScope
+        return OnCall.quietHoursLine(from: from, to: to, locale: appLocale)
+            + " · "
+            + AppStrings.translate(appLocale, OnCall.quietScopeKey)
     }
 
     private func save(_ next: NotificationPrefs, previous: NotificationPrefs) {

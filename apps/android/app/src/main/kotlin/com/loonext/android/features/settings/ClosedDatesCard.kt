@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.HoursException
@@ -57,6 +58,8 @@ fun ClosedDatesCard(
 ) {
     val canEdit = scope.role == "owner" || scope.role == "admin"
     val coroutines = rememberCoroutineScope()
+    // #228: the save failure is written from a coroutine, outside composition.
+    val locale = LocalAppLocale.current
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var from by remember { mutableStateOf("") }
@@ -99,7 +102,7 @@ fun ClosedDatesCard(
                 onCompanyUpdated(scope.repo.updateCompany(scope.companyId, body))
                 scope.showMessage(message)
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } finally {
                 saving = false
             }

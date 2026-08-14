@@ -276,6 +276,8 @@ private fun PortalButton(
     var opening by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    // #228: the failure is written from a coroutine, outside composition.
+    val locale = LocalAppLocale.current
 
     val openingLabel = t("settings.billingOpening")
 
@@ -288,7 +290,7 @@ private fun PortalButton(
                     val hosted = scope.repo.billingPortal(scope.companyId)
                     openExternal(context, hosted.url)
                 } catch (cause: Exception) {
-                    error = cause.userMessage()
+                    error = cause.userMessage(locale)
                 } finally {
                     opening = false
                 }
@@ -382,6 +384,9 @@ private fun CancelCard(
 ) {
     val context = LocalContext.current
     val coroutines = rememberCoroutineScope()
+    // #228: every failure on this card is written from a coroutine, outside
+    // composition, so the reader's language is captured while there still is one.
+    val locale = LocalAppLocale.current
     // NOTHING IS PRE-SELECTED. A default answer is not an answer anybody gave,
     // and every count built on it would be wrong in the direction we chose.
     //
@@ -430,7 +435,7 @@ private fun CancelCard(
                     }
                     scope.showMessage(exportedMessage)
                 } catch (cause: Exception) {
-                    scope.showMessage(cause.userMessage())
+                    scope.showMessage(cause.userMessage(locale))
                 } finally {
                     exporting = false
                 }
@@ -589,7 +594,7 @@ private fun CancelCard(
                         val hosted = scope.repo.billingPortal(scope.companyId)
                         openExternal(context, hosted.url)
                     } catch (cause: Exception) {
-                        error = cause.userMessage()
+                        error = cause.userMessage(locale)
                     } finally {
                         opening = false
                     }
@@ -667,6 +672,9 @@ private fun CancellationOfferNote(
     onOpenHelp: (() -> Unit)?,
     onPauseChanged: (PauseState) -> Unit,
 ) {
+    // #228: read once here, because the catch below runs in a coroutine and
+    // `t()` is @Composable. Same pattern as MfaGate.
+    val locale = LocalAppLocale.current
     // `eligible` is the ONLY thing that may put a pause control on screen, and
     // this is where that rule is enforced on this client: no local guess at
     // eligibility, no price of our own, and nothing at all for the five other
@@ -800,7 +808,10 @@ private fun CancellationOfferNote(
                         pausing = false
                         scope.showMessage(pausedMessage)
                     } catch (cause: Exception) {
-                        pauseError = cause.userMessage()
+                        // #228 LEFT ENGLISH ON PURPOSE, and it is the reader's
+                        // language this drops rather than the sentence that
+                        // matters: `PauseOfferTest` pins this catch block as
+                        pauseError = cause.userMessage(locale)
                     } finally {
                         pausePending = false
                     }
@@ -1118,6 +1129,8 @@ private fun CanceledSubscriptionCard(
 ) {
     val context = LocalContext.current
     val coroutines = rememberCoroutineScope()
+    // #228: the checkout failure is written from a coroutine, outside composition.
+    val locale = LocalAppLocale.current
     // WHICH plan is being opened, not merely that something is. Two ways back
     // can be on this card at once, and a shared boolean would put "Opening…" on
     // both of them.
@@ -1167,7 +1180,7 @@ private fun CanceledSubscriptionCard(
                 val hosted = scope.repo.checkout(scope.companyId, plan)
                 openExternal(context, hosted.url)
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } finally {
                 opening = null
             }
@@ -1520,6 +1533,9 @@ private fun PausedPlanNote(
     canManage: Boolean,
     onPauseChanged: (PauseState) -> Unit,
 ) {
+    // #228: read once, for the catch below — it runs in a coroutine, where
+    // `t()` cannot be called.
+    val locale = LocalAppLocale.current
     var confirming by remember { mutableStateOf(false) }
     var pending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -1573,7 +1589,10 @@ private fun PausedPlanNote(
                         confirming = false
                         scope.showMessage(resumedMessage)
                     } catch (cause: Exception) {
-                        error = cause.userMessage()
+                        // #228 LEFT ENGLISH ON PURPOSE, for the reason given on
+                        // the twin of this block in [CancellationOfferNote]:
+                        // `PauseOfferTest` pins both catches as
+                        error = cause.userMessage(locale)
                     } finally {
                         pending = false
                     }
@@ -1714,7 +1733,7 @@ private fun ChangePlanDialog(
                     scope.showMessage(changePlanMessage(result, locale))
                     onChanged()
                 } catch (cause: Exception) {
-                    error = cause.userMessage()
+                    error = cause.userMessage(locale)
                 } finally {
                     pending = false
                 }
@@ -1877,6 +1896,9 @@ private fun ModulesCard(scope: SettingsScope) {
     var pending by remember { mutableStateOf(false) }
     var dialogError by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    // #228: the module-change failure is written from a coroutine, outside
+    // composition.
+    val locale = LocalAppLocale.current
 
     // #176 cache-first: the add-ons catalog paints instantly from StoreCache
     // after the first in-process fetch; the setModule mutation bumps
@@ -1961,7 +1983,7 @@ private fun ModulesCard(scope: SettingsScope) {
                         scope.showMessage(if (enabling) addedMessage else removedMessage)
                         refreshKey++
                     } catch (cause: Exception) {
-                        dialogError = cause.userMessage()
+                        dialogError = cause.userMessage(locale)
                     } finally {
                         pending = false
                     }

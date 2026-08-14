@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.ui.common.absoluteTime
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.jobs.WorkPhase
 
@@ -58,7 +59,7 @@ fun PhotoGroupHeader(
     ) {
         if (phase != null) {
             Text(
-                WorkPhase.label(phase),
+                WorkPhase.label(phase, LocalAppLocale.current),
                 fontSize = 11.5.sp,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier

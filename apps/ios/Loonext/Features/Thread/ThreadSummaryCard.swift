@@ -203,7 +203,7 @@ struct ThreadSummaryCard: View {
             if groups.isEmpty {
                 // Silence with a reason, never an error box. The thread is
                 // directly underneath and every sentence points back at it.
-                Text(threadCatchUpMessage(result.reason))
+                Text(threadCatchUpMessage(result.reason, locale: appLocale))
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted600)
                     .fixedSize(horizontal: false, vertical: true)
@@ -238,7 +238,7 @@ struct ThreadSummaryCard: View {
     private func rejectedBody(_ reason: String?) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             header(mark: .idle)
-            Text(threadCatchUpMessage(reason))
+            Text(threadCatchUpMessage(reason, locale: appLocale))
                 .font(.golos(12))
                 .foregroundStyle(BrandColor.muted600)
                 .fixedSize(horizontal: false, vertical: true)

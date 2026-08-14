@@ -2466,7 +2466,13 @@ func heldNumbersState(
     _ view: HeldNumbers,
     read: PauseRead,
     billingWritesEnabled: Bool,
-    audience: BillingCurrency
+    audience: BillingCurrency,
+    /// #228: the reader's language, LAST and DEFAULTED. This function has no
+    /// reader of its own — it is pure logic — so the card threads its
+    /// `appLocale` down to `heldNumbersCopy`, and `HeldNumbersTests`, which
+    /// calls this with four arguments to assert the PRODUCT's wording, is
+    /// untouched.
+    locale: String? = nil
 ) -> HeldNumbersState? {
     guard view.reason == HeldNumbersReason.overPlanAllowance,
           !view.held.isEmpty,
@@ -2487,7 +2493,8 @@ func heldNumbersState(
             allowance: allowance,
             heldCount: view.held.count,
             offer: offer,
-            canUpgrade: view.can_upgrade
+            canUpgrade: view.can_upgrade,
+            locale: locale
         ),
         offer: offer
     )

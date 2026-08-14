@@ -126,7 +126,7 @@ struct PhotoMarkupSheet: View {
                     ForEach(PhotoMarkup.tools, id: \.self) { option in
                         let on = tool == option
                         Button { tool = option } label: {
-                            Text(PhotoMarkup.label(option))
+                            Text(PhotoMarkup.label(option, locale: appLocale))
                                 .font(.golos(12.5))
                                 .foregroundStyle(on ? BrandColor.paper : BrandColor.muted600)
                                 .padding(.horizontal, 10)
@@ -136,13 +136,22 @@ struct PhotoMarkupSheet: View {
                         .buttonStyle(.plain)
                         .accessibilityAddTraits(on ? [.isSelected] : [])
                     }
-                    Button(PhotoMarkup.undo) { _ = marks.popLast() }
+                    Button(AppStrings.translate(appLocale, PhotoMarkup.undoKey)) {
+                        _ = marks.popLast()
+                    }
                         .font(.golos(12.5))
                         .disabled(marks.isEmpty)
                     Spacer(minLength: 0)
                 }
 
-                Text(anchor == nil ? PhotoMarkup.hint : PhotoMarkup.hintSecondTap)
+                Text(
+                    AppStrings.translate(
+                        appLocale,
+                        anchor == nil
+                            ? PhotoMarkup.hintKey
+                            : PhotoMarkup.hintSecondTapKey
+                    )
+                )
                     .font(.golos(11.5))
                     .foregroundStyle(BrandColor.muted600)
             }
@@ -160,7 +169,7 @@ struct PhotoMarkupSheet: View {
                     Button(
                         saving
                             ? AppStrings.translate(appLocale, "common.saving")
-                            : PhotoMarkup.save
+                            : AppStrings.translate(appLocale, PhotoMarkup.saveKey)
                     ) {
                         saving = true
                         let rendered = preview

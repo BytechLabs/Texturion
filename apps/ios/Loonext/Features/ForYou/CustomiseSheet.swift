@@ -109,11 +109,11 @@ private struct PanelRow: View {
             )
         ) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(DashboardPanels.label(panel)).font(.body)
+                Text(DashboardPanels.label(panel, locale: appLocale)).font(.body)
                 // The reason it exists, under its name. Four headings alone do not
                 // distinguish "Pipeline" from "Response time" for anybody who has
                 // not already read both cards.
-                Text(DashboardPanels.note(panel))
+                Text(DashboardPanels.note(panel, locale: appLocale))
                     .font(.caption)
                     .foregroundStyle(BrandColor.muted500)
             }

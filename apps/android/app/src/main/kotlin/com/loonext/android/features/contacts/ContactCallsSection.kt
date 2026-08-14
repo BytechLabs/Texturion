@@ -430,7 +430,7 @@ private fun ContactVoicemailPlayerRow(
             val playback = try {
                 mutations.voicemail(companyId, sessionId)
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
                 preparing = false
                 return@launch
             }

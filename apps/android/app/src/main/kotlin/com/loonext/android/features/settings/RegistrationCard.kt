@@ -143,7 +143,7 @@ fun RegistrationBlock(
                                 )
                                 onChanged()
                             } catch (cause: Exception) {
-                                error = cause.userMessage()
+                                error = cause.userMessage(locale)
                             } finally {
                                 submitting = false
                             }
@@ -209,12 +209,15 @@ private fun EnableUsCard(
     var pending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    // #228: the same reader [enableUsCopy] is written for, kept for the failure
+    // the confirm coroutine reports — outside composition, where `t` cannot go.
+    val locale = LocalAppLocale.current
     val fee = usRegistrationFee(company.billing_currency, company.country)
     // #525: the WORDS come from the fact, and there is no control to withhold —
     // see [enableUsCopy]. `isPaused` is true only on an ANSWERED read, so a read
     // in flight or one that failed leaves every sentence exactly as it was
     // before the pause existed rather than guessing in either direction.
-    val copy = enableUsCopy(fee, pause.isPaused, LocalAppLocale.current)
+    val copy = enableUsCopy(fee, pause.isPaused, locale)
 
     SettingsCard(title = t("settingsMore.usTexting"), description = copy.description) {
         if (SettingsRoleGate.canEnableUsTexting(scope.role)) {
@@ -257,7 +260,7 @@ private fun EnableUsCard(
                         scope.showMessage(copy.startedMessage)
                         onChanged()
                     } catch (cause: Exception) {
-                        error = cause.userMessage()
+                        error = cause.userMessage(locale)
                     } finally {
                         pending = false
                     }
@@ -503,7 +506,7 @@ private fun SolePropOtpRow(scope: SettingsScope, onChanged: () -> Unit) {
                         )
                         onChanged()
                     } catch (cause: Exception) {
-                        error = cause.userMessage()
+                        error = cause.userMessage(locale)
                     } finally {
                         verifying = false
                     }
@@ -527,7 +530,7 @@ private fun SolePropOtpRow(scope: SettingsScope, onChanged: () -> Unit) {
                         AppStrings.translate(locale, "settingsMore.newPinSent"),
                     )
                 } catch (cause: Exception) {
-                    error = cause.userMessage()
+                    error = cause.userMessage(locale)
                 } finally {
                     resending = false
                 }

@@ -197,7 +197,7 @@ private fun ScheduledSheetRow(
                 )
             } else if (!held) {
                 Text(
-                    ScheduledSend.clockProvenance(row.clock_source),
+                    ScheduledSend.clockProvenance(row.clock_source, LocalAppLocale.current),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp),

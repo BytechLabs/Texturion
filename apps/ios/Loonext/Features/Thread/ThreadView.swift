@@ -261,7 +261,7 @@ private struct ThreadBody: View {
                 // seeing nothing, and finding it gone from the inbox again an
                 // hour later — a state the app knew about and did not mention.
                 if let until = detail.snoozed_until, isSnoozed(until) {
-                    SnoozedBanner(label: snoozeReturnLabel(until)) {
+                    SnoozedBanner(label: snoozeReturnLabel(until, locale: appLocale)) {
                         controller.unsnooze()
                     }
                 }
@@ -1054,8 +1054,12 @@ private struct ThreadBody: View {
                 companyName: companyName,
                 plan: companyPlan,
                 appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+                // The SUBJECT stays English on purpose — it is the inbox's
+                // index, and one carrier suspension reported from Montreal and
+                // from Calgary has to arrive under one heading. The SITUATION
+                // is the sentence the reporter reads, so it is theirs.
                 subject: supportSubjectFor(kind),
-                situation: supportSituation(kind),
+                situation: supportSituation(kind, appLocale),
                 recentErrors: DiagnosticsLog.recentLines()
             ) else { return }
             openURL(url)
@@ -1663,7 +1667,7 @@ private struct ConversationSheet: View {
                 }
             } else {
                 sheetNote(AppStrings.translate(appLocale, "thread.snoozeUntil"))
-                ForEach(snoozePresets()) { preset in
+                ForEach(snoozePresets(locale: appLocale)) { preset in
                     RowDivider()
                     sheetRow(preset.label, trailing: presetClock(preset.at)) {
                         controller.snooze(untilISO: snoozeInstantISO(preset.at))
@@ -1684,7 +1688,7 @@ private struct ConversationSheet: View {
                 sheetNote(
                     AppStrings.translate(appLocale, "thread.remindMeToChase")
                 )
-                ForEach(followUpPresets()) { preset in
+                ForEach(followUpPresets(locale: appLocale)) { preset in
                     RowDivider()
                     sheetRow(preset.label, trailing: presetClock(preset.at)) {
                         controller.snooze(
@@ -2377,7 +2381,9 @@ private struct MakeTaskSheet: View {
                         if enriching {
                             ProgressView().controlSize(.mini)
                         }
-                        if let label = addressProvenanceLabel(addrProvenance) {
+                        if let label = addressProvenanceLabel(
+                            addrProvenance, locale: locale
+                        ) {
                             addrBadge(label)
                         }
                     }

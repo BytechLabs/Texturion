@@ -201,7 +201,7 @@ struct EmergencyCard: View {
 
     private func add() {
         let raw = draft.trimmingCharacters(in: .whitespaces)
-        if let problem = emergencyKeywordError(raw) {
+        if let problem = emergencyKeywordError(raw, locale: appLocale) {
             error = problem
             return
         }

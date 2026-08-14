@@ -209,7 +209,8 @@ private struct AwayReplyCard: View {
         awayEmergencyNotice(
             emergencyEnabled: emergency,
             awayMessage: effectiveMessage,
-            keywords: company.effectiveEmergencyWords
+            keywords: company.effectiveEmergencyWords,
+            locale: appLocale
         )
     }
 
@@ -272,7 +273,11 @@ private struct AwayReplyCard: View {
                 // #414 defect in a different place.
                 supporting: t(
                     "settings.awayEmergencySwitchHelp",
-                    ["words": emergencyWordList(company.effectiveEmergencyWords)]
+                    [
+                        "words": emergencyWordList(
+                            company.effectiveEmergencyWords, locale: appLocale
+                        )
+                    ]
                 ),
                 isOn: emergency,
                 enabled: canEdit && !saving

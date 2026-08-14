@@ -84,7 +84,14 @@ func daysUntilNextMonday(_ date: Date, calendar: Calendar = .current) -> Int {
 /// Anything at or before `now + minLead` is dropped rather than disabled: at
 /// 4pm there is no "this afternoon" to offer, and a shorter list is a better
 /// answer than a greyed-out button.
-func snoozePresets(now: Date = Date(), calendar: Calendar = .current) -> [SnoozePreset] {
+/// #228: `locale` is LAST and DEFAULTED, so `SnoozeLogicTests` — which pins the
+/// ids and the instants and passes nothing — keeps compiling and keeps reading
+/// the English, while the sheet that knows its reader passes `appLocale`.
+func snoozePresets(
+    now: Date = Date(),
+    calendar: Calendar = .current,
+    locale: String? = nil
+) -> [SnoozePreset] {
     let floor = now.addingTimeInterval(SnoozeTiming.minLead)
 
     func at(addDays: Int, hour: Int) -> Date? {
@@ -111,7 +118,7 @@ func snoozePresets(now: Date = Date(), calendar: Calendar = .current) -> [Snooze
 
     return candidates.compactMap { id, date in
         guard let date, date > floor else { return nil }
-        return SnoozePreset(id: id, label: id.label, at: date)
+        return SnoozePreset(id: id, label: id.localisedLabel(locale), at: date)
     }
 }
 
@@ -164,7 +171,9 @@ struct FollowUpPreset: Sendable, Identifiable {
 /// fires at 11pm is read the next day anyway.
 func followUpPresets(
     now: Date = Date(),
-    calendar: Calendar = .current
+    calendar: Calendar = .current,
+    // #228: LAST and DEFAULTED, for the same reason `snoozePresets` takes it so.
+    locale: String? = nil
 ) -> [FollowUpPreset] {
     let floor = now.addingTimeInterval(SnoozeTiming.minLead)
 
@@ -189,7 +198,7 @@ func followUpPresets(
     // it silently could.
     return candidates.compactMap { id, date in
         guard let date, date > floor else { return nil }
-        return FollowUpPreset(id: id, label: id.label, at: date)
+        return FollowUpPreset(id: id, label: id.localisedLabel(locale), at: date)
     }
 }
 

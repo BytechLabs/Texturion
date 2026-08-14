@@ -629,7 +629,7 @@ struct ThreadComposerView: View {
             let drafted = await ask(state.text)
             suggesting = false
             if drafted.suggestions.isEmpty {
-                onNotice(replyDraftMessage(drafted.reason))
+                onNotice(replyDraftMessage(drafted.reason, locale: appLocale))
             } else {
                 suggestions = drafted.suggestions
                 businessUnknown = drafted.business_unknown
@@ -1232,12 +1232,15 @@ struct ThreadComposerView: View {
                 // queued row it was confirming.
                 let when = TwoClocks.bothClocks(
                     sendAtLabel(at, in: destinationZone(destinationClock)),
-                    sendAtLabel(at, in: .current)
+                    sendAtLabel(at, in: .current),
+                    locale: appLocale
                 )
                 onNotice(
                     t("thread.scheduledConfirm", ["when": when])
                         + " "
-                        + ScheduledSend.copyLine("picker_reassurance")
+                        + ScheduledSend.copyLine(
+                            "picker_reassurance", locale: appLocale
+                        )
                 )
             case .needsQuietHoursConfirm:
                 quietConfirmFor = at

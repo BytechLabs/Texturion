@@ -353,6 +353,7 @@ fun ThreadScreen(
                                         context = context,
                                         wifiOnlyOriginals = wifiOnlyOriginals,
                                         snackbar = snackbar,
+                                        locale = readerLocale,
                                         mint = {
                                             repo.attachmentUrl(
                                                 companyId,
@@ -362,7 +363,7 @@ fun ThreadScreen(
                                         },
                                     )
                                 } catch (cause: Exception) {
-                                    snackbar.showSnackbar(cause.userMessage())
+                                    snackbar.showSnackbar(cause.userMessage(readerLocale))
                                 }
                             }
                         },
@@ -382,6 +383,7 @@ fun ThreadScreen(
                                         context = context,
                                         wifiOnlyOriginals = wifiOnlyOriginals,
                                         snackbar = snackbar,
+                                        locale = readerLocale,
                                         mint = {
                                             repo.attachmentUrl(
                                                 companyId,
@@ -391,7 +393,7 @@ fun ThreadScreen(
                                         },
                                     )
                                 } catch (cause: Exception) {
-                                    snackbar.showSnackbar(cause.userMessage())
+                                    snackbar.showSnackbar(cause.userMessage(readerLocale))
                                 }
                             }
                         },
@@ -478,7 +480,7 @@ private fun ThreadLoaded(
                     conversationId = controller.conversationId,
                 )
             } catch (cause: Exception) {
-                onNotice(cause.userMessage())
+                onNotice(cause.userMessage(locale))
             } finally {
                 placingCall = false
             }
@@ -1196,9 +1198,14 @@ private fun ThreadLoaded(
                         companyName = controller.company?.name,
                         plan = controller.company?.plan,
                         appVersion = BuildConfig.VERSION_NAME,
+                        // #228: the SUBJECT stays English on purpose — it is the
+                        // inbox's index, and one failure reported from Montreal
+                        // and from Calgary has to arrive under one heading. The
+                        // body below is what the person reads, so it takes theirs.
                         subject = supportSubjectFor(kind),
-                        situation = supportSituation(kind),
+                        situation = supportSituation(kind, locale),
                         recentErrors = RecentErrors.recentLines(),
+                        locale = locale,
                     ),
                 )
             },

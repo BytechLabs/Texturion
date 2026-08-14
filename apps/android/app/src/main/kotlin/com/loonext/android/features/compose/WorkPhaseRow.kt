@@ -70,11 +70,11 @@ fun WorkPhaseRow(
                 // Tap the selected one to clear it: the honest answer for most
                 // notes is neither, and it has to be reachable after a mis-tap.
                 onClick = { onChange(if (on) null else phase) },
-                label = { Text(WorkPhase.label(phase)) },
+                label = { Text(WorkPhase.label(phase, locale)) },
             )
         }
         Text(
-            WorkPhase.HINT,
+            AppStrings.translate(locale, WorkPhase.HINT_KEY),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

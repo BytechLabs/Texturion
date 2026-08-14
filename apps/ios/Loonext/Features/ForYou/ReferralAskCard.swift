@@ -47,11 +47,15 @@ struct ReferralAskCard: View {
             if let moment, moment.ask {
                 PaperCard {
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(ReferralShare.askHeadline(moment.customers))
+                        Text(
+                            ReferralShare.askHeadline(
+                                moment.customers, locale: appLocale
+                            )
+                        )
                             .font(.golos(15, weight: .semibold))
                             .foregroundStyle(BrandColor.ink)
 
-                        Text(ReferralShare.askBody)
+                        Text(AppStrings.translate(appLocale, ReferralShare.askBodyKey))
                             .font(.golos(13))
                             .foregroundStyle(BrandColor.muted600)
                             .padding(.top, 4)
@@ -74,10 +78,20 @@ struct ReferralAskCard: View {
                             }
                         } else {
                             HStack(spacing: 8) {
-                                Button(ReferralShare.askAction, action: onOpen)
+                                Button(
+                                    AppStrings.translate(
+                                        appLocale, ReferralShare.askActionKey
+                                    ),
+                                    action: onOpen
+                                )
                                     .font(.golos(13, weight: .medium))
                                     .buttonStyle(.borderedProminent)
-                                Button(ReferralShare.askDismiss, action: onDismiss)
+                                Button(
+                                    AppStrings.translate(
+                                        appLocale, ReferralShare.askDismissKey
+                                    ),
+                                    action: onDismiss
+                                )
                                     .font(.golos(13, weight: .medium))
                                     .buttonStyle(.bordered)
                             }

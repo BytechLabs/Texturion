@@ -46,7 +46,11 @@ struct ScheduledSheet: View {
                     ContentUnavailableView(
                         AppStrings.translate(appLocale, "inbox.scheduledEmptyTitle"),
                         systemImage: "calendar.badge.clock",
-                        description: Text(ScheduledSend.copyLine("nothing_scheduled"))
+                        description: Text(
+                            ScheduledSend.copyLine(
+                                "nothing_scheduled", locale: appLocale
+                            )
+                        )
                     )
                 } else {
                     List {
@@ -118,7 +122,7 @@ private struct ScheduledSheetRow: View {
                                 ? AppStrings.translate(
                                     appLocale, "inbox.scheduledWaiting"
                                 )
-                                : sendAtOf(row)
+                                : sendAtOf(row, locale: appLocale)
                         )
                             .font(.caption2)
                             .monospacedDigit()
@@ -136,7 +140,7 @@ private struct ScheduledSheetRow: View {
                             .font(.caption2)
                             .foregroundStyle(NoteAmber.ink)
                     } else if !row.isHeld {
-                        Text(ScheduledSend.clockProvenance(row.rung))
+                        Text(ScheduledSend.clockProvenance(row.rung, locale: appLocale))
                             .font(.caption2)
                             .foregroundStyle(BrandColor.muted500)
                     }

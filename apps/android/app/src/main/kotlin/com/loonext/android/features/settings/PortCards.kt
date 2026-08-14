@@ -419,7 +419,7 @@ private fun PortCard(
                                 )
                                 onChanged()
                             } catch (cause: Exception) {
-                                actionError = cause.userMessage()
+                                actionError = cause.userMessage(locale)
                             } finally {
                                 busy = false
                             }
@@ -496,7 +496,7 @@ private fun PortCard(
                         )
                         onChanged()
                     } catch (cause: Exception) {
-                        actionError = cause.userMessage()
+                        actionError = cause.userMessage(locale)
                     } finally {
                         busy = false
                     }
@@ -660,7 +660,7 @@ private fun PortDocumentsRow(scope: SettingsScope, port: PortRequest, onChanged:
                     )
                     onChanged()
                 } catch (cause: Exception) {
-                    error = cause.userMessage()
+                    error = cause.userMessage(locale)
                 } finally {
                     uploading = false
                 }
@@ -816,7 +816,7 @@ private fun StartPortDialog(
                                 check = scope.repo.checkPortability(scope.companyId, e164)
                                 checkedE164 = e164
                             } catch (cause: Exception) {
-                                error = cause.userMessage()
+                                error = cause.userMessage(locale)
                             } finally {
                                 pending = false
                             }
@@ -854,7 +854,7 @@ private fun StartPortDialog(
                                 )
                                 onCreated()
                             } catch (cause: Exception) {
-                                error = cause.userMessage()
+                                error = cause.userMessage(locale)
                             } finally {
                                 pending = false
                             }
@@ -966,7 +966,7 @@ private fun FixPortDialog(
                             )
                             onDone()
                         } catch (cause: Exception) {
-                            error = cause.userMessage()
+                            error = cause.userMessage(locale)
                         } finally {
                             pending = false
                         }

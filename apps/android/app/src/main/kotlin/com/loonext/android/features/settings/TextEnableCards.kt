@@ -161,7 +161,7 @@ private fun TextEnableCard(
                                 )
                                 onChanged()
                             } catch (cause: Exception) {
-                                actionError = cause.userMessage()
+                                actionError = cause.userMessage(locale)
                             } finally {
                                 busy = false
                             }
@@ -215,7 +215,7 @@ private fun TextEnableCard(
                         )
                         onChanged()
                     } catch (cause: Exception) {
-                        actionError = cause.userMessage()
+                        actionError = cause.userMessage(locale)
                     } finally {
                         busy = false
                     }
@@ -256,7 +256,7 @@ private fun TextEnableDocumentsRow(
                     )
                     onChanged()
                 } catch (cause: Exception) {
-                    error = cause.userMessage()
+                    error = cause.userMessage(locale)
                 } finally {
                     uploading = false
                 }
@@ -340,7 +340,7 @@ private fun VerificationRow(
                     ),
                 )
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } finally {
                 requesting = false
             }
@@ -397,7 +397,7 @@ private fun VerificationRow(
                             )
                             onChanged()
                         } catch (cause: Exception) {
-                            error = cause.userMessage()
+                            error = cause.userMessage(locale)
                         } finally {
                             verifying = false
                         }
@@ -454,7 +454,7 @@ private fun StartTextEnableDialog(
                     )
                     onCreated()
                 } catch (cause: Exception) {
-                    error = cause.userMessage()
+                    error = cause.userMessage(locale)
                 } finally {
                     pending = false
                 }

@@ -40,7 +40,9 @@ struct WhileYouWait: View {
         // waiting ON gets nothing here — pointing it at setup work would point
         // away from the thing actually blocking it.
         if company != nil, isWaitingOnRegistration(brand: brand, campaign: campaign) {
-            let progress = registrationProgress(brand: brand, campaign: campaign)
+            let progress = registrationProgress(
+                brand: brand, campaign: campaign, locale: appLocale
+            )
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(progress.title)

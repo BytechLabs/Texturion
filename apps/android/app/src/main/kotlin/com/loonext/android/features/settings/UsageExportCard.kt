@@ -278,7 +278,7 @@ fun UsageExportCard(scope: SettingsScope) {
                 exports = it
                 listError = null
             },
-            onFailed = { listError = it.userMessage() },
+            onFailed = { listError = it.userMessage(locale) },
         )
     }
 
@@ -355,7 +355,7 @@ fun UsageExportCard(scope: SettingsScope) {
                                 // now something in flight to watch.
                                 refreshKey++
                             } catch (cause: Exception) {
-                                error = cause.userMessage()
+                                error = cause.userMessage(locale)
                             } finally {
                                 starting = false
                             }

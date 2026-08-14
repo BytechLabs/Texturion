@@ -1273,7 +1273,7 @@ private struct SpamReviewRow: View {
                     Text(item.contact?.name ?? formatPhone(item.contact?.phone_e164))
                         .font(.golos(14.5, weight: .semibold))
                         .foregroundStyle(BrandColor.ink)
-                    Text(spamReviewReason(item))
+                    Text(spamReviewReason(item, locale: appLocale))
                         .font(.golos(11.5))
                         .foregroundStyle(
                             item.we_texted_them ? BrandColor.coral : BrandColor.muted500

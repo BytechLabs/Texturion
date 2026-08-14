@@ -790,7 +790,7 @@ private class InboxController(
                 // a row that vanished while still being due to send is the
                 // silent disappearance DECISIONS.md rules out.
                 scheduled = before
-                notify(cause.userMessage())
+                notify(cause.userMessage(locale))
             }
         }
     }
@@ -816,7 +816,7 @@ private class InboxController(
                 // A background refresh miss never replaces shown rows with an
                 // error (#176) — only a first fetch may surface Failed.
                 if (seq == loadSeq && state !is LoadState.Ready) {
-                    state = LoadState.Failed(cause.userMessage())
+                    state = LoadState.Failed(cause.userMessage(locale))
                 }
             } finally {
                 // Unconditional: a superseded manual refresh must never leave
@@ -985,7 +985,7 @@ private class InboxController(
                     notify(message, actionLabel = say("inbox.undo")) { runUndo(undo) }
                 }
             } catch (cause: Exception) {
-                notify(cause.userMessage())
+                notify(cause.userMessage(locale))
             } finally {
                 bulkRunning = false
             }
@@ -1009,7 +1009,7 @@ private class InboxController(
                 }
                 scheduleRealtimeRefresh()
             } catch (cause: Exception) {
-                notify(cause.userMessage())
+                notify(cause.userMessage(locale))
             }
         }
     }
@@ -1048,7 +1048,7 @@ private class InboxController(
                     repo.markRead(companyId, row.id)
                 } catch (cause: Exception) {
                     markLocallyUnread(row.id)
-                    notify(cause.userMessage())
+                    notify(cause.userMessage(locale))
                 }
             }
         } else {
@@ -1058,7 +1058,7 @@ private class InboxController(
                     repo.markUnread(companyId, row.id)
                 } catch (cause: Exception) {
                     markLocallyRead(row.id)
-                    notify(cause.userMessage())
+                    notify(cause.userMessage(locale))
                 }
             }
         }
@@ -1094,7 +1094,7 @@ private class InboxController(
                     notify(say("inbox.conversationReopened"))
                 }
             } catch (cause: Exception) {
-                notify(cause.userMessage())
+                notify(cause.userMessage(locale))
             }
         }
     }
@@ -1111,7 +1111,7 @@ private class InboxController(
                 repo.setStatus(companyId, conversationId, target)
                 scheduleRealtimeRefresh()
             } catch (cause: Exception) {
-                notify(cause.userMessage())
+                notify(cause.userMessage(locale))
             }
         }
     }
@@ -1131,7 +1131,7 @@ private class InboxController(
                 val result = repo.search(companyId, q)
                 if (seq == searchSeq) searchState = LoadState.Ready(result)
             } catch (cause: Exception) {
-                if (seq == searchSeq) searchState = LoadState.Failed(cause.userMessage())
+                if (seq == searchSeq) searchState = LoadState.Failed(cause.userMessage(locale))
             }
         }
     }

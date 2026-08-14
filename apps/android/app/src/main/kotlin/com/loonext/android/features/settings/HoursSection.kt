@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.loonext.android.features.compose.usSendApproved
 import com.loonext.android.features.compose.usTextingOff
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.DayHours
@@ -106,6 +107,8 @@ private fun BusinessHoursCard(
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    // #228: the save failure is written from a coroutine, outside composition.
+    val locale = LocalAppLocale.current
 
     val dirty = days != initial
     val allValid = days.all { !it.enabled || isValidDayWindow(it.open, it.close) }
@@ -165,7 +168,7 @@ private fun BusinessHoursCard(
                                 onCompanyUpdated(updated)
                                 scope.showMessage(savedMessage)
                             } catch (cause: Exception) {
-                                error = cause.userMessage()
+                                error = cause.userMessage(locale)
                             } finally {
                                 saving = false
                             }
@@ -219,6 +222,8 @@ private fun AwayReplyCard(
     }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    // #228: the save failure is written from a coroutine, outside composition.
+    val locale = LocalAppLocale.current
     val coroutines = rememberCoroutineScope()
 
     val trimmed = message.trim()
@@ -345,7 +350,7 @@ private fun AwayReplyCard(
                                 onCompanyUpdated(updated)
                                 scope.showMessage(awaySaved)
                             } catch (cause: Exception) {
-                                error = cause.userMessage()
+                                error = cause.userMessage(locale)
                             } finally {
                                 saving = false
                             }

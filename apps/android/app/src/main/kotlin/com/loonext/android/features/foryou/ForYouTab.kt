@@ -44,6 +44,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.rememberCacheFirst
 import androidx.compose.runtime.setValue
@@ -1273,7 +1274,7 @@ private fun SpamReviewRow(
         )
         Spacer(Modifier.height(2.dp))
         Text(
-            spamReviewReason(item),
+            spamReviewReason(item, LocalAppLocale.current),
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
             color = if (item.we_texted_them) {
                 MaterialTheme.colorScheme.error

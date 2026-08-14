@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.assertAboveIme
@@ -69,6 +70,8 @@ fun NumberPickerDialog(
     onDismiss: () -> Unit,
     onPick: (NumberChoice) -> Unit,
 ) {
+    // #228: the search failure is written from a coroutine, outside composition.
+    val locale = LocalAppLocale.current
     var areaCode by remember { mutableStateOf(initialAreaCode.orEmpty()) }
     var digitFilter by remember { mutableStateOf("") }
     var bestEffort by remember { mutableStateOf(false) }
@@ -103,7 +106,7 @@ fun NumberPickerDialog(
                 ),
             )
         } catch (cause: Exception) {
-            LoadState.Failed(cause.userMessage())
+            LoadState.Failed(cause.userMessage(locale))
         }
     }
 

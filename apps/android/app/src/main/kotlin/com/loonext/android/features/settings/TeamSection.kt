@@ -252,7 +252,7 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
                 )
                 onChanged()
             } catch (cause: Exception) {
-                scope.showMessage(cause.userMessage())
+                scope.showMessage(cause.userMessage(locale))
             } finally {
                 busy = false
             }
@@ -417,7 +417,7 @@ private fun MemberRow(scope: SettingsScope, member: Member, onChanged: () -> Uni
                         )
                         onChanged()
                     } catch (cause: Exception) {
-                        actionError = cause.userMessage()
+                        actionError = cause.userMessage(locale)
                     } finally {
                         busy = false
                     }
@@ -577,7 +577,7 @@ private fun InvitesCard(
                             }
                             onChanged()
                         } catch (cause: Exception) {
-                            formError = cause.userMessage()
+                            formError = cause.userMessage(locale)
                         } finally {
                             sending = false
                         }
@@ -686,7 +686,7 @@ private fun InvitesCard(
                                     )
                                     onChanged()
                                 } catch (cause: Exception) {
-                                    scope.showMessage(cause.userMessage())
+                                    scope.showMessage(cause.userMessage(locale))
                                 } finally {
                                     revoking = false
                                 }
@@ -737,6 +737,10 @@ private fun MemberAccessDialog(
 ) {
     var rows by remember { mutableStateOf<List<NumberAccessExplanation>?>(null) }
     var failed by remember { mutableStateOf(false) }
+    // #228: the level pill and the reason clause are built by plain functions in
+    // core/model, which default to English when nobody names a language. This
+    // dialog is composition, so the reader's own is to hand.
+    val locale = LocalAppLocale.current
 
     LaunchedEffect(member.user_id) {
         runCatching { scope.repo.memberNumberAccess(scope.companyId, member.user_id) }
@@ -788,7 +792,11 @@ private fun MemberAccessDialog(
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                                 Text(
-                                    numberAccessReason(row.decided_by, row.principal),
+                                    numberAccessReason(
+                                        row.decided_by,
+                                        row.principal,
+                                        locale = locale,
+                                    ),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -798,7 +806,7 @@ private fun MemberAccessDialog(
                             // settings readout, not an alarm, and most
                             // restrictions are somebody's deliberate choice.
                             StatusPill(
-                                numberAccessLevelLabel(row.level),
+                                numberAccessLevelLabel(row.level, locale),
                                 if (numberAccessIsRestricted(row.level)) {
                                     PillTone.Neutral
                                 } else {

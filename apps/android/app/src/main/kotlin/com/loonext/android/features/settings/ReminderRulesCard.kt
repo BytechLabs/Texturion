@@ -105,7 +105,7 @@ fun ReminderRulesCard(scope: SettingsScope) {
                     ),
                 )
             } catch (cause: Exception) {
-                scope.showMessage(cause.userMessage())
+                scope.showMessage(cause.userMessage(locale))
             } finally {
                 saving = false
             }

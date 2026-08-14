@@ -133,7 +133,8 @@ struct ContactPanelSheet: View {
                                 ?? detail.contact.consent_source,
                             consentAt: contact?.consent_at ?? detail.contact.consent_at,
                             consentAttestedBy: contact?.consent_attested_by,
-                            memberName: memberName
+                            memberName: memberName,
+                            locale: appLocale
                         )
                     )
                     .font(.subheadline)

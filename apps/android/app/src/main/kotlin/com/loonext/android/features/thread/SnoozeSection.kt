@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ConversationDetail
 import com.loonext.android.core.snooze.DeferralKind
@@ -99,7 +100,7 @@ fun SnoozeSection(
                 }
             } else {
                 SnoozeNote(t("thread.snoozeUntil"))
-                snoozePresets(zone = zone).forEach { preset ->
+                snoozePresets(zone = zone, locale = LocalAppLocale.current).forEach { preset ->
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SnoozeRow(preset.label, trailing = clockOf(preset.at, zone)) {
                         haptics.tap()
@@ -119,7 +120,7 @@ fun SnoozeSection(
                 // would put three useless options in front of whichever job you
                 // were actually doing.
                 SnoozeNote(t("thread.remindMeToChase"))
-                followUpPresets(zone = zone).forEach { preset ->
+                followUpPresets(zone = zone, locale = LocalAppLocale.current).forEach { preset ->
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SnoozeRow(preset.label, trailing = clockOf(preset.at, zone)) {
                         haptics.tap()

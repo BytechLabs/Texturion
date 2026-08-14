@@ -35,6 +35,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.jobs.MarkupPoint
 import com.loonext.android.core.jobs.PhotoMark
@@ -102,6 +103,7 @@ fun PhotoMarkupSheet(
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
     var saving by remember { mutableStateOf(false) }
     val coroutines = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
 
     /** Screen point → image pixels. The bitmap is displayed scaled to fit. */
     fun toImage(x: Float, y: Float): MarkupPoint {
@@ -201,18 +203,22 @@ fun PhotoMarkupSheet(
                         FilterChip(
                             selected = tool == option,
                             onClick = { tool = option },
-                            label = { Text(PhotoMarkup.label(option)) },
+                            label = { Text(PhotoMarkup.label(option, locale)) },
                         )
                     }
                     TextButton(
                         onClick = { marks = marks.dropLast(1) },
                         enabled = marks.isNotEmpty(),
                     ) {
-                        Text(PhotoMarkup.UNDO)
+                        Text(t(PhotoMarkup.UNDO_KEY))
                     }
                 }
                 Text(
-                    if (anchor == null) PhotoMarkup.HINT else PhotoMarkup.HINT_SECOND_TAP,
+                    if (anchor == null) {
+                        t(PhotoMarkup.HINT_KEY)
+                    } else {
+                        t(PhotoMarkup.HINT_SECOND_TAP_KEY)
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),
@@ -233,7 +239,7 @@ fun PhotoMarkupSheet(
                 },
                 enabled = !saving && marks.isNotEmpty(),
             ) {
-                Text(if (saving) t("common.saving") else PhotoMarkup.SAVE)
+                Text(if (saving) t("common.saving") else t(PhotoMarkup.SAVE_KEY))
             }
         },
         dismissButton = {

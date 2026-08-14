@@ -581,6 +581,8 @@ private fun ReinstateControl(
     // fresh key for the same decision would be a second charge.
     var idempotencyKey by remember { mutableStateOf("") }
     val coroutines = rememberCoroutineScope()
+    // #228: the buy-back failure is written from a coroutine, outside composition.
+    val locale = LocalAppLocale.current
 
     val display = number.number_e164?.let(::formatPhone) ?: t("settings.heldThisNumber")
     val alreadyBack = t("settings.heldAlreadyBack", "number" to display)
@@ -623,7 +625,7 @@ private fun ReinstateControl(
                         )
                         onChanged()
                     } catch (cause: Exception) {
-                        error = cause.userMessage()
+                        error = cause.userMessage(locale)
                     } finally {
                         pending = false
                     }

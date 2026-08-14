@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import coil3.compose.AsyncImage
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.data.StoreCache
@@ -96,6 +97,9 @@ internal fun AttachmentsGalleryScreen(
     // neither of which is a place a @Composable lookup can go.
     val noAppForFile = t("thread.noAppForFile")
     val reportFailed = t("thread.reportFileFailed")
+    // #228: same reason — the paging failure below is reported from a coroutine
+    // and read on this screen.
+    val locale = LocalAppLocale.current
 
     var view by remember { mutableStateOf(GalleryView.Images) }
     var loadingMore by remember(conversationId) { mutableStateOf(false) }
@@ -142,7 +146,7 @@ internal fun AttachmentsGalleryScreen(
                     ),
                 )
             } catch (cause: Exception) {
-                onNotice(cause.userMessage())
+                onNotice(cause.userMessage(locale))
             } finally {
                 loadingMore = false
             }

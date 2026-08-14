@@ -920,7 +920,7 @@ private fun AddressSection(
                     modifier = Modifier.size(12.dp),
                 )
             }
-            addressProvenanceLabel(provenance)?.let { ProvenanceBadge(it) }
+            addressProvenanceLabel(provenance, LocalAppLocale.current)?.let { ProvenanceBadge(it) }
             Spacer(Modifier.weight(1f))
             // #220: one-click dismissal of a suggested (or typed) address —
             // shown whenever any field has content, so it covers every AI

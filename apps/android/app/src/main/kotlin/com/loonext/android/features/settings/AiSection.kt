@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyAiSettings
 import com.loonext.android.core.model.MemberRole
@@ -47,6 +48,9 @@ import com.loonext.android.core.model.BUSINESS_DESCRIPTION_MAX
 fun AiSection(scope: SettingsScope) {
     val canEdit = MemberRole.atLeast(scope.role, MemberRole.ADMIN)
     val coroutineScope = rememberCoroutineScope()
+    // #228: the failed-PATCH sentence is written from a coroutine, where there is
+    // no composition to read a reader out of. Captured here instead.
+    val locale = LocalAppLocale.current
     var refreshKey by remember { mutableIntStateOf(0) }
     // The in-flight PATCH; a newer tap cancels it so writes can't land out of
     // order (rapid toggling would otherwise let a stale PATCH win last).
@@ -79,7 +83,7 @@ fun AiSection(scope: SettingsScope) {
                 throw e // superseded by a newer tap — its optimistic put stands
             } catch (cause: Exception) {
                 scope.graph.storeCache.put(cacheKey, current) // revert
-                scope.showMessage(cause.userMessage())
+                scope.showMessage(cause.userMessage(locale))
             }
         }
     }

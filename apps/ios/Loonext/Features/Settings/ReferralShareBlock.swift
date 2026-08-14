@@ -37,20 +37,28 @@ struct ReferralShareBlock: View {
     let link: String?
     let code: String
 
+    // AFTER the required `let`s, private and wrapper-initialised, so the
+    // memberwise init `ReferralCard` uses is unchanged.
+    @Environment(\.appLocale) private var appLocale
+
     @State private var note = ReferralShare.note
     @State private var copied = false
 
     private var text: String {
-        ReferralShare.shareText(note: note, link: link, code: code)
+        ReferralShare.shareText(note: note, link: link, code: code, locale: appLocale)
+    }
+
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(ReferralShare.draftLabel)
+            Text(t(ReferralShare.draftLabelKey))
                 .font(.golos(11.5, weight: .medium))
                 .foregroundStyle(BrandColor.muted600)
 
-            TextField(ReferralShare.note, text: $note, axis: .vertical)
+            TextField(t(ReferralShare.noteKey), text: $note, axis: .vertical)
                 .font(.golos(13))
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(3 ... 8)
@@ -59,13 +67,13 @@ struct ReferralShareBlock: View {
             // note is `ReferralShare`'s, asserted against the shared TypeScript,
             // and a literal wrapped around it reads to the #228 scanner as a
             // sentence typed in here that no translator will ever see.
-            Text(ReferralShare.linkNote + " " + (link ?? code))
+            Text(t(ReferralShare.linkNoteKey) + " " + (link ?? code))
                 .font(.golos(11.5))
                 .foregroundStyle(BrandColor.muted600)
 
             HStack(spacing: 8) {
                 ShareLink(item: text) {
-                    Label(ReferralShare.action, systemImage: "square.and.arrow.up")
+                    Label(t(ReferralShare.actionKey), systemImage: "square.and.arrow.up")
                         .font(.golos(13, weight: .medium))
                 }
                 .buttonStyle(.borderedProminent)
@@ -74,10 +82,25 @@ struct ReferralShareBlock: View {
                     UIPasteboard.general.string = text
                     copied = true
                 } label: {
-                    Text(copied ? ReferralShare.copied : ReferralShare.copy)
+                    Text(t(copied ? ReferralShare.copiedKey : ReferralShare.copyKey))
                         .font(.golos(13, weight: .medium))
                 }
                 .buttonStyle(.bordered)
+            }
+        }
+        // #228: the draft is the one string on this card that GOES OUT, and a
+        // French owner sending an English pitch is the whole defect. It cannot
+        // be set at init — `@State`'s initial value is computed before this view
+        // has an environment to read — so the reader's copy is handed over on
+        // appear instead.
+        //
+        // GUARDED ON THE ENGLISH DEFAULT, which is what makes it safe to run
+        // every time: once somebody has typed anything, `note` no longer equals
+        // it and their words are never replaced. A reader whose language is
+        // English matches on both sides and nothing changes.
+        .onAppear {
+            if note == ReferralShare.note {
+                note = ReferralShare.localisedNote(appLocale)
             }
         }
     }

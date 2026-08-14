@@ -388,7 +388,7 @@ private fun CapCard(
                             ),
                         )
                     } catch (cause: Exception) {
-                        error = cause.userMessage()
+                        error = cause.userMessage(locale)
                     } finally {
                         saving = false
                     }

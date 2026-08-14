@@ -198,7 +198,7 @@ internal fun TaskDetailScreen(
 
                 // Keep shown data on a quiet refresh failure.
                 detailFlow.value != null -> null
-                else -> LoadState.Failed(cause.userMessage(), code)
+                else -> LoadState.Failed(cause.userMessage(locale), code)
             }
         }
     }
@@ -437,7 +437,7 @@ private fun TaskDetailBody(
                 mutations.setDone(companyId, detail.message_id, next)
                 onChanged()
             } catch (cause: Exception) {
-                onActionError(cause.userMessage())
+                onActionError(cause.userMessage(locale))
             }
         }
     }
@@ -457,7 +457,7 @@ private fun TaskDetailBody(
                     if ((cause as? ApiException)?.code == ApiErrorCode.FORBIDDEN) {
                         AppStrings.translate(locale, "contactsTasks.deleteForbidden")
                     } else {
-                        cause.userMessage()
+                        cause.userMessage(locale)
                     },
                 )
             } finally {
@@ -582,7 +582,7 @@ private fun TaskDetailBody(
                                     applyTask(mutations.rename(companyId, detail.id, value))
                                     null
                                 } catch (cause: Exception) {
-                                    cause.userMessage()
+                                    cause.userMessage(locale)
                                 }
                             },
                             modifier = Modifier.weight(1f),
@@ -703,7 +703,7 @@ private fun TaskDetailBody(
                                                     ),
                                                 )
                                             } catch (cause: Exception) {
-                                                onActionError(cause.userMessage())
+                                                onActionError(cause.userMessage(locale))
                                             }
                                         }
                                     },
@@ -772,7 +772,7 @@ private fun TaskDetailBody(
                                                     ),
                                                 )
                                             } catch (cause: Exception) {
-                                                onActionError(cause.userMessage())
+                                                onActionError(cause.userMessage(locale))
                                             }
                                         }
                                     },
@@ -809,7 +809,7 @@ private fun TaskDetailBody(
                             applyTask(mutations.setAddress(companyId, detail.id, address))
                             null
                         } catch (cause: Exception) {
-                            cause.userMessage()
+                            cause.userMessage(locale)
                         }
                     },
                     modifier = Modifier
@@ -871,7 +871,7 @@ private fun TaskDetailBody(
                                     )
                                     null
                                 } catch (cause: Exception) {
-                                    cause.userMessage()
+                                    cause.userMessage(locale)
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
@@ -1062,7 +1062,7 @@ private fun TaskDetailBody(
                     try {
                         applyTask(mutations.assign(companyId, detail.id, userId))
                     } catch (cause: Exception) {
-                        onActionError(cause.userMessage())
+                        onActionError(cause.userMessage(locale))
                     }
                 }
             },
@@ -1121,7 +1121,7 @@ private fun TaskDetailBody(
                         try {
                             applyTask(mutations.setDue(companyId, detail.id, iso))
                         } catch (cause: Exception) {
-                            onActionError(cause.userMessage())
+                            onActionError(cause.userMessage(locale))
                         }
                     }
                 }) { Text(t("contactsTasks.setDueDate")) }
@@ -1248,7 +1248,7 @@ private fun TaskAddressSection(
     }
 
     val dirty = !fields.trimmedEquals(saved)
-    val provLabel = addressProvenanceLabel(provenance)
+    val provLabel = addressProvenanceLabel(provenance, LocalAppLocale.current)
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
@@ -1636,6 +1636,9 @@ private fun AttachmentCell(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // #228: read in composition — the fetches below are coroutines, and the
+    // failures they report land on this screen in front of the reader.
+    val locale = LocalAppLocale.current
 
     if (item.kind == "image") {
         var url by remember(item.id) { mutableStateOf<String?>(null) }
@@ -1645,7 +1648,7 @@ private fun AttachmentCell(
                 url = mutations.attachmentUrl(companyId, item.id).url
             } catch (cause: Exception) {
                 failed = true
-                onError(cause.userMessage())
+                onError(cause.userMessage(locale))
             }
         }
         Surface(
@@ -1673,7 +1676,7 @@ private fun AttachmentCell(
                                         Intent(Intent.ACTION_VIEW, Uri.parse(fresh)),
                                     )
                                 } catch (cause: Exception) {
-                                    onError(cause.userMessage())
+                                    onError(cause.userMessage(locale))
                                 }
                             }
                         },
@@ -1708,7 +1711,7 @@ private fun AttachmentCell(
                             Intent(Intent.ACTION_VIEW, Uri.parse(fresh)),
                         )
                     } catch (cause: Exception) {
-                        onError(cause.userMessage())
+                        onError(cause.userMessage(locale))
                     }
                 }
             },
@@ -2021,7 +2024,7 @@ private fun NoteComposer(
                                 } else null
                                 onPosted()
                             } catch (cause: Exception) {
-                                error = cause.userMessage()
+                                error = cause.userMessage(locale)
                             } finally {
                                 posting = false
                             }

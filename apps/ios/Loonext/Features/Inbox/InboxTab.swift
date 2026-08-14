@@ -567,7 +567,11 @@ private final class InboxController {
         Task {
             do {
                 try await repo.cancelScheduledMessage(companyId: companyId, id: id)
-                notify(ScheduledSend.copyLine("canceled_confirmation"))
+                notify(
+                    ScheduledSend.copyLine(
+                        "canceled_confirmation", locale: locale
+                    )
+                )
             } catch {
                 // It is still queued. Putting it back is the only honest state:
                 // a row that vanished while still being due to send is the
@@ -1860,8 +1864,8 @@ private struct ConversationRow: View {
                         if let until = row.snoozed_until, isSnoozed(until) {
                             Text(
                                 row.snooze_note.map {
-                                    "\(snoozeReturnLabel(until)) · \($0)"
-                                } ?? snoozeReturnLabel(until)
+                                    "\(snoozeReturnLabel(until, locale: appLocale)) · \($0)"
+                                } ?? snoozeReturnLabel(until, locale: appLocale)
                             )
                                 .font(.golos(10, weight: .bold))
                                 .foregroundStyle(BrandColor.muted600)

@@ -97,7 +97,7 @@ private fun TwoFactorBody(scope: SettingsScope, mfa: MfaState, onChanged: () -> 
     val recoveryCodesLabel = t("settingsMore.recoveryCodesClipLabel")
 
     fun fail(cause: Exception) {
-        actionError = cause.userMessage()
+        actionError = cause.userMessage(locale)
         busy = false
     }
 

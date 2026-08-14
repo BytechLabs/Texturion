@@ -65,7 +65,17 @@ struct SettingsAuthClient: Sendable {
         let uri: String
     }
 
-    func enrollTotp(accessToken: String, friendlyName: String) async throws -> TotpEnrolment {
+    /// #228: `locale` is LAST and DEFAULTED, so the one caller outside Settings
+    /// (`Features/Auth/MfaGate.swift`) is untouched and keeps the English.
+    /// Threaded rather than read, because a network client has no reader — and
+    /// this particular refusal is worth threading for: `TwoFactorCard` surfaces
+    /// it verbatim as `error.userMessage`, unlike `challengeFactor` below, whose
+    /// message every caller in this app discards in favour of its own sentence.
+    func enrollTotp(
+        accessToken: String,
+        friendlyName: String,
+        locale: String? = nil
+    ) async throws -> TotpEnrolment {
         let data = try await request(
             method: "POST",
             path: "factors",
@@ -77,7 +87,7 @@ struct SettingsAuthClient: Sendable {
         guard let id = object?["id"]?.stringValue else {
             throw ApiError(
                 code: ApiErrorCode.network,
-                message: AppStrings.translate(nil, "settingsMore.tfaSetupDidNotStart"),
+                message: AppStrings.translate(locale, "settingsMore.tfaSetupDidNotStart"),
                 httpStatus: 0
             )
         }

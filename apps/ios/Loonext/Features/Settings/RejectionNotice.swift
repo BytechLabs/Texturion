@@ -33,7 +33,7 @@ struct RejectionNotice: View {
         AppStrings.translate(appLocale, key, vars)
     }
 
-    private var guidance: RejectionGuidance? { explainRejection(domain, reason) }
+    private var guidance: RejectionGuidance? { explainRejection(domain, reason, locale: appLocale) }
 
     /// The word that drops into `{subject}`. Two keys rather than one sentence
     /// per domain, because that is the shape Android's `rejectionUnknownWhat`
@@ -65,7 +65,7 @@ struct RejectionNotice: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text(resubmissionWait(domain))
+            Text(resubmissionWait(domain, locale: appLocale))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 

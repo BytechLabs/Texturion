@@ -88,6 +88,9 @@ fun TemplatesSection(
     onCompanyUpdated: (CompanyView) -> Unit,
 ) {
     val repo = remember(scope.graph) { MessagingRepository(scope.graph.api) }
+    // #228: the list load runs in a LaunchedEffect, so its failure sentence is
+    // composed where `t` cannot be called.
+    val locale = LocalAppLocale.current
     var refreshKey by remember { mutableIntStateOf(0) }
     var state by remember { mutableStateOf<LoadState<List<Template>>>(LoadState.Loading) }
     // Web's dialogOpen/editing pair: `editing == null` inside an open editor is
@@ -110,8 +113,8 @@ fun TemplatesSection(
         } catch (cause: Exception) {
             // A failed REFRESH keeps the list on screen (the crew is still
             // reading it); only a failed first load takes the whole section.
-            if (state is LoadState.Ready) scope.showMessage(cause.userMessage())
-            else state = LoadState.Failed(cause.userMessage())
+            if (state is LoadState.Ready) scope.showMessage(cause.userMessage(locale))
+            else state = LoadState.Failed(cause.userMessage(locale))
         }
     }
 
@@ -496,7 +499,7 @@ private fun TemplateEditorDialog(
                             )
                             onSaved()
                         } catch (cause: Exception) {
-                            error = cause.userMessage()
+                            error = cause.userMessage(locale)
                         } finally {
                             saving = false
                         }
@@ -559,7 +562,7 @@ private fun DeleteTemplateDialog(
                     )
                     onDeleted()
                 } catch (cause: Exception) {
-                    error = cause.userMessage()
+                    error = cause.userMessage(locale)
                 } finally {
                     deleting = false
                 }

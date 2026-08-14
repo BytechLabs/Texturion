@@ -583,6 +583,10 @@ private struct CallRow: View {
     let companyId: String
     let onOpen: (@MainActor () -> Void)?
 
+    /// #228: AFTER the required `let`s, so the memberwise init every call site
+    /// above uses keeps the same argument order.
+    @Environment(\.appLocale) private var appLocale
+
     private var name: String { callerDisplayName(call) }
 
     private var directionIcon: String {
@@ -608,7 +612,10 @@ private struct CallRow: View {
     /// Empty means the block is not rendered at all, rather than a titled box
     /// with nothing in it.
     private var intakeLines: [VoicemailIntakeLine] {
-        call.voicemail_intake?.lines ?? []
+        // `localisedLines` rather than the `lines` property beside it: a
+        // property cannot take the reader's language, and the labels on these
+        // rows ("Problem", "Address") are ours rather than the caller's words.
+        call.voicemail_intake?.localisedLines(appLocale) ?? []
     }
 
     var body: some View {

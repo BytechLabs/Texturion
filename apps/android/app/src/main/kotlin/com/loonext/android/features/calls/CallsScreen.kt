@@ -75,7 +75,7 @@ import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.PhoneNumberSummary
-import com.loonext.android.core.model.VOICEMAIL_INTAKE_SOURCE_LABEL
+import com.loonext.android.core.model.VOICEMAIL_INTAKE_SOURCE_KEY
 import com.loonext.android.core.model.VoicemailIntake
 import com.loonext.android.core.model.lines
 import com.loonext.android.features.contacts.ContactMutations
@@ -1114,7 +1114,7 @@ private fun CallRow(
  */
 @Composable
 private fun VoicemailIntakeSummary(intake: VoicemailIntake?) {
-    val lines = intake.lines()
+    val lines = intake.lines(LocalAppLocale.current)
     if (lines.isEmpty()) return
     Column(
         modifier = Modifier.padding(start = 64.dp, end = 15.dp, bottom = 6.dp),
@@ -1127,7 +1127,7 @@ private fun VoicemailIntakeSummary(intake: VoicemailIntake?) {
         ) {
             AiOrb(state = AiOrbState.Idle, size = 11.dp)
             Text(
-                VOICEMAIL_INTAKE_SOURCE_LABEL,
+                t(VOICEMAIL_INTAKE_SOURCE_KEY),
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1219,6 +1219,9 @@ private fun VoicemailPlayerRow(
     var scrubbing by remember(sessionId) { mutableStateOf(false) }
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
+    // #228: the fetch below is a coroutine, and the failure it reports is read
+    // on this row.
+    val locale = LocalAppLocale.current
     // The MediaPlayer callbacks below are not composition.
     val playbackFailed = AppStrings.translate(
         LocalAppLocale.current,
@@ -1245,7 +1248,7 @@ private fun VoicemailPlayerRow(
             val playback = try {
                 repo.voicemail(companyId, sessionId)
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
                 preparing = false
                 return@launch
             }

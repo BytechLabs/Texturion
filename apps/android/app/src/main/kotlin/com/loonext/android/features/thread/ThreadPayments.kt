@@ -163,7 +163,7 @@ fun ThreadPayments(
                 // usually a RULE — already paid, refund it from Stripe instead
                 // — and "couldn't cancel" would read as the button being
                 // broken rather than the rule working.
-                onNotice(cause.userMessage())
+                onNotice(cause.userMessage(locale))
             } finally {
                 cancellingId = null
                 requestsRefresh++
@@ -220,7 +220,7 @@ fun ThreadPayments(
                         onSent()
                         true
                     } catch (cause: Exception) {
-                        onNotice(cause.userMessage())
+                        onNotice(cause.userMessage(locale))
                         false
                     }
                 },

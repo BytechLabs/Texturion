@@ -773,7 +773,7 @@ extension TasksTab {
                 AppStrings.translate(appLocale, "contactsTasks.clearSelection")
             )
 
-            Text(bulkSelection.label)
+            Text(bulkSelection.labelText(appLocale))
                 .font(.golos(13, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
 

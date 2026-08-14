@@ -564,7 +564,7 @@ fun ThreadComposer(
                         // The server's own sentence, not a reason string: a
                         // refused capability or a dead session says something
                         // truer than "couldn't write that down".
-                        onNotice(cause.userMessage())
+                        onNotice(cause.userMessage(locale))
                         null
                     }
                     wrapUpPhase = WrapUpPhase.Idle
@@ -643,7 +643,7 @@ fun ThreadComposer(
                 val drafted = ask(state.text)
                 suggesting = false
                 if (drafted.suggestions.isEmpty()) {
-                    onNotice(replyDraftMessage(drafted.reason))
+                    onNotice(replyDraftMessage(drafted.reason, locale))
                 } else {
                     suggestions = drafted.suggestions
                     businessUnknown = drafted.business_unknown
@@ -744,9 +744,10 @@ fun ThreadComposer(
                                 "when" to TwoClocks.bothClocks(
                                     sendAtLabel(at, destinationZone(destinationClock)),
                                     sendAtLabel(at, ZoneId.systemDefault()),
+                                    locale,
                                 ),
                             ),
-                        ) + " " + ScheduledSend.copy("picker_reassurance"),
+                        ) + " " + ScheduledSend.copy("picker_reassurance", locale),
                     )
                 }
 
@@ -1993,12 +1994,15 @@ fun TemplatePickerSheet(
     var state by remember { mutableStateOf<LoadState<List<Template>>>(LoadState.Loading) }
     var query by remember { mutableStateOf("") }
     var retryKey by remember { mutableStateOf(0) }
+    // #228: the load below is a suspend lambda, and the sentence it leaves in
+    // the list's place is read on this sheet.
+    val locale = LocalAppLocale.current
 
     LaunchedEffect(retryKey) {
         state = try {
             LoadState.Ready(loadTemplates())
         } catch (cause: Exception) {
-            LoadState.Failed(cause.userMessage())
+            LoadState.Failed(cause.userMessage(locale))
         }
     }
 

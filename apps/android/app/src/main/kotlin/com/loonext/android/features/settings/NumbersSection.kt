@@ -632,7 +632,7 @@ private fun ReleaseNumberDialog(
                 ),
                 kind = proof?.kind ?: HandoverConfirmation.Kind.EMAIL,
             ) { digits -> scope.repo.releaseNumber(scope.companyId, number.id, digits) }
-            when (val outcome = attemptHandover(scope, request, code, proof != null)) {
+            when (val outcome = attemptHandover(scope, request, code, proof != null, locale)) {
                 is HandoverOutcome.Done -> {
                     proof = null
                     codeRejected = false
@@ -750,7 +750,7 @@ private fun NumberAccessDialog(
             pickedUserIds = access.user_ids.toSet()
             LoadState.Ready(access to members)
         } catch (cause: Exception) {
-            LoadState.Failed(cause.userMessage())
+            LoadState.Failed(cause.userMessage(locale))
         }
     }
 
@@ -886,7 +886,7 @@ private fun NumberAccessDialog(
                             )
                             onDismiss()
                         } catch (cause: Exception) {
-                            error = cause.userMessage()
+                            error = cause.userMessage(locale)
                         } finally {
                             pending = false
                         }
@@ -1103,7 +1103,7 @@ private fun AddNumberCard(
                         )
                         onChanged()
                     } catch (cause: Exception) {
-                        error = cause.userMessage()
+                        error = cause.userMessage(locale)
                     } finally {
                         pending = false
                     }
@@ -1159,7 +1159,7 @@ private fun RemediateNumberFlow(
                     )
                     onDone()
                 } catch (cause: Exception) {
-                    error = cause.userMessage()
+                    error = cause.userMessage(locale)
                 } finally {
                     pending = false
                 }
@@ -1339,7 +1339,11 @@ private fun MyAccessCard(scope: SettingsScope) {
             .getOrDefault(emptyList())
     }
 
-    val note = numberAccessSelfNote(rows) ?: return
+    // #228: the note, the level and the reason are all built by plain functions
+    // in core/model, which read the English table when nobody names a language.
+    // This card is composition, so the reader's own is to hand.
+    val locale = LocalAppLocale.current
+    val note = numberAccessSelfNote(rows, locale) ?: return
     val restricted = rows.sortedForOwner().filter { it.level != "text" }
 
     SettingsCard(
@@ -1357,13 +1361,18 @@ private fun MyAccessCard(scope: SettingsScope) {
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        numberAccessLevelLabel(row.level),
+                        numberAccessLevelLabel(row.level, locale),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 Text(
-                    numberAccessReason(row.decided_by, row.principal, self = true),
+                    numberAccessReason(
+                        row.decided_by,
+                        row.principal,
+                        self = true,
+                        locale = locale,
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

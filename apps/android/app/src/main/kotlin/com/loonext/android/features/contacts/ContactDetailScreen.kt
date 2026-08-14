@@ -330,7 +330,7 @@ private fun ContactDetailBody(
                     contactId = contact.id,
                 )
             } catch (cause: Exception) {
-                actionError = cause.userMessage()
+                actionError = cause.userMessage(locale)
             } finally {
                 placingCall = false
             }
@@ -356,7 +356,7 @@ private fun ContactDetailBody(
             try {
                 action()
             } catch (cause: Exception) {
-                actionError = cause.userMessage()
+                actionError = cause.userMessage(locale)
             } finally {
                 working = false
             }
@@ -622,7 +622,7 @@ private fun ContactDetailBody(
                             // The server's words: only it knows WHOSE number a
                             // rejected one already is, and a generic failure
                             // would send somebody looking for a fault.
-                        }.onFailure { actionError = it.userMessage() }
+                        }.onFailure { actionError = it.userMessage(locale) }
                     }
                 },
                 onRemove = { phoneId ->
@@ -630,7 +630,7 @@ private fun ContactDetailBody(
                         runCatching {
                             mutations.removePhone(companyId, contact.id, phoneId)
                             refreshContact()
-                        }.onFailure { actionError = it.userMessage() }
+                        }.onFailure { actionError = it.userMessage(locale) }
                     }
                 },
             )
@@ -654,7 +654,7 @@ private fun ContactDetailBody(
                                 ContactAddressBody(address = address, label = label),
                             )
                             refreshContact()
-                        }.onFailure { actionError = it.userMessage() }
+                        }.onFailure { actionError = it.userMessage(locale) }
                     }
                 },
                 onMakePrimary = { addressId ->
@@ -662,7 +662,7 @@ private fun ContactDetailBody(
                         runCatching {
                             mutations.makeAddressPrimary(companyId, contact.id, addressId)
                             refreshContact()
-                        }.onFailure { actionError = it.userMessage() }
+                        }.onFailure { actionError = it.userMessage(locale) }
                     }
                 },
                 onRemove = { addressId ->
@@ -670,7 +670,7 @@ private fun ContactDetailBody(
                         runCatching {
                             mutations.removeAddress(companyId, contact.id, addressId)
                             refreshContact()
-                        }.onFailure { actionError = it.userMessage() }
+                        }.onFailure { actionError = it.userMessage(locale) }
                     }
                 },
             )
@@ -724,7 +724,7 @@ private fun ContactDetailBody(
                                 CacheKeys.contact(companyId, contact.id),
                                 updated,
                             )
-                        }.onFailure { actionError = it.userMessage() }
+                        }.onFailure { actionError = it.userMessage(locale) }
                     }
                 },
             )
@@ -1052,7 +1052,7 @@ private fun DestinationClockRow(
             Text(reading, style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.width(8.dp))
             Text(
-                timezoneProvenanceLabel(contact.timezone_source),
+                timezoneProvenanceLabel(contact.timezone_source, LocalAppLocale.current),
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f, fill = false),
@@ -1131,13 +1131,17 @@ private fun ContactLanguageRow(
     var expanded by remember(contact.id) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    // #228: the READER's language, which is a different question from the
+    // contact's or the workspace's — those are what the sentence NAMES.
+    val readerLocale = LocalAppLocale.current
+
     val effective = MessageLocale.resolve(contact.locale, companyLocale)
-    val inheritLabel = MessageLocale.inheritLabel(companyLocale)
+    val inheritLabel = MessageLocale.inheritLabel(companyLocale, readerLocale)
 
     fun apply(next: String?) {
         saving = true
         scope.launch {
-            runCatching { save(next) }.onFailure { onError(it.userMessage()) }
+            runCatching { save(next) }.onFailure { onError(it.userMessage(readerLocale)) }
             saving = false
             editing = false
         }

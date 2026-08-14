@@ -32,6 +32,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.features.payments.PayoutAccount
 import com.loonext.android.features.payments.Payments
@@ -209,7 +210,7 @@ fun AskForPayment(
             // type here is a @Composable lambda and only this form lets the
             // annotation reach it.
             supportingText = if (problem != null) {
-                { Text(Payments.amountProblemCopy(problem, currency)) }
+                { Text(Payments.amountProblemCopy(problem, currency, LocalAppLocale.current)) }
             } else {
                 null
             },

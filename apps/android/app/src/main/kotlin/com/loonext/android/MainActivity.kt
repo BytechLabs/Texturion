@@ -1005,7 +1005,12 @@ private fun ReadyShell(
                         // Settings route (the pre-hoist ordering, preserved).
                         BackHandler(enabled = section != null) { section = null }
                         OverlayScaffold(
-                            title = section?.title ?: t("shell.settings"),
+                            // #228: `section.title` resolves with a null locale —
+                            // it exists so the guards comparing this app against
+                            // packages/shared read the English — so a French
+                            // phone showed an English HEADER over a French
+                            // section. The key is public for exactly this.
+                            title = section?.let { t(it.titleKey) } ?: t("shell.settings"),
                             onBack = { if (section != null) section = null else pop() },
                         ) { contentModifier ->
                             SettingsHome(

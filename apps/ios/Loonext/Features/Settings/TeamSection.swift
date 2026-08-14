@@ -301,7 +301,9 @@ private struct MemberRow: View {
                 title: t("settingsMore.giveUpAccessTitle"),
                 // The sentence comes from the shared rule, so the phone, the laptop
                 // and the server agree about what a role costs.
-                message: SelfDowngrade.warning(from: member.role, to: pending.id) ?? "",
+                message: SelfDowngrade.warning(
+                    from: member.role, to: pending.id, locale: appLocale
+                ) ?? "",
                 // Says what happens rather than "OK", so somebody skimming the
                 // buttons still reads the decision.
                 confirmLabel: t(
@@ -811,7 +813,7 @@ private struct MemberAccessSheet: View {
                 Text(row.number_e164 ?? t("settingsMore.aNumber"))
                     .font(.golos(13.5))
                     .foregroundStyle(BrandColor.ink)
-                Text(numberAccessReason(row.decided_by, row.principal))
+                Text(numberAccessReason(row.decided_by, row.principal, locale: appLocale))
                     .font(.golos(11.5))
                     .foregroundStyle(BrandColor.muted500)
                     .fixedSize(horizontal: false, vertical: true)
@@ -821,7 +823,7 @@ private struct MemberAccessSheet: View {
             // readout, not an alarm, and most restrictions are somebody's
             // deliberate choice.
             StatusPill(
-                label: numberAccessLevelLabel(row.level),
+                label: numberAccessLevelLabel(row.level, locale: appLocale),
                 tone: numberAccessIsRestricted(row.level) ? .neutral : .positive
             )
         }

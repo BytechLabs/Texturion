@@ -127,13 +127,19 @@ class HostHeaderLintTest {
         val host = readMainSource("MainActivity.kt")
         assertTrue(
             "the host header title must track the open settings section",
-            // The FALLBACK's form is not this guard's business. It used to pin
-            // `?: "Settings"`, which #228 broke by translating that word into
-            // `t("shell.settings")` — a change this test should not have had an
-            // opinion about. What it is here to catch is a header that stops
-            // following the open section, so it watches the part that does the
-            // following and leaves the default alone.
-            host.contains("section?.title ?:"),
+            // Neither the fallback's form nor HOW the section's name is reached
+            // is this guard's business, and it has now been rewritten twice for
+            // getting involved: once when `?: "Settings"` became
+            // `t("shell.settings")`, and again when `section?.title` became
+            // `section?.let { t(it.titleKey) }` — because `title` resolves with a
+            // null locale, so a French phone was reading an English header over
+            // a French section.
+            //
+            // What it is here to catch is a header that stops FOLLOWING the open
+            // section: a hardcoded string, or one that ignores `section`. So it
+            // asks only that the title is derived from `section` and has a
+            // fallback for when none is open.
+            Regex("""title = section\?[^\n]*\?:""").containsMatchIn(host),
         )
     }
 

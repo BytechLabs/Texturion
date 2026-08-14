@@ -103,6 +103,8 @@ private fun LeadChaseRow(
     val coroutines = rememberCoroutineScope()
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    // #228: the save failure is written from a coroutine, outside composition.
+    val locale = LocalAppLocale.current
 
     // Saves on toggle rather than behind a Save button, unlike the away
     // message next door: there is no text to get wrong and no preview to
@@ -115,7 +117,7 @@ private fun LeadChaseRow(
                 val body = buildJsonObject { put("lead_chase_crew_enabled", crew) }
                 onCompanyUpdated(scope.repo.updateCompany(scope.companyId, body))
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } finally {
                 saving = false
             }
@@ -160,6 +162,8 @@ private fun PushContentRow(
     val coroutines = rememberCoroutineScope()
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    // #228: the save failure is written from a coroutine, outside composition.
+    val locale = LocalAppLocale.current
 
     fun save(include: Boolean) {
         error = null
@@ -169,7 +173,7 @@ private fun PushContentRow(
                 val body = buildJsonObject { put("push_include_content", include) }
                 onCompanyUpdated(scope.repo.updateCompany(scope.companyId, body))
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } finally {
                 saving = false
             }
@@ -247,7 +251,7 @@ private fun EmailReachabilityCard(scope: SettingsScope) {
                                 ),
                             )
                         } catch (cause: Exception) {
-                            error = cause.userMessage()
+                            error = cause.userMessage(locale)
                         } finally {
                             retrying = false
                         }

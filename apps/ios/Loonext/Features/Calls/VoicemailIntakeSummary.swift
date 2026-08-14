@@ -20,11 +20,17 @@ import SwiftUI
 struct VoicemailIntakeSummary: View {
     let lines: [VoicemailIntakeLine]
 
+    /// #228: after the required `let`, so the memberwise init `CallsView` builds
+    /// this with keeps the same argument order. The ROWS arrive already in the
+    /// reader's language (the caller resolves them); this is only for the
+    /// provenance label above them.
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
             HStack(spacing: 4) {
                 AiOrb(state: .idle, size: 11)
-                Text(voicemailIntakeSourceLabel)
+                Text(AppStrings.translate(appLocale, voicemailIntakeSourceKey))
                     .font(.golos(10.5, weight: .semibold))
             }
             .foregroundStyle(BrandColor.muted500)

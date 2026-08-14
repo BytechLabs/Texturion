@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.RejectionDomain
 import com.loonext.android.core.model.explainRejection
@@ -51,7 +52,13 @@ fun RejectionNotice(
     submissionCount: Int?,
     onGoToField: (String) -> Unit,
 ) {
-    val guidance = explainRejection(domain, reason)
+    // #228: both the guidance and the wait are plain functions with a defaulted
+    // locale — they read the English table unless somebody names a language, and
+    // the parity vectors depend on that default. This is composition, so the
+    // reader's own language is to hand and the two sentences that tell a rejected
+    // customer what to do next are said in it.
+    val locale = LocalAppLocale.current
+    val guidance = explainRejection(domain, reason, locale)
     val stuck = needsHumanHelp(submissionCount)
     val subject = if (domain == RejectionDomain.PORT) {
         t("settingsMore.subjectTransfer")
@@ -88,7 +95,7 @@ fun RejectionNotice(
                 )
             }
             Text(
-                resubmissionWait(domain),
+                resubmissionWait(domain, locale),
                 style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.padding(top = 6.dp),
             )

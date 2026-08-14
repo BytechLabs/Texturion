@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.OpenAlert
 import com.loonext.android.core.oncall.OnCall
 
@@ -52,6 +53,11 @@ fun AlertBanner(
     // permanent cost paid for a rare event.
     if (alert == null) return
 
+    // #228: read in composition — `buildString` below is not a composable
+    // scope, so the sentence has to be resolved before it is appended.
+    val waiting = t(OnCall.BANNER_WAITING_KEY)
+    val claim = t(OnCall.BANNER_CLAIM_KEY)
+
     Row(
         modifier
             .fillMaxWidth()
@@ -68,7 +74,7 @@ fun AlertBanner(
         )
         Text(
             buildString {
-                append(OnCall.BANNER_WAITING)
+                append(waiting)
                 val paged = alert.on_call_name
                 if (paged != null && alert.on_call_user_id != viewerId) {
                     append(" · ")
@@ -82,7 +88,7 @@ fun AlertBanner(
         )
         Button(onClick = { onClaim(alert.id) }) {
             Text(
-                OnCall.BANNER_CLAIM,
+                claim,
                 style = MaterialTheme.typography.labelLarge.copy(
                     fontWeight = FontWeight.SemiBold,
                 ),

@@ -127,7 +127,7 @@ fun OnCallCard(scope: SettingsScope) {
                     ),
                 )
             } catch (cause: Exception) {
-                scope.showMessage(cause.userMessage())
+                scope.showMessage(cause.userMessage(locale))
             } finally {
                 busy = false
             }
@@ -142,7 +142,7 @@ fun OnCallCard(scope: SettingsScope) {
                 scope.repo.endOnCallShift(scope.companyId, id)
                 reload()
             } catch (cause: Exception) {
-                scope.showMessage(cause.userMessage())
+                scope.showMessage(cause.userMessage(locale))
             } finally {
                 busy = false
             }

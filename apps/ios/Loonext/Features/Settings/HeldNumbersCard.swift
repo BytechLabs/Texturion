@@ -92,7 +92,8 @@ struct HeldNumbersCard: View {
                    held,
                    read: read,
                    billingWritesEnabled: company.billing_writes_enabled,
-                   audience: company.billedIn
+                   audience: company.billedIn,
+                   locale: appLocale
                ) {
                 card(answer: held, copy: state.copy, offer: state.offer)
             }
@@ -214,7 +215,9 @@ struct HeldNumbersCard: View {
         // no price to state would be taking consent for an unnamed charge, so
         // it closes instead.
         if case .buy(let price) = offer {
-            let copy = reinstateNumberCopy(number: rowLabel(row), price: price)
+            let copy = reinstateNumberCopy(
+                number: rowLabel(row), price: price, locale: appLocale
+            )
             ConfirmSheet(
                 title: copy.title,
                 message: copy.message,
@@ -251,6 +254,10 @@ struct HeldNumbersCard: View {
         dialogError = nil
         let key = idempotencyKey
         let label = rowLabel(row)
+        // Read off the view before the hop, for the same reason `label` is:
+        // the sentence this produces is the reader's, and it is composed after
+        // an await.
+        let locale = appLocale
         Task {
             do {
                 let result = try await scope.repo.reinstateHeldNumber(
@@ -259,7 +266,9 @@ struct HeldNumbersCard: View {
                     idempotencyKey: key
                 )
                 confirming = nil
-                scope.showMessage(reinstateOutcomeMessage(result, number: label))
+                scope.showMessage(
+                    reinstateOutcomeMessage(result, number: label, locale: locale)
+                )
                 refreshKey += 1
                 onRefreshCompany()
             } catch {

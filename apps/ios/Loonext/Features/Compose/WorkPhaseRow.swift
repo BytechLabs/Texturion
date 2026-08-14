@@ -41,7 +41,7 @@ struct WorkPhaseRow: View {
                     // notes is neither, and it has to be reachable after a mis-tap.
                     onChange(on ? nil : phase)
                 } label: {
-                    Text(WorkPhase.label(phase))
+                    Text(WorkPhase.label(phase, locale: appLocale))
                         .font(.golos(12.5))
                         .foregroundStyle(on ? BrandColor.paper : BrandColor.muted600)
                         .padding(.horizontal, 10)
@@ -62,7 +62,7 @@ struct WorkPhaseRow: View {
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(on ? [.isSelected] : [])
             }
-            Text(WorkPhase.hint)
+            Text(AppStrings.translate(appLocale, WorkPhase.hintKey))
                 .font(.golos(11.5))
                 .foregroundStyle(BrandColor.muted600)
             Spacer(minLength: 0)

@@ -36,13 +36,13 @@ import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CarrierStanding
 import com.loonext.android.core.model.SummaryOptOut
-import com.loonext.android.core.model.THREAD_SUMMARY_ATTRIBUTION
+import com.loonext.android.core.model.THREAD_SUMMARY_ATTRIBUTION_KEY
 import com.loonext.android.core.model.THREAD_SUMMARY_NOT_ALLOWED
-import com.loonext.android.core.model.THREAD_SUMMARY_SECTIONS
 import com.loonext.android.core.model.ThreadSummary
 import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.core.model.standing
 import com.loonext.android.core.model.threadSummaryMessage
+import com.loonext.android.core.model.threadSummarySections
 import com.loonext.android.ui.common.AiOrb
 import com.loonext.android.ui.common.AiOrbState
 import com.loonext.android.ui.common.relativeTime
@@ -454,7 +454,7 @@ fun ThreadSummaryCard(
                 // discipline as the drafting copy, because one blanket shrug
                 // hid real breakage behind what looked like a shrug.
                 Text(
-                    threadSummaryMessage(state.reason),
+                    threadSummaryMessage(state.reason, locale),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 10.dp),
@@ -468,7 +468,7 @@ fun ThreadSummaryCard(
                 // in it is absent rather than empty: an empty "Still open"
                 // reads as "nothing is outstanding", which is a claim Lou did
                 // not make and may not be true.
-                THREAD_SUMMARY_SECTIONS.forEach { (id, label) ->
+                threadSummarySections(locale).forEach { (id, label) ->
                     val lines = summary.lines.filter { it.section == id }
                     if (lines.isEmpty()) return@forEach
                     Text(
@@ -531,7 +531,7 @@ fun ThreadSummaryCard(
                 }
 
                 Text(
-                    THREAD_SUMMARY_ATTRIBUTION,
+                    t(THREAD_SUMMARY_ATTRIBUTION_KEY),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier

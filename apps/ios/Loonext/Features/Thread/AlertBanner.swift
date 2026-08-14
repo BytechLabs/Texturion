@@ -24,6 +24,10 @@ struct AlertBanner: View {
     let viewerId: String?
     let onClaim: (String) -> Void
 
+    /// #228: after the required `let`s, so the memberwise init this is built
+    /// with in `ThreadView` keeps the same argument order.
+    @Environment(\.appLocale) private var appLocale
+
     var body: some View {
         // Absent on nearly every thread. Reserving space for it would be a
         // permanent cost paid for a rare event.
@@ -35,7 +39,9 @@ struct AlertBanner: View {
                 Text(waitingLine(alert))
                     .font(.golos(13))
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Button(OnCall.bannerClaim) { onClaim(alert.id) }
+                Button(AppStrings.translate(appLocale, OnCall.bannerClaimKey)) {
+                    onClaim(alert.id)
+                }
                     .font(.golos(13, weight: .semibold))
                     .buttonStyle(.borderedProminent)
             }
@@ -47,9 +53,14 @@ struct AlertBanner: View {
     }
 
     private func waitingLine(_ alert: OpenAlert) -> String {
+        let waiting = AppStrings.translate(appLocale, OnCall.bannerWaitingKey)
         guard let paged = alert.on_call_name,
               alert.on_call_user_id != viewerId
-        else { return OnCall.bannerWaiting }
-        return "\(OnCall.bannerWaiting) · \(paged) was told first"
+        else { return waiting }
+        // #228: " was told first" is still English on BOTH phones — it has no
+        // key in either catalogue, so this is an extraction gap rather than a
+        // dropped argument. Translating it here alone would put a French
+        // sentence on iOS and an English one on Android for the same alert.
+        return "\(waiting) · \(paged) was told first"
     }
 }

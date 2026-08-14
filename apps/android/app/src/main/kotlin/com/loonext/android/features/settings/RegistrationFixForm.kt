@@ -587,7 +587,7 @@ fun RegistrationFixForm(
                         open = false
                         onSubmitted()
                     } catch (cause: Exception) {
-                        error = cause.userMessage()
+                        error = cause.userMessage(locale)
                     } finally {
                         saving = false
                     }

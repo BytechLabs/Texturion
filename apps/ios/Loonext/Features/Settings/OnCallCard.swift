@@ -49,7 +49,7 @@ struct OnCallCard: View {
     var body: some View {
         SettingsCard(
             title: AppStrings.translate(appLocale, "settingsMore.onCallTitle"),
-            description: OnCall.escalation
+            description: AppStrings.translate(appLocale, OnCall.escalationKey)
         ) {
             if !loaded {
                 Text(AppStrings.translate(appLocale, "settingsMore.onCallChecking"))
@@ -57,7 +57,11 @@ struct OnCallCard: View {
                     .foregroundStyle(.secondary)
             } else if let live {
                 HStack {
-                    Text(OnCall.line(name(of: live.user_id), until: until(live.ends_at)))
+                    Text(OnCall.line(
+                        name(of: live.user_id),
+                        until: until(live.ends_at),
+                        locale: appLocale
+                    ))
                         .font(.subheadline)
                     Spacer(minLength: 8)
                     if canEdit {
@@ -70,7 +74,7 @@ struct OnCallCard: View {
                 }
             } else {
                 // Not "no shifts". The sentence says what the state costs.
-                Text(OnCall.nobody)
+                Text(AppStrings.translate(appLocale, OnCall.nobodyKey))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -118,7 +122,7 @@ struct OnCallCard: View {
                 .disabled(roster.isEmpty)
 
                 HStack(spacing: 6) {
-                    ForEach(OnCall.presets, id: \.key) { preset in
+                    ForEach(OnCall.localisedPresets(appLocale), id: \.key) { preset in
                         Button(preset.label) { put(preset.key) }
                             .font(.footnote)
                             .buttonStyle(.bordered)
@@ -126,14 +130,14 @@ struct OnCallCard: View {
                     }
                 }
                 Text(
-                    OnCall.presets
+                    OnCall.localisedPresets(appLocale)
                         .map { "\($0.label): \($0.detail)" }
                         .joined(separator: " · ")
                 )
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             } else {
-                Text(OnCall.readOnly)
+                Text(AppStrings.translate(appLocale, OnCall.readOnlyKey))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.top, 6)

@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.time.TwoClocks
 import com.loonext.android.core.model.ScheduledMessage
@@ -135,7 +136,7 @@ private fun ScheduledRow(row: ScheduledMessage, onCancel: () -> Unit) {
                 )
             } else if (!held) {
                 Text(
-                    ScheduledSend.clockProvenance(row.clock_source),
+                    ScheduledSend.clockProvenance(row.clock_source, LocalAppLocale.current),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

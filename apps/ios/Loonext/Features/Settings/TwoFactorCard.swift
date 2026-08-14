@@ -236,12 +236,17 @@ struct TwoFactorCard: View {
         // reader's language, exactly as Android's twin key does. Loonext and
         // iPhone are a product and a platform and stay as they are in both.
         let factorName = t("settingsMore.tfaFactorName")
+        // Read off the view alongside `factorName`, for the same reason: the
+        // refusal this call can throw is shown to the reader verbatim, and it
+        // is composed after an await.
+        let reader = appLocale
         Task {
             do {
                 let token = try await scope.repo.freshAccessToken()
                 let enrolment = try await authClient.enrollTotp(
                     accessToken: token,
-                    friendlyName: factorName
+                    friendlyName: factorName,
+                    locale: reader
                 )
                 step = .verify(
                     factorId: enrolment.factorId,

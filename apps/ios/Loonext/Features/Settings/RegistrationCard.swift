@@ -402,7 +402,11 @@ private struct EnableUsCard: View {
     /// customer does not see on this screen, and the approval mail and push both
     /// branch on the same fact server-side, where it is always known.
     private var cardCopy: EnableUsTextingCopy {
-        enableUsTextingCopy(currency, paused: pauseIsActive(pauseKnown.answer))
+        // ONE line, deliberately: RegistrationPauseTests filters this file for
+        // the single line reading `pauseIsActive(` and requires it to be the
+        // line that builds the copy. Wrapping the arguments splits them onto
+        // two lines and the guard reads a pause being asked somewhere else.
+        enableUsTextingCopy(currency, paused: pauseIsActive(pauseKnown.answer), locale: appLocale)
     }
 
     var body: some View {

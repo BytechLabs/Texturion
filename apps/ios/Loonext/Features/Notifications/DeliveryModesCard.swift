@@ -30,19 +30,31 @@ struct DeliveryModesCard: View {
         prefs.delivery?[category] ?? "immediate"
     }
 
+    /// #228: the six rows in the reader's language, resolved once.
+    ///
+    /// `localisedCategoryLabels` takes its locale POSITIONALLY (`_ locale:`),
+    /// unlike most of the catalogue's helpers — passing it with a label here
+    /// would not compile.
+    private var categories: [(key: String, label: String)] {
+        OnCall.localisedCategoryLabels(appLocale)
+    }
+
     private var anyBatched: Bool {
-        OnCall.categoryLabels.contains { mode(of: $0.key) == "batched" }
+        categories.contains { mode(of: $0.key) == "batched" }
     }
 
     private var anySummary: Bool {
-        OnCall.categoryLabels.contains { mode(of: $0.key) == "summary" }
+        categories.contains { mode(of: $0.key) == "summary" }
     }
 
     private func label(for mode: String) -> String {
         switch mode {
-        case "batched": return OnCall.deliveryBatched
-        case "summary": return OnCall.deliverySummary
-        default: return OnCall.deliveryImmediate
+        case "batched":
+            return AppStrings.translate(appLocale, OnCall.deliveryBatchedKey)
+        case "summary":
+            return AppStrings.translate(appLocale, OnCall.deliverySummaryKey)
+        default:
+            return AppStrings.translate(appLocale, OnCall.deliveryImmediateKey)
         }
     }
 
@@ -67,14 +79,14 @@ struct DeliveryModesCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(OnCall.deliveryHeading)
+            Text(AppStrings.translate(appLocale, OnCall.deliveryHeadingKey))
                 .font(.golos(15, weight: .semibold))
-            Text(OnCall.deliveryUrgentAlways)
+            Text(AppStrings.translate(appLocale, OnCall.deliveryUrgentAlwaysKey))
                 .font(.golos(13))
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 4)
 
-            ForEach(OnCall.categoryLabels, id: \.key) { entry in
+            ForEach(categories, id: \.key) { entry in
                 HStack {
                     Text(entry.label)
                         .font(.golos(14))
@@ -106,7 +118,7 @@ struct DeliveryModesCard: View {
             }
 
             if anySummary {
-                Text(OnCall.deliverySummaryDetail)
+                Text(AppStrings.translate(appLocale, OnCall.deliverySummaryDetailKey))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.top, 4)

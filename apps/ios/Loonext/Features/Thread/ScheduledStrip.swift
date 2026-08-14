@@ -61,7 +61,7 @@ private struct ScheduledStripRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 let lead = row.isHeld
                     ? AppStrings.translate(appLocale, "thread.scheduledWaiting")
-                    : sendAtOf(row)
+                    : sendAtOf(row, locale: appLocale)
                 Text("\(lead) — \(row.body)")
                     .font(.caption)
                     .lineLimit(2)
@@ -74,7 +74,7 @@ private struct ScheduledStripRow: View {
                         .font(.caption2)
                         .foregroundStyle(NoteAmber.ink)
                 } else if !row.isHeld {
-                    Text(ScheduledSend.clockProvenance(row.rung))
+                    Text(ScheduledSend.clockProvenance(row.rung, locale: appLocale))
                         .font(.caption2)
                         .foregroundStyle(BrandColor.muted500)
                 }
@@ -97,7 +97,7 @@ private struct ScheduledStripRow: View {
                 AppStrings.translate(
                     appLocale,
                     "thread.cancelScheduledAria",
-                    ["when": sendAtSpokenOf(row)]
+                    ["when": sendAtSpokenOf(row, locale: appLocale)]
                 )
             )
         }
@@ -122,7 +122,10 @@ private struct ScheduledStripRow: View {
 /// The zone stored on the row, not this device's: a dispatcher in Toronto
 /// looking at a send scheduled for a customer in Vancouver has to see the time
 /// that customer will experience, because that is the time the sender chose.
-func sendAtOf(_ row: ScheduledMessage) -> String {
+/// #228: `locale` is LAST and DEFAULTED, so `SendLaterTests` keeps calling this
+/// with one argument and keeps reading the English, while the row that knows its
+/// reader passes `appLocale`.
+func sendAtOf(_ row: ScheduledMessage, locale: String? = nil) -> String {
     // `parseSnoozeInstant` rather than a formatter written here: PostgREST
     // renders timestamptz with a fractional part only sometimes, and a single
     // ISO8601DateFormatter silently returns nil for the other shape. That
@@ -130,13 +133,17 @@ func sendAtOf(_ row: ScheduledMessage) -> String {
     // "Scheduled" because of a missing `.SSS` would hide the one fact this
     // strip exists to show.
     guard let at = parseSnoozeInstant(row.send_at) else { return "Scheduled" }
-    return TwoClocks.bothClocks(theirClock(at, row), mineClock(at))
+    return TwoClocks.bothClocks(
+        theirClock(at, row), mineClock(at), locale: locale
+    )
 }
 
 /// The same, spelled out, for VoiceOver.
-func sendAtSpokenOf(_ row: ScheduledMessage) -> String {
+func sendAtSpokenOf(_ row: ScheduledMessage, locale: String? = nil) -> String {
     guard let at = parseSnoozeInstant(row.send_at) else { return "Scheduled" }
-    return TwoClocks.bothClocksSpoken(theirClock(at, row), mineClock(at))
+    return TwoClocks.bothClocksSpoken(
+        theirClock(at, row), mineClock(at), locale: locale
+    )
 }
 
 /// #539: the customer's clock, and this device's, so the row cannot be misread.

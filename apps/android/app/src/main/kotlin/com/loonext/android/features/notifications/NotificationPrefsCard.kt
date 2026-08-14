@@ -41,6 +41,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.loonext.android.AppGraph
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.oncall.OnCall
 import java.util.TimeZone
@@ -100,13 +101,16 @@ fun NotificationPrefsCard(
     // warning prevents.
     var onCall by remember(companyId) { mutableStateOf(false) }
     var silencing by remember(companyId) { mutableStateOf<String?>(null) }
+    // #228: the load and the save below are both coroutines, and the sentences
+    // they surface are read on this card.
+    val locale = LocalAppLocale.current
 
     LaunchedEffect(companyId, retryKey) {
         if (state !is LoadState.Ready) state = LoadState.Loading
         state = try {
             LoadState.Ready(repo.prefs(companyId))
         } catch (cause: Exception) {
-            LoadState.Failed(cause.userMessage())
+            LoadState.Failed(cause.userMessage(locale))
         }
     }
 
@@ -142,7 +146,7 @@ fun NotificationPrefsCard(
                 // "a client that overwrites a server's error copy is making a bet
                 // that the server will never have anything more specific to say."
                 // That bet was already lost here.
-                saveError = cause.userMessage()
+                saveError = cause.userMessage(locale)
             }
         }
     }
@@ -200,7 +204,7 @@ fun NotificationPrefsCard(
                         onDismissRequest = { silencing = null },
                         title = { Text(t("contactsTasks.notifOnCallTitle")) },
                         text = {
-                            Text(OnCallSilence.warning(true, true, channel) ?: "")
+                            Text(OnCallSilence.warning(true, true, channel, locale) ?: "")
                         },
                         confirmButton = {
                             TextButton(onClick = {
@@ -213,11 +217,11 @@ fun NotificationPrefsCard(
                                     },
                                     prefs,
                                 )
-                            }) { Text(OnCallSilence.CONFIRM) }
+                            }) { Text(t(OnCallSilence.CONFIRM_KEY)) }
                         },
                         dismissButton = {
                             TextButton(onClick = { silencing = null }) {
-                                Text(OnCallSilence.CANCEL)
+                                Text(t(OnCallSilence.CANCEL_KEY))
                             }
                         },
                     )
@@ -228,8 +232,8 @@ fun NotificationPrefsCard(
                 // sentence that decides whether anybody switches it on.
                 val quietOn = prefs.quiet_from != null && prefs.quiet_to != null
                 PrefToggleRow(
-                    title = OnCall.QUIET_HEADING,
-                    supporting = OnCall.QUIET_REASSURANCE,
+                    title = t(OnCall.QUIET_HEADING_KEY),
+                    supporting = t(OnCall.QUIET_REASSURANCE_KEY),
                     checked = quietOn,
                     onCheckedChange = { checked ->
                         save(
@@ -258,9 +262,10 @@ fun NotificationPrefsCard(
                         OnCall.quietHoursLine(
                             prefs.quiet_from.orEmpty(),
                             prefs.quiet_to.orEmpty(),
-                        ) + " · " + OnCall.QUIET_SCOPE
+                            locale,
+                        ) + " · " + t(OnCall.QUIET_SCOPE_KEY)
                     } else {
-                        OnCall.QUIET_OFF
+                        t(OnCall.QUIET_OFF_KEY)
                     },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

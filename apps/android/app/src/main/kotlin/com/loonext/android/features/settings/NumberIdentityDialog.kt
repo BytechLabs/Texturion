@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.ui.common.LoadState
@@ -66,6 +67,9 @@ internal fun NumberIdentityDialog(
     onDismiss: () -> Unit,
     onChanged: () -> Unit,
 ) {
+    // #228: every load and save failure on this dialog is written from a
+    // coroutine, where there is no composition left to read a reader out of.
+    val locale = LocalAppLocale.current
     var loaded by remember { mutableStateOf<LoadState<NumberIdentity>>(LoadState.Loading) }
     var label by remember { mutableStateOf("") }
     var greeting by remember { mutableStateOf("") }
@@ -117,7 +121,7 @@ internal fun NumberIdentityDialog(
             seed(identity)
             LoadState.Ready(identity)
         } catch (cause: Exception) {
-            LoadState.Failed(cause.userMessage())
+            LoadState.Failed(cause.userMessage(locale))
         }
     }
 
@@ -142,7 +146,7 @@ internal fun NumberIdentityDialog(
                 loaded = LoadState.Ready(next)
                 onChanged()
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } finally {
                 pending = false
             }
@@ -170,7 +174,7 @@ internal fun NumberIdentityDialog(
                 loaded = LoadState.Ready(next)
                 onChanged()
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } finally {
                 pending = false
             }
@@ -192,7 +196,7 @@ internal fun NumberIdentityDialog(
                 loaded = LoadState.Ready(next)
                 onChanged()
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } finally {
                 pending = false
             }
@@ -214,7 +218,7 @@ internal fun NumberIdentityDialog(
                 loaded = LoadState.Ready(next)
                 onChanged()
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } finally {
                 pending = false
             }
@@ -620,7 +624,7 @@ internal fun NumberIdentityDialog(
                             onChanged()
                             onDismiss()
                         } catch (cause: Exception) {
-                            error = cause.userMessage()
+                            error = cause.userMessage(locale)
                         } finally {
                             pending = false
                         }

@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ReferralMoment
 import com.loonext.android.core.model.ReferralsView
@@ -68,13 +69,13 @@ fun ReferralAskCard(
     PaperCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp)) {
             Text(
-                ReferralShare.askHeadline(moment.customers),
+                ReferralShare.askHeadline(moment.customers, LocalAppLocale.current),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                ReferralShare.ASK_BODY,
+                t(ReferralShare.ASK_BODY_KEY),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -94,9 +95,9 @@ fun ReferralAskCard(
                 }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onOpen) { Text(ReferralShare.ASK_ACTION) }
+                    Button(onClick = onOpen) { Text(t(ReferralShare.ASK_ACTION_KEY)) }
                     OutlinedButton(onClick = onDismiss) {
-                        Text(ReferralShare.ASK_DISMISS)
+                        Text(t(ReferralShare.ASK_DISMISS_KEY))
                     }
                 }
             }

@@ -60,6 +60,12 @@ fun EmergencyCard(
 ) {
     val canEdit = SettingsRoleGate.canEditWorkspace(scope.role)
     val coroutines = rememberCoroutineScope()
+    // `addWord`, the chip's onClick and `saveReplyEnabled` all run outside
+    // composition, and each of them has to say something — the offending word, or
+    // why a switch went back. So the locale is captured here, ABOVE the first of
+    // them, and the sentences are built where they are needed rather than read
+    // from a @Composable that is no longer running.
+    val locale = LocalAppLocale.current
 
     val savedWords = company.effectiveEmergencyWords
     // Seeded from the EFFECTIVE list, never the raw column. An owner who has
@@ -98,7 +104,7 @@ fun EmergencyCard(
                 onCompanyUpdated(updated)
             } catch (cause: Exception) {
                 replyEnabled = !next
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             }
         }
     }
@@ -115,11 +121,6 @@ fun EmergencyCard(
         if (previewBody.contains(safetyLine)) previewBody
         else "$previewBody $safetyLine"
 
-    // `addWord` and the chip's onClick both run outside composition, and one of
-    // them has to name the offending word — so the locale is captured here and
-    // the sentence is built where it is needed rather than being read from a
-    // @Composable that is no longer running.
-    val locale = LocalAppLocale.current
     val tooManyWords = t("settings.emergencyTooManyWords")
     val keepOneWord = t("settings.emergencyKeepOneWord")
     val savedMessage = t("settings.emergencySaved")
@@ -321,7 +322,7 @@ fun EmergencyCard(
                             onCompanyUpdated(updated)
                             scope.showMessage(savedMessage)
                         } catch (cause: Exception) {
-                            error = cause.userMessage()
+                            error = cause.userMessage(locale)
                         } finally {
                             saving = false
                         }

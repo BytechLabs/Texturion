@@ -61,14 +61,15 @@ struct OwnershipPrompt: View {
                 SectionHeader(
                     label: AppStrings.translate(appLocale, "settingsMore.ownershipCaption")
                 )
-                Text(handoverPromptHeadline(kind))
+                Text(handoverPromptHeadline(kind, locale: appLocale))
                     .font(.golos(13, weight: .semibold))
                     .foregroundStyle(BrandColor.ink)
                 ReadOnlyLine(
                     handoverPromptDetail(
                         kind,
                         ripensAt: current.pending?.ripens_at ?? "",
-                        expiresAt: current.pending?.expires_at ?? ""
+                        expiresAt: current.pending?.expires_at ?? "",
+                        locale: appLocale
                     )
                 )
                 HStack(spacing: 10) {
@@ -93,7 +94,8 @@ struct OwnershipPrompt: View {
                             .buttonStyle(.bordered)
                             .disabled(busy)
                     }
-                    if let cancelLabel = handoverPromptCancelLabel(kind), current.canCancel {
+                    if let cancelLabel = handoverPromptCancelLabel(kind, locale: appLocale),
+                       current.canCancel {
                         Button(cancelLabel) { cancel() }
                             .buttonStyle(.bordered)
                             .disabled(busy)

@@ -1174,7 +1174,14 @@ class PauseOfferTest {
             assertTrue(
                 "$name must surface the API's own message, by assigning it to the " +
                     "state the dialog renders: `$caught`",
-                Regex("=\\s*cause\\.userMessage\\(\\)").containsMatchIn(caught),
+                // `\(` rather than `\(\)`. The empty parens made this refuse an
+                // ARGUMENT, and #228 needs one: the wiring pass left both catch
+                // blocks in BillingSection English rather than turn this red,
+                // which is a guard quietly dictating what language a refusal is
+                // written in. What it exists to assert is that the API's own
+                // sentence is ASSIGNED to the state the dialog renders, and that
+                // survives a locale being threaded through.
+                Regex("=\\s*cause\\.userMessage\\(").containsMatchIn(caught),
             )
             assertFalse(
                 "$name writes copy of its own in the failure path: `$caught`. The " +

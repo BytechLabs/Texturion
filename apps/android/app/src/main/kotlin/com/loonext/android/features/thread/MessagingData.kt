@@ -1034,7 +1034,9 @@ fun theirTimeLine(clock: DestinationClock?, locale: String? = null): String? {
     // does not need telling they can, and offering to correct a non-geographic
     // number would be offering to fix an inference we never made.
     if (clock.source != "area_code") return line
-    return "$line ${TwoClocks.AREA_CODE_NOTE}"
+    // #228: the reader's language, not the English fallback beside it — this
+    // function was handed a locale and the sentence above already uses it.
+    return "$line ${AppStrings.translate(locale, TwoClocks.AREA_CODE_NOTE_KEY)}"
 }
 
 /**

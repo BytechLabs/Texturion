@@ -959,7 +959,7 @@ func theirTimeLine(_ clock: DestinationClock?, locale: String? = nil) -> String?
     // does not need telling they can, and offering to correct a non-geographic
     // number would be offering to fix an inference we never made.
     guard clock.rung == "area_code" else { return line }
-    return "\(line) \(TwoClocks.areaCodeNote)"
+    return "\(line) \(AppStrings.translate(locale, TwoClocks.areaCodeNoteKey))"
 }
 
 /// Which rung answered, said plainly.

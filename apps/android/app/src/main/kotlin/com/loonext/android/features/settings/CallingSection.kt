@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.loonext.android.features.compose.usSendApproved
 import com.loonext.android.features.compose.usTextingOff
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.NumberStatus
@@ -116,6 +117,9 @@ private fun TextBackCard(
     onCompanyUpdated: (CompanyView) -> Unit,
 ) {
     val canEdit = SettingsRoleGate.canEditWorkspace(scope.role)
+    // #228: every save on this card reports its failure from a coroutine, where
+    // there is no composition left to read the reader's language out of.
+    val locale = LocalAppLocale.current
     var enabled by remember(company.mctb_enabled) { mutableStateOf(company.mctb_enabled) }
     var message by remember(company.mctb_message) {
         mutableStateOf(company.mctb_message.orEmpty())
@@ -157,7 +161,7 @@ private fun TextBackCard(
                 onCompanyUpdated(updated)
             } catch (cause: Exception) {
                 savedState = null
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             }
         }
     }
@@ -182,7 +186,7 @@ private fun TextBackCard(
                         onCompanyUpdated(scope.repo.updateCompany(scope.companyId, body))
                     } catch (cause: Exception) {
                         enabled = !next
-                        error = cause.userMessage()
+                        error = cause.userMessage(locale)
                     }
                 }
             },
@@ -246,6 +250,9 @@ private fun VoicemailCard(
     onCompanyUpdated: (CompanyView) -> Unit,
 ) {
     val canEdit = SettingsRoleGate.canEditWorkspace(scope.role)
+    // #228: every save on this card reports its failure from a coroutine, where
+    // there is no composition left to read the reader's language out of.
+    val locale = LocalAppLocale.current
     var greeting by remember(company.voicemail_greeting) {
         mutableStateOf(company.voicemail_greeting.orEmpty())
     }
@@ -294,7 +301,7 @@ private fun VoicemailCard(
                                 onCompanyUpdated(updated)
                                 scope.showMessage(greetingSaved)
                             } catch (cause: Exception) {
-                                error = cause.userMessage()
+                                error = cause.userMessage(locale)
                             } finally {
                                 saving = false
                             }
@@ -348,6 +355,9 @@ private fun ScreeningCard(
     onCompanyUpdated: (CompanyView) -> Unit,
 ) {
     val canEdit = SettingsRoleGate.canEditWorkspace(scope.role)
+    // #228: every save on this card reports its failure from a coroutine, where
+    // there is no composition left to read the reader's language out of.
+    val locale = LocalAppLocale.current
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
@@ -381,7 +391,7 @@ private fun ScreeningCard(
                                     onCompanyUpdated(updated)
                                     scope.showMessage(screeningUpdated)
                                 } catch (cause: Exception) {
-                                    error = cause.userMessage()
+                                    error = cause.userMessage(locale)
                                 } finally {
                                     saving = false
                                 }
@@ -436,6 +446,9 @@ private fun RingCard(
     onCompanyUpdated: (CompanyView) -> Unit,
 ) {
     val canEdit = SettingsRoleGate.canEditWorkspace(scope.role)
+    // #228: every save on this card reports its failure from a coroutine, where
+    // there is no composition left to read the reader's language out of.
+    val locale = LocalAppLocale.current
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var secondsMenuOpen by remember { mutableStateOf(false) }
@@ -449,7 +462,7 @@ private fun RingCard(
                 onCompanyUpdated(scope.repo.updateCompany(scope.companyId, patch))
                 scope.showMessage(message)
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } finally {
                 saving = false
             }
@@ -614,6 +627,9 @@ private fun AfterHoursCard(
     onCompanyUpdated: (CompanyView) -> Unit,
 ) {
     val canEdit = SettingsRoleGate.canEditWorkspace(scope.role)
+    // #228: every save on this card reports its failure from a coroutine, where
+    // there is no composition left to read the reader's language out of.
+    val locale = LocalAppLocale.current
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
@@ -655,7 +671,7 @@ private fun AfterHoursCard(
                                     onCompanyUpdated(updated)
                                     scope.showMessage(afterHoursUpdated)
                                 } catch (cause: Exception) {
-                                    error = cause.userMessage()
+                                    error = cause.userMessage(locale)
                                 } finally {
                                     saving = false
                                 }
@@ -738,6 +754,9 @@ private fun CallerIdCard(
     onCompanyUpdated: (CompanyView) -> Unit,
 ) {
     val canEdit = SettingsRoleGate.canEditWorkspace(scope.role)
+    // #228: every save on this card reports its failure from a coroutine, where
+    // there is no composition left to read the reader's language out of.
+    val locale = LocalAppLocale.current
     var editing by remember { mutableStateOf(false) }
     var draft by remember { mutableStateOf("") }
     var confirming by remember { mutableStateOf<CallerIdChange?>(null) }
@@ -767,7 +786,7 @@ private fun CallerIdCard(
                 confirming = null
                 scope.showMessage(cnamSubmitted)
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } finally {
                 saving = false
             }
@@ -785,7 +804,7 @@ private fun CallerIdCard(
                 )
                 onCompanyUpdated(updated)
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } finally {
                 saving = false
             }

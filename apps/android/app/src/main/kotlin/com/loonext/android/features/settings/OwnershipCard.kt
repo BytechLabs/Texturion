@@ -90,8 +90,8 @@ fun OwnershipCard(
                 scope.showMessage(label)
                 onChanged()
             } catch (cause: Exception) {
-                actionError = cause.userMessage()
-                if (confirming == null) scope.showMessage(cause.userMessage())
+                actionError = cause.userMessage(locale)
+                if (confirming == null) scope.showMessage(cause.userMessage(locale))
             } finally {
                 busy = false
             }
@@ -113,7 +113,9 @@ fun OwnershipCard(
         busy = true
         actionError = null
         coroutines.launch {
-            val outcome = attemptHandover(scope, pending, code, alreadyOpen = proof != null)
+            val outcome = attemptHandover(
+                scope, pending, code, alreadyOpen = proof != null, locale = locale,
+            )
             when (outcome) {
                 is HandoverOutcome.Done -> {
                     confirming = null

@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.NotificationPrefs
 import com.loonext.android.core.oncall.OnCall
@@ -77,23 +78,27 @@ fun DeliveryModesCard(
         )
     }
 
-    val anyBatched = OnCall.CATEGORY_LABELS.keys.any { modeOf(it) == "batched" }
-    val anySummary = OnCall.CATEGORY_LABELS.keys.any { modeOf(it) == "summary" }
+    // #228: the reader's language, resolved once. `OnCall.CATEGORY_LABELS` is
+    // the English fallback for a caller with no reader; this card has one.
+    val categoryLabels = OnCall.categoryLabels(LocalAppLocale.current)
+
+    val anyBatched = categoryLabels.keys.any { modeOf(it) == "batched" }
+    val anySummary = categoryLabels.keys.any { modeOf(it) == "summary" }
 
     Column(Modifier.padding(top = 12.dp)) {
         Text(
-            OnCall.DELIVERY_HEADING,
+            t(OnCall.DELIVERY_HEADING_KEY),
             style = MaterialTheme.typography.titleSmall,
             modifier = Modifier.padding(bottom = 2.dp),
         )
         Text(
-            OnCall.DELIVERY_URGENT_ALWAYS,
+            t(OnCall.DELIVERY_URGENT_ALWAYS_KEY),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp),
         )
 
-        for ((category, label) in OnCall.CATEGORY_LABELS) {
+        for ((category, label) in categoryLabels) {
             Row(
                 Modifier.fillMaxWidth().padding(vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -108,9 +113,9 @@ fun DeliveryModesCard(
                         val selected = modeOf(category) == mode
                         Text(
                             when (mode) {
-                                "batched" -> OnCall.DELIVERY_BATCHED
-                                "summary" -> OnCall.DELIVERY_SUMMARY
-                                else -> OnCall.DELIVERY_IMMEDIATE
+                                "batched" -> t(OnCall.DELIVERY_BATCHED_KEY)
+                                "summary" -> t(OnCall.DELIVERY_SUMMARY_KEY)
+                                else -> t(OnCall.DELIVERY_IMMEDIATE_KEY)
                             },
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.SemiBold,
@@ -140,7 +145,7 @@ fun DeliveryModesCard(
 
         if (anySummary) {
             Text(
-                OnCall.DELIVERY_SUMMARY_DETAIL,
+                t(OnCall.DELIVERY_SUMMARY_DETAIL_KEY),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),

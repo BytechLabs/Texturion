@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.loonext.android.core.data.CacheKeys
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.features.payments.PayoutAccount
@@ -138,6 +139,8 @@ private fun PayoutCard(
     val coroutines = rememberCoroutineScope()
     var opening by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    // #228: the failure is written from a coroutine, outside composition.
+    val locale = LocalAppLocale.current
 
     // Two different destinations behind one server-labelled button. Which one
     // is decided by WHERE THE BUSINESS IS, not by the label: "Open Stripe" is
@@ -190,7 +193,7 @@ private fun PayoutCard(
                                 // away-for-30s floor.
                                 onChanged()
                             } catch (cause: Exception) {
-                                error = cause.userMessage()
+                                error = cause.userMessage(locale)
                             } finally {
                                 opening = false
                             }

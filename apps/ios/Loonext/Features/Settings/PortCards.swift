@@ -284,7 +284,8 @@ private struct PortCard: View {
             if onHold {
                 Text(
                     portedLineOnHoldLine(
-                        canManageBilling: SettingsRoleGate.canManageBilling(scope.role)
+                        canManageBilling: SettingsRoleGate.canManageBilling(scope.role),
+                        locale: appLocale
                     )
                 )
                 .font(.footnote)

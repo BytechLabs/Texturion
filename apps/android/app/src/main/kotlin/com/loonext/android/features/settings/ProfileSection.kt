@@ -116,7 +116,7 @@ private fun DisplayNameCard(scope: SettingsScope) {
                                 AppStrings.translate(locale, "settingsMore.nameSaved"),
                             )
                         } catch (cause: Exception) {
-                            error = cause.userMessage()
+                            error = cause.userMessage(locale)
                         } finally {
                             saving = false
                         }
@@ -153,6 +153,10 @@ private fun LanguageCard(scope: SettingsScope) {
     val haptics = rememberHaptics()
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    // #228: the CURRENT language, not the one being chosen. A save that failed
+    // changed nothing, so the reader is still reading whatever they were — the
+    // success sentence below is the one that speaks in the new language.
+    val locale = LocalAppLocale.current
 
     // The mirror rather than `scope.me.locale`: this is the same value the
     // Compose root resolves the app's language from, so the radio and the app
@@ -182,7 +186,7 @@ private fun LanguageCard(scope: SettingsScope) {
                     AppStrings.translate(value ?: followed, "shell.languageSaved"),
                 )
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } finally {
                 saving = false
             }
@@ -352,7 +356,7 @@ private fun ChangeEmailBlock(scope: SettingsScope, authClient: SettingsAuthClien
                             AppStrings.translate(locale, "settingsMore.emailConfirmSent"),
                         )
                     } catch (cause: Exception) {
-                        error = cause.userMessage()
+                        error = cause.userMessage(locale)
                     } finally {
                         saving = false
                     }
@@ -436,13 +440,13 @@ private fun ChangePasswordBlock(scope: SettingsScope, authClient: SettingsAuthCl
                             error = AppStrings.translate(locale, "settingsMore.signedOut")
                         }
                     } catch (nonceCause: Exception) {
-                        error = nonceCause.userMessage()
+                        error = nonceCause.userMessage(locale)
                     }
                 } else {
-                    error = cause.userMessage()
+                    error = cause.userMessage(locale)
                 }
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } finally {
                 saving = false
             }

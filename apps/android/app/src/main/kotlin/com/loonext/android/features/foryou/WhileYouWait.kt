@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.isWaitingOnRegistration
@@ -57,7 +58,7 @@ fun WhileYouWait(
     // away from the thing actually blocking it.
     if (company == null || !isWaitingOnRegistration(brand, campaign)) return
 
-    val progress = registrationProgress(brand, campaign)
+    val progress = registrationProgress(brand, campaign, LocalAppLocale.current)
 
     Card(modifier = modifier.fillMaxWidth()) {
         Column(

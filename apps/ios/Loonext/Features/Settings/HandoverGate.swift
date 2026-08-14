@@ -231,21 +231,34 @@ struct HandoverProofSheet: View {
     let onResend: @MainActor () -> Void
     let onDismiss: @MainActor () -> Void
 
+    // AFTER the required `let`s, and private with a wrapper-supplied value, so
+    // the memberwise init the three call sites use is unchanged — the same
+    // category `code` below has always been in.
+    @Environment(\.appLocale) private var appLocale
+
     @State private var code = ""
+
+    /// #228: the `*Key` constants beside each English convenience getter on
+    /// `HandoverConfirmation` exist for exactly this — a surface that knows its
+    /// reader resolves them itself, and the getters stay English for the parity
+    /// tests that hold these sentences against the shared module.
+    private func t(_ key: String) -> String {
+        AppStrings.translate(appLocale, key)
+    }
 
     var body: some View {
         ConfirmSheet(
-            title: HandoverConfirmation.title,
-            message: HandoverConfirmation.whereToLook(kind),
-            confirmLabel: HandoverConfirmation.submit,
+            title: t(HandoverConfirmation.titleKey),
+            message: HandoverConfirmation.whereToLook(kind, locale: appLocale),
+            confirmLabel: t(HandoverConfirmation.submitKey),
             pending: pending,
-            error: rejected ? HandoverConfirmation.rejected : nil,
+            error: rejected ? t(HandoverConfirmation.rejectedKey) : nil,
             confirmEnabled: HandoverConfirmation.isCode(code),
             onConfirm: { onConfirm(code) },
             onDismiss: onDismiss
         ) {
             VStack(alignment: .leading, spacing: 10) {
-                TextField(HandoverConfirmation.field, text: $code)
+                TextField(t(HandoverConfirmation.fieldKey), text: $code)
                     .textFieldStyle(.roundedBorder)
                     .font(.golos(15))
                     .keyboardType(.numberPad)
@@ -255,12 +268,12 @@ struct HandoverProofSheet: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .disabled(pending)
-                    .accessibilityLabel(HandoverConfirmation.field)
+                    .accessibilityLabel(t(HandoverConfirmation.fieldKey))
                 // Only on the email path. There is nothing to resend to somebody
                 // whose app is generating the codes, and the button would imply
                 // otherwise.
                 if kind == .email {
-                    Button(HandoverConfirmation.resend) { onResend() }
+                    Button(t(HandoverConfirmation.resendKey)) { onResend() }
                         .font(.golos(13))
                         .foregroundStyle(BrandColor.muted600)
                         .disabled(pending)

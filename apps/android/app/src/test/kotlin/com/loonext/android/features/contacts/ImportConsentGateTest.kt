@@ -564,7 +564,12 @@ class ImportConsentGateTest {
         // signed out, too many imports — still takes the Snackbar it always had.
         assertTrue(
             "non-validation failures must not be swallowed by the sheet",
-            tab.contains("snackbar.showSnackbar(cause.userMessage())"),
+            // The OPENING of the call. #228 threads the reader's language into
+            // `userMessage(locale)`, and pinning the empty parens would have
+            // forced a refusal to stay English to keep this green. What this
+            // asserts is the PATH — a non-validation failure takes the snackbar,
+            // not the sheet — which an argument cannot change.
+            tab.contains("snackbar.showSnackbar(cause.userMessage("),
         )
     }
 

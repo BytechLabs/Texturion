@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.PhoneNumberSummary
 import com.loonext.android.ui.common.LoadState
@@ -64,6 +65,9 @@ internal fun NumberHoursDialog(
     var pending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutines = rememberCoroutineScope()
+    // #228: the load and save failures are both written from coroutines, where
+    // there is no composition left to read the reader's language out of.
+    val locale = LocalAppLocale.current
 
     fun seed(identity: NumberIdentity) {
         zone = identity.timezone.value.orEmpty()
@@ -79,7 +83,7 @@ internal fun NumberHoursDialog(
             seed(identity)
             LoadState.Ready(identity)
         } catch (cause: Exception) {
-            LoadState.Failed(cause.userMessage())
+            LoadState.Failed(cause.userMessage(locale))
         }
     }
 
@@ -98,7 +102,7 @@ internal fun NumberHoursDialog(
                 loaded = LoadState.Ready(next)
                 onChanged()
             } catch (cause: Exception) {
-                error = cause.userMessage()
+                error = cause.userMessage(locale)
             } finally {
                 pending = false
             }
@@ -215,7 +219,7 @@ internal fun NumberHoursDialog(
                             onChanged()
                             onDismiss()
                         } catch (cause: Exception) {
-                            error = cause.userMessage()
+                            error = cause.userMessage(locale)
                         } finally {
                             pending = false
                         }

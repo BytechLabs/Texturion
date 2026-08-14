@@ -104,12 +104,12 @@ struct SendLaterSheet: View {
     // changes when the clock crosses 8am there, and on that pass the NEW pair
     // is the correct one.
     private var presets: [SchedulePreset] {
-        schedulePresets(now: Date(), timeZone: zone)
+        schedulePresets(now: Date(), timeZone: zone, locale: appLocale)
     }
 
     private var headerLine: String {
         guard let clock else { return t("thread.workspaceTime") }
-        return ScheduledSend.clockProvenance(clock.rung)
+        return ScheduledSend.clockProvenance(clock.rung, locale: appLocale)
     }
 }
 
@@ -137,6 +137,9 @@ struct SendLaterPicker: View {
         self.clock = clock
         self.onConfirm = onConfirm
         // Smart Defaults: opens on the next preset rather than a blank field.
+        // #228: no locale, and none is needed — an `init` runs before the
+        // environment exists, and only `.at` is read here. The LABELS this
+        // builds are never drawn.
         let seed = schedulePresets(now: Date(), timeZone: destinationZone(clock))
             .first(where: { $0.at != nil })?.at
         _value = State(initialValue: seed ?? Date().addingTimeInterval(3600))
@@ -157,7 +160,7 @@ struct SendLaterPicker: View {
                     // to answer it would be a worse version of the same confusion.
                     Picker(t("thread.whichClock"), selection: $choice) {
                         ForEach(TwoClocks.Choice.allCases) { option in
-                            Text(option.label).tag(option)
+                            Text(option.localisedLabel(appLocale)).tag(option)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -223,11 +226,17 @@ struct SendLaterPicker: View {
         return choice == .theirs
             ? t(
                 "thread.pickerThats",
-                ["time": clockOf(resolved, in: .current), "clock": TwoClocks.here]
+                [
+                    "time": clockOf(resolved, in: .current),
+                    "clock": AppStrings.translate(appLocale, TwoClocks.hereKey),
+                ]
             )
             : t(
                 "thread.pickerThats",
-                ["time": clockOf(resolved, in: theirZone), "clock": TwoClocks.there]
+                [
+                    "time": clockOf(resolved, in: theirZone),
+                    "clock": AppStrings.translate(appLocale, TwoClocks.thereKey),
+                ]
             )
     }
 
@@ -279,7 +288,7 @@ func senderClockNote(
     device: TimeZone,
     locale: String? = nil
 ) -> String {
-    let reassurance = ScheduledSend.copyLine("picker_reassurance")
+    let reassurance = ScheduledSend.copyLine("picker_reassurance", locale: locale)
     guard
         let clock,
         clock.rung != "company",
@@ -339,8 +348,8 @@ func hoursApart(
 /// composer that owns the retry.
 func quietHoursScheduleMessage(localHour: Int?, locale: String? = nil) -> String {
     guard let localHour else {
-        return ScheduledSend.copyLine("quiet_hours_unknown") + " "
-            + ScheduledSend.copyLine("quiet_hours_choice")
+        return ScheduledSend.copyLine("quiet_hours_unknown", locale: locale) + " "
+            + ScheduledSend.copyLine("quiet_hours_choice", locale: locale)
     }
     let suffix = localHour < 12 ? "am" : "pm"
     let twelve = localHour % 12 == 0 ? 12 : localHour % 12
@@ -350,5 +359,5 @@ func quietHoursScheduleMessage(localHour: Int?, locale: String? = nil) -> String
         ["hour": "\(twelve)\(suffix)"]
     )
         + " "
-        + ScheduledSend.copyLine("quiet_hours_choice")
+        + ScheduledSend.copyLine("quiet_hours_choice", locale: locale)
 }

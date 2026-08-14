@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.loonext.android.core.dashboard.DashboardPanels
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.AppSheet
 
@@ -141,7 +142,7 @@ private fun PanelRow(
     ) {
         Column(Modifier.weight(1f)) {
             Text(
-                DashboardPanels.label(panel),
+                DashboardPanels.label(panel, LocalAppLocale.current),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
             )
@@ -149,7 +150,7 @@ private fun PanelRow(
             // distinguish "Pipeline" from "Response time" for anybody who has not
             // already read both cards.
             Text(
-                DashboardPanels.note(panel),
+                DashboardPanels.note(panel, LocalAppLocale.current),
                 modifier = Modifier.padding(top = 2.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

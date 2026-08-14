@@ -465,7 +465,7 @@ private struct PendingHandoverNotice: View {
                 .foregroundStyle(BrandColor.overdueAmber)
                 .frame(width: 22)
             VStack(alignment: .leading, spacing: 6) {
-                Text(handoverHeadline(pending.kind, who: who))
+                Text(handoverHeadline(pending.kind, who: who, locale: appLocale))
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.ink)
                 Text(
@@ -473,7 +473,8 @@ private struct PendingHandoverNotice: View {
                         pending.kind,
                         ready: pending.isReady,
                         ripensAt: pending.ripens_at,
-                        expiresAt: pending.expires_at
+                        expiresAt: pending.expires_at,
+                        locale: appLocale
                     )
                 )
                 .font(.golos(12))
@@ -495,7 +496,11 @@ private struct PendingHandoverNotice: View {
                         }
                         if canCancel {
                             Button(
-                                handoverCancelLabel(isOwner: isOwner, isMine: pending.isMine)
+                                handoverCancelLabel(
+                                    isOwner: isOwner,
+                                    isMine: pending.isMine,
+                                    locale: appLocale
+                                )
                             ) { onCancel() }
                                 .buttonStyle(.bordered)
                                 .disabled(busy)

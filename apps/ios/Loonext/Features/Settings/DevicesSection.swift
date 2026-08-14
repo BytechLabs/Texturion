@@ -386,7 +386,7 @@ private struct DeviceRow<Action: View>: View {
                 .padding(.top, 2)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 8) {
-                    Text(deviceClientLabel(client))
+                    Text(deviceClientLabel(client, locale: appLocale))
                         .font(.golos(15))
                         .foregroundStyle(BrandColor.ink)
                     if current {

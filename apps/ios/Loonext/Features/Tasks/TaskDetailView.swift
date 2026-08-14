@@ -986,7 +986,9 @@ private struct TaskAddressSection: View {
                         Text(AppStrings.translate(appLocale, "contactsTasks.address"))
                             .font(.golos(13.5, weight: .semibold))
                             .foregroundStyle(BrandColor.ink)
-                        if let label = addressProvenanceLabel(provenance) {
+                        if let label = addressProvenanceLabel(
+                            provenance, locale: appLocale
+                        ) {
                             provenanceBadge(label)
                         }
                     }

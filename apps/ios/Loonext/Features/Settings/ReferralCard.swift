@@ -20,11 +20,13 @@ struct ReferralCard: View {
     @Environment(\.appLocale) private var appLocale
 
     var body: some View {
-        SettingsCard(title: ReferralShare.title) {
+        SettingsCard(title: AppStrings.translate(appLocale, ReferralShare.titleKey)) {
             VStack(alignment: .leading, spacing: 12) {
                 // The reward line is `ReferralShare`'s, asserted against the
-                // shared TypeScript; only the full stop is ours.
-                Text(ReferralShare.rewardLine + ".")
+                // shared TypeScript; only the full stop is ours. #228: read
+                // through its KEY, so the assertion keeps its English and the
+                // card gets the reader's.
+                Text(AppStrings.translate(appLocale, ReferralShare.rewardLineKey) + ".")
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted600)
 
@@ -40,7 +42,7 @@ struct ReferralCard: View {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(view.referrals) { row in
                             HStack {
-                                Text(ReferralShare.stageLabel(row.stage))
+                                Text(ReferralShare.stageLabel(row.stage, locale: appLocale))
                                     .font(.golos(13))
                                     .foregroundStyle(BrandColor.muted600)
                                 Spacer(minLength: 12)
