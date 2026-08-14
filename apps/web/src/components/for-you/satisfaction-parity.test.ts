@@ -72,6 +72,20 @@ function kotlinCatalogueValues(text: string): string {
 
 const ANDROID_COPY = kotlinCatalogueValues(readFileSync(ANDROID_CATALOGUE, "utf8"));
 
+/**
+ * #228 reached iOS too: its Details control now reads from the catalogue
+ * rather than carrying English inline, so a fragment that moved there would
+ * read as missing on iOS while being present on all three clients.
+ *
+ * Its SOURCE is still searched as well, because the migration is
+ * file-by-file — most iOS copy is still inline, and this has to keep working
+ * from here to the end of it.
+ */
+const IOS_CATALOGUE = join(
+  REPO_ROOT,
+  "apps/ios/Loonext/Core/I18n/InboxStrings.swift",
+);
+
 /** Sentences that live on the CARD in all three clients. */
 const CARD_FRAGMENTS: readonly string[] = [
   "out of 5, from ",
@@ -135,6 +149,8 @@ describe("#313 satisfaction copy is the same on every client", () => {
     }
     expect(WEB_COPY.length).toBeGreaterThan(1000);
     expect(ANDROID_COPY.length).toBeGreaterThan(1000);
+    // And iOS's catalogue, now that some of its words live there too.
+    expect(readFileSync(IOS_CATALOGUE, "utf8").length).toBeGreaterThan(1000);
   });
 
   it("carries every card sentence on every client, verbatim", () => {
@@ -158,14 +174,15 @@ describe("#313 satisfaction copy is the same on every client", () => {
       // source: the card calls `t("inbox.satisfactionAsked")`, whose key
       // contains the fragment "Asked", so including the file made a reworded
       // label match its own identifier. Android now reads the same way, off its
-      // own catalogue (#228); iOS keeps its whole file, because that is still
-      // where its strings are.
+      // own catalogue (#228); iOS reads BOTH, because its migration is partway
+      // through — some of its words are inline and some are in the catalogue.
       const text =
         platform === "web"
           ? `${shared}\n${WEB_COPY}`
           : platform === "android"
             ? ANDROID_COPY
-            : codeOnly(SOURCES[platform]);
+            : `${codeOnly(SOURCES[platform])}
+${readFileSync(IOS_CATALOGUE, "utf8")}`;
       for (const fragment of [...CARD_FRAGMENTS, ...GAP_FRAGMENTS]) {
         if (!text.includes(fragment)) missing.push(`${platform}: ${fragment}`);
       }

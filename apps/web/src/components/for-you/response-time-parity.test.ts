@@ -56,6 +56,19 @@ const ANDROID_CATALOGUE = join(
 );
 
 /**
+ * #228 reached iOS too: its Details control now reads from the catalogue
+ * rather than carrying English inline, so a fragment that moved there would
+ * otherwise read as missing on iOS while being present on all three.
+ *
+ * Both files are searched rather than one, because the migration is
+ * file-by-file — most iOS copy is still inline, and this has to keep working
+ * from here to the end of it.
+ */
+const IOS_CATALOGUE = join(
+  REPO_ROOT,
+  "apps/ios/Loonext/Core/I18n/InboxStrings.swift",
+);
+/**
  * The Kotlin catalogue's VALUES.
  *
  * The keys are stripped, and that is the same lesson recorded above for web:
@@ -89,6 +102,12 @@ function copyOf(platform: string): string {
   if (platform === "web") return WEB_COPY;
   if (platform === "android") {
     return kotlinCatalogueValues(readFileSync(ANDROID_CATALOGUE, "utf8"));
+  }
+  if (platform === "ios") {
+    return [
+      readFileSync(SOURCES.ios, "utf8"),
+      readFileSync(IOS_CATALOGUE, "utf8"),
+    ].join("\n");
   }
   return readFileSync(SOURCES[platform], "utf8");
 }
@@ -131,6 +150,8 @@ describe("#239 response-time copy is the same on every client", () => {
     // Android's, for the same reason: its catalogue is a fifth file now, and a
     // rename there would make every android assertion below vacuous.
     expect(copyOf("android").length).toBeGreaterThan(1000);
+    // And iOS's, now that some of its words live there too.
+    expect(readFileSync(IOS_CATALOGUE, "utf8").length).toBeGreaterThan(1000);
   });
 
   it("carries every fragment on every platform, verbatim", () => {
