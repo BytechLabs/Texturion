@@ -112,7 +112,11 @@ fun deliveryLabel(message: Message, locale: String? = null): String? =
         MessageStatus.SENT -> AppStrings.translate(locale, "thread.sent")
         MessageStatus.DELIVERED -> AppStrings.translate(locale, "thread.delivered")
         MessageStatus.FAILED ->
-            sendFailureMessage(message.error_code)
+            // #228: the locale goes on. Without it this one branch rendered
+            // English while "Sending", "Sent" and "Delivered" above it were
+            // translated — and it is the branch that says why a text did NOT
+            // go, which is the line on a bubble that most needs reading.
+            sendFailureMessage(message.error_code, locale)
 
         else -> null
     }

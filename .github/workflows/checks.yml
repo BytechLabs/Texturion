@@ -455,6 +455,14 @@ jobs:
       - name: Guard native text scaling
         run: node scripts/check-native-a11y.mjs
 
+      # #228: `locale: String? = null` means forgetting to pass it is SILENT —
+      # nothing fails to compile, no test goes red, and the string renders in
+      # English inside an otherwise-French screen. `deliveryLabel` translated
+      # "Sending", "Sent" and "Delivered" and then dropped the locale on the one
+      # branch that says why a text did NOT go.
+      - name: Guard locale forwarding
+        run: node scripts/check-locale-forwarding.mjs
+
       # #522: three passes over the same class. #328 found plan prices typed as
       # "$29/mo" on both phones; #522 found the registration fee typed as "$29"
       # while Stripe invoices a Canadian workspace CA$39, and the extra-number
