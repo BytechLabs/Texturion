@@ -317,3 +317,117 @@ widgetRoutes.post("/widget/start", async (c) => {
 
   return c.json({ ok: true, verificationId: claimed.id }, 202);
 });
+
+const verifySchema = z.object({
+  verificationId: z.uuid(),
+  /** Six digits, as read off the visitor's phone. */
+  code: z.string().trim().regex(/^\d{6}$/),
+  /** What they actually want to say. The reason the whole flow exists. */
+  message: z.string().trim().min(1).max(1000),
+});
+
+/**
+ * The second half: answer the code, and the message lands in the inbox.
+ *
+ * The verification is spent BEFORE the message is threaded, and that order is
+ * deliberate. A code that is answered correctly is used up whether or not
+ * everything after it succeeds — the alternative is a code that stays live
+ * because the threading failed, which is a replayable credential created by an
+ * error path.
+ *
+ * The message is threaded through the SAME function a real text goes through:
+ * same contact upsert, same conversation rules, same notification claim and
+ * budget. #232 asks that a widget conversation be indistinguishable from a text
+ * from the crew's side, and reusing the path is the only way that stays true as
+ * either side changes. What differs is recorded rather than disguised — the
+ * message says `widget`, carries no carrier id, and the conversation records
+ * where it started.
+ */
+widgetRoutes.post("/widget/verify", async (c) => {
+  const env = getEnv(c.env);
+  const parsed = verifySchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return errorResponse(c, "validation_failed", "Check the code and try again.");
+  }
+  const body = parsed.data;
+
+  const ip = c.req.header("CF-Connecting-IP") ?? "unknown";
+  if (env.VERIFY_RATE_LIMITER) {
+    const { success } = await env.VERIFY_RATE_LIMITER.limit({
+      key: `widget-verify:${ip}`,
+    });
+    if (!success) {
+      return errorResponse(
+        c,
+        "rate_limited",
+        "Too many tries from this connection. Wait a minute and try again.",
+      );
+    }
+  }
+
+  const db = getDb(env);
+  const { data: answered, error: answerError } = await db.rpc(
+    "api_answer_widget_verification",
+    {
+      p_id: body.verificationId,
+      p_code_hash: await hashWidgetCode(body.verificationId, body.code),
+      p_max_attempts: WIDGET_MAX_ATTEMPTS,
+    },
+  );
+  if (answerError) throw new Error(`widget answer failed: ${answerError.message}`);
+  const result = answered as {
+    ok?: boolean;
+    reason?: string;
+    company_id?: string;
+    phone_e164?: string;
+  };
+  if (result.ok !== true || !result.company_id || !result.phone_e164) {
+    // ONE ANSWER for wrong, expired, spent and unknown. A visitor can act on
+    // none of the distinctions, and a caller who could tell them apart would
+    // know which ids exist and which codes are still live.
+    return errorResponse(
+      c,
+      "forbidden",
+      "That code did not work. Ask for a new one and try again.",
+    );
+  }
+
+  // The number the conversation lands on: the same one the code came from, so
+  // a reply from the crew reaches the phone the visitor just proved they hold.
+  const { data: numbers, error: numberError } = await db
+    .from("phone_numbers")
+    .select("id")
+    .eq("company_id", result.company_id)
+    .eq("status", "active")
+    .order("created_at", { ascending: true })
+    .limit(1);
+  if (numberError) {
+    throw new Error(`widget number lookup failed: ${numberError.message}`);
+  }
+  const numberId = (numbers ?? [])[0]?.id as string | undefined;
+  if (numberId === undefined) return widgetUnavailable(c);
+
+  const { data: threaded, error: threadError } = await db.rpc(
+    "thread_inbound_message",
+    {
+      p_company_id: result.company_id,
+      p_phone_number_id: numberId,
+      p_from_e164: result.phone_e164,
+      p_body: body.message,
+      p_telnyx_message_id: null,
+      p_source: "widget",
+      // The VERIFICATION is the key. A visitor who double-taps submit answers
+      // the same verification twice, and both attempts must be one thread.
+      p_idempotency_key: `widget:${body.verificationId}`,
+    },
+  );
+  if (threadError) {
+    throw new Error(`widget threading failed: ${threadError.message}`);
+  }
+  const landed = threaded as { conversation_id?: string } | null;
+  if (!landed?.conversation_id) {
+    throw new Error("widget threading returned no conversation");
+  }
+
+  return c.json({ ok: true }, 201);
+});

@@ -6,6 +6,8 @@
  * the rest are the ways a stranger, a bot or a broken embed must be stopped
  * before anything costs a segment.
  */
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -98,5 +100,51 @@ describe("the numbers this feature is bounded by", () => {
     // over somebody's shoulder is worthless by the time it is used.
     expect(WIDGET_CODE_TTL_SECONDS).toBeLessThanOrEqual(900);
     expect(WIDGET_CODE_TTL_SECONDS).toBeGreaterThanOrEqual(120);
+  });
+});
+
+describe("what the two endpoints refuse to tell a caller", () => {
+  it("answers every failed code the same way", () => {
+    // Wrong, expired, spent, unknown id — one sentence. A visitor standing on a
+    // plumber's website can act on none of the distinctions, and a caller who
+    // COULD tell them apart would learn which verification ids exist and which
+    // codes are still live.
+    //
+    // Asserted against the source because the alternative is a route test that
+    // stubs five failure modes and proves only that the stubs were written.
+    const source = readFileSync(
+      new URL("./widget.ts", import.meta.url),
+      "utf8",
+    );
+    const answerBranch = source.slice(source.indexOf("api_answer_widget_verification"));
+    const messages = [...answerBranch.matchAll(/"([^"]*did not work[^"]*)"/g)];
+    expect(messages).toHaveLength(1);
+    // And the reason the RPC gave is never handed back.
+    expect(answerBranch).not.toContain("result.reason");
+  });
+
+  it("spends the code before the message is threaded", () => {
+    // A code answered correctly is used up whether or not everything after it
+    // succeeds. The other order leaves a live code behind whenever threading
+    // fails — a replayable credential created by an error path.
+    const source = readFileSync(
+      new URL("./widget.ts", import.meta.url),
+      "utf8",
+    );
+    expect(source.indexOf("api_answer_widget_verification")).toBeLessThan(
+      source.indexOf("thread_inbound_message"),
+    );
+  });
+
+  it("threads a widget message with no carrier id and our own key", () => {
+    // The whole point of the #232 source discriminator: no invented Telnyx id,
+    // and a key that makes a double-tapped submit one thread.
+    const source = readFileSync(
+      new URL("./widget.ts", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("p_telnyx_message_id: null");
+    expect(source).toContain('p_source: "widget"');
+    expect(source).toContain("p_idempotency_key: `widget:${body.verificationId}`");
   });
 });

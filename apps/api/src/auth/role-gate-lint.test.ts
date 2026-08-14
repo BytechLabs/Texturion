@@ -133,6 +133,10 @@ const SELF_SCOPED_WRITES = new Set([
 const UNGATED_WRITES: Record<string, string> = {
   // PUBLIC — unauthenticated marketing surfaces.
   "POST /contact": "public — the marketing contact form, no session",
+  "POST /widget/verify":
+    "#232: public — the same surface as /widget/start, one step later. The " +
+    "code it answers is the authorisation: nothing lands in an inbox until a " +
+    "stranger has proved they hold the number we texted",
   "POST /widget/start":
     "#232: public — the Text-us widget, embedded on the CUSTOMER's own website, " +
     "where there is no session and never will be. Ungated is not unguarded: it " +
