@@ -56,7 +56,29 @@
  * to. That is a product decision with a real cost, and it is now a decision
  * somebody can make from a number rather than from a guess.
  *
- * Staging it live regardless would mean a violation report POSTed by every
+ * AND HASHES DO NOT RESCUE IT, WHICH IS THE FIRST THING ANYBODY ASKS.
+ *
+ * A hash is the CSP mechanism built for exactly this case: an inline script
+ * that is byte-identical on every response has a stable SHA-256, computable
+ * at build time, needing no request and no middleware. So it is the obvious
+ * way out of the paragraph above, and it was measured rather than assumed.
+ *
+ * Counted across the 93 prerendered files on 2026-08-14: **3,494 inline
+ * script tags, 1,815 of them distinct.** Only three are shared by all 93
+ * pages — the bootstrap. The rest are `self.__next_f.push(...)` payloads
+ * carrying each page's own RSC data, so they are unique BY CONSTRUCTION and
+ * a new page adds more.
+ *
+ * A `script-src` listing 1,815 base64 SHA-256 values is roughly 90 KB of
+ * header on every response, against the 8-16 KB most servers and CDNs
+ * refuse outright. Per-page policies would fit, but they would have to be
+ * regenerated on every build and pinned per route in `next.config.ts` — 93
+ * entries that go stale silently the moment a page's data changes.
+ *
+ * So the conclusion above stands with a second, independent reason: an
+ * enforcing `script-src` needs these routes rendered per request. That is
+ * still a product decision, and it is now one nobody has to re-derive.
+ * * Staging it live regardless would mean a violation report POSTed by every
  * visitor on every page for a fault we already know about — an open endpoint we
  * point at ourselves. Hence the switch: the machinery is complete and tested,
  * and turning it on is deliberate.
