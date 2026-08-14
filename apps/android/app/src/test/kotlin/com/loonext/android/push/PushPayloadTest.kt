@@ -155,6 +155,39 @@ class PushPayloadTest {
     }
 
     @Test
+    fun `money moving routes to Payments, whichever way it moved`() {
+        // #607 option B. All three outcomes share one kind because they share
+        // one destination: a refund on a channel the deposit is not would be a
+        // switch somebody could silence without ever knowing they had.
+        val paid = parsePush(
+            mapOf(
+                "kind" to "payment",
+                "title" to "Maria Alvarez paid \$250",
+                "body" to "Deposit for the driveway",
+                "url" to "/inbox/conv-9",
+                "tag" to "payment:paid:req-1",
+            ),
+        )
+        val disputed = parsePush(
+            mapOf(
+                "kind" to "payment",
+                "title" to "Maria Alvarez's bank pulled back \$250",
+                "body" to "Deposit for the driveway",
+                "url" to "/inbox/conv-9",
+                "tag" to "payment:disputed:req-1",
+            ),
+        )
+
+        assertEquals(ChannelIds.PAYMENTS, paid.channelId)
+        assertEquals(ChannelIds.PAYMENTS, disputed.channelId)
+        assertEquals(PushKind.PAYMENT, paid.kind)
+        // The server's per-outcome tag survives: a refund must not replace the
+        // "paid" alert it followed, because both are facts the crew needs.
+        assertEquals("payment:paid:req-1", paid.tag)
+        assertEquals("payment:disputed:req-1", disputed.tag)
+    }
+
+    @Test
     fun `an ordinary text stays on Messages`() {
         // The other half of the pairing. Everything on the loud channel is a
         // channel everybody mutes, which tells nobody anything.

@@ -109,6 +109,35 @@ final class NotificationsPushPayloadTests: XCTestCase {
         XCTAssertEqual(content.kind, PushKind.emergency)
     }
 
+    func testMoneyMovingGetsThePaymentsCategoryWhicheverWayItMoved() {
+        // #607 option B. All three outcomes share one kind because they share
+        // one destination: a refund in a category the deposit is not would be a
+        // switch somebody could silence without ever knowing they had.
+        let paid = parsePush([
+            "kind": "payment",
+            "title": "Maria Alvarez paid $250",
+            "body": "Deposit for the driveway",
+            "url": "/inbox/conv-9",
+        ])
+        let disputed = parsePush([
+            "kind": "payment",
+            "title": "Maria Alvarez's bank pulled back $250",
+            "body": "Deposit for the driveway",
+            "url": "/inbox/conv-9",
+        ])
+
+        XCTAssertEqual(paid.category, PushCategory.payments)
+        XCTAssertEqual(disputed.category, PushCategory.payments)
+        XCTAssertEqual(paid.kind, PushKind.payment)
+    }
+
+    func testThePaymentsCategoryIsNotMessages() {
+        // The pairing that makes the category worth having: sharing Messages
+        // would mean muting the inbox for an afternoon also mutes the deposit
+        // somebody is standing in a driveway waiting on.
+        XCTAssertNotEqual(PushCategory.payments, PushCategory.messages)
+    }
+
     func testAnOrdinaryTextStaysInMessages() {
         // The other half of the pairing. Everything in the loud category is a
         // category everybody mutes, which tells nobody anything.

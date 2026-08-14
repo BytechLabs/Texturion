@@ -30,6 +30,7 @@ import { getDb } from "../db";
 import { emailLayout, escapeHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
+import { contactDisplayName } from "./contact-name";
 import { deliverPush } from "./deliver";
 
 const SNIPPET_LENGTH = 80;
@@ -185,8 +186,10 @@ export async function notifyInboundMessage(
     ? audience.filter((userId) => prefs.get(userId)?.push_enabled ?? true)
     : [];
 
-  const contactName =
-    conversation.contacts.name?.trim() || conversation.contacts.phone_e164;
+  // The one form every alert names a customer in — shared rather than restated,
+  // because the fallback to the bare number is what keeps a brand-new lead's
+  // alert usable and a private copy of it is a copy that can lose it.
+  const contactName = contactDisplayName(conversation.contacts);
   const snippet = notificationSnippet(input.body, input.mediaCount);
   // #414: the first line has to say WHAT this is before it says who it is
   // from — a phone on a bedside table shows one line. The push title and the

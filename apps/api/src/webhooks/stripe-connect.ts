@@ -30,6 +30,7 @@ import { loadConnectAccountByStripeId, saveConnectMirror } from "../billing/conn
 import { getStripe, type Stripe } from "../billing/stripe";
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { notifyPayment, type PaymentOutcome } from "../notifications/payment";
 import { insertConversationEvents } from "../routes/core/events";
 
 /**
@@ -177,6 +178,8 @@ async function handleConnectCheckout(
       },
     },
   ]);
+
+  await alertTheCrew(env, db, result, "paid", result.amount_cents ?? null);
 }
 
 /** The business refunded the customer from their own Stripe dashboard. */
@@ -268,6 +271,63 @@ async function settle(
       },
     },
   ]);
+
+  // The figure the THREAD will show for this event, so the lock screen and the
+  // timeline never quote two different numbers about one payment: a refund
+  // narrates what went back, everything else what was asked.
+  await alertTheCrew(
+    env,
+    db,
+    result,
+    args.kind,
+    (args.kind === "refunded"
+      ? (result.amount_refunded_cents ?? result.amount_cents)
+      : result.amount_cents) ?? null,
+  );
+}
+
+/**
+ * #607 option B — and the phones, for whoever is not looking at a screen.
+ *
+ * BEST-EFFORT BY CONTRACT, unlike every other caller of a notify* function.
+ * Throwing here would fail the webhook, and a Stripe redelivery resolves
+ * `already_paid` / `noop` and returns before this line — so the retry would not
+ * re-send the alert, it would only re-fail the delivery. The money is recorded,
+ * the thread already updated live (option A), and a lost push is worth less
+ * than a Connect endpoint that reports failure for something it cannot fix.
+ */
+async function alertTheCrew(
+  env: Env,
+  db: SupabaseClient,
+  result: {
+    payment_request_id?: string;
+    company_id?: string;
+    conversation_id?: string;
+    currency?: string;
+    description?: string;
+  },
+  outcome: PaymentOutcome,
+  amountCents: number | null,
+): Promise<void> {
+  const { payment_request_id, company_id, conversation_id } = result;
+  if (!payment_request_id || !company_id || !conversation_id) return;
+  try {
+    await notifyPayment(
+      env,
+      {
+        companyId: company_id,
+        conversationId: conversation_id,
+        paymentRequestId: payment_request_id,
+        outcome,
+        amountCents,
+        currency: result.currency ?? null,
+        description: result.description ?? null,
+      },
+      db,
+    );
+  } catch (cause) {
+    console.error(`payment alert failed for ${payment_request_id}: ${String(cause)}`);
+  }
 }
 
 /** The charge behind a payment intent, on the connected account. */

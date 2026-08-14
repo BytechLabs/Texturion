@@ -55,6 +55,16 @@ object PushKind {
     const val EMERGENCY = "emergency"
 
     /**
+     * #607: a customer paid, was refunded, or their bank pulled the money back.
+     *
+     * ONE kind for all three, because this discriminator decides WHERE a push
+     * lands and all three belong in the same place. A refund on a channel a
+     * deposit is not would be a switch somebody could silence without ever
+     * knowing they had.
+     */
+    const val PAYMENT = "payment"
+
+    /**
      * Ring revocation on every exit from `ringing` (calls-v3 §9.2). Android
      * FCM sends are data-only with NO collapse key, so the ONLY dismissal
      * mechanism is this client's explicit cancel-by-tag (`call:<session>`).
@@ -121,6 +131,11 @@ fun parsePush(data: Map<String, String>): PushContent {
             // silenced by the same switch — while the reply we send that
             // customer says the crew has been alerted.
             PushKind.EMERGENCY -> ChannelIds.EMERGENCY
+            // #607: money is not a message. On the Messages channel a deposit
+            // landing was silenced by the same switch as "on my way?", and the
+            // person most likely to have muted the inbox for the afternoon is
+            // the one standing in the driveway waiting on it.
+            PushKind.PAYMENT -> ChannelIds.PAYMENTS
             PushKind.MISSED_CALL -> ChannelIds.MISSED_CALLS
             PushKind.TASK_DUE -> ChannelIds.TASK_REMINDERS
             PushKind.CONVERSATION_ASSIGNED, PushKind.TASK_ASSIGNED ->

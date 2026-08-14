@@ -29,6 +29,7 @@ import { listConversationViewers } from "../auth/conversation-audience";
 import { getDb } from "../db";
 import type { Env } from "../env";
 
+import { conversationContactName } from "./contact-name";
 import { deliverPush } from "./deliver";
 
 /**
@@ -314,31 +315,3 @@ export function assignmentAlert(
   };
 }
 
-/**
- * Who the thread is with — the contact's name, or their number when unnamed.
- *
- * The same fallback the inbound alert uses, and for the same reason: a bare
- * number is still an identification, and "assigned you a conversation / (no
- * name)" would make the alert useless in exactly the case (a brand new lead)
- * where being handed one matters most.
- */
-async function conversationContactName(
-  db: SupabaseClient,
-  companyId: string,
-  conversationId: string,
-): Promise<string | null> {
-  const rows = unwrapRows<{
-    contacts: { name: string | null; phone_e164: string } | null;
-  }>(
-    await db
-      .from("conversations")
-      .select("contacts(name,phone_e164)")
-      .eq("company_id", companyId)
-      .eq("id", conversationId)
-      .limit(1),
-    "conversation contact lookup",
-  );
-  const contact = rows[0]?.contacts;
-  if (!contact) return null;
-  return contact.name?.trim() || contact.phone_e164;
-}

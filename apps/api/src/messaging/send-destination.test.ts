@@ -44,8 +44,10 @@ const ALLOWED: Record<string, string> = {
     "the notification's title — who texted, not where a reply goes",
   "notifications/missed-call.ts":
     "the notification's title — who called, not where a reply goes",
-  "notifications/assignment.ts":
-    "names the customer in an assignment notification — who, not where",
+  "notifications/contact-name.ts":
+    "the one place an alert resolves WHO a thread is with — a title, never a " +
+    "destination. The assignment and payment alerts read it from here rather " +
+    "than each holding its own copy of the fallback",
   "routes/calls.ts":
     "the call DETAIL view names the customer; the dial destination on the " +
     "same file reads `contact_phone_e164`",

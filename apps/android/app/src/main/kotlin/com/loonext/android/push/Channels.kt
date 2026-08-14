@@ -46,6 +46,16 @@ object ChannelIds {
      * should not thereby mute this.
      */
     const val EMERGENCY = "emergency"
+
+    /**
+     * #607: money moving on a job — paid, refunded, or pulled back by a bank.
+     *
+     * Its own channel rather than Messages for the reason the others have one:
+     * the inbox is what a crew mutes on a busy afternoon, and a deposit landing
+     * is the one alert somebody is actively waiting on while they decide
+     * whether to start work.
+     */
+    const val PAYMENTS = "payments"
 }
 
 /**
@@ -107,6 +117,14 @@ fun ensureChannels(context: Context) {
         vibrationPattern = longArrayOf(0, 350, 200, 350)
     }
 
+    val payments = NotificationChannel(
+        ChannelIds.PAYMENTS,
+        "Payments",
+        NotificationManager.IMPORTANCE_DEFAULT,
+    ).apply {
+        description = "Money paid, refunded, or pulled back on a job."
+    }
+
     val incomingCalls = NotificationChannel(
         ChannelIds.INCOMING_CALLS,
         "Incoming calls",
@@ -131,6 +149,7 @@ fun ensureChannels(context: Context) {
             taskReminders,
             assignments,
             emergency,
+            payments,
             incomingCalls,
         ),
     )

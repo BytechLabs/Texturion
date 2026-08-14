@@ -39,6 +39,11 @@ enum PushKind {
     /// #564: a customer replying URGENT. Sent on the NATIVE payload only
     /// (inbound.ts) — the service worker has no channels to pick from.
     static let emergency = "emergency"
+
+    /// #607: a customer paid, was refunded, or their bank pulled the money
+    /// back. ONE kind for all three — this discriminator decides WHERE a push
+    /// lands and all three belong in the same place.
+    static let payment = "payment"
 }
 
 /// Category identifiers — the iOS analogue of the Android notification
@@ -71,6 +76,13 @@ enum PushCategory {
     /// foreground presentation and any locally posted copy branch on. Android's
     /// twin is a real high-importance channel.
     static let emergency = "emergency"
+
+    /// #607: money moving on a job — paid, refunded, or pulled back by a bank.
+    /// Separate from `messages` for the same reason Android's channel is: the
+    /// inbox is what a crew mutes on a busy afternoon, and a deposit landing is
+    /// the one alert somebody is actively waiting on while they decide whether
+    /// to start work.
+    static let payments = "payments"
 }
 
 /// One parsed, display-ready push.
@@ -133,6 +145,10 @@ func pushCategory(for kind: String?) -> String {
     // being presented exactly like "on my way?".
     case PushKind.emergency:
         return PushCategory.emergency
+    // #607: money is not a message, and on the Messages category a deposit was
+    // presented exactly like "on my way?".
+    case PushKind.payment:
+        return PushCategory.payments
     case PushKind.missedCall:
         return PushCategory.missedCalls
     case PushKind.taskDue:

@@ -20,7 +20,21 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { FakeRest } from "../telnyx/test-support";
 import { completeEnv, stubFetch } from "../test/support";
 import type { Stripe } from "../billing/stripe";
+import { notifyPayment } from "../notifications/payment";
 import { processStripeEvent } from "./stripe";
+
+/**
+ * #607 option B — the alert is doubled here, and covered for real in
+ * `notifications/payment.test.ts`. What this file is responsible for is the
+ * WIRING: that each of the three outcomes reaches it, carrying the same figure
+ * the thread will show, and that a failure inside it cannot fail the webhook.
+ */
+vi.mock("../notifications/payment", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../notifications/payment")>()),
+  notifyPayment: vi.fn(),
+}));
+
+const alerted = vi.mocked(notifyPayment);
 
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
 const CONVERSATION_ID = "22222222-0000-4000-8000-000000000022";
@@ -311,6 +325,71 @@ describe("#224 what happens after the money moved", () => {
 
     expect(harness.rest.rows("payment_requests")[0].refunded_at).toBeFalsy();
     expect(harness.rest.rows("conversation_events")).toHaveLength(0);
+  });
+
+  describe("#607 and the phones hear about all three", () => {
+    const settled = () =>
+      openRequest({
+        status: "paid",
+        paid_at: "2026-08-01T00:00:00Z",
+        stripe_charge_id: "ch_0001",
+      });
+
+    it("alerts on a payment, a refund and a chargeback", async () => {
+      // Option A put the three on an open screen. A crew on a job site is not
+      // looking at one, and a chargeback is more time-sensitive than the
+      // deposit that preceded it.
+      const paid = buildHarness([openRequest()]);
+      await processStripeEvent(paid.env, checkoutEvent(ACCOUNT_ID));
+      const refunded = buildHarness([settled()]);
+      await processStripeEvent(refunded.env, refundEvent(ACCOUNT_ID));
+      const disputed = buildHarness([settled()]);
+      await processStripeEvent(disputed.env, disputeEvent(ACCOUNT_ID));
+
+      expect(alerted.mock.calls.map((call) => call[1].outcome)).toEqual([
+        "paid",
+        "refunded",
+        "disputed",
+      ]);
+      expect(alerted.mock.calls[0][1]).toMatchObject({
+        companyId: COMPANY_ID,
+        conversationId: CONVERSATION_ID,
+        paymentRequestId: "77777777-0000-4000-8000-000000000077",
+        // The figure the THREAD will show, so a lock screen and a timeline
+        // never quote two different numbers about one payment.
+        amountCents: 25_000,
+        currency: "usd",
+        description: "Deposit for Tuesday",
+      });
+      // …and a refund narrates what went BACK, which is the number the timeline
+      // renders for `payment_refunded`.
+      expect(alerted.mock.calls[1][1].amountCents).toBe(25_000);
+    });
+
+    it("says nothing twice for a redelivered event", async () => {
+      // The RPC resolves `already_paid` and returns before the alert, so a
+      // Stripe redelivery cannot buzz the crew about the same deposit again.
+      const harness = buildHarness([openRequest()]);
+      await processStripeEvent(harness.env, checkoutEvent(ACCOUNT_ID));
+      await processStripeEvent(harness.env, checkoutEvent(ACCOUNT_ID));
+
+      expect(alerted).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not fail the webhook when the alert cannot be delivered", async () => {
+      // BEST-EFFORT BY CONTRACT. A thrown failure here would mark the Connect
+      // event failed, and the redelivery would resolve `already_paid` and never
+      // re-send the alert — so the retry could only re-fail. The money is
+      // already recorded and the open thread already updated.
+      alerted.mockRejectedValueOnce(new Error("every device token is dead"));
+      const harness = buildHarness([openRequest()]);
+
+      await expect(
+        processStripeEvent(harness.env, checkoutEvent(ACCOUNT_ID)),
+      ).resolves.toBeUndefined();
+      expect(harness.rest.rows("conversation_events")).toHaveLength(1);
+      expect(harness.rest.rows("payment_requests")[0].status).toBe("paid");
+    });
   });
 });
 

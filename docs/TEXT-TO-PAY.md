@@ -218,9 +218,28 @@ cancellation is somebody in this app doing it on purpose. PR-10 derives the
 payment family from the enum itself and asserts which members are loud in BOTH
 directions, so a sixth type cannot land quietly on either side of that line.
 
-**Push is still not part of this.** A phone that is asleep learns about the
-payment when it next opens the thread. Push kinds are a vocabulary all three
-clients share (`scripts/check-push-kinds.mjs`) and adding one is its own change.
+**And the phone in a pocket hears too.** `notifications/payment.ts` sends one
+push per payment event to everybody whose number access covers the thread —
+exactly the set the broadcast above reaches, so the two cannot disagree about
+who is allowed to know. It carries `kind: "payment"`, which Android routes to a
+`payments` channel and iOS to the matching category, both held equal by
+`scripts/check-push-kinds.mjs`. ONE kind for all three outcomes: the
+discriminator decides where a push lands, and a refund on a channel the deposit
+is not would be a switch somebody could silence without knowing they had.
+
+It is `operational` rather than a volume-control category of its own, for two
+reasons. A payment is about the business's money rather than its inbox, which is
+the stated line for `operational`; and the batch digest a quieter category would
+degrade to renders every held row as "N new messages", so a batched payment
+would have been reported to the crew as a text nobody sent. Quiet hours still
+apply — a deposit at 1am is on the timeline in the morning — and the priority is
+normal, because HIGH is a rationed resource (#452) and somebody waiting on a
+deposit is holding their phone.
+
+The words are the timeline's words ("paid", "went back to", "pulled back"), and
+the collapse key carries the outcome so a refund cannot erase the payment it
+followed. What the money was for is a member's own words and is withheld under
+#430; who it was from is not.
 
 The SQL is `supabase/migrations/20260813110000_the_deposit_lands_before_anyone_refreshes.sql`,
 amended by `supabase/migrations/20260813130000_the_payment_broadcast_enforces_its_own_contract.sql`.
