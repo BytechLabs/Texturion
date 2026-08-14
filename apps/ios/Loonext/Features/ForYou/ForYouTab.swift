@@ -505,6 +505,19 @@ private struct ForYouList: View {
             .padding(.horizontal, 18)
             .padding(.top, 8)
             .padding(.bottom, 28)
+            // #556: CAPPED AND CENTRED, not stretched. Measured on an Android
+            // render at 840dp — an unfolded foldable, or a tablet — where the
+            // proportion bars ran past 1200px and stopped being comparable at a
+            // glance, the insight sentence ran past any readable measure, and
+            // the three quote figures scattered far enough apart to read as
+            // three unrelated numbers. Web has capped this container since the
+            // overhaul; both phones filled whatever they were given.
+            //
+            // 640 is Material's "medium" window and roughly web's own base cap,
+            // and `maxWidth` with a centred frame leaves every phone untouched
+            // — a 393pt iPhone is already narrower than the cap.
+            .frame(maxWidth: 640)
+            .frame(maxWidth: .infinity)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         // Pull to refresh, matching Android.

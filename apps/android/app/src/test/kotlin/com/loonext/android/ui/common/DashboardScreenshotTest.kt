@@ -7,7 +7,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.assertIsDisplayed
@@ -309,6 +312,61 @@ class DashboardScreenshotTest {
         val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
         writePng(bitmap, "satisfaction")
         assertTrue("satisfaction drew nothing", drewSomething(bitmap))
+    }
+
+    @Test
+    // The DEVICE, not just the composable's width. A `.width(840.dp)` inside a
+    // 320dp window is clipped by the window and renders a phone-sized picture
+    // with the right-hand side missing — which is what the first attempt at
+    // this produced, and it looked like a layout bug rather than a harness one.
+    @Config(sdk = [34], qualifiers = "w840dp-h1280dp-xhdpi")
+    fun `the panels at tablet width`() {
+        // #556 asks whether a bottom bar still makes sense, and the same
+        // question has a layout half: what these panels do when the window is
+        // not a phone. Rendered at 840dp — an unfolded foldable or a tablet in
+        // portrait — because the answer is a picture, not an opinion.
+        compose.setContent {
+            LoonextTheme {
+                Column(
+                    // The same cap the tab applies, so the picture is of the
+                    // shipped layout rather than of a bare card in a wide box.
+                    Modifier
+                        .fillMaxWidth()
+                        .wrapContentWidth(Alignment.CenterHorizontally)
+                        .widthIn(max = 640.dp)
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(16.dp),
+                ) {
+                    LeadSourcesCard(
+                        report = LeadSourceReport(
+                            days = 30,
+                            sources = listOf(
+                                LeadSourceCount("s1", "Google", by_number = 6, by_person = 2, total = 8),
+                                LeadSourceCount("s2", "Word of mouth", by_person = 5, total = 5),
+                            ),
+                            unknown = 3,
+                            total = 16,
+                            coverage = 0.81,
+                        ),
+                        onSetUpSources = {},
+                    )
+                    PipelineCard(
+                        report = PipelineReportResponse(
+                            current = PipelineReport(quoted = 12, won = 4, lost = 2, open = 6),
+                            previous = PipelineReport(quoted = 8, won = 2, lost = 2, open = 4),
+                            win_rate = 67,
+                            previous_win_rate = 50,
+                            insight = "You win 67% of the quotes that get an answer. "
+                                + "6 quotes are still waiting on one.",
+                        ),
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
+        writePng(bitmap, "tablet-840dp")
+        assertTrue("tablet-840dp drew nothing", drewSomething(bitmap))
     }
 
     /** Compose the panel, write the picture, and report whether anything landed. */

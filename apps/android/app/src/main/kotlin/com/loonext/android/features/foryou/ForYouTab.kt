@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -476,7 +478,23 @@ private fun ForYouList(
     val total = forYouHeadlineWork(forYou)
 
     LazyColumn(
-        modifier = modifier.fillMaxWidth(),
+        // #556: CAPPED AND CENTRED, not stretched. Rendered at 840dp — an
+        // unfolded foldable, or a tablet — the proportion bars ran past 1200px
+        // and stopped being comparable at a glance, the insight sentence ran
+        // past any readable measure, and the three quote figures scattered so
+        // far apart they read as three unrelated numbers rather than one row.
+        //
+        // Web has capped this container since the overhaul (`max-w-2xl` rising
+        // to `max-w-7xl`); the phones filled whatever they were given. Same
+        // family of gap as the ring size — a considered decision made once, on
+        // one client.
+        //
+        // Modifier order is load-bearing: fill the window, then allow the
+        // content to be narrower and centre it, then cap it.
+        modifier = modifier
+            .fillMaxWidth()
+            .wrapContentWidth(Alignment.CenterHorizontally)
+            .widthIn(max = DASHBOARD_MAX_WIDTH),
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 8.dp, bottom = 24.dp),
     ) {
         item(key = "header") {
@@ -1170,6 +1188,16 @@ private fun ForYouSkeleton(modifier: Modifier = Modifier) {
  * is for the Animation Preview inspector — so naming it here says so once
  * instead of leaving a translator to guess.
  */
+/**
+ * #556: how wide the dashboard is allowed to get.
+ *
+ * 640dp is Material's "medium" window and roughly web's own base cap
+ * (`max-w-2xl`, 672px). Past it a proportion bar stops being a comparison and
+ * a sentence stops being one line the eye can carry — measured on a render at
+ * 840dp, not guessed.
+ */
+private val DASHBOARD_MAX_WIDTH = 640.dp
+
 private const val ATTENTION_DOT_TRANSITION = "attentionDot"
 
 /** 44dp paper circle icon button; optional coral dot (unread notifications). */
