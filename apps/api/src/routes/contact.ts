@@ -34,6 +34,7 @@ import { emailLayout, escapeHtml, renderEmailHtml, toHtml } from "../email/html"
 import { sendEmail } from "../email/resend";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
+import { verifyTurnstile } from "../http/turnstile";
 
 /**
  * Destination inbox for contact submissions. A product constant, not config:
@@ -63,9 +64,6 @@ export const CONTACT_DAILY_CAP = 20;
  * sending pool.
  */
 export const ABUSE_DAILY_CAP = 100;
-
-const TURNSTILE_VERIFY_URL =
-  "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 const contactBodySchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -235,25 +233,6 @@ contactRoutes.post("/contact", async (c) => {
 });
 
 /** Server-side Turnstile check; any network/HTTP failure counts as not-human. */
-async function verifyTurnstile(
-  secret: string,
-  token: string,
-  ip: string,
-): Promise<boolean> {
-  const response = await fetch(TURNSTILE_VERIFY_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      secret,
-      response: token,
-      ...(ip !== "unknown" ? { remoteip: ip } : {}),
-    }),
-  });
-  if (!response.ok) return false;
-  const payload = (await response.json()) as { success?: unknown };
-  return payload.success === true;
-}
-
 function supportText(body: ContactBody, ip: string): string {
   return (
     `New contact form submission on loonext.com\n\n` +

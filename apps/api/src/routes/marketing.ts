@@ -41,14 +41,12 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
+import { verifyTurnstile } from "../http/turnstile";
 import {
   MARKETING_CONSENT_TEXT,
   MARKETING_DAILY_CAP,
   sendComparisonEmail,
 } from "../marketing/comparison-email";
-
-const TURNSTILE_VERIFY_URL =
-  "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 const captureSchema = z.object({
   email: z.email().max(254),
@@ -129,17 +127,7 @@ marketingRoutes.post("/marketing/comparison", async (c) => {
     if (!body.turnstileToken) {
       return errorResponse(c, "validation_failed", "Captcha token is required.");
     }
-    const verify = await fetch(TURNSTILE_VERIFY_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        secret: env.TURNSTILE_SECRET_KEY,
-        response: body.turnstileToken,
-        remoteip: ip === "unknown" ? undefined : ip,
-      }),
-    });
-    const outcome = (await verify.json().catch(() => ({}))) as { success?: boolean };
-    if (outcome.success !== true) {
+    if (!(await verifyTurnstile(env.TURNSTILE_SECRET_KEY, body.turnstileToken, ip))) {
       return errorResponse(c, "validation_failed", "Captcha verification failed.");
     }
   }
