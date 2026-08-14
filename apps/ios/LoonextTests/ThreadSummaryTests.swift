@@ -874,7 +874,12 @@ final class ThreadSummaryTests: XCTestCase {
         // for "no binding"; it is the wrong one for "your request was refused".
         let card = try iosSource("Features/Thread/ThreadSummaryCard.swift")
         XCTAssertTrue(
-            card.contains("threadCatchUpMessage(result.reason)"),
+            // The OPENING of the call. #228 threads the reader's language
+            // through as `locale:`, and pinning the closing paren would have
+            // kept a refusal English to hold this green. What it asserts is
+            // that a sentence is rendered at all — the empty catch-up used to
+            // read as a button that did nothing.
+            card.contains("threadCatchUpMessage(result.reason"),
             "the card no longer renders a sentence for an empty catch-up, so a "
                 + "refusal now reads as a button that did nothing."
         )
@@ -899,7 +904,8 @@ final class ThreadSummaryTests: XCTestCase {
             )
         }
         XCTAssertTrue(
-            rejected.contains("threadCatchUpMessage(reason)"),
+            // Same reason as above: the call, not its argument list.
+            rejected.contains("threadCatchUpMessage(reason"),
             "a rejected ask draws no sentence, so the card rests as though "
                 + "nobody had pressed anything."
         )
