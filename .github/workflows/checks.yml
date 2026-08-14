@@ -280,6 +280,14 @@ jobs:
       - name: Guard screen-reader names on the phones
         run: node scripts/check-screen-reader-names.mjs
 
+      # #578: `workers_dev` and `preview_urls` both DEFAULT TO ON, so their
+      # absence is a second front door onto an origin where the host split is
+      # inert by design. The dashboard toggle lasted exactly one deploy, which
+      # is why the setting lives in the repo — and why nothing should be able to
+      # delete two three-word lines that look like defaults.
+      - name: Guard Worker front doors
+        run: node scripts/check-worker-front-doors.mjs
+
       # #580: the audit-log CSV export — "the export an owner hands to an insurer
       # or a security questionnaire" — carried its own private cell writer that
       # applied RFC-4180 quoting and never called `csvSafeText`. It was the only
